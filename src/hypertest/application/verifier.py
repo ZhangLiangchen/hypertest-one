@@ -42,7 +42,7 @@ class VerificationResult:
 def requirement_source_fingerprint(payload: RequirementProposalPayload) -> str:
     source_ref = (payload.source_ref or "").strip()
     description = " ".join(payload.description.split())
-    raw = f"{source_ref}\n{description}".encode("utf-8")
+    raw = f"{source_ref}\n{description}".encode()
     return hashlib.sha256(raw).hexdigest()
 
 
