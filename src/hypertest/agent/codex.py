@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 from hypertest.agent.base import AgentEvent, AgentSession
@@ -10,11 +11,11 @@ from hypertest.common.ids import public_key
 
 
 class CodexCliAdapter:
-    """Thin Codex CLI adapter.
+    """Thin Codex CLI adapter with an explicit TMP result boundary.
 
-    This adapter deliberately does not expose Codex-specific events to the
-    HyperTest domain. It is the first implementation of AgentHarness and can
-    later be replaced by a Codex SDK/App Server adapter without changing TMP.
+    Provider JSONL remains operational telemetry. The only final result exposed
+    to the HyperTest runtime is the validated JSON object written to the
+    mission-scoped result file.
     """
 
     def __init__(self, binary: str = "codex", extra_args: tuple[str, ...] = ()) -> None:
@@ -37,11 +38,21 @@ class CodexCliAdapter:
         if workspace is None:
             raise RuntimeError(f"unknown agent session: {session.id}")
 
+        workspace_path = Path(workspace)
+        if not workspace_path.is_dir():
+            raise RuntimeError(f"workspace does not exist: {workspace}")
+
+        result_dir = workspace_path / ".hypertest"
+        result_dir.mkdir(parents=True, exist_ok=True)
+        result_path = result_dir / "result.json"
+        result_path.unlink(missing_ok=True)
+
         mission_json = json.dumps(mission, ensure_ascii=False, sort_keys=True)
         prompt = (
             "Execute the following HyperTest Test Mission as an immutable task contract. "
-            "Use available repository and tools, do not redefine the mission, and return the "
-            "final result according to the mission output_contract.\n\n"
+            "Use available repository and tools, do not redefine the mission. "
+            "Your final action MUST write exactly one valid JSON object matching the mission "
+            f"output contract to {result_path}. Do not use stdout as the final result channel.\n\n"
             f"TEST_MISSION_JSON:\n{mission_json}"
         )
 
@@ -56,6 +67,9 @@ class CodexCliAdapter:
             stderr=asyncio.subprocess.PIPE,
         )
         self._processes[session.id] = process
+        stderr_task = None
+        if process.stderr is not None:
+            stderr_task = asyncio.create_task(process.stderr.read())
 
         yield AgentEvent(type="MISSION_STARTED", payload={"provider": "codex"})
 
@@ -79,11 +93,11 @@ class CodexCliAdapter:
 
         return_code = await process.wait()
         self._processes.pop(session.id, None)
+        stderr = ""
+        if stderr_task is not None:
+            stderr = (await stderr_task).decode("utf-8", errors="replace")
 
         if return_code != 0:
-            stderr = ""
-            if process.stderr is not None:
-                stderr = (await process.stderr.read()).decode("utf-8", errors="replace")
             yield AgentEvent(
                 type="ERROR",
                 payload={
@@ -94,6 +108,31 @@ class CodexCliAdapter:
             )
             return
 
+        if not result_path.is_file():
+            yield AgentEvent(
+                type="ERROR",
+                payload={
+                    "provider": "codex",
+                    "error_code": "RESULT_MISSING",
+                    "message": f"mission result file not found: {result_path}",
+                },
+            )
+            return
+
+        try:
+            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            yield AgentEvent(
+                type="ERROR",
+                payload={
+                    "provider": "codex",
+                    "error_code": "RESULT_INVALID",
+                    "message": str(exc),
+                },
+            )
+            return
+
+        yield AgentEvent(type="RESULT_SUBMITTED", payload=result_payload)
         yield AgentEvent(type="MISSION_FINISHED", payload={"provider": "codex"})
 
     async def interrupt(self, session: AgentSession) -> None:
