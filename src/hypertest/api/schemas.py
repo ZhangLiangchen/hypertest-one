@@ -18,6 +18,10 @@ from hypertest.domain.enums import (
     RequirementLifecycle,
     RequirementSourceType,
     RequirementType,
+    RiskCategory,
+    RiskLifecycle,
+    RiskProbability,
+    RiskSeverity,
     TestRunStatus,
 )
 
@@ -209,8 +213,37 @@ class RequirementRead(ORMModel):
     row_version: int
 
 
+class RiskRead(ORMModel):
+    id: UUID
+    key: str
+    project_id: UUID
+    source_snapshot_id: UUID
+    risk_fingerprint: str
+    category: RiskCategory
+    title: str
+    description: str
+    severity: RiskSeverity
+    probability: RiskProbability
+    rationale: str | None
+    confidence: float | None
+    lifecycle_status: RiskLifecycle
+    disposition: str | None
+    created_by_type: str
+    created_by_ref: str | None
+    created_at: datetime
+    updated_at: datetime
+    row_version: int
+    requirement_keys: list[str] = Field(default_factory=list)
+
+
 class MissionExecutionRead(BaseModel):
     mission: MissionRead
     attempt: MissionAttemptRead
     proposals: list[MissionProposalRead]
     requirements: list[RequirementRead]
+    risks: list[RiskRead]
+
+
+class PlannerRead(BaseModel):
+    reason: str
+    mission: MissionRead | None
