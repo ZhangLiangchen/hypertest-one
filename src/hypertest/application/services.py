@@ -16,7 +16,14 @@ from hypertest.api.schemas import (
     TestRunCreate,
 )
 from hypertest.common.ids import public_key
-from hypertest.domain.models import Mission, PolicySnapshot, Project, SourceSnapshot, TestRun
+from hypertest.domain.models import (
+    Mission,
+    PolicySnapshot,
+    Project,
+    Requirement,
+    SourceSnapshot,
+    TestRun,
+)
 
 
 class ConflictError(RuntimeError):
@@ -167,3 +174,15 @@ async def get_mission(session: AsyncSession, mission_id: UUID) -> Mission:
     if mission is None:
         raise NotFoundError("mission not found")
     return mission
+
+
+async def list_requirements_for_test_run(
+    session: AsyncSession, test_run_id: UUID
+) -> list[Requirement]:
+    test_run = await get_test_run(session, test_run_id)
+    result = await session.scalars(
+        select(Requirement)
+        .where(Requirement.source_snapshot_id == test_run.source_snapshot_id)
+        .order_by(Requirement.created_at, Requirement.key)
+    )
+    return list(result)
