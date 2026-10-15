@@ -84,6 +84,42 @@ class RequirementLifecycle(StrEnum):
     DEPRECATED = "DEPRECATED"
 
 
+class RiskCategory(StrEnum):
+    FUNCTIONAL = "FUNCTIONAL"
+    BOUNDARY = "BOUNDARY"
+    FAILURE = "FAILURE"
+    CONCURRENCY = "CONCURRENCY"
+    CONSISTENCY = "CONSISTENCY"
+    COMPATIBILITY = "COMPATIBILITY"
+    SECURITY = "SECURITY"
+    PERFORMANCE = "PERFORMANCE"
+    RELIABILITY = "RELIABILITY"
+    OBSERVABILITY = "OBSERVABILITY"
+    UPGRADE = "UPGRADE"
+    DATA = "DATA"
+
+
+class RiskSeverity(StrEnum):
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class RiskProbability(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+class RiskLifecycle(StrEnum):
+    OPEN = "OPEN"
+    ACCEPTED = "ACCEPTED"
+    MITIGATED = "MITIGATED"
+    OBSOLETE = "OBSOLETE"
+
+
 class AgentSessionStatus(StrEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
@@ -103,6 +139,7 @@ class MissionAttemptStatus(StrEnum):
 
 class ProposalType(StrEnum):
     REQUIREMENT = "REQUIREMENT"
+    RISK = "RISK"
 
 
 class ProposalOperation(StrEnum):
