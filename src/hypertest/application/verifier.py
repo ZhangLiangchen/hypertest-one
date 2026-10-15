@@ -25,6 +25,7 @@ from hypertest.domain.models import (
     MissionProposal,
     OutboxEvent,
     Requirement,
+    TestRun,
     utcnow,
 )
 from hypertest.protocol import MissionResultSubmission, RequirementProposalPayload
@@ -184,7 +185,10 @@ async def verify_mission_result(
             global_errors,
         )
 
-    test_run = mission.test_run
+    test_run = await session.get(TestRun, mission.test_run_id)
+    if test_run is None:
+        raise RuntimeError("test run disappeared while verifying mission")
+
     proposals: list[MissionProposal] = []
     requirements: list[Requirement] = []
     new_by_fingerprint: dict[str, Requirement] = {}
