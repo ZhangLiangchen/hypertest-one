@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: hypertest
+      POSTGRES_USER: hypertest
+      POSTGRES_PASSWORD: hypertest
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hypertest -d hypertest"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - hypertest_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      HYPERTEST_ENV: dev
+      HYPERTEST_DATABASE_URL: postgresql+asyncpg://hypertest:hypertest@postgres:5432/hypertest
+    command: >-
+      sh -c "alembic upgrade head && uvicorn hypertest.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  hypertest_pgdata:
