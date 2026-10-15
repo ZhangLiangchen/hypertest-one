@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+
+web/node_modules/
+web/.next/
+web/.env.local
+
+.DS_Store
