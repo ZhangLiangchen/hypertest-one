@@ -8,16 +8,19 @@ from hypertest.api.schemas import (
     MissionExecuteRequest,
     MissionExecutionRead,
     MissionRead,
+    PlannerRead,
     PolicySnapshotCreate,
     PolicySnapshotRead,
     ProjectCreate,
     ProjectRead,
     RequirementRead,
+    RiskRead,
     SourceSnapshotCreate,
     SourceSnapshotRead,
     TestRunCreate,
     TestRunRead,
 )
+from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import MissionRuntimeError, execute_mission
 from hypertest.application.services import (
     ConflictError,
@@ -30,7 +33,11 @@ from hypertest.application.services import (
     get_mission,
     get_project,
     get_test_run,
+    list_missions_for_test_run,
+    list_projects,
     list_requirements_for_test_run,
+    list_risks_for_test_run,
+    list_test_runs_for_project,
 )
 from hypertest.db.session import get_db
 
@@ -60,10 +67,23 @@ async def post_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db
         raise translate_domain_error(exc) from exc
 
 
+@router.get("/projects", response_model=list[ProjectRead])
+async def read_projects(db: AsyncSession = Depends(get_db)):
+    return await list_projects(db)
+
+
 @router.get("/projects/{project_id}", response_model=ProjectRead)
 async def read_project(project_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
         return await get_project(db, project_id)
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.get("/projects/{project_id}/test-runs", response_model=list[TestRunRead])
+async def read_project_test_runs(project_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        return await list_test_runs_for_project(db, project_id)
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
 
@@ -129,6 +149,21 @@ async def read_test_run_requirements(
         raise translate_domain_error(exc) from exc
 
 
+@router.get("/test-runs/{test_run_id}/risks", response_model=list[RiskRead])
+async def read_test_run_risks(
+    test_run_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        rows = await list_risks_for_test_run(db, test_run_id)
+        return [
+            RiskRead.model_validate(risk).model_copy(update={"requirement_keys": requirement_keys})
+            for risk, requirement_keys in rows
+        ]
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
 @router.post(
     "/test-runs/{test_run_id}/missions",
     response_model=MissionRead,
@@ -141,6 +176,23 @@ async def post_mission(
 ):
     try:
         return await create_mission(db, test_run_id, payload)
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.get("/test-runs/{test_run_id}/missions", response_model=list[MissionRead])
+async def read_test_run_missions(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        return await list_missions_for_test_run(db, test_run_id)
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.post("/test-runs/{test_run_id}/plan-next", response_model=PlannerRead)
+async def post_plan_next(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        result = await plan_next_mission(db, test_run_id)
+        return PlannerRead(reason=result.reason, mission=result.mission)
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
 
@@ -166,11 +218,19 @@ async def post_execute_mission(
             workspace=payload.workspace,
             provider=payload.provider,
         )
+        risk_rows = await list_risks_for_test_run(db, execution.mission.test_run_id)
+        risks_by_id = {risk.id: keys for risk, keys in risk_rows}
         return MissionExecutionRead(
             mission=execution.mission,
             attempt=execution.attempt,
             proposals=execution.proposals,
             requirements=execution.requirements,
+            risks=[
+                RiskRead.model_validate(risk).model_copy(
+                    update={"requirement_keys": risks_by_id.get(risk.id, [])}
+                )
+                for risk in execution.risks
+            ],
         )
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
