@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -9,11 +9,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from hypertest.common.ids import uuid7
 from hypertest.db.base import Base
-from hypertest.domain.enums import MissionStatus, MissionType, Priority, ProjectStatus, TestRunStatus
+from hypertest.domain.enums import (
+    MissionStatus,
+    MissionType,
+    Priority,
+    ProjectStatus,
+    TestRunStatus,
+)
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def enum_column(enum_type: type, name: str, length: int = 64):
@@ -41,7 +47,9 @@ class Project(Base):
         default=ProjectStatus.ACTIVE,
         nullable=False,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
@@ -67,7 +75,9 @@ class SourceSnapshot(Base):
     prd_artifact_uri: Mapped[str | None] = mapped_column(Text)
     configuration_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
     project: Mapped[Project] = relationship(back_populates="source_snapshots")
     test_runs: Mapped[list[TestRun]] = relationship(back_populates="source_snapshot")
@@ -86,7 +96,9 @@ class PolicySnapshot(Base):
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     artifact_uri: Mapped[str | None] = mapped_column(Text)
     compiled_policy: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
 
     project: Mapped[Project] = relationship(back_populates="policy_snapshots")
     test_runs: Mapped[list[TestRun]] = relationship(back_populates="policy_snapshot")
@@ -94,9 +106,7 @@ class PolicySnapshot(Base):
 
 class TestRun(Base):
     __tablename__ = "test_runs"
-    __table_args__ = (
-        UniqueConstraint("project_id", "key", name="uq_test_run_key"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "key", name="uq_test_run_key"),)
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     key: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -117,7 +127,9 @@ class TestRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[str] = mapped_column(String(128), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
@@ -157,7 +169,9 @@ class Mission(Base):
     idempotency_key: Mapped[str] = mapped_column(String(512), nullable=False)
     current_attempt_no: Mapped[int] = mapped_column(default=0, nullable=False)
     created_by: Mapped[str] = mapped_column(String(128), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
