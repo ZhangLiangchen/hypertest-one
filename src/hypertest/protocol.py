@@ -10,6 +10,9 @@ from hypertest.domain.enums import (
     ProposalType,
     RequirementSourceType,
     RequirementType,
+    RiskCategory,
+    RiskProbability,
+    RiskSeverity,
 )
 
 
@@ -43,4 +46,15 @@ class RequirementProposalPayload(BaseModel):
     priority: Priority = Priority.P1
     source_type: RequirementSourceType = RequirementSourceType.PRD
     source_ref: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class RiskProposalPayload(BaseModel):
+    requirement_keys: list[str] = Field(min_length=1)
+    category: RiskCategory
+    title: str = Field(min_length=1, max_length=512)
+    description: str = Field(min_length=1)
+    severity: RiskSeverity = RiskSeverity.MEDIUM
+    probability: RiskProbability = RiskProbability.UNKNOWN
+    rationale: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
