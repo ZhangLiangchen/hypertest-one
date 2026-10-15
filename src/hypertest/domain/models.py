@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import (
     JSON,
     BigInteger,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -36,6 +37,8 @@ from hypertest.domain.enums import (
     RiskLifecycle,
     RiskProbability,
     RiskSeverity,
+    TestCaseLifecycle,
+    TestCaseType,
     TestRunStatus,
 )
 
@@ -82,6 +85,7 @@ class Project(Base):
     test_runs: Mapped[list[TestRun]] = relationship(back_populates="project")
     requirements: Mapped[list[Requirement]] = relationship(back_populates="project")
     risks: Mapped[list[Risk]] = relationship(back_populates="project")
+    test_cases: Mapped[list[TestCase]] = relationship(back_populates="project")
 
 
 class SourceSnapshot(Base):
@@ -107,6 +111,7 @@ class SourceSnapshot(Base):
     test_runs: Mapped[list[TestRun]] = relationship(back_populates="source_snapshot")
     requirements: Mapped[list[Requirement]] = relationship(back_populates="source_snapshot")
     risks: Mapped[list[Risk]] = relationship(back_populates="source_snapshot")
+    test_cases: Mapped[list[TestCase]] = relationship(back_populates="source_snapshot")
 
 
 class PolicySnapshot(Base):
@@ -273,6 +278,7 @@ class Risk(Base):
     project: Mapped[Project] = relationship(back_populates="risks")
     source_snapshot: Mapped[SourceSnapshot] = relationship(back_populates="risks")
     requirement_links: Mapped[list[RequirementRisk]] = relationship(back_populates="risk")
+    test_case_links: Mapped[list[RiskTestCase]] = relationship(back_populates="risk")
 
 
 class RequirementRisk(Base):
@@ -291,6 +297,77 @@ class RequirementRisk(Base):
 
     requirement: Mapped[Requirement] = relationship(back_populates="risk_links")
     risk: Mapped[Risk] = relationship(back_populates="requirement_links")
+
+
+class TestCase(Base):
+    __tablename__ = "test_cases"
+    __table_args__ = (
+        UniqueConstraint("project_id", "key", name="uq_test_case_key"),
+        UniqueConstraint("source_snapshot_id", "case_fingerprint", name="uq_test_case_fingerprint"),
+        CheckConstraint(
+            "confidence IS NULL OR confidence BETWEEN 0 AND 1", name="ck_test_case_confidence"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    source_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_snapshots.id", ondelete="RESTRICT"), index=True
+    )
+    case_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    test_type: Mapped[TestCaseType] = mapped_column(
+        enum_column(TestCaseType, "ck_test_cases_type", 32), nullable=False, index=True
+    )
+    priority: Mapped[Priority] = mapped_column(
+        enum_column(Priority, "ck_test_cases_priority", 16), nullable=False
+    )
+    preconditions: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    expected_result: Mapped[str] = mapped_column(Text, nullable=False)
+    lifecycle_status: Mapped[TestCaseLifecycle] = mapped_column(
+        enum_column(TestCaseLifecycle, "ck_test_cases_lifecycle", 32),
+        default=TestCaseLifecycle.ACTIVE,
+        nullable=False,
+        index=True,
+    )
+    confidence: Mapped[float | None] = mapped_column(Numeric(4, 3))
+    derived_from_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("test_cases.id", ondelete="RESTRICT")
+    )
+    created_by_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_by_ref: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+    row_version: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+
+    project: Mapped[Project] = relationship(back_populates="test_cases")
+    source_snapshot: Mapped[SourceSnapshot] = relationship(back_populates="test_cases")
+    risk_links: Mapped[list[RiskTestCase]] = relationship(back_populates="test_case")
+
+
+class RiskTestCase(Base):
+    __tablename__ = "risk_test_cases"
+
+    risk_id: Mapped[UUID] = mapped_column(
+        ForeignKey("risks.id", ondelete="RESTRICT"), primary_key=True
+    )
+    test_case_id: Mapped[UUID] = mapped_column(
+        ForeignKey("test_cases.id", ondelete="RESTRICT"), primary_key=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    risk: Mapped[Risk] = relationship(back_populates="test_case_links")
+    test_case: Mapped[TestCase] = relationship(back_populates="risk_links")
 
 
 class Mission(Base):
@@ -405,9 +482,7 @@ class MissionProposal(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     mission_id: Mapped[UUID] = mapped_column(ForeignKey("missions.id", ondelete="RESTRICT"))
-    attempt_id: Mapped[UUID] = mapped_column(
-        ForeignKey("mission_attempts.id", ondelete="RESTRICT")
-    )
+    attempt_id: Mapped[UUID] = mapped_column(ForeignKey("mission_attempts.id", ondelete="RESTRICT"))
     proposal_type: Mapped[ProposalType] = mapped_column(
         enum_column(ProposalType, "ck_mission_proposals_type", 64), nullable=False
     )

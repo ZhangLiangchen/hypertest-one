@@ -17,9 +17,12 @@ from hypertest.api.schemas import (
     RiskRead,
     SourceSnapshotCreate,
     SourceSnapshotRead,
+    TestCaseRead,
+    TestRunCoverageRead,
     TestRunCreate,
     TestRunRead,
 )
+from hypertest.application.coverage import get_test_run_coverage
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import MissionRuntimeError, execute_mission
 from hypertest.application.services import (
@@ -37,6 +40,7 @@ from hypertest.application.services import (
     list_projects,
     list_requirements_for_test_run,
     list_risks_for_test_run,
+    list_test_cases_for_test_run,
     list_test_runs_for_project,
 )
 from hypertest.db.session import get_db
@@ -164,6 +168,26 @@ async def read_test_run_risks(
         raise translate_domain_error(exc) from exc
 
 
+@router.get("/test-runs/{test_run_id}/test-cases", response_model=list[TestCaseRead])
+async def read_test_run_test_cases(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        rows = await list_test_cases_for_test_run(db, test_run_id)
+        return [
+            TestCaseRead.model_validate(item).model_copy(update={"risk_keys": keys})
+            for item, keys in rows
+        ]
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.get("/test-runs/{test_run_id}/coverage", response_model=TestRunCoverageRead)
+async def read_test_run_coverage(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        return await get_test_run_coverage(db, test_run_id)
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
 @router.post(
     "/test-runs/{test_run_id}/missions",
     response_model=MissionRead,
@@ -220,6 +244,8 @@ async def post_execute_mission(
         )
         risk_rows = await list_risks_for_test_run(db, execution.mission.test_run_id)
         risks_by_id = {risk.id: keys for risk, keys in risk_rows}
+        case_rows = await list_test_cases_for_test_run(db, execution.mission.test_run_id)
+        cases_by_id = {item.id: keys for item, keys in case_rows}
         return MissionExecutionRead(
             mission=execution.mission,
             attempt=execution.attempt,
@@ -230,6 +256,12 @@ async def post_execute_mission(
                     update={"requirement_keys": risks_by_id.get(risk.id, [])}
                 )
                 for risk in execution.risks
+            ],
+            test_cases=[
+                TestCaseRead.model_validate(item).model_copy(
+                    update={"risk_keys": cases_by_id.get(item.id, [])}
+                )
+                for item in execution.test_cases
             ],
         )
     except RuntimeError as exc:

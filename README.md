@@ -43,17 +43,18 @@ The control-plane spine now includes:
 
 - FastAPI `/api/v1` REST surface.
 - PostgreSQL + SQLAlchemy async persistence and Alembic migrations.
-- Canonical entities: `Project`, `SourceSnapshot`, `PolicySnapshot`, `TestRun`, `Requirement`, `Risk`, `Mission`.
-- `RequirementRisk` relational traceability.
+- Canonical entities: `Project`, `SourceSnapshot`, `PolicySnapshot`, `TestRun`, `Requirement`, `Risk`, `TestCase`, `Mission`.
+- `RequirementRisk` and `RiskTestCase` relational traceability.
 - `MissionAttempt`, `MissionProposal`, `AgentSession`, `AuditEvent`, and transactional `OutboxEvent`.
 - UUIDv7 canonical primary keys and human-readable operational keys.
 - Immutable source/policy snapshot semantics.
-- Deterministic source/risk fingerprinting and Mission spec hashing.
+- Deterministic source/risk/test-intent fingerprinting and Mission spec hashing.
 - Provider-neutral `AgentHarness` and thin `CodexCliAdapter`.
 - TMP result boundary: provider telemetry is operational state; only `RESULT_SUBMITTED` is considered for domain verification.
-- Canonical verifier for `ANALYZE_REQUIREMENTS` and `ANALYZE_RISKS`.
+- Canonical verifier for `ANALYZE_REQUIREMENTS`, `ANALYZE_RISKS`, and `DESIGN_TESTS`.
 - Deterministic Planner that derives the next Mission from canonical state gaps.
-- PostgreSQL integration coverage for `Requirement → Risk` canonical state transitions.
+- A dedicated `RiskCoverageEvaluator` for deterministic test design dimensions.
+- PostgreSQL integration coverage for the continuous `Requirement → Risk → TestCase` Planner loop, idempotency, deduplication, and atomic audit/outbox persistence.
 
 ### Planner loop
 
@@ -63,16 +64,21 @@ TestRun
 Planner
   ├─ no Requirement → ANALYZE_REQUIREMENTS
   ├─ Requirement without Risk → ANALYZE_RISKS
-  └─ all Requirements risk-covered → no action (next slice: DESIGN_TESTS)
+  ├─ Risk with missing test design dimensions → DESIGN_TESTS
+  └─ all Risks design-covered → TEST_DESIGN_COVERAGE_COMPLETE
 ```
+
+The baseline requires `FUNCTIONAL` tests for every non-obsolete Risk, plus a matching `BOUNDARY`, `FAILURE`, `CONCURRENCY`, `SECURITY`, or `PERFORMANCE` dimension where applicable. `RELIABILITY` Risks additionally require `RECOVERY`. Only linked `ACTIVE` TestCases contribute. The evaluator is a separate component so future policy can define richer dimensions. Design coverage does not imply test execution, evidence, or a release verdict.
+
+Each design Mission receives canonical Risks and an immutable description of missing dimensions. A submission must contribute to at least one currently missing target dimension; the Planner creates the next Mission for remaining gaps. Repeated planning reuses an actionable design Mission.
 
 The current implementation makes the architectural rule executable:
 
 > **Agent proposes. HyperTest commits.**
 
-## Web v0.1
+## Web v0.2
 
-`web/` contains the first Next.js + Ant Design + TanStack Query workbench. It is intentionally centered on **Testing State rather than Agent Conversation**.
+`web/` contains the Next.js + Ant Design + TanStack Query workbench. It is centered on **Testing State rather than Agent Conversation**.
 
 Current pages:
 
@@ -85,11 +91,15 @@ Current pages:
 The TestRun workbench displays:
 
 - TestRun status and SourceSnapshot identity.
-- Requirement canonical state.
-- Risk canonical state and Requirement ↔ Risk traceability.
+- Requirements, Risks, Test Cases, and Missions tabs.
+- Requirement ↔ Risk ↔ TestCase traceability, including test intent, preconditions, and expected result.
 - Mission history and attempt count.
-- Derived Requirement risk coverage.
+- Active Requirement, non-obsolete Risk, and active TestCase counts.
+- Risk identification coverage and Risk test coverage, derived by the backend.
+- Complete/gap status and required, covered, and missing design dimensions for each assessed Risk.
 - `Plan next mission` action backed by the HyperTest Planner.
+
+Coverage ratios with no eligible denominator are `null` and shown as unknown, never as 100%.
 
 ## Current API
 
@@ -108,6 +118,8 @@ POST /api/v1/test-runs
 GET  /api/v1/test-runs/{test_run_id}
 GET  /api/v1/test-runs/{test_run_id}/requirements
 GET  /api/v1/test-runs/{test_run_id}/risks
+GET  /api/v1/test-runs/{test_run_id}/test-cases
+GET  /api/v1/test-runs/{test_run_id}/coverage
 GET  /api/v1/test-runs/{test_run_id}/missions
 POST /api/v1/test-runs/{test_run_id}/missions
 POST /api/v1/test-runs/{test_run_id}/plan-next
@@ -152,7 +164,7 @@ For local Web development:
 
 ```bash
 cd web
-npm install
+npm ci
 HYPERTEST_API_ORIGIN=http://127.0.0.1:8000 npm run dev
 ```
 
@@ -168,9 +180,14 @@ Web validation:
 
 ```bash
 cd web
+npm ci
 npm run typecheck
 npm run build
 ```
+
+GitHub Actions runs both backend validation against PostgreSQL 17 and Web validation on Node.js 22 for every pull request and push to `main`. Web dependencies are installed once with the committed lockfile.
+
+Migration `0004_test_design` follows `0003_risk_planner`, creates `test_cases` and the relational `risk_test_cases` association, and permits `TEST_CASE` proposals. `alembic upgrade head` applies the full chain from a clean database.
 
 ## Project principle
 

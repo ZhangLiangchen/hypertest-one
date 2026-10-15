@@ -120,6 +120,29 @@ class RiskLifecycle(StrEnum):
     OBSOLETE = "OBSOLETE"
 
 
+class TestCaseType(StrEnum):
+    FUNCTIONAL = "FUNCTIONAL"
+    BOUNDARY = "BOUNDARY"
+    NEGATIVE = "NEGATIVE"
+    FAILURE = "FAILURE"
+    CONCURRENCY = "CONCURRENCY"
+    CONSISTENCY = "CONSISTENCY"
+    COMPATIBILITY = "COMPATIBILITY"
+    SECURITY = "SECURITY"
+    PERFORMANCE = "PERFORMANCE"
+    RELIABILITY = "RELIABILITY"
+    UPGRADE = "UPGRADE"
+    DATA = "DATA"
+    RECOVERY = "RECOVERY"
+
+
+class TestCaseLifecycle(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    DEPRECATED = "DEPRECATED"
+
+
 class AgentSessionStatus(StrEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
@@ -140,6 +163,7 @@ class MissionAttemptStatus(StrEnum):
 class ProposalType(StrEnum):
     REQUIREMENT = "REQUIREMENT"
     RISK = "RISK"
+    TEST_CASE = "TEST_CASE"
 
 
 class ProposalOperation(StrEnum):

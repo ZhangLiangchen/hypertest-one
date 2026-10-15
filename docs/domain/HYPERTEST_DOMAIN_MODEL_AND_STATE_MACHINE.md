@@ -1,12 +1,12 @@
 # HyperTest Domain Model & State Machine Specification
 
 **Document Status:** Draft / Normative  
-**Version:** v0.1  
+**Version:** v0.2
 **Parent Documents:**
 
 - HyperTest Whitepaper v1.0
-- HyperTest Technical Architecture v0.1
-- Test Mission Protocol Specification v0.1
+- HyperTest Technical Architecture v0.2
+- Test Mission Protocol Specification v0.2
 
 **Applies To:** HyperTest Canonical Testing State
 
@@ -403,6 +403,10 @@ Risk Coverage 不是 Lifecycle，必须动态计算。
 
 TestCase 表示明确、可执行、可验证的测试意图，描述 what to verify，而不是 how code implements it。
 
+### v0.2 领域决策
+
+TestCase 在 v0.2 首次进入 Canonical persistence。按本迭代的协议约定，使用 `description` 表达测试意图、`test_type` 表达类别、字符串 `expected_result` 表达可验证预期，`preconditions` 为字符串列表。它们替代 v0.1 尚未实现的 `objective`、`case_type`、`steps` 和 JSONB expected result 草案；不存在历史 TestCase 数据或列需要重命名。未来结构化步骤可通过版本化协议和 additive migration 引入。
+
 ```text
 id
 key
@@ -410,12 +414,11 @@ project_id
 source_snapshot_id
 case_fingerprint
 title
-objective
-case_type
+description
+test_type
 priority
-preconditions JSONB
-steps JSONB
-expected_result JSONB
+preconditions JSON (list[str])
+expected_result text
 lifecycle_status
 confidence
 derived_from_id nullable
@@ -426,21 +429,47 @@ updated_at
 row_version
 ```
 
-Case Type：FUNCTIONAL、BOUNDARY、NEGATIVE、FAILURE、CONCURRENCY、CONSISTENCY、COMPATIBILITY、SECURITY、PERFORMANCE、RELIABILITY、UPGRADE、DATA。
+Test Type：FUNCTIONAL、BOUNDARY、NEGATIVE、FAILURE、CONCURRENCY、CONSISTENCY、COMPATIBILITY、SECURITY、PERFORMANCE、RELIABILITY、UPGRADE、DATA、RECOVERY。
 
-TestCase ↔ Requirement 使用 `test_case_requirements`；TestCase ↔ Risk 使用 `test_case_risks`。
+TestCase ↔ Risk 使用 `risk_test_cases` Join Table，对应 `RiskTestCase`：
+
+```text
+risk_id          uuid FK risks(id) ON DELETE RESTRICT
+test_case_id     uuid FK test_cases(id) ON DELETE RESTRICT
+created_at       timestamptz
+PRIMARY KEY(risk_id, test_case_id)
+```
+
+v0.2 Requirement → TestCase 追溯通过 `requirement_risks` → `risk_test_cases` 派生，不重复保存关系 JSON 数组。直接 `test_case_requirements` 关联作为后续扩展保留；v0.1 计划名称 `test_case_risks` 被首次实现名称 `risk_test_cases` 取代。
 
 Fingerprint：
 
 ```text
-SHA256(source_snapshot + normalized objective + case_type + linked risk fingerprints)
+SHA256(stable JSON {
+  source_snapshot_id,
+  normalized description,
+  test_type,
+  normalized preconditions (preserving order),
+  normalized expected_result,
+  sorted unique linked canonical risk_fingerprints
+})
 ```
+
+归一化折叠文本中的空白，不改变大小写；JSON 使用排序字段和固定分隔符。title、priority、confidence 不参与意图身份，因此仅修改展示标题或优先级不会创建重复用例。Risk 引用在计算前解析为当前 Project / Snapshot 下非 OBSOLETE 的 Canonical Risk。Fingerprint 是确定性精确意图去重，不宣称跨快照或语义相似去重。
 
 唯一：`UNIQUE(source_snapshot_id, case_fingerprint)`。
 
-生命周期：ACTIVE → SUPERSEDED / DEPRECATED。
+同时要求 `UNIQUE(project_id, key)`、`confidence IS NULL OR confidence BETWEEN 0 AND 1`、全部 FK 以及类别 / 优先级 / 生命周期 CHECK constraints。
+
+生命周期：DRAFT → ACTIVE → SUPERSEDED / DEPRECATED。当前 Verifier 接受 CREATE Proposal 后创建 ACTIVE 用例，DRAFT 和后续生命周期变更预留给受控服务；Agent 不设置 Canonical Lifecycle。
 
 PASS、FAIL、AUTOMATED、NOT_AUTOMATED 都不是 TestCase Lifecycle。Automation Status 从 TestImplementation 派生。
+
+### DESIGN_TESTS Canonical Commit
+
+Agent 仅提交 `TEST_CASE` / `CREATE` Proposal。Verifier 校验 schema、非空测试意图、Risk 引用存在性、Project / SourceSnapshot 一致性、非 OBSOLETE Risk、Proposal idempotency 以及规划 Mission 的覆盖进展约束，然后计算 fingerprint。重复 fingerprint 关联已有 Canonical TestCase；不重复创建用例或 `test_case.accepted` 事件。
+
+新用例、全部 `RiskTestCase` link、Proposal ACCEPTED、AuditEvent、OutboxEvent 和 Mission / Attempt 成功状态在同一事务中落库。`created_by_ref` 指向 MissionAttempt；Proposal 的 `accepted_entity_id` 与 mission_id / attempt_id 保留创建来源。任一无效 Proposal 拒绝整个 batch，不产生部分 Canonical Commit。
 
 ---
 
@@ -866,8 +895,7 @@ requirements
 risks
 requirement_risks
 test_cases
-test_case_requirements
-test_case_risks
+risk_test_cases
 test_implementations
 implementation_test_cases
 test_executions
@@ -889,6 +917,8 @@ entity_provenance
 audit_events
 outbox_events
 ```
+
+上表为完整 MVP 目标，并非全部已实现。v0.2 已实现至 Requirement → Risk → TestCase，直接 Requirement ↔ TestCase 关系（后续 `test_case_requirements`）和 Implementation / Execution / Evidence 等后续链路按阶段加入。
 
 ---
 
@@ -960,14 +990,13 @@ CREATE TABLE test_cases (
     key varchar(64) NOT NULL,
     project_id uuid NOT NULL REFERENCES projects(id),
     source_snapshot_id uuid NOT NULL REFERENCES source_snapshots(id),
-    case_fingerprint char(64) NOT NULL,
+    case_fingerprint varchar(64) NOT NULL,
     title varchar(512) NOT NULL,
-    objective text NOT NULL,
-    case_type varchar(32) NOT NULL,
+    description text NOT NULL,
+    test_type varchar(32) NOT NULL,
     priority varchar(16) NOT NULL,
-    preconditions jsonb NOT NULL DEFAULT '[]',
-    steps jsonb NOT NULL DEFAULT '[]',
-    expected_result jsonb NOT NULL DEFAULT '{}',
+    preconditions json NOT NULL DEFAULT '[]',
+    expected_result text NOT NULL,
     lifecycle_status varchar(32) NOT NULL,
     confidence numeric(4,3),
     derived_from_id uuid REFERENCES test_cases(id),
@@ -977,9 +1006,24 @@ CREATE TABLE test_cases (
     updated_at timestamptz NOT NULL,
     row_version bigint NOT NULL DEFAULT 1,
     UNIQUE(project_id, key),
-    UNIQUE(source_snapshot_id, case_fingerprint)
+    UNIQUE(source_snapshot_id, case_fingerprint),
+    CHECK(confidence IS NULL OR confidence BETWEEN 0 AND 1),
+    CHECK(test_type IN ('FUNCTIONAL', 'BOUNDARY', 'NEGATIVE', 'FAILURE', 'CONCURRENCY',
+                      'CONSISTENCY', 'COMPATIBILITY', 'SECURITY', 'PERFORMANCE',
+                      'RELIABILITY', 'UPGRADE', 'DATA', 'RECOVERY')),
+    CHECK(priority IN ('P0', 'P1', 'P2', 'P3')),
+    CHECK(lifecycle_status IN ('DRAFT', 'ACTIVE', 'SUPERSEDED', 'DEPRECATED'))
+);
+
+CREATE TABLE risk_test_cases (
+    risk_id uuid NOT NULL REFERENCES risks(id) ON DELETE RESTRICT,
+    test_case_id uuid NOT NULL REFERENCES test_cases(id) ON DELETE RESTRICT,
+    created_at timestamptz NOT NULL,
+    PRIMARY KEY(risk_id, test_case_id)
 );
 ```
+
+`0004_test_design` 在 `0003_risk_planner` 后创建以上两表，并把 MissionProposal 类型约束扩展至 TEST_CASE。从空库升级依次执行 0001 → 0002 → 0003 → 0004；新表不重写历史 Requirement / Risk。存在 TestCase 行或 TEST_CASE Proposal 时降级失败，避免破坏已接受的历史。
 
 ### TestExecution
 
@@ -1082,13 +1126,37 @@ Canonical Entity FK 默认 `ON DELETE RESTRICT`，禁止因为删除父对象而
 
 需要性能时建立 Read Model / Materialized View，例如 `coverage_projection`。
 
-Requirement Coverage 第一版：
+v0.2 的 Risk identification coverage：
 
 ```text
-covered active risks / all required active risks
+具有至少一个非 OBSOLETE Risk 关联的 ACTIVE Requirements / 全部 ACTIVE Requirements
 ```
 
-若 Requirement 尚无 Risk，coverage = UNKNOWN，而不是 100%。
+Requirement 无 Risk 时标记 gap，不能视为已识别。没有 ACTIVE Requirement 时比例为 `null`（未知），不是 100%。
+
+v0.2 的 Risk test coverage 由独立 `RiskCoverageEvaluator` 从关系计算，规则版本为 `risk-design-baseline/v1`：
+
+| Risk category | Required test design dimensions |
+|---|---|
+| FUNCTIONAL、CONSISTENCY、COMPATIBILITY、OBSERVABILITY、UPGRADE、DATA | FUNCTIONAL |
+| BOUNDARY | FUNCTIONAL + BOUNDARY |
+| FAILURE | FUNCTIONAL + FAILURE |
+| CONCURRENCY | FUNCTIONAL + CONCURRENCY |
+| SECURITY | FUNCTIONAL + SECURITY |
+| PERFORMANCE | FUNCTIONAL + PERFORMANCE |
+| RELIABILITY | FUNCTIONAL + RECOVERY |
+
+每个 Risk 的 covered dimensions 来自同一 Project / SourceSnapshot 下通过 `risk_test_cases` 关联的 ACTIVE TestCases；只有 required dimensions 全部满足才算 Complete，否则为 Gap。DRAFT / SUPERSEDED / DEPRECATED 用例不贡献覆盖，OBSOLETE Risk 不参与评估。
+
+```text
+Risk test coverage = Complete 的非 OBSOLETE Risks / 全部非 OBSOLETE Risks
+```
+
+没有 eligible Risk 时比例为 `null`，不是 100%。API 返回每个 Risk 的 required / covered / missing dimensions；Planner 与 Web 共用此评估结果，禁止由 Agent 自述覆盖。
+
+此规则是可替换的确定性基线，不是永久的“存在一个用例即覆盖”模型。未来 Policy 可声明所需维度或更丰富的风险覆盖条件，通过专用评估组件扩展，不把 Planner 改造成通用 LLM Agent。
+
+Planner 在 Requirement 和 Risk 缺口满足后，对剩余维度创建 DESIGN_TESTS Mission；全部 Risk 达到基线后返回 `TEST_DESIGN_COVERAGE_COMPLETE`。该结果是设计覆盖状态，不是 TestRun 的 PASS / FINAL Verdict。
 
 Risk Coverage 分层：
 

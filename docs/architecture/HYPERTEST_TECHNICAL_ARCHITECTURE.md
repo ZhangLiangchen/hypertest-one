@@ -1,7 +1,7 @@
 # HyperTest Technical Architecture
 
 **Document Status:** Draft  
-**Version:** v0.1  
+**Version:** v0.2
 **Parent Document:** HyperTest Whitepaper v1.0  
 **Architecture Role:** Autonomous Testing Control Plane
 
@@ -113,6 +113,8 @@ artifact-store
 主要页面：Project Overview、Requirement Explorer、Risk Matrix、Test Case Explorer、Coverage Dashboard、Test Run、Mission Activity、Evidence Viewer、Finding Center、Quality Verdict、Agent Activity。
 
 Agent Chat 可以存在，但只能是辅助界面，不能成为产品主界面。
+
+Web v0.2 的 TestRun Workbench 提供 Requirements、Risks、Test Cases、Missions 四个状态页签。计数、Risk identification coverage 和 Risk test coverage 来自 Canonical State；每个 Risk 显示 Complete / Gap 以及 required / covered / missing dimensions。不存在分母时显示未知，不宣称完成测试执行或发布验收。
 
 ---
 
@@ -248,11 +250,24 @@ Optional LLM Reasoning
 
 LLM 不独占 Planner。像“P0 Risk 没有 Case”这种判断应 deterministic；“Git Diff 是否引入新的 consistency risk”适合 Agent reasoning。
 
+当前可执行的 deterministic-first 闭环：
+
+```text
+无 ACTIVE Requirement → ANALYZE_REQUIREMENTS
+ACTIVE Requirement 无非 OBSOLETE Risk → ANALYZE_RISKS
+非 OBSOLETE Risk 缺少 required test design dimensions → DESIGN_TESTS
+所有 Risk 的设计维度满足 → TEST_DESIGN_COVERAGE_COMPLETE
+```
+
+最后一个结果仅表示设计阶段覆盖完成，不创建 Verdict，不宣称 Implementation / Execution / Evidence 完成。Planner 调用独立的 `RiskCoverageEvaluator`，不自行使用 LLM 判定覆盖。重复规划复用仍可执行的 DESIGN_TESTS Mission；后续覆盖缺口变化时创建新的不可变 Mission，保留已有 Mission 和 Attempt 历史。
+
 ---
 
 ## 15. Mission Compiler
 
 Planner 输出 `MissionIntent`，Mission Compiler 负责：Resolve Context、Attach Policy、Calculate Permissions、Build Acceptance Criteria、Select Output Schema、Select Execution Profile，最终生成不可变 `TestMission`。
+
+当前 DESIGN_TESTS 编译上下文包含同一 Project / SourceSnapshot 下的 Canonical Risks、PolicySnapshot 引用和覆盖评估。Mission 固定目标 Risk 和 missing dimensions；Verifier 至少要求有效 Proposal 对其中仍缺失的一个维度形成进展。Mission 完成不等于整个 TestRun 设计完成，剩余缺口由下次 Planner 评估。
 
 ---
 
@@ -371,6 +386,8 @@ Verifier 分三层：
 - **L2 Policy**：required risk categories、evidence、forbidden operations、acceptance criteria。
 - **L3 Semantic**：必要时使用 LLM 判断 Test 是否真正覆盖 Risk、Finding 是否匹配 Evidence、Requirement 拆解是否合理。
 
+v0.2 DESIGN_TESTS 使用确定性 schema / reference / source snapshot / fingerprint / idempotency / coverage progress 校验。整个 Proposal batch 通过后，TestCase、`risk_test_cases` 关系、Proposal acceptance、AuditEvent 和 OutboxEvent 在同一数据库事务提交。Canonical State 不保存在 Agent Session 中。语义质量判定属于后续扩展，当前类型维度覆盖不能替代语义证明或 Runner Evidence。
+
 ---
 
 ## 24. Runner Controller
@@ -428,6 +445,10 @@ Coverage 不只是代码覆盖率。HyperTest 应管理：Requirement Coverage�
 
 Coverage 是 Derived State，不是 Agent Claim。
 
+当前设计覆盖边界位于 `application/coverage.py` 的 `RiskCoverageEvaluator`，供 Planner 和 Coverage API 共同使用。`risk-design-baseline/v1` 对每个非 OBSOLETE Risk 要求 FUNCTIONAL；BOUNDARY、FAILURE、CONCURRENCY、SECURITY、PERFORMANCE 额外要求同名维度，RELIABILITY 额外要求 RECOVERY，其他类别使用 FUNCTIONAL 基线。只有同一 Snapshot 下通过 `RiskTestCase` 关联的 ACTIVE TestCase 贡献维度。
+
+Risk identification coverage 为存在非 OBSOLETE Risk 关联的 ACTIVE Requirements / 全部 ACTIVE Requirements；Risk test coverage 为已满足全部 required dimensions 的非 OBSOLETE Risks / 全部非 OBSOLETE Risks。空分母返回 `null`。未来 Policy 可扩展所需维度，Planner 和 Web 继续使用同一服务边界，无需成为通用 LLM Agent。
+
 ---
 
 ## 30. Gate Engine
@@ -458,7 +479,7 @@ PolicySnapshot
 
 ## 32. Event System
 
-HyperTest 内部采用 Domain Event：`test_run.created`、`requirement.accepted`、`risk.accepted`、`mission.created`、`mission.completed`、`execution.completed`、`evidence.created`、`finding.reported`、`verdict.changed` 等。
+HyperTest 内部采用 Domain Event：`test_run.created`、`requirement.accepted`、`risk.accepted`、`test_case.accepted`、`mission.created`、`mission.completed`、`execution.completed`、`evidence.created`、`finding.reported`、`verdict.changed` 等。
 
 MVP 使用 PostgreSQL Transaction + Transactional Outbox，不需要一开始引入 Kafka。
 
@@ -566,6 +587,7 @@ MVP 仅支持：CodexAdapter、pytest、DockerRunner、Backend/API Testing，以
 - **ADR-006** Verdict 必须基于 Policy + Canonical State + Evidence。
 - **ADR-007** BUGate 保持 Stateless。
 - **ADR-008** HyperTest orchestrates Testing Missions, not model reasoning.
+- **ADR-009** v0.2 首次实现 TestCase 时采用 `description`、`test_type`、字符串 `expected_result` 和 `risk_test_cases` Join Table；替代早期草案未实现的 `objective` / `case_type` / 结构化步骤方案。详细持久化约束以领域模型 v0.2 为准，不涉及已有 Canonical 列的破坏性重命名。
 
 ---
 

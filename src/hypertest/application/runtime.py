@@ -24,10 +24,11 @@ from hypertest.domain.models import (
     MissionProposal,
     Requirement,
     Risk,
+    TestCase,
     TestRun,
     utcnow,
 )
-from hypertest.protocol import MissionResultSubmission
+from hypertest.protocol import MissionResultSubmission, TestCaseProposalPayload
 
 
 class MissionRuntimeError(RuntimeError):
@@ -41,6 +42,7 @@ class MissionExecutionResult:
     proposals: list[MissionProposal]
     requirements: list[Requirement]
     risks: list[Risk]
+    test_cases: list[TestCase]
 
 
 def _output_schema_for(mission_type: MissionType) -> str:
@@ -48,6 +50,8 @@ def _output_schema_for(mission_type: MissionType) -> str:
         return "hypertest.result/requirement-analysis/v1"
     if mission_type is MissionType.ANALYZE_RISKS:
         return "hypertest.result/risk-analysis/v1"
+    if mission_type is MissionType.DESIGN_TESTS:
+        return "hypertest.result/test-design/v1"
     raise MissionRuntimeError(f"unsupported mission type: {mission_type.value}")
 
 
@@ -70,6 +74,15 @@ def build_mission_contract(mission: Mission, test_run: TestRun) -> dict[str, Any
             "human_summary": True,
         },
     )
+    if mission.mission_type is MissionType.DESIGN_TESTS:
+        output_contract = dict(contract["output_contract"])
+        output_contract.setdefault("proposal_type", "TEST_CASE")
+        output_contract.setdefault("operation", "CREATE")
+        output_contract.setdefault(
+            "object_payload_schema", TestCaseProposalPayload.model_json_schema()
+        )
+        output_contract.setdefault("result_schema", MissionResultSubmission.model_json_schema())
+        contract["output_contract"] = output_contract
     return contract
 
 
@@ -118,9 +131,10 @@ async def execute_mission(
     if mission.mission_type not in {
         MissionType.ANALYZE_REQUIREMENTS,
         MissionType.ANALYZE_RISKS,
+        MissionType.DESIGN_TESTS,
     }:
         raise MissionRuntimeError(
-            "runtime currently supports ANALYZE_REQUIREMENTS and ANALYZE_RISKS only"
+            "runtime currently supports ANALYZE_REQUIREMENTS, ANALYZE_RISKS and DESIGN_TESTS"
         )
     if mission.status not in {
         MissionStatus.CREATED,
@@ -155,8 +169,13 @@ async def execute_mission(
     mission.status = MissionStatus.RUNNING
     mission.dispatched_at = mission.dispatched_at or now
     mission.row_version += 1
-    if test_run.status is TestRunStatus.CREATED:
-        test_run.status = TestRunStatus.ANALYZING
+    next_run_status = (
+        TestRunStatus.DESIGNING
+        if mission.mission_type is MissionType.DESIGN_TESTS
+        else TestRunStatus.ANALYZING
+    )
+    if test_run.status in {TestRunStatus.CREATED, TestRunStatus.ANALYZING}:
+        test_run.status = next_run_status
         test_run.started_at = test_run.started_at or now
         test_run.row_version += 1
     await session.commit()
@@ -251,4 +270,5 @@ async def execute_mission(
         proposals=verification.proposals,
         requirements=verification.requirements,
         risks=verification.risks,
+        test_cases=verification.test_cases,
     )

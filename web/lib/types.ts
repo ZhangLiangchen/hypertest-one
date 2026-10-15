@@ -70,3 +70,56 @@ export type PlannerResult = {
   reason: string;
   mission: Mission | null;
 };
+
+export type TestType =
+  | "FUNCTIONAL"
+  | "BOUNDARY"
+  | "NEGATIVE"
+  | "FAILURE"
+  | "CONCURRENCY"
+  | "CONSISTENCY"
+  | "COMPATIBILITY"
+  | "SECURITY"
+  | "PERFORMANCE"
+  | "RELIABILITY"
+  | "UPGRADE"
+  | "DATA"
+  | "RECOVERY";
+
+export type TestCase = {
+  id: string;
+  key: string;
+  project_id: string;
+  source_snapshot_id: string;
+  title: string;
+  description: string;
+  test_type: TestType;
+  priority: string;
+  lifecycle_status: string;
+  preconditions: string[];
+  expected_result: string;
+  case_fingerprint: string;
+  confidence?: number | null;
+  created_at: string;
+  updated_at: string;
+  row_version: number;
+  risk_keys: string[];
+};
+
+export type RiskTestCoverage = {
+  risk_id: string;
+  risk_key: string;
+  required_dimensions: TestType[];
+  covered_dimensions: TestType[];
+  missing_dimensions: TestType[];
+  complete: boolean;
+};
+
+export type Coverage = {
+  requirement_count: number;
+  risk_count: number;
+  test_case_count: number;
+  risk_identification_coverage: number | null;
+  risk_test_coverage: number | null;
+  risks: RiskTestCoverage[];
+};

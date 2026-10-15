@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from hypertest.domain.enums import (
     Priority,
@@ -13,6 +13,7 @@ from hypertest.domain.enums import (
     RiskCategory,
     RiskProbability,
     RiskSeverity,
+    TestCaseType,
 )
 
 
@@ -58,3 +59,30 @@ class RiskProposalPayload(BaseModel):
     probability: RiskProbability = RiskProbability.UNKNOWN
     rationale: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class TestCaseProposalPayload(BaseModel):
+    """An agent's proposed test intent; canonical references are resolved by HyperTest."""
+
+    risk_keys: list[str] = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=512)
+    description: str = Field(min_length=1)
+    test_type: TestCaseType
+    priority: Priority = Priority.P1
+    preconditions: list[str] = Field(default_factory=list)
+    expected_result: str = Field(min_length=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+    @field_validator("risk_keys")
+    @classmethod
+    def validate_risk_keys(cls, values: list[str]) -> list[str]:
+        if any(not value.strip() for value in values):
+            raise ValueError("risk keys must not be blank")
+        return sorted({value.strip() for value in values})
+
+    @field_validator("title", "description", "expected_result")
+    @classmethod
+    def validate_nonblank_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("test intent text must not be blank")
+        return value
