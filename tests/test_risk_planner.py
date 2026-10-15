@@ -6,7 +6,12 @@ import pytest
 from sqlalchemy import func, select
 
 from hypertest.agent.base import AgentEvent, AgentSession
-from hypertest.api.schemas import PolicySnapshotCreate, ProjectCreate, SourceSnapshotCreate, TestRunCreate
+from hypertest.api.schemas import (
+    PolicySnapshotCreate,
+    ProjectCreate,
+    SourceSnapshotCreate,
+    TestRunCreate,
+)
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import execute_mission
 from hypertest.application.services import (
