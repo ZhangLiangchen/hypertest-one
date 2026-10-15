@@ -32,6 +32,10 @@ from hypertest.domain.enums import (
     RequirementLifecycle,
     RequirementSourceType,
     RequirementType,
+    RiskCategory,
+    RiskLifecycle,
+    RiskProbability,
+    RiskSeverity,
     TestRunStatus,
 )
 
@@ -77,6 +81,7 @@ class Project(Base):
     policy_snapshots: Mapped[list[PolicySnapshot]] = relationship(back_populates="project")
     test_runs: Mapped[list[TestRun]] = relationship(back_populates="project")
     requirements: Mapped[list[Requirement]] = relationship(back_populates="project")
+    risks: Mapped[list[Risk]] = relationship(back_populates="project")
 
 
 class SourceSnapshot(Base):
@@ -101,6 +106,7 @@ class SourceSnapshot(Base):
     project: Mapped[Project] = relationship(back_populates="source_snapshots")
     test_runs: Mapped[list[TestRun]] = relationship(back_populates="source_snapshot")
     requirements: Mapped[list[Requirement]] = relationship(back_populates="source_snapshot")
+    risks: Mapped[list[Risk]] = relationship(back_populates="source_snapshot")
 
 
 class PolicySnapshot(Base):
@@ -214,6 +220,77 @@ class Requirement(Base):
 
     project: Mapped[Project] = relationship(back_populates="requirements")
     source_snapshot: Mapped[SourceSnapshot] = relationship(back_populates="requirements")
+    risk_links: Mapped[list[RequirementRisk]] = relationship(back_populates="requirement")
+
+
+class Risk(Base):
+    __tablename__ = "risks"
+    __table_args__ = (
+        UniqueConstraint("project_id", "key", name="uq_risk_key"),
+        UniqueConstraint(
+            "source_snapshot_id",
+            "risk_fingerprint",
+            name="uq_risk_source_fingerprint",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"))
+    source_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_snapshots.id", ondelete="RESTRICT")
+    )
+    risk_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    category: Mapped[RiskCategory] = mapped_column(
+        enum_column(RiskCategory, "ck_risks_category", 32), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[RiskSeverity] = mapped_column(
+        enum_column(RiskSeverity, "ck_risks_severity", 16), nullable=False
+    )
+    probability: Mapped[RiskProbability] = mapped_column(
+        enum_column(RiskProbability, "ck_risks_probability", 16), nullable=False
+    )
+    rationale: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[float | None] = mapped_column(Numeric(4, 3))
+    lifecycle_status: Mapped[RiskLifecycle] = mapped_column(
+        enum_column(RiskLifecycle, "ck_risks_lifecycle", 32),
+        default=RiskLifecycle.OPEN,
+        nullable=False,
+    )
+    disposition: Mapped[str | None] = mapped_column(Text)
+    created_by_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_by_ref: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+    row_version: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+
+    project: Mapped[Project] = relationship(back_populates="risks")
+    source_snapshot: Mapped[SourceSnapshot] = relationship(back_populates="risks")
+    requirement_links: Mapped[list[RequirementRisk]] = relationship(back_populates="risk")
+
+
+class RequirementRisk(Base):
+    __tablename__ = "requirement_risks"
+
+    requirement_id: Mapped[UUID] = mapped_column(
+        ForeignKey("requirements.id", ondelete="RESTRICT"), primary_key=True
+    )
+    risk_id: Mapped[UUID] = mapped_column(
+        ForeignKey("risks.id", ondelete="RESTRICT"), primary_key=True
+    )
+    relation_type: Mapped[str] = mapped_column(String(32), default="ADDRESSES", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    requirement: Mapped[Requirement] = relationship(back_populates="risk_links")
+    risk: Mapped[Risk] = relationship(back_populates="requirement_links")
 
 
 class Mission(Base):
