@@ -6,7 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from hypertest.domain.enums import MissionStatus, MissionType, Priority, ProjectStatus, TestRunStatus
+from hypertest.domain.enums import (
+    MissionStatus,
+    MissionType,
+    Priority,
+    ProjectStatus,
+    TestRunStatus,
+)
 
 
 class ORMModel(BaseModel):
