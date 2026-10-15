@@ -5,16 +5,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.schemas import (
     MissionCreate,
+    MissionExecuteRequest,
+    MissionExecutionRead,
     MissionRead,
     PolicySnapshotCreate,
     PolicySnapshotRead,
     ProjectCreate,
     ProjectRead,
+    RequirementRead,
     SourceSnapshotCreate,
     SourceSnapshotRead,
     TestRunCreate,
     TestRunRead,
 )
+from hypertest.application.runtime import MissionRuntimeError, execute_mission
 from hypertest.application.services import (
     ConflictError,
     NotFoundError,
@@ -26,6 +30,7 @@ from hypertest.application.services import (
     get_mission,
     get_project,
     get_test_run,
+    list_requirements_for_test_run,
 )
 from hypertest.db.session import get_db
 
@@ -41,6 +46,8 @@ def translate_domain_error(exc: RuntimeError) -> HTTPException:
     if isinstance(exc, NotFoundError):
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, ConflictError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, MissionRuntimeError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
@@ -108,6 +115,20 @@ async def read_test_run(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
         raise translate_domain_error(exc) from exc
 
 
+@router.get(
+    "/test-runs/{test_run_id}/requirements",
+    response_model=list[RequirementRead],
+)
+async def read_test_run_requirements(
+    test_run_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await list_requirements_for_test_run(db, test_run_id)
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
 @router.post(
     "/test-runs/{test_run_id}/missions",
     response_model=MissionRead,
@@ -128,5 +149,28 @@ async def post_mission(
 async def read_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
         return await get_mission(db, mission_id)
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.post("/missions/{mission_id}/execute", response_model=MissionExecutionRead)
+async def post_execute_mission(
+    mission_id: UUID,
+    payload: MissionExecuteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        execution = await execute_mission(
+            db,
+            mission_id,
+            workspace=payload.workspace,
+            provider=payload.provider,
+        )
+        return MissionExecutionRead(
+            mission=execution.mission,
+            attempt=execution.attempt,
+            proposals=execution.proposals,
+            requirements=execution.requirements,
+        )
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
