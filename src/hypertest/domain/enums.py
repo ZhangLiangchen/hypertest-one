@@ -55,3 +55,67 @@ class MissionStatus(StrEnum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
+
+
+class RequirementType(StrEnum):
+    FUNCTIONAL = "FUNCTIONAL"
+    NON_FUNCTIONAL = "NON_FUNCTIONAL"
+    CONSTRAINT = "CONSTRAINT"
+    COMPATIBILITY = "COMPATIBILITY"
+    PERFORMANCE = "PERFORMANCE"
+    RELIABILITY = "RELIABILITY"
+    SECURITY = "SECURITY"
+    OPERABILITY = "OPERABILITY"
+
+
+class RequirementSourceType(StrEnum):
+    PRD = "PRD"
+    ISSUE = "ISSUE"
+    API_SPEC = "API_SPEC"
+    DESIGN_DOC = "DESIGN_DOC"
+    GIT_DIFF = "GIT_DIFF"
+    CODE = "CODE"
+    MANUAL = "MANUAL"
+
+
+class RequirementLifecycle(StrEnum):
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    DEPRECATED = "DEPRECATED"
+
+
+class AgentSessionStatus(StrEnum):
+    CREATED = "CREATED"
+    RUNNING = "RUNNING"
+    CLOSED = "CLOSED"
+    FAILED = "FAILED"
+
+
+class MissionAttemptStatus(StrEnum):
+    CREATED = "CREATED"
+    RUNNING = "RUNNING"
+    SUBMITTED = "SUBMITTED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ProposalType(StrEnum):
+    REQUIREMENT = "REQUIREMENT"
+
+
+class ProposalOperation(StrEnum):
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DEPRECATE = "DEPRECATE"
+    LINK = "LINK"
+    UNLINK = "UNLINK"
+
+
+class ProposalStatus(StrEnum):
+    SUBMITTED = "SUBMITTED"
+    VALIDATING = "VALIDATING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    SUPERSEDED = "SUPERSEDED"
