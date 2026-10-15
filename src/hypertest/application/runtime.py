@@ -23,6 +23,7 @@ from hypertest.domain.models import (
     MissionAttempt,
     MissionProposal,
     Requirement,
+    Risk,
     TestRun,
     utcnow,
 )
@@ -39,6 +40,15 @@ class MissionExecutionResult:
     attempt: MissionAttempt
     proposals: list[MissionProposal]
     requirements: list[Requirement]
+    risks: list[Risk]
+
+
+def _output_schema_for(mission_type: MissionType) -> str:
+    if mission_type is MissionType.ANALYZE_REQUIREMENTS:
+        return "hypertest.result/requirement-analysis/v1"
+    if mission_type is MissionType.ANALYZE_RISKS:
+        return "hypertest.result/risk-analysis/v1"
+    raise MissionRuntimeError(f"unsupported mission type: {mission_type.value}")
 
 
 def build_mission_contract(mission: Mission, test_run: TestRun) -> dict[str, Any]:
@@ -56,7 +66,7 @@ def build_mission_contract(mission: Mission, test_run: TestRun) -> dict[str, Any
     contract.setdefault(
         "output_contract",
         {
-            "schema": "hypertest.result/requirement-analysis/v1",
+            "schema": _output_schema_for(mission.mission_type),
             "human_summary": True,
         },
     )
@@ -105,9 +115,12 @@ async def execute_mission(
     test_run = await session.get(TestRun, mission.test_run_id)
     if test_run is None:
         raise MissionRuntimeError("test run not found")
-    if mission.mission_type is not MissionType.ANALYZE_REQUIREMENTS:
+    if mission.mission_type not in {
+        MissionType.ANALYZE_REQUIREMENTS,
+        MissionType.ANALYZE_RISKS,
+    }:
         raise MissionRuntimeError(
-            "second-batch runtime currently supports ANALYZE_REQUIREMENTS only"
+            "runtime currently supports ANALYZE_REQUIREMENTS and ANALYZE_RISKS only"
         )
     if mission.status not in {
         MissionStatus.CREATED,
@@ -237,4 +250,5 @@ async def execute_mission(
         attempt=attempt,
         proposals=verification.proposals,
         requirements=verification.requirements,
+        risks=verification.risks,
     )
