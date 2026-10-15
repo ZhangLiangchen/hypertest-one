@@ -21,6 +21,8 @@ from hypertest.domain.models import (
     PolicySnapshot,
     Project,
     Requirement,
+    RequirementRisk,
+    Risk,
     SourceSnapshot,
     TestRun,
 )
@@ -64,6 +66,11 @@ async def create_project(session: AsyncSession, payload: ProjectCreate) -> Proje
     await _commit(session)
     await session.refresh(project)
     return project
+
+
+async def list_projects(session: AsyncSession) -> list[Project]:
+    result = await session.scalars(select(Project).order_by(Project.updated_at.desc()))
+    return list(result)
 
 
 async def get_project(session: AsyncSession, project_id: UUID) -> Project:
@@ -142,6 +149,18 @@ async def get_test_run(session: AsyncSession, test_run_id: UUID) -> TestRun:
     return test_run
 
 
+async def list_test_runs_for_project(
+    session: AsyncSession, project_id: UUID
+) -> list[TestRun]:
+    await get_project(session, project_id)
+    result = await session.scalars(
+        select(TestRun)
+        .where(TestRun.project_id == project_id)
+        .order_by(TestRun.created_at.desc())
+    )
+    return list(result)
+
+
 async def create_mission(
     session: AsyncSession, test_run_id: UUID, payload: MissionCreate
 ) -> Mission:
@@ -176,6 +195,18 @@ async def get_mission(session: AsyncSession, mission_id: UUID) -> Mission:
     return mission
 
 
+async def list_missions_for_test_run(
+    session: AsyncSession, test_run_id: UUID
+) -> list[Mission]:
+    await get_test_run(session, test_run_id)
+    result = await session.scalars(
+        select(Mission)
+        .where(Mission.test_run_id == test_run_id)
+        .order_by(Mission.created_at)
+    )
+    return list(result)
+
+
 async def list_requirements_for_test_run(
     session: AsyncSession, test_run_id: UUID
 ) -> list[Requirement]:
@@ -186,3 +217,31 @@ async def list_requirements_for_test_run(
         .order_by(Requirement.created_at, Requirement.key)
     )
     return list(result)
+
+
+async def list_risks_for_test_run(
+    session: AsyncSession, test_run_id: UUID
+) -> list[tuple[Risk, list[str]]]:
+    test_run = await get_test_run(session, test_run_id)
+    risks = list(
+        await session.scalars(
+            select(Risk)
+            .where(Risk.source_snapshot_id == test_run.source_snapshot_id)
+            .order_by(Risk.created_at, Risk.key)
+        )
+    )
+    if not risks:
+        return []
+
+    rows = (
+        await session.execute(
+            select(RequirementRisk.risk_id, Requirement.key)
+            .join(Requirement, Requirement.id == RequirementRisk.requirement_id)
+            .where(RequirementRisk.risk_id.in_([risk.id for risk in risks]))
+            .order_by(Requirement.key)
+        )
+    ).all()
+    keys_by_risk: dict[UUID, list[str]] = {risk.id: [] for risk in risks}
+    for risk_id, requirement_key in rows:
+        keys_by_risk[risk_id].append(requirement_key)
+    return [(risk, keys_by_risk[risk.id]) for risk in risks]
