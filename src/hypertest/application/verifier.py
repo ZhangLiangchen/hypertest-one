@@ -9,8 +9,10 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from hypertest.application.coverage import get_test_run_coverage
+from hypertest.application.lifecycle import record_mission_event
 from hypertest.common.ids import public_key
 from hypertest.domain.enums import (
     MissionAttemptStatus,
@@ -34,8 +36,10 @@ from hypertest.domain.models import (
     RequirementRisk,
     Risk,
     RiskTestCase,
+    SourceSnapshot,
     TestCase,
     TestImplementation,
+    TestRun,
     utcnow,
 )
 from hypertest.protocol import (
@@ -56,6 +60,38 @@ class VerificationResult:
     errors: list[dict[str, Any]]
     implementations: list[TestImplementation] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
+
+
+async def _prepare_verification(
+    session: AsyncSession, mission: Mission, attempt: MissionAttempt,
+) -> None:
+    """Serialize snapshot-shared canonical writes with quality gate reads.
+
+    Acquire the source lock before any FK-bearing canonical inserts can autoflush;
+    otherwise concurrent runs can upgrade KEY SHARE locks and deadlock the gate.
+    The caller retains these locks through its canonical/audit/outbox commit.
+    """
+
+    with session.no_autoflush:
+        run = await session.scalar(select(TestRun).where(
+            TestRun.id == mission.test_run_id,
+        ).with_for_update().execution_options(populate_existing=True))
+        if run is None:
+            raise RuntimeError("mission verification requires its canonical test run")
+        locked_mission = await session.scalar(select(Mission).where(
+            Mission.id == mission.id,
+        ).with_for_update().execution_options(populate_existing=True))
+        if locked_mission is None or attempt.mission_id != locked_mission.id:
+            raise RuntimeError("attempt does not belong to the canonical mission")
+        snapshot = await session.scalar(select(SourceSnapshot).where(
+            SourceSnapshot.id == run.source_snapshot_id,
+            SourceSnapshot.project_id == run.project_id,
+        ).with_for_update().execution_options(populate_existing=True))
+        if snapshot is None:
+            raise RuntimeError("mission verification requires its canonical source snapshot")
+        # populate_existing expires relationships. Retain the locked run as loaded
+        # state so direct verifier callers never fall back to async lazy loading.
+        set_committed_value(locked_mission, "test_run", run)
 
 
 def requirement_source_fingerprint(payload: RequirementProposalPayload) -> str:
@@ -106,6 +142,7 @@ async def _reject_result(
     errors_by_index: dict[int, list[dict[str, Any]]],
     global_errors: list[dict[str, Any]],
 ) -> VerificationResult:
+    before_status = mission.status
     proposals: list[MissionProposal] = []
     # The proposal key is mission-scoped, including rejected attempts. Preserve the
     # original row on replay; the new attempt's result_payload records the rejection.
@@ -150,7 +187,18 @@ async def _reject_result(
         attempt.error_message = "; ".join(dict.fromkeys(error["message"] for error in errors))
     mission.status = MissionStatus.RETRYING
     mission.row_version += 1
-    await session.commit()
+    try:
+        await record_mission_event(
+            session, mission, "mission.result_rejected", attempt=attempt,
+            metadata={"reason": "agent result rejected by canonical verification",
+                      "error_code": attempt.error_code, "proposal_count": len(result.proposals),
+                      "validation_error_codes": sorted({error["code"] for error in errors})},
+            before_status=before_status,
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
     for proposal in proposals:
         await session.refresh(proposal)
     return VerificationResult(
@@ -338,6 +386,12 @@ async def _verify_requirements(
         mission.status = MissionStatus.COMPLETED
         mission.completed_at = utcnow()
         mission.row_version += 1
+        await record_mission_event(
+            session, mission, "mission.completed", attempt=attempt,
+            metadata={"proposal_count": len(proposals),
+                      "requirement_count": len({item.id for item in requirements})},
+            before_status=MissionStatus.VERIFYING,
+        )
         await session.commit()
     except Exception:
         await session.rollback()
@@ -523,6 +577,11 @@ async def _verify_risks(
         mission.status = MissionStatus.COMPLETED
         mission.completed_at = utcnow()
         mission.row_version += 1
+        await record_mission_event(
+            session, mission, "mission.completed", attempt=attempt,
+            metadata={"proposal_count": len(proposals), "risk_count": len({item.id for item in risks})},
+            before_status=MissionStatus.VERIFYING,
+        )
         await session.commit()
     except Exception:
         await session.rollback()
@@ -758,6 +817,12 @@ async def _verify_test_cases(
         mission.status = MissionStatus.COMPLETED
         mission.completed_at = utcnow()
         mission.row_version += 1
+        await record_mission_event(
+            session, mission, "mission.completed", attempt=attempt,
+            metadata={"proposal_count": len(proposals),
+                      "test_case_count": len({item.id for item in test_cases})},
+            before_status=MissionStatus.VERIFYING,
+        )
         await session.commit()
     except Exception:
         await session.rollback()
@@ -780,6 +845,7 @@ async def verify_mission_result(
 ) -> VerificationResult:
     """Validate an agent submission and atomically commit accepted canonical state."""
 
+    await _prepare_verification(session, mission, attempt)
     global_errors: list[dict[str, Any]] = []
     if result.mission_id != mission.key:
         global_errors.append(

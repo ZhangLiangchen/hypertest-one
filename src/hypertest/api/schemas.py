@@ -161,6 +161,7 @@ class MissionExecuteRequest(BaseModel):
 class MissionAttemptRead(ORMModel):
     id: UUID
     mission_id: UUID
+    durable_job_id: UUID | None = None
     attempt_no: int
     agent_session_id: UUID | None
     provider: str | None
@@ -277,6 +278,8 @@ class TestRunCoverageRead(BaseModel):
     risk_identification_coverage: float | None
     risk_test_coverage: float | None
     risks: list[RiskCoverageRead]
+    rule_version: str = "risk-design-baseline/v1"
+    effective_policy_hash: str = ""
 
 
 class MissionExecutionRead(BaseModel):

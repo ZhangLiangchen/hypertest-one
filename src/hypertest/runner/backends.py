@@ -4,14 +4,20 @@ import asyncio
 import io
 import json
 import os
+import re
 import signal
 import sys
 import tarfile
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from hypertest.config import get_settings
+
+# Operational ownership only, never a canonical testing fact.
+runner_job_id: ContextVar[str | None] = ContextVar("hypertest_runner_job_id", default=None)
+JOB_LABEL = "org.hypertest.job_id"
 
 
 @dataclass(frozen=True)
@@ -173,7 +179,16 @@ class DockerRunner:
                 raise RuntimeError(f"runner container operation failed ({args[0]})")
             return result
 
+        label_args = ["--label", "org.hypertest.managed=true"]
+        job_id = runner_job_id.get()
+        if job_id is not None:
+            # UUID parsing ensures filters and labels are platform-owned values.
+            label_args += ["--label", f"{JOB_LABEL}={UUID(job_id)}"]
         try:
+            # Precreate labelled volumes; implicitly created Docker volumes lose
+            # ownership metadata and cannot safely be recovered after a crash.
+            await docker("volume", "create", *label_args, source_volume)
+            await docker("volume", "create", *label_args, output_volume)
             # A restrictive host umask must not make copied source unreadable to UID 65534.
             source.chmod(0o755)
             for path in source.rglob("*"):
@@ -183,6 +198,7 @@ class DockerRunner:
             # Populate a dedicated source volume before mounting it read-only for execution.
             await docker(
                 "create",
+                *label_args,
                 "--name",
                 staging,
                 "--network",
@@ -196,6 +212,7 @@ class DockerRunner:
             await docker("rm", "-f", staging)
             command = [
                 "create",
+                *label_args,
                 "--name",
                 name,
                 "--network",
@@ -268,3 +285,42 @@ class DockerRunner:
         finally:
             await docker("rm", "-f", "-v", name, staging, required=False)
             await docker("volume", "rm", source_volume, output_volume, required=False)
+
+
+async def cleanup_docker_job_resources(job_id: UUID) -> dict:
+    """Remove only resources explicitly labelled with this immutable job UUID.
+
+    Run outside database transactions/row locks. This is best-effort resource
+    cleanup, not execution evidence or a promise of exactly-once external work.
+    """
+    label = f"label={JOB_LABEL}={UUID(str(job_id))}"
+    result = {"backend": "docker", "available": True, "complete": False,
+              "containers_removed": 0, "volumes_removed": 0}
+    try:
+        containers = await run_process(["docker", "ps", "-aq", "--filter", label],
+                                       cwd=Path("/tmp"), timeout=15, output_limit=65536)
+        volumes = await run_process(["docker", "volume", "ls", "-q", "--filter", label],
+                                    cwd=Path("/tmp"), timeout=15, output_limit=65536)
+        if containers.exit_code != 0 or volumes.exit_code != 0 or containers.timed_out or volumes.timed_out:
+            return {**result, "available": False}
+        container_ids = containers.stdout.decode("ascii").split()
+        volume_names = volumes.stdout.decode("ascii").split()
+        if (any(not re.fullmatch(r"[a-f0-9]{12,64}", value) for value in container_ids)
+            or any(not re.fullmatch(r"hypertest-(?:source|results)-[a-f0-9]{32}", value) for value in volume_names)):
+            return result
+        if container_ids:
+            removed = await run_process(["docker", "rm", "-f", "-v", *container_ids],
+                                        cwd=Path("/tmp"), timeout=30)
+            if removed.exit_code != 0 or removed.timed_out:
+                return result
+            result["containers_removed"] = len(container_ids)
+        if volume_names:
+            removed = await run_process(["docker", "volume", "rm", *volume_names],
+                                        cwd=Path("/tmp"), timeout=30)
+            if removed.exit_code != 0 or removed.timed_out:
+                return result
+            result["volumes_removed"] = len(volume_names)
+        result["complete"] = True
+        return result
+    except (OSError, UnicodeError):
+        return {**result, "available": False}

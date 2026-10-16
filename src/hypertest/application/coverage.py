@@ -1,6 +1,6 @@
 """Deterministic design coverage derived solely from snapshot-scoped canonical state.
 
-This boundary can later receive compiled policy rules without changing Planner or UI.
+Rules come from the immutable PolicySnapshot pinned by each TestRun.
 Design coverage does not claim implementation, execution, or evidence coverage.
 """
 
@@ -11,7 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.schemas import RiskCoverageRead, TestRunCoverageRead
-from hypertest.application.services import get_test_run
+from hypertest.application.policy import (
+    BASELINE_DIMENSIONS_BY_CATEGORY,
+    CoveragePolicy,
+    compile_policy,
+)
+from hypertest.application.services import ConflictError, get_test_run
 from hypertest.domain.enums import (
     RequirementLifecycle,
     RiskCategory,
@@ -19,31 +24,32 @@ from hypertest.domain.enums import (
     TestCaseLifecycle,
     TestCaseType,
 )
-from hypertest.domain.models import Requirement, RequirementRisk, Risk, RiskTestCase, TestCase
+from hypertest.domain.models import (
+    PolicySnapshot,
+    Requirement,
+    RequirementRisk,
+    Risk,
+    RiskTestCase,
+    TestCase,
+)
 
 
 class RiskCoverageEvaluator:
-    """Baseline v1: functional plus a risk-specific dimension, when applicable.
-
-    Categories without a specialized baseline require FUNCTIONAL. Reliability maps
-    to RECOVERY. A policy-aware evaluator can replace this instance in the read service.
-    """
+    """Evaluate deterministic dimensional rules without Agent claims or stored coverage."""
 
     version = "risk-design-baseline/v1"
-    dimensions_by_category = {
-        RiskCategory.BOUNDARY: TestCaseType.BOUNDARY,
-        RiskCategory.FAILURE: TestCaseType.FAILURE,
-        RiskCategory.CONCURRENCY: TestCaseType.CONCURRENCY,
-        RiskCategory.SECURITY: TestCaseType.SECURITY,
-        RiskCategory.PERFORMANCE: TestCaseType.PERFORMANCE,
-        RiskCategory.RELIABILITY: TestCaseType.RECOVERY,
-    }
+    dimensions_by_category = BASELINE_DIMENSIONS_BY_CATEGORY
+
+    def __init__(self, policy: CoveragePolicy | None = None) -> None:
+        self.policy = policy or CoveragePolicy()
+        self.version = self.policy.rule_version
+
+    @property
+    def effective_policy_hash(self) -> str:
+        return self.policy.effective_policy_hash
 
     def required_dimensions(self, category: RiskCategory) -> set[TestCaseType]:
-        required = {TestCaseType.FUNCTIONAL}
-        if dimension := self.dimensions_by_category.get(category):
-            required.add(dimension)
-        return required
+        return self.policy.required_dimensions(category)
 
     def evaluate(self, risk: Risk, covered: set[TestCaseType]) -> RiskCoverageRead:
         required = self.required_dimensions(risk.category)
@@ -56,6 +62,11 @@ class RiskCoverageEvaluator:
             missing_dimensions=sorted(missing),
             complete=not missing,
         )
+
+
+def get_coverage_evaluator(snapshot: PolicySnapshot) -> RiskCoverageEvaluator:
+    """Compile only the TestRun's pinned policy; newer project policies are irrelevant."""
+    return RiskCoverageEvaluator(compile_policy(snapshot.compiled_policy).coverage)
 
 
 async def get_test_run_coverage(
@@ -117,7 +128,12 @@ async def get_test_run_coverage(
         )
         for risk_id, test_type in links:
             dimensions[risk_id].add(test_type)
-    engine = evaluator or RiskCoverageEvaluator()
+    if evaluator is None:
+        snapshot = await session.get(PolicySnapshot, test_run.policy_snapshot_id)
+        if snapshot is None or snapshot.project_id != test_run.project_id:
+            raise ConflictError("test run has no valid immutable policy snapshot")
+        evaluator = get_coverage_evaluator(snapshot)
+    engine = evaluator
     coverage = [engine.evaluate(risk, dimensions[risk.id]) for risk in risks]
     return TestRunCoverageRead(
         requirement_count=len(requirements),
@@ -126,4 +142,6 @@ async def get_test_run_coverage(
         risk_identification_coverage=len(identified) / len(requirements) if requirements else None,
         risk_test_coverage=sum(item.complete for item in coverage) / len(risks) if risks else None,
         risks=coverage,
+        rule_version=engine.version,
+        effective_policy_hash=engine.effective_policy_hash,
     )

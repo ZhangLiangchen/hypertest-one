@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.application.coverage import get_test_run_coverage
 from hypertest.application.findings import TRUSTED_EVIDENCE_LEVELS
+from hypertest.application.policy import compile_policy
 from hypertest.application.services import ConflictError, NotFoundError, canonical_json_sha256
 from hypertest.common.ids import public_key
 from hypertest.domain.enums import (
@@ -77,21 +78,7 @@ class GatePolicy:
 
     @classmethod
     def from_snapshot(cls, snapshot: PolicySnapshot) -> GatePolicy:
-        configuration = snapshot.compiled_policy.get("gate", {})
-        if not isinstance(configuration, dict):
-            raise ConflictError("compiled gate policy must be an object")
-        unknown = set(configuration) - {"blocking_finding_severities"}
-        if unknown:
-            raise ConflictError(f"unsupported gate policy rules: {sorted(unknown)}")
-        if "blocking_finding_severities" not in configuration:
-            return cls()
-        raw = configuration["blocking_finding_severities"]
-        if not isinstance(raw, list):
-            raise ConflictError("blocking_finding_severities must be a list")
-        try:
-            configured = {FindingSeverity(value) for value in raw}
-        except (ValueError, TypeError) as exc:
-            raise ConflictError("invalid gate finding severity") from exc
+        configured = set(compile_policy(snapshot.compiled_policy).gate.blocking_finding_severities)
         # A confirmed blocker cannot be waived by the MVP baseline policy.
         configured.add(FindingSeverity.BLOCKER)
         return cls(blocking_finding_severities=tuple(sorted(configured)))
@@ -198,7 +185,9 @@ async def evaluate_gate(
     run_id: UUID,
     finalize: bool = True,
 ) -> Verdict:
-    # This aggregate lock serializes sequence allocation and canonical finding changes.
+    # Keep the Run -> SourceSnapshot lock order used by canonical proposal commits.
+    # A run lock alone cannot protect canonical state shared with other runs that
+    # reference this same immutable source snapshot.
     run = await session.scalar(
         select(TestRun)
         .where(TestRun.id == run_id)
@@ -208,7 +197,12 @@ async def evaluate_gate(
     if run is None:
         raise NotFoundError("test run not found")
     policy_snapshot = await session.get(PolicySnapshot, run.policy_snapshot_id)
-    source = await session.get(SourceSnapshot, run.source_snapshot_id)
+    source = await session.scalar(
+        select(SourceSnapshot)
+        .where(SourceSnapshot.id == run.source_snapshot_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if policy_snapshot is None or source is None:
         raise ConflictError("test run has no valid immutable source/policy snapshot")
     policy = GatePolicy.from_snapshot(policy_snapshot)
@@ -343,6 +337,9 @@ async def evaluate_gate(
         reason = "\n".join(reasons)
     state = await _state_snapshot(session, run, policy_snapshot, executions, evidence, findings)
     state["artifact_integrity"] = artifact_integrity
+    # Never let an older inconsistent decision reuse the same canonical state hash.
+    # The hash binds the evidence-backed decision as well as its canonical inputs.
+    state["decision"] = decision.value
     state_hash = canonical_json_sha256(state)
     manifest_hash = canonical_json_sha256(
         {
@@ -362,6 +359,8 @@ async def evaluate_gate(
             Verdict.test_run_id == run.id,
             Verdict.policy_snapshot_id == policy_snapshot.id,
             Verdict.state_snapshot_hash == state_hash,
+            Verdict.decision == decision,
+            Verdict.evidence_manifest_sha256 == manifest_hash,
             Verdict.status == verdict_status,
             Verdict.scope == VerdictScope.TEST_RUN,
         )

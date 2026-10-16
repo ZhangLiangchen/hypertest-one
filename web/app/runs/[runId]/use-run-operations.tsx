@@ -6,14 +6,16 @@ import {
   Popconfirm, Select, Space, Spin, Table, Tag, Typography, message,
 } from "antd";
 import type { TabsProps } from "antd";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ClientModal as Modal } from "@/app/client-modal";
 
 import {
-  advanceRun, cancelMission, createExecution, evaluateGate, executeMission, getEvidence,
+  cancelMission, getEvidence,
   getEvidenceContent, getExecution, getExecutions, getFindings, getImplementations,
-  getCapabilities, getMission, getMissionAttempts, getMissionProposals, getVerdicts, prepareWorkspace, retryMission, transitionFinding,
+  getCapabilities, getMission, getMissionAttempts, getMissionProposals, getVerdicts, retryMission, transitionFinding,
 } from "@/lib/api";
+import { useRunJobs } from "./use-run-jobs";
+
 import type { Evidence, ExecutionCreate, Finding, Mission, MissionProposal, TestExecution, TestImplementation, Verdict } from "@/lib/types";
 
 function color(value: string | null | undefined) {
@@ -100,7 +102,18 @@ export function useRunOperations(runId: string) {
     localStorage.setItem(`hypertest.workspace.${runId}`, value);
   }
 
-  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: getCapabilities, refetchInterval: 30_000 });
+  const applyWorkspace = useCallback((value: string) => {
+    setWorkspace(value);
+    localStorage.setItem(`hypertest.workspace.${runId}`, value);
+    missionForm.setFieldsValue({ workspace: value });
+    executionForm.setFieldsValue({ workspace: value });
+  }, [runId, missionForm, executionForm]);
+  const tasks = useRunJobs(runId, applyWorkspace);
+  useEffect(() => {
+    if (!workspace && typeof tasks.latestPrepared?.result?.workspace === "string") applyWorkspace(tasks.latestPrepared.result.workspace);
+  }, [workspace, tasks.latestPrepared, applyWorkspace]);
+
+  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: getCapabilities, refetchInterval: 5_000 });
   const implementations = useQuery({ queryKey: ["implementations", runId], queryFn: () => getImplementations(runId), refetchInterval: 5_000 });
   const executions = useQuery({ queryKey: ["executions", runId], queryFn: () => getExecutions(runId), refetchInterval: 5_000 });
   const evidence = useQuery({ queryKey: ["evidence", runId], queryFn: () => getEvidence(runId), refetchInterval: 5_000 });
@@ -125,14 +138,9 @@ export function useRunOperations(runId: string) {
       if (!mission) throw new Error("Select a mission first.");
       rememberWorkspace(values.workspace);
       if (mission.status === "FAILED") await retryMission(mission.id);
-      return executeMission(mission.id, { workspace: values.workspace, provider: "codex" });
+      return tasks.submit("EXECUTE_MISSION", { workspace: values.workspace, provider: "codex" }, mission.id);
     },
-    onSuccess: (result) => {
-      setMissionSelection(result.mission);
-      setMissionDialog(false);
-      if (result.mission.status === "COMPLETED") notifications.success("Mission verified. Canonical testing state updated.");
-      else notifications.warning(`Mission ${result.mission.status.toLowerCase()}. Review the attempt details.`);
-    },
+    onSuccess: () => setMissionDialog(false),
     onSettled: refresh,
   });
   const missionCancellation = useMutation({
@@ -141,38 +149,27 @@ export function useRunOperations(runId: string) {
     onSettled: refresh,
   });
   const execution = useMutation({
-    mutationFn: (values: ExecutionCreate) => { rememberWorkspace(values.workspace); return createExecution(runId, values); },
-    onSuccess: (result) => {
-      setExecutionDialog(null);
-      setExecutionSelection(result);
-      notifications.info(`Execution ${result.outcome || result.status}. Review the runner results and evidence.`);
-    },
+    mutationFn: (values: ExecutionCreate) => { rememberWorkspace(values.workspace); return tasks.submit("EXECUTE_TESTS", { ...values, purpose: "OFFICIAL" }); },
+    onSuccess: () => setExecutionDialog(null),
     onSettled: refresh,
   });
   const gate = useMutation({
-    mutationFn: () => evaluateGate(runId),
-    onSuccess: (result) => { setVerdictSelection(result); notifications.info(`Quality gate: ${result.decision}`); },
+    mutationFn: () => tasks.submit("EVALUATE_GATE", { finalize: true }),
     onSettled: refresh,
   });
   const cycle = useMutation({
     mutationFn: (values: ExecutionCreate) => {
       rememberWorkspace(values.workspace);
-      return advanceRun(runId, { workspace: values.workspace, backend: values.backend, timeout_seconds: values.timeout_seconds, max_steps: 12 });
+      return tasks.submit("ADVANCE_RUN", { workspace: values.workspace, backend: values.backend, timeout_seconds: values.timeout_seconds, max_steps: 12 });
     },
-    onSuccess: (result) => {
-      setExecutionDialog(null);
-      notifications.info(result.reason === "VERDICT_FINALIZED" ? "Testing cycle finished. Review the final quality verdict." : result.reason === "STEP_LIMIT_REACHED" ? "The cycle reached its work limit. Review progress, then continue the cycle." : `Testing cycle: ${result.reason.replaceAll("_", " ").toLowerCase()}`);
-    },
+    onSuccess: () => setExecutionDialog(null),
     onSettled: refresh,
   });
   const preparation = useMutation({
-    mutationFn: async (target: "mission" | "runner") => ({ target, prepared: await prepareWorkspace(runId) }),
-    onSuccess: ({ target, prepared }) => {
-      rememberWorkspace(prepared.workspace);
-      (target === "mission" ? missionForm : executionForm).setFieldsValue({ workspace: prepared.workspace });
-      notifications.success("The pinned repository checkout is ready.");
-    },
+    mutationFn: (_target: "mission" | "runner") => tasks.submit("PREPARE_WORKSPACE", {}),
   });
+  const preparingCheckout = tasks.active.find((job) => job.job_type === "PREPARE_WORKSPACE");
+
 
   function openMissionExecution(item: Mission) {
     setMissionSelection(item);
@@ -186,7 +183,7 @@ export function useRunOperations(runId: string) {
     <Space wrap>
       <Button size="small" onClick={() => { setMissionSelection(item); missionCancellation.reset(); }}>Details</Button>
       {["CREATED", "READY", "RETRYING", "FAILED"].includes(item.status) && (
-        <Button size="small" type="primary" disabled={missionExecution.isPending || cycle.isPending || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(item)}>
+        <Button size="small" type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(item)}>
           {item.status === "FAILED" ? "Retry mission" : "Execute mission"}
         </Button>
       )}
@@ -232,6 +229,7 @@ export function useRunOperations(runId: string) {
   ];
 
   const tabs: NonNullable<TabsProps["items"]> = [
+    tasks.taskTab,
     { key: "automation", label: `Automation (${implementations.data?.length ?? 0})`, children: <Pane loading={implementations.isLoading} error={implementations.error} empty={!implementations.data?.length} retry={() => void implementations.refetch()} description="No accepted implementations yet. Plan an IMPLEMENT_TESTS mission after test design coverage is complete."><Table rowKey="id" columns={implementationColumns} dataSource={implementations.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
     { key: "executions", label: `Executions (${executions.data?.length ?? 0})`, children: <Pane loading={executions.isLoading} error={executions.error} empty={!executions.data?.length} retry={() => void executions.refetch()} description="No runner executions yet. Implement the test cases, then select Execute tests."><Table rowKey="id" columns={executionColumns} dataSource={executions.data} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} /></Pane> },
     { key: "evidence", label: `Evidence (${evidence.data?.length ?? 0})`, children: <Pane loading={evidence.isLoading} error={evidence.error} empty={!evidence.data?.length} retry={() => void evidence.refetch()} description="Evidence appears here when the trusted runner collects execution metadata, logs and test reports."><Table rowKey="id" columns={evidenceColumns} dataSource={evidence.data} pagination={{ pageSize: 10 }} scroll={{ x: 800 }} /></Pane> },
@@ -246,50 +244,52 @@ export function useRunOperations(runId: string) {
     execution.reset();
     preparation.reset();
     cycle.reset();
-    executionForm.setFieldsValue({ workspace, backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300, idempotency_key: `web:${crypto.randomUUID()}` });
+    executionForm.setFieldsValue({ workspace, backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300 });
     setExecutionDialog(mode);
   }
 
   const actions = <Space wrap>
-    <Button aria-label="Run test cycle" type="primary" disabled={!capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>Run test cycle</Button>
-    <Button aria-label="Execute tests" disabled={!implementations.data?.length || !capabilities.data?.runner_backends.length || execution.isPending || cycle.isPending} loading={execution.isPending} onClick={() => {
+    <Button aria-label="Run test cycle" type="primary" disabled={!capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>Run test cycle</Button>
+    <Button aria-label="Execute tests" disabled={!implementations.data?.length || !capabilities.data?.runner_backends.length || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
       execution.reset();
       preparation.reset();
-      executionForm.setFieldsValue({ workspace, backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300, idempotency_key: `web:${crypto.randomUUID()}` });
+      executionForm.setFieldsValue({ workspace, backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300 });
       setExecutionDialog("execution");
     }}>Execute tests</Button>
-    <Button aria-label="Evaluate quality gate" disabled={cycle.isPending} loading={gate.isPending} onClick={() => gate.mutate()}>Evaluate quality gate</Button>
+    <Button aria-label="Evaluate quality gate" disabled={tasks.busy} loading={gate.isPending} onClick={() => gate.mutate()}>Evaluate quality gate</Button>
   </Space>;
 
   const summary = <>
-    {cycle.isPending && <Alert type="info" showIcon message="Testing cycle in progress" description="HyperTest is advancing the canonical testing state. Missions, executions and evidence refresh automatically." style={{ marginBottom: 16 }} />}
-    {!executionDialog && cycle.error && <Alert type="error" showIcon message="Testing cycle stopped" description={failure(cycle.error)} style={{ marginBottom: 16 }} />}
-    {cycle.data && <Alert type="info" showIcon message={cycle.data.reason === "VERDICT_FINALIZED" ? "Testing cycle finished" : cycle.data.reason === "STEP_LIMIT_REACHED" ? "Cycle work limit reached" : cycle.data.reason.replaceAll("_", " ")} description={`${cycle.data.steps.length} work units recorded. Review testing state and the quality verdict; continue the cycle when more work is needed.`} style={{ marginBottom: 16 }} />}
+    {tasks.monitor}
+    {capabilities.data?.worker?.available === false && <Alert type="warning" showIcon message="No worker heartbeat is available" description={`Queued tasks remain saved until a worker becomes available.${capabilities.data.worker.last_seen_at ? ` Last heartbeat: ${new Date(capabilities.data.worker.last_seen_at).toLocaleString()}.` : " Start the HyperTest worker service to process queued work."}`} style={{ marginBottom: 16 }} />}
+    {!executionDialog && cycle.error && <Alert type="error" showIcon message="Unable to save test-cycle task" description={failure(cycle.error)} style={{ marginBottom: 16 }} />}
     {capabilities.error && <Alert type="warning" showIcon message="Runtime capabilities could not be checked" description={failure(capabilities.error)} action={<Button onClick={() => void capabilities.refetch()}>Retry</Button>} style={{ marginBottom: 16 }} />}
     {capabilities.data && (!capabilities.data.agent_providers.includes("codex") || !capabilities.data.runner_backends.length) && <Alert type="warning" showIcon message="Some execution services are unavailable" description={[
       !capabilities.data.agent_providers.includes("codex") ? "Install and authenticate Codex on the HyperTest host to execute missions." : "",
       !capabilities.data.runner_backends.length ? "Configure a trusted Docker runner on the HyperTest host to execute tests." : "",
     ].filter(Boolean).join(" ")} style={{ marginBottom: 16 }} />}
-    {gate.error && <Alert closable type="error" showIcon message="Quality gate evaluation failed" description={failure(gate.error)} onClose={() => gate.reset()} style={{ marginBottom: 16 }} />}
+    {gate.error && <Alert closable type="error" showIcon message="Unable to save quality-gate task" description={failure(gate.error)} onClose={() => gate.reset()} style={{ marginBottom: 16 }} />}
     {activeExecutions > 0 && <Alert type="info" showIcon message={`${activeExecutions} runner execution${activeExecutions === 1 ? " is" : "s are"} in progress`} description="Testing state refreshes automatically. Open Executions to inspect progress." style={{ marginBottom: 16 }} />}
     {latestVerdict && <Alert type={["PASS", "RELEASE_READY"].includes(latestVerdict.decision) ? "success" : ["FAIL", "RELEASE_BLOCKED"].includes(latestVerdict.decision) ? "error" : "warning"} showIcon message={<Space>Latest quality verdict <Badge value={latestVerdict.decision} /><Tag>{latestVerdict.status}</Tag></Space>} description={latestVerdict.reason} action={<Button onClick={() => setVerdictSelection(latestVerdict)}>View decision</Button>} style={{ marginBottom: 20 }} />}
   </>;
 
   const dialogs = <>
     {contextHolder}
-    <Modal forceRender title={mission?.status === "FAILED" ? "Retry mission" : "Execute mission"} open={missionDialog} okText={mission?.status === "FAILED" ? "Retry and execute" : "Execute mission"} okButtonProps={{ "aria-label": mission?.status === "FAILED" ? "Retry and execute" : "Execute mission" }} confirmLoading={missionExecution.isPending} cancelText={missionExecution.isPending ? "View progress" : "Cancel"} maskClosable={!missionExecution.isPending} onCancel={() => setMissionDialog(false)} onOk={() => missionForm.submit()}>
+    {tasks.dialog}
+    <Modal forceRender title={mission?.status === "FAILED" ? "Retry mission" : "Execute mission"} open={missionDialog} okText={mission?.status === "FAILED" ? "Retry and execute" : "Execute mission"} okButtonProps={{ "aria-label": mission?.status === "FAILED" ? "Retry and execute" : "Execute mission", disabled: tasks.busy }} confirmLoading={missionExecution.isPending} cancelText={missionExecution.isPending ? "View progress" : "Cancel"} maskClosable={!missionExecution.isPending} onCancel={() => setMissionDialog(false)} onOk={() => missionForm.submit()}>
       <Typography.Paragraph><strong>{mission?.mission_type}</strong> — {mission?.objective}</Typography.Paragraph>
       <Alert type="info" showIcon message="Codex must be installed and authenticated on the HyperTest host." description="The agent submits proposals. HyperTest verifies them before updating canonical testing state." style={{ marginBottom: 20 }} />
       <Form name="execute-mission" form={missionForm} layout="vertical" onFinish={(values) => missionExecution.mutate(values)}>
         <Form.Item name="workspace" label="Repository workspace" rules={[{ required: true, whitespace: true, message: "Enter the checkout path on the HyperTest host." }]} extra="Absolute path to a checkout matching this run's pinned source commit."><Input placeholder={`${capabilities.data?.workspace_root || "/workspaces"}/my-project`} disabled={missionExecution.isPending || preparation.isPending} /></Form.Item>
-        <Button size="small" loading={preparation.isPending} disabled={missionExecution.isPending} onClick={() => preparation.mutate("mission")} style={{ marginBottom: 20 }}>Prepare pinned checkout</Button>
-        {preparation.error && <Alert type="error" showIcon message="Unable to prepare the checkout" description={failure(preparation.error)} style={{ marginBottom: 16 }} />}
+        <Button size="small" loading={preparation.isPending} disabled={missionExecution.isPending || tasks.busy} onClick={() => preparation.mutate("mission")} style={{ marginBottom: 20 }}>Prepare pinned checkout</Button>
+        {preparingCheckout && <Alert type="info" showIcon message={`Checkout task ${preparingCheckout.status.toLowerCase()}`} description="You can close this dialog. The prepared path is filled in after the worker finishes." style={{ marginBottom: 16 }} />}
+        {preparation.error && <Alert type="error" showIcon message="Unable to save checkout task" description={failure(preparation.error)} style={{ marginBottom: 16 }} />}
       </Form>
-      {missionExecution.isPending && <Alert type="info" showIcon message="Mission is running" description="Repository analysis and verification may take several minutes. State and attempts refresh automatically." />}
-      {missionExecution.error && <Alert type="error" showIcon message="Mission execution failed" description={failure(missionExecution.error)} />}
+      {missionExecution.isPending && <Alert type="info" showIcon message="Saving mission task" description="Once accepted, the worker executes this mission independently of the browser." />}
+      {missionExecution.error && <Alert type="error" showIcon message="Unable to save mission task" description={failure(missionExecution.error)} />}
     </Modal>
 
-    <Drawer title={mission ? `${mission.key} · ${mission.mission_type}` : "Mission"} open={!!missionSelection && !missionDialog} width={850} onClose={() => setMissionSelection(null)} extra={mission && <Space><Badge value={mission.status} />{["CREATED", "READY", "RETRYING", "FAILED"].includes(mission.status) && <Button type="primary" disabled={missionExecution.isPending || cycle.isPending || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(mission)}>{mission.status === "FAILED" ? "Retry mission" : "Execute mission"}</Button>}{!["COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(mission.status) && <Popconfirm title="Cancel this mission?" description="Unaccepted proposals will not change canonical testing state." onConfirm={() => missionCancellation.mutate(mission.id)}><Button danger loading={missionCancellation.isPending}>Cancel mission</Button></Popconfirm>}</Space>}>
+    <Drawer title={mission ? `${mission.key} · ${mission.mission_type}` : "Mission"} open={!!missionSelection && !missionDialog} width={850} onClose={() => setMissionSelection(null)} extra={mission && <Space><Badge value={mission.status} />{["CREATED", "READY", "RETRYING", "FAILED"].includes(mission.status) && <Button type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(mission)}>{mission.status === "FAILED" ? "Retry mission" : "Execute mission"}</Button>}{!["COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(mission.status) && <Popconfirm title="Cancel this mission?" description="Unaccepted proposals will not change canonical testing state." onConfirm={() => missionCancellation.mutate(mission.id)}><Button danger loading={missionCancellation.isPending}>Cancel mission</Button></Popconfirm>}</Space>}>
       <Typography.Paragraph>{mission?.objective}</Typography.Paragraph>
       {missionCancellation.error && <Alert type="error" showIcon message="Unable to cancel mission" description={failure(missionCancellation.error)} />}
       <Typography.Title level={4}>Attempts</Typography.Title>
@@ -312,20 +312,20 @@ export function useRunOperations(runId: string) {
       </Pane>
     </Drawer>
 
-    <Modal forceRender title={executionDialog === "cycle" ? "Run a complete test cycle" : "Run official tests"} open={!!executionDialog} width={640} okText={executionDialog === "cycle" ? "Run test cycle" : "Start execution"} okButtonProps={{ "aria-label": executionDialog === "cycle" ? "Run test cycle" : "Start execution" }} confirmLoading={execution.isPending || cycle.isPending} cancelText={execution.isPending || cycle.isPending ? "Return to workbench" : "Cancel"} maskClosable={!execution.isPending && !cycle.isPending} onCancel={() => setExecutionDialog(null)} onOk={() => executionForm.submit()}>
+    <Modal forceRender title={executionDialog === "cycle" ? "Run a complete test cycle" : "Run official tests"} open={!!executionDialog} width={640} okText={executionDialog === "cycle" ? "Run test cycle" : "Start execution"} okButtonProps={{ "aria-label": executionDialog === "cycle" ? "Run test cycle" : "Start execution", disabled: tasks.busy }} confirmLoading={execution.isPending || cycle.isPending} cancelText={execution.isPending || cycle.isPending ? "Return to workbench" : "Cancel"} maskClosable={!execution.isPending && !cycle.isPending} onCancel={() => setExecutionDialog(null)} onOk={() => executionForm.submit()}>
       <Typography.Paragraph>{executionDialog === "cycle" ? "HyperTest plans and verifies agent missions, implements tests, runs them through a trusted runner and evaluates the quality gate. Each cycle is limited to 12 planning steps; progress remains available in the workbench." : "HyperTest Runner executes accepted test implementations and collects verifiable evidence."}</Typography.Paragraph>
       <Form name="execute-run" form={executionForm} layout="vertical" onFinish={(values) => executionDialog === "cycle" ? cycle.mutate(values) : execution.mutate({ ...values, purpose: "OFFICIAL" })} disabled={execution.isPending || cycle.isPending}>
         <Form.Item name="workspace" label="Repository workspace" rules={[{ required: true, whitespace: true }]} extra="A checkout of this run's source with the accepted test implementations available."><Input placeholder={`${capabilities.data?.workspace_root || "/workspaces"}/my-project`} /></Form.Item>
-        <Button size="small" loading={preparation.isPending} disabled={execution.isPending || cycle.isPending} onClick={() => preparation.mutate("runner")} style={{ marginBottom: 20 }}>Prepare pinned checkout</Button>
-        {preparation.error && <Alert type="error" showIcon message="Unable to prepare the checkout" description={failure(preparation.error)} style={{ marginBottom: 16 }} />}
+        <Button size="small" loading={preparation.isPending} disabled={execution.isPending || cycle.isPending || tasks.busy} onClick={() => preparation.mutate("runner")} style={{ marginBottom: 20 }}>Prepare pinned checkout</Button>
+        {preparingCheckout && <Alert type="info" showIcon message={`Checkout task ${preparingCheckout.status.toLowerCase()}`} description="You can close this dialog. The prepared path is filled in after the worker finishes." style={{ marginBottom: 16 }} />}
+        {preparation.error && <Alert type="error" showIcon message="Unable to save checkout task" description={failure(preparation.error)} style={{ marginBottom: 16 }} />}
         <Form.Item name="backend" label="Runner" rules={[{ required: true }]}><Select options={capabilities.data?.runner_backends.map((value) => ({ value, label: value === "docker" ? "Docker · isolated execution" : "Local · trusted host process" }))} /></Form.Item>
         <Form.Item name="timeout_seconds" label="Timeout (seconds)" rules={[{ required: true }]}><InputNumber min={1} max={3600} style={{ width: "100%" }} /></Form.Item>
-        {executionDialog === "execution" && <Form.Item name="idempotency_key" label="Execution request key" rules={[{ required: true, whitespace: true }]} extra="Keep this key when retrying an interrupted request. A new key starts a new execution."><Input /></Form.Item>}
       </Form>
-      {cycle.isPending && <Alert type="info" showIcon message="The testing cycle is running. You can return to the workbench to monitor missions, executions and evidence." />}
-      {cycle.error && <Alert type="error" showIcon message="Testing cycle stopped" description={failure(cycle.error)} />}
-      {execution.isPending && <Alert type="info" showIcon message="Runner is executing tests and collecting evidence." />}
-      {execution.error && <Alert type="error" showIcon message="Unable to run tests" description={failure(execution.error)} />}
+      {cycle.isPending && <Alert type="info" showIcon message="Saving test-cycle task. Once accepted, work continues independently of this browser." />}
+      {cycle.error && <Alert type="error" showIcon message="Unable to save test-cycle task" description={failure(cycle.error)} />}
+      {execution.isPending && <Alert type="info" showIcon message="Saving official execution task." />}
+      {execution.error && <Alert type="error" showIcon message="Unable to save execution task" description={failure(execution.error)} />}
     </Modal>
 
     <Drawer title={executionSelection?.key || "Execution"} open={!!executionSelection} width={850} onClose={() => setExecutionSelection(null)}>
@@ -377,5 +377,5 @@ export function useRunOperations(runId: string) {
     </Drawer>
   </>;
 
-  return { tabs, actions, dialogs, summary, missionActions, refresh, busy: cycle.isPending };
+  return { tabs, actions, dialogs, summary, missionActions, refresh, busy: tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }

@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hypertest.api.operation_guard import guard_synchronous_operation
 from hypertest.api.schemas import (
     MissionCreate,
     MissionExecuteRequest,
@@ -53,7 +54,9 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "hypertest-one"}
 
 
-def translate_domain_error(exc: RuntimeError) -> HTTPException:
+def translate_domain_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, NotFoundError):
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, ConflictError):
@@ -119,7 +122,7 @@ async def post_policy_snapshot(
 ):
     try:
         return await create_policy_snapshot(db, payload)
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         raise translate_domain_error(exc) from exc
 
 
@@ -238,6 +241,8 @@ async def post_execute_mission(
     from hypertest.api.delivery_schemas import FindingRead, ImplementationRead
 
     try:
+        mission = await get_mission(db, mission_id)
+        await guard_synchronous_operation(db, mission.test_run_id)
         execution = await execute_mission(
             db,
             mission_id,
@@ -265,10 +270,14 @@ async def post_execute_mission(
                 )
                 for item in execution.test_cases
             ],
-            implementations=[ImplementationRead.model_validate(item).model_dump(mode="json")
-                             for item in execution.implementations],
-            findings=[FindingRead.model_validate(item).model_dump(mode="json")
-                      for item in execution.findings],
+            implementations=[
+                ImplementationRead.model_validate(item).model_dump(mode="json")
+                for item in execution.implementations
+            ],
+            findings=[
+                FindingRead.model_validate(item).model_dump(mode="json")
+                for item in execution.findings
+            ],
         )
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.services import canonical_json_sha256
 from hypertest.common.ids import public_key
 from hypertest.domain.enums import (
@@ -59,11 +60,13 @@ async def verify_test_implementations(
 ) -> VerificationResult:
     from hypertest.application.verifier import (
         VerificationResult,
+        _prepare_verification,
         _reject_result,
         _validate_proposal_keys,
         _validation_error,
     )
 
+    await _prepare_verification(session, mission, attempt)
     test_run = mission.test_run
     snapshot = await session.get(SourceSnapshot, test_run.source_snapshot_id)
     assert snapshot is not None
@@ -352,6 +355,12 @@ async def verify_test_implementations(
         mission.status = MissionStatus.COMPLETED
         mission.completed_at = utcnow()
         mission.row_version += 1
+        await record_mission_event(
+            session, mission, "mission.completed", attempt=attempt,
+            metadata={"proposal_count": len(proposals),
+                      "implementation_count": len({item.id for item in implementations})},
+            before_status=MissionStatus.VERIFYING,
+        )
         await session.commit()
     except Exception:
         await session.rollback()

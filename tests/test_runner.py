@@ -20,6 +20,7 @@ from hypertest.api.schemas import (
 )
 from hypertest.application.executions import execute_test_run
 from hypertest.application.services import (
+    canonical_json_sha256,
     create_policy_snapshot,
     create_project,
     create_source_snapshot,
@@ -89,7 +90,7 @@ async def _setup(session, tmp_path, monkeypatch, code: str, symbol: str = "test_
         prd_sha256="a" * 64, configuration_sha256="b" * 64,
     ))
     policy = await create_policy_snapshot(session, PolicySnapshotCreate(
-        project_id=project.id, policy_version="runner/v1", content_sha256="c" * 64,
+        project_id=project.id, policy_version="runner/v1", content_sha256=canonical_json_sha256({}),
     ))
     run = await create_test_run(session, RunCreate(
         project_id=project.id, source_snapshot_id=snapshot.id, policy_snapshot_id=policy.id,

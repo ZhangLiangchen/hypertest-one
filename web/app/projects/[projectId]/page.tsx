@@ -9,8 +9,10 @@ import { useState } from "react";
 
 import { createRun, getProject, getProjectRuns } from "@/lib/api";
 import { ClientModal as Modal } from "@/app/client-modal";
+import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
+import type { PolicyFormValues } from "./policy-fields";
 
-type RunFormValues = {
+type RunFormValues = PolicyFormValues & {
   repository_url: string;
   commit_sha: string;
   branch?: string;
@@ -21,6 +23,7 @@ type RunFormValues = {
 const stepFields: (keyof RunFormValues)[][] = [
   ["repository_url", "commit_sha", "branch"],
   ["prd_text", "configuration_text"],
+  ["coverage_default_dimensions", "coverage_by_category", "blocking_severities"],
 ];
 
 export default function ProjectPage({ params }: { params: { projectId: string } }) {
@@ -31,6 +34,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
   const [requestKey, setRequestKey] = useState("");
   const [draft, setDraft] = useState<RunFormValues>({
     repository_url: "", commit_sha: "", branch: "main", prd_text: "", configuration_text: "{}",
+    ...defaultPolicyValues(),
   });
   const [form] = Form.useForm<RunFormValues>();
   const project = useQuery({
@@ -49,6 +53,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       prd_text: values.prd_text,
       configuration_text: values.configuration_text || "{}",
       idempotency_key: requestKey,
+      policy: compileFormPolicy(values),
     }),
     onSuccess: (run) => {
       queryClient.setQueryData(["run", run.id], run);
@@ -64,6 +69,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
       branch: project.data?.default_branch || "main",
       prd_text: "",
       configuration_text: "{}",
+      ...defaultPolicyValues(),
     };
     form.resetFields();
     form.setFieldsValue(initialValues);
@@ -76,7 +82,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
 
   const nextStep = async () => {
     try {
-      await form.validateFields(stepFields[step]);
+      await form.validateFields(stepFields[step], { recursive: true });
       setDraft(form.getFieldsValue(true) as RunFormValues);
       setStep(step + 1);
     } catch {
@@ -186,7 +192,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
         <Steps
           current={step}
           size="small"
-          items={[{ title: "Source" }, { title: "Requirements" }, { title: "Review" }]}
+          items={[{ title: "Source" }, { title: "Requirements" }, { title: "Policy" }, { title: "Review" }]}
           style={{ margin: "24px 0" }}
         />
         {creation.isError ? (
@@ -251,7 +257,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
                 <Input.TextArea rows={4} placeholder="{}" style={{ fontFamily: "monospace" }} />
               </Form.Item>
             </>
-          ) : (
+          ) : step === 2 ? <PolicyFields /> : (
             <Space direction="vertical" size={18} style={{ width: "100%", marginBottom: 24 }}>
               <Alert
                 type="info"
@@ -265,8 +271,7 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
                 <Descriptions.Item label="Commit"><Typography.Text code copyable style={{ overflowWrap: "anywhere", wordBreak: "break-all" }}>{draft.commit_sha}</Typography.Text></Descriptions.Item>
                 <Descriptions.Item label="Branch">{draft.branch?.trim() || "Not specified"}</Descriptions.Item>
                 <Descriptions.Item label="Policy">
-                  <Typography.Text strong>Default quality policy</Typography.Text>
-                  <div className="muted">Uses the platform policy for risk coverage, execution and evidence checks.</div>
+                  <PolicyReview values={draft} />
                 </Descriptions.Item>
               </Descriptions>
               <div style={{ width: "100%" }}>
@@ -285,11 +290,12 @@ export default function ProjectPage({ params }: { params: { projectId: string } 
             <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Space>
               {step > 0 ? <Button onClick={previousStep}>Back</Button> : null}
-              {step < 2 ? (
+              {step < 3 ? (
                 <Button type="primary" onClick={() => void nextStep()}>Continue <ArrowRightOutlined /></Button>
               ) : (
                 <Button
                   type="primary"
+                  aria-label="Create test run"
                   onClick={() => creation.mutate(form.getFieldsValue(true) as RunFormValues)}
                   loading={creation.isPending || creation.isSuccess}
                 >

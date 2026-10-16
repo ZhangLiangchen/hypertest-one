@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.services import ConflictError, NotFoundError, canonical_json_sha256
 from hypertest.common.ids import public_key
 from hypertest.domain.enums import (
@@ -111,11 +112,13 @@ async def verify_findings(
     # Local import avoids a protocol/runtime/verifier import cycle.
     from hypertest.application.verifier import (
         VerificationResult,
+        _prepare_verification,
         _reject_result,
         _validate_proposal_keys,
         _validation_error,
     )
 
+    await _prepare_verification(session, mission, attempt)
     run = mission.test_run
     await session.scalar(select(TestRun).where(TestRun.id == run.id).with_for_update())
     snapshot = await session.get(SourceSnapshot, run.source_snapshot_id)
@@ -350,6 +353,12 @@ async def verify_findings(
         mission.status = MissionStatus.COMPLETED
         mission.completed_at = utcnow()
         mission.row_version += 1
+        await record_mission_event(
+            session, mission, "mission.completed", attempt=attempt,
+            metadata={"proposal_count": len(proposals),
+                      "finding_count": len({item.id for item in findings})},
+            before_status=MissionStatus.VERIFYING,
+        )
         await session.commit()
     except Exception:
         await session.rollback()

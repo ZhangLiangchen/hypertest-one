@@ -16,7 +16,7 @@ Test Mission Protocol（TMP）定义 HyperTest 与外部 Agent Harness 之间的
 
 TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context、retry tools；这些属于 Agent Harness 自身能力。
 
-Web 的 bounded Run test cycle controller 可以依次调度多个符合 TMP 的 Mission、正式 Runner 执行与 Gate 评估。它根据 deterministic Planner 的 Canonical State gap 推进工作，不接管 Agent reasoning；max_steps 限制的是平台工作单元，单个 Mission 的 Proposal / Verifier / Attempt 契约不变。
+Web 提交的 DurableJob 由独立 Worker 执行；bounded Run test cycle controller 可以依次调度多个符合 TMP 的 Mission、正式 Runner 执行与 Gate 评估。它根据 deterministic Planner 的 Canonical State gap 推进工作，不接管 Agent reasoning；max_steps 限制的是平台工作单元，单个 Mission 的 Proposal / Verifier / Attempt 契约不变。Job 是平台运行请求，不能把 Job SUCCEEDED 等同于测试 PASS 或把 Job payload 当作 Canonical State。
 
 TMP 定义的是：
 
@@ -70,6 +70,8 @@ Agent Harness
 ## 5. TestMission
 
 Mission 是不可变任务描述。Mission 进入 READY 后不得原地改变目标；需要改变目标时，应 cancel old mission + create new mission。
+
+HyperTest 在数据库层冻结已离开 CREATED 的 Mission 身份、优先级、协议版本、目标、spec 及摘要、幂等键与创建者信息。Retry 只创建新的 Attempt，不能改写原 Mission 或把状态退回 CREATED 重新编辑；已冻结 Mission 不允许删除。
 
 ---
 
@@ -140,7 +142,7 @@ VERIFY_COVERAGE
 
 v0.2 必须使用 `proposal_type = TEST_CASE`、`operation = CREATE`。Agent 不写 Canonical TestCase 或 Canonical Lifecycle。Risk 关系以 `object_payload.risk_keys` 提议，由 HyperTest 解析并持久化为 `RiskTestCase` Join Table。
 
-Planner 创建的 Mission 固定 `targets.risks`、`context.risks`（已接受的 Canonical 内容）、`context.coverage` 与 `acceptance_criteria.risk_coverage_gaps`。后者记录 Risk key 和该 Mission 创建时的 missing dimensions，并保存 `coverage_rule_version = risk-design-baseline/v1`。Agent 无法用返回值覆盖这些约束。
+Planner 创建的 Mission 固定 `targets.risks`、`context.risks`（已接受的 Canonical 内容）、`context.coverage` 与 `acceptance_criteria.risk_coverage_gaps`。后者记录 Risk key 和该 Mission 创建时的 missing dimensions，并保存 `coverage_rule_version` 和 `coverage_policy_hash`。规则由当前 TestRun 的不可变 PolicySnapshot 编译，默认 `risk-design-baseline/v1`，自定义维度为 `risk-design-policy/v1`。同一 Hash 表示解析后的相同覆盖规则，维度输入顺序不影响身份。Agent 无法用返回值覆盖这些约束；Verifier 拒绝与固定 Policy 不符的版本或 Hash。没有 Hash 的历史基线 Mission 只对未改变的基线规则兼容。
 
 Verifier 要求整批 Proposal 合法，并至少对一个仍缺失的目标 Risk / dimension 形成覆盖进展。允许一次 Mission 只补齐部分维度；剩余缺口由下次 Planner 创建 Mission。重复规划复用仍可执行的 Mission，历史 Mission spec 不被覆盖。设计阶段全部满足后，当前完整 MVP 继续规划 IMPLEMENT_TESTS；早期切片的 `TEST_DESIGN_COVERAGE_COMPLETE` 仅代表设计阶段边界，不表示已经执行测试、产生 Runner Evidence 或形成质量 Verdict。
 
@@ -619,6 +621,10 @@ TMP 将 Retry 分两类：
 - **Mission Retry**：Agent crashed、result schema invalid、provider unavailable，由 HyperTest 重新调度。
 
 Mission Attempt 必须独立记录，历史 Attempt 不覆盖。
+
+接受 required outputs 的事务必须同时保存 `mission.completed` AuditEvent 与 OutboxEvent；SUBMITTED 或 Agent 自称 COMPLETED 不触发该平台事件。创建、开始、拒绝、超时、中断、取消和重试控制决策形成可审计的 Mission 生命周期，不能只从 Requirement / Case 的接受事件推测。生命周期事件只携带领域状态与原因，不承载 Vendor 日志、raw Proposal payload 或 reasoning。
+
+Worker 租约过期或进程中断时，平台保留失联 Attempt 并标记 FAILED，将 Mission 标记 RETRYING；旧 lease token 不能再提交 Canonical 结果。Job 记录 INTERRUPTED，不自动重放外部执行。用户确认后显式重试生成新的 Job；Mission 重试仍追加新的 Attempt，Execution 重试仍创建新 Execution。Web 刷新或 API 请求结束不会撤销已经入库的 Job。
 
 ---
 

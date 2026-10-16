@@ -9,10 +9,17 @@ from sqlalchemy import func, select
 from test_test_design import ProposalHarness, create_run, requirement_proposal
 
 from hypertest.agent.base import AgentEvent, AgentSession
+from hypertest.api.schemas import MissionCreate
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import MissionRuntimeError, execute_mission
+from hypertest.application.services import create_mission
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.enums import AgentSessionStatus, MissionAttemptStatus, MissionStatus
+from hypertest.domain.enums import (
+    AgentSessionStatus,
+    MissionAttemptStatus,
+    MissionStatus,
+    MissionType,
+)
 from hypertest.domain.enums import TestRunStatus as RunStatus
 from hypertest.domain.models import (
     AgentSessionRecord,
@@ -173,11 +180,12 @@ async def test_mission_timeout_interrupts_external_work_and_preserves_failed_att
     async with AsyncSessionLocal() as session:
         run = await create_run(session)
         snapshot_id = run.source_snapshot_id
-        plan = await plan_next_mission(session, run.id)
-        assert plan.mission is not None
-        mission = plan.mission
-        mission.spec = {**mission.spec, "constraints": {"max_duration_seconds": 0.1}}
-        await session.commit()
+        mission = await create_mission(session, run.id, MissionCreate(
+            mission_type=MissionType.ANALYZE_REQUIREMENTS,
+            objective="Verify runtime deadline handling",
+            spec={"constraints": {"max_duration_seconds": 0.1}},
+            idempotency_key=f"{run.key}:timeout",
+        ))
         harness = PausedHarness()
         with pytest.raises(MissionRuntimeError, match="time limit"):
             await asyncio.wait_for(

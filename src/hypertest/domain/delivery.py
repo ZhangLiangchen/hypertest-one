@@ -136,6 +136,9 @@ class TestExecution(Base):
     mission_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("missions.id", ondelete="RESTRICT"), index=True
     )
+    durable_job_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("durable_jobs.id", ondelete="RESTRICT"), index=True
+    )
     execution_request_id: Mapped[UUID | None] = mapped_column()
     retry_of_execution_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("test_executions.id", ondelete="RESTRICT")

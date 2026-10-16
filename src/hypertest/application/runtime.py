@@ -15,7 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hypertest.agent.base import AgentHarness
 from hypertest.agent.codex import CodexCliAdapter
 from hypertest.agent.snapshot import SnapshotHarness
+from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.verifier import VerificationResult, verify_mission_result
+from hypertest.common.ids import uuid7
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.enums import (
@@ -168,27 +170,62 @@ async def _fail_attempt(
     error_code: str,
     error_message: str,
     provider_metadata: dict[str, Any],
+    *,
+    result_payload: dict[str, Any] | None = None,
 ) -> None:
     test_run = await session.get(TestRun, mission.test_run_id)
     if test_run is not None:
         await session.refresh(test_run, with_for_update=True)
     await session.refresh(mission, with_for_update=True)
+    before_status = mission.status
     cancelled = mission.status is MissionStatus.CANCELLED or (
         test_run is not None and test_run.status is TestRunStatus.CANCELLED
     )
     now = utcnow()
-    attempt.status = MissionAttemptStatus.CANCELLED if cancelled else MissionAttemptStatus.FAILED
+    rejected = error_code == "RESULT_SCHEMA_ERROR"
+    attempt.status = (
+        MissionAttemptStatus.CANCELLED if cancelled else
+        MissionAttemptStatus.REJECTED if rejected else MissionAttemptStatus.FAILED
+    )
     attempt.finished_at = now
     attempt.error_code = error_code
     attempt.error_message = error_message
     attempt.provider_metadata = provider_metadata
+    if result_payload is not None:
+        attempt.result_payload = result_payload
+    if rejected:
+        attempt.submitted_at = attempt.submitted_at or now
     if not cancelled:
         mission.status = MissionStatus.RETRYING
         mission.row_version += 1
-    agent_session.status = AgentSessionStatus.CLOSED if cancelled else AgentSessionStatus.FAILED
+    elif mission.status is not MissionStatus.CANCELLED:
+        mission.status = MissionStatus.CANCELLED
+        mission.cancelled_at = now
+        mission.row_version += 1
+    agent_session.status = (
+        AgentSessionStatus.CLOSED if cancelled or rejected else AgentSessionStatus.FAILED
+    )
     agent_session.last_active_at = now
     agent_session.closed_at = now
-    await session.commit()
+    if cancelled:
+        action, reason = "mission.cancelled", "mission execution cancelled by the control plane"
+    elif rejected:
+        action, reason = "mission.result_rejected", "agent result envelope failed schema validation"
+    elif error_code == "MISSION_TIMEOUT":
+        action, reason = "mission.timed_out", "mission exceeded its execution time limit"
+    elif error_code == "EXECUTION_INTERRUPTED":
+        action, reason = "mission.interrupted", "request or worker task interrupted before acceptance"
+    else:
+        action, reason = "mission.attempt_failed", "agent attempt failed before canonical acceptance"
+    try:
+        await record_mission_event(
+            session, mission, action, attempt=attempt,
+            metadata={"reason": reason, "error_code": error_code}, before_status=before_status,
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
 
 
 def _select_harness(provider: str) -> AgentHarness:
@@ -197,12 +234,14 @@ def _select_harness(provider: str) -> AgentHarness:
     raise MissionRuntimeError(f"unsupported agent provider: {provider}")
 
 
-async def execute_mission(
+async def _execute_mission(
     session: AsyncSession,
     mission_id: UUID,
     workspace: str,
     provider: str = "codex",
     harness: AgentHarness | None = None,
+    *,
+    attempt_context: dict[str, UUID],
 ) -> MissionExecutionResult:
     mission = await session.get(Mission, mission_id)
     if mission is None:
@@ -261,13 +300,22 @@ async def execute_mission(
     if test_run.status is TestRunStatus.CANCELLED:
         await session.rollback()
         raise MissionRuntimeError("cancelled test runs cannot execute missions")
+    from hypertest.runner.backends import runner_job_id
+
+    job_reference = getattr(session, "job_id", None) or runner_job_id.get()
+    durable_job_id = UUID(str(job_reference)) if job_reference is not None else None
     try:
         external_session = await selected_harness.create_session(workspace)
     except Exception as exc:
         await session.rollback()
+        from hypertest.application.jobs import JobLeaseLost
+
+        if isinstance(exc, JobLeaseLost):
+            raise
         raise MissionRuntimeError(f"agent session could not be created: {exc}") from exc
     now = utcnow()
     agent_record = AgentSessionRecord(
+        id=uuid7(),
         test_run_id=test_run.id,
         provider=external_session.provider,
         harness=type(selected_harness).__name__,
@@ -281,17 +329,20 @@ async def execute_mission(
         last_active_at=now,
     )
     attempt = MissionAttempt(
+        id=uuid7(),
         mission_id=mission.id,
+        durable_job_id=durable_job_id,
         attempt_no=mission.current_attempt_no + 1,
         agent_session=agent_record,
         provider=external_session.provider,
         harness=type(selected_harness).__name__,
-        status=MissionAttemptStatus.RUNNING,
-        started_at=now,
+        status=MissionAttemptStatus.CREATED,
     )
     session.add_all([agent_record, attempt])
+    attempt_context.update(attempt_id=attempt.id, agent_session_id=agent_record.id)
+    before_status = mission.status
     mission.current_attempt_no = attempt.attempt_no
-    mission.status = MissionStatus.RUNNING
+    mission.status = MissionStatus.DISPATCHED
     mission.dispatched_at = mission.dispatched_at or now
     mission.row_version += 1
     next_run_status = {
@@ -304,16 +355,27 @@ async def execute_mission(
         test_run.started_at = test_run.started_at or now
         test_run.row_version += 1
     try:
+        await record_mission_event(
+            session, mission, "mission.dispatched", attempt=attempt,
+            metadata={"reason": "mission dispatched to a replaceable agent worker"},
+            before_status=before_status,
+        )
+        mission.status = MissionStatus.RUNNING
+        mission.row_version += 1
+        attempt.status = MissionAttemptStatus.RUNNING
+        attempt.started_at = now
+        await record_mission_event(
+            session, mission, "mission.started", attempt=attempt,
+            metadata={"reason": "agent attempt started"}, before_status=MissionStatus.DISPATCHED,
+        )
         await session.commit()
-    except Exception:
+    except BaseException:
         await session.rollback()
         try:
             await asyncio.wait_for(selected_harness.close(external_session), 5)
         except Exception:
             pass
         raise
-    await session.refresh(agent_record)
-    await session.refresh(attempt)
 
     result_payload: dict[str, Any] | None = None
     error_payload: dict[str, Any] | None = None
@@ -369,6 +431,10 @@ async def execute_mission(
         await asyncio.wait_for(execution_task, timeout=duration)
     except asyncio.CancelledError:
         if not cancellation_observed.is_set():
+            try:
+                await asyncio.wait_for(selected_harness.interrupt(external_session), 5)
+            except Exception:
+                event_types.append("HARNESS_INTERRUPT_ERROR")
             raise
     except TimeoutError:
         try:
@@ -380,6 +446,10 @@ async def execute_mission(
             "message": "mission exceeded its time limit",
         }
     except Exception as exc:
+        from hypertest.application.jobs import JobLeaseLost
+
+        if isinstance(exc, JobLeaseLost):
+            raise
         error_payload = {
             "error_code": "HARNESS_ERROR",
             "message": str(exc),
@@ -397,12 +467,22 @@ async def execute_mission(
     await session.refresh(test_run, with_for_update=True)
     await session.refresh(mission, with_for_update=True)
     if mission.status is MissionStatus.CANCELLED or test_run.status is TestRunStatus.CANCELLED:
+        before_status = mission.status
+        if mission.status is not MissionStatus.CANCELLED:
+            mission.status = MissionStatus.CANCELLED
+            mission.cancelled_at = utcnow()
+            mission.row_version += 1
         attempt.status = MissionAttemptStatus.CANCELLED
         attempt.finished_at = utcnow()
         attempt.provider_metadata = provider_metadata
         agent_record.status = AgentSessionStatus.CLOSED
         agent_record.closed_at = utcnow()
         agent_record.last_active_at = utcnow()
+        await record_mission_event(
+            session, mission, "mission.cancelled", attempt=attempt,
+            metadata={"reason": "mission execution cancelled by the control plane"},
+            before_status=before_status,
+        )
         await session.commit()
         return MissionExecutionResult(mission, attempt, [], [], [], [])
     if harness is None and error_payload is None:
@@ -447,6 +527,7 @@ async def execute_mission(
             "RESULT_SCHEMA_ERROR",
             str(exc),
             provider_metadata,
+            result_payload=result_payload,
         )
         raise MissionRuntimeError("agent result failed TMP schema validation") from exc
 
@@ -472,3 +553,41 @@ async def execute_mission(
         implementations=verification.implementations,
         findings=verification.findings,
     )
+
+
+async def execute_mission(
+    session: AsyncSession,
+    mission_id: UUID,
+    workspace: str,
+    provider: str = "codex",
+    harness: AgentHarness | None = None,
+) -> MissionExecutionResult:
+    """Run one owned attempt, preserving interruption history before re-raising.
+
+    Interrupted database work is rolled back before retiring this attempt. The
+    supplied session remains authoritative, including durable-worker lease fencing.
+    """
+
+    ownership: dict[str, UUID] = {}
+    try:
+        return await _execute_mission(
+            session, mission_id, workspace, provider, harness, attempt_context=ownership,
+        )
+    except asyncio.CancelledError:
+        await session.rollback()
+        attempt_id = ownership.get("attempt_id")
+        if attempt_id is not None:
+            attempt = await session.get(MissionAttempt, attempt_id)
+            if attempt is not None and attempt.status in {
+                MissionAttemptStatus.CREATED, MissionAttemptStatus.RUNNING,
+                MissionAttemptStatus.SUBMITTED,
+            }:
+                mission = await session.get(Mission, mission_id)
+                agent_record = await session.get(AgentSessionRecord, ownership["agent_session_id"])
+                if mission is not None and agent_record is not None:
+                    await _fail_attempt(
+                        session, mission, attempt, agent_record, "EXECUTION_INTERRUPTED",
+                        "request or worker task interrupted before canonical acceptance",
+                        {"event_types": ["EXECUTION_INTERRUPTED"]},
+                    )
+        raise

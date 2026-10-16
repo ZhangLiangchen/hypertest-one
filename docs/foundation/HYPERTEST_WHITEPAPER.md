@@ -444,6 +444,8 @@ while not run.finished:
 
 复杂的 Think / Tool / Observe / Edit / Retry Agent Loop 交由 Codex / Claude Code 自身完成。HyperTest 不重复实现。
 
+平台可通过持久化队列与独立 Worker 推进上述 Testing Runtime Loop，让用户关闭页面后工作仍可继续。队列保存可恢复的工作请求，不拥有 Canonical Testing State；Worker 失联需保留 Attempt / Execution 历史并显式中断，不能把可能发生过的正式执行静默重放。调度完成与测试通过是不同状态，质量结论仍属于 Gate。
+
 ---
 
 ## 22. Web 产品形态

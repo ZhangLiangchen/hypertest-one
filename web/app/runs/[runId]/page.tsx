@@ -294,6 +294,11 @@ export default function RunPage({ params }: { params: { runId: string } }) {
         </Col>
       </Row>
 
+      {coverageData?.rule_version && <div style={{ marginBottom: 20, overflowWrap: "anywhere" }}>
+        <Space wrap><Typography.Text className="muted">Coverage rules</Typography.Text><Tag>{coverageData.rule_version}</Tag></Space>
+        {coverageData.effective_policy_hash && <div style={{ marginTop: 6 }}><Typography.Text className="muted">Effective policy SHA-256 </Typography.Text><Typography.Text code copyable>{coverageData.effective_policy_hash}</Typography.Text></div>}
+      </div>}
+
       {coverageData?.risk_identification_coverage === 1 && coverageData.risk_test_coverage === 1 && (
         <Alert
           type="success"

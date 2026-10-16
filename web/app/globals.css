@@ -142,6 +142,14 @@ body {
   font: 12px/1.7 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.policy-rule {
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e0e5ee;
+  border-radius: 8px;
+  background: #fafbfe;
+}
+
 @media (max-width: 760px) {
   .topbar {
     padding: 0 18px;

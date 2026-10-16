@@ -17,6 +17,7 @@ from hypertest.application.findings import transition_finding, verify_findings
 from hypertest.application.gate import evaluate_gate
 from hypertest.application.services import (
     ConflictError,
+    canonical_json_sha256,
     create_policy_snapshot,
     create_project,
     create_source_snapshot,
@@ -76,7 +77,7 @@ async def _seed(session: AsyncSession) -> tuple[CanonicalRun, Requirement, Risk,
         prd_sha256="b" * 64, configuration_sha256="c" * 64,
     ))
     policy = await create_policy_snapshot(session, PolicySnapshotCreate(
-        project_id=project.id, policy_version="gate-baseline/v1", content_sha256="d" * 64,
+        project_id=project.id, policy_version="gate-baseline/v1", content_sha256=canonical_json_sha256({}),
     ))
     run = await create_test_run(session, RunCreate(project_id=project.id,
         source_snapshot_id=snapshot.id, policy_snapshot_id=policy.id))

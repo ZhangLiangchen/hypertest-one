@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.delivery_schemas import RunBootstrap
 from hypertest.api.schemas import SourceSnapshotCreate
+from hypertest.application.policy import compile_policy
 from hypertest.application.services import (
     NotFoundError,
     canonical_json_sha256,
@@ -27,6 +28,8 @@ from hypertest.domain.models import (
 
 
 async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBootstrap) -> TestRun:
+    policy_content = {"gate_version": "mvp/v1", **payload.policy}
+    compile_policy(policy_content)
     project = await session.scalar(
         select(Project).where(Project.id == project_id).with_for_update()
     )
@@ -92,7 +95,6 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
         )
         session.add(snapshot)
         await session.flush()
-    policy_content = {"gate_version": "mvp/v1", **payload.policy}
     policy_hash = canonical_json_sha256(policy_content)
     policy = await session.scalar(
         select(PolicySnapshot).where(

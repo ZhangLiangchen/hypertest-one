@@ -75,6 +75,7 @@ class ExecutionRead(ORMModel):
     key: str
     test_run_id: UUID
     mission_id: UUID | None
+    durable_job_id: UUID | None = None
     retry_of_execution_id: UUID | None
     idempotency_key: str
     purpose: str

@@ -1,5 +1,5 @@
 import type {
-  Capabilities, Coverage, CycleResult, Evidence, ExecutionCreate, ExecutionDetail, Finding, FindingTransition, Mission, MissionAttempt, MissionExecution,
+  BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate,
   SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict,
 } from "@/lib/types";
@@ -51,15 +51,11 @@ export const planNext = (runId: string) =>
   api<PlannerResult>(`/test-runs/${runId}/plan-next`, { method: "POST" });
 export const getMissionAttempts = (missionId: string) => api<MissionAttempt[]>(`/missions/${missionId}/attempts`);
 export const getMissionProposals = (missionId: string) => api<MissionProposal[]>(`/missions/${missionId}/proposals`);
-export const executeMission = (missionId: string, payload: { workspace: string; provider: string }) =>
-  api<MissionExecution>(`/missions/${missionId}/execute`, { method: "POST", body: JSON.stringify(payload) });
 export const retryMission = (missionId: string) => api<Mission>(`/missions/${missionId}/retry`, { method: "POST" });
 export const cancelMission = (missionId: string) => api<Mission>(`/missions/${missionId}/cancel`, { method: "POST" });
 export const getImplementations = (runId: string) => api<TestImplementation[]>(`/test-runs/${runId}/implementations`);
 export const getExecutions = (runId: string) => api<TestExecution[]>(`/test-runs/${runId}/executions`);
 export const getExecution = (executionId: string) => api<ExecutionDetail>(`/executions/${executionId}`);
-export const createExecution = (runId: string, payload: ExecutionCreate) =>
-  api<TestExecution>(`/test-runs/${runId}/executions`, { method: "POST", body: JSON.stringify(payload) });
 export const getEvidence = (runId: string) => api<Evidence[]>(`/test-runs/${runId}/evidence`);
 export const getEvidenceContent = async (evidenceId: string) => {
   const response = await fetch(`${API_PREFIX}/evidence/${evidenceId}/content`);
@@ -83,9 +79,10 @@ export const getConfigurationContent = async (snapshotId: string) => {
   return response.text();
 };
 export const getVerdicts = (runId: string) => api<Verdict[]>(`/test-runs/${runId}/verdicts`);
-export const evaluateGate = (runId: string) =>
-  api<Verdict>(`/test-runs/${runId}/evaluate`, { method: "POST", body: JSON.stringify({ finalize: true }) });
-export const advanceRun = (runId: string, payload: { workspace: string; backend: "docker" | "local"; timeout_seconds?: number; max_steps: number }) =>
-  api<CycleResult>(`/test-runs/${runId}/advance`, { method: "POST", body: JSON.stringify(payload) });
-export const prepareWorkspace = (runId: string) =>
-  api<{ workspace: string; repository_url: string; commit_sha: string }>(`/test-runs/${runId}/prepare-workspace`, { method: "POST" });
+export const getJobs = (runId: string) => api<BackgroundJob[]>(`/test-runs/${runId}/jobs`);
+export const getJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}`);
+export const createJob = (runId: string, payload: JobCreate) =>
+  api<BackgroundJob>(`/test-runs/${runId}/jobs`, { method: "POST", body: JSON.stringify(payload) });
+export const cancelJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}/cancel`, { method: "POST" });
+export const retryJob = (jobId: string, idempotencyKey: string) =>
+  api<BackgroundJob>(`/jobs/${jobId}/retry`, { method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey }) });

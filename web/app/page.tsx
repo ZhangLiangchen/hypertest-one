@@ -180,7 +180,7 @@ export default function DashboardPage() {
           </Form.Item>
           <Space style={{ display: "flex", justifyContent: "flex-end" }}>
             <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button type="primary" htmlType="submit" loading={creation.isPending || creation.isSuccess}>
+            <Button type="primary" htmlType="submit" aria-label="Create project" loading={creation.isPending || creation.isSuccess}>
               Create project
             </Button>
           </Space>

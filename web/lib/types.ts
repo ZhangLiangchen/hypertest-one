@@ -188,7 +188,7 @@ export type ExecutionCreate = {
   workspace: string;
   backend: "docker" | "local";
   purpose: "OFFICIAL";
-  idempotency_key: string;
+  idempotency_key?: string;
   timeout_seconds?: number;
 };
 
@@ -198,6 +198,7 @@ export type Capabilities = {
   workspace_root: string;
   runner_image: string;
   mode: string;
+  worker?: { available: boolean; active_workers: number; last_seen_at: string | null };
 };
 
 export type FindingTransition = {
@@ -319,4 +320,41 @@ export type Coverage = {
   risk_identification_coverage: number | null;
   risk_test_coverage: number | null;
   risks: RiskTestCoverage[];
+  rule_version?: string;
+  effective_policy_hash?: string;
+};
+
+export type JobOperation = "ADVANCE_RUN" | "EXECUTE_MISSION" | "EXECUTE_TESTS" | "EVALUATE_GATE" | "PREPARE_WORKSPACE";
+export type JobStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCEL_REQUESTED" | "CANCELLED" | "INTERRUPTED";
+
+export type BackgroundJob = {
+  id: string;
+  key: string;
+  test_run_id: string;
+  mission_id?: string | null;
+  job_type: JobOperation;
+  status: JobStatus;
+  idempotency_key: string;
+  retry_of_job_id?: string | null;
+  progress?: Record<string, unknown> | null;
+  result?: Record<string, unknown> | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  queued_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  heartbeat_at?: string | null;
+  lease_expires_at?: string | null;
+  updated_at?: string;
+  cancel_requested_at?: string | null;
+  attempts?: number;
+  worker_id?: string | null;
+};
+
+export type JobCreate = {
+  operation: JobOperation;
+  mission_id?: string;
+  idempotency_key: string;
+  payload: Record<string, unknown>;
 };

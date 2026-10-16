@@ -111,17 +111,25 @@ async def create_source_snapshot(
 async def create_policy_snapshot(
     session: AsyncSession, payload: PolicySnapshotCreate
 ) -> PolicySnapshot:
+    from hypertest.application.policy import InvalidPolicyError, compile_policy
+
+    compile_policy(payload.compiled_policy)
+    expected_hash = canonical_json_sha256(payload.compiled_policy)
+    if payload.content_sha256.lower() != expected_hash:
+        raise InvalidPolicyError("content_sha256 must match the canonical compiled_policy JSON")
     await get_project(session, payload.project_id)
     existing = await session.scalar(
         select(PolicySnapshot).where(
             PolicySnapshot.project_id == payload.project_id,
-            PolicySnapshot.content_sha256 == payload.content_sha256,
+            PolicySnapshot.content_sha256 == expected_hash,
         )
     )
     if existing is not None:
         return existing
 
-    snapshot = PolicySnapshot(**payload.model_dump())
+    snapshot = PolicySnapshot(
+        **payload.model_dump(exclude={"content_sha256"}), content_sha256=expected_hash
+    )
     session.add(snapshot)
     await _commit(session)
     await session.refresh(snapshot)
@@ -181,6 +189,10 @@ async def create_mission(
         **payload.model_dump(),
     )
     session.add(mission)
+    await session.flush()
+    from hypertest.application.lifecycle import record_mission_event
+
+    await record_mission_event(session, mission, "mission.created")
     await _commit(session)
     await session.refresh(mission)
     return mission

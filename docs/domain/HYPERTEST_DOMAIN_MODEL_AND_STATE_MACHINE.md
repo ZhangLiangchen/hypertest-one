@@ -128,6 +128,8 @@ Human-readable Key 仅用于 UI、日志和 Agent 交流；数据库 FK 永远�
 - 生命周期结束使用 DEPRECATED、SUPERSEDED、CANCELLED、REVOKED、OBSOLETE 等状态表示。
 - Hard Delete 只允许未接受 Proposal、临时缓存、无引用 Workspace 等非 Canonical 数据。
 
+Requirement / Risk / TestCase / TestImplementation 按 SourceSnapshot 共享，可被不同 TestRun 引用。Gate 的覆盖 / Canonical 读取、Verifier 的 Canonical Proposal 提交和 Runner 的共享 Implementation 更新，均先锁定所属 TestRun，再对同一 SourceSnapshot `FOR UPDATE`，使 Gate 决策与 Hash 基于一致状态。快照内容本身仍不可变；不跨实际测试执行或 Agent provider 执行持有该快照锁。
+
 ---
 
 ## 6. JSONB 使用规范
@@ -214,6 +216,8 @@ created_at             timestamptz
 
 创建后禁止 UPDATE。PRD、Git Commit、Configuration 任一变化都创建新 Snapshot。
 
+`0006_immutable_contracts` 通过 PostgreSQL Trigger 拒绝 SourceSnapshot 内容变更与 DELETE，包括尚未被 TestRun 引用的 Snapshot；语义完全相同的 no-op UPDATE 可通过。不修改历史 Snapshot 来修复或重解释已有 Run。
+
 Fingerprint：
 
 ```text
@@ -240,6 +244,8 @@ created_at
 ```
 
 PolicySnapshot 创建后不可变。
+
+同一迁移为 PolicySnapshot 安装完整行的 UPDATE / DELETE 保护。创建入口验证 compiled Policy 的受支持规则，并核对 `content_sha256` 与规范化 `compiled_policy` JSON 的 SHA-256；不接受由调用者任意指定且与内容不符的摘要。未知规则或无效维度在创建 Run / PolicySnapshot 时拒绝，避免运行到 Gate 才暴露配置错误。
 
 ---
 
@@ -530,6 +536,7 @@ id
 key
 test_run_id
 mission_id nullable
+durable_job_id nullable
 execution_request_id nullable
 retry_of_execution_id nullable
 idempotency_key
@@ -748,7 +755,7 @@ FINAL Verdict Append-only：禁止原地 UPDATE；质量状态变化时创建新
 
 每个 FINAL Verdict 必须保存 `state_snapshot_hash`，证明 Verdict 基于哪一个 Canonical Testing State 得出。
 
-MVP 对 `(test_run_id, sequence_no)` 建立唯一约束，sequence_no > 0；FINAL 必须同时有 state_snapshot_hash、evidence_manifest_sha256、finalized_at。`TestRun.current_verdict_id` 指向最近 FINAL 决策。相同 Canonical State / Policy / status 的重复评估返回已有 Verdict，状态变化创建新 sequence。
+MVP 对 `(test_run_id, sequence_no)` 建立唯一约束，sequence_no > 0；FINAL 必须同时有 state_snapshot_hash、evidence_manifest_sha256、finalized_at。`TestRun.current_verdict_id` 指向最近 FINAL 决策。重复评估只有在 Run / Scope / Policy / State Hash / status / decision / Evidence Manifest 均匹配时返回已有 Verdict，变化创建新 sequence，不能复用与本次决策矛盾的历史记录。
 
 数据库 Trigger 禁止改变 FINAL 内容，只允许 FINAL → REVOKED 并设置 revoked_at，其他字段必须不变；REVOKED 同样不可重写，FINAL / REVOKED 禁止 DELETE。VerdictEvidence / VerdictFinding 保存决策引用，Canonical 内容、links、审计和 Outbox 事务性提交。
 
@@ -799,6 +806,8 @@ Mission `spec`：
 
 Mission 进入 READY 后 spec、spec_sha256、mission_type、objective 不可修改。目标变化必须 cancel + create new mission。
 
+数据库保护范围包括 id、key、test_run_id、mission_type、priority、objective、protocol_version、spec、spec_sha256、idempotency_key、created_by、created_at。CREATED 可编辑草稿；一旦离开 CREATED，后续 RUNNING / RETRYING / COMPLETED / CANCELLED 等状态均不能改变契约、删除历史或退回 CREATED 来解冻。状态、current_attempt_no、生命周期时间戳与 row_version 仍可由所属服务更新。
+
 Mission Type：ANALYZE_REQUIREMENTS、ANALYZE_IMPACT、ANALYZE_RISKS、DESIGN_TESTS、REVIEW_TESTS、IMPLEMENT_TESTS、REVIEW_IMPLEMENTATION、DIAGNOSE_FAILURE、INVESTIGATE_FINDING、REPAIR_TEST、RETEST_ANALYSIS、VERIFY_COVERAGE。
 
 Mission State Machine：
@@ -844,6 +853,7 @@ Mission Retry 不修改原 Mission，而是创建新的 MissionAttempt。
 id
 mission_id
 attempt_no
+durable_job_id nullable
 agent_session_id
 provider
 harness
@@ -915,6 +925,32 @@ closed_at
 
 AgentSession 属于 Operational State，不是 Canonical Test Fact，不能直接决定 Coverage、Finding、Verdict。
 
+### 23.1 DurableJob 与 WorkerHeartbeat
+
+DurableJob 表示用户提交的平台工作请求，属于 Operational State。它调度现有 Planner、Mission Runtime、Runner 与 Gate，不代替这些组件，也不成为 Canonical Testing Semantic Chain 的新事实节点。
+
+`durable_jobs` 使用 UUIDv7 主键，project_id / test_run_id 为关系 FK；EXECUTE_MISSION 必须具有同一 Run 的 mission_id，其他类型禁止该引用。retry_of_job_id 关联显式重试的历史请求。支持 ADVANCE_RUN、EXECUTE_MISSION、EXECUTE_TESTS、EVALUATE_GATE、PREPARE_WORKSPACE。
+
+请求 identity、类型、FK、payload、idempotency_key 与 created_at 创建后不可变。payload 只保存工作区、Runner、timeout、work limit 等运行选项；Requirement / Risk / Case 等 Canonical 状态继续保存在对应关系表。`UNIQUE(test_run_id, idempotency_key)` 保证相同输入重复提交返回原 Job，不同输入复用同一 Key 被拒绝；部分唯一索引保证每个 Run 至多有一个 QUEUED / RUNNING / CANCEL_REQUESTED Job。
+
+```text
+QUEUED → RUNNING → SUCCEEDED / FAILED / INTERRUPTED
+QUEUED → CANCELLED
+RUNNING → CANCEL_REQUESTED → CANCELLED
+```
+
+SUCCEEDED 表示调度请求成功返回，不表示质量结论为 PASS；应读取 Job result 的 stop reason 和正式 Verdict。终态 Job 不可改写，所有 Job 禁止 DELETE。显式重试创建新的 Job 并记录 retry_of_job_id，不能原地清空错误、重开终态或覆盖历史结果。
+
+Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 worker_id、lease_token、heartbeat_at、lease_expires_at。使用数据库时钟验证租约；每个受控 Canonical commit 在 flush 前后检查 Run → Job 锁、状态和 token。租约失效或取消后的旧 Worker 不得提交 Canonical 状态。
+
+`0008_job_ownership` 为 MissionAttempt / TestExecution 增加 nullable `durable_job_id` FK 和索引。归属创建后不可修改，必须匹配同一 TestRun；ADVANCE_RUN 可以拥有其内部 Attempt / Execution，EXECUTE_MISSION 只可拥有指定 Mission 的 Attempt，EXECUTE_TESTS 只可拥有 Execution。历史 / direct API 创建的 null 归属保留，不使用 started_at 等宿主时间猜测或回填归属。取消与失联恢复只更新该 Job 关系下的执行历史。
+
+租约过期后 Job 进入 INTERRUPTED；其未完成 Mission 的 Attempt 进入 FAILED、Mission 进入 RETRYING，未完成 Execution 进入 ERROR / INCONCLUSIVE，并保留错误和历史。取消则记录 CANCEL_REQUESTED / CANCELLED，并中断受控外部工作。恢复不会自动重放可能已发生的外部操作；用户检查后显式重试。系统不宣称外部执行 exactly-once。
+
+Docker 资源使用不可变 Job UUID label：包括 staging / execution containers 和预创建的 source / result volumes。恢复事务先提交领域终态，再于无数据库行锁时尽力清理精确匹配该 Job 的受控资源，记录 `job.resources_cleanup` AuditEvent / OutboxEvent、可用性与删除数量。Docker daemon 不可访问、未受控的 provider 残留进程等情况仍需 Operator 检查；清理记录不是 Execution Evidence。
+
+`worker_heartbeats` 记录 Worker 的 last_seen_at 和 active_job_id，支持 API / Web 区分队列等待与可用 Worker。其 liveness 是运行数据，不影响测试事实可信度。Job 生命周期写 AuditEvent 与 OutboxEvent；它们与队列状态在同一事务提交。
+
 ---
 
 ## 24. 核心数据库表
@@ -955,6 +991,10 @@ outbox_events
 ```
 
 当前 MVP 已实现 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding / Verdict。直接 Requirement ↔ TestCase 关系（后续 `test_case_requirements`）和独立 entity_provenance 投影仍为扩展；当前 provenance 通过 Canonical created_by_ref / reported_by_ref 与 MissionProposal 的 mission_id、attempt_id、accepted_entity_id 保留。
+
+`0007_durable_jobs` 在 `0006_immutable_contracts` 后增加 Operational 表 `durable_jobs` 与 `worker_heartbeats`、FK、幂等 / 活跃请求唯一索引和请求 / 历史保护 Trigger；不重写 Canonical Entity 或 Vendor Session。
+
+当前迁移 head 为 `0008_job_ownership`，在上述队列表之后增加 Attempt / Execution 的显式归属关系和约束。历史行不推断归属；已有归属记录时禁止降级丢失关系。
 
 ---
 
@@ -1069,6 +1109,7 @@ CREATE TABLE test_executions (
     key varchar(64) NOT NULL,
     test_run_id uuid NOT NULL REFERENCES test_runs(id),
     mission_id uuid REFERENCES missions(id),
+    durable_job_id uuid REFERENCES durable_jobs(id) ON DELETE RESTRICT,
     retry_of_execution_id uuid REFERENCES test_executions(id),
     idempotency_key varchar(512) NOT NULL,
     purpose varchar(32) NOT NULL,
@@ -1192,7 +1233,26 @@ Risk test coverage = Complete 的非 OBSOLETE Risks / 全部非 OBSOLETE Risks
 
 没有 eligible Risk 时比例为 `null`，不是 100%。API 返回每个 Risk 的 required / covered / missing dimensions；Planner 与 Web 共用此评估结果，禁止由 Agent 自述覆盖。
 
-此规则是可替换的确定性基线，不是永久的“存在一个用例即覆盖”模型。未来 Policy 可声明所需维度或更丰富的风险覆盖条件，通过专用评估组件扩展，不把 Planner 改造成通用 LLM Agent。
+此规则是可替换的确定性基线，不是永久的“存在一个用例即覆盖”模型。当前 PolicySnapshot 的 `compiled_policy.coverage` 已支持声明设计维度：
+
+```json
+{
+  "coverage": {
+    "version": "risk-design-policy/v1",
+    "default_dimensions": ["FUNCTIONAL", "FAILURE"],
+    "by_category": {
+      "CONCURRENCY": ["CONCURRENCY", "BOUNDARY"],
+      "SECURITY": ["SECURITY", "BOUNDARY"]
+    }
+  }
+}
+```
+
+`default_dimensions` 对所有 Risk 生效；`by_category` 替换该类别的专用维度，未声明类别保留上表的专用维度。FUNCTIONAL 始终必需，包括显式空数组；空数组不能豁免全部设计覆盖。只接受受支持的 RiskCategory / TestCaseType、规则版本与字段；未知规则、重复维度及错误结构在 Policy 编译时拒绝。
+
+未配置 coverage 或解析后与基线相同的 Policy 使用 `risk-design-baseline/v1`；其他规则使用 `risk-design-policy/v1`。Coverage API 返回实际 `rule_version` 与规范化 effective coverage rules 的 `effective_policy_hash`。等效维度顺序不改变 Hash。Planner、Verifier、Gate 和 Web 共用当前 TestRun 固定的 PolicySnapshot，不能使用项目后来创建的新 Policy 重解释旧 Run。
+
+DESIGN_TESTS 的 Mission idempotency identity 与 acceptance criteria 包含生效的 coverage Hash 和规则版本；Verifier 拒绝与当前固定 Policy 不符的 Mission 约束。规则仍由专用确定性评估组件执行，不把 Planner 改造成通用 LLM Agent。更丰富的语义覆盖仍可通过该组件扩展。
 
 Planner 在 Requirement 和 Risk 缺口满足后，对剩余维度创建 DESIGN_TESTS Mission。全部 Risk 达到基线表示测试设计覆盖完成；当前完整 MVP 继续创建 IMPLEMENT_TESTS，随后返回 EXECUTION_REQUIRED / EXECUTION_IN_PROGRESS，失败时创建 DIAGNOSE_FAILURE，最后返回 VERDICT_REQUIRED。早期切片的 TEST_DESIGN_COVERAGE_COMPLETE 是设计阶段边界，不是 TestRun 的 PASS / FINAL Verdict。
 
@@ -1222,6 +1282,8 @@ MVP 不需要 Graph DB，PostgreSQL + Join Tables 足够。
 每次 FINAL Verdict 必须记录 `state_snapshot_hash`。
 
 Hash 基于 Requirements、Risks、TestCases、Executions、Evidence、Findings、PolicySnapshot 的 Canonical Serialization 计算。
+
+当前 Hash 还包含 `gate_rule_version = canonical-gate/v1`、重新校验后的 Artifact integrity 和本次计算的 decision。Gate 在持有共享 SourceSnapshot 锁期间读取覆盖、生成决策并序列化状态，避免其他 Run 的 Canonical 提交插入决策与 Hash 之间。Verdict 重用另行匹配 decision 和 evidence_manifest_sha256；新 Hash 语义会为旧 Hash 的重新评估追加 Verdict，不改写历史 FINAL 记录，也不宣称 Gate 规则版本已升级。
 
 Canonical Serialization 必须稳定字段顺序和关系顺序，并排除不影响语义的 volatile timestamp。
 
@@ -1255,6 +1317,8 @@ created_at
 Canonical Transaction 内同步写 `outbox_events`，例如 requirement.accepted、risk.accepted、test_case.accepted、mission.completed、execution.completed、evidence.verified、finding.confirmed、verdict.finalized。
 
 Canonical Entity Change + Audit Event + Outbox Event + Proposal Acceptance 必须在同一事务；任一步失败全部回滚。
+
+Mission 控制决策同样使用事务性配对事件：创建记录 `mission.created`；接受 required outputs 时记录 `mission.completed`，与 Canonical Entity / Proposal / Attempt 状态一并提交。成功事件按 Mission 幂等；`mission.dispatched`、`mission.started`、`mission.result_rejected`、`mission.attempt_failed`、`mission.timed_out`、`mission.interrupted` 按 Attempt 身份幂等。取消、重试分别记录 `mission.cancelled`、`mission.retry_requested`，失联恢复保留受控生命周期事件。事件保存领域身份、状态和原因，不复制 provider logs、raw result payload 或 Agent reasoning；Provider 运行元数据继续属于 AgentSession / MissionAttempt。
 
 ---
 

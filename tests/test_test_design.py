@@ -22,6 +22,7 @@ from hypertest.application.coverage import get_test_run_coverage
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import execute_mission
 from hypertest.application.services import (
+    canonical_json_sha256,
     create_mission,
     create_policy_snapshot,
     create_project,
@@ -115,7 +116,7 @@ async def create_run(session: AsyncSession, project_id: UUID | None = None) -> C
         PolicySnapshotCreate(
             project_id=project_id,
             policy_version="test-design-baseline-v1",
-            content_sha256="c" * 64,
+            content_sha256=canonical_json_sha256({}),
         ),
     )
     return await create_test_run(
@@ -623,12 +624,18 @@ async def test_planner_rejects_designs_that_do_not_close_any_requested_dimension
     "pending_status", [MissionStatus.CREATED, MissionStatus.READY, MissionStatus.RETRYING]
 )
 async def test_planner_replaces_stale_pending_design_after_external_coverage_progress(
-    pending_status: MissionStatus,
+    pending_status: MissionStatus, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with AsyncSessionLocal() as session:
         test_run = await create_run(session)
         risk_a = await identify_risk(session, test_run)
-        initial = await plan_next_mission(session, test_run.id)
+        # Simulate a plan still being assembled without thawing a READY contract.
+        with monkeypatch.context() as patch:
+            if pending_status is MissionStatus.CREATED:
+                async def remain_created(session, mission):
+                    return mission
+                patch.setattr("hypertest.application.planner._mark_ready", remain_created)
+            initial = await plan_next_mission(session, test_run.id)
         assert initial.mission is not None
         stale_mission = initial.mission
         assert stale_mission.spec["targets"]["risks"] == [risk_a.key]

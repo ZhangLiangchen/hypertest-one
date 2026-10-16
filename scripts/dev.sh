@@ -16,7 +16,7 @@ if [[ "$(node -p 'process.versions.node.split(".")[0]')" != 22 ]]; then
 fi
 .venv/bin/alembic upgrade head
 if [[ "${1:-}" == --check ]]; then
-  .venv/bin/python -c 'from hypertest.main import app; assert app.openapi()["paths"]; print("API imports and database migrations verified")'
+  .venv/bin/python -c 'from hypertest.main import app; from hypertest.worker import run_worker; assert app.openapi()["paths"]; print("API, worker imports and database migrations verified")'
   exit 0
 fi
 
@@ -26,13 +26,17 @@ export HYPERTEST_API_ORIGIN="http://127.0.0.1:$api_port"
 export NEXT_TELEMETRY_DISABLED=1
 api_pid=""
 web_pid=""
+worker_pid=""
 cleanup() {
   [[ -z "$api_pid" ]] || kill "$api_pid" 2>/dev/null || true
   [[ -z "$web_pid" ]] || kill -- "-$web_pid" 2>/dev/null || true
+  [[ -z "$worker_pid" ]] || kill "$worker_pid" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 .venv/bin/uvicorn hypertest.main:app --host 127.0.0.1 --port "$api_port" &
 api_pid=$!
+.venv/bin/python -m hypertest.worker &
+worker_pid=$!
 setsid npm --prefix web run dev -- --hostname 127.0.0.1 --port "$web_port" &
 web_pid=$!
-wait -n "$api_pid" "$web_pid"
+wait -n "$api_pid" "$web_pid" "$worker_pid"

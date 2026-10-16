@@ -10,9 +10,22 @@ from hypertest.application.executions import execute_test_run
 from hypertest.application.gate import evaluate_gate
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import execute_mission
-from hypertest.application.services import canonical_json_sha256, get_test_run
+from hypertest.application.services import ConflictError, canonical_json_sha256, get_test_run
 from hypertest.domain.enums import ExecutionPurpose, MissionAttemptStatus, MissionStatus
-from hypertest.domain.models import TestExecution, TestImplementation
+from hypertest.domain.jobs import ACTIVE_JOB_STATUSES, DurableJob
+from hypertest.domain.models import TestExecution, TestImplementation, TestRun
+
+
+async def _guard_operation_owner(session: AsyncSession, run_id: UUID) -> None:
+    # The compatibility HTTP controller can span several owning-service commits.
+    # Recheck admission after planning, under the same aggregate lock used by
+    # the next reservation, so it cannot launch work belonging to a queued job.
+    await session.scalar(select(TestRun.id).where(TestRun.id == run_id).with_for_update())
+    active = await session.scalar(select(DurableJob.id).where(
+        DurableJob.test_run_id == run_id, DurableJob.status.in_(ACTIVE_JOB_STATUSES),
+    ))
+    if active is not None and active != getattr(session, "job_id", None):
+        raise ConflictError("test run has active background work; use its task controls")
 
 
 async def advance_run(
@@ -34,7 +47,9 @@ async def advance_run(
     run = await get_test_run(session, run_id)
     steps: list[dict[str, str]] = []
     for _ in range(max_steps):
+        await _guard_operation_owner(session, run_id)
         planned = await plan_next_mission(session, run_id)
+        await _guard_operation_owner(session, run_id)
         if planned.mission is not None:
             mission = planned.mission
             if mission.status not in {

@@ -15,6 +15,7 @@ from hypertest.api.schemas import (
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import execute_mission
 from hypertest.application.services import (
+    canonical_json_sha256,
     create_policy_snapshot,
     create_project,
     create_source_snapshot,
@@ -117,7 +118,7 @@ async def test_planner_advances_requirement_to_risk_canonical_state() -> None:
             PolicySnapshotCreate(
                 project_id=project.id,
                 policy_version="planner-v1",
-                content_sha256="f" * 64,
+                content_sha256=canonical_json_sha256({}),
             ),
         )
         test_run = await create_test_run(

@@ -108,6 +108,8 @@ async def execute_test_run(
     idempotency_key: str, timeout_seconds: int = 300,
 ) -> TestExecution:
     """Execute canonical implementations; clients supply neither commands nor result facts."""
+    from hypertest.application.jobs import JobLeaseLost
+
     if not idempotency_key.strip() or len(idempotency_key) > 512:
         raise ConflictError("execution requires an idempotency key of 1–512 characters")
     if backend not in {"docker", "local"} or not 1 <= timeout_seconds <= 3600:
@@ -123,7 +125,11 @@ async def execute_test_run(
         return existing
     if run.status == TestRunStatus.CANCELLED:
         raise ConflictError("cancelled test runs cannot execute")
-    snapshot = await session.get(SourceSnapshot, run.source_snapshot_id)
+    # Implementations belong to the shared source snapshot. Gate and Verifier
+    # take the same lock after TestRun so cross-run reads see one coherent state.
+    snapshot = await session.scalar(select(SourceSnapshot).where(
+        SourceSnapshot.id == run.source_snapshot_id,
+    ).with_for_update())
     assert snapshot is not None
     cases = list(await session.scalars(select(TestCase).where(
         TestCase.project_id == run.project_id,
@@ -168,6 +174,8 @@ async def execute_test_run(
             observed_hashes[implementation.id] = hashlib.sha256(content).hexdigest()
             if implementation.source_sha256 and implementation.source_sha256 != observed_hashes[implementation.id]:
                 raise SourceValidationError("implementation source checksum changed")
+    except JobLeaseLost:
+        raise
     except Exception as exc:
         setup_error = exc
     spec = {
@@ -187,7 +195,11 @@ async def execute_test_run(
         TestExecution.test_run_id == run.id, TestExecution.purpose == purpose,
         TestExecution.source_commit == snapshot.commit_sha,
     ).order_by(TestExecution.created_at.desc(), TestExecution.id.desc()).limit(1))
+    from hypertest.runner.backends import runner_job_id
+
+    owner = getattr(session, "job_id", None) or runner_job_id.get()
     execution = TestExecution(
+        durable_job_id=UUID(str(owner)) if owner is not None else None,
         key=public_key("EX"), test_run_id=run.id, idempotency_key=idempotency_key,
         retry_of_execution_id=(previous.id if previous is not None and previous.status in {
             ExecutionStatus.ERROR, ExecutionStatus.TIMED_OUT, ExecutionStatus.CANCELLED,
@@ -288,6 +300,8 @@ async def execute_test_run(
     except asyncio.CancelledError:
         execution.status, execution.outcome = ExecutionStatus.CANCELLED, ExecutionOutcome.INCONCLUSIVE
         execution.error_code, execution.error_message = "EXECUTION_CANCELLED", "Execution was cancelled"
+    except JobLeaseLost:
+        raise
     except Exception as exc:
         execution.status, execution.outcome = ExecutionStatus.ERROR, ExecutionOutcome.INCONCLUSIVE
         execution.error_code = "SOURCE_VALIDATION_ERROR" if isinstance(exc, SourceValidationError) else "RUNNER_ERROR"
@@ -295,6 +309,9 @@ async def execute_test_run(
     # Serialize fact completion with gate evaluation on the aggregate root.
     with session.no_autoflush:
         await session.scalar(select(TestRun).where(TestRun.id == run_id).with_for_update())
+        await session.scalar(select(SourceSnapshot.id).where(
+            SourceSnapshot.id == snapshot.id,
+        ).with_for_update())
     execution.exit_code, execution.finished_at = process.exit_code, utcnow()
     for implementation in implementations.values():
         node_result = results.get(nodeids.get(implementation.id, ""))
@@ -362,6 +379,10 @@ async def execute_test_run(
             "outcome": execution.outcome.value, "exit_code": execution.exit_code,
         })
         await session.commit()
+    except JobLeaseLost:
+        # The fence already rolled back pending facts. Canonical recovery belongs
+        # to the new owner; never bypass it or read expired ORM attributes here.
+        raise
     except Exception as exc:
         # A collector failure must never leave a successful/partially committed fact chain.
         execution_id, project_run_id = execution.id, run.id

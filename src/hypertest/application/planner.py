@@ -8,7 +8,8 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.schemas import MissionCreate
-from hypertest.application.coverage import RiskCoverageEvaluator, get_test_run_coverage
+from hypertest.application.coverage import get_test_run_coverage
+from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.services import create_mission, get_test_run
 from hypertest.domain.enums import (
     CaseResult,
@@ -78,13 +79,50 @@ async def _create_planned_mission(
 
 
 async def _mark_ready(session: AsyncSession, mission: Mission) -> Mission:
-    if mission.status is MissionStatus.CREATED:
-        mission.status = MissionStatus.READY
-        mission.ready_at = utcnow()
-        mission.row_version += 1
+    run = await session.get(TestRun, mission.test_run_id)
+    assert run is not None
+    await session.refresh(run, with_for_update=True)
+    await session.refresh(mission, with_for_update=True)
+    try:
+        if mission.status is MissionStatus.CREATED:
+            before_status = mission.status
+            mission.status = MissionStatus.READY
+            mission.ready_at = utcnow()
+            mission.row_version += 1
+            await record_mission_event(
+                session, mission, "mission.ready", before_status=before_status,
+                metadata={"reason": "deterministic planner prepared the immutable mission"},
+            )
         await session.commit()
-        await session.refresh(mission)
+    except Exception:
+        await session.rollback()
+        raise
     return mission
+
+
+async def _cancel_obsolete_mission(
+    session: AsyncSession, mission: Mission, reason: str,
+) -> None:
+    run = await session.get(TestRun, mission.test_run_id)
+    assert run is not None
+    await session.refresh(run, with_for_update=True)
+    await session.refresh(mission, with_for_update=True)
+    try:
+        if mission.created_by == "planner" and mission.status in {
+            MissionStatus.CREATED, MissionStatus.READY, MissionStatus.RETRYING,
+        }:
+            before_status = mission.status
+            mission.status = MissionStatus.CANCELLED
+            mission.cancelled_at = utcnow()
+            mission.row_version += 1
+            await record_mission_event(
+                session, mission, "mission.cancelled", before_status=before_status,
+                metadata={"reason": reason},
+            )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
 
 
 async def _plan_delivery(session: AsyncSession, test_run: TestRun) -> PlannerResult:
@@ -169,10 +207,9 @@ async def _plan_delivery(session: AsyncSession, test_run: TestRun) -> PlannerRes
                 MissionStatus.READY,
                 MissionStatus.RETRYING,
             }:
-                item.status = MissionStatus.CANCELLED
-                item.cancelled_at = utcnow()
-                item.row_version += 1
-                await session.commit()
+                await _cancel_obsolete_mission(
+                    session, item, "target test cases no longer require this implementation mission",
+                )
         state = [f"{item.id}:{item.validation_status.value}" for item in implementations]
         mission = await _create_planned_mission(
             session,
@@ -515,23 +552,27 @@ async def plan_next_mission(session: AsyncSession, test_run_id: UUID) -> Planner
         (gap.risk_key, dimension.value) for gap in gaps for dimension in gap.missing_dimensions
     }
     for pending in pending_missions:
-        requested = pending.spec.get("acceptance_criteria", {}).get("risk_coverage_gaps", [])
+        criteria = pending.spec.get("acceptance_criteria", {})
+        requested = criteria.get("risk_coverage_gaps", [])
+        same_policy = criteria.get("coverage_policy_hash") == coverage.effective_policy_hash
+        if "coverage_policy_hash" not in criteria:
+            # Existing baseline missions remain actionable for their unchanged rules.
+            same_policy = coverage.rule_version == "risk-design-baseline/v1"
         requested_pairs = {
             (gap["risk_key"], dimension)
             for gap in requested
             for dimension in gap["missing_dimensions"]
         }
-        if requested_pairs & current_pairs:
+        if same_policy and requested_pairs & current_pairs:
             return PlannerResult(await _mark_ready(session, pending), "TEST_DESIGN_COVERAGE_GAP")
         if pending.created_by == "planner" and pending.status in {
             MissionStatus.CREATED,
             MissionStatus.READY,
             MissionStatus.RETRYING,
         }:
-            pending.status = MissionStatus.CANCELLED
-            pending.cancelled_at = utcnow()
-            pending.row_version += 1
-            await session.commit()
+            await _cancel_obsolete_mission(
+                session, pending, "target risk gaps or effective coverage policy changed",
+            )
 
     risks = list(
         await session.scalars(
@@ -581,7 +622,8 @@ async def plan_next_mission(session: AsyncSession, test_run_id: UUID) -> Planner
                 },
                 "acceptance_criteria": {
                     "risk_traceability_required": True,
-                    "coverage_rule_version": RiskCoverageEvaluator.version,
+                    "coverage_rule_version": coverage.rule_version,
+                    "coverage_policy_hash": coverage.effective_policy_hash,
                     "risk_coverage_gaps": [
                         {
                             "risk_key": gap.risk_key,
@@ -595,7 +637,7 @@ async def plan_next_mission(session: AsyncSession, test_run_id: UUID) -> Planner
             },
             idempotency_key=(
                 f"{test_run.key}:DESIGN_TESTS:"
-                f"{_target_hash([RiskCoverageEvaluator.version, *gap_state, *case_state])}"
+                f"{_target_hash([coverage.rule_version, coverage.effective_policy_hash, *gap_state, *case_state])}"
             ),
             created_by="planner",
         ),

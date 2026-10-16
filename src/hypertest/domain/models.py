@@ -454,6 +454,9 @@ class MissionAttempt(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     mission_id: Mapped[UUID] = mapped_column(ForeignKey("missions.id", ondelete="RESTRICT"))
+    durable_job_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("durable_jobs.id", ondelete="RESTRICT"), index=True
+    )
     attempt_no: Mapped[int] = mapped_column(nullable=False)
     agent_session_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent_sessions.id", ondelete="RESTRICT")
@@ -567,3 +570,4 @@ from hypertest.domain.delivery import (  # noqa: E402, F401
     VerdictEvidence,
     VerdictFinding,
 )
+from hypertest.domain.jobs import DurableJob  # noqa: E402, F401

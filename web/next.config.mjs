@@ -2,9 +2,6 @@ const apiOrigin = process.env.HYPERTEST_API_ORIGIN || "http://127.0.0.1:8000";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    proxyTimeout: 1_900_000,
-  },
   async rewrites() {
     return [
       {

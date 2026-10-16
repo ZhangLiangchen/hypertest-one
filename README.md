@@ -35,14 +35,14 @@ The current product targets **one trusted operator** in a controlled development
 
 1. Create a Project.
 2. Create a Run with repository URL, full Git commit SHA, PRD text, optional configuration text, and policy. HyperTest stores the PRD artifact and fixes immutable SourceSnapshot and PolicySnapshot identities.
-3. Select **Run test cycle**, use **Prepare pinned checkout** for a supported GitHub HTTPS repository (or provide an existing matching checkout), choose the trusted Runner, and start. HyperTest plans and verifies requirement/risk/design/implementation Missions, executes official tests, diagnoses failures when appropriate, and evaluates the quality gate.
-4. Watch canonical state, Mission attempts, proposals, executions, and Evidence populate. Each request advances at most 12 planning steps in Web; completed work persists. If the work limit is reached, review progress and continue the cycle.
-5. If a Proposal is rejected or another Mission/execution is active, the cycle stops with an explicit reason. Inspect the affected step and correct or resume it. Agent runtime failures remain visible in Attempt history.
+3. Select **Run test cycle**, use **Prepare pinned checkout** for a supported GitHub HTTPS repository (or provide an existing matching checkout), choose the trusted Runner, and start. Web submits a durable work request; an independent Worker plans and verifies requirement/risk/design/implementation Missions, executes official tests, diagnoses failures when appropriate, and evaluates the quality gate.
+4. Watch canonical state, Mission attempts, proposals, executions, and Evidence populate. Work continues after refreshing or closing the page. A cycle advances at most 12 planning steps in Web; completed work persists. If the work limit is reached, review progress and continue the cycle.
+5. Inspect queued/running work, errors, and stop reasons. Cancel a request or explicitly retry unsuccessful work; retries create linked history rather than overwriting old requests. A rejected Proposal or runtime failure remains visible in Mission Attempt history. Interrupted work requires inspection and explicit retry.
 6. Inspect the final quality verdict, rationale, canonical state hash, evidence manifest hash, and history. Findings support controlled triage, confirmation, resolution, closure, and reopening with a recorded reason.
 
 Individual **Plan next mission**, Mission execution, **Execute tests**, and **Evaluate quality gate** controls remain available for inspection and intervention. Cancelled/expired Missions retain their immutable specification and history; explicitly planning again creates a new generation when the work is still needed. Generated Python tests become checksum-addressed artifacts linked to canonical TestCases; the application commit stays fixed.
 
-The Run workbench includes Requirements, Risks, Test Cases, Missions, Automation, Executions, Evidence, Findings, and Verdicts. Attempts, rejected proposals, execution errors, artifact content, and finding transitions are inspectable. Operations refresh their state while work runs.
+The Run workbench includes Requirements, Risks, Test Cases, Missions, Automation, Executions, Evidence, Findings, Verdicts, and Tasks. The background task monitor and task details show queue state, timestamps, errors, cancellation, and retry history. Tasks refresh every 1.5 seconds and canonical state every 5 seconds. Refreshing the page observes saved work without submitting another request. Attempts, rejected proposals, execution errors, artifact content, and finding transitions remain inspectable.
 
 The Planner is deterministic-first:
 
@@ -56,19 +56,21 @@ Observed failure with trusted evidence → DIAGNOSE_FAILURE
 Facts ready for a quality decision     → VERDICT_REQUIRED
 ```
 
-The **Run test cycle** action invokes a bounded control-plane controller. It follows deterministic Planner decisions and delegates to Mission Runtime, Runner, and Gate; it does not orchestrate model reasoning. Completed steps are durable and subsequent requests resume from canonical state. An unattended background scheduler is secondary work.
+The **Run test cycle** action queues a bounded control-plane controller. It follows deterministic Planner decisions and delegates to Mission Runtime, Runner, and Gate; it does not orchestrate model reasoning. PostgreSQL stores immutable Job inputs and history, and permits at most one active request per Run. Worker leases fence canonical commits. API restarts and page refreshes preserve submitted work; a Worker crash becomes an explicit interruption after its lease expires. Recovery does not automatically replay external operations. A Job's `SUCCEEDED` status means the request finished; its result and formal Verdict describe testing outcomes.
 
 ## Coverage and decisions
 
-`RiskCoverageEvaluator` requires FUNCTIONAL for every non-obsolete Risk, plus BOUNDARY, FAILURE, CONCURRENCY, SECURITY, or PERFORMANCE for the corresponding category; RELIABILITY additionally requires RECOVERY. Only relationally linked ACTIVE TestCases contribute. The component can later accept richer policy dimensions without changing Planner into an LLM Agent.
+`RiskCoverageEvaluator` requires FUNCTIONAL for every non-obsolete Risk, plus BOUNDARY, FAILURE, CONCURRENCY, SECURITY, or PERFORMANCE for the corresponding category; RELIABILITY additionally requires RECOVERY. Only relationally linked ACTIVE TestCases contribute. Each Run's immutable PolicySnapshot can declare additional global or category-specific dimensions. Planner, Verifier, Gate, and Web use the same resolved rules and policy hash.
 
 The workbench displays eligible Requirement/Risk/TestCase counts, Risk identification coverage, Risk test coverage, and each Risk's required/covered/missing dimensions. Empty denominators return `null` and display as unknown.
 
 The gate requires full identification/design coverage and every active Case's latest OFFICIAL execution to match the source commit, complete successfully, and provide verified trusted metadata and JUnit artifacts. Confirmed policy-blocking product defects prevent release. Missing facts produce `BLOCKED`, observed failures produce `RELEASE_BLOCKED`, and complete passing facts produce `RELEASE_READY`. Design coverage alone never produces a release decision.
 
+Runs sharing a SourceSnapshot serialize Gate reads with canonical proposal commits and implementation-status updates, so a decision and its state hash describe the same snapshot state. These locks are released for actual Agent/test execution. Verdict hashes bind canonical inputs, artifact integrity, the Gate rule version, and the computed decision; reuse also requires matching decision and evidence manifest. Changed evaluations append history rather than reusing a contradictory cached Verdict.
+
 ## Run the complete development workflow
 
-Use Python 3.12, PostgreSQL 17, Node.js 22, Git, a Docker CLI/daemon, and a Codex CLI available and authenticated on the API host. API-host execution preserves the operator's existing Agent authentication and repository access.
+Use Python 3.12, PostgreSQL 17, Node.js 22, Git, a Docker CLI/daemon, and a Codex CLI available and authenticated on the Worker host. Host-based Worker execution preserves the operator's existing Agent authentication and repository access.
 
 Start PostgreSQL and install backend dependencies:
 
@@ -89,7 +91,7 @@ bash scripts/build-runner-image.sh
 
 The script downloads pinned pytest wheels through the host's supported HTTPS route and builds the image without package-index access inside Docker. It uses `hypertest-runner:py312` by default; set `HYPERTEST_RUNNER_IMAGE` consistently for a different image. Project-specific dependencies belong in a trusted prebuilt image. Runner execution never installs dependencies.
 
-Install Web dependencies, configure the API host, and start both services:
+Install Web dependencies, configure the host, and start API, Worker, and Web:
 
 ```bash
 npm --prefix web ci
@@ -98,11 +100,16 @@ export HYPERTEST_WORKSPACE_ROOT=/workspace
 bash scripts/dev.sh
 ```
 
-The helper requires the installed `.venv` and `web/node_modules`, verifies Node.js 22, applies migrations, and starts API/Web on loopback. Exiting the helper cleans up its own service processes. Set `HYPERTEST_DEV_API_PORT` / `HYPERTEST_DEV_WEB_PORT` to override defaults 8000 / 3000. `bash scripts/dev.sh --check` applies migrations and verifies API imports without starting services.
+The helper requires the installed `.venv` and `web/node_modules`, verifies Node.js 22, applies migrations, and starts API, Worker, and Web. API/Web listen on loopback. Exiting the helper cleans up its own service processes. Set `HYPERTEST_DEV_API_PORT` / `HYPERTEST_DEV_WEB_PORT` to override defaults 8000 / 3000. `bash scripts/dev.sh --check` applies migrations and verifies API/Worker imports without starting services.
 
 `HYPERTEST_WORKSPACE_ROOT` must contain the repository checkout paths supplied through Web. **Prepare pinned checkout** creates or reuses a clean pinned checkout under `.hypertest-checkouts/{source_snapshot_id}/repo` inside that root. Automatic preparation supports credential-free `https://github.com/owner/repository` URLs, uses the existing Git proxy/authentication, and does not reset operator checkouts. Other hosts retain the existing-workspace path. Each checkout must have the matching origin, full pinned commit at HEAD, and clean tracked content. Agent work and generated-test execution use temporary copies; keep the source checkout at its pinned commit.
 
-To start each service manually instead, run `uvicorn hypertest.main:app --host 127.0.0.1 --port 8000` in the activated Python environment, then start Web in another terminal:
+To start each service manually instead, run `uvicorn hypertest.main:app --host 127.0.0.1 --port 8000` in the activated Python environment, start the Worker in a second terminal with the same configuration, then start Web in a third terminal:
+
+```bash
+source .venv/bin/activate
+python -m hypertest.worker
+```
 
 ```bash
 cd web
@@ -115,11 +122,17 @@ API:      http://localhost:8000
 OpenAPI:  http://localhost:8000/docs
 ```
 
-The capabilities panel reports installed Agent and Runner choices. Codex authentication, checkout access, a usable Docker daemon, and the trusted image must exist on the API host before their respective actions can succeed.
+The capabilities panel reports installed Agent and Runner choices and recent Worker liveness. API and Worker must share the PostgreSQL database, artifact store, workspace root, and host integration configuration. Codex authentication, checkout access, a usable Docker daemon, and the trusted image must exist on the Worker host before their respective actions can succeed.
 
-For a controlled local-development fallback, explicitly set `HYPERTEST_RUNNER_ALLOW_LOCAL=true` before starting the API and select the local Runner. It runs trusted repository code as a host process; it is not a container sandbox. Docker remains the default Runner.
+Worker settings default to `HYPERTEST_WORKER_LEASE_SECONDS=30`, `HYPERTEST_WORKER_HEARTBEAT_SECONDS=5`, and `HYPERTEST_WORKER_POLL_SECONDS=1`. Heartbeats must be positive and shorter than the lease. Each Worker executes one request at a time; multiple Workers can process different Runs. `python -m hypertest.worker --once` recovers expired leases and processes at most one queued request. Mission Attempts and Executions record their owning Job through immutable relational links, so recovery does not infer ownership from machine timestamps.
 
-`docker compose up --build` can host the database/API/Web browsing stack. The default API container does not inherit the host's Agent login, tools, checkouts, or artifact configuration. Use the host workflow above for working Missions and official Runner execution unless those integrations are explicitly provisioned for the container.
+Worker shutdown interrupts active work. Docker staging/execution containers and their volumes carry the owning Job UUID; recovery first commits interrupted domain history, then attempts cleanup of only those labelled resources outside database locks. Cleanup availability and removal counts are audited. If Docker is unreachable, or a provider process survived a hard host/process kill, inspect external resources before retrying. The system preserves canonical history without claiming exactly-once external execution.
+
+Live Codex end-to-end execution remains unverified in the current cloud environment: the available login was detected, but app-server startup failed with `EROFS` in managed read-only runtime state. Provider-neutral integration tests validate the platform loop; they do not establish live-model availability.
+
+For a controlled local-development fallback, explicitly set `HYPERTEST_RUNNER_ALLOW_LOCAL=true` for API and Worker and select the local Runner. It runs trusted repository code as a host process; it is not a container sandbox. Docker remains the default Runner.
+
+`docker compose up --build` can host the database/API/Web browsing stack. Its default services do not start the independent Worker or inherit the host's Agent login, tools, checkouts, or artifact configuration. Use the host workflow above for working Missions and official Runner execution unless the Worker and those integrations are explicitly provisioned for the containers.
 
 ## API
 
@@ -152,6 +165,8 @@ POST /test-runs/{test_run_id}/missions
 POST /test-runs/{test_run_id}/plan-next
 POST /test-runs/{test_run_id}/advance
 POST /test-runs/{test_run_id}/prepare-workspace
+POST /test-runs/{test_run_id}/jobs
+GET  /test-runs/{test_run_id}/jobs
 GET  /test-runs/{test_run_id}/implementations
 GET  /test-runs/{test_run_id}/executions
 POST /test-runs/{test_run_id}/executions
@@ -169,11 +184,31 @@ POST /missions/{mission_id}/cancel
 GET  /executions/{execution_id}
 GET  /evidence/{evidence_id}/content
 POST /findings/{finding_id}/transition
+GET  /jobs/{job_id}
+POST /jobs/{job_id}/cancel
+POST /jobs/{job_id}/retry
 ```
 
 The prepare-workspace endpoint needs no request body and returns `workspace`, `repository_url`, and the pinned `commit_sha`. PRD and configuration text reads verify their saved snapshot checksums.
 
-The advance request accepts `workspace`, `backend` (`docker` by default), `timeout_seconds`, and `max_steps` (default 12, range 1–32). It runs real Mission/Runner/Gate services until a final Verdict, interruption, rejection, or work limit; the HTTP API does not accept synthetic Agent results. The response includes completed steps and a stop reason.
+Web uses the Job API for long operations. `POST /test-runs/{id}/jobs` accepts `operation`, `idempotency_key`, optional `mission_id` (required only for EXECUTE_MISSION), and operation-specific `payload`, then returns HTTP 202. Supported operations are ADVANCE_RUN, EXECUTE_MISSION, EXECUTE_TESTS, EVALUATE_GATE, and PREPARE_WORKSPACE. A request to advance the Run is:
+
+```json
+{
+  "operation": "ADVANCE_RUN",
+  "idempotency_key": "run-cycle:request-1",
+  "payload": {
+    "workspace": "/workspace/my-project",
+    "backend": "docker",
+    "timeout_seconds": 300,
+    "max_steps": 12
+  }
+}
+```
+
+Poll the Run's Job list or `GET /jobs/{id}` for state and result. The same key and input return the original request; conflicting input or another active request returns 409. Cancellation returns 202. Retry accepts a new `idempotency_key` and returns 202 with a new linked Job. A cancelled Mission remains cancelled; explicitly plan a new Mission generation when its work is still needed. A FAILED Mission must first use the controlled Mission retry action before execution can be submitted again. `GET /capabilities` includes `worker.available`, `worker.last_seen_at`, and `worker.active_workers`.
+
+The older direct `/advance`, Mission execute, Runner execute, Gate, and prepare-workspace endpoints remain available for compatibility. They run synchronously and check for conflicting queued work. The direct advance loop rechecks operation ownership before and after each Planner step and stops if a durable request was admitted between service commits; it does not hold exclusive ownership for its entire loop. The advance payload accepts `workspace`, `backend` (`docker` by default), `timeout_seconds`, and `max_steps` (default 12, range 1–32). Its controller uses real Mission/Runner/Gate services until a final Verdict, interruption, rejection, or work limit; the HTTP API does not accept synthetic Agent results. Job results retain completed steps and a stop reason.
 
 The bootstrap request accepts `repository_url`, a full 40- or 64-character `commit_sha`, `prd_text`, optional `branch`, `configuration_text`, `policy`, and `idempotency_key`. Retrying the same project/key returns its original Run. A supported policy example is:
 
@@ -181,13 +216,26 @@ The bootstrap request accepts `repository_url`, a full 40- or 64-character `comm
 {
   "gate": {
     "blocking_finding_severities": ["BLOCKER", "CRITICAL"]
+  },
+  "coverage": {
+    "version": "risk-design-policy/v1",
+    "default_dimensions": ["FUNCTIONAL", "FAILURE"],
+    "by_category": {
+      "CONCURRENCY": ["CONCURRENCY", "BOUNDARY"]
+    }
   }
 }
 ```
 
+Global `default_dimensions` apply to every Risk. `by_category` replaces a category's specialized dimensions; unspecified categories retain the baseline specialization. FUNCTIONAL is always required, including when a configured list is empty. Unknown rules, categories, test dimensions, versions, and duplicate dimensions are rejected before creating immutable Policy state. The Coverage API exposes `rule_version` and `effective_policy_hash`; equal effective rules have the same hash regardless of dimension order. Omitting coverage preserves the original baseline.
+
+The Web creation flow guides Source → Requirements → Policy → Review. Its Policy controls configure shared dimensions, per-category dimensions, and blocking Finding severities; FUNCTIONAL and BLOCKER remain mandatory.
+
+Direct `POST /policy-snapshots` callers must provide `content_sha256` matching the canonical JSON of `compiled_policy` (sorted keys, compact separators, UTF-8). Bootstrap computes this digest for Web users. Creating a new PolicySnapshot does not alter existing Runs.
+
 ## Migrations and validation
 
-`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and immutable-history guards. It widens the original proposal-type column to accommodate `TEST_IMPLEMENTATION`. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005`.
+`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008`.
 
 Backend validation requires a real PostgreSQL database:
 

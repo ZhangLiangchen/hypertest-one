@@ -21,6 +21,7 @@ from hypertest.api.delivery_schemas import (
     RunBootstrap,
     VerdictRead,
 )
+from hypertest.api.operation_guard import guard_synchronous_operation
 from hypertest.api.routes import translate_domain_error
 from hypertest.api.schemas import (
     MissionAttemptRead,
@@ -35,13 +36,14 @@ from hypertest.application.controller import advance_run
 from hypertest.application.executions import execute_test_run, read_evidence_content
 from hypertest.application.findings import transition_finding
 from hypertest.application.gate import evaluate_gate
+from hypertest.application.jobs import get_worker_status
+from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.services import ConflictError, get_mission, get_test_run
 from hypertest.application.workspaces import prepare_workspace
 from hypertest.config import get_settings
 from hypertest.db.session import get_db
 from hypertest.domain.enums import MissionStatus
 from hypertest.domain.models import (
-    AuditEvent,
     Evidence,
     ExecutionEvidence,
     ExecutionTestCase,
@@ -51,7 +53,6 @@ from hypertest.domain.models import (
     ImplementationTestCase,
     MissionAttempt,
     MissionProposal,
-    OutboxEvent,
     PolicySnapshot,
     SourceSnapshot,
     TestCase,
@@ -74,7 +75,7 @@ def _http_error(exc: Exception) -> HTTPException:
 
 
 @router.get("/capabilities")
-async def read_capabilities():
+async def read_capabilities(db: AsyncSession = Depends(get_db)):
     settings = get_settings()
     return {
         "agent_providers": ["codex"] if shutil.which("codex") else [],
@@ -83,6 +84,7 @@ async def read_capabilities():
         "workspace_root": settings.workspace_root,
         "runner_image": settings.runner_image,
         "mode": "single_operator",
+        "worker": await get_worker_status(db),
     }
 
 
@@ -155,6 +157,7 @@ async def post_bootstrap(
 @router.post("/test-runs/{run_id}/advance")
 async def post_advance(run_id: UUID, payload: RunAdvance, db: AsyncSession = Depends(get_db)):
     try:
+        await guard_synchronous_operation(db, run_id)
         return await advance_run(db, run_id, **payload.model_dump())
     except (RuntimeError, ValueError) as exc:
         raise _http_error(exc) from exc
@@ -163,6 +166,7 @@ async def post_advance(run_id: UUID, payload: RunAdvance, db: AsyncSession = Dep
 @router.post("/test-runs/{run_id}/prepare-workspace")
 async def post_prepare_workspace(run_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
+        await guard_synchronous_operation(db, run_id)
         return await prepare_workspace(db, run_id)
     except (RuntimeError, ValueError) as exc:
         raise _http_error(exc) from exc
@@ -222,6 +226,7 @@ async def post_execution(
     run_id: UUID, payload: ExecutionCreate, db: AsyncSession = Depends(get_db)
 ):
     try:
+        await guard_synchronous_operation(db, run_id)
         return await execute_test_run(db, run_id, **payload.model_dump())
     except (RuntimeError, ValueError) as exc:
         raise _http_error(exc) from exc
@@ -377,6 +382,7 @@ async def read_verdicts(run_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post("/test-runs/{run_id}/evaluate", response_model=VerdictRead)
 async def post_gate(run_id: UUID, payload: GateRequest, db: AsyncSession = Depends(get_db)):
     try:
+        await guard_synchronous_operation(db, run_id)
         item = await evaluate_gate(db, run_id, finalize=payload.finalize)
         return await _verdict_read(db, item)
     except (RuntimeError, ValueError) as exc:
@@ -427,6 +433,7 @@ async def _mission_action(db: AsyncSession, mission_id: UUID, retry: bool):
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+    before_status = mission.status
     if retry:
         if mission.status == MissionStatus.RETRYING:
             return mission
@@ -441,28 +448,11 @@ async def _mission_action(db: AsyncSession, mission_id: UUID, retry: bool):
         mission.status = MissionStatus.CANCELLED
         mission.cancelled_at = utcnow()
     mission.row_version += 1
-    run = await get_test_run(db, mission.test_run_id)
     action = "mission.retry_requested" if retry else "mission.cancelled"
-    db.add(
-        AuditEvent(
-            project_id=run.project_id,
-            test_run_id=run.id,
-            actor_type="USER",
-            actor_ref="web",
-            action=action,
-            entity_type="Mission",
-            entity_id=mission.id,
-            after_state={"status": mission.status.value},
-            event_metadata={},
-        )
-    )
-    db.add(
-        OutboxEvent(
-            aggregate_type="Mission",
-            aggregate_id=mission.id,
-            event_type=action,
-            payload={"mission_id": str(mission.id)},
-        )
+    await record_mission_event(
+        db, mission, action, before_status=before_status,
+        actor_type="USER", actor_ref="web",
+        metadata={"reason": "operator requested retry" if retry else "operator cancelled mission"},
     )
     await db.commit()
     await db.refresh(mission)
