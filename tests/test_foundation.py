@@ -15,6 +15,11 @@ def test_public_key_keeps_domain_prefix() -> None:
     assert public_key("MIS").startswith("MIS-")
 
 
+def test_public_keys_remain_unique_within_one_millisecond(monkeypatch) -> None:
+    monkeypatch.setattr("hypertest.common.ids.time.time", lambda: 1_700_000_000.0)
+    assert len({public_key("MIS") for _ in range(1000)}) == 1000
+
+
 def test_canonical_hash_is_order_independent() -> None:
     left = canonical_json_sha256({"b": 2, "a": 1})
     right = canonical_json_sha256({"a": 1, "b": 2})

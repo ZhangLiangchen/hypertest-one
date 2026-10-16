@@ -286,6 +286,8 @@ class MissionExecutionRead(BaseModel):
     requirements: list[RequirementRead]
     risks: list[RiskRead]
     test_cases: list[TestCaseRead] = Field(default_factory=list)
+    implementations: list[dict[str, Any]] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class PlannerRead(BaseModel):

@@ -1,12 +1,12 @@
 # HyperTest Domain Model & State Machine Specification
 
 **Document Status:** Draft / Normative  
-**Version:** v0.2
+**Version:** v0.3
 **Parent Documents:**
 
 - HyperTest Whitepaper v1.0
-- HyperTest Technical Architecture v0.2
-- Test Mission Protocol Specification v0.2
+- HyperTest Technical Architecture v0.3
+- Test Mission Protocol Specification v0.3
 
 **Applies To:** HyperTest Canonical Testing State
 
@@ -115,6 +115,8 @@ MIS-000512
 ```
 
 Human-readable Key 仅用于 UI、日志和 Agent 交流；数据库 FK 永远使用 UUID。
+
+当前新 Operational Key 使用 `{PREFIX}-{完整 UUIDv7 十六进制大写}`，保留 UUIDv7 的随机位，避免只截取前 12 位毫秒时间造成同毫秒碰撞。上述短 Key 为阅读示例，已持久化的旧格式 Key 继续有效，不做重写。
 
 ---
 
@@ -489,11 +491,14 @@ symbol
 framework
 language
 implementation_fingerprint
+artifact_uri nullable
+source_sha256 nullable
 validation_status
 created_by_type
 created_by_ref
 created_at
 updated_at
+row_version
 ```
 
 TestImplementation ↔ TestCase 使用 `implementation_test_cases` Join Table，因为一个测试函数可以覆盖多个 Case，一个 Case 也可拥有多个 Implementation。
@@ -501,10 +506,18 @@ TestImplementation ↔ TestCase 使用 `implementation_test_cases` Join Table，
 Fingerprint：
 
 ```text
-SHA256(repo + commit + file_path + symbol)
+SHA256(stable JSON {repository_url, commit_sha, file_path, symbol, source_sha256 when generated})
 ```
 
 唯一：`UNIQUE(source_snapshot_id, implementation_fingerprint)`。
+
+当前 Python / pytest MVP 接受 `TEST_IMPLEMENTATION` / CREATE Proposal：`test_case_keys`、repository_url、commit_sha、file_path、symbol、framework、language，以及可选 `code`。所有 Case 必须 ACTIVE 且属于同一 Project / SourceSnapshot，repository / commit 必须匹配不可变 Snapshot。HyperTest 验证 Python 语法；Agent 不能自称实现已经通过正式测试。
+
+生成的 `code` 保存为内容寻址 Artifact，`artifact_uri` 和 `source_sha256` 固定其内容；仅允许安全的 `tests/**/*.py` 路径。应用 Commit 不因生成测试而改变。Runner 在临时副本中覆盖未跟踪的安全测试路径，禁止覆盖 Snapshot 中已跟踪文件。没有 code 的 Proposal 可引用 Snapshot 中已有的受控测试位置。
+
+Validation Status：PENDING、VALIDATED、REJECTED、STALE。Verifier 接受后创建 PENDING，只有 Runner 在源内容和可执行目标校验后标记 VALIDATED。生成 Artifact 的 checksum 参与 fingerprint，便于追加新测试版本而不覆盖旧实现。执行前后重新校验源码 Hash 与 Snapshot，验证失败不能成为成功事实。
+
+新实现、ImplementationTestCase links、Proposal acceptance、AuditEvent、OutboxEvent 在同一事务提交。关系数组仅属于 Proposal 输入，不是 Canonical persistence。
 
 ---
 
@@ -526,6 +539,7 @@ environment_id
 environment_fingerprint
 source_commit
 execution_spec_sha256
+spec JSON
 status
 outcome
 queued_at
@@ -536,6 +550,7 @@ error_code nullable
 error_message nullable
 runner_instance
 created_at
+row_version
 ```
 
 Purpose：EXPLORATORY、VALIDATION、OFFICIAL、REPRODUCTION。只有 OFFICIAL 默认参与 Quality Gate。
@@ -578,6 +593,10 @@ Per-case Result：PASS、FAIL、SKIPPED、BLOCKED、ERROR、NOT_RUN。
 
 Execution Idempotency：`UNIQUE(test_run_id, idempotency_key)`。
 
+`spec` 固定 SourceSnapshot、精确 Commit、Runner 环境/镜像身份、purpose、timeout、Case / Implementation 目标、源码摘要和关系。PostgreSQL Trigger 禁止创建后修改这些输入；状态、Outcome、运行时间、错误、exit code 和 row_version 可按执行进度更新。重试使用新 Execution 和 request key，重复 request key 返回原 Execution 而不重复执行。
+
+客户端只选择 workspace、backend、purpose、timeout 和 idempotency key；Runner 从 Canonical 实现生成命令，客户端和 Agent 不提交正式结果或任意 Shell 命令。
+
 ---
 
 ## 17. Evidence
@@ -615,6 +634,10 @@ Evidence State：COLLECTED → VERIFIED / REJECTED；VERIFIED 可被 SUPERSEDED�
 Evidence Content Immutable。允许更新 status、verified_at、rejection_reason；禁止更新 artifact_uri、sha256、source、execution_id、content。
 
 唯一：`UNIQUE(test_run_id, sha256, evidence_type)`。
+
+同一 TestRun 中相同类型/内容的 Evidence 可被多次 Execution 复用，使用 `execution_evidence` Join Table 对应 `ExecutionEvidence`：`PRIMARY KEY(execution_id, evidence_id)`。Evidence 的 `execution_id` 保留最初采集来源，不能据此排除其他合法复用关系；Gate 与 Execution 视图应使用 Join Table 查询。
+
+MVP 内容保存在本地只写入一次的 SHA-256 Artifact Store，URI 为 `sha256:{digest}`。读取、复用和 Gate 评估都校验 hash，读取时也校验 size；缺失、篡改或越界 Artifact 不作为可信事实。PostgreSQL Trigger 只允许更新 status、verified_at、rejection_reason，禁止改变其余内容/来源字段。
 
 ---
 
@@ -659,6 +682,8 @@ Fingerprint 用于 Failure Deduplication：
 ```text
 SHA256(project + classification + normalized failure signature + affected component)
 ```
+
+当前 MVP 的 affected component 为 TestRun ID + 排序的 test_case_keys，因此去重保留同一 Run / Snapshot 的证据边界。跨 Run recurrence / lineage 属于后续知识能力，不把不同快照的 Finding 行合并。severity、title、confidence 不改变失效身份。
 
 活动 Finding 使用 Partial Unique Index，确保同一 fingerprint 同时只有一个 NEW / TRIAGED / CONFIRMED / REOPENED 实例。
 
@@ -722,6 +747,14 @@ FINAL Verdict Append-only：禁止原地 UPDATE；质量状态变化时创建新
 建立 `verdict_evidence` 和 `verdict_findings` 用于直接 Traceability。
 
 每个 FINAL Verdict 必须保存 `state_snapshot_hash`，证明 Verdict 基于哪一个 Canonical Testing State 得出。
+
+MVP 对 `(test_run_id, sequence_no)` 建立唯一约束，sequence_no > 0；FINAL 必须同时有 state_snapshot_hash、evidence_manifest_sha256、finalized_at。`TestRun.current_verdict_id` 指向最近 FINAL 决策。相同 Canonical State / Policy / status 的重复评估返回已有 Verdict，状态变化创建新 sequence。
+
+数据库 Trigger 禁止改变 FINAL 内容，只允许 FINAL → REVOKED 并设置 revoked_at，其他字段必须不变；REVOKED 同样不可重写，FINAL / REVOKED 禁止 DELETE。VerdictEvidence / VerdictFinding 保存决策引用，Canonical 内容、links、审计和 Outbox 事务性提交。
+
+当前 `canonical-gate/v1` 要求：非空 Requirement / Risk / ACTIVE Case、Risk identification 与设计维度覆盖完整、每个 Case 最新 OFFICIAL 执行匹配 SourceSnapshot Commit、COMPLETED + aggregate PASS + exit code 0 + per-case PASS、通过 ExecutionEvidence 关联的 VERIFIED trusted EXECUTION_METADATA / JUNIT，且 Artifact hash 验证成功。最新按 queued_at、ID 倒序选择，不回退挑选更早的成功结果。
+
+缺失/未完成/不确定事实产生 BLOCKED；执行失败或 policy-blocking confirmed PRODUCT_DEFECT 产生 RELEASE_BLOCKED；全部满足产生 RELEASE_READY。默认阻断严重程度为 BLOCKER、CRITICAL；`compiled_policy.gate.blocking_finding_severities` 可配置，但 BLOCKER 不可豁免。当前基线不提供 Official Evidence waiver。设计覆盖完成本身不形成放行结论。
 
 ---
 
@@ -798,6 +831,8 @@ COMPLETED
 ```
 
 Mission 唯一：`UNIQUE(test_run_id, idempotency_key)`。
+
+Cancelled / expired Mission 不被重新打开或改写。用户明确再次规划仍缺失的工作时，Planner 为原 intent 分配新的 `:generation:N` idempotency key 并创建新 Mission；原 specification、Attempt、Proposal 与取消历史保留。
 
 ---
 
@@ -900,6 +935,7 @@ test_implementations
 implementation_test_cases
 test_executions
 execution_test_cases
+execution_evidence
 evidence
 findings
 finding_evidence
@@ -918,7 +954,7 @@ audit_events
 outbox_events
 ```
 
-上表为完整 MVP 目标，并非全部已实现。v0.2 已实现至 Requirement → Risk → TestCase，直接 Requirement ↔ TestCase 关系（后续 `test_case_requirements`）和 Implementation / Execution / Evidence 等后续链路按阶段加入。
+当前 MVP 已实现 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding / Verdict。直接 Requirement ↔ TestCase 关系（后续 `test_case_requirements`）和独立 entity_provenance 投影仍为扩展；当前 provenance 通过 Canonical created_by_ref / reported_by_ref 与 MissionProposal 的 mission_id、attempt_id、accepted_entity_id 保留。
 
 ---
 
@@ -1041,6 +1077,7 @@ CREATE TABLE test_executions (
     environment_fingerprint char(64) NOT NULL,
     source_commit varchar(64) NOT NULL,
     execution_spec_sha256 char(64) NOT NULL,
+    spec json NOT NULL,
     status varchar(32) NOT NULL,
     outcome varchar(32),
     queued_at timestamptz NOT NULL,
@@ -1051,6 +1088,7 @@ CREATE TABLE test_executions (
     error_message text,
     runner_instance text,
     created_at timestamptz NOT NULL,
+    row_version bigint NOT NULL DEFAULT 1,
     UNIQUE(test_run_id, key),
     UNIQUE(test_run_id, idempotency_key)
 );
@@ -1156,7 +1194,7 @@ Risk test coverage = Complete 的非 OBSOLETE Risks / 全部非 OBSOLETE Risks
 
 此规则是可替换的确定性基线，不是永久的“存在一个用例即覆盖”模型。未来 Policy 可声明所需维度或更丰富的风险覆盖条件，通过专用评估组件扩展，不把 Planner 改造成通用 LLM Agent。
 
-Planner 在 Requirement 和 Risk 缺口满足后，对剩余维度创建 DESIGN_TESTS Mission；全部 Risk 达到基线后返回 `TEST_DESIGN_COVERAGE_COMPLETE`。该结果是设计覆盖状态，不是 TestRun 的 PASS / FINAL Verdict。
+Planner 在 Requirement 和 Risk 缺口满足后，对剩余维度创建 DESIGN_TESTS Mission。全部 Risk 达到基线表示测试设计覆盖完成；当前完整 MVP 继续创建 IMPLEMENT_TESTS，随后返回 EXECUTION_REQUIRED / EXECUTION_IN_PROGRESS，失败时创建 DIAGNOSE_FAILURE，最后返回 VERDICT_REQUIRED。早期切片的 TEST_DESIGN_COVERAGE_COMPLETE 是设计阶段边界，不是 TestRun 的 PASS / FINAL Verdict。
 
 Risk Coverage 分层：
 

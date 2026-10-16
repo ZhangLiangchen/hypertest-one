@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
@@ -25,6 +25,7 @@ from hypertest.domain.enums import (
 )
 from hypertest.domain.models import (
     AuditEvent,
+    Finding,
     Mission,
     MissionAttempt,
     MissionProposal,
@@ -34,6 +35,7 @@ from hypertest.domain.models import (
     Risk,
     RiskTestCase,
     TestCase,
+    TestImplementation,
     utcnow,
 )
 from hypertest.protocol import (
@@ -52,6 +54,8 @@ class VerificationResult:
     risks: list[Risk]
     test_cases: list[TestCase]
     errors: list[dict[str, Any]]
+    implementations: list[TestImplementation] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
 
 
 def requirement_source_fingerprint(payload: RequirementProposalPayload) -> str:
@@ -796,6 +800,8 @@ async def verify_mission_result(
         MissionType.ANALYZE_REQUIREMENTS,
         MissionType.ANALYZE_RISKS,
         MissionType.DESIGN_TESTS,
+        MissionType.IMPLEMENT_TESTS,
+        MissionType.DIAGNOSE_FAILURE,
     }:
         global_errors.append(
             _validation_error(
@@ -810,4 +816,12 @@ async def verify_mission_result(
         return await _verify_requirements(session, mission, attempt, result)
     if mission.mission_type is MissionType.ANALYZE_RISKS:
         return await _verify_risks(session, mission, attempt, result)
+    if mission.mission_type is MissionType.IMPLEMENT_TESTS:
+        from hypertest.application.implementations import verify_test_implementations
+
+        return await verify_test_implementations(session, mission, attempt, result)
+    if mission.mission_type is MissionType.DIAGNOSE_FAILURE:
+        from hypertest.application.findings import verify_findings
+
+        return await verify_findings(session, mission, attempt, result)
     return await _verify_test_cases(session, mission, attempt, result)

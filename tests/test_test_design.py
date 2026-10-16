@@ -325,8 +325,9 @@ async def test_continuous_planner_loop_commits_relational_test_design() -> None:
         assert await case_count(session, test_run) == 2
 
         complete = await plan_next_mission(session, test_run.id)
-        assert complete.reason == "TEST_DESIGN_COVERAGE_COMPLETE"
-        assert complete.mission is None
+        assert complete.reason == "IMPLEMENTATION_COVERAGE_GAP"
+        assert complete.mission is not None
+        assert complete.mission.mission_type is MissionType.IMPLEMENT_TESTS
         coverage = await get_test_run_coverage(session, test_run.id)
         assert coverage.requirement_count == 1
         assert coverage.risk_count == 1
@@ -612,8 +613,9 @@ async def test_planner_rejects_designs_that_do_not_close_any_requested_dimension
         assert accepted.attempt.status is MissionAttemptStatus.ACCEPTED
         assert await case_count(session, test_run) == 2
         final = await plan_next_mission(session, test_run.id)
-        assert final.reason == "TEST_DESIGN_COVERAGE_COMPLETE"
-        assert final.mission is None
+        assert final.reason == "IMPLEMENTATION_COVERAGE_GAP"
+        assert final.mission is not None
+        assert final.mission.mission_type is MissionType.IMPLEMENT_TESTS
 
 
 @pytest.mark.asyncio

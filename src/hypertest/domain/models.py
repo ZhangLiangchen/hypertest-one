@@ -148,6 +148,11 @@ class TestRun(Base):
     policy_snapshot_id: Mapped[UUID] = mapped_column(
         ForeignKey("policy_snapshots.id", ondelete="RESTRICT")
     )
+    current_verdict_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "verdicts.id", ondelete="RESTRICT", name="fk_test_run_current_verdict", use_alter=True
+        )
+    )
     trigger_type: Mapped[str] = mapped_column(String(64), nullable=False)
     trigger_ref: Mapped[str | None] = mapped_column(Text)
     status: Mapped[TestRunStatus] = mapped_column(
@@ -543,3 +548,22 @@ class OutboxEvent(Base):
         DateTime(timezone=True), default=utcnow, nullable=False
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# Register the remaining canonical chain on the shared declarative metadata.
+from hypertest.domain.delivery import (  # noqa: E402, F401
+    Evidence,
+    ExecutionEvidence,
+    ExecutionTestCase,
+    Finding,
+    FindingEvidence,
+    FindingRequirement,
+    FindingRisk,
+    FindingTestCase,
+    ImplementationTestCase,
+    TestExecution,
+    TestImplementation,
+    Verdict,
+    VerdictEvidence,
+    VerdictFinding,
+)

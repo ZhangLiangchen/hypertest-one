@@ -7,7 +7,7 @@ import {
   PlayCircleOutlined,
   SafetyCertificateOutlined,
 } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Button,
@@ -29,6 +29,9 @@ import Link from "next/link";
 import { getCoverage, getMissions, getRequirements, getRisks, getRun, getTestCases, planNext } from "@/lib/api";
 import type { Mission, Requirement, Risk, TestCase } from "@/lib/types";
 
+import { useRunOperations } from "./use-run-operations";
+import { RunInputs } from "./run-inputs";
+
 function statusColor(status: string) {
   if (["COMPLETED", "ACCEPTED", "ACTIVE", "OPEN"].includes(status)) return "green";
   if (["FAILED", "REJECTED", "BLOCKED"].includes(status)) return "red";
@@ -48,7 +51,7 @@ function coveragePercent(ratio: number | null) {
 }
 
 export default function RunPage({ params }: { params: { runId: string } }) {
-  const queryClient = useQueryClient();
+  const operations = useRunOperations(params.runId);
   const [messageApi, contextHolder] = message.useMessage();
   const run = useQuery({
     queryKey: ["run", params.runId],
@@ -88,11 +91,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
       } else {
         messageApi.info(`Planner: ${result.reason}`);
       }
-      await Promise.all(
-        ["run", "requirements", "risks", "test-cases", "coverage", "missions"].map((key) =>
-          queryClient.invalidateQueries({ queryKey: [key, params.runId] }),
-        ),
-      );
+      await operations.refresh();
     },
     onError: (error) => messageApi.error(String(error)),
   });
@@ -232,6 +231,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
     },
     { title: "Attempts", dataIndex: "current_attempt_no", width: 90 },
     { title: "Objective", dataIndex: "objective" },
+    { title: "Actions", key: "actions", render: (_: unknown, row: Mission) => operations.missionActions(row) },
   ];
 
   return (
@@ -239,7 +239,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
       {contextHolder}
       <div className="page-heading">
         <Link href={`/projects/${run.data.project_id}`}><ArrowLeftOutlined /> Project</Link>
-        <Space style={{ width: "100%", justifyContent: "space-between", marginTop: 18 }} align="start">
+        <div className="workbench-heading">
           <div>
             <div className="eyebrow">Test Run</div>
             <Typography.Title level={1} style={{ margin: 0 }}>{run.data.key}</Typography.Title>
@@ -248,15 +248,20 @@ export default function RunPage({ params }: { params: { runId: string } }) {
               <span className="entity-key">snapshot {run.data.source_snapshot_id}</span>
             </Space>
           </div>
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            loading={planner.isPending}
-            onClick={() => planner.mutate()}
-          >
-            Plan next mission
-          </Button>
-        </Space>
+          <Space wrap>
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined aria-hidden />}
+              loading={planner.isPending}
+              disabled={operations.busy}
+              onClick={() => planner.mutate()}
+            >
+              Plan next mission
+            </Button>
+            {operations.actions}
+            <RunInputs sourceId={run.data.source_snapshot_id} policyId={run.data.policy_snapshot_id} />
+          </Space>
+        </div>
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
@@ -298,6 +303,8 @@ export default function RunPage({ params }: { params: { runId: string } }) {
           style={{ marginBottom: 20 }}
         />
       )}
+
+      {operations.summary}
 
       <Card className="section-card">
         <Tabs
@@ -368,9 +375,11 @@ export default function RunPage({ params }: { params: { runId: string } }) {
               label: `Missions (${missionData.length})`,
               children: <Table rowKey="id" columns={missionColumns} dataSource={missionData} pagination={false} scroll={{ x: 800 }} />,
             },
+            ...operations.tabs,
           ]}
         />
       </Card>
+      {operations.dialogs}
     </main>
   );
 }

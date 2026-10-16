@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+import hashlib
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.agent.base import AgentHarness
 from hypertest.agent.codex import CodexCliAdapter
+from hypertest.agent.snapshot import SnapshotHarness
 from hypertest.application.verifier import VerificationResult, verify_mission_result
+from hypertest.config import get_settings
+from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.enums import (
     AgentSessionStatus,
     MissionAttemptStatus,
@@ -19,16 +27,23 @@ from hypertest.domain.enums import (
 )
 from hypertest.domain.models import (
     AgentSessionRecord,
+    Finding,
     Mission,
     MissionAttempt,
     MissionProposal,
     Requirement,
     Risk,
+    SourceSnapshot,
     TestCase,
+    TestImplementation,
     TestRun,
     utcnow,
 )
-from hypertest.protocol import MissionResultSubmission, TestCaseProposalPayload
+from hypertest.protocol import (
+    MissionResultSubmission,
+    TestCaseProposalPayload,
+    TestImplementationProposalPayload,
+)
 
 
 class MissionRuntimeError(RuntimeError):
@@ -43,6 +58,8 @@ class MissionExecutionResult:
     requirements: list[Requirement]
     risks: list[Risk]
     test_cases: list[TestCase]
+    implementations: list[TestImplementation] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
 
 
 def _output_schema_for(mission_type: MissionType) -> str:
@@ -52,6 +69,10 @@ def _output_schema_for(mission_type: MissionType) -> str:
         return "hypertest.result/risk-analysis/v1"
     if mission_type is MissionType.DESIGN_TESTS:
         return "hypertest.result/test-design/v1"
+    if mission_type is MissionType.IMPLEMENT_TESTS:
+        return "hypertest.result/test-implementation/v1"
+    if mission_type is MissionType.DIAGNOSE_FAILURE:
+        return "hypertest.result/failure-diagnosis/v1"
     raise MissionRuntimeError(f"unsupported mission type: {mission_type.value}")
 
 
@@ -74,16 +95,69 @@ def build_mission_contract(mission: Mission, test_run: TestRun) -> dict[str, Any
             "human_summary": True,
         },
     )
+    payload_model = None
+    proposal_type = None
     if mission.mission_type is MissionType.DESIGN_TESTS:
+        payload_model, proposal_type = TestCaseProposalPayload, "TEST_CASE"
+    elif mission.mission_type is MissionType.IMPLEMENT_TESTS:
+        payload_model, proposal_type = TestImplementationProposalPayload, "TEST_IMPLEMENTATION"
+    elif mission.mission_type is MissionType.DIAGNOSE_FAILURE:
+        from hypertest.application.findings import FindingProposalPayload
+
+        payload_model, proposal_type = FindingProposalPayload, "FINDING"
+    if payload_model is not None:
         output_contract = dict(contract["output_contract"])
-        output_contract.setdefault("proposal_type", "TEST_CASE")
+        output_contract.setdefault("proposal_type", proposal_type)
         output_contract.setdefault("operation", "CREATE")
-        output_contract.setdefault(
-            "object_payload_schema", TestCaseProposalPayload.model_json_schema()
-        )
+        output_contract.setdefault("object_payload_schema", payload_model.model_json_schema())
         output_contract.setdefault("result_schema", MissionResultSubmission.model_json_schema())
         contract["output_contract"] = output_contract
     return contract
+
+
+async def _hydrate_source_context(
+    session: AsyncSession,
+    test_run: TestRun,
+    contract: dict[str, Any],
+) -> None:
+    snapshot = await session.get(SourceSnapshot, test_run.source_snapshot_id)
+    if snapshot is None:
+        raise MissionRuntimeError("source snapshot not found")
+    context = dict(contract.get("context", {}))
+    context.update(repository_url=snapshot.repository_url, commit_sha=snapshot.commit_sha)
+    root = Path(get_settings().artifact_root).resolve()
+    if snapshot.prd_artifact_uri:
+        artifact = Path(snapshot.prd_artifact_uri).resolve()
+        expected = (root / "inputs" / f"{snapshot.prd_sha256}.txt").resolve()
+        if not artifact.is_relative_to(root) or artifact != expected:
+            raise MissionRuntimeError("PRD artifact is outside the configured input artifact store")
+        try:
+            content = artifact.read_bytes()
+            if hashlib.sha256(content).hexdigest() != snapshot.prd_sha256:
+                raise MissionRuntimeError(
+                    "PRD artifact checksum does not match the source snapshot"
+                )
+            context["prd_text"] = content.decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise MissionRuntimeError("PRD artifact cannot be read as UTF-8 text") from exc
+    configuration = root / "inputs" / f"{snapshot.configuration_sha256}.txt"
+    if configuration.exists():
+        if not configuration.resolve().is_relative_to(root):
+            raise MissionRuntimeError(
+                "configuration artifact is outside the configured input store"
+            )
+        try:
+            content = configuration.read_bytes()
+            if hashlib.sha256(content).hexdigest() != snapshot.configuration_sha256:
+                raise MissionRuntimeError(
+                    "configuration artifact checksum does not match the snapshot"
+                )
+            context["configuration_text"] = content.decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise MissionRuntimeError(
+                "configuration artifact cannot be read as UTF-8 text"
+            ) from exc
+    contract["context"] = context
 
 
 async def _fail_attempt(
@@ -95,15 +169,23 @@ async def _fail_attempt(
     error_message: str,
     provider_metadata: dict[str, Any],
 ) -> None:
+    test_run = await session.get(TestRun, mission.test_run_id)
+    if test_run is not None:
+        await session.refresh(test_run, with_for_update=True)
+    await session.refresh(mission, with_for_update=True)
+    cancelled = mission.status is MissionStatus.CANCELLED or (
+        test_run is not None and test_run.status is TestRunStatus.CANCELLED
+    )
     now = utcnow()
-    attempt.status = MissionAttemptStatus.FAILED
+    attempt.status = MissionAttemptStatus.CANCELLED if cancelled else MissionAttemptStatus.FAILED
     attempt.finished_at = now
     attempt.error_code = error_code
     attempt.error_message = error_message
     attempt.provider_metadata = provider_metadata
-    mission.status = MissionStatus.RETRYING
-    mission.row_version += 1
-    agent_session.status = AgentSessionStatus.FAILED
+    if not cancelled:
+        mission.status = MissionStatus.RETRYING
+        mission.row_version += 1
+    agent_session.status = AgentSessionStatus.CLOSED if cancelled else AgentSessionStatus.FAILED
     agent_session.last_active_at = now
     agent_session.closed_at = now
     await session.commit()
@@ -132,26 +214,69 @@ async def execute_mission(
         MissionType.ANALYZE_REQUIREMENTS,
         MissionType.ANALYZE_RISKS,
         MissionType.DESIGN_TESTS,
+        MissionType.IMPLEMENT_TESTS,
+        MissionType.DIAGNOSE_FAILURE,
     }:
+        raise MissionRuntimeError(f"runtime does not support {mission.mission_type.value}")
+    allowed_root = Path(get_settings().workspace_root).resolve()
+    workspace_path = Path(workspace).resolve()
+    if not workspace_path.is_relative_to(allowed_root) or not workspace_path.is_dir():
         raise MissionRuntimeError(
-            "runtime currently supports ANALYZE_REQUIREMENTS, ANALYZE_RISKS and DESIGN_TESTS"
+            "mission workspace must be a directory under the configured workspace root"
         )
+    workspace = str(workspace_path)
+    contract = build_mission_contract(mission, test_run)
+    await _hydrate_source_context(session, test_run, contract)
+    if harness is None:
+        from hypertest.runner.source import validate_checkout
+
+        source = await session.get(SourceSnapshot, test_run.source_snapshot_id)
+        assert source is not None
+        tracked_files = await validate_checkout(
+            workspace_path, source.commit_sha, source.repository_url
+        )
+    try:
+        duration = float(mission.spec.get("constraints", {}).get("max_duration_seconds", 1800))
+    except (TypeError, ValueError) as exc:
+        raise MissionRuntimeError("max_duration_seconds must be a positive duration") from exc
+    if not math.isfinite(duration) or duration <= 0:
+        raise MissionRuntimeError("max_duration_seconds must be a positive duration")
+    duration = min(duration, 3600)
+
+    selected_harness = harness or _select_harness(provider)
+    if harness is None:
+        selected_harness = SnapshotHarness(selected_harness, workspace_path, tracked_files)
+    # Reserve one attempt under the same lock order as cancellation. A competing
+    # request observes RUNNING before it can create another external agent session.
+    await session.refresh(test_run, with_for_update=True)
+    await session.refresh(mission, with_for_update=True)
     if mission.status not in {
         MissionStatus.CREATED,
         MissionStatus.READY,
         MissionStatus.RETRYING,
     }:
-        raise MissionRuntimeError(f"mission cannot execute from status {mission.status.value}")
-
-    selected_harness = harness or _select_harness(provider)
-    external_session = await selected_harness.create_session(workspace)
+        message = f"mission cannot execute from status {mission.status.value}"
+        await session.rollback()
+        raise MissionRuntimeError(message)
+    if test_run.status is TestRunStatus.CANCELLED:
+        await session.rollback()
+        raise MissionRuntimeError("cancelled test runs cannot execute missions")
+    try:
+        external_session = await selected_harness.create_session(workspace)
+    except Exception as exc:
+        await session.rollback()
+        raise MissionRuntimeError(f"agent session could not be created: {exc}") from exc
     now = utcnow()
     agent_record = AgentSessionRecord(
         test_run_id=test_run.id,
         provider=external_session.provider,
         harness=type(selected_harness).__name__,
         provider_session_id=external_session.provider_session_id or external_session.id,
-        workspace_id=workspace,
+        workspace_id=(
+            selected_harness.workspace_for(external_session)
+            if isinstance(selected_harness, SnapshotHarness)
+            else workspace
+        ),
         status=AgentSessionStatus.RUNNING,
         last_active_at=now,
     )
@@ -169,25 +294,33 @@ async def execute_mission(
     mission.status = MissionStatus.RUNNING
     mission.dispatched_at = mission.dispatched_at or now
     mission.row_version += 1
-    next_run_status = (
-        TestRunStatus.DESIGNING
-        if mission.mission_type is MissionType.DESIGN_TESTS
-        else TestRunStatus.ANALYZING
-    )
-    if test_run.status in {TestRunStatus.CREATED, TestRunStatus.ANALYZING}:
+    next_run_status = {
+        MissionType.DESIGN_TESTS: TestRunStatus.DESIGNING,
+        MissionType.IMPLEMENT_TESTS: TestRunStatus.IMPLEMENTING,
+        MissionType.DIAGNOSE_FAILURE: TestRunStatus.DIAGNOSING,
+    }.get(mission.mission_type, TestRunStatus.ANALYZING)
+    if test_run.status not in {TestRunStatus.COMPLETED, TestRunStatus.CANCELLED}:
         test_run.status = next_run_status
         test_run.started_at = test_run.started_at or now
         test_run.row_version += 1
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        try:
+            await asyncio.wait_for(selected_harness.close(external_session), 5)
+        except Exception:
+            pass
+        raise
     await session.refresh(agent_record)
     await session.refresh(attempt)
 
     result_payload: dict[str, Any] | None = None
     error_payload: dict[str, Any] | None = None
     event_types: list[str] = []
-    contract = build_mission_contract(mission, test_run)
 
-    try:
+    async def consume_events() -> None:
+        nonlocal result_payload, error_payload
         async for event in selected_harness.execute(external_session, contract):
             event_types.append(event.type)
             if event.type == "RESULT_SUBMITTED":
@@ -200,18 +333,83 @@ async def execute_mission(
                     result_payload = event.payload
             elif event.type == "ERROR":
                 error_payload = event.payload
+
+    execution_task = asyncio.create_task(consume_events())
+    cancellation_observed = asyncio.Event()
+
+    async def watch_cancellation() -> None:
+        while True:
+            await asyncio.sleep(0.5)
+            try:
+                async with AsyncSessionLocal() as observer:
+                    statuses = (
+                        await observer.execute(
+                            select(Mission.status, TestRun.status)
+                            .join(TestRun, TestRun.id == Mission.test_run_id)
+                            .where(Mission.id == mission_id)
+                        )
+                    ).one_or_none()
+            except Exception:
+                event_types.append("CANCELLATION_POLL_ERROR")
+                return
+            if statuses and (
+                statuses[0] is MissionStatus.CANCELLED or statuses[1] is TestRunStatus.CANCELLED
+            ):
+                cancellation_observed.set()
+                try:
+                    await asyncio.wait_for(selected_harness.interrupt(external_session), 5)
+                except Exception:
+                    event_types.append("HARNESS_INTERRUPT_ERROR")
+                finally:
+                    execution_task.cancel()
+                return
+
+    cancellation_task = asyncio.create_task(watch_cancellation())
+    try:
+        await asyncio.wait_for(execution_task, timeout=duration)
+    except asyncio.CancelledError:
+        if not cancellation_observed.is_set():
+            raise
+    except TimeoutError:
+        try:
+            await asyncio.wait_for(selected_harness.interrupt(external_session), 5)
+        except Exception:
+            event_types.append("HARNESS_INTERRUPT_ERROR")
+        error_payload = {
+            "error_code": "MISSION_TIMEOUT",
+            "message": "mission exceeded its time limit",
+        }
     except Exception as exc:
         error_payload = {
             "error_code": "HARNESS_ERROR",
             "message": str(exc),
         }
     finally:
+        cancellation_task.cancel()
+        await asyncio.gather(cancellation_task, return_exceptions=True)
         try:
-            await selected_harness.close(external_session)
+            await asyncio.wait_for(selected_harness.close(external_session), 5)
         except Exception:
             event_types.append("HARNESS_CLOSE_ERROR")
 
     provider_metadata = {"event_types": event_types}
+    # Serialize completion with cancellation before processing any result or error.
+    await session.refresh(test_run, with_for_update=True)
+    await session.refresh(mission, with_for_update=True)
+    if mission.status is MissionStatus.CANCELLED or test_run.status is TestRunStatus.CANCELLED:
+        attempt.status = MissionAttemptStatus.CANCELLED
+        attempt.finished_at = utcnow()
+        attempt.provider_metadata = provider_metadata
+        agent_record.status = AgentSessionStatus.CLOSED
+        agent_record.closed_at = utcnow()
+        agent_record.last_active_at = utcnow()
+        await session.commit()
+        return MissionExecutionResult(mission, attempt, [], [], [], [])
+    if harness is None and error_payload is None:
+        try:
+            await validate_checkout(workspace_path, source.commit_sha, source.repository_url)
+        except RuntimeError as exc:
+            error_payload = {"error_code": "SOURCE_CHANGED", "message": str(exc)}
     if error_payload is not None:
         error_code = str(error_payload.get("error_code", "AGENT_ERROR"))
         error_message = str(error_payload.get("message") or error_payload)
@@ -271,4 +469,6 @@ async def execute_mission(
         requirements=verification.requirements,
         risks=verification.risks,
         test_cases=verification.test_cases,
+        implementations=verification.implementations,
+        findings=verification.findings,
     )

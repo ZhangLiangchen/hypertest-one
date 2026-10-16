@@ -38,6 +38,203 @@ export type Mission = {
   completed_at?: string | null;
 };
 
+export type ProjectCreate = {
+  key: string;
+  name: string;
+  description?: string;
+  repository_url?: string;
+  default_branch?: string;
+};
+
+export type RunCreate = {
+  repository_url: string;
+  commit_sha: string;
+  branch?: string;
+  prd_text: string;
+  configuration_text: string;
+  policy?: Record<string, unknown>;
+  idempotency_key?: string;
+};
+
+export type MissionAttempt = {
+  id: string;
+  mission_id: string;
+  attempt_no: number;
+  provider?: string | null;
+  harness?: string | null;
+  status: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+};
+
+export type MissionProposal = {
+  id: string;
+  proposal_type: string;
+  operation: string;
+  status: string;
+  object_payload: Record<string, unknown>;
+  validation_errors?: Array<Record<string, unknown>> | null;
+  accepted_entity_type?: string | null;
+  accepted_entity_id?: string | null;
+};
+
+export type MissionExecution = {
+  mission: Mission;
+  attempt: MissionAttempt;
+  proposals: MissionProposal[];
+};
+
+export type TestImplementation = {
+  id: string;
+  key: string;
+  file_path: string;
+  symbol: string;
+  framework: string;
+  language: string;
+  commit_sha: string;
+  validation_status: string;
+  test_case_keys?: string[];
+  testcase_keys?: string[];
+  created_at: string;
+};
+
+export type ExecutionResult = {
+  test_case_id: string;
+  test_case_key?: string;
+  result: string;
+  duration_ms?: number | null;
+  failure_summary?: string | null;
+};
+
+export type TestExecution = {
+  id: string;
+  key: string;
+  test_run_id: string;
+  purpose: string;
+  runner_backend: string;
+  source_commit: string;
+  execution_spec_sha256: string;
+  status: string;
+  outcome: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  exit_code?: number | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  case_results?: ExecutionResult[];
+};
+
+export type ExecutionDetail = {
+  execution: TestExecution;
+  test_cases: ExecutionResult[];
+  evidence_keys: string[];
+};
+
+export type Evidence = {
+  id: string;
+  key: string;
+  execution_id?: string | null;
+  evidence_type: string;
+  trust_level: string;
+  content_type?: string | null;
+  sha256: string;
+  size_bytes?: number | null;
+  inline_summary?: string | null;
+  collector: string;
+  status: string;
+  created_at: string;
+  rejection_reason?: string | null;
+};
+
+export type Finding = {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  root_cause?: string | null;
+  classification: string;
+  severity: string;
+  status: string;
+  resolution?: string | null;
+  confidence?: number | null;
+  evidence_keys?: string[];
+  test_case_keys?: string[];
+  testcase_keys?: string[];
+  created_at: string;
+  row_version: number;
+};
+
+export type Verdict = {
+  id: string;
+  key: string;
+  sequence_no: number;
+  scope: string;
+  decision: string;
+  status: string;
+  reason: string;
+  policy_snapshot_id: string;
+  state_snapshot_hash: string | null;
+  evidence_manifest_sha256?: string | null;
+  evidence_keys?: string[];
+  finding_keys?: string[];
+  created_at: string;
+  finalized_at?: string | null;
+};
+
+export type ExecutionCreate = {
+  workspace: string;
+  backend: "docker" | "local";
+  purpose: "OFFICIAL";
+  idempotency_key: string;
+  timeout_seconds?: number;
+};
+
+export type Capabilities = {
+  agent_providers: string[];
+  runner_backends: Array<"docker" | "local">;
+  workspace_root: string;
+  runner_image: string;
+  mode: string;
+};
+
+export type FindingTransition = {
+  status: string;
+  resolution?: string;
+  reason: string;
+  expected_row_version: number;
+};
+
+export type SourceSnapshot = {
+  id: string;
+  repository_url: string;
+  commit_sha: string;
+  branch?: string | null;
+  prd_sha256: string;
+  configuration_sha256: string;
+  source_fingerprint: string;
+  created_at: string;
+};
+
+export type PolicySnapshot = {
+  id: string;
+  policy_name: string;
+  policy_version: string;
+  content_sha256: string;
+  compiled_policy: Record<string, unknown>;
+  created_at: string;
+};
+
+export type CycleResult = {
+  reason: string;
+  steps: Array<{ action: "mission" | "execution" | "verdict"; id: string; key: string; status: string }>;
+  mission_id?: string | null;
+  execution_id?: string | null;
+  verdict_id?: string | null;
+};
+
 export type Requirement = {
   id: string;
   key: string;

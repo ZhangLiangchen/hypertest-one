@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import signal
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -42,9 +44,11 @@ class CodexCliAdapter:
         if not workspace_path.is_dir():
             raise RuntimeError(f"workspace does not exist: {workspace}")
 
-        result_dir = workspace_path / ".hypertest"
+        result_dir = workspace_path / ".hypertest" / "results"
+        if not result_dir.resolve().is_relative_to(workspace_path.resolve()):
+            raise RuntimeError("mission result directory must remain inside its workspace")
         result_dir.mkdir(parents=True, exist_ok=True)
-        result_path = result_dir / "result.json"
+        result_path = result_dir / f"{session.id}.json"
         result_path.unlink(missing_ok=True)
 
         mission_json = json.dumps(mission, ensure_ascii=False, sort_keys=True)
@@ -60,11 +64,14 @@ class CodexCliAdapter:
             self.binary,
             "exec",
             "--json",
+            "--skip-git-repo-check",
             *self.extra_args,
             prompt,
             cwd=workspace,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.DEVNULL,
+            start_new_session=True,
         )
         self._processes[session.id] = process
         stderr_task = None
@@ -120,8 +127,10 @@ class CodexCliAdapter:
             return
 
         try:
+            if result_path.stat().st_size > 2_000_000:
+                raise ValueError("mission result exceeds the 2 MB structured output limit")
             result_payload = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             yield AgentEvent(
                 type="ERROR",
                 payload={
@@ -138,8 +147,17 @@ class CodexCliAdapter:
     async def interrupt(self, session: AgentSession) -> None:
         process = self._processes.get(session.id)
         if process is not None and process.returncode is None:
-            process.terminate()
-            await process.wait()
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except TimeoutError:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                await process.wait()
+            except ProcessLookupError:
+                await process.wait()
 
     async def close(self, session: AgentSession) -> None:
         await self.interrupt(session)

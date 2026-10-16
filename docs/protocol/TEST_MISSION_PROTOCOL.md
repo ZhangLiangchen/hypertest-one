@@ -2,7 +2,7 @@
 
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
-**Version:** v0.2
+**Version:** v0.3
 **Status:** Draft  
 **Owner:** HyperTest
 
@@ -15,6 +15,8 @@ Test Mission Protocol（TMP）定义 HyperTest 与外部 Agent Harness 之间的
 支持目标包括 Codex、Claude Code、Pi、OpenCode 以及 Future Agent Harnesses。
 
 TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context、retry tools；这些属于 Agent Harness 自身能力。
+
+Web 的 bounded Run test cycle controller 可以依次调度多个符合 TMP 的 Mission、正式 Runner 执行与 Gate 评估。它根据 deterministic Planner 的 Canonical State gap 推进工作，不接管 Agent reasoning；max_steps 限制的是平台工作单元，单个 Mission 的 Proposal / Verifier / Attempt 契约不变。
 
 TMP 定义的是：
 
@@ -140,12 +142,12 @@ v0.2 必须使用 `proposal_type = TEST_CASE`、`operation = CREATE`。Agent 不
 
 Planner 创建的 Mission 固定 `targets.risks`、`context.risks`（已接受的 Canonical 内容）、`context.coverage` 与 `acceptance_criteria.risk_coverage_gaps`。后者记录 Risk key 和该 Mission 创建时的 missing dimensions，并保存 `coverage_rule_version = risk-design-baseline/v1`。Agent 无法用返回值覆盖这些约束。
 
-Verifier 要求整批 Proposal 合法，并至少对一个仍缺失的目标 Risk / dimension 形成覆盖进展。允许一次 Mission 只补齐部分维度；剩余缺口由下次 Planner 创建 Mission。重复规划复用仍可执行的 Mission，历史 Mission spec 不被覆盖。设计阶段全部满足后，Planner 返回 `TEST_DESIGN_COVERAGE_COMPLETE`；这不表示已经执行测试、产生 Runner Evidence 或形成质量 Verdict。
+Verifier 要求整批 Proposal 合法，并至少对一个仍缺失的目标 Risk / dimension 形成覆盖进展。允许一次 Mission 只补齐部分维度；剩余缺口由下次 Planner 创建 Mission。重复规划复用仍可执行的 Mission，历史 Mission spec 不被覆盖。设计阶段全部满足后，当前完整 MVP 继续规划 IMPLEMENT_TESTS；早期切片的 `TEST_DESIGN_COVERAGE_COMPLETE` 仅代表设计阶段边界，不表示已经执行测试、产生 Runner Evidence 或形成质量 Verdict。
 
 ### IMPLEMENT_TESTS
 
-输入：TestCase[]、Repository、Testing Framework Context、Constraints。  
-输出：`ImplementationProposal[]`。
+输入：ACTIVE Canonical TestCase[]、固定 Repository / Commit、Testing Framework Context、现有实现、Constraints。
+输出：`TEST_IMPLEMENTATION` / CREATE Proposal[]，可通过 `object_payload.code` 返回生成测试源码。HyperTest 保存 Artifact；Runner 独立验证并执行，Agent 不更新 Canonical validation status。
 
 ### DIAGNOSE_FAILURE
 
@@ -293,7 +295,7 @@ Agent 的 Domain Output 必须表示为 Proposal。
 
 `proposal_type`、`operation`、`idempotency_key`、`object_payload` 为提交边界必填字段；Proposal UUID 由 HyperTest 分配。此 envelope 是当前运行时契约，替代早期未落地示例中的 `type` / `object` 简写，不涉及已发布字段重命名。
 
-Proposal Operation 的长期模型包括 CREATE、UPDATE、DEPRECATE、LINK、UNLINK。当前 Requirement / Risk / TestCase Canonical Verifier 仅支持 CREATE；其他操作不能绕过 Verifier。v1 不建议开放 DELETE。
+Proposal Operation 的长期模型包括 CREATE、UPDATE、DEPRECATE、LINK、UNLINK。当前 Requirement / Risk / TestCase / Implementation / Finding Canonical Verifier 仅支持 CREATE；其他操作不能绕过 Verifier。v1 不建议开放 DELETE。
 
 ---
 
@@ -376,32 +378,33 @@ v0.2 TestCase 的 `description` / `test_type` / 字符串 `expected_result` 是�
 
 ## 18. ImplementationProposal
 
-以下为后续实现阶段的目标契约，当前 Canonical Verifier 尚未接受此类型。
-
 ```json
 {
   "proposal_type": "TEST_IMPLEMENTATION",
   "operation": "CREATE",
   "idempotency_key": "daily-limit:implementation:v1",
   "object_payload": {
-    "cases": ["TC-31"],
-    "file": "tests/test_daily_limit.py",
-    "symbol": "test_concurrent_daily_limit"
-  },
-  "artifacts": [
-    {
-      "type": "git_diff",
-      "ref": "artifact://A-23"
-    }
-  ]
+    "test_case_keys": ["TC-31"],
+    "repository_url": "https://github.com/example/payments",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "file_path": "tests/test_daily_limit.py",
+    "symbol": "test_concurrent_daily_limit",
+    "framework": "pytest",
+    "language": "python",
+    "code": "from concurrent.futures import ThreadPoolExecutor\nfrom app.limits import Account\n\ndef test_concurrent_daily_limit():\n    account = Account(daily_limit=100)\n    with ThreadPoolExecutor(max_workers=2) as pool:\n        accepted = list(pool.map(account.transfer, [60, 60]))\n    assert sum(accepted) == 1\n"
+  }
 }
 ```
+
+示例应用符号需根据被测仓库调整。当前支持 Python / pytest，payload 必须提供至少一个当前 Snapshot 下的 ACTIVE test_case_keys。Repository 与 Commit 必须匹配 Canonical SourceSnapshot；file_path 必须为安全相对 Python 路径，symbol 由 Python identifier / `::` 构成。正式 Runner 进一步限制安全 `tests/**/*.py` 和 pytest test function 目标。
+
+可选 code 必须可编译为 Python，生成路径必须在 tests/ 下。HyperTest 计算 source_sha256 并保存只写入一次的内容寻址 Artifact；Canonical TestImplementation 记录 artifact_uri / source_sha256。Fingerprint 使用规范化 repository / commit / file_path / symbol，生成源码另加入内容 hash。旧实现可被精确去重，但不同源码产生新版本；Case links 使用 ImplementationTestCase 关系表。
+
+没有 code 表示引用已存在于固定 SourceSnapshot 的测试；Runner 校验 tracked 路径与内容。生成代码仅在临时执行副本中覆盖未被 Snapshot 跟踪的测试文件，不修改应用快照。Verifier 创建 PENDING 实现；VALIDATED 是 Runner 校验结果，不是 Agent 提交字段。
 
 ---
 
 ## 19. FindingProposal
-
-以下为后续 Finding 阶段的目标契约，当前 Canonical Verifier 尚未接受此类型。
 
 ```json
 {
@@ -410,14 +413,24 @@ v0.2 TestCase 的 `description` / `test_type` / 字符串 `expected_result` 是�
   "idempotency_key": "daily-limit:finding:v1",
   "object_payload": {
     "classification": "PRODUCT_DEFECT",
-    "severity": "S2",
+    "severity": "CRITICAL",
     "title": "并发转账导致 dailyLimit 超卖",
-    "test_cases": ["TC-31"],
-    "evidence": ["EV-22", "EV-23"]
-  },
-  "confidence": 0.93
+    "description": "同一账户的两个并发额度预留请求均被接受，累计金额超出每日额度。",
+    "root_cause": "额度读取和更新缺少原子性。",
+    "test_case_keys": ["TC-31"],
+    "requirement_keys": ["REQ-17"],
+    "risk_keys": ["RK-21"],
+    "evidence_keys": ["EV-22", "EV-23"],
+    "confidence": 0.93
+  }
 }
 ```
+
+当前 DIAGNOSE_FAILURE 的 Proposal 必须为 FINDING / CREATE；INVESTIGATE_FINDING 保留为后续 Mission 类型。evidence_keys 至少一个，必须是本 TestRun 的 VERIFIED Evidence；PRODUCT_DEFECT 必须有 RUNNER / SYSTEM / EXTERNAL_VERIFIED 可信支持。Case / Requirement / Risk 引用限制在同一 Project / Snapshot 的有效 Canonical State。Source commit 不一致的执行证据不能跨快照混用。
+
+Verifier 以 project、classification、归一化 description 和 run-scoped affected component（Run ID + 排序 Case keys）去重，保存 FindingEvidence / FindingTestCase / FindingRequirement / FindingRisk Join Tables；接受后的初始状态为 NEW，Agent 不提交 CONFIRMED 或 Resolution。Proposal acceptance、Canonical 行/links、AuditEvent、OutboxEvent 在同一事务完成。
+
+用户受控生命周期操作必须提供 reason，可提供 expected_row_version 防止覆盖并发修改。CONFIRMED 需要 VERIFIED supporting Evidence；PRODUCT_DEFECT 还要求可信 trust level。RESOLVED 必须提供 Resolution；REOPENED 清除旧 resolution / resolved_at，历史通过审计保留。质量结论仍由 Gate 决定。
 
 ---
 

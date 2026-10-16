@@ -235,6 +235,8 @@ async def post_execute_mission(
     payload: MissionExecuteRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    from hypertest.api.delivery_schemas import FindingRead, ImplementationRead
+
     try:
         execution = await execute_mission(
             db,
@@ -263,6 +265,10 @@ async def post_execute_mission(
                 )
                 for item in execution.test_cases
             ],
+            implementations=[ImplementationRead.model_validate(item).model_dump(mode="json")
+                             for item in execution.implementations],
+            findings=[FindingRead.model_validate(item).model_dump(mode="json")
+                      for item in execution.findings],
         )
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc

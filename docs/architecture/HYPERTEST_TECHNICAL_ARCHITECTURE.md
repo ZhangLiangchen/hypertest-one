@@ -1,7 +1,7 @@
 # HyperTest Technical Architecture
 
 **Document Status:** Draft  
-**Version:** v0.2
+**Version:** v0.3
 **Parent Document:** HyperTest Whitepaper v1.0  
 **Architecture Role:** Autonomous Testing Control Plane
 
@@ -114,7 +114,9 @@ artifact-store
 
 Agent Chat 可以存在，但只能是辅助界面，不能成为产品主界面。
 
-Web v0.2 的 TestRun Workbench 提供 Requirements、Risks、Test Cases、Missions 四个状态页签。计数、Risk identification coverage 和 Risk test coverage 来自 Canonical State；每个 Risk 显示 Complete / Gap 以及 required / covered / missing dimensions。不存在分母时显示未知，不宣称完成测试执行或发布验收。
+当前 MVP 的 TestRun Workbench 提供 Requirements、Risks、Test Cases、Missions、Automation、Executions、Evidence、Findings、Verdicts。用户通过表单创建 Project / 输入快照 / Run，规划和执行 Mission，启动 Runner、查看证据、管理 Finding、评估 Gate。计数、Risk identification coverage 和 Risk test coverage 来自 Canonical State；每个被评估 Risk 显示 Complete / Gap 以及 required / covered / missing dimensions。没有分母时显示未知，设计覆盖不代表执行或发布验收完成。
+
+这是面向单个可信 Operator 的可操作工作台。当前没有 Login / RBAC / Tenant Isolation，不能宣称多用户生产安全；Agent / Docker / Workspace 是 Operator 管理的主机集成。运行前提、当前能力和后续路线见 `docs/MVP_STATUS.md`。
 
 ---
 
@@ -256,10 +258,14 @@ LLM 不独占 Planner。像“P0 Risk 没有 Case”这种判断应 deterministi
 无 ACTIVE Requirement → ANALYZE_REQUIREMENTS
 ACTIVE Requirement 无非 OBSOLETE Risk → ANALYZE_RISKS
 非 OBSOLETE Risk 缺少 required test design dimensions → DESIGN_TESTS
-所有 Risk 的设计维度满足 → TEST_DESIGN_COVERAGE_COMPLETE
+所有 Risk 的设计维度满足、Case 无可用实现 → IMPLEMENT_TESTS
+Case 已实现、缺少正式执行 → EXECUTION_REQUIRED
+正式执行进行中 → EXECUTION_IN_PROGRESS
+正式执行失败且有可信证据 → DIAGNOSE_FAILURE
+事实可供质量评估 → VERDICT_REQUIRED
 ```
 
-最后一个结果仅表示设计阶段覆盖完成，不创建 Verdict，不宣称 Implementation / Execution / Evidence 完成。Planner 调用独立的 `RiskCoverageEvaluator`，不自行使用 LLM 判定覆盖。重复规划复用仍可执行的 DESIGN_TESTS Mission；后续覆盖缺口变化时创建新的不可变 Mission，保留已有 Mission 和 Attempt 历史。
+Planner 返回 Mission 或运行阶段原因；正式执行由 Runner API 发起，Verdict 由独立 Gate API 评估。Planner 调用独立的 `RiskCoverageEvaluator`，不自行使用 LLM 判定覆盖。重复规划复用仍相关的可执行 Mission；后续缺口变化时创建新的不可变 Mission，保留已有 Mission 和 Attempt 历史。Web 的 Run test cycle 调用 bounded controller，一次请求按照 Planner 决策依次委派 Mission Runtime、Runner、Gate，默认最多 12 步，HTTP 上限 32。controller 不生成 Agent Intelligence 或改写 Canonical 结果；每一步由所属服务验证提交，遇到拒绝、活动中的外部步骤、错误或 work limit 可观察停止，下次从 Canonical State 继续。单步操作保留；后台自治 Scheduler 不属于当前 MVP。
 
 ---
 
@@ -352,6 +358,10 @@ Agent Context 不应该等于整个数据库 Dump。Context Compiler 根据 Miss
 
 Workspace 是 Agent 的操作世界；数据库是 HyperTest 的 Canonical World。
 
+当前 Web 可通过 prepare-workspace 为 GitHub HTTPS 源准备/复用 managed pinned checkout，使用既有 Git proxy/auth，不重置 Operator checkout；其他 Host 使用明确的既有 workspace。
+
+当前 Runtime 在临时 tracked-source 副本中运行 Agent，固定 SourceSnapshot / PolicySnapshot 并注入 PRD 与规范化 Mission；Canonical Artifact 和业务状态不放入 Vendor Session。IMPLEMENT_TESTS 的生成源码作为 Proposal `code` 返回，经 Verifier 校验后进入内容寻址 Artifact Store，不直接修改用户 checkout 或应用 Commit。
+
 ---
 
 ## 21. HyperTest MCP
@@ -413,6 +423,8 @@ Runner Worker
 
 ExecutionSpec 至少固定 execution_id、source_commit、environment、framework、targets、timeout、collect 等字段，并计算不可变 SHA256。
 
+当前 Runner 只接受 Canonical TestImplementation 中的安全 pytest node ID，校验 Repository origin、完整 Commit SHA、干净的 tracked 内容以及实现源码 hash。平台复制 tracked 源码到隔离执行副本，按已接受 Artifact 覆盖安全 `tests/**/*.py` 新文件；生成测试不能覆盖 Snapshot 中已跟踪文件。Execution 输入和环境指纹固定后才执行，重复 request key 不启动第二次执行。
+
 ---
 
 ## 26. Runner Backend
@@ -420,6 +432,8 @@ ExecutionSpec 至少固定 execution_id、source_commit、environment、framewor
 统一抽象 `RunnerBackend`，实现 DockerRunner、KubernetesRunner、SSHRunner、ExistingEnvironmentRunner。
 
 长期优先 Kubernetes Job，因为具备 Isolation、Resource Limit、Scheduling、Cleanup、Parallel Execution。
+
+MVP 提供 DockerRunner 与显式开启的 LocalRunner。DockerRunner 使用预构建 Python/pytest 镜像，并记录解析出的 image ID；禁用网络、只读根文件系统、非 root、移除 capabilities、限制资源。执行时不安装依赖。LocalRunner 仅用于受控开发环境，需 `HYPERTEST_RUNNER_ALLOW_LOCAL=true`，不是安全沙箱。其他框架/语言和应用依赖需通过后续可信镜像扩展。
 
 ---
 
@@ -434,6 +448,8 @@ Evidence Artifact 放 S3 / MinIO / Object Storage，PostgreSQL 保存 Metadata�
 ## 28. Evidence Integrity
 
 Evidence 至少记录 SHA256、Source Execution、Source Commit、Environment ID、Created At、Collector、Content Type。
+
+当前 MVP 使用本地 SHA-256 内容寻址 Store，数据库保存 immutable metadata。ExecutionEvidence 是显式关系，允许同一 Run 的相同内容在多个 Execution 中去重复用；Gate 不依赖 Evidence.execution_id 的单一首次来源判断全部关系。读取与 Gate 评估重新验证内容摘要；丢失/篡改 Artifact 阻止放行。
 
 重要 Evidence 长期可形成 Evidence Manifest，必要时支持 signed Evidence Manifest。
 
@@ -456,6 +472,8 @@ Risk identification coverage 为存在非 OBSOLETE Risk 关联的 ACTIVE Require
 Gate 采用 deterministic-first。示例：Requirement Coverage = 100%，P0 Risk Coverage = 100%，P0 Case 仅允许 PASS，Blocker Finding = 0，Evidence Complete = true。
 
 最终 Verdict 必须尽量可解释。
+
+当前 `canonical-gate/v1` 是确定性 Policy 组件。它要求完整识别/设计覆盖、每个 ACTIVE Case 最新 OFFICIAL 事实匹配 Commit 且通过、可信 VERIFIED metadata + JUnit Artifact，以及没有阻断级 confirmed PRODUCT_DEFECT。默认 BLOCKER / CRITICAL 阻断，可配置其他 FindingSeverity，BLOCKER 不可移除。缺失事实为 BLOCKED，失败为 RELEASE_BLOCKED，完整满足为 RELEASE_READY。评估记录规范化 State hash、Evidence manifest hash 和关系，重复状态评估幂等，变化追加新 Verdict；FINAL 内容由数据库 Trigger 保护。
 
 ---
 
@@ -587,7 +605,8 @@ MVP 仅支持：CodexAdapter、pytest、DockerRunner、Backend/API Testing，以
 - **ADR-006** Verdict 必须基于 Policy + Canonical State + Evidence。
 - **ADR-007** BUGate 保持 Stateless。
 - **ADR-008** HyperTest orchestrates Testing Missions, not model reasoning.
-- **ADR-009** v0.2 首次实现 TestCase 时采用 `description`、`test_type`、字符串 `expected_result` 和 `risk_test_cases` Join Table；替代早期草案未实现的 `objective` / `case_type` / 结构化步骤方案。详细持久化约束以领域模型 v0.2 为准，不涉及已有 Canonical 列的破坏性重命名。
+- **ADR-009** v0.2 首次实现 TestCase 时采用 `description`、`test_type`、字符串 `expected_result` 和 `risk_test_cases` Join Table；替代早期草案未实现的 `objective` / `case_type` / 结构化步骤方案。详细持久化约束以领域模型为准，不涉及已有 Canonical 列的破坏性重命名。
+- **ADR-010** MVP 的生成测试是 checksum-addressed Artifact，应用 SourceSnapshot 保持不变；正式结果由 Runner 独立采集，Gate 基于最新正式事实形成不可改写的质量决策。
 
 ---
 
