@@ -15,8 +15,10 @@ import {
   getCapabilities, getMission, getMissionAttempts, getMissionProposals, getSourceSnapshot, getVerdicts, retryMission, transitionFinding,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { latestRunVerdict } from "@/lib/run-summary";
 import { useRunJobs } from "./use-run-jobs";
 import { AttemptHistory } from "./attempt-history";
+import { RunOverview } from "./run-overview";
 
 import type { Evidence, ExecutionCreate, Finding, Mission, MissionProposal, TestExecution, TestImplementation, Verdict } from "@/lib/types";
 
@@ -262,14 +264,14 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
   const tabs: NonNullable<TabsProps["items"]> = [
     tasks.taskTab,
-    { key: "automation", label: `${t("Automation", "自动化实现")} (${implementations.data?.length ?? 0})`, children: <Pane loading={implementations.isLoading} error={implementations.error} empty={!implementations.data?.length} retry={() => void implementations.refetch()} description={t("No accepted implementations yet. Plan an IMPLEMENT_TESTS mission after test design coverage is complete.", "暂无已接受的自动化实现。测试设计覆盖完成后，可规划实现测试任务（IMPLEMENT_TESTS）。")}><Table rowKey="id" columns={implementationColumns} dataSource={implementations.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
-    { key: "executions", label: `${t("Executions", "执行")} (${executions.data?.length ?? 0})`, children: <Pane loading={executions.isLoading} error={executions.error} empty={!executions.data?.length} retry={() => void executions.refetch()} description={t("No runner executions yet. Implement the test cases, then select Execute tests.", "暂无 Runner 执行。完成用例实现后，选择“执行测试”。")}><Table rowKey="id" columns={executionColumns} dataSource={executions.data} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} /></Pane> },
-    { key: "evidence", label: `${t("Evidence", "证据")} (${evidence.data?.length ?? 0})`, children: <Pane loading={evidence.isLoading} error={evidence.error} empty={!evidence.data?.length} retry={() => void evidence.refetch()} description={t("Evidence appears here when the trusted runner collects execution metadata, logs and test reports.", "可信 Runner 收集执行元数据、日志与测试报告后，证据将显示在这里。")}><Table rowKey="id" columns={evidenceColumns} dataSource={evidence.data} pagination={{ pageSize: 10 }} scroll={{ x: 800 }} /></Pane> },
-    { key: "findings", label: `${t("Findings", "发现")} (${findings.data?.length ?? 0})`, children: <Pane loading={findings.isLoading} error={findings.error} empty={!findings.data?.length} retry={() => void findings.refetch()} description={t("No findings recorded. Failed executions can produce a DIAGNOSE_FAILURE mission with evidence-backed proposals.", "暂无发现。失败执行可触发失败诊断任务（DIAGNOSE_FAILURE），生成有证据支持的提议。")}><Table rowKey="id" columns={findingColumns} dataSource={findings.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
-    { key: "verdicts", label: `${t("Verdicts", "质量判定")} (${verdicts.data?.length ?? 0})`, children: <Pane loading={verdicts.isLoading} error={verdicts.error} empty={!verdicts.data?.length} retry={() => void verdicts.refetch()} description={t("No quality decisions yet. Evaluate the quality gate to record a verdict from canonical state and verified execution evidence.", "暂无质量判定。评估质量门禁后，平台会依据正式状态和已验证的执行证据记录判定。")}><Table rowKey="id" columns={verdictColumns} dataSource={verdicts.data} pagination={{ pageSize: 10 }} scroll={{ x: 750 }} /></Pane> },
+    { key: "automation", label: `${t("Automation", "自动化实现")} (${implementations.data?.length ?? "—"})`, children: <Pane loading={implementations.isLoading} error={implementations.error} empty={!implementations.data?.length} retry={() => void implementations.refetch()} description={t("No accepted implementations yet. Plan an IMPLEMENT_TESTS mission after test design coverage is complete.", "暂无已接受的自动化实现。测试设计覆盖完成后，可规划实现测试任务（IMPLEMENT_TESTS）。")}><Table rowKey="id" columns={implementationColumns} dataSource={implementations.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
+    { key: "executions", label: `${t("Executions", "执行")} (${executions.data?.length ?? "—"})`, children: <Pane loading={executions.isLoading} error={executions.error} empty={!executions.data?.length} retry={() => void executions.refetch()} description={t("No runner executions yet. Implement the test cases, then select Execute tests.", "暂无 Runner 执行。完成用例实现后，选择“执行测试”。")}><Table rowKey="id" columns={executionColumns} dataSource={executions.data} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} /></Pane> },
+    { key: "evidence", label: `${t("Evidence", "证据")} (${evidence.data?.length ?? "—"})`, children: <Pane loading={evidence.isLoading} error={evidence.error} empty={!evidence.data?.length} retry={() => void evidence.refetch()} description={t("Evidence appears here when the trusted runner collects execution metadata, logs and test reports.", "可信 Runner 收集执行元数据、日志与测试报告后，证据将显示在这里。")}><Table rowKey="id" columns={evidenceColumns} dataSource={evidence.data} pagination={{ pageSize: 10 }} scroll={{ x: 800 }} /></Pane> },
+    { key: "findings", label: `${t("Findings", "发现")} (${findings.data?.length ?? "—"})`, children: <Pane loading={findings.isLoading} error={findings.error} empty={!findings.data?.length} retry={() => void findings.refetch()} description={t("No findings recorded. Failed executions can produce a DIAGNOSE_FAILURE mission with evidence-backed proposals.", "暂无发现。失败执行可触发失败诊断任务（DIAGNOSE_FAILURE），生成有证据支持的提议。")}><Table rowKey="id" columns={findingColumns} dataSource={findings.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
+    { key: "verdicts", label: `${t("Verdicts", "质量判定")} (${verdicts.data?.length ?? "—"})`, children: <Pane loading={verdicts.isLoading} error={verdicts.error} empty={!verdicts.data?.length} retry={() => void verdicts.refetch()} description={t("No quality decisions yet. Evaluate the quality gate to record a verdict from canonical state and verified execution evidence.", "暂无质量判定。评估质量门禁后，平台会依据正式状态和已验证的执行证据记录判定。")}><Table rowKey="id" columns={verdictColumns} dataSource={verdicts.data} pagination={{ pageSize: 10 }} scroll={{ x: 750 }} /></Pane> },
   ];
 
-  const latestVerdict = verdicts.data?.reduce<Verdict | undefined>((latest, item) => !latest || item.sequence_no > latest.sequence_no ? item : latest, undefined);
+  const latestVerdict = latestRunVerdict(verdicts.data);
   const activeExecutions = executions.data?.filter((item) => ["QUEUED", "PROVISIONING", "RUNNING", "COLLECTING"].includes(item.status)).length || 0;
 
   function openExecutionDialog(mode: "execution" | "cycle") {
@@ -283,6 +285,8 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
   const actions = <Space wrap>
     <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={source.isLoading || !!source.error || !capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>
+  </Space>;
+  const secondaryActions = <Space wrap>
     <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !capabilities.data?.runner_backends.length || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
       openExecutionDialog("execution");
     }}>{t("Execute tests", "执行测试")}</Button>
@@ -302,7 +306,6 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     ].filter(Boolean).join(" ")} style={{ marginBottom: 16 }} />}
     {gate.error && <Alert closable type="error" showIcon message={t("Unable to save quality-gate task", "无法保存质量门禁任务")} description={errorText(gate.error, locale)} onClose={() => gate.reset()} style={{ marginBottom: 16 }} />}
     {activeExecutions > 0 && <Alert type="info" showIcon message={t(`${activeExecutions} runner execution(s) in progress`, `${activeExecutions} 个 Runner 正在执行`)} description={t("Testing state refreshes automatically. Open Executions to inspect progress.", "测试状态会自动刷新。打开“执行”页签查看进度。")} style={{ marginBottom: 16 }} />}
-    {latestVerdict && <Alert type={["PASS", "RELEASE_READY"].includes(latestVerdict.decision) ? "success" : ["FAIL", "RELEASE_BLOCKED"].includes(latestVerdict.decision) ? "error" : "warning"} showIcon message={<Space>{t("Latest quality verdict", "最新质量判定")} <Badge value={latestVerdict.decision} /><Tag>{label(latestVerdict.status)}</Tag></Space>} description={<span style={{ whiteSpace: "pre-wrap" }}>{verdictReason(latestVerdict.reason)}</span>} action={<Button onClick={() => setVerdictSelection(latestVerdict)}>{t("View decision", "查看判定")}</Button>} style={{ marginBottom: 20 }} />}
   </>;
 
   const dialogs = <>
@@ -417,5 +420,6 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     </Drawer>
   </>;
 
-  return { tabs, actions, dialogs, summary, missionActions, refresh, busy: tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
+  const overview = <RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} />;
+  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, busy: tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }

@@ -162,7 +162,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
   ];
 
   const taskTab = {
-    key: "tasks", label: `${t("Tasks", "后台任务")} (${rows.length})`, children: <>
+    key: "tasks", label: `${t("Tasks", "后台任务")} (${jobs.data ? rows.length : "—"})`, children: <>
       <Typography.Paragraph className="muted">{t("Tasks are saved by HyperTest and processed by an independent worker. Reloading or closing this page leaves the recorded work available here.", "任务由 HyperTest 持久保存并交给独立 Worker 处理。刷新或关闭页面后，仍可在这里查看记录。")}</Typography.Paragraph>
       {jobs.isLoading ? <div className="pane-loading"><Spin /></div> : jobs.error && !jobs.data ? <Alert type="error" showIcon message={t("Unable to load background tasks", "无法加载后台任务")} description={errorText(jobs.error, locale)} action={<Button onClick={() => void jobs.refetch()}>{t("Retry", "重试")}</Button>} /> : rows.length ? <Table rowKey="id" columns={columns} dataSource={rows} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("No background tasks yet. Run a test cycle or start an individual operation.", "暂无后台任务。可运行完整测试周期，或单独发起操作。")} />}
       {(cancellation.error || retry.error) && <Alert type="error" showIcon message={t("Task action failed", "任务操作失败")} description={errorText(cancellation.error || retry.error, locale)} style={{ marginTop: 16 }} />}

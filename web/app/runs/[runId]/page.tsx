@@ -2,22 +2,16 @@
 
 import {
   ArrowLeftOutlined,
-  CheckCircleOutlined,
-  FileProtectOutlined,
   PlayCircleOutlined,
-  SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Button,
-  Card,
-  Col,
+  Grid,
   Progress,
-  Row,
   Space,
   Spin,
-  Statistic,
   Table,
   Tabs,
   Tag,
@@ -26,7 +20,7 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 
 import { errorText, getCoverage, getMissions, getRequirements, getRisks, getRun, getTestCases, planNext } from "@/lib/api";
@@ -55,14 +49,19 @@ function coveragePercent(ratio: number | null) {
 
 export default function RunPage() {
   const params = useParams<{ runId: string }>();
+  const screens = Grid.useBreakpoint();
+  const tabRoot = useRef<HTMLDivElement>(null);
   const { t, label, locale } = useI18n();
-  const [activeTab, setActiveTab] = useState("requirements");
+  const [activeTab, setActiveTab] = useState("overview");
   useEffect(() => {
-    try { setActiveTab(sessionStorage.getItem(`hypertest.run-tab.${params.runId}`) || "requirements"); }
+    try { setActiveTab(sessionStorage.getItem(`hypertest.run-tab.${params.runId}`) || "overview"); }
     catch { /* Tab selection still survives polling and language changes without storage. */ }
   }, [params.runId]);
   function selectTab(key: string) {
+    // Move focus out of the old panel before Ant Design hides it.
+    if (document.activeElement instanceof HTMLElement && tabRoot.current?.contains(document.activeElement)) document.activeElement.blur();
     setActiveTab(key);
+    requestAnimationFrame(() => tabRoot.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus());
     try { sessionStorage.setItem(`hypertest.run-tab.${params.runId}`, key); } catch { /* Storage is optional. */ }
   }
   const [messageApi, contextHolder] = message.useMessage();
@@ -256,90 +255,61 @@ export default function RunPage() {
         <Link href={`/projects/${run.data.project_id}`}><ArrowLeftOutlined /> {t("Project", "项目")}</Link>
         <div className="workbench-heading">
           <div>
-            <div className="eyebrow">{t("Test Run", "测试运行")}</div>
-            <Typography.Title level={1} style={{ margin: 0 }}>{t("Test run", "测试运行")}</Typography.Title>
+
+            <Typography.Title level={1} style={{ margin: 0 }}>{t("Test run", "测试运行")}<span className="heading-status"><Tag color={run.data.status === "COMPLETED" ? undefined : statusColor(run.data.status)}>{label(run.data.status)}</Tag></span></Typography.Title>
             <Typography.Paragraph style={{ margin: "8px 0", overflowWrap: "anywhere" }}><Typography.Text code copyable>{run.data.key}</Typography.Text></Typography.Paragraph>
             <Space wrap style={{ marginTop: 10 }}>
-              <Tag color={statusColor(run.data.status)}>{label(run.data.status)}</Tag>
               <span className="entity-key">{t("Snapshot", "快照")} {run.data.source_snapshot_id}</span>
             </Space>
           </div>
-          <Space wrap>
-            <Button
-              icon={<PlayCircleOutlined aria-hidden />}
-              loading={planner.isPending}
-              disabled={operations.busy}
-              onClick={() => planner.mutate()}
-            >
-              {t("Plan next mission", "规划下一任务")}
-            </Button>
+          <div className="workbench-actions">
             {operations.actions}
-            <RunInputs sourceId={run.data.source_snapshot_id} policyId={run.data.policy_snapshot_id} />
-          </Space>
+            <details className="secondary-actions">
+              <summary>{t("More actions", "更多操作")}</summary>
+              <div className="secondary-action-list">
+                <Button icon={<PlayCircleOutlined aria-hidden />} loading={planner.isPending} disabled={operations.busy} onClick={() => planner.mutate()}>{t("Plan next mission", "规划下一任务")}</Button>
+                {operations.secondaryActions}
+                <RunInputs sourceId={run.data.source_snapshot_id} policyId={run.data.policy_snapshot_id} />
+              </div>
+            </details>
+          </div>
         </div>
       </div>
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col xs={12} lg={8}>
-          <Card className="metric-card"><Statistic title={t("Requirement count", "需求数")} value={coverageData?.requirement_count ?? requirementData.length} prefix={<CheckCircleOutlined />} /></Card>
-        </Col>
-        <Col xs={12} lg={8}>
-          <Card className="metric-card"><Statistic title={t("Risk count", "风险数")} value={coverageData?.risk_count ?? riskData.length} prefix={<SafetyCertificateOutlined />} /></Card>
-        </Col>
-        <Col xs={12} lg={8}>
-          <Card className="metric-card"><Statistic title={t("TestCase count", "测试用例数")} value={coverageData?.test_case_count ?? testCaseData.length} prefix={<FileProtectOutlined />} /></Card>
-        </Col>
-        <Col xs={24} md={12}>
-          <Card className="metric-card">
-            <Statistic title={t("Risk identification coverage", "风险识别覆盖率")} value={riskIdentification ?? "—"} suffix={riskIdentification === null ? undefined : "%"} />
-            <Progress percent={riskIdentification ?? 0} size="small" showInfo={false} />
-            <Typography.Text className="muted">
-              {riskIdentification === null ? t("No active requirements to assess.", "暂无可评估的有效需求。") : t("Requirements linked to identified risks.", "已关联识别风险的需求比例。")}
-            </Typography.Text>
-          </Card>
-        </Col>
-        <Col xs={24} md={12}>
-          <Card className="metric-card">
-            <Statistic title={t("Risk test coverage", "风险测试覆盖率")} value={riskTestCoverage ?? "—"} suffix={riskTestCoverage === null ? undefined : "%"} />
-            <Progress percent={riskTestCoverage ?? 0} size="small" showInfo={false} />
-            <Typography.Text className="muted">
-              {riskTestCoverage === null ? t("No active risks to assess.", "暂无可评估的有效风险。") : t("Risks meeting their required test design dimensions.", "满足所需测试设计维度的风险比例。")}
-            </Typography.Text>
-          </Card>
-        </Col>
-      </Row>
-
-      {coverageData?.rule_version && <div style={{ marginBottom: 20, overflowWrap: "anywhere" }}>
+      <section className="coverage-strip" aria-label={t("Test design coverage", "测试设计覆盖")}>
+        <dl className="asset-counts">
+          <div><dt>{t("Requirements", "需求")}</dt><dd>{coverageData?.requirement_count ?? (requirements.data ? requirementData.length : "—")}</dd></div>
+          <div><dt>{t("Risks", "风险")}</dt><dd>{coverageData?.risk_count ?? (risks.data ? riskData.length : "—")}</dd></div>
+          <div><dt>{t("Test cases", "测试用例")}</dt><dd>{coverageData?.test_case_count ?? (testCases.data ? testCaseData.length : "—")}</dd></div>
+        </dl>
+        <div className="coverage-measure"><span>{t("Risk identification", "风险识别覆盖")}<strong>{riskIdentification === null ? t("Unknown", "未知") : `${riskIdentification}%`}</strong></span><Progress percent={riskIdentification ?? 0} size="small" showInfo={false} strokeColor="var(--ht-accent)" /></div>
+        <div className="coverage-measure"><span>{t("Test design coverage", "测试设计覆盖")}<strong>{riskTestCoverage === null ? t("Unknown", "未知") : `${riskTestCoverage}%`}</strong></span><Progress percent={riskTestCoverage ?? 0} size="small" showInfo={false} strokeColor="var(--ht-info)" /></div>
+      </section>
+      {coverageData?.rule_version && <details className="coverage-rules"><summary>{t("Coverage policy & integrity", "覆盖策略与完整性")}</summary><div style={{overflowWrap: "anywhere", paddingTop: 12}}>
         <Space wrap><Typography.Text className="muted">{t("Coverage rules", "覆盖规则")}</Typography.Text><Tag>{coverageData.rule_version}</Tag></Space>
         {coverageData.effective_policy_hash && <div style={{ marginTop: 6 }}><Typography.Text className="muted">{t("Effective policy SHA-256 ", "生效策略 SHA-256 ")}</Typography.Text><Typography.Text code copyable>{coverageData.effective_policy_hash}</Typography.Text></div>}
-      </div>}
-
-      {coverageData?.risk_identification_coverage === 1 && coverageData.risk_test_coverage === 1 && (
-        <Alert
-          type="success"
-          showIcon
-          message={t("Test design coverage complete", "测试设计覆盖已完成")}
-          description={t("All current risks meet their required test design dimensions. Execution results and release readiness still depend on trusted Runner evidence and the quality verdict.", "所有当前风险均满足所需测试设计维度。执行结果与发布质量仍需查看可信 Runner 的证据及质量判定。")}
-          style={{ marginBottom: 20 }}
-        />
-      )}
+      </div></details>}
 
       {error && <Alert type="warning" showIcon message={t("Some testing state could not be refreshed", "部分测试状态暂时无法刷新")} description={<>{errorText(error, locale)} {t("Previously loaded data stays visible. Retry to get the latest state.", "已加载的数据仍会保留。请重试获取最新状态。")}</>} action={<Button onClick={retryState}>{t("Refresh", "刷新")}</Button>} style={{ marginBottom: 20 }} />}
-      {operations.summary}
 
-      <Card className="section-card">
+      <div className="workbench-surface" ref={tabRoot}>
         <Tabs
+          tabPosition={screens.lg ? "left" : "top"}
+          animated={false}
+          tabBarGutter={4}
           activeKey={activeTab}
           onChange={selectTab}
           items={[
+            {key: "overview", label: t("Overview", "运行概览"), children: <>{operations.overview}{operations.summary}</>},
+            ...operations.tabs.filter((tab) => tab.key !== "automation"),
             {
               key: "requirements",
-              label: `${t("Requirements", "需求")} (${requirementData.length})`,
+              label: `${t("Requirements", "需求")} (${requirements.data ? requirementData.length : "—"})`,
               children: <Table rowKey="id" loading={requirements.isLoading} columns={requirementColumns} dataSource={requirementData} locale={{ emptyText: t("No requirements yet. Run a test cycle or plan the requirement analysis mission.", "暂无需求。请运行完整测试周期，或规划需求分析任务。") }} pagination={false} scroll={{ x: 650 }} expandable={{ expandedRowRender: (requirement) => <div className="entity-detail"><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{requirement.description}</Typography.Paragraph><Space wrap><Tag title={requirement.lifecycle_status}>{label(requirement.lifecycle_status)}</Tag><Tag title={requirement.source_type}>{label(requirement.source_type)}</Tag>{requirement.source_ref && <Typography.Text code>{requirement.source_ref}</Typography.Text>}</Space></div> }} />,
             },
             {
               key: "risks",
-              label: `${t("Risks", "风险")} (${riskData.length})`,
+              label: `${t("Risks", "风险")} (${risks.data ? riskData.length : "—"})`,
               children: (
                 <Table
                   rowKey="id"
@@ -371,7 +341,7 @@ export default function RunPage() {
             },
             {
               key: "test-cases",
-              label: `${t("Test Cases", "测试用例")} (${testCaseData.length})`,
+              label: `${t("Test Cases", "测试用例")} (${testCases.data ? testCaseData.length : "—"})`,
               children: (
                 <Table
                   rowKey="id"
@@ -399,13 +369,13 @@ export default function RunPage() {
             },
             {
               key: "missions",
-              label: `${t("Missions", "测试任务")} (${missionData.length})`,
+              label: `${t("Missions", "测试任务")} (${missions.data ? missionData.length : "—"})`,
               children: <Table rowKey="id" columns={missionColumns} dataSource={missionData} loading={missions.isLoading} locale={{ emptyText: t("No missions yet. Start a test cycle or plan the next mission.", "暂无测试任务。请运行完整测试周期，或规划下一任务。") }} pagination={false} scroll={{ x: 800 }} />,
             },
-            ...operations.tabs,
+            ...operations.tabs.filter((tab) => tab.key === "automation"),
           ]}
         />
-      </Card>
+      </div>
       {operations.dialogs}
     </main>
   );
