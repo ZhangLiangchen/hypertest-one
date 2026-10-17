@@ -1,19 +1,22 @@
 # HyperTest One 第一阶段验收
 
-## 本轮 PRD 导入、HTTP 与白名单验收登记
+## 本轮两阶段交付：已部署73d与后续范围修复
 
-本轮起点为 main `d20a2bc78c2f57b3bc2835cdf253d021f6b8265a`，与已验 `2b36025` 完整 source tree 相同。前一轮302检查、main CI、部署/数据保全见[main部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/main-pr3-sync-deployment-2026-10-17.md)及[独立API保全](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/main-pr3-sync-preservation-2026-10-17.md)。下方298模型manifest、302检查manifest和原Run仍属于历史执行身份，不改写为本轮模型执行。
+阶段1执行版本为 `73dff989b87fa7349d9b36bd8416ece948a82212`，已部署并激活VPN公网白名单，SSH备选保留。[阶段1部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr4-deployment-2026-10-17.md)与[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)保存实际CI/目录/协议与数据保全身份。d20/302、298模型执行manifest及更早Run继续作为历史证据，不改写为本轮范围修复后的模型执行。
 
-| 本轮改进 | 已完成的本地证据 / 操作边界 | 生产运行登记 |
+| 阶段 | 已证实结果 | 边界 / 后续登记 |
 |---|---|---|
-| PRD 文件导入 | 原生Chrome/macOS系统选择器，**9实际fixtures/15UIchecks全部通过**；未注入File/Input或改变浏览器文件权限 | [实际浏览器矩阵](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json)；此前[空文件缺陷](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-empty-bug-2026-10-17.png)已复现并修复后复验 |
-| 无效输入保留草稿 | 单次fatal UTF-8 decode；空/纯空白/仅BOM、非法UTF-8、NUL与超限拒绝，正文与原文件名保留；合法BOM/CRLF、编辑/重开、取消/重选、中英切换、Review/回退已实测 | 本地不新建Run、不调用模型；不把矩阵通过当生产整链通过 |
-| HTTP 请求身份 | CSPRNG getRandomValues UUID v4在native randomUUID不可用时fallback；**20项Node持久回归通过（14decode/6UUID）** | Project/Run/Job三入口在VPN公网origin的实际创建见最新交付登记 |
-| 新安装与源码一致性 | fresh npmci/typecheck/build/audit0通过；冻结28Web+86backend manifest `0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07` | 86后端输入逐字节等d20/302版本，无后端/依赖/迁移变化；不虚报重跑后端全套 |
-| 公网白名单 + SSH备选 | 精确nginx155.138.206.106:8080，UFW /32与nginx同peer45.76.149.233 allow/deny-all，后端PG保持127，SSH/原隧道保留 | 本commit准备时已审阅，尚待生产启用；允许/真实不同出口拒绝、伪造头、Host/Origin、就绪/数据保全以最新登记为准 |
-| 文件 → 编辑 → hash → 真实结果 | 生产独立Project/Run用于核对导入后编辑原文/hash、真实Codex→Canonical→Docker→Evidence→Verdict | 本commit准备时尚待运行；实际结论、Run/Job/Execution/Evidence/Verdict身份见最新登记，不能由源码/本地UI推定成功 |
+| 1：PRD导入 | 原生Chrome/macOS选择器 **9实际fixtures/15UIchecks全通过**；无效文件保留正文/原文件名；合法UTF-8/BOM/CRLF、编辑/重开、取消/重选、中英切换与Review通过 | [浏览器矩阵](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json)；本地没有新建Run或调用模型 |
+| 1：HTTP/自动化 | CSPRNG UUID三入口在公网实际创建Project/Run/Job；**20 Node回归（14decode+6UUID）**及fresh npmci/typecheck/build/audit0通过 | 阶段1的86后端输入等d20/302；历史114输入manifest为`0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07`，不代表后续scope补丁 |
+| 1：白名单 | 公网精确155.138.206.106:8080，UFW /32+nginx peer45.76.149.233双层ACL已激活；允许HTTP/13静态资源、Host/Origin、非允许peer及伪造头检查通过；SSH隧道与后端PG回环保留 | 用户手机非VPN访问失败及同窗UFW BLOCK属于关联证据，不冒称精确手机IP归属；实际完整边界见阶段1部署记录 |
+| 1：真实模型失败 | Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5`接受 **10Req/6Risk/8Case**，其中2Case错误要求被测pypa仓库之外的Runner guard功能 | 实现Agent返回PARTIAL/6提案，Verifier以`RESULT_NOT_COMPLETED`拒绝；Job FAILED/MISSION_REJECTED、Run BLOCKED，**6条未接受实现Proposal保留，0Canonical Implementation/Execution/Evidence/Verdict** |
+| 2：范围修复 | Runtime从trusted SourceSnapshot提供provider-independent `context.testing_scope`，四阶段明确产品行为/产品约束与测试实施指令；Codex仅遵循该范围 | 领域[§12](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement)、TMP[§9](protocol/TEST_MISSION_PROTOCOL.md#9-mission-context)为权威；不删除合法产品CONSTRAINT，不禁止显式真实Runner-SUT，不放宽PARTIAL或Gate |
+| 2：新源码检查 | 后端runtime/codex与回归已改变，不再沿用“86后端未变化”结论；无新迁移，head仍0008 | 新冻结工作树 **303 passed / 3 warnings / 48.70s**、Ruff、独立测试库0008及fresh Web20/typecheck/build/audit0全部通过；后续提交SHA/CI/部署与真实模型语义验收以最新交付登记为准 |
+| 2：同输入真实复验 | 在新的独立Project以同 **605 UTF-8 bytes** PRD、同源码/配置/Policy内容重做真实模型/Docker链 | PRD SHA `6fcb51e70880f59ee084bc7fecdb4f6d7f0f8c8a711bee3e8d32e82e32a51ce9`；最终Project/Run及结果以最新登记为准，不预写成功 |
 
-[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)集中维护本轮精确提交/CI/部署、HTTP与网络验收及真实模型链后续结果。这样生产结果完成后不依赖仓库旧快照猜测“仍未激活/从未验收”。来源IP是共享出口网络许可，不是登录/RBAC；静态操作边界见[服务器操作](SERVER_OPERATIONS.md)及[操作指南](WEB_PRODUCT_WORKFLOW.md)。
+首轮[失败完整记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-first-attempt-2026-10-17.json)保持原Canonical、Proposal、Attempt和Mission历史。Requirement/Risk/Case按SourceSnapshot共享，同Project同输入新Run会继承原错误Case；此次新Project是有意隔离复验，不是修改旧Snapshot/PRD、退役Case、接受PARTIAL或绕开Gate。`RETRYING`界面显示“等待重试 / Awaiting retry”，不表示Worker正在执行。
+
+scope修复冻结输入manifest为`4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`，源于73d之上未提交工作树，并非73d本身；4份foundation与CI Hash另有记录。完整结果见[冻结检查报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-checks-2026-10-17.md)。后续精确运行版本、部署及同输入真实链结果统一见[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)。以下记录保持既有执行版本，不据历史成功推断这次范围修复已通过。
 
 ## 上一轮实现与历史验收记录（298 / 302）
 

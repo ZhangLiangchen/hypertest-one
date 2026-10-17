@@ -1,30 +1,34 @@
 # HyperTest One 服务器操作交付
 
-核验日期：2026-10-17，Asia/Singapore。本文中的“交接目录”指本机 `/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff`，可移交证据副本见 [第一阶段验收](FIRST_PHASE_ACCEPTANCE.md)。目标：155.138.206.106，root SSH/22。实际主机是 Debian13.7 x86_64、2CPU/3915MiB，已有7.7GiB swap保留。此部署面向一个可信操作者。d20 已部署时使用 SSH 隧道访问；用户现已选择 VPN 来源 IP 白名单入口加 SSH 备选。配置在本commit准备时已审阅、尚待激活；后续实际版本、网络状态与运行结果以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准。来源白名单不等于应用登录/RBAC。
+核验日期：2026-10-17，Asia/Singapore。本文中的“交接目录”指本机 `/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff`，可移交证据副本见 [第一阶段验收](FIRST_PHASE_ACCEPTANCE.md)。目标：155.138.206.106，root SSH/22。实际主机是 Debian13.7 x86_64、2CPU/3915MiB，已有7.7GiB swap保留。此部署面向一个可信操作者。d20 已部署时使用 SSH 隧道访问；用户现已选择 VPN 来源 IP 白名单入口加 SSH 备选。阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212`已部署并激活白名单；当前范围修复的后续实际版本、网络状态与运行结果以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准。来源白名单不等于应用登录/RBAC。
 
 ## 本轮访问方案与最新运行登记
 
 最新用户选择：公网 HTTP `155.138.206.106:8080` 仅允许来源 `45.76.149.233/32`，SSH22及原 `127.0.0.1:8080` 隧道保留。用户已连接 VPN，服务器记录的 SSH 实际 peer 为 `45.76.149.233`；这不替代浏览器 HTTP 实际出口确认。
 
-候选在独立 nginx server 上精确监听 `155.138.206.106:8080`，不是 wildcard/IPv6；UFW 仅增加 `enp1s0`、来源 `/32`、目标 `155.138.206.106`、TCP8080 的精确规则，nginx 同时 `allow 45.76.149.233/32; deny all;`。不信任 Real-IP / PROXY protocol 或来客 XFF；转发身份由 TCP peer 重写，Host 与不安全方法 Origin 检查作补充。API8000、Web后端3000、PG5432及Docker PG映射继续 `127.0.0.1`。此来源许可覆盖共享该 VPN 出口的客户端，不识别个人身份，也不提供应用 RBAC。
+阶段1已在独立 nginx server 上精确监听 `155.138.206.106:8080`，不是 wildcard/IPv6；UFW 仅增加 `enp1s0`、来源 `/32`、目标 `155.138.206.106`、TCP8080 的精确规则，nginx 同时 `allow 45.76.149.233/32; deny all;`。不信任 Real-IP / PROXY protocol 或来客 XFF；转发身份由 TCP peer 重写，Host 与不安全方法 Origin 检查作补充。API8000、Web后端3000、PG5432及Docker PG映射继续 `127.0.0.1`。此来源许可覆盖共享该 VPN 出口的客户端，不识别个人身份，也不提供应用 RBAC。
 
-已纳入仓库的运维材料：[nginx配置](../ops/nginx/hypertest-vpn-allowlist.conf)、[受控激活脚本](../ops/activate-vpn-allowlist.sh)、[受控回退脚本](../ops/rollback-vpn-allowlist.sh)。它们在本commit准备时是待启用材料；不因文件存在或语法检查通过而视作已交付，后续激活结果以最新登记为准。激活仍需最终 Web 版本/CI、精确应用 SHA、配置 SHA、来源确认及 root 指令。维护锁内核对前置状态、空闲任务和原回环配置；不改应用数据、OAuth或原 SSH 规则。这里只说明操作边界，不要求现在执行。
+已纳入仓库的运维材料：[nginx配置](../ops/nginx/hypertest-vpn-allowlist.conf)、[受控激活脚本](../ops/activate-vpn-allowlist.sh)、[受控回退脚本](../ops/rollback-vpn-allowlist.sh)。它们已用于阶段1受控启用，实际协议检查见[73d部署报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr4-deployment-2026-10-17.md)。后续重新启用仍需最终Web版本/CI、精确应用SHA、配置SHA、来源确认及root指令。范围补丁的应用版本切换不应重复添加ACL规则；实际变更以最新交付登记为准。维护锁内核对前置状态、空闲任务和原回环配置；不改应用数据、OAuth或原 SSH 规则。这里只说明操作边界，不要求现在执行。
 
-本地原生Chrome/macOS选择器的**9文件/15UI检查通过**；**20前端回归（14decode+6UUID）**及fresh install/typecheck/build/audit0通过。86后端输入等d20/302，无后端或迁移变更，也未本地新建Run/调用模型。生产上的HTTP Project/Run/Job创建、独立文件导入Run/真实模型Docker、网络允许/另一真实出口拒绝（含伪造头）、Host/Origin、隧道/回环/单Worker与数据保全，统一由[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)记录实际结果；本commit准备时这些步骤尚待执行，不预写成功。外部网络验收使用真实 HTTP/status/body及服务器 peer/UFW 证据；不使用 connect-only或单次 timeout 作为完整结论。最新计划见[审阅记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/pr4-vpn-allowlist-proposal-2026-10-17.md)。
+阶段1本地 **9文件/15UI检查**、**20前端回归**与生产HTTP Project/Run/Job、605字节编辑稿/hash均已实际验证；公网允许HTML/API/13静态资源、Host/Origin、非允许peer及伪造转发头、原SSH隧道均有实际记录。手机非VPN失败与同窗UFW BLOCK是关联证据，不声称精确手机源IP归属。
+
+首轮真实Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5`接受10Req/6Risk/8Case后，因两Runner guard Case不属于被测pypa代码而由模型如实返回PARTIAL；6条实现Proposal被拒绝并保留，0Canonical Implementation/Execution/Evidence/Verdict，Run BLOCKED。不能把HTTP/导入成功当作模型整链通过。
+
+阶段2已修改runtime/codex的provider-independent范围说明，规范以[领域§12](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement)/[TMP§9](protocol/TEST_MISSION_PROTOCOL.md#9-mission-context)为准；不是阶段1“后端等d20/302”的复用。新冻结源码manifest `4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`已通过 **303后端/3 warnings/48.70s**、fresh Web20/typecheck/build/audit0、Ruff和独立测试库0008，无新增迁移。精确新应用SHA/CI/切换与相同605字节PRD的fresh-Project真实复验以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准；原失败Project/Run/Canonical历史不删除、不退役、不接受PARTIAL，不预写新模型通过。`RETRYING`显示为等待重试 / Awaiting retry，不代表仍有Worker运行。
 
 网络回退仅删除精确新增 UFW 规则、禁用受控 nginx 站点并测试/reload，保留原回环站点与SSH；支持精确 Hash 的中途恢复状态，异物拒绝。最终必须核对公网监听/规则已消失、SSH/隧道和后端回环保留；失败就记录回退未完成。网络回退不恢复数据库或重启应用，nginx graceful reload 可让已存在请求排空。
 
-## d20 已部署基线与目录
+## 阶段1 73d部署与d20历史基线
 
 
-- 本轮准备前的已部署main：`d20a2bc78c2f57b3bc2835cdf253d021f6b8265a`；后续应用SHA/切换以最新交付登记为准。
-- d20 选择：`/opt/hypertest/current` → `/opt/hypertest/releases/d20a2bc78c2f57b3bc2835cdf253d021f6b8265a`。
+- 阶段1已部署：`73dff989b87fa7349d9b36bd8416ece948a82212`，目录`/opt/hypertest/releases/73dff989b87fa7349d9b36bd8416ece948a82212`；后续scope修复SHA/切换以最新交付登记为准。
+- 更早d20选择（历史）：`/opt/hypertest/current` → `/opt/hypertest/releases/d20a2bc78c2f57b3bc2835cdf253d021f6b8265a`。
 - d20 部署保留的回退版本：`/opt/hypertest/releases/2b3602507e42a25ee7aa21f15a57db454bd73736`；更早版本和真实链记录继续保留。
 - 服务账号及实际home：`hypertest`，`/var/lib/hypertest`。
 - 共享配置：`/etc/hypertest/hypertest.env`（root:hypertest0640）；PG初始化凭据：`/etc/hypertest/postgres.env`（root0600）。
 - Canonical Artifacts：`/var/lib/hypertest/artifacts`；测试仓库：`/var/lib/hypertest/workspaces`；Codex正常可写runtime：`/var/lib/hypertest/.codex`。
 - Python3.12.15；Node22.23.3；官方Codex0.163.0；Docker26.1.5；PostgreSQL17.11容器`hypertest-postgres`、volume`hypertest_pgdata`。
-- 数据库head：`0008_job_ownership`。首次完整0001→0008升级与d20切换已核验；d20无新增迁移，没有降级/清库。本轮前端/访问改进不据此冒领新检查。
+- 数据库head：`0008_job_ownership`。首次完整0001→0008升级与d20切换已核验；d20无新增迁移，没有降级/清库。范围补丁亦无新增迁移；其独立测试库检查与实际正式库状态分开登记。
 - 可信Runner：`hypertest-runner:py312`，image ID `sha256:a8f6f769b6b6a34ed6e6968b6c9816c17d860fbb38445c2473d3544addd20b56`。已由服务用户实际运行禁网/只读/nonroot/cap-drop/512MiB/1CPU容器验证。
 
 d20 合并源码 tree 与 2b 完整相同，既有 302 项结果与独立 Web 检查按记录复用，main CI通过；d20 新安装、定向11项和数据保全已验收。记录见[main部署](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/main-pr3-sync-deployment-2026-10-17.md)、[API保全](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/main-pr3-sync-preservation-2026-10-17.md)。这些是本轮前历史基线，不能证明新 UUID/导入修复或公网已验收。
@@ -43,7 +47,7 @@ unit文件在`/etc/systemd/system/hypertest-{api,worker,web}.service`。使用�
 
 ## 访问与现有隧道
 
-d20 及白名单未激活时的实测状态：仅 SSH22 公网监听；nginx8080、API8000、Web3000、PG5432均绑定127.0.0.1，UFW未新增应用或数据库端口。后续按上方精确白名单计划增加公网nginx入口，后端与数据库仍保持回环。
+d20时代仅SSH22公网监听属于历史。阶段1 73d已启用精确公网155.138.206.106:8080及唯一来源45.76.149.233/32规则；nginx原127.0.0.1:8080与SSH保留，API8000/Web后端3000/PG5432仍回环。后续scope版本切换的实际监听/防火墙/保全结果以最新交付登记为准。
 
 当前可继续使用本机隧道：http://127.0.0.1:8080 。d20同步记录的隧道PID为`25603`；它是当时的进程身份，不保证日后不变。操作前检查当前转发进程和健康，只关闭自己确认的隧道，不沿用旧PID。原始92044/9255等隧道记录保留为历史。
 

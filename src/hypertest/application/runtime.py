@@ -55,6 +55,29 @@ class MissionRuntimeError(RuntimeError):
     pass
 
 
+_APPLICATION_SCOPE_GUIDANCE = {
+    MissionType.ANALYZE_REQUIREMENTS.value: (
+        "Extract independently verifiable behavior and intrinsic quality constraints of the application. "
+        "Do not promote instructions for generating or running its tests into product requirements."
+    ),
+    MissionType.ANALYZE_RISKS.value: (
+        "Identify application failure modes traced to the target requirements. Use testing restrictions "
+        "to choose feasible probes, not to invent risks about the orchestration platform's compliance."
+    ),
+    MissionType.DESIGN_TESTS.value: (
+        "Design executable checks of the requested application behavior. Apply test-generation and "
+        "execution restrictions as implementation constraints or preconditions, rather than separate "
+        "cases that require unrequested HyperTest or Runner internals."
+    ),
+    MissionType.IMPLEMENT_TESTS.value: (
+        "Implement the target application cases while obeying all test-generation restrictions. Do not "
+        "invent platform interfaces, dummy passing tests or execution facts. If existing canonical "
+        "targets genuinely require an unavailable, out-of-scope component, report that conflict "
+        "honestly instead of rewriting targets or claiming completion."
+    ),
+}
+
+
 @dataclass(slots=True)
 class MissionExecutionResult:
     mission: Mission
@@ -138,6 +161,27 @@ async def _hydrate_source_context(
         raise MissionRuntimeError(str(exc)) from None
     context = dict(contract.get("context", {}))
     context.update(repository_url=snapshot.repository_url, commit_sha=snapshot.commit_sha)
+    scope_guidance = _APPLICATION_SCOPE_GUIDANCE.get(contract["type"])
+    if scope_guidance is not None:
+        context["testing_scope"] = {
+            "repository_url": snapshot.repository_url,
+            "commit_sha": snapshot.commit_sha,
+            "subject_boundary": (
+                "The system under test is the pinned repository application, limited to the product "
+                "features explicitly requested in the original PRD. HyperTest, the Agent harness and "
+                "the trusted Runner are testing infrastructure, not additional test subjects merely "
+                "because their operation is mentioned."
+            ),
+            "constraint_handling": (
+                "Distinguish the application's expected behavior and own quality constraints from "
+                "directions about test dependencies, loading, file placement, source immutability "
+                "or official execution. Those directions remain mandatory test implementation or "
+                "execution constraints; do not turn them into extra application Requirements, Risks "
+                "or TestCases. If the pinned application itself implements a testing or Runner "
+                "feature and that feature is explicitly requested, it remains a valid test subject."
+            ),
+            "stage_guidance": scope_guidance,
+        }
     root = Path(get_settings().artifact_root).resolve()
     if snapshot.prd_artifact_uri:
         artifact = Path(snapshot.prd_artifact_uri).resolve()
