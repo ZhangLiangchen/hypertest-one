@@ -302,6 +302,8 @@ PASS / FAIL 不属于 TestRun Status，而属于 Verdict。
 
 Requirement 表示当前 SourceSnapshot 中一个可独立验证的软件行为、约束或质量要求的 Canonical 表达。
 
+范围以固定 SourceSnapshot 的被测应用及 PRD 明确要求的产品功能为准；应用自身的行为、质量与产品约束可以成为 Requirement（包括 CONSTRAINT）。仅用于指导测试生成、依赖 / 装载、产物位置、源文件保护或平台执行权限的指令仍须遵守，但属于 Mission / 实施约束或前置条件，不能仅因出现在 PRD 中就升为应用 Requirement，再衍生针对编排平台自身的 Risk / TestCase。若被测仓库本身明确实现 Runner / guard 等功能，且该功能在本轮请求范围内，它仍可成为正式产品需求；不能按平台名称排除。运行时范围说明不增删实体字段或改写已接受的 Canonical 历史，也不放宽 Proposal / 完成状态校验。
+
 ```text
 id                     uuid PK
 key                    varchar(64)

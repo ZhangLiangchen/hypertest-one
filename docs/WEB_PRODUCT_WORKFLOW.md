@@ -1,5 +1,13 @@
 # Web 工作台操作指南 / Web workbench guide
 
+## 两阶段版本与验收状态
+
+阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212` 已部署，VPN公网 `http://155.138.206.106:8080` 的45.76.149.233/32双层白名单已激活，SSH隧道保留。本地9实际PRD文件/15UI检查、20前端回归及生产HTTP Project/Run/Job创建、导入编辑稿原文/hash均有实际证据。
+
+生产首轮Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` 为BLOCKED：10Req/6Risk/8Case中2Case错误要求测试Runner内部功能，实际模型如实返回PARTIAL/6实现提案；平台拒绝并保留6条未接受Proposal，Canonical Implementation/Execution/Evidence/Verdict均0，不能称完整通过。
+
+阶段2新增provider-independent `testing_scope`，区分被测应用行为/产品自身约束与如何测试的操作指令；[领域§12](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement)/[TMP§9](protocol/TEST_MISSION_PROTOCOL.md#9-mission-context)明确其规则。后端runtime/codex及回归已变化；新冻结工作树的303后端检查（3 warnings/48.70s）及fresh Web20/typecheck/build/audit0、Ruff/0008已通过，manifest `4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`；最终提交/部署SHA与相同605字节PRD的新Project真实链统一见[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)。不得沿用阶段1“后端等d20/302”作为当前补丁已验证的证据，也不预写新链成功。
+
 ## 界面语言
 
 在右上角选择 **中文** 或 **English**。默认中文，语言选择保存在当前浏览器的 Cookie 中，刷新与页面跳转后继续生效。切换不会清空当前表单或正在查看的页签，Ant Design 的表单、分页、确认框和日期显示也随语言更新。
@@ -12,7 +20,7 @@ Choose **中文** or **English** in the upper-right corner. The browser remember
 
 1. **创建项目**：填写项目名称、唯一标识及默认分支。仓库地址可预填后续运行。项目名会建议一个可编辑的标识；标识已存在时可以直接打开原项目。
 2. **创建测试运行 → 源码**：填写仓库的 origin 源地址。GitHub HTTPS 来源可输入分支/标签并选择“解析并固定提交”，也可手工填写完整 40/64 位提交 SHA。解析不创建 Run，也不修改仓库；同名分支/标签需明确 `refs/heads/...` 或 `refs/tags/...`。修改源地址或参考版本后必须重新解析。正式测试始终使用固定 SHA，分支后续移动不会改变已有输入。
-3. **需求**：粘贴 PRD，或导入 UTF-8 `.md` / `.txt` 文件并编辑正文。导入限 8 MiB，需求限 2,000,000 字符，配置限 100,000 字符；最终序列化请求须不超过 10 MiB。配置可使用纯文本或 JSON，留空保存 `{}`。
+3. **需求**：粘贴 PRD，或导入 UTF-8 `.md` / `.txt` 文件并编辑正文。导入限 8 MiB，需求限 2,000,000 字符，配置限 100,000 字符；最终序列化请求须不超过 10 MiB。配置可使用纯文本或 JSON，留空保存 `{}`。 本轮修复要求：只做一次 fatal UTF-8 解码，空文件、纯空白、仅 BOM、非法 UTF-8、NUL 或超限内容拒绝导入并保留原 PRD；有效内容保留原有空白和换行。带 BOM 且有正文的有效 UTF-8 可导入，BOM 按 UTF-8 解码处理，不把仅 BOM 当作需求。本地9文件/15项实际浏览器检查已通过，详见下方证据；生产链独立登记。
 4. **策略**：选择全局和按风险类别的设计维度，以及阻止发布的缺陷级别。功能维度与阻断级缺陷的底线规则由平台保留。
 5. **确认**：检查源码 SHA、PRD 原文和策略。创建后形成不可变输入；新的需求或代码版本应创建新 Run。关闭向导会在当前页面保留草稿和步骤；离开页面或刷新不提供草稿恢复。
 6. **运行测试周期**：GitHub HTTPS 来源可选择“自动准备固定源码并运行”，一次持久任务完成检出、Agent Mission、Docker 执行及 Gate。其他来源选择 Worker 主机上的匹配 Git 检出；其 HEAD 和 `git remote get-url origin` 必须与本次输入一致。Worker 独立处理任务，关闭浏览器不会取消工作。默认镜像只包含 Python 标准库与 pytest；其他应用依赖需运维准备可信镜像，正式执行不联网安装依赖。
@@ -29,6 +37,16 @@ GitHub HTTPS origins can resolve a branch/tag to an immutable SHA and prepare th
 
 Repository addresses must not embed credentials. Configure Git authentication on the host. The complete cycle checks the actual Runner before model calls or source preparation; a successful preflight is readiness information, while formal execution facts still come from the Runner.
 
+## 文件导入与 HTTP 创建的本轮验收
+
+原生 Chrome 已真实复现：已有需求草稿导入 `empty.txt` 后被空内容覆盖，进入下一步才出现 required 错误。[缺陷截图](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-empty-bug-2026-10-17.png)。这更新了此前“扩展禁止本地文件访问，只检查 chooser”的历史限制。修复后用真实系统选择器完成9文件/15检查全部通过，没有注入File/Input或修改Chrome文件访问权限。
+
+本轮输入修复以“先校验、后替换草稿”为准：无效文件显示导入错误，旧正文不变；有效文件清除先前字段错误，用户可检查内容后继续。[九文件浏览器矩阵](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json)已通过合法中文/英文/emoji、BOM+CRLF、无效文件保留正文/文件名、取消/重选、编辑后重开、中英切换及Review/回退。该本地验收没有新建Run或调用模型。生产上另建一个独立Project/Run，核对导入后编辑正文/hash并执行真实Agent/Docker/Evidence/Verdict；实际结果以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准，不从本地picker通过推断整链成功。
+
+普通 HTTP 页面可能没有 `crypto.randomUUID()`。本轮请求身份改用可用的原生 randomUUID，或 `crypto.getRandomValues()` 生成的 UUID v4；不使用 `Math.random()`，没有密码学随机源则不生成身份。这只是浏览器兼容修复，不改变 Job / Run 幂等契约。三入口均有UUID回归，阶段1已实际通过公网HTTP创建Project / Run / Job；后续scope修复的完整模型链另由最新交付登记记录。
+
+Invalid PRD imports preserve the current draft and filename. Native Chrome/macOS acceptance passed 9 real fixtures and 15 UI checks, without creating a local Run or calling a model. The production HTTP Project/Run/Job entries passed in Stage 1. Its first model cycle correctly rejected PARTIAL output; a fresh-Project scope-fix cycle and exact runtime identities are maintained separately in the latest delivery record. HTTP request UUIDs use a cryptographic fallback.
+
 ## 任务状态与质量结论
 
 | 展示 | 含义 |
@@ -38,19 +56,29 @@ Repository addresses must not embed credentials. Configure Git authentication on
 | 可发布 / Ready for release | 当前规则所需设计覆盖、正式执行和可信证据齐全，且没有策略阻断的已确认缺陷 |
 | 阻止发布 / Release blocked | 已观察到失败或存在策略阻断的已确认缺陷 |
 | 受阻 / Blocked | 当前流程或判定受阻；展开原因检查缺失事实、覆盖或运行状态 |
+| 等待重试 / Awaiting retry（RETRYING） | Mission已停止并等待显式重试，不表示Worker当前正在执行；查看原Attempt/拒绝原因 |
 | 已中断 / Interrupted | 先查看已保存的状态和外部资源，再显式重试；旧历史保留 |
 
 后台任务提交具有幂等身份。响应丢失时，Web 先查询相同请求是否已保存；无法确认时保留同一请求标识供重试。创建 Run 的同一标识不能绑定不同的实质输入，平台返回 409 并保留原记录；分支参考标签不改变 SourceSnapshot 的身份。
 
 **Task completion is not a passing quality verdict.** Inspect official execution facts and the final verdict. Requests preserve identity across uncertain submissions; retries retain prior history.
 
+## VPN 白名单入口与 SSH 备选
+
+用户已选择公网来源白名单加 SSH 备选，并已连接 VPN；现有 SSH 实际 TCP peer 已确认是 `45.76.149.233`。阶段1已启用入口为 `http://155.138.206.106:8080`；允许/拒绝HTTP与后续版本状态以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准，不能从配置存在推断公网已可用。浏览器实际出口由服务端peer日志和真实HTTP请求确认。
+
+阶段1仅在 `155.138.206.106:8080` 增加 nginx IPv4 监听，UFW 来源 `/32` 与 nginx peer allow/deny-all 同时限制为 `45.76.149.233`。不信任客户端伪造的 XFF/X-Real-IP；API8000、Web后端3000及PG5432保持 `127.0.0.1`。原 `127.0.0.1:8080` nginx/SSH 隧道不变。共享该 VPN 出口的客户端共享网络许可，此处没有引入应用登录或 RBAC。
+
+激活后须分别验证真实允许出口的 HTTP 页面/API/静态资源与创建操作、另一外部出口的拒绝（含伪造转发头）、Host/Origin限制、SSH/隧道保留及旧数据保全。尚未登记这些结果时，不称白名单交付完成；不以端口连接成功或单次 timeout 代替 HTTP/来源验收。
+
 ## SSH 隧道访问
 
-已部署环境继续通过 [http://127.0.0.1:8080](http://127.0.0.1:8080) 访问，应用和数据库回环绑定。需要重新建立隧道时，在本机终端执行并保持连接：
+
+SSH备选通过 [http://127.0.0.1:8080](http://127.0.0.1:8080) 访问；该隧道随后保留为备选，后端和数据库继续回环绑定。需要重新建立隧道时，在本机终端执行并保持连接：
 
 ```bash
 ssh -p 22 -N -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:8080:127.0.0.1:8080 root@155.138.206.106
 ```
 
-This deployment keeps SSH as the access boundary. Web, API and PostgreSQL remain loopback-bound; no public application port is required.
+The public endpoint policy allows only the confirmed VPN source IP at nginx and UFW. Stage 1 activation and HTTP acceptance are recorded; subsequent release and model results remain tied to their exact identities in the latest delivery record. The original SSH tunnel stays available as a fallback. API, Web backend and PostgreSQL remain loopback-bound.

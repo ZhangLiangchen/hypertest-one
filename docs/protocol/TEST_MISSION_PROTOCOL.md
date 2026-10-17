@@ -190,6 +190,8 @@ Context 使用引用优先，不把所有对象直接嵌进 Mission。
 
 Repository origin 只作为无内嵌认证的源身份传递：拒绝 HTTP(S) userinfo 与可解析 URL 的 password，认证由宿主 Git 管理；保留无密码 SSH username / scp / 本地 origin。Runtime 对历史 Snapshot 也在 AgentSession / Attempt 前检查，不修改旧身份或把含凭据 URL 送入 Agent Context。输入校验的 HTTP 422 只输出 `type` / `loc` / `msg`，不回显 `input` / `ctx` 或请求 body。该边界不等于任意秘密扫描或所有日志的全面脱敏。
 
+ANALYZE_REQUIREMENTS / ANALYZE_RISKS / DESIGN_TESTS / IMPLEMENT_TESTS 的 Runtime Context 附加 `testing_scope`，其 repository / commit 必须来自绑定的 SourceSnapshot，不能由 PRD 或 Mission spec 中的同名值覆盖。它区分 PRD 明确要求的被测应用行为、应用自身约束与测试实施指令：依赖、装载方式、测试文件位置、源文件不可变和正式 Runner 执行等指令仍须遵守，但不能仅因此升格为应用 Requirement / Risk，或要求测试不存在于被测仓库的 HyperTest 内部机制。设计阶段把这些指令用于实施约束或前置条件，实现阶段不得虚构平台接口、假通过测试或执行事实。若固定仓库本身实现 Runner / guard 等产品功能且 PRD 明确要求测试，该功能仍是有效被测范围；不得按名称一刀切排除。已有 Canonical target 真正超出范围或无法实现时应如实报告冲突，不能改写历史、静默忽略或伪报 COMPLETED。此执行期范围说明不改写原 PRD / configuration、Snapshot Hash、冻结 Mission spec 或 Planner / Verifier / Gate 规则；语义范围以领域模型 §12 为准。
+
 ---
 
 ## 10. Constraints

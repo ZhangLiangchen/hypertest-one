@@ -52,6 +52,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install web dependencies
         run: npm ci
+      - name: Test web helpers
+        run: npm test
       - name: Typecheck web
         run: npm run typecheck
       - name: Build web

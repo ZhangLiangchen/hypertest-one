@@ -10,6 +10,9 @@ import { useEffect, useRef, useState } from "react";
 import { createRun, errorText, getProject, getProjectRuns, resolveSource } from "@/lib/api";
 import { ClientModal as Modal } from "@/app/client-modal";
 import { useI18n } from "@/lib/i18n";
+import { decodePrdBytes, MAX_PRD_CHARACTERS } from "@/lib/prd-import";
+import type { PrdDecodeError } from "@/lib/prd-import";
+import { createUuid } from "@/lib/uuid";
 import type { RunCreate, SourceResolution } from "@/lib/types";
 import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
 import type { PolicyFormValues } from "./policy-fields";
@@ -35,8 +38,7 @@ function supportsSourceResolution(value: string): boolean {
   } catch { return false; }
 }
 
-type ImportError = "type" | "size" | "encoding" | "length" | "read";
-const MAX_PRD_CHARACTERS = 2_000_000;
+type ImportError = "type" | "size" | PrdDecodeError | "read";
 const MAX_CONFIGURATION_CHARACTERS = 100_000;
 const MAX_PRD_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 10 * 1024 * 1024;
@@ -173,7 +175,7 @@ export default function ProjectPage() {
     const signature = JSON.stringify({ project_id: params.projectId, ...input, branch: undefined });
     // Retry identical inputs with the same key. Edited inputs must never reopen an older run.
     if (requestIdentity.current?.signature !== signature) {
-      requestIdentity.current = { signature, key: `web:${crypto.randomUUID()}` };
+      requestIdentity.current = { signature, key: `web:${createUuid()}` };
     }
     const payload = { ...input, idempotency_key: requestIdentity.current.key };
     if (new TextEncoder().encode(JSON.stringify(payload)).length > MAX_REQUEST_BYTES) {
@@ -197,12 +199,9 @@ export default function ProjectPage() {
     setImporting(true);
     try {
       const bytes = await file.arrayBuffer();
-      try { new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
-      catch { setImportError("encoding"); return; }
-      const text = await file.text();
-      if (text.length > MAX_PRD_CHARACTERS) { setImportError("length"); return; }
-      if (text.includes("\0")) { setImportError("encoding"); return; }
-      form.setFieldsValue({ prd_text: text });
+      const decoded = decodePrdBytes(bytes);
+      if (!decoded.ok) { setImportError(decoded.error); return; }
+      form.setFieldsValue({ prd_text: decoded.text });
       form.setFields([{ name: "prd_text", errors: [] }]);
       setImportedFileName(file.name);
       setRequestTooLarge(false);
@@ -218,6 +217,7 @@ export default function ProjectPage() {
     : importError === "size" ? t("The file exceeds 8 MiB. Use a smaller UTF-8 text file or paste a shorter requirements document.", "文件超过 8 MiB，请选择较小的 UTF-8 文本文件，或粘贴精简后的需求。")
     : importError === "encoding" ? t("This is not a valid UTF-8 text file. Save it as UTF-8 and try again.", "文件不是有效的 UTF-8 纯文本。请另存为 UTF-8 编码后重试。")
     : importError === "length" ? t("Requirements exceed 2,000,000 characters. Shorten the document before importing.", "需求超过 2,000,000 个字符，请精简后再导入。")
+    : importError === "empty" ? t("The file contains no requirements text. Choose a non-empty UTF-8 file or enter requirements below. Your current draft is preserved.", "文件没有需求正文，请选择非空 UTF-8 文件或在下方填写需求。当前草稿已保留。")
     : t("Unable to read the file. Choose it again or paste its contents below.", "无法读取文件，请重新选择，或直接粘贴下方文本。");
 
   if (project.isLoading) return <Spin size="large" />;

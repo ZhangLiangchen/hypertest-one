@@ -1,18 +1,37 @@
 # HyperTest One 服务器操作交付
 
-核验日期：2026-10-17，Asia/Singapore。本文中的“交接目录”指本机 `/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff`，可移交证据副本见 [第一阶段验收](FIRST_PHASE_ACCEPTANCE.md)。目标：155.138.206.106，root SSH/22。实际主机是 Debian13.7 x86_64、2CPU/3915MiB，已有7.7GiB swap保留。此部署面向一个可信操作者，使用SSH认证作为访问边界。
+核验日期：2026-10-17，Asia/Singapore。本文中的“交接目录”指本机 `/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff`，可移交证据副本见 [第一阶段验收](FIRST_PHASE_ACCEPTANCE.md)。目标：155.138.206.106，root SSH/22。实际主机是 Debian13.7 x86_64、2CPU/3915MiB，已有7.7GiB swap保留。此部署面向一个可信操作者。d20 已部署时使用 SSH 隧道访问；用户现已选择 VPN 来源 IP 白名单入口加 SSH 备选。阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212`已部署并激活白名单；当前范围修复的后续实际版本、网络状态与运行结果以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准。来源白名单不等于应用登录/RBAC。
 
-## 当前版本与目录
+## 本轮访问方案与最新运行登记
 
-- 当前应用提交：`89d15aeb73230d313809296de2343b8eddc6d6b6`。
-- 当前选择：`/opt/hypertest/current` → `/opt/hypertest/releases/89d15aeb73230d313809296de2343b8eddc6d6b6`。
-- 上一可启动版本：`/opt/hypertest/releases/5b1b7ce6920624e2724172431c7879f9f2fa10fd`。
+最新用户选择：公网 HTTP `155.138.206.106:8080` 仅允许来源 `45.76.149.233/32`，SSH22及原 `127.0.0.1:8080` 隧道保留。用户已连接 VPN，服务器记录的 SSH 实际 peer 为 `45.76.149.233`；这不替代浏览器 HTTP 实际出口确认。
+
+阶段1已在独立 nginx server 上精确监听 `155.138.206.106:8080`，不是 wildcard/IPv6；UFW 仅增加 `enp1s0`、来源 `/32`、目标 `155.138.206.106`、TCP8080 的精确规则，nginx 同时 `allow 45.76.149.233/32; deny all;`。不信任 Real-IP / PROXY protocol 或来客 XFF；转发身份由 TCP peer 重写，Host 与不安全方法 Origin 检查作补充。API8000、Web后端3000、PG5432及Docker PG映射继续 `127.0.0.1`。此来源许可覆盖共享该 VPN 出口的客户端，不识别个人身份，也不提供应用 RBAC。
+
+已纳入仓库的运维材料：[nginx配置](../ops/nginx/hypertest-vpn-allowlist.conf)、[受控激活脚本](../ops/activate-vpn-allowlist.sh)、[受控回退脚本](../ops/rollback-vpn-allowlist.sh)。它们已用于阶段1受控启用，实际协议检查见[73d部署报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr4-deployment-2026-10-17.md)。后续重新启用仍需最终Web版本/CI、精确应用SHA、配置SHA、来源确认及root指令。范围补丁的应用版本切换不应重复添加ACL规则；实际变更以最新交付登记为准。维护锁内核对前置状态、空闲任务和原回环配置；不改应用数据、OAuth或原 SSH 规则。这里只说明操作边界，不要求现在执行。
+
+阶段1本地 **9文件/15UI检查**、**20前端回归**与生产HTTP Project/Run/Job、605字节编辑稿/hash均已实际验证；公网允许HTML/API/13静态资源、Host/Origin、非允许peer及伪造转发头、原SSH隧道均有实际记录。手机非VPN失败与同窗UFW BLOCK是关联证据，不声称精确手机源IP归属。
+
+首轮真实Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5`接受10Req/6Risk/8Case后，因两Runner guard Case不属于被测pypa代码而由模型如实返回PARTIAL；6条实现Proposal被拒绝并保留，0Canonical Implementation/Execution/Evidence/Verdict，Run BLOCKED。不能把HTTP/导入成功当作模型整链通过。
+
+阶段2已修改runtime/codex的provider-independent范围说明，规范以[领域§12](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement)/[TMP§9](protocol/TEST_MISSION_PROTOCOL.md#9-mission-context)为准；不是阶段1“后端等d20/302”的复用。新冻结源码manifest `4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`已通过 **303后端/3 warnings/48.70s**、fresh Web20/typecheck/build/audit0、Ruff和独立测试库0008，无新增迁移。精确新应用SHA/CI/切换与相同605字节PRD的fresh-Project真实复验以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准；原失败Project/Run/Canonical历史不删除、不退役、不接受PARTIAL，不预写新模型通过。`RETRYING`显示为等待重试 / Awaiting retry，不代表仍有Worker运行。
+
+网络回退仅删除精确新增 UFW 规则、禁用受控 nginx 站点并测试/reload，保留原回环站点与SSH；支持精确 Hash 的中途恢复状态，异物拒绝。最终必须核对公网监听/规则已消失、SSH/隧道和后端回环保留；失败就记录回退未完成。网络回退不恢复数据库或重启应用，nginx graceful reload 可让已存在请求排空。
+
+## 阶段1 73d部署与d20历史基线
+
+
+- 阶段1已部署：`73dff989b87fa7349d9b36bd8416ece948a82212`，目录`/opt/hypertest/releases/73dff989b87fa7349d9b36bd8416ece948a82212`；后续scope修复SHA/切换以最新交付登记为准。
+- 更早d20选择（历史）：`/opt/hypertest/current` → `/opt/hypertest/releases/d20a2bc78c2f57b3bc2835cdf253d021f6b8265a`。
+- d20 部署保留的回退版本：`/opt/hypertest/releases/2b3602507e42a25ee7aa21f15a57db454bd73736`；更早版本和真实链记录继续保留。
 - 服务账号及实际home：`hypertest`，`/var/lib/hypertest`。
 - 共享配置：`/etc/hypertest/hypertest.env`（root:hypertest0640）；PG初始化凭据：`/etc/hypertest/postgres.env`（root0600）。
 - Canonical Artifacts：`/var/lib/hypertest/artifacts`；测试仓库：`/var/lib/hypertest/workspaces`；Codex正常可写runtime：`/var/lib/hypertest/.codex`。
 - Python3.12.15；Node22.23.3；官方Codex0.163.0；Docker26.1.5；PostgreSQL17.11容器`hypertest-postgres`、volume`hypertest_pgdata`。
-- 数据库head：`0008_job_ownership`。首次完整0001→0008升级已通过；89d补丁未改变schema，没有降级/清库。
+- 数据库head：`0008_job_ownership`。首次完整0001→0008升级与d20切换已核验；d20无新增迁移，没有降级/清库。范围补丁亦无新增迁移；其独立测试库检查与实际正式库状态分开登记。
 - 可信Runner：`hypertest-runner:py312`，image ID `sha256:a8f6f769b6b6a34ed6e6968b6c9816c17d860fbb38445c2473d3544addd20b56`。已由服务用户实际运行禁网/只读/nonroot/cap-drop/512MiB/1CPU容器验证。
+
+d20 合并源码 tree 与 2b 完整相同，既有 302 项结果与独立 Web 检查按记录复用，main CI通过；d20 新安装、定向11项和数据保全已验收。记录见[main部署](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/main-pr3-sync-deployment-2026-10-17.md)、[API保全](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/main-pr3-sync-preservation-2026-10-17.md)。这些是本轮前历史基线，不能证明新 UUID/导入修复或公网已验收。
 
 应用服务均已enable；API与Worker共用正式数据库、Artifact Store和Workspace Root：
 
@@ -28,13 +47,9 @@ unit文件在`/etc/systemd/system/hypertest-{api,worker,web}.service`。使用�
 
 ## 访问与现有隧道
 
-远端仅SSH22公网监听；nginx8080、API8000、Web3000、PG5432均绑定127.0.0.1，UFW未新增应用或数据库端口。
+d20时代仅SSH22公网监听属于历史。阶段1 73d已启用精确公网155.138.206.106:8080及唯一来源45.76.149.233/32规则；nginx原127.0.0.1:8080与SSH保留，API8000/Web后端3000/PG5432仍回环。后续scope版本切换的实际监听/防火墙/保全结果以最新交付登记为准。
 
-当前本机浏览：http://127.0.0.1:8080 。已建立的SSH隧道PID为`92044`，日志为本交接目录`server-tunnel-2026-10-17.log`；停止只关闭隧道：
-
-```bash
-kill 92044
-```
+当前可继续使用本机隧道：http://127.0.0.1:8080 。d20同步记录的隧道PID为`25603`；它是当时的进程身份，不保证日后不变。操作前检查当前转发进程和健康，只关闭自己确认的隧道，不沿用旧PID。原始92044/9255等隧道记录保留为历史。
 
 以后在本机终端重新建立（终端保持打开）：
 
@@ -85,26 +100,28 @@ systemctl show hypertest-backup.service -p Result -p ExecMainStatus
 
 脚本在空闲窗口短暂停止API接收新工作，检查queued/running任务；有工作则跳过，空闲时暂停Worker，配对备份数据库和Artifacts并恢复先前服务。保护锁防止与部署并行。密码/OAuth/源checkout不进入这两份数据档案。
 
-最新已完成备份：`/var/backups/hypertest/20261017T110027Z`，包含生产Web真实创建的Project与Run及PRD Artifact；`database.dump`、`artifacts.tar.gz`的SHA256均通过。核对命令：
+首次真实模型验收时的已完成备份：`/var/backups/hypertest/20261017T110027Z`，包含生产Web真实创建的Project与Run及PRD Artifact；`database.dump`、`artifacts.tar.gz`的SHA256均通过。核对命令：
 
 ```bash
 cd /var/backups/hypertest/20261017T110027Z
 sha256sum -c SHA256SUMS
 ```
 
-最新真实数据备份已执行实际隔离恢复：DB`hypertest_restorecheck_20261017110028`，恢复head0008_job_ownership；Artifacts解包到`/var/lib/hypertest/restore-check/20261017T110027Z/artifacts`。恢复SQL核实2Project/2Run/2Execution/8Evidence/3FINAL/1Finding/3Job，activeJob=0。Python从这个解包目录实际读取字节，验证15个引用、12个唯一Artifact，涵盖Evidence SHA/size、所有Implementation source_sha256、PRD/config input hash。正式库及正式Artifact目录未被恢复覆盖。证据为`server-final-restore-2026-10-17.json`；数据库/Artifacts必须使用同一时间戳配对。
+该次真实数据备份已执行实际隔离恢复：DB`hypertest_restorecheck_20261017110028`，恢复head0008_job_ownership；Artifacts解包到`/var/lib/hypertest/restore-check/20261017T110027Z/artifacts`。恢复SQL核实2Project/2Run/2Execution/8Evidence/3FINAL/1Finding/3Job，activeJob=0。Python从这个解包目录实际读取字节，验证15个引用、12个唯一Artifact，涵盖Evidence SHA/size、所有Implementation source_sha256、PRD/config input hash。正式库及正式Artifact目录未被恢复覆盖。证据为`server-final-restore-2026-10-17.json`；数据库/Artifacts必须使用同一时间戳配对。
+
+d20切换时最新配对备份为`/var/backups/hypertest/20261017T143150Z`，dump和Artifacts checksum已核验，证据见main部署记录。本轮新版本/网络变更的备份和保全结果以最新交付登记为准；不能把旧恢复演练写成新备份已再次演练。
 
 ## 升级、保留与回滚边界
 
-原始HANDOFF及原始归档保持不变。适配Debian13的最新可重跑材料在服务器`/root/hypertest-deploy-final-89d15ae`及本机`hypertest-one-89d15ae-debian13-deploy.tar.gz`。该归档SHA256：`04a53491b72ea3ba4da36485f0090c13b99e5fc5f4e09f024a70a9d956b6b3c8`。先核验目录内SHA256SUMS；其源码bundle固定89d。prepare与ACTIVATE分阶段，不能把准备完成当成已激活。
+原始HANDOFF及原始归档保持不变。首次交付适配Debian13的可重跑材料在服务器`/root/hypertest-deploy-final-89d15ae`及本机`hypertest-one-89d15ae-debian13-deploy.tar.gz`。该归档SHA256：`04a53491b72ea3ba4da36485f0090c13b99e5fc5f4e09f024a70a9d956b6b3c8`。先核验目录内SHA256SUMS；其源码bundle固定89d。prepare与ACTIVATE分阶段，不能把准备完成当成已激活。
 
 升级应先核实完整SHA、独立库测试、当前配对备份及没有活跃任务，再选择新release并重启服务。保留旧release、配置、数据库volume、Artifacts和OAuth；不在current覆盖源码，不执行强制reset/clean，不降级或删除canonical历史。
 
-本次89d只改Python/TMP/tests。Web所有tracked源码/配置/lock与5b完全相同，经git差异与文件树hash核对复用了已通过npm ci/typecheck/build的生产产物；.next产物树SHA256：`25c0e566293a27b651b1fdce2ffcf8b0a7b335acb26dcc94e25a7d18c161a174`。新Python环境独立构建。
+历史89d只改Python/TMP/tests。Web所有tracked源码/配置/lock与5b完全相同，经git差异与文件树hash核对复用了已通过npm ci/typecheck/build的生产产物；.next产物树SHA256：`25c0e566293a27b651b1fdce2ffcf8b0a7b335acb26dcc94e25a7d18c161a174`。新Python环境独立构建。
 
 应用回滚仅选择已保留且验证可启动的旧release、恢复之前活跃服务；不自动回滚schema。存在活跃任务时先审查并受控停止，不能静默重放执行。正式库需要恢复时，先在隔离库核验备份与同时间Artifacts，再由操作者决定正式恢复。
 
-## 实际验收与当前状态
+## 历史首次实际验收与当时状态（5b / 89d）
 
 - 5b在服务器：ruff、独立空库0001→0008、**208 passed**、npm ci/typecheck/build均通过。
 - 89d在服务器：ruff、另一独立空库0001→0008、**212 passed，3 warnings，142.49s**。Web输入无变化，复用上述验证产物；无新增正式迁移。
@@ -116,6 +133,6 @@ sha256sum -c SHA256SUMS
 - SQL核心关系链JOIN为pass92/fail56，包含Finding的失败完整链JOIN15；pass62Audit/62Outbox、fail69/69，逐实体事件分组差异0。Outbox归属使用payload Run或Audit entity/action关系，避免漏掉没有payload.test_run_id的执行/证据事件。Attempt/Execution的durable_job同Run归属异常0，accepted Proposal缺entity=0。
 - 两原始source checkout保持固定commit且git status为空，只含PRD.md/checkout.py；真实执行后的受控Docker容器和volume残留均0。
 
-最终备份正常重启空闲API/Worker后，当前PID为API21637、Worker21639、Web14401；三服务NRestarts=0，实际cwd均属于89d。真实模型Jobs由此前Worker14947执行，历史记录保留。最后readiness为health ok、HTML200、Worker available=true/active_workers1、activeJobs0；Codex login status为Logged in using ChatGPT。主机最后可用约3GiB、盘余56GiB，近期服务ERROR/Traceback和内核OOM计数均0。结构化最终状态：`server-final-state-2026-10-17.json`。
+首次验收的最终备份正常重启空闲API/Worker后，当时PID为API21637、Worker21639、Web14401；三服务NRestarts=0，实际cwd均属于89d。真实模型Jobs由此前Worker14947执行，历史记录保留。该次readiness为health ok、HTML200、Worker available=true/active_workers1、activeJobs0；Codex login status为Logged in using ChatGPT。主机最后可用约3GiB、盘余56GiB，近期服务ERROR/Traceback和内核OOM计数均0。结构化最终状态：`server-final-state-2026-10-17.json`。
 
 详细阶段日志、hash和恢复证据见同目录`server-acceptance-2026-10-17.md`、`server-tests-89d15ae.log`、`server-readiness-89d15ae.log`、`server-final-backup-2026-10-17.log`。

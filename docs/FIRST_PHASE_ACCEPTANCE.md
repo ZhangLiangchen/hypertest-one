@@ -1,14 +1,34 @@
 # HyperTest One 第一阶段验收
 
-核对日期：2026-10-17（Asia/Singapore）。本轮开发与部署切换前的产品基线为 main `79d329299d038ff9e6a3fe1659fb27bf589062c1`，包含双语 Web、提交幂等性修复；该基线后端 **223 passed / 3 warnings**，合并提交 [CI 39033073576](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39033073576) 的 test / web 均 SUCCESS。服务器同步后，64 个读 API 资源路径、8 份 Evidence 与 4 份输入 Artifact 的身份和原始字节保全；Worker 心跳按运行数据单独核对。
+## 本轮两阶段交付：已部署73d与后续范围修复
+
+阶段1执行版本为 `73dff989b87fa7349d9b36bd8416ece948a82212`，已部署并激活VPN公网白名单，SSH备选保留。[阶段1部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr4-deployment-2026-10-17.md)与[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)保存实际CI/目录/协议与数据保全身份。d20/302、298模型执行manifest及更早Run继续作为历史证据，不改写为本轮范围修复后的模型执行。
+
+| 阶段 | 已证实结果 | 边界 / 后续登记 |
+|---|---|---|
+| 1：PRD导入 | 原生Chrome/macOS选择器 **9实际fixtures/15UIchecks全通过**；无效文件保留正文/原文件名；合法UTF-8/BOM/CRLF、编辑/重开、取消/重选、中英切换与Review通过 | [浏览器矩阵](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json)；本地没有新建Run或调用模型 |
+| 1：HTTP/自动化 | CSPRNG UUID三入口在公网实际创建Project/Run/Job；**20 Node回归（14decode+6UUID）**及fresh npmci/typecheck/build/audit0通过 | 阶段1的86后端输入等d20/302；历史114输入manifest为`0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07`，不代表后续scope补丁 |
+| 1：白名单 | 公网精确155.138.206.106:8080，UFW /32+nginx peer45.76.149.233双层ACL已激活；允许HTTP/13静态资源、Host/Origin、非允许peer及伪造头检查通过；SSH隧道与后端PG回环保留 | 用户手机非VPN访问失败及同窗UFW BLOCK属于关联证据，不冒称精确手机IP归属；实际完整边界见阶段1部署记录 |
+| 1：真实模型失败 | Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5`接受 **10Req/6Risk/8Case**，其中2Case错误要求被测pypa仓库之外的Runner guard功能 | 实现Agent返回PARTIAL/6提案，Verifier以`RESULT_NOT_COMPLETED`拒绝；Job FAILED/MISSION_REJECTED、Run BLOCKED，**6条未接受实现Proposal保留，0Canonical Implementation/Execution/Evidence/Verdict** |
+| 2：范围修复 | Runtime从trusted SourceSnapshot提供provider-independent `context.testing_scope`，四阶段明确产品行为/产品约束与测试实施指令；Codex仅遵循该范围 | 领域[§12](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement)、TMP[§9](protocol/TEST_MISSION_PROTOCOL.md#9-mission-context)为权威；不删除合法产品CONSTRAINT，不禁止显式真实Runner-SUT，不放宽PARTIAL或Gate |
+| 2：新源码检查 | 后端runtime/codex与回归已改变，不再沿用“86后端未变化”结论；无新迁移，head仍0008 | 新冻结工作树 **303 passed / 3 warnings / 48.70s**、Ruff、独立测试库0008及fresh Web20/typecheck/build/audit0全部通过；后续提交SHA/CI/部署与真实模型语义验收以最新交付登记为准 |
+| 2：同输入真实复验 | 在新的独立Project以同 **605 UTF-8 bytes** PRD、同源码/配置/Policy内容重做真实模型/Docker链 | PRD SHA `6fcb51e70880f59ee084bc7fecdb4f6d7f0f8c8a711bee3e8d32e82e32a51ce9`；最终Project/Run及结果以最新登记为准，不预写成功 |
+
+首轮[失败完整记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-first-attempt-2026-10-17.json)保持原Canonical、Proposal、Attempt和Mission历史。Requirement/Risk/Case按SourceSnapshot共享，同Project同输入新Run会继承原错误Case；此次新Project是有意隔离复验，不是修改旧Snapshot/PRD、退役Case、接受PARTIAL或绕开Gate。`RETRYING`界面显示“等待重试 / Awaiting retry”，不表示Worker正在执行。
+
+scope修复冻结输入manifest为`4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`，源于73d之上未提交工作树，并非73d本身；4份foundation与CI Hash另有记录。完整结果见[冻结检查报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-checks-2026-10-17.md)。后续精确运行版本、部署及同输入真实链结果统一见[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)。以下记录保持既有执行版本，不据历史成功推断这次范围修复已通过。
+
+## 上一轮实现与历史验收记录（298 / 302）
+
+核对日期：2026-10-17（Asia/Singapore）。上一轮开发与部署切换前的产品基线为 main `79d329299d038ff9e6a3fe1659fb27bf589062c1`，包含双语 Web、提交幂等性修复；该基线后端 **223 passed / 3 warnings**，合并提交 [CI 39033073576](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39033073576) 的 test / web 均 SUCCESS。服务器同步后，64 个读 API 资源路径、8 份 Evidence 与 4 份输入 Artifact 的身份和原始字节保全；Worker 心跳按运行数据单独核对。
 
 第一阶段 Codex / pytest / Docker 的 stdlib 后端支持链已由本地及 Debian 13 服务器的四条真实模型链路验收。其执行代码仍登记为 `89d15aeb73230d313809296de2343b8eddc6d6b6`（本地分析前段为 `5b1b7ce6920624e2724172431c7879f9f2fa10fd`），下方保留原 Run、数量、hash、拒绝/重试和版本记录；旧执行身份不能改写为当前提交。
 
-本轮在 79d 基线上继续完善 Web 自主入口、运行输入传输、输入安全和失败恢复信息。冻结产品源码已通过 **302 passed / 3 warnings（32.87s）**、Ruff、独立测试库 Alembic `0008_job_ownership`、23 个 Web 输入 Hash 不变，复用已通过的 typecheck / production build 与 npm audit 0。检查包含 79d 之上的未提交工作树，不能以 HEAD 79d 单独代表本轮已测源码；精确源文件清单及 Hash 见下方报告。**新入口已通过本地完整真实模型 / Docker 链路，最终提交与服务器同步记录见本轮交付报告**。模型链使用 298 项检查冻结源码；随后仅追加 URL 解析拒绝错误脱敏及四项回归，最终 302 项通过。两次源码身份分开登记，不改写执行历史。
+上一轮在 79d 基线上继续完善 Web 自主入口、运行输入传输、输入安全和失败恢复信息。冻结产品源码已通过 **302 passed / 3 warnings（32.87s）**、Ruff、独立测试库 Alembic `0008_job_ownership`、23 个 Web 输入 Hash 不变，复用已通过的 typecheck / production build 与 npm audit 0。检查包含 79d 之上的未提交工作树，不能以 HEAD 79d 单独代表上一轮已测源码；精确源文件清单及 Hash 见下方报告。**新入口已通过本地完整真实模型 / Docker 链路，最终提交与服务器同步记录见上一轮交付报告**。模型链使用 298 项检查冻结源码；随后仅追加 URL 解析拒绝错误脱敏及四项回归，最终 302 项通过。两次源码身份分开登记，不改写执行历史。
 
-## 当前基线与本轮逐项矩阵
+## 上一轮 302 项检查与真实链路逐项矩阵
 
-| 第一阶段规范项 | 79d 基线 / 既有真实证据 | 本轮改进与未完成项 |
+| 第一阶段规范项 | 79d 基线 / 既有真实证据 | 上一轮改进与未完成项 |
 |---|---|---|
 | 固定 PRD、repo commit、配置与 Policy | 不可变 SourceSnapshot / PolicySnapshot，bootstrap 同输入复用、不同输入冲突；四条真实链保留原文/hash | 已物化配置缺失或损坏时在创建 Agent Session 前阻断；hash-only legacy 保持可选上下文；origin 的 HTTP(S) userinfo / URL password 在创建入口拒绝，旧 Snapshot 也在 Runtime 注入前阻断。相关回归已纳入最终 302 项检查 |
 | PRD → Requirement | Typed Proposal、Verifier 原子接受；本地及服务器真实模型 Requirement 已归档 | 新 Web Run 真实接受 7 个 Requirement，后续 6 Risk / 9 Case / 9 Implementation 经平台提交，完整链已通过 |
@@ -17,23 +37,23 @@
 | Case → Implementation | 真实 Codex 生成 Python/pytest 源码、内容 hash 与关系；不覆盖应用 tracked 源码 | 其他语言和任意第三方依赖不能据此泛化 |
 | OFFICIAL Execution | 可信 Docker Runner 独立执行；固定 source/spec/environment/image 身份，正式/探索结果分离 | 新入口实际 OFFICIAL Docker PASS，9 Case 全通过；JUnit 34 tests、0 failures/errors/skipped |
 | Execution → Evidence | metadata/JUnit/stdout/stderr、RUNNER/VERIFIED、读时与 Gate 校验 SHA-256；原始 Artifact 已保全 | 签名、对象存储与其他 Collector 不作为本阶段前提 |
-| 失败 → Diagnosis → Finding | 实际 FAIL 后真实模型诊断，绑定可信 Evidence；本地受控分诊/确认，服务器 Finding 保留 NEW | 自动修复/复测不是第一阶段必需终点；本轮未重复消耗模型额度运行失败链，保留并复核既有本地/服务器真实失败证据 |
+| 失败 → Diagnosis → Finding | 实际 FAIL 后真实模型诊断，绑定可信 Evidence；本地受控分诊/确认，服务器 Finding 保留 NEW | 自动修复/复测不是第一阶段必需终点；上一轮未重复消耗模型额度运行失败链，保留并复核既有本地/服务器真实失败证据 |
 | Report / Verdict | Gate 基于 Policy、Canonical State、最新正式事实；append-only FINAL、state hash 与 manifest，历史保留 | 缺少事实仍应 BLOCKED；新完整周期 FINAL RELEASE_READY，4 份可信 Evidence 原始 hash/size 复核通过 |
-| 领域 §42 硬约束 | UUID PK、FK、Unique Fingerprint、row_version、Mission/Execution 幂等、Evidence hash、Proposal separation、Audit/Outbox 已有真实 PostgreSQL 测试和关系证据 | 无新增迁移，head 仍为 0008；本轮完整 302 项检查已通过，精确源码 manifest 与执行身份分别记录 |
+| 领域 §42 硬约束 | UUID PK、FK、Unique Fingerprint、row_version、Mission/Execution 幂等、Evidence hash、Proposal separation、Audit/Outbox 已有真实 PostgreSQL 测试和关系证据 | 无新增迁移，head 仍为 0008；上一轮完整 302 项检查已通过，精确源码 manifest 与执行身份分别记录 |
 | 可替换 Harness / TMP | 当前五类 Mission 的 Codex 结构化最终结果、隔离会话和 Proposal 边界已真验 | 大输入改走官方 CLI stdin，保持 schema / final-response 文件通道及 read-only sandbox；传输回归不证明模型上下文容量。完整 MCP 域工具、WAITING_INPUT/回答/resume 仍未实现 |
 | Planner / 持久 Worker / 自动检出 | 确定性 Planner、有界周期、单 Run 活跃请求、显式恢复；原 PREPARE_WORKSPACE 可单独使用 | 周期先只读检查实际 Runner daemon / 可信镜像或 local 显式启用，失败不启动 Git / Agent；一个 ADVANCE_RUN 可选择 prepare_workspace:true，在同 Job 内准备固定 GitHub checkout 后继续。预检及 Git I/O 不持 Run/Job 行锁，后续重新 fence；不拉取镜像或制造正式事实。新 UI 真验通过；同 Job 自动准备目录并完成真实周期 |
 | 失败任务与不可变历史 | 原失败 Job、Attempt、Proposal 保留；租约失效显式中断且不自动重放 | MISSION_REJECTED / MISSION_FAILED 受控停止可在 FAILED Job result 保存已持久步骤、相关 ID 与 workspace；旧 payload 缺省 false 仅在内存规范化，原历史不改写 |
-| 可直接操作的双语 Web | 已实测 Project → 中文粘贴 PRD + SHA → Run → 真实 Gate Job；无执行事实时 FINAL/BLOCKED。已有模型结果仅用于只读导航 | 新的自动检出入口真实 Run 完成整链，Risk 阶段取消后显式重试，旧 Job/Attempt 保留；任务 → 判定 → JUnit 与中英 Attempt 摘要已实际查看；实际文件导入受 Chrome 扩展本地文件权限限制，只有源码审查与 chooser 入口，未补验 |
-| 服务器与运维交付 | 79d 已部署、单 Worker、SSH 隧道/回环、备份恢复及历史数据保全 | 本轮提交及切换后的实际就绪、数据保全结果见交付报告；不能沿用 79d 就绪结果声明新提交已上线 |
+| 可直接操作的双语 Web | 已实测 Project → 中文粘贴 PRD + SHA → Run → 真实 Gate Job；无执行事实时 FINAL/BLOCKED。已有模型结果仅用于只读导航 | 新的自动检出入口真实 Run 完成整链，Risk 阶段取消后显式重试，旧 Job/Attempt 保留；任务 → 判定 → JUnit 与中英 Attempt 摘要已实际查看；当时文件导入受 Chrome 扩展本地文件权限限制，仅审查源码与 chooser；本轮原生 Chrome 修复后的9文件/15检查及独立生产登记见顶部 |
+| 服务器与运维交付 | 79d 已部署、单 Worker、SSH 隧道/回环、备份恢复及历史数据保全 | 上一轮提交及切换后的实际就绪、数据保全结果见交付报告；不能沿用 79d 就绪结果声明新提交已上线 |
 | 阶段边界 | 单个可信 Operator、Codex、Python/pytest、预制可信 Docker 镜像的后端支持路径 | 企业登录/RBAC/多租户、其他语言/镜像、外部 SIT 网络、完全无人值守发布及长期语义自治均未泛化验收 |
 
-当前基线证据：[Web 产品验收](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/web-product-acceptance-2026-10-17.md)、[main 同步保全](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/pr2-main-sync-preservation-2026-10-17.md)、[main 服务器部署](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-main-pr2-deployment-2026-10-17.md)。本轮回归位于 `tests/test_mission_input_transport.py`、`tests/test_runtime_input_integrity.py`、`tests/test_cycle_preparation.py`、`tests/test_cycle_preflight.py`、`tests/test_repository_origins.py`；全部必需检查见[冻结源码检查报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-checks-2026-10-17.md)。本轮真实链见[新 Web 链路原始记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-live-2026-10-17.json)；最终提交及部署身份见[本轮交付报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-delivery-2026-10-17.md)。
+上一轮输入基线证据：[Web 产品验收](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/web-product-acceptance-2026-10-17.md)、[main 同步保全](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/pr2-main-sync-preservation-2026-10-17.md)、[main 服务器部署](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-main-pr2-deployment-2026-10-17.md)。上一轮回归位于 `tests/test_mission_input_transport.py`、`tests/test_runtime_input_integrity.py`、`tests/test_cycle_preparation.py`、`tests/test_cycle_preflight.py`、`tests/test_repository_origins.py`；全部必需检查见[冻结源码检查报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-checks-2026-10-17.md)。上一轮真实链见[新 Web 链路原始记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-live-2026-10-17.json)；最终提交及部署身份见[上一轮交付报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-delivery-2026-10-17.md)。
 
-## 本轮冻结检查与新 Web 真实链路进度
+## 上一轮冻结检查与新 Web 真实链路进度
 
 最终检查针对 79d 之上的冻结工作树，源输入 manifest SHA-256 为 `6ea1934a8a4a577d6990e38eda11a49c1727b9505b333d416d961b207f68e85f`，不是 Git commit。源清单包含 86 份后端源码/测试/迁移/配置及 23 份 Web 源码/配置/lock 输入；检查前后无产品源码输入变化，文档补录不在该清单内。
 
-| 本轮检查 | 实际结果 |
+| 上一轮检查 | 实际结果 |
 |---|---|
 | Ruff / diff check | 通过 |
 | Alembic upgrade / current | 独立 `hypertest_test`，`0008_job_ownership (head)`；无新增迁移 |
@@ -46,7 +66,7 @@
 
 新 Web 真实 Run 为 `01a149ff-2749-7ecc-b5f4-5a02307cb7b0`。在真实 Chrome 创建项目、粘贴中文 PRD、解析 `pypa/sampleproject` 的 main 为 `621e4974ca25ce531773def586ba3ed8e736b3fc`，再通过 Web 提交自动准备源码周期。模型链由实际 Codex CLI 输出、HyperTest Verifier 提交，未注入模拟结果。
 
-| 本轮真实登记 | 实际结果 |
+| 上一轮真实登记 | 实际结果 |
 |---|---|
 | 输入与源码 | 不可变 Source `01a149ff-2744-7497-a74e-c8a5a7372b78`；PRD/config/Policy hash 独立复核，managed checkout HEAD/origin 匹配且 git status 干净 |
 | Canonical 数量 | 7 Requirement / 6 Risk / 9 Case / 9 Implementation / 1 OFFICIAL Execution / 4 Evidence / 0 Finding / 1 FINAL |
@@ -59,7 +79,7 @@
 
 [原始记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-live-2026-10-17.json)、[正式判定截图](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-verdict-2026-10-17.png)、[JUnit 原文截图](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-junit-2026-10-17.png)、[Attempt 摘要截图](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-attempt-2026-10-17.png)。取消原因不构成认证失效或模型输出质量结论；本次未重跑既有失败链，其真实诊断证据继续保留在历史部分。
 
-以下为历史接管与四条真实链路证据，时间、执行提交及数量均保留，不能当作本轮新增检查结果。
+以下为历史接管与四条真实链路证据，时间、执行提交及数量均保留，不能当作上一轮新增检查结果。
 
 ## 验收范围与依据
 
@@ -256,6 +276,6 @@ ssh -p 22 -N -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
 - [首次真实验收配对备份的隔离恢复证据](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-final-restore-2026-10-17.json)；[首次验收后的服务状态](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-final-state-2026-10-17.json)。
 - [服务器验收记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-acceptance-2026-10-17.md)：包含实际部署、回环监听、SQL追溯、配对备份和隔离恢复。
 
-[旧 cloud 诊断](CODEX_RUNTIME_TROUBLESHOOTING.md)保留 EROFS 与 CONNECT 403 的历史来源，不能据此断言本轮本机或服务器认证失效。本轮以实际环境和上面的验收登记为准。
+[旧 cloud 诊断](CODEX_RUNTIME_TROUBLESHOOTING.md)保留 EROFS 与 CONNECT 403 的历史来源，不能据此断言上一轮本机或服务器认证失效。上一轮以实际环境和上面的验收登记为准。
 
-本阶段运行边界为受控环境内的单个可信操作者。更多 Harness/语言、Playwright/k6/Kubernetes、语义覆盖、自动修复与回归选择、跨 Run 知识、定时调度、Outbox 外发、对象存储/签名、登录/RBAC/多租户和公网加固属于后续路线，不在本轮尚无证据时标记完成。上述四条真实模型链执行的集成修复提交为 `89d15aeb73230d313809296de2343b8eddc6d6b6`；本轮切换前部署基线为 `79d329299d038ff9e6a3fe1659fb27bf589062c1`。本轮最终 302 项检查与 298 项冻结源码上的真实 Web 整链已登记；最终 commit 及服务器切换身份见交付报告。第一阶段核心支持链已验收的结论不扩展为完整 TMP 工具层、所有后续能力或完全无人值守发布。
+本阶段运行边界为受控环境内的单个可信操作者。更多 Harness/语言、Playwright/k6/Kubernetes、语义覆盖、自动修复与回归选择、跨 Run 知识、定时调度、Outbox 外发、对象存储/签名、登录/RBAC/多租户和公网加固属于后续路线，不在上一轮尚无证据时标记完成。上述四条真实模型链执行的集成修复提交为 `89d15aeb73230d313809296de2343b8eddc6d6b6`；上一轮切换前部署基线为 `79d329299d038ff9e6a3fe1659fb27bf589062c1`。上一轮最终 302 项检查与 298 项冻结源码上的真实 Web 整链已登记；最终 commit 及服务器切换身份见交付报告。第一阶段核心支持链已验收的结论不扩展为完整 TMP 工具层、所有后续能力或完全无人值守发布。

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { cancelJob, createJob, errorText, getJob, getJobs, getMission, retryJob, retryMission } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
 
 const activeStatuses: JobStatus[] = ["QUEUED", "RUNNING", "CANCEL_REQUESTED"];
@@ -49,7 +50,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
       const saved = localStorage.getItem(storageKey);
       if (saved) previous = JSON.parse(saved);
     } catch { /* The in-memory key still protects repeated requests in this tab. */ }
-    const record = previous?.signature === signature ? previous : { signature, key: `web:${crypto.randomUUID()}` };
+    const record = previous?.signature === signature ? previous : { signature, key: `web:${createUuid()}` };
     pendingRequests.current.set(storageKey, record);
     try { localStorage.setItem(storageKey, JSON.stringify(record)); } catch { /* Storage may be disabled by the browser. */ }
     return { key: record.key, storageKey };

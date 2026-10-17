@@ -17,7 +17,7 @@ const labels: Record<string, [string, string]> = {
   PROVISIONING: ["Provisioning", "准备环境中"], COLLECTING: ["Collecting evidence", "采集证据中"],
   DISPATCHED: ["Dispatched", "已派发"], WAITING_INPUT: ["Waiting for input", "等待输入"],
   WAITING_EXECUTION: ["Waiting for execution", "等待执行"], SUBMITTED: ["Submitted", "已提交"],
-  RETRYING: ["Retrying", "重试中"], EXPIRED: ["Expired", "已过期"],
+  RETRYING: ["Awaiting retry", "等待重试"], EXPIRED: ["Expired", "已过期"],
   CANCEL_REQUESTED: ["Cancellation requested", "已请求取消"], INTERRUPTED: ["Interrupted", "已中断"],
   SUCCEEDED: ["Task completed", "任务已完成"], PARTIAL: ["Partial", "部分完成"],
   PENDING: ["Pending", "待处理"], VALIDATING: ["Validating", "校验中"],
