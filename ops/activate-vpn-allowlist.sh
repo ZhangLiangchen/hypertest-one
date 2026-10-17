@@ -45,13 +45,59 @@ rule_added=0
 reloaded=0
 rollback() {
     status=$?
-    if [ "$status" != 0 ]; then
-        if [ "$rule_added" = 1 ]; then ufw --force delete allow in on enp1s0 proto tcp from 45.76.149.233/32 to 155.138.206.106 port 8080 || true; fi
-        rm -f "$enabled"
-        if [ "$initial_available" = 0 ]; then rm -f "$available"; fi
-        if [ "$reloaded" = 1 ]; then nginx -t && systemctl reload nginx || true; fi
-        echo 'Allowlist activation failed; new rule/site withdrawn. SSH22 and app/data untouched.' >&2
+    if [ "$status" = 0 ]; then return; fi
+    trap - EXIT
+    cleanup_failures=0
+    if [ "$rule_added" = 1 ]; then
+        if ! ufw --force delete allow in on enp1s0 proto tcp from 45.76.149.233/32 to 155.138.206.106 port 8080; then
+            echo 'Cleanup: deleting the exact VPN Web UFW rule failed.' >&2
+            cleanup_failures=$((cleanup_failures + 1))
+        fi
     fi
+    if ! rm -f "$enabled"; then
+        echo 'Cleanup: disabling the managed nginx site failed.' >&2
+        cleanup_failures=$((cleanup_failures + 1))
+    fi
+    if [ "$reloaded" = 1 ]; then
+        if ! nginx -t; then
+            echo 'Cleanup: nginx configuration test failed; reload was not attempted.' >&2
+            cleanup_failures=$((cleanup_failures + 1))
+        elif ! systemctl reload nginx; then
+            echo 'Cleanup: nginx reload failed; the previous listener may remain active.' >&2
+            cleanup_failures=$((cleanup_failures + 1))
+        fi
+    fi
+    if ! python3 - "$enabled" <<'CLEANUPCHECK'
+import subprocess,sys
+from pathlib import Path
+site=Path(sys.argv[1])
+assert not site.exists() and not site.is_symlink(), 'Managed nginx site is still enabled'
+listeners=[line.split()[3] for line in subprocess.check_output(['ss','-H','-lnt'],text=True).splitlines()]
+assert all(address not in ('155.138.206.106:8080','0.0.0.0:8080','[::]:8080','*:8080') for address in listeners), 'Public Web listener remains'
+ufw=subprocess.check_output(['ufw','status','verbose'],text=True)
+assert 'Status: active' in ufw and 'deny (incoming)' in ufw, 'UFW deny boundary changed'
+# Preflight requires only SSH22 rules; no8080ALLOW may survive this attempt.
+assert not any('8080' in line for line in ufw.splitlines() if 'ALLOW' in line), 'VPN Web UFW allow rule remains'
+assert sum('ALLOW' in line and line.startswith('22/tcp ') for line in ufw.splitlines())==2, 'SSH22 rules changed'
+assert '127.0.0.1:8080' in listeners, 'Original tunnel listener is absent'
+CLEANUPCHECK
+    then
+        echo 'Cleanup: final listener/firewall/site verification failed.' >&2
+        cleanup_failures=$((cleanup_failures + 1))
+    fi
+    if [ "$cleanup_failures" = 0 ] && [ "$initial_available" = 0 ]; then
+        if ! rm -f "$available"; then
+            echo 'Cleanup: removing the disabled managed configuration failed.' >&2
+            cleanup_failures=$((cleanup_failures + 1))
+        fi
+    fi
+    if [ "$cleanup_failures" = 0 ]; then
+        echo 'Allowlist activation failed; withdrawal verified: public listener, UFW rule and enabled site are absent. SSH22 and the tunnel listener remain.' >&2
+    else
+        printf 'Allowlist activation failed; cleanup INCOMPLETE (%s checks failed). Original exit: %s. Inspect ss, UFW and nginx before retrying.\n' "$cleanup_failures" "$status" >&2
+        printf 'Snapshot: %s. Preserve SSH22. If the managed config remains, rerun HYPERTEST_ALLOWLIST_ROLLBACK=45.76.149.233:8080 HYPERTEST_ACCESS_CONFIG_SHA256=%s bash %s/ops/rollback-vpn-allowlist.sh after review.\n' "$backup" "$HYPERTEST_ACCESS_CONFIG_SHA256" "$release" >&2
+    fi
+    exit "$status"
 }
 trap rollback EXIT
 install -o root -g root -m 0644 "$HYPERTEST_ACCESS_CANDIDATE" "$available"
