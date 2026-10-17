@@ -98,7 +98,10 @@ class TestImplementationProposalPayload(BaseModel):
     repository_url: str = Field(min_length=1)
     commit_sha: str = Field(min_length=7, max_length=64)
     file_path: str = Field(min_length=1, max_length=1024)
-    symbol: str = Field(min_length=1, max_length=512)
+    symbol: str = Field(
+        min_length=1, max_length=512,
+        pattern=r"^(?:[A-Za-z_][A-Za-z0-9_]*::)*test_[A-Za-z0-9_]+$",
+    )
     framework: Literal["pytest"] = "pytest"
     language: Literal["python"] = "python"
     code: str | None = Field(default=None, min_length=1, max_length=1_000_000)

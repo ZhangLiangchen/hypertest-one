@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import signal
 from collections.abc import AsyncIterator
 from copy import deepcopy
@@ -11,6 +12,45 @@ from typing import Any
 
 from hypertest.agent.base import AgentEvent, AgentSession
 from hypertest.common.ids import public_key
+
+_MAX_TELEMETRY_LINE_BYTES = 2_000_000
+
+
+async def _read_jsonl_telemetry(stream: asyncio.StreamReader) -> AsyncIterator[Any]:
+    """Drain telemetry without StreamReader's 64 KiB readline ceiling.
+
+    Telemetry is not the result channel. Oversized provider messages must not
+    prevent consuming a valid final-response file or allocate unbounded memory.
+    """
+    pending = bytearray()
+    discarded = False
+    while chunk := await stream.read(65536):
+        fragments = chunk.split(b"\n")
+        for index, fragment in enumerate(fragments):
+            if not discarded:
+                if len(pending) + len(fragment) > _MAX_TELEMETRY_LINE_BYTES:
+                    pending.clear()
+                    discarded = True
+                else:
+                    pending.extend(fragment)
+            if index == len(fragments) - 1:
+                continue
+            if discarded:
+                yield {"type": "telemetry.line_discarded", "limit_bytes": _MAX_TELEMETRY_LINE_BYTES}
+            elif line := pending.decode("utf-8", errors="replace").strip():
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    yield {"raw": line}
+            pending.clear()
+            discarded = False
+    if discarded:
+        yield {"type": "telemetry.line_discarded", "limit_bytes": _MAX_TELEMETRY_LINE_BYTES}
+    elif line := pending.decode("utf-8", errors="replace").strip():
+        try:
+            yield json.loads(line)
+        except json.JSONDecodeError:
+            yield {"raw": line}
 
 
 def _inline_schema(value: Any, definitions: dict[str, Any]) -> Any:
@@ -49,7 +89,9 @@ def _close_schema(value: Any) -> Any:
     return closed
 
 
-def codex_output_schema(mission: dict[str, Any]) -> dict[str, Any]:
+def codex_output_schema(
+    mission: dict[str, Any], *, idempotency_prefix: str | None = None,
+) -> dict[str, Any]:
     """Project the typed mission result into Codex Structured Outputs.
 
     TMP permits optional operational dictionaries. They are omitted here rather
@@ -70,6 +112,8 @@ def codex_output_schema(mission: dict[str, Any]) -> dict[str, Any]:
         "type": "string", "enum": [contract["proposal_type"]],
     }
     proposal["properties"]["operation"] = {"type": "string", "enum": [contract["operation"]]}
+    if idempotency_prefix is not None:
+        proposal["properties"]["idempotency_key"]["pattern"] = f"^{re.escape(idempotency_prefix)}"
     properties = {
         key: _inline_schema(result["properties"][key], result.get("$defs", {}))
         for key in ("protocol", "mission_id", "status", "summary", "proposals")
@@ -119,8 +163,12 @@ class CodexCliAdapter:
         result_path = result_dir / f"{session.id}.json"
         result_path.unlink(missing_ok=True)
         schema_path = result_dir / f"{session.id}.schema.json"
+        idempotency_prefix = f"{session.id}:"
         schema_path.write_text(
-            json.dumps(codex_output_schema(mission), ensure_ascii=False), encoding="utf-8"
+            json.dumps(
+                codex_output_schema(mission, idempotency_prefix=idempotency_prefix),
+                ensure_ascii=False,
+            ), encoding="utf-8"
         )
 
         mission_json = json.dumps(mission, ensure_ascii=False, sort_keys=True)
@@ -130,6 +178,17 @@ class CodexCliAdapter:
             "Return exactly one JSON object matching the supplied mission output contract as "
             "your final response. The CLI saves that response; do not write a result file or "
             "modify application source. Submit generated test source in proposal code fields.\n\n"
+            "Agent completion means the requested proposals are ready for HyperTest verification. "
+            "HyperTest's trusted Runner performs official validation AFTER accepting implementation "
+            "proposals. Do not mark otherwise complete proposals PARTIAL/BLOCKED merely because "
+            "tests have not run, pytest is unavailable in this Agent workspace, or this read-only "
+            "sandbox cannot materialize tests. runner_validation_required is a downstream Runner "
+            "obligation, not an obligation to execute tests inside this Agent session. "
+            "Each implementation symbol must identify an actual test_* function, optionally "
+            "qualified as TestClass::test_function; a module or class alone is not a valid symbol.\n\n"
+            f"For every proposal idempotency_key use the prefix {idempotency_prefix} followed by "
+            "a distinct stable label for that proposal. This execution-specific prefix prevents "
+            "a retry from reusing keys reserved by a rejected prior attempt.\n\n"
             f"TEST_MISSION_JSON:\n{mission_json}"
         )
 
@@ -162,15 +221,7 @@ class CodexCliAdapter:
         yield AgentEvent(type="MISSION_STARTED", payload={"provider": "codex"})
 
         assert process.stdout is not None
-        async for raw_line in process.stdout:
-            line = raw_line.decode("utf-8", errors="replace").strip()
-            if not line:
-                continue
-            try:
-                provider_event = json.loads(line)
-            except json.JSONDecodeError:
-                provider_event = {"raw": line}
-
+        async for provider_event in _read_jsonl_telemetry(process.stdout):
             yield AgentEvent(
                 type="ACTIVITY",
                 payload={

@@ -1,4 +1,5 @@
 import asyncio
+import re
 import sys
 
 import pytest
@@ -23,7 +24,7 @@ def mission_contract(key, mission_type=MissionType.ANALYZE_REQUIREMENTS):
 def make_provider(tmp_path, *, oversized=False):
     script = tmp_path / "provider.py"
     script.write_text(f"""#!{sys.executable}
-import json,pathlib,sys,time
+import json,pathlib,re,sys,time
 prompt=sys.argv[-1]
 mission=json.loads(prompt.split("TEST_MISSION_JSON:\\n",1)[1])
 assert sys.argv[1:4] == ["--ask-for-approval", "never", "exec"]
@@ -32,6 +33,9 @@ schema=json.loads(pathlib.Path(sys.argv[sys.argv.index("--output-schema")+1]).re
 assert schema["additionalProperties"] is False
 assert schema["properties"]["mission_id"]["enum"] == [mission["mission_id"]]
 assert "do not write a result file" in prompt
+assert "Runner performs official validation AFTER" in prompt
+prefix=prompt.split("idempotency_key use the prefix ",1)[1].split(" followed by",1)[0]
+assert re.search(schema["properties"]["proposals"]["items"]["properties"]["idempotency_key"]["pattern"], prefix+"proposal")
 output=pathlib.Path(sys.argv[sys.argv.index("--output-last-message")+1])
 time.sleep(0.05)
 payload={{"protocol":"hypertest.tmp/v1alpha1","mission_id":mission["mission_id"],"status":"COMPLETED","proposals":[]}}
@@ -100,6 +104,10 @@ def test_every_supported_mission_has_typed_strict_provider_output(
     # A domain field named 'title' must survive stripping schema annotations.
     if mission_type is not MissionType.IMPLEMENT_TESTS:
         assert "title" in payload["properties"]
+    else:
+        pattern = payload["properties"]["symbol"]["pattern"]
+        assert re.fullmatch(pattern, "TestCheckout::test_idempotency")
+        assert not re.fullmatch(pattern, "TestCheckout")
     assert "metrics" not in schema["properties"]
     assert "provider_metadata" not in schema["properties"]
     assert "result_schema" in contract["output_contract"]
@@ -118,3 +126,18 @@ def test_every_supported_mission_has_typed_strict_provider_output(
                 assert_strict(item)
 
     assert_strict(schema)
+
+
+def test_provider_proposal_keys_are_stable_per_session_and_distinct_across_retries():
+    mission = mission_contract("MISSION-RETRY")
+    first = codex_output_schema(mission, idempotency_prefix="AS-FIRST:")
+    repeated = codex_output_schema(mission, idempotency_prefix="AS-FIRST:")
+    retry = codex_output_schema(mission, idempotency_prefix="AS-RETRY:")
+    assert first == repeated
+    assert first != retry
+    first_pattern = first["properties"]["proposals"]["items"]["properties"]["idempotency_key"]["pattern"]
+    retry_pattern = retry["properties"]["proposals"]["items"]["properties"]["idempotency_key"]["pattern"]
+    assert re.search(first_pattern, "AS-FIRST:requirement-addition")
+    assert not re.search(retry_pattern, "AS-FIRST:requirement-addition")
+    assert re.search(retry_pattern, "AS-RETRY:requirement-addition")
+    assert "pattern" not in mission["output_contract"]["result_schema"]["$defs"]["ProposalSubmission"]["properties"]["idempotency_key"]
