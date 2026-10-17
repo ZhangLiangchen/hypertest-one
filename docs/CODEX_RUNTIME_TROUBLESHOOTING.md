@@ -2,7 +2,12 @@
 
 Validated on 2026-10-17 with Codex CLI 0.159.2. This records environment diagnosis, not a successful live-model acceptance test.
 
-The blockers below describe the previous cloud environment. Local acceptance must distinguish those historical observations from current results.
+The blockers below describe the previous cloud environment. On the same date,
+local macOS and the deployed Debian 13 server independently completed real Codex
+CLI 0.163.0 + model + Docker success and failure-diagnosis cycles. Their final
+decisions were RELEASE_READY and RELEASE_BLOCKED. See
+[first-phase acceptance](FIRST_PHASE_ACCEPTANCE.md) for identities, evidence and
+scope; the old cloud errors do not describe current authentication or readiness.
 
 ## Structured result transport
 

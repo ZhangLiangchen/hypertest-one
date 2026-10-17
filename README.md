@@ -23,6 +23,10 @@ Read these before changing the architecture or domain:
 
 [Current MVP status](docs/MVP_STATUS.md) records implemented capabilities, trust boundaries, verification, and the secondary roadmap.
 
+[First-phase acceptance](docs/FIRST_PHASE_ACCEPTANCE.md) records actual checks and live
+integration evidence. [Server operations](docs/SERVER_OPERATIONS.md) contains the
+deployed release, SSH access, service management, and paired backup/recovery steps.
+
 The current product targets **one trusted operator** in a controlled development/test environment. Application login, tenant isolation, RBAC, and hardened public deployment are future work.
 
 ## Use the Web workbench
@@ -139,7 +143,9 @@ Worker settings default to `HYPERTEST_WORKER_LEASE_SECONDS=30`, `HYPERTEST_WORKE
 
 Worker shutdown interrupts active work. Docker staging/execution containers and their volumes carry the owning Job UUID; recovery first commits interrupted domain history, then attempts cleanup of only those labelled resources outside database locks. Cleanup availability and removal counts are audited. If Docker is unreachable, or a provider process survived a hard host/process kill, inspect external resources before retrying. The system preserves canonical history without claiming exactly-once external execution.
 
-Live Codex end-to-end execution remains unverified in the current cloud environment. Ordinary startup needs writable Codex runtime state; an approved diagnostic command passed initialization, then model connections were denied by the proxy with CONNECT 403. See [runtime troubleshooting](docs/CODEX_RUNTIME_TROUBLESHOOTING.md). Provider-neutral integration tests validate the platform loop; they do not establish live-model availability.
+Local and deployed Debian 13 server acceptance cover both supported stdlib/pytest backend paths using real Codex proposals and trusted Docker execution: passing applications produced FINAL `RELEASE_READY`; defective applications produced actual failures, evidence-backed Findings, and FINAL `RELEASE_BLOCKED`. Initial local rejected implementation attempts and failed Jobs remain preserved; explicit retries used real model output. All server Missions completed on their first Attempt after the operator's service-account OAuth. The deployed implementation at `89d15ae` passed 212 backend tests locally and on the server, plus both backend/Web CI jobs. See [first-phase acceptance](docs/FIRST_PHASE_ACCEPTANCE.md) for exact Run/Execution/Evidence/Verdict identities, Web operations, and supported scope.
+
+The [old cloud runtime diagnosis](docs/CODEX_RUNTIME_TROUBLESHOOTING.md) retains the historical EROFS and CONNECT 403 findings; it does not describe current local or server authentication. Provider-neutral tests remain distinct from live acceptance, and supported-path results do not establish semantic completeness or another host's integration readiness.
 
 For a controlled local-development fallback, explicitly set `HYPERTEST_RUNNER_ALLOW_LOCAL=true` for API and Worker and select the local Runner. It runs trusted repository code as a host process; it is not a container sandbox. Docker remains the default Runner.
 
