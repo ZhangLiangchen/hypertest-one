@@ -1,7 +1,7 @@
 import type {
   BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate,
-  SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict,
+  SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 
@@ -20,9 +20,19 @@ export function errorText(error: unknown, locale: Locale): string {
   if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(detail)) {
     return "无法连接服务。请确认 SSH 隧道已连接，再重试。";
   }
+  if (detail.includes("repository origin must not contain embedded credentials")) {
+    return "仓库源地址不能包含 token、用户名密码等内嵌凭据。请使用不含凭据的 origin 地址，并在 Worker 主机配置 Git 访问授权。";
+  }
+  if (detail.includes("repository origin is not a valid credential-free Git address")) {
+    return "仓库源地址格式无效。请检查 origin 地址，并在 Worker 主机配置 Git 访问授权。";
+  }
   const known: Record<string, string> = {
     "project not found": "项目不存在，请返回项目列表刷新后重试。",
     "project key already exists": "项目标识已存在。请打开已有项目，或使用其他标识。",
+    "cannot resolve repository revision; verify the branch/tag, configured Git access and network availability": "无法解析仓库版本。请检查分支或标签是否存在，以及主机上的 Git 访问授权和网络。",
+    "revision is missing or ambiguous; use an explicit refs/heads/branch or refs/tags/tag": "版本不存在或分支、标签同名。请明确填写 refs/heads/分支 或 refs/tags/标签。",
+    "choose a valid branch or tag, or enter a full commit SHA": "请填写有效的分支、标签或完整提交 SHA。",
+    "Git is unavailable on the HyperTest host": "HyperTest 主机上未检测到 Git，请先完成运行环境配置。",
     "idempotency key is already bound to a different run request": "此请求标识已用于另一组运行输入。请返回检查需求、源码和策略，再创建新的测试运行。",
     "Select a mission first.": "请先选择一个任务阶段。",
     "The saved requirements are unavailable or failed integrity verification.": "已保存的需求不可用，或未通过完整性校验。请重试；仍失败时检查服务端产物存储。",
@@ -76,6 +86,8 @@ export const createProject = (payload: ProjectCreate) =>
   api<Project>("/projects", { method: "POST", body: JSON.stringify(payload) });
 export const createRun = (projectId: string, payload: RunCreate) =>
   api<TestRun>(`/projects/${projectId}/runs/bootstrap`, { method: "POST", body: JSON.stringify(payload) });
+export const resolveSource = (payload: { repository_url: string; revision: string }) =>
+  api<SourceResolution>("/sources/resolve", { method: "POST", body: JSON.stringify(payload) });
 export const getProject = (projectId: string) => api<Project>(`/projects/${projectId}`);
 export const getProjectRuns = (projectId: string) =>
   api<TestRun[]>(`/projects/${projectId}/test-runs`);

@@ -18,6 +18,10 @@ TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context
 
 Web 提交的 DurableJob 由独立 Worker 执行；bounded Run test cycle controller 可以依次调度多个符合 TMP 的 Mission、正式 Runner 执行与 Gate 评估。它根据 deterministic Planner 的 Canonical State gap 推进工作，不接管 Agent reasoning；max_steps 限制的是平台工作单元，单个 Mission 的 Proposal / Verifier / Attempt 契约不变。Job 是平台运行请求，不能把 Job SUCCEEDED 等同于测试 PASS 或把 Job payload 当作 Canonical State。
 
+周期先以所选 Runner 的只读 fingerprint 预检实际 daemon / 可信镜像或显式 local 启用条件，成功后才进行 Git / Agent；前后重新验证归属，预检 I/O 不持 Run / Job 行锁。失败不创建正式 Execution / Evidence，预检成功也不等于测试通过。独立 Gate-only 操作不要求 Runner。
+
+`ADVANCE_RUN` 可在同一持久请求内先准备固定源 checkout（`prepare_workspace: true`），或接收已有 workspace；二者互斥。源准备是进入 Mission 之前的平台步骤，不消耗 max_steps、不产生 Agent Intelligence。Git I/O 不持有 Run / Job 行锁；准备后重新验证归属与 lease，失败或失联时不得开始 Agent。该扩展不改变 TestMission schema、Mission identity 或 Canonical 状态所有权。
+
 TMP 定义的是：
 
 > **HyperTest 如何表达测试任务，以及 Agent 如何向 HyperTest 提交工作结果。**
@@ -176,11 +180,15 @@ Context 使用引用优先，不把所有对象直接嵌进 Mission。
 }
 ```
 
-Agent 可以通过 HyperTest MCP 获取详细对象。
+协议的目标工具模式允许 Agent 通过 HyperTest MCP 获取详细对象。当前 MVP 由 Runtime 预先读取必要对象并注入 Context，使用结构化最终结果提交 Proposal；完整 MCP 域工具尚未实现。
 
 原则：
 
 > **Reference First, Materialize When Necessary.**
+
+物化上下文不得静默丢失固定输入。Web bootstrap 输入集的 PRD / configuration 在 AgentSession / Attempt 创建前按原始 UTF-8 与快照 Hash 校验，空配置也必须存在；缺失或损坏则停止。无 PRD Artifact URI 的既有 direct hash-only Snapshot 保持可选配置上下文；存在物化配置时仍必须验证。此 legacy 兼容不改写或补造 Snapshot 真值，持久化规则以领域模型 §9 为准。
+
+Repository origin 只作为无内嵌认证的源身份传递：拒绝 HTTP(S) userinfo 与可解析 URL 的 password，认证由宿主 Git 管理；保留无密码 SSH username / scp / 本地 origin。Runtime 对历史 Snapshot 也在 AgentSession / Attempt 前检查，不修改旧身份或把含凭据 URL 送入 Agent Context。输入校验的 HTTP 422 只输出 `type` / `loc` / `msg`，不回显 `input` / `ctx` 或请求 body。该边界不等于任意秘密扫描或所有日志的全面脱敏。
 
 ---
 
@@ -498,6 +506,8 @@ Output Contract       → Structured Output Schema
 AgentEvent            ← Codex Streaming Event
 ```
 
+当前 CLI Adapter 用官方 `codex exec -` 的 stdin 传入 UTF-8 Prompt，不把大 PRD 作为 argv 参数；传输与事件流读取并行。严格 `--output-schema`、CLI 写入 `--output-last-message` 的最终响应、read-only sandbox 与非交互审批策略保持。stdin 是 Provider 传输细节，不修改 TMP 消息、权限或 Canonical identity；多兆输入的 subprocess 回归不能用作模型上下文容量或真实模型验收证据。
+
 ### Claude Mapping
 
 ```text
@@ -519,6 +529,8 @@ MCP = Runtime Domain Tool Contract
 ```
 
 TMP 告诉 Agent“你要完成什么”；MCP 允许 Agent 在执行过程中读取 Testing State、提交 Proposal、申请 Execution。
+
+§24–26 定义目标 MCP 工具面，当前 Codex MVP 采用最终结果通道，不声称已经提供这些运行时工具。正式 Execution 仍由平台 controller / Runner 调度，Agent 自行运行命令不能形成正式事实。
 
 ---
 
@@ -613,7 +625,7 @@ Agent 需要人工输入时发出 WAITING_INPUT：
 }
 ```
 
-HyperTest UI 展示，用户回答后 resume mission，Provider-specific resume 由 Adapter 完成。
+目标交互由 HyperTest UI 展示，用户回答后 resume mission，Provider-specific resume 由 Adapter 完成。当前 MVP 尚未实现 WAITING_INPUT 问题持久化、回答 API / Web 与 Provider resume 闭环；状态和事件枚举的存在不构成功能验收。
 
 ---
 
@@ -636,6 +648,8 @@ Mission Attempt 必须独立记录，历史 Attempt 不覆盖。
 
 Worker 租约过期或进程中断时，平台保留失联 Attempt 并标记 FAILED，将 Mission 标记 RETRYING；旧 lease token 不能再提交 Canonical 结果。Job 记录 INTERRUPTED，不自动重放外部执行。用户确认后显式重试生成新的 Job；Mission 重试仍追加新的 Attempt，Execution 重试仍创建新 Execution。Web 刷新或 API 请求结束不会撤销已经入库的 Job。
 
+周期因 `MISSION_REJECTED` / `MISSION_FAILED` 受控停止时，FAILED Job result 保留 stop reason、已持久步骤、相关 Mission ID 和已解析 workspace；独立 EXECUTE_MISSION 拒绝还保留 Attempt ID。它只索引已有历史，不接受模型自报为执行事实，也不重新打开终态 Mission。FAILED Mission 必须明确报告失败，不能作为 `MISSION_IN_PROGRESS` 返回。通用异常可没有部分 result；取消或租约失效不接受迟到 handler 结果。用户显式 retry 仍生成关联新 Job，不覆盖旧 Job / Attempt / Proposal。
+
 ---
 
 ## 32. Idempotency
@@ -650,6 +664,8 @@ Worker 租约过期或进程中断时，平台保留失联 Attempt 并标记 FAI
 ```
 
 避免 Agent Retry 产生重复 Case / Risk / Finding。
+
+Operational Job 的输入比较允许对新增缺省项作内存规范化：旧 `ADVANCE_RUN` payload 未包含 `prepare_workspace` 与显式 `false` 等价。原持久 payload 不 UPDATE，真实输入差异仍拒绝复用同一 key；显式 retry 仍保留 lineage。该兼容不放宽 Mission / Proposal 的幂等规则，规范以领域模型 §23.1 为准。
 
 ---
 
@@ -697,7 +713,7 @@ Provider-specific Error 保留在 `provider_metadata`。
 
 ## 36. Capability Negotiation
 
-Adapter 注册 Harness Capability：
+目标契约由 Adapter 注册 Harness Capability，以下为能力描述示例，并非当前 Codex Adapter 的已验收能力清单：
 
 ```json
 {
@@ -715,6 +731,8 @@ Adapter 注册 Harness Capability：
 ```
 
 Planner / Scheduler 可基于 Capability 选择 Worker。
+
+当前 MVP 使用配置的默认 Codex Harness；完整协商、跨 Harness 选择、MCP 与 session resume 尚未实现，不能根据上述示例的 `true` 声明支持。
 
 ---
 

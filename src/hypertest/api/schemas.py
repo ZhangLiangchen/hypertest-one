@@ -4,8 +4,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from hypertest.common.repositories import validate_repository_origin
 from hypertest.domain.enums import (
     MissionAttemptStatus,
     MissionStatus,
@@ -33,11 +34,18 @@ class ORMModel(BaseModel):
 
 
 class ProjectCreate(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     key: str = Field(min_length=2, max_length=64, pattern=r"^[A-Z0-9_-]+$")
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     repository_url: str | None = None
     default_branch: str = "main"
+
+    @field_validator("repository_url")
+    @classmethod
+    def credential_free_repository(cls, value: str | None) -> str | None:
+        return validate_repository_origin(value) if value is not None else None
 
 
 class ProjectRead(ORMModel):
@@ -54,12 +62,19 @@ class ProjectRead(ORMModel):
 
 
 class SourceSnapshotCreate(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     repository_url: str
     commit_sha: str = Field(min_length=7, max_length=64)
     branch: str | None = None
     prd_sha256: str = Field(min_length=64, max_length=64)
     prd_artifact_uri: str | None = None
     configuration_sha256: str = Field(min_length=64, max_length=64)
+
+    @field_validator("repository_url")
+    @classmethod
+    def credential_free_repository(cls, value: str) -> str:
+        return validate_repository_origin(value)
 
 
 class SourceSnapshotRead(ORMModel):

@@ -16,7 +16,8 @@ def telemetry_provider(tmp_path: Path, *, oversized: bool, trailing_newline: boo
     script = tmp_path / "telemetry_provider.py"
     script.write_text(f"""#!{sys.executable}
 import json,pathlib,sys
-mission=json.loads(sys.argv[-1].split("TEST_MISSION_JSON:\\n",1)[1])
+assert sys.argv[-1] == "-"
+mission=json.loads(sys.stdin.read().split("TEST_MISSION_JSON:\\n",1)[1])
 output=pathlib.Path(sys.argv[sys.argv.index("--output-last-message")+1])
 payload={{"protocol":mission["protocol"],"mission_id":mission["mission_id"],"status":"COMPLETED","summary":"ok" if {oversized!r} else "x"*70000,"proposals":[]}}
 output.write_text(json.dumps(payload))

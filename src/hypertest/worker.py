@@ -38,21 +38,35 @@ logger = logging.getLogger("hypertest.worker")
 Dispatcher = Callable[[AsyncSession, DurableJob], Awaitable[dict[str, Any]]]
 
 
+class JobDispatchError(RuntimeError):
+    """A controlled stop with recorded progress, never synthetic testing facts."""
+
+    def __init__(self, error_code: str, message: str, result: dict[str, Any]):
+        super().__init__(message)
+        self.error_code, self.result = error_code, result
+
+
 async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]:
     payload = dict(job.payload)
     if job.job_type is JobType.ADVANCE_RUN:
         from hypertest.application.controller import advance_run
         result = await advance_run(session, job.test_run_id, **payload)
-        if result["reason"] == "MISSION_REJECTED":
-            raise RuntimeError("mission proposals rejected; inspect mission details before retry")
+        if result["reason"] in {"MISSION_REJECTED", "MISSION_FAILED"}:
+            raise JobDispatchError(
+                result["reason"], "mission stopped; inspect its recorded details before retry", result,
+            )
         return result
     if job.job_type is JobType.EXECUTE_MISSION:
         from hypertest.application.runtime import execute_mission
         result = await execute_mission(session, job.mission_id, **payload)
+        recorded = {"mission_id": str(result.mission.id), "mission_key": result.mission.key,
+                    "attempt_id": str(result.attempt.id), "status": result.mission.status.value}
         if result.attempt.status is not MissionAttemptStatus.ACCEPTED:
-            raise RuntimeError("mission proposals rejected; inspect mission details before retry")
-        return {"mission_id": str(result.mission.id), "mission_key": result.mission.key,
-                "attempt_id": str(result.attempt.id), "status": result.mission.status.value}
+            raise JobDispatchError(
+                "MISSION_REJECTED", "mission proposals rejected; inspect its recorded details before retry",
+                {"reason": "MISSION_REJECTED", **recorded},
+            )
+        return recorded
     if job.job_type is JobType.EXECUTE_TESTS:
         from hypertest.application.executions import execute_test_run
         payload["purpose"] = ExecutionPurpose(payload["purpose"])
@@ -134,6 +148,10 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
         # A recovery transaction owns canonical cleanup. Never bypass the fence.
         logger.warning("Lease lost for job %s", job.key)
         error_code, error_message, interrupted = "JOB_LEASE_LOST", "Worker ownership was revoked", True
+    except JobDispatchError as exc:
+        result = exc.result
+        error_code, error_message = exc.error_code, str(exc)[:2048]
+        logger.warning("Job %s stopped (%s)", job.key, error_code)
     except Exception as exc:
         error_code, error_message = type(exc).__name__.upper()[:64], str(exc)[:2048]
         logger.warning("Job %s failed (%s)", job.key, error_code)

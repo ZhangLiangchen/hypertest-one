@@ -25,7 +25,8 @@ def make_provider(tmp_path, *, oversized=False):
     script = tmp_path / "provider.py"
     script.write_text(f"""#!{sys.executable}
 import json,pathlib,re,sys,time
-prompt=sys.argv[-1]
+assert sys.argv[-1] == "-"
+prompt=sys.stdin.read()
 mission=json.loads(prompt.split("TEST_MISSION_JSON:\\n",1)[1])
 assert sys.argv[1:4] == ["--ask-for-approval", "never", "exec"]
 assert sys.argv[sys.argv.index("--sandbox")+1] == "read-only"

@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hypertest.api.schemas import ORMModel
+from hypertest.common.repositories import validate_repository_origin
 from hypertest.domain.enums import (
     ExecutionPurpose,
     FindingResolution,
@@ -13,6 +14,8 @@ from hypertest.domain.enums import (
 
 
 class RunBootstrap(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     repository_url: str = Field(min_length=1, max_length=2048)
     commit_sha: str = Field(pattern=r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
     branch: str | None = None
@@ -20,6 +23,22 @@ class RunBootstrap(BaseModel):
     configuration_text: str = Field(default="{}", max_length=100_000)
     policy: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
+
+    @field_validator("repository_url")
+    @classmethod
+    def credential_free_repository(cls, value: str) -> str:
+        return validate_repository_origin(value)
+
+
+class SourceResolveRequest(BaseModel):
+    repository_url: str = Field(min_length=1, max_length=2048)
+    revision: str = Field(min_length=1, max_length=255)
+
+
+class SourceResolveRead(BaseModel):
+    repository_url: str
+    commit_sha: str
+    revision: str
 
 
 class ExecutionCreate(BaseModel):
@@ -35,10 +54,17 @@ class GateRequest(BaseModel):
 
 
 class RunAdvance(BaseModel):
-    workspace: str = Field(min_length=1)
+    workspace: str | None = Field(default=None, min_length=1)
+    prepare_workspace: bool = False
     backend: Literal["docker", "local"] = "docker"
     timeout_seconds: int = Field(default=300, ge=1, le=3600)
     max_steps: int = Field(default=12, ge=1, le=32)
+
+    @model_validator(mode="after")
+    def source_mode(self):
+        if self.prepare_workspace == bool(self.workspace and self.workspace.strip()):
+            raise ValueError("choose either automatic pinned checkout or an existing workspace")
+        return self
 
 
 class FindingTransition(BaseModel):

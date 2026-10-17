@@ -18,6 +18,7 @@ from hypertest.agent.snapshot import SnapshotHarness
 from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.verifier import VerificationResult, verify_mission_result
 from hypertest.common.ids import uuid7
+from hypertest.common.repositories import validate_repository_origin
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.enums import (
@@ -131,6 +132,10 @@ async def _hydrate_source_context(
     snapshot = await session.get(SourceSnapshot, test_run.source_snapshot_id)
     if snapshot is None:
         raise MissionRuntimeError("source snapshot not found")
+    try:
+        validate_repository_origin(snapshot.repository_url)
+    except ValueError as exc:
+        raise MissionRuntimeError(str(exc)) from None
     context = dict(contract.get("context", {}))
     context.update(repository_url=snapshot.repository_url, commit_sha=snapshot.commit_sha)
     root = Path(get_settings().artifact_root).resolve()
@@ -149,7 +154,11 @@ async def _hydrate_source_context(
         except (OSError, UnicodeError) as exc:
             raise MissionRuntimeError("PRD artifact cannot be read as UTF-8 text") from exc
     configuration = root / "inputs" / f"{snapshot.configuration_sha256}.txt"
-    if configuration.exists():
+    # A PRD artifact URI identifies materialized inputs (including Web bootstrap,
+    # which saves both artifacts). Missing configuration must not silently change
+    # that fixed input. Legacy direct snapshots can contain only hashes and no
+    # materialized PRD/configuration; their existing optional context is retained.
+    if snapshot.prd_artifact_uri or configuration.exists():
         if not configuration.resolve().is_relative_to(root):
             raise MissionRuntimeError(
                 "configuration artifact is outside the configured input store"

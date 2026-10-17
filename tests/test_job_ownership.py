@@ -15,6 +15,7 @@ from hypertest.application import controller
 from hypertest.application.jobs import cancel_job, submit_job
 from hypertest.application.services import ConflictError, create_mission
 from hypertest.common.ids import public_key, uuid7
+from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.enums import MissionStatus, MissionType
 from hypertest.domain.jobs import JobType
@@ -254,6 +255,7 @@ async def test_legacy_advance_rechecks_job_admission_after_planner_commit(
             queued_id = job.id
         return result
 
+    monkeypatch.setattr(get_settings(), "runner_allow_local", True)
     monkeypatch.setattr(controller, "plan_next_mission", plan_then_queue)
     harness = CountingHarness()
     async with AsyncSessionLocal() as session:
@@ -261,7 +263,9 @@ async def test_legacy_advance_rechecks_job_admission_after_planner_commit(
         run_id, snapshot_id = run.id, run.source_snapshot_id
         try:
             with pytest.raises(ConflictError, match="active background work"):
-                await controller.advance_run(session, run_id, workspace=".", harness=harness)
+                await controller.advance_run(
+                    session, run_id, workspace=".", backend="local", harness=harness,
+                )
         finally:
             # Release the guard's aggregate lock before cancelling in another session.
             await session.rollback()

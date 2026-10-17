@@ -2,25 +2,38 @@
 
 import { ArrowLeftOutlined, ArrowRightOutlined, BranchesOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Row, Space, Spin, Steps, Tag, Typography } from "antd";
+import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Radio, Row, Space, Spin, Steps, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { createRun, errorText, getProject, getProjectRuns } from "@/lib/api";
+import { createRun, errorText, getProject, getProjectRuns, resolveSource } from "@/lib/api";
 import { ClientModal as Modal } from "@/app/client-modal";
 import { useI18n } from "@/lib/i18n";
-import type { RunCreate } from "@/lib/types";
+import type { RunCreate, SourceResolution } from "@/lib/types";
 import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
 import type { PolicyFormValues } from "./policy-fields";
 
 type RunFormValues = PolicyFormValues & {
   repository_url: string;
+  source_mode: "revision" | "sha";
+  revision: string;
   commit_sha: string;
   branch?: string;
   prd_text: string;
   configuration_text: string;
 };
+
+type SourceLookup = { repository_url: string; revision: string; generation: number };
+
+function supportsSourceResolution(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return /^https:\/\/github\.com\//i.test(value.trim()) && url.protocol === "https:" && url.hostname === "github.com" && !url.port
+      && !url.username && !url.password && !url.search && !url.hash
+      && /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?\/?$/.test(url.pathname);
+  } catch { return false; }
+}
 
 type ImportError = "type" | "size" | "encoding" | "length" | "read";
 const MAX_PRD_CHARACTERS = 2_000_000;
@@ -48,17 +61,53 @@ export default function ProjectPage() {
   const [hasDraft, setHasDraft] = useState(false);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<RunFormValues>({
-    repository_url: "", commit_sha: "", branch: "main", prd_text: "", configuration_text: "{}",
+    repository_url: "", source_mode: "revision", revision: "main", commit_sha: "", branch: "main", prd_text: "", configuration_text: "{}",
     ...defaultPolicyValues(),
   });
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<ImportError | null>(null);
   const [importedFileName, setImportedFileName] = useState("");
   const [requestTooLarge, setRequestTooLarge] = useState(false);
+  const [resolvedSource, setResolvedSource] = useState<SourceResolution | null>(null);
+  const [sourceLookupError, setSourceLookupError] = useState<unknown>(null);
+  const lookupGeneration = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const draftProjectId = useRef<string | null>(null);
   const requestIdentity = useRef<{ signature: string; key: string } | null>(null);
   const [form] = Form.useForm<RunFormValues>();
+  const sourceMode = Form.useWatch("source_mode", { form, preserve: true }) || "revision";
+  const repositoryOrigin = Form.useWatch("repository_url", { form, preserve: true }) || "";
+  const sourceResolver = useMutation({
+    mutationFn: ({ repository_url, revision }: SourceLookup) => resolveSource({ repository_url, revision }),
+    onSuccess: (result, request) => {
+      if (request.generation !== lookupGeneration.current || form.getFieldValue("source_mode") !== "revision") return;
+      setResolvedSource(result);
+      setSourceLookupError(null);
+      if (creation.isError) creation.reset();
+      form.setFieldsValue({ repository_url: result.repository_url, revision: result.revision, commit_sha: result.commit_sha, branch: result.revision });
+      form.setFields([{ name: "commit_sha", errors: [] }]);
+    },
+    onError: (error, request) => {
+      if (request.generation === lookupGeneration.current) setSourceLookupError(error);
+    },
+  });
+
+  const resolveRevision = async () => {
+    try {
+      await form.validateFields(["repository_url", "revision"]);
+      if (form.getFieldValue("source_mode") !== "revision") return;
+      const repository_url = String(form.getFieldValue("repository_url")).trim();
+      const revision = String(form.getFieldValue("revision")).trim();
+      const generation = ++lookupGeneration.current;
+      setResolvedSource(null);
+      setSourceLookupError(null);
+      form.setFieldValue("commit_sha", "");
+      sourceResolver.mutate({ repository_url, revision, generation });
+    } catch {
+      const firstInvalid = form.getFieldsError().find((field) => field.errors.length);
+      if (firstInvalid) form.scrollToField(firstInvalid.name, { focus: true });
+    }
+  };
   useEffect(() => {
     if (!createOpen) return;
     const invalid = form.getFieldsError().filter((field) => field.errors.length).map((field) => field.name);
@@ -85,6 +134,8 @@ export default function ProjectPage() {
     if (!hasDraft || draftProjectId.current !== params.projectId) {
       const initialValues: RunFormValues = {
         repository_url: project.data?.repository_url || "",
+        source_mode: !project.data?.repository_url || supportsSourceResolution(project.data.repository_url) ? "revision" : "sha",
+        revision: project.data?.default_branch || "main",
         commit_sha: "",
         branch: project.data?.default_branch || "main",
         prd_text: "",
@@ -96,6 +147,10 @@ export default function ProjectPage() {
       setDraft(initialValues);
       creation.reset();
       requestIdentity.current = null;
+      lookupGeneration.current += 1;
+      setResolvedSource(null);
+      setSourceLookupError(null);
+      sourceResolver.reset();
       draftProjectId.current = params.projectId;
       setImportedFileName("");
       setImportError(null);
@@ -114,7 +169,8 @@ export default function ProjectPage() {
       return;
     }
     const input = buildRunInput(values);
-    const signature = JSON.stringify({ project_id: params.projectId, ...input });
+    // Reference labels do not change the canonical SourceSnapshot identity.
+    const signature = JSON.stringify({ project_id: params.projectId, ...input, branch: undefined });
     // Retry identical inputs with the same key. Edited inputs must never reopen an older run.
     if (requestIdentity.current?.signature !== signature) {
       requestIdentity.current = { signature, key: `web:${crypto.randomUUID()}` };
@@ -285,46 +341,77 @@ export default function ProjectPage() {
           requiredMark="optional"
           onFinish={submitStep}
           onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}
-          onValuesChange={() => { if (creation.isError) creation.reset(); setRequestTooLarge(false); }}
+          onValuesChange={(changed: Partial<RunFormValues>) => {
+            if (creation.isError) creation.reset();
+            setRequestTooLarge(false);
+            if ("repository_url" in changed || "revision" in changed || "source_mode" in changed) {
+              lookupGeneration.current += 1;
+              setResolvedSource(null);
+              setSourceLookupError(null);
+              sourceResolver.reset();
+              if (form.getFieldValue("source_mode") === "revision") form.setFields([{ name: "commit_sha", value: "", errors: [] }]);
+            }
+          }}
         >
           {step === 0 ? (
             <>
               <Typography.Paragraph className="muted">
-                {t("Choose the exact source revision to test. The full commit SHA keeps this run tied to an immutable version.", "选择需要测试的确切代码版本。完整提交 SHA 将本次运行固定到不可变版本。")}
+                {t("Choose the repository origin and exact version to test. Resolve a branch or tag to a fixed commit, or enter the full SHA yourself.", "填写仓库源地址及需要测试的版本。可以将分支或标签解析为固定提交，也可以手工输入完整 SHA。")}
               </Typography.Paragraph>
               <Alert
                 type="info"
                 showIcon
-                message={t("Where will the source code be read?", "源码从哪里读取？")}
-                description={t("Credential-free GitHub HTTPS repositories support automatic checkout. Other repository addresses or paths require an existing matching Git checkout on the Worker host. A path on your browser's computer does not upload the repository to the server.", "无需凭据的 GitHub HTTPS 仓库支持自动检出。其他仓库地址或路径，需要 Worker 所在主机已有对应的 Git 检出。填写浏览器所在电脑的路径，不会将仓库上传到服务器。")}
+                message={t("Origin address and checkout folder are different", "仓库源地址与检出目录不同")}
+                description={<>{t("Use the origin address reported by ", "请填写以下命令输出的 origin 地址：")}<Typography.Text code copyable>git remote get-url origin</Typography.Text>{t(". Do not enter an arbitrary checkout directory here. A local Git source path is supported only when it is the origin value itself. Choose an existing Worker checkout directory after run creation; a browser-computer path does not upload source to the server.", "。此处不能用任意 Git 检出目录替代源地址。本地 Git 源路径只有与 origin 输出本身一致时才有效。已有 Worker 检出目录将在创建运行后选择；填写浏览器电脑上的路径不会把源码上传到服务器。")}</>}
                 style={{ marginBottom: 20 }}
               />
               <Form.Item
                 name="repository_url"
-                label={t("Repository URL or server path", "仓库地址或服务器路径")}
+                label={t("Repository origin", "仓库源地址（origin）")}
                 normalize={(value: string) => value.trim()}
+                extra={t("GitHub HTTPS sources without embedded credentials support reference resolution and managed checkout. Other Git origins use a manual SHA and a matching checkout on the Worker host.", "不含内嵌凭据的 GitHub HTTPS 源支持版本解析及托管检出。其他 Git 源需手工输入 SHA，并在 Worker 主机提供匹配的检出。")}
                 rules={[
-                  { required: true, whitespace: true, message: t("Enter the repository URL or Worker host path.", "请输入仓库地址，或 Worker 主机上的仓库路径。") },
+                  { required: true, whitespace: true, message: t("Enter the repository's origin address.", "请输入仓库的 origin 源地址。") },
                   { max: 2048, message: t("Use at most 2,048 characters.", "最多输入 2,048 个字符。") },
                 ]}
               >
                 <Input placeholder="https://github.com/your-team/your-repository" maxLength={2048} />
               </Form.Item>
+              <Form.Item name="source_mode" label={t("Choose a version", "选择源码版本")}>
+                <Radio.Group options={[{ value: "revision", label: t("Resolve branch or tag", "解析分支或标签") }, { value: "sha", label: t("Enter full commit SHA", "手工输入完整 SHA") }]} />
+              </Form.Item>
+              {sourceMode === "revision" ? <>
+                <Form.Item
+                  name="revision"
+                  label={t("Branch, tag or full SHA", "分支、标签或完整 SHA")}
+                  normalize={(value: string) => value.trim()}
+                  rules={[{ required: true, whitespace: true, message: t("Enter a branch, tag or full commit SHA to resolve.", "请输入需要解析的分支、标签或完整提交 SHA。") }]}
+                >
+                  <Input placeholder={project.data.default_branch || "main"} autoComplete="off" />
+                </Form.Item>
+                {repositoryOrigin && !supportsSourceResolution(repositoryOrigin) ? <Alert type="info" showIcon message={t("Use manual SHA for this Git origin", "此 Git 源请使用手工 SHA 模式")} description={t("Reference resolution supports credential-free HTTPS github.com/owner/repository URLs. For another host, SSH origin or local Git origin, enter its full commit SHA and provide a matching Worker checkout later.", "版本解析仅支持不含凭据的 HTTPS github.com/组织/仓库 地址。其他主机、SSH 源或本地 Git 源，请手工输入完整提交 SHA，并在后续提供匹配的 Worker 检出。")} style={{ marginBottom: 16 }} /> : null}
+                <Button loading={sourceResolver.isPending} disabled={!supportsSourceResolution(repositoryOrigin)} onClick={() => void resolveRevision()} style={{ marginBottom: 16 }}>{t("Resolve and pin commit", "解析并固定提交")}</Button>
+                {sourceLookupError ? <Alert type="error" showIcon message={t("Unable to resolve the source version", "无法解析源码版本")} description={<>{errorText(sourceLookupError, locale)} {t("Check the origin and reference, then retry; you can also use manual SHA.", "请检查源地址和参考版本后重试，也可以切换为手工 SHA。")}</>} style={{ marginBottom: 16 }} /> : null}
+                {resolvedSource ? <Alert type="success" showIcon message={t("Source commit pinned", "已固定源码提交")} description={<Space direction="vertical" size={4}><Typography.Text>{t("Resolved reference: ", "解析版本：")}{resolvedSource.revision}</Typography.Text><Typography.Text code copyable style={{ overflowWrap: "anywhere" }}>{resolvedSource.commit_sha}</Typography.Text><Typography.Text>{t("The run will keep this commit even if the branch or tag moves. Editing the origin or reference requires resolving again.", "分支或标签后续移动不会改变本次运行的固定提交。修改源地址或参考版本后，需要重新解析。")}</Typography.Text></Space>} style={{ marginBottom: 16 }} /> : null}
+              </> : null}
               <Form.Item
                 name="commit_sha"
-                label={t("Commit SHA", "提交 SHA")}
+                label={sourceMode === "revision" ? t("Pinned commit SHA", "固定提交 SHA") : t("Full commit SHA", "完整提交 SHA")}
                 normalize={(value: string) => value.trim().toLowerCase()}
-                extra={<>{t("Paste the full 40- or 64-character commit SHA. In your Git repository, run: ", "粘贴完整的 40 位或 64 位提交 SHA。在 Git 仓库中执行：")}<Typography.Text code copyable>git rev-parse HEAD</Typography.Text></>}
+                extra={sourceMode === "revision" ? t("Filled by resolution. No branch or tag name is submitted as the tested commit.", "解析成功后自动填入；正式测试使用完整 SHA，不会用分支或标签名替代提交。") : <>{t("Paste the full 40- or 64-character commit SHA. In your matching checkout, run: ", "粘贴完整的 40 位或 64 位提交 SHA。在匹配的 Git 检出中执行：")}<Typography.Text code copyable>git rev-parse HEAD</Typography.Text></>}
                 rules={[
-                  { required: true, message: t("Enter the full commit SHA.", "请输入完整提交 SHA。") },
+                  { required: true, message: sourceMode === "revision" ? t("Resolve the selected source version first.", "请先解析所选源码版本。") : t("Enter the full commit SHA.", "请输入完整提交 SHA。") },
                   { pattern: /^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/, message: t("Enter a full 40-character or 64-character hexadecimal commit SHA.", "请输入完整的 40 位或 64 位十六进制提交 SHA。") },
+                  { validator: async (_, value: string) => {
+                    if (form.getFieldValue("source_mode") === "revision" && (!resolvedSource || resolvedSource.commit_sha !== value)) throw new Error(t("Resolve the current origin and reference before continuing, or use manual SHA.", "请先解析当前源地址和参考版本，再继续；也可以切换为手工 SHA。"));
+                  } },
                 ]}
               >
-                <Input placeholder={t("Full commit SHA", "完整提交 SHA")} autoComplete="off" style={{ fontFamily: "monospace" }} />
+                <Input readOnly={sourceMode === "revision"} placeholder={sourceMode === "revision" ? t("Resolve a version to fill the commit SHA", "解析版本后填入固定 SHA") : t("Full commit SHA", "完整提交 SHA")} autoComplete="off" style={{ fontFamily: "monospace" }} />
               </Form.Item>
-              <Form.Item name="branch" label={t("Branch", "分支")} extra={t("Optional reference label. The commit SHA fixes the tested version.", "可选参考标签；实际测试版本以提交 SHA 为准。")}>
+              {sourceMode === "sha" ? <Form.Item name="branch" label={t("Reference label", "参考版本标签")} extra={t("Optional label for a branch or tag. The full commit SHA fixes the tested version.", "可选的分支或标签说明；实际测试版本以完整提交 SHA 为准。")}>
                 <Input placeholder={project.data.default_branch} />
-              </Form.Item>
+              </Form.Item> : null}
             </>
           ) : step === 1 ? (
             <>
@@ -379,9 +466,9 @@ export default function ProjectPage() {
               />
               <Descriptions bordered size="small" column={1}>
                 <Descriptions.Item label={t("Project", "项目")}>{project.data.name}</Descriptions.Item>
-                <Descriptions.Item label={t("Repository", "仓库")}><span style={{ overflowWrap: "anywhere" }}>{draft.repository_url}</span></Descriptions.Item>
+                <Descriptions.Item label={t("Repository origin", "仓库源地址")}><span style={{ overflowWrap: "anywhere" }}>{draft.repository_url}</span></Descriptions.Item>
                 <Descriptions.Item label={t("Commit", "提交")}><Typography.Text code copyable style={{ overflowWrap: "anywhere", wordBreak: "break-all" }}>{draft.commit_sha}</Typography.Text></Descriptions.Item>
-                <Descriptions.Item label={t("Branch", "分支")}>{draft.branch?.trim() || t("Not specified", "未指定")}</Descriptions.Item>
+                <Descriptions.Item label={t("Reference label", "参考版本标签")}>{draft.branch?.trim() || t("Not specified", "未指定")}</Descriptions.Item>
                 <Descriptions.Item label={t("Policy", "策略")}><PolicyReview values={draft} /></Descriptions.Item>
               </Descriptions>
               <div style={{ width: "100%" }}>
@@ -405,6 +492,7 @@ export default function ProjectPage() {
                 htmlType="submit"
                 aria-label={step < 3 ? t("Continue to next step", "继续下一步") : t("Create test run", "创建测试运行")}
                 loading={creation.isPending || creation.isSuccess}
+                disabled={step === 0 && sourceMode === "revision" && sourceResolver.isPending}
               >
                 {step < 3 ? <>{t("Continue", "下一步")} <ArrowRightOutlined aria-hidden /></> : t("Create test run", "创建测试运行")}
               </Button>

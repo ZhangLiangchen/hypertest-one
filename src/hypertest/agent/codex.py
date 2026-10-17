@@ -206,31 +206,53 @@ class CodexCliAdapter:
             str(schema_path),
             "--output-last-message",
             str(result_path),
-            prompt,
+            "-",
             cwd=workspace,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            stdin=asyncio.subprocess.DEVNULL,
+            stdin=asyncio.subprocess.PIPE,
             start_new_session=True,
         )
         self._processes[session.id] = process
+
+        async def send_prompt() -> None:
+            assert process.stdin is not None
+            try:
+                process.stdin.write(prompt.encode("utf-8"))
+                await process.stdin.drain()
+            except (BrokenPipeError, ConnectionResetError):
+                # A CLI can fail before reading stdin. Its exit status and stderr
+                # remain the result, rather than a pipe error masking the cause.
+                pass
+            finally:
+                process.stdin.close()
+
+        # Drain output while sending input: a provider can emit telemetry before
+        # consuming a large prompt, so either pipe must not block the other.
+        prompt_task = asyncio.create_task(send_prompt())
         stderr_task = None
         if process.stderr is not None:
             stderr_task = asyncio.create_task(process.stderr.read())
 
-        yield AgentEvent(type="MISSION_STARTED", payload={"provider": "codex"})
+        try:
+            yield AgentEvent(type="MISSION_STARTED", payload={"provider": "codex"})
 
-        assert process.stdout is not None
-        async for provider_event in _read_jsonl_telemetry(process.stdout):
-            yield AgentEvent(
-                type="ACTIVITY",
-                payload={
-                    "provider": "codex",
-                    "provider_event": provider_event,
-                },
-            )
+            assert process.stdout is not None
+            async for provider_event in _read_jsonl_telemetry(process.stdout):
+                yield AgentEvent(
+                    type="ACTIVITY",
+                    payload={
+                        "provider": "codex",
+                        "provider_event": provider_event,
+                    },
+                )
 
-        return_code = await process.wait()
+            return_code = await process.wait()
+            await prompt_task
+        finally:
+            if not prompt_task.done():
+                prompt_task.cancel()
+            await asyncio.gather(prompt_task, return_exceptions=True)
         self._processes.pop(session.id, None)
         stderr = ""
         if stderr_task is not None:

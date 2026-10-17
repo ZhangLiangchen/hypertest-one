@@ -193,8 +193,8 @@ export default function DashboardPage() {
           </Form.Item>
           <Form.Item
             name="repository_url"
-            label={t("Repository URL or server path", "仓库地址或服务器路径")}
-            extra={t("Optional. Prefills new test runs. A local path must exist on the Worker host, not just on this computer.", "可选，用于预填新测试运行。路径必须存在于 Worker 所在主机，不能只存在于当前浏览器的电脑上。")}
+            label={t("Repository origin", "仓库源地址（origin）")}
+            extra={<>{t("Optional. Use the repository's origin address, not its checkout folder. In an existing checkout, run: ", "可选，用于预填新测试运行。填写仓库的 origin 地址，不是检出目录。在已有 Git 检出中执行：")}<Typography.Text code copyable>git remote get-url origin</Typography.Text>{t(". A local Git source path is valid only when it is the origin value itself. Choose the Worker checkout directory after creating a run.", "。本地 Git 源路径只有与 origin 输出本身一致时才有效；Worker 工作目录将在创建运行后选择。")}</>}
             rules={[{ max: 2048, message: t("Use at most 2,048 characters for the repository address.", "仓库地址最多 2,048 个字符。") }]}
           >
             <Input placeholder="https://github.com/your-team/your-repository" maxLength={2048} />
