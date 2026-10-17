@@ -299,6 +299,8 @@ The test database must already exist; pytest never drops, recreates, or clears a
 database. Without this optional setting, tests use the configured development/CI
 database, which must be disposable.
 
+Frontend work follows [PRODUCT.md](PRODUCT.md) for users and workflow and [DESIGN.md](DESIGN.md) for visual tokens, navigation, responsive behavior and interaction states. The default is code-led implementation with bilingual support: prioritize progress, failure reasons, formal verdicts and trusted evidence. See [frontend design acceptance](docs/FRONTEND_DESIGN_REVIEW.md) for browser checks and their scope. The four foundational specifications retain authority over domain and protocol semantics.
+
 Web validation:
 
 ```bash

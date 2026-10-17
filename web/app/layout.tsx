@@ -19,7 +19,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers initialLocale={initialLocale}>
           <div className="app-shell">
             <SiteHeader />
-            <div className="page-container">{children}</div>
+            <div id="main-content" tabIndex={-1} className="page-container">{children}</div>
           </div>
         </Providers>
       </body>

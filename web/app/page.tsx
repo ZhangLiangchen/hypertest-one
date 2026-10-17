@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRightOutlined, CodeOutlined, DatabaseOutlined, PlusOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, BranchesOutlined, FolderOpenOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, Empty, Form, Input, Row, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Button, Empty, Form, Input, Select, Space, Spin, Table, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -21,7 +21,9 @@ type ProjectFormValues = {
 };
 
 export default function DashboardPage() {
-  const { t, label, locale } = useI18n();
+  const { t, label, locale, formatDate } = useI18n();
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
   const router = useRouter();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -63,64 +65,36 @@ export default function DashboardPage() {
 
   return (
     <main>
-      <div className="page-heading">
-        <div className="eyebrow">{t("Autonomous Testing Control Plane", "自主测试控制平面")}</div>
-        <Typography.Title level={1} style={{ margin: 0 }}>
-          {t("Your testing workspace.", "你的测试工作台")}
-        </Typography.Title>
-        <Typography.Paragraph className="muted" style={{ maxWidth: 760, marginTop: 10 }}>
-          {t("Bring your requirements and repository together. HyperTest tracks testing work from requirements and risks to test cases, execution and evidence.", "连接产品需求与代码仓库，从需求、风险、测试用例到执行与证据，追踪完整测试过程。")}
-        </Typography.Paragraph>
-        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>
-          {t("Create project", "创建项目")}
-        </Button>
+      <div className="page-heading heading-with-action">
+        <div>
+          <Typography.Title level={1} style={{ margin: 0 }}>{t("Projects", "项目工作台")}</Typography.Title>
+          <Typography.Paragraph className="muted page-intro">{t("A clear path from requirements to a trusted testing decision.", "从需求出发，追踪每一轮测试，直到有据可查的质量结论。")}</Typography.Paragraph>
+        </div>
+        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button>
       </div>
-
-      {projects.isLoading ? (
-        <div className="pane-loading" role="status" aria-label={t("Loading projects…", "正在加载项目…")}><Spin size="large" /></div>
-      ) : projects.isError ? (
-        <Alert
-          type="error"
-          showIcon
-          message={t("Unable to load projects", "无法加载项目")}
-          description={errorText(projects.error, locale)}
-          action={<Button onClick={() => void projects.refetch()} loading={projects.isFetching}>{t("Retry", "重试")}</Button>}
-        />
-      ) : projects.data?.length ? (
-        <Row gutter={[18, 18]}>
-          {projects.data.map((project) => (
-            <Col xs={24} md={12} xl={8} key={project.id}>
-              <Link href={`/projects/${project.id}`} style={{ textDecoration: "none" }}>
-                <Card className="project-card" hoverable>
-                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                      <Tag color="blue">{label(project.status)}</Tag>
-                      <ArrowRightOutlined aria-hidden />
-                    </Space>
-                    <div>
-                      <Typography.Title level={4} style={{ margin: 0 }}>{project.name}</Typography.Title>
-                      <div className="entity-key">{project.key}</div>
-                    </div>
-                    <Typography.Paragraph className="muted" ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
-                      {project.description || t("No project description yet.", "尚未填写项目描述。")}
-                    </Typography.Paragraph>
-                    <Space wrap split={<span className="muted">·</span>}>
-                      <span className="muted"><CodeOutlined aria-hidden /> {project.default_branch}</span>
-                      <span className="muted"><DatabaseOutlined aria-hidden /> {t("Canonical state", "权威测试状态")}</span>
-                    </Space>
-                  </Space>
-                </Card>
-              </Link>
-            </Col>
-          ))}
-        </Row>
-      ) : (
-        <Card className="section-card">
-          <Empty description={t("Create your first project to start testing.", "创建第一个项目，开始测试。")}>
-            <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button>
-          </Empty>
-        </Card>
-      )}
+      <section className="workspace-intro" aria-label={t("Testing workflow", "测试工作流")}>
+        <div className="intro-mark"><FolderOpenOutlined aria-hidden /></div>
+        <div><h2>{t("Every test cycle has a home.", "让每一轮测试，都有迹可循。")}</h2><p>{t("Keep pinned inputs, test assets and execution evidence together in a project.", "按项目集中管理固定输入、测试资产和执行证据。打开项目，开始或回看一轮测试。")}</p></div>
+        <div className="workflow-labels"><span>{t("Requirements", "需求")}</span><ArrowRightOutlined aria-hidden /><span>{t("Execution", "执行")}</span><ArrowRightOutlined aria-hidden /><span>{t("Evidence & verdict", "证据与判定")}</span></div>
+      </section>
+      <section className="data-surface" aria-label={t("Project list", "项目列表")}>
+        <div className="list-toolbar">
+          <h2>{t("All projects", "全部项目")} <span className="count-badge">{projects.data?.length ?? "—"}</span></h2>
+          <div className="list-filters"><Input prefix={<SearchOutlined aria-hidden />} allowClear value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("Search name, key or repository", "搜索名称、标识或仓库")} aria-label={t("Search projects", "搜索项目")} /><Select value={status} onChange={setStatus} aria-label={t("Project status", "项目状态")} options={[{value: "all", label: t("All statuses", "全部状态")}, {value: "ACTIVE", label: label("ACTIVE")}, {value: "ARCHIVED", label: label("ARCHIVED")}]} /></div>
+        </div>
+        {projects.isLoading ? <div className="pane-loading" role="status" aria-label={t("Loading projects…", "正在加载项目…")}><Space direction="vertical" align="center"><Spin /><span className="muted">{t("Loading projects…", "正在加载项目…")}</span></Space></div> : projects.isError ? <div className="surface-message"><Alert type="error" showIcon message={t("Unable to load projects", "无法加载项目")} description={errorText(projects.error, locale)} action={<Button onClick={() => void projects.refetch()} loading={projects.isFetching}>{t("Retry", "重试")}</Button>} /></div> : projects.data?.length ? <Table
+          rowKey="id" pagination={{pageSize: 10, hideOnSinglePage: true}} scroll={{ x: 760 }}
+          dataSource={projects.data.filter((project) => (status === "all" || project.status === status) && `${project.name} ${project.key} ${project.repository_url || ""}`.toLowerCase().includes(search.trim().toLowerCase()))}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("No matching projects. Try a different search or reset the filters.", "未找到匹配项目。请修改搜索内容，或重置筛选。")}><Button onClick={() => { setSearch(""); setStatus("all"); }}>{t("Reset filters", "重置筛选")}</Button></Empty> }}
+          columns={[
+            {title: t("Project", "项目"), key: "name", width: "38%", sorter: (a, b) => a.name.localeCompare(b.name), render: (_, project) => <div className="project-name-cell"><span className="project-avatar" aria-hidden>{project.name.slice(0, 1).toUpperCase()}</span><div><Link className="entity-title" href={`/projects/${project.id}`}>{project.name}</Link><div className="entity-key">{project.key}</div><p className="cell-description">{project.description || t("No description", "暂无描述")}</p></div></div>},
+            {title: t("Repository / branch", "仓库 / 分支"), key: "repository", render: (_, project) => <div className="repository-cell"><span>{project.repository_url || t("Repository not set", "尚未设置仓库")}</span><small><BranchesOutlined aria-hidden /> {project.default_branch}</small></div>},
+            {title: t("Status", "状态"), dataIndex: "status", width: 105, render: (value: string) => <Tag color={value === "ACTIVE" ? "green" : undefined}>{label(value)}</Tag>},
+            {title: t("Updated", "更新时间"), dataIndex: "updated_at", width: 160, sorter: (a, b) => a.updated_at.localeCompare(b.updated_at), render: formatDate},
+            {title: t("Open", "打开"), key: "open", width: 65, render: (_, project) => <Link href={`/projects/${project.id}`} aria-label={`${t("Open project", "打开项目")} ${project.name}`}><ArrowRightOutlined /></Link>},
+          ]}
+        /> : <div className="empty-workspace"><FolderOpenOutlined aria-hidden /><h3>{t("Your first project starts here", "从第一个项目开始")}</h3><p>{t("Add a project, then submit a PRD and a pinned code version to start testing.", "创建项目后，提交 PRD 和固定代码版本，开始完整测试周期。")}</p><Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button></div>}
+      </section>
 
       <Modal
         title={t("Create project", "创建项目")}

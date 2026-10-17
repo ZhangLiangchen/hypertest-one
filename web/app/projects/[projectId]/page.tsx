@@ -2,7 +2,7 @@
 
 import { ArrowLeftOutlined, ArrowRightOutlined, BranchesOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Radio, Row, Space, Spin, Steps, Tag, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, Radio, Space, Spin, Steps, Table, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -243,12 +243,12 @@ export default function ProjectPage() {
     <main>
       <div className="page-heading">
         <Link href="/"><ArrowLeftOutlined aria-hidden /> {t("Projects", "项目")}</Link>
-        <div className="eyebrow" style={{ marginTop: 18 }}>{project.data.key}</div>
-        <Typography.Title level={1} style={{ margin: 0 }}>{project.data.name}</Typography.Title>
+        <Typography.Title level={1} style={{ margin: "18px 0 0" }}>{project.data.name}</Typography.Title>
         <Typography.Paragraph className="muted" style={{ marginTop: 8 }}>
           {project.data.description || t("Project testing workspace", "项目测试工作台")}
         </Typography.Paragraph>
         <Space wrap>
+          <span className="muted">{t("Project key", "项目标识")}: <span className="entity-key">{project.data.key}</span></span>
           <Tag color="blue">{label(project.data.status)}</Tag>
           <Tag icon={<BranchesOutlined aria-hidden />}>{project.data.default_branch}</Tag>
           {project.data.repository_url ? <Tag style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{project.data.repository_url}</Tag> : null}
@@ -275,29 +275,13 @@ export default function ProjectPage() {
           action={<Button onClick={() => void runs.refetch()} loading={runs.isFetching}>{t("Retry", "重试")}</Button>}
         />
       ) : runs.data?.length ? (
-        <Row gutter={[18, 18]}>
-          {runs.data.map((run) => (
-            <Col xs={24} md={12} xl={8} key={run.id}>
-              <Link href={`/runs/${run.id}`} style={{ textDecoration: "none" }}>
-                <Card className="run-card" hoverable>
-                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                    <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                      <Tag color={run.status === "COMPLETED" ? "green" : run.status === "BLOCKED" ? "red" : "geekblue"}>{label(run.status)}</Tag>
-                      <ArrowRightOutlined aria-hidden />
-                    </Space>
-                    <div>
-                      <Typography.Title level={4} style={{ margin: 0 }}>{run.key}</Typography.Title>
-                      <div className="muted" style={{ marginTop: 4 }}>{t("Source snapshot", "源码快照")}</div>
-                      <div className="entity-key" style={{ overflowWrap: "anywhere" }}>{run.source_snapshot_id}</div>
-                    </div>
-                    <Typography.Text className="muted">{t("Trigger: ", "触发方式：")}{label(run.trigger_type)}</Typography.Text>
-                    <Typography.Text className="muted">{t("Created: ", "创建时间：")}{formatDate(run.created_at)}</Typography.Text>
-                  </Space>
-                </Card>
-              </Link>
-            </Col>
-          ))}
-        </Row>
+        <div className="data-surface"><Table rowKey="id" dataSource={runs.data} pagination={{pageSize: 10, hideOnSinglePage: true}} scroll={{x: 780}} columns={[
+          {title: t("Test run", "测试运行"), key: "run", render: (_, run) => <Link className="entity-title" href={`/runs/${run.id}`}>{run.key}</Link>},
+          {title: t("Run status", "运行状态"), dataIndex: "status", filters: [...new Set(runs.data.map((run) => run.status))].map((status) => ({text: label(status), value: status})), onFilter: (value, run) => run.status === value, render: (value: string) => <Tag color={["FAILED", "BLOCKED"].includes(value) ? "red" : value === "COMPLETED" ? undefined : "blue"}>{label(value)}</Tag>},
+          {title: t("Source snapshot", "源码快照"), dataIndex: "source_snapshot_id", render: (value: string) => <span className="entity-key">{value}</span>},
+          {title: t("Created", "创建时间"), dataIndex: "created_at", defaultSortOrder: "descend", sorter: (a, b) => a.created_at.localeCompare(b.created_at), render: formatDate},
+          {title: t("Open", "打开"), key: "open", width: 65, render: (_, run) => <Link href={`/runs/${run.id}`} aria-label={`${t("Open test run", "打开测试运行")} ${run.key}`}><ArrowRightOutlined /></Link>},
+        ]} /><p className="table-footnote">{t("Run status tracks the workflow. Open a run to see its quality verdict and supporting evidence.", "运行状态表示流程进度。打开运行，查看质量判定及其证据依据。")}</p></div>
       ) : (
         <Card className="section-card">
           <Empty description={t("Create a test run to analyze requirements and build test coverage.", "创建测试运行，开始分析需求并建立测试覆盖。")}>
