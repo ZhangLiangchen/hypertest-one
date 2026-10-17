@@ -26,8 +26,10 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n";
 
-import { getCoverage, getMissions, getRequirements, getRisks, getRun, getTestCases, planNext } from "@/lib/api";
+import { errorText, getCoverage, getMissions, getRequirements, getRisks, getRun, getTestCases, planNext } from "@/lib/api";
 import type { Mission, Requirement, Risk, TestCase } from "@/lib/types";
 
 import { useRunOperations } from "./use-run-operations";
@@ -53,7 +55,17 @@ function coveragePercent(ratio: number | null) {
 
 export default function RunPage() {
   const params = useParams<{ runId: string }>();
-  const operations = useRunOperations(params.runId);
+  const { t, label, locale } = useI18n();
+  const [activeTab, setActiveTab] = useState("requirements");
+  useEffect(() => {
+    try { setActiveTab(sessionStorage.getItem(`hypertest.run-tab.${params.runId}`) || "requirements"); }
+    catch { /* Tab selection still survives polling and language changes without storage. */ }
+  }, [params.runId]);
+  function selectTab(key: string) {
+    setActiveTab(key);
+    try { sessionStorage.setItem(`hypertest.run-tab.${params.runId}`, key); } catch { /* Storage is optional. */ }
+  }
+  const operations = useRunOperations(params.runId, selectTab);
   const [messageApi, contextHolder] = message.useMessage();
   const run = useQuery({
     queryKey: ["run", params.runId],
@@ -89,20 +101,21 @@ export default function RunPage() {
     mutationFn: () => planNext(params.runId),
     onSuccess: async (result) => {
       if (result.mission) {
-        messageApi.success(`Planned ${result.mission.mission_type}: ${result.mission.key}`);
+        messageApi.success(`${t("Planned", "已规划")} ${label(result.mission.mission_type)}: ${result.mission.key}`);
       } else {
-        messageApi.info(`Planner: ${result.reason}`);
+        messageApi.info(`${t("Planner", "规划器")}: ${label(result.reason)}`);
       }
       await operations.refresh();
     },
-    onError: (error) => messageApi.error(String(error)),
+    onError: (error) => messageApi.error(errorText(error, locale)),
   });
 
   const loading = run.isLoading || requirements.isLoading || risks.isLoading || testCases.isLoading || coverage.isLoading || missions.isLoading;
   const error = run.error || requirements.error || risks.error || testCases.error || coverage.error || missions.error;
-  if (loading) return <Spin size="large" />;
-  if (error || !run.data) {
-    return <Alert type="error" showIcon message="Unable to load test run" description={String(error)} />;
+  const retryState = () => { void operations.refresh(); };
+  if (!run.data && loading) return <div className="pane-loading"><Space direction="vertical" align="center"><Spin size="large" /><Typography.Text type="secondary">{t("Loading test run", "正在加载测试运行")}</Typography.Text></Space></div>;
+  if (!run.data) {
+    return <Alert type="error" showIcon message={t("Unable to load test run", "无法加载测试运行")} description={errorText(error, locale)} action={<Button onClick={retryState}>{t("Retry", "重试")}</Button>} />;
   }
 
   const requirementData = requirements.data || [];
@@ -119,7 +132,7 @@ export default function RunPage() {
 
   const requirementColumns = [
     {
-      title: "Requirement",
+      title: t("Requirement", "需求"),
       dataIndex: "title",
       render: (_: unknown, row: Requirement) => (
         <Space direction="vertical" size={1}>
@@ -128,20 +141,20 @@ export default function RunPage() {
         </Space>
       ),
     },
-    { title: "Priority", dataIndex: "priority", width: 90, render: (value: string) => <Tag>{value}</Tag> },
-    { title: "Type", dataIndex: "requirement_type", width: 150 },
+    { title: t("Priority", "优先级"), dataIndex: "priority", width: 90, render: (value: string) => <Tag>{label(value)}</Tag> },
+    { title: t("Type", "类型"), dataIndex: "requirement_type", width: 150, render: (value: string) => label(value) },
     {
-      title: "Risk",
+      title: t("Risk", "风险"),
       key: "risk",
       width: 110,
       render: (_: unknown, row: Requirement) =>
-        covered.has(row.key) ? <Tag color="green">covered</Tag> : <Tag color="gold">gap</Tag>,
+        covered.has(row.key) ? <Tag color="green">{t("covered", "已覆盖")}</Tag> : <Tag color="gold">{t("gap", "缺口")}</Tag>,
     },
   ];
 
   const riskColumns = [
     {
-      title: "Risk",
+      title: t("Risk", "风险"),
       dataIndex: "title",
       render: (_: unknown, row: Risk) => (
         <Space direction="vertical" size={1}>
@@ -150,34 +163,34 @@ export default function RunPage() {
         </Space>
       ),
     },
-    { title: "Category", dataIndex: "category", width: 140 },
+    { title: t("Category", "类别"), dataIndex: "category", width: 140, render: (value: string) => label(value) },
     {
-      title: "Severity",
+      title: t("Severity", "严重程度"),
       dataIndex: "severity",
       width: 110,
-      render: (value: string) => <Tag color={severityColor(value)}>{value}</Tag>,
+      render: (value: string) => <Tag color={severityColor(value)}>{label(value)}</Tag>,
     },
     {
-      title: "Requirements",
+      title: t("Requirements", "需求"),
       dataIndex: "requirement_keys",
       render: (keys: string[]) => <Space wrap>{keys.map((key) => <Tag key={key}>{key}</Tag>)}</Space>,
     },
     {
-      title: "Test coverage",
+      title: t("Test coverage", "测试覆盖"),
       key: "test-coverage",
       render: (_: unknown, row: Risk) => {
         const assessment = coverageByRisk.get(row.id);
-        if (!assessment) return <Tag>Not assessed</Tag>;
+        if (!assessment) return <Tag>{t("Not assessed", "尚未评估")}</Tag>;
         return (
           <Space direction="vertical" size={4}>
             <Tag color={assessment.complete ? "green" : "gold"}>
-              {assessment.complete ? "Complete" : "Gap"}
+              {assessment.complete ? t("Complete", "完整") : t("Gap", "缺口")}
             </Tag>
             {assessment.required_dimensions.length > 0 && (
               <Space wrap size={[0, 4]}>
                 {assessment.required_dimensions.map((dimension) => (
                   <Tag key={dimension} color={assessment.covered_dimensions.includes(dimension) ? "green" : "gold"}>
-                    {dimension}
+                    {label(dimension)}
                   </Tag>
                 ))}
               </Space>
@@ -190,7 +203,7 @@ export default function RunPage() {
 
   const testCaseColumns = [
     {
-      title: "Test case",
+      title: t("Test case", "测试用例"),
       dataIndex: "title",
       render: (_: unknown, row: TestCase) => (
         <Space direction="vertical" size={1}>
@@ -199,15 +212,15 @@ export default function RunPage() {
         </Space>
       ),
     },
-    { title: "Type", dataIndex: "test_type", render: (value: string) => <Tag color="blue">{value}</Tag> },
-    { title: "Priority", dataIndex: "priority", width: 90, render: (value: string) => <Tag>{value}</Tag> },
+    { title: t("Type", "类型"), dataIndex: "test_type", render: (value: string) => <Tag color="blue">{label(value)}</Tag> },
+    { title: t("Priority", "优先级"), dataIndex: "priority", width: 90, render: (value: string) => <Tag>{label(value)}</Tag> },
     {
-      title: "Lifecycle",
+      title: t("Lifecycle", "生命周期"),
       dataIndex: "lifecycle_status",
-      render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+      render: (value: string) => <Tag color={statusColor(value)}>{label(value)}</Tag>,
     },
     {
-      title: "Risks",
+      title: t("Risks", "风险"),
       dataIndex: "risk_keys",
       render: (keys: string[]) => <Space wrap>{keys.map((key) => <Tag key={key}>{key}</Tag>)}</Space>,
     },
@@ -215,50 +228,50 @@ export default function RunPage() {
 
   const missionColumns = [
     {
-      title: "Mission",
+      title: t("Mission", "测试任务"),
       dataIndex: "mission_type",
       render: (_: unknown, row: Mission) => (
         <Space direction="vertical" size={1}>
-          <Typography.Text strong>{row.mission_type}</Typography.Text>
+          <Typography.Text strong>{label(row.mission_type)}</Typography.Text>
           <span className="entity-key">{row.key}</span>
         </Space>
       ),
     },
-    { title: "Priority", dataIndex: "priority", width: 90 },
+    { title: t("Priority", "优先级"), dataIndex: "priority", width: 90 },
     {
-      title: "Status",
+      title: t("Status", "状态"),
       dataIndex: "status",
       width: 130,
-      render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+      render: (value: string) => <Tag color={statusColor(value)}>{label(value)}</Tag>,
     },
-    { title: "Attempts", dataIndex: "current_attempt_no", width: 90 },
-    { title: "Objective", dataIndex: "objective" },
-    { title: "Actions", key: "actions", render: (_: unknown, row: Mission) => operations.missionActions(row) },
+    { title: t("Attempts", "尝试次数"), dataIndex: "current_attempt_no", width: 90 },
+    { title: t("Objective", "目标"), dataIndex: "objective" },
+    { title: t("Actions", "操作"), key: "actions", render: (_: unknown, row: Mission) => operations.missionActions(row) },
   ];
 
   return (
     <main>
       {contextHolder}
       <div className="page-heading">
-        <Link href={`/projects/${run.data.project_id}`}><ArrowLeftOutlined /> Project</Link>
+        <Link href={`/projects/${run.data.project_id}`}><ArrowLeftOutlined /> {t("Project", "项目")}</Link>
         <div className="workbench-heading">
           <div>
-            <div className="eyebrow">Test Run</div>
-            <Typography.Title level={1} style={{ margin: 0 }}>{run.data.key}</Typography.Title>
+            <div className="eyebrow">{t("Test Run", "测试运行")}</div>
+            <Typography.Title level={1} style={{ margin: 0 }}>{t("Test run", "测试运行")}</Typography.Title>
+            <Typography.Paragraph style={{ margin: "8px 0", overflowWrap: "anywhere" }}><Typography.Text code copyable>{run.data.key}</Typography.Text></Typography.Paragraph>
             <Space wrap style={{ marginTop: 10 }}>
-              <Tag color={statusColor(run.data.status)}>{run.data.status}</Tag>
-              <span className="entity-key">snapshot {run.data.source_snapshot_id}</span>
+              <Tag color={statusColor(run.data.status)}>{label(run.data.status)}</Tag>
+              <span className="entity-key">{t("Snapshot", "快照")} {run.data.source_snapshot_id}</span>
             </Space>
           </div>
           <Space wrap>
             <Button
-              type="primary"
               icon={<PlayCircleOutlined aria-hidden />}
               loading={planner.isPending}
               disabled={operations.busy}
               onClick={() => planner.mutate()}
             >
-              Plan next mission
+              {t("Plan next mission", "规划下一任务")}
             </Button>
             {operations.actions}
             <RunInputs sourceId={run.data.source_snapshot_id} policyId={run.data.policy_snapshot_id} />
@@ -268,66 +281,71 @@ export default function RunPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={12} lg={8}>
-          <Card className="metric-card"><Statistic title="Requirement count" value={coverageData?.requirement_count ?? requirementData.length} prefix={<CheckCircleOutlined />} /></Card>
+          <Card className="metric-card"><Statistic title={t("Requirement count", "需求数")} value={coverageData?.requirement_count ?? requirementData.length} prefix={<CheckCircleOutlined />} /></Card>
         </Col>
         <Col xs={12} lg={8}>
-          <Card className="metric-card"><Statistic title="Risk count" value={coverageData?.risk_count ?? riskData.length} prefix={<SafetyCertificateOutlined />} /></Card>
+          <Card className="metric-card"><Statistic title={t("Risk count", "风险数")} value={coverageData?.risk_count ?? riskData.length} prefix={<SafetyCertificateOutlined />} /></Card>
         </Col>
         <Col xs={12} lg={8}>
-          <Card className="metric-card"><Statistic title="TestCase count" value={coverageData?.test_case_count ?? testCaseData.length} prefix={<FileProtectOutlined />} /></Card>
+          <Card className="metric-card"><Statistic title={t("TestCase count", "测试用例数")} value={coverageData?.test_case_count ?? testCaseData.length} prefix={<FileProtectOutlined />} /></Card>
         </Col>
         <Col xs={24} md={12}>
           <Card className="metric-card">
-            <Statistic title="Risk identification coverage" value={riskIdentification ?? "—"} suffix={riskIdentification === null ? undefined : "%"} />
+            <Statistic title={t("Risk identification coverage", "风险识别覆盖率")} value={riskIdentification ?? "—"} suffix={riskIdentification === null ? undefined : "%"} />
             <Progress percent={riskIdentification ?? 0} size="small" showInfo={false} />
             <Typography.Text className="muted">
-              {riskIdentification === null ? "No active requirements to assess." : "Requirements linked to identified risks."}
+              {riskIdentification === null ? t("No active requirements to assess.", "暂无可评估的有效需求。") : t("Requirements linked to identified risks.", "已关联识别风险的需求比例。")}
             </Typography.Text>
           </Card>
         </Col>
         <Col xs={24} md={12}>
           <Card className="metric-card">
-            <Statistic title="Risk test coverage" value={riskTestCoverage ?? "—"} suffix={riskTestCoverage === null ? undefined : "%"} />
+            <Statistic title={t("Risk test coverage", "风险测试覆盖率")} value={riskTestCoverage ?? "—"} suffix={riskTestCoverage === null ? undefined : "%"} />
             <Progress percent={riskTestCoverage ?? 0} size="small" showInfo={false} />
             <Typography.Text className="muted">
-              {riskTestCoverage === null ? "No active risks to assess." : "Risks meeting their required test design dimensions."}
+              {riskTestCoverage === null ? t("No active risks to assess.", "暂无可评估的有效风险。") : t("Risks meeting their required test design dimensions.", "满足所需测试设计维度的风险比例。")}
             </Typography.Text>
           </Card>
         </Col>
       </Row>
 
       {coverageData?.rule_version && <div style={{ marginBottom: 20, overflowWrap: "anywhere" }}>
-        <Space wrap><Typography.Text className="muted">Coverage rules</Typography.Text><Tag>{coverageData.rule_version}</Tag></Space>
-        {coverageData.effective_policy_hash && <div style={{ marginTop: 6 }}><Typography.Text className="muted">Effective policy SHA-256 </Typography.Text><Typography.Text code copyable>{coverageData.effective_policy_hash}</Typography.Text></div>}
+        <Space wrap><Typography.Text className="muted">{t("Coverage rules", "覆盖规则")}</Typography.Text><Tag>{coverageData.rule_version}</Tag></Space>
+        {coverageData.effective_policy_hash && <div style={{ marginTop: 6 }}><Typography.Text className="muted">{t("Effective policy SHA-256 ", "生效策略 SHA-256 ")}</Typography.Text><Typography.Text code copyable>{coverageData.effective_policy_hash}</Typography.Text></div>}
       </div>}
 
       {coverageData?.risk_identification_coverage === 1 && coverageData.risk_test_coverage === 1 && (
         <Alert
           type="success"
           showIcon
-          message="Test design coverage complete"
-          description="All current risks meet the required test design dimensions."
+          message={t("Test design coverage complete", "测试设计覆盖已完成")}
+          description={t("All current risks meet their required test design dimensions. Execution results and release readiness still depend on trusted Runner evidence and the quality verdict.", "所有当前风险均满足所需测试设计维度。执行结果与发布质量仍需查看可信 Runner 的证据及质量判定。")}
           style={{ marginBottom: 20 }}
         />
       )}
 
+      {error && <Alert type="warning" showIcon message={t("Some testing state could not be refreshed", "部分测试状态暂时无法刷新")} description={<>{errorText(error, locale)} {t("Previously loaded data stays visible. Retry to get the latest state.", "已加载的数据仍会保留。请重试获取最新状态。")}</>} action={<Button onClick={retryState}>{t("Refresh", "刷新")}</Button>} style={{ marginBottom: 20 }} />}
       {operations.summary}
 
       <Card className="section-card">
         <Tabs
+          activeKey={activeTab}
+          onChange={selectTab}
           items={[
             {
               key: "requirements",
-              label: `Requirements (${requirementData.length})`,
-              children: <Table rowKey="id" columns={requirementColumns} dataSource={requirementData} pagination={false} scroll={{ x: 650 }} />,
+              label: `${t("Requirements", "需求")} (${requirementData.length})`,
+              children: <Table rowKey="id" loading={requirements.isLoading} columns={requirementColumns} dataSource={requirementData} locale={{ emptyText: t("No requirements yet. Run a test cycle or plan the requirement analysis mission.", "暂无需求。请运行完整测试周期，或规划需求分析任务。") }} pagination={false} scroll={{ x: 650 }} expandable={{ expandedRowRender: (requirement) => <div className="entity-detail"><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{requirement.description}</Typography.Paragraph><Space wrap><Tag title={requirement.lifecycle_status}>{label(requirement.lifecycle_status)}</Tag><Tag title={requirement.source_type}>{label(requirement.source_type)}</Tag>{requirement.source_ref && <Typography.Text code>{requirement.source_ref}</Typography.Text>}</Space></div> }} />,
             },
             {
               key: "risks",
-              label: `Risks (${riskData.length})`,
+              label: `${t("Risks", "风险")} (${riskData.length})`,
               children: (
                 <Table
                   rowKey="id"
                   columns={riskColumns}
+                  loading={risks.isLoading}
+                  locale={{ emptyText: t("No risks yet. Analyze the requirements to identify risks.", "暂无风险。分析需求后可识别风险。") }}
                   dataSource={riskData}
                   pagination={false}
                   scroll={{ x: 850 }}
@@ -336,12 +354,12 @@ export default function RunPage() {
                       const assessment = coverageByRisk.get(risk.id);
                       return (
                         <div className="entity-detail">
-                          <Typography.Paragraph>{risk.description}</Typography.Paragraph>
+                          <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{risk.description}</Typography.Paragraph>{risk.rationale && <Typography.Paragraph>{risk.rationale}</Typography.Paragraph>}
                           {assessment && (
                             <Space direction="vertical">
-                              <span><strong>Required dimensions: </strong>{assessment.required_dimensions.join(", ") || "None"}</span>
-                              <span><strong>Covered dimensions: </strong>{assessment.covered_dimensions.join(", ") || "None"}</span>
-                              <span><strong>Missing dimensions: </strong>{assessment.missing_dimensions.join(", ") || "None"}</span>
+                              <span><strong>{t("Required dimensions: ", "所需维度：")}</strong>{assessment.required_dimensions.map(label).join(", ") || t("None", "无")}</span>
+                              <span><strong>{t("Covered dimensions: ", "已覆盖维度：")}</strong>{assessment.covered_dimensions.map(label).join(", ") || t("None", "无")}</span>
+                              <span><strong>{t("Missing dimensions: ", "缺失维度：")}</strong>{assessment.missing_dimensions.map(label).join(", ") || t("None", "无")}</span>
                             </Space>
                           )}
                         </div>
@@ -353,11 +371,13 @@ export default function RunPage() {
             },
             {
               key: "test-cases",
-              label: `Test Cases (${testCaseData.length})`,
+              label: `${t("Test Cases", "测试用例")} (${testCaseData.length})`,
               children: (
                 <Table
                   rowKey="id"
                   columns={testCaseColumns}
+                  loading={testCases.isLoading}
+                  locale={{ emptyText: t("No test cases yet. Design tests for the identified risks.", "暂无测试用例。识别风险后可设计用例。") }}
                   dataSource={testCaseData}
                   pagination={false}
                   scroll={{ x: 750 }}
@@ -365,11 +385,11 @@ export default function RunPage() {
                     expandedRowRender: (testCase) => (
                       <div className="entity-detail">
                         <Typography.Paragraph>{testCase.description}</Typography.Paragraph>
-                        <Typography.Text strong>Preconditions</Typography.Text>
+                        <Typography.Text strong>{t("Preconditions", "前置条件")}</Typography.Text>
                         {testCase.preconditions.length ? (
                           <ul>{testCase.preconditions.map((condition, index) => <li key={index}>{condition}</li>)}</ul>
-                        ) : <Typography.Paragraph className="muted">None</Typography.Paragraph>}
-                        <Typography.Text strong>Expected result</Typography.Text>
+                        ) : <Typography.Paragraph className="muted">{t("None", "无")}</Typography.Paragraph>}
+                        <Typography.Text strong>{t("Expected result", "预期结果")}</Typography.Text>
                         <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{testCase.expected_result}</Typography.Paragraph>
                       </div>
                     ),
@@ -379,8 +399,8 @@ export default function RunPage() {
             },
             {
               key: "missions",
-              label: `Missions (${missionData.length})`,
-              children: <Table rowKey="id" columns={missionColumns} dataSource={missionData} pagination={false} scroll={{ x: 800 }} />,
+              label: `${t("Missions", "测试任务")} (${missionData.length})`,
+              children: <Table rowKey="id" columns={missionColumns} dataSource={missionData} loading={missions.isLoading} locale={{ emptyText: t("No missions yet. Start a test cycle or plan the next mission.", "暂无测试任务。请运行完整测试周期，或规划下一任务。") }} pagination={false} scroll={{ x: 800 }} />,
             },
             ...operations.tabs,
           ]}

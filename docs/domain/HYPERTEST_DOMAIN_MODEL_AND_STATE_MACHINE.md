@@ -253,6 +253,8 @@ PolicySnapshot 创建后不可变。
 
 TestRun 表示针对一个 SourceSnapshot，在某套 Policy 下的一次自治测试活动。
 
+Web bootstrap 的幂等键按 Project 绑定规范化测试输入：repository 去首尾空白、commit 转小写，PRD/configuration 保持原始字节，Policy 按完整生效规则比较（包括 Gate 与 Coverage，默认值和无语义顺序不影响等价性）。同键同测试输入返回原 Run；同键不同测试输入在写入 Artifact 或 Canonical 行之前返回冲突，保留既有 Run、Snapshot 与历史。SourceSnapshot Fingerprint 仍遵循第 9 节：branch 只是参考标签，不参与 Source 或 bootstrap 幂等身份；不同 branch 标签可以引用相同固定 commit 的共享 Snapshot，既有 Snapshot 的标签不被重写。
+
 ```text
 id
 key

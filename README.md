@@ -31,6 +31,14 @@ The current product targets **one trusted operator** in a controlled development
 
 ## Use the Web workbench
 
+The workbench supports **中文 / English** switching in the top-right corner, with
+the choice preserved across navigation and reloads. It includes guided project/run
+creation, UTF-8 Markdown/text PRD import, durable task progress and direct links
+from quality decisions to evidence and findings. See the bilingual
+[Web workflow guide](docs/WEB_PRODUCT_WORKFLOW.md) for the complete operating flow,
+input limits, server checkout paths, and the distinction between task completion
+and a passing testing verdict. The deployed environment continues to use SSH-tunnel access.
+
 ```text
 /                         Create and browse projects
 /projects/{project_id}    Create runs from pinned source inputs

@@ -1,31 +1,24 @@
 import "antd/dist/reset.css";
 import "./globals.css";
 
-import { ExperimentOutlined } from "@ant-design/icons";
-import Link from "next/link";
+import { cookies } from "next/headers";
 
 import { Providers } from "@/app/providers";
+import { SiteHeader } from "@/app/site-header";
 
 export const metadata = {
   title: "HyperTest One",
   description: "One Input. One Mission. One Complete Test Cycle.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const initialLocale = (await cookies()).get("hypertest_locale")?.value === "en" ? "en" : "zh";
   return (
-    <html lang="en">
+    <html lang={initialLocale === "zh" ? "zh-CN" : "en"}>
       <body>
-        <Providers>
+        <Providers initialLocale={initialLocale}>
           <div className="app-shell">
-            <header className="topbar">
-              <Link href="/" className="brand">
-                <ExperimentOutlined />
-                <span>HyperTest One</span>
-              </Link>
-              <span className="slogan">
-                One Input. One Mission. One Complete Test Cycle.
-              </span>
-            </header>
+            <SiteHeader />
             <div className="page-container">{children}</div>
           </div>
         </Providers>

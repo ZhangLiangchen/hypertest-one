@@ -11,6 +11,7 @@ from hypertest.api.delivery_schemas import RunBootstrap
 from hypertest.api.schemas import SourceSnapshotCreate
 from hypertest.application.policy import compile_policy
 from hypertest.application.services import (
+    ConflictError,
     NotFoundError,
     canonical_json_sha256,
     source_fingerprint,
@@ -29,7 +30,7 @@ from hypertest.domain.models import (
 
 async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBootstrap) -> TestRun:
     policy_content = {"gate_version": "mvp/v1", **payload.policy}
-    compile_policy(policy_content)
+    compiled_policy = compile_policy(policy_content)
     project = await session.scalar(
         select(Project).where(Project.id == project_id).with_for_update()
     )
@@ -37,6 +38,19 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
         raise NotFoundError("project not found")
     if not payload.prd_text.strip():
         raise ValueError("PRD text must not be blank")
+    prd = payload.prd_text.encode("utf-8")
+    digest = hashlib.sha256(prd).hexdigest()
+    configuration = payload.configuration_text.encode("utf-8")
+    configuration_digest = hashlib.sha256(configuration).hexdigest()
+    branch = (payload.branch or "").strip() or None
+    source = SourceSnapshotCreate(
+        repository_url=payload.repository_url.strip(),
+        commit_sha=payload.commit_sha.lower(),
+        branch=branch,
+        prd_sha256=digest,
+        configuration_sha256=configuration_digest,
+    )
+    fingerprint = source_fingerprint(project.id, source)
     if payload.idempotency_key:
         existing = await session.scalar(
             select(TestRun).where(
@@ -46,9 +60,17 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
             )
         )
         if existing is not None:
+            existing_source = await session.get(SourceSnapshot, existing.source_snapshot_id)
+            existing_policy = await session.get(PolicySnapshot, existing.policy_snapshot_id)
+            if (
+                existing_source is None
+                or existing_policy is None
+                or existing_source.source_fingerprint != fingerprint
+                or compile_policy(existing_policy.compiled_policy).effective_policy_hash
+                != compiled_policy.effective_policy_hash
+            ):
+                raise ConflictError("idempotency key is already bound to a different run request")
             return existing
-    prd = payload.prd_text.encode("utf-8")
-    digest = hashlib.sha256(prd).hexdigest()
     root = Path(get_settings().artifact_root).resolve()
     inputs = root / "inputs"
     inputs.mkdir(parents=True, exist_ok=True)
@@ -63,8 +85,6 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     else:
         with artifact.open("xb") as output:
             output.write(prd)
-    configuration = payload.configuration_text.encode("utf-8")
-    configuration_digest = hashlib.sha256(configuration).hexdigest()
     configuration_artifact = inputs / f"{configuration_digest}.txt"
     if configuration_artifact.is_symlink():
         raise ValueError("configuration artifact must be a regular file")
@@ -74,15 +94,7 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     else:
         with configuration_artifact.open("xb") as output:
             output.write(configuration)
-    source = SourceSnapshotCreate(
-        repository_url=payload.repository_url.strip(),
-        commit_sha=payload.commit_sha.lower(),
-        branch=payload.branch,
-        prd_sha256=digest,
-        prd_artifact_uri=str(artifact),
-        configuration_sha256=configuration_digest,
-    )
-    fingerprint = source_fingerprint(project.id, source)
+    source.prd_artifact_uri = str(artifact)
     snapshot = await session.scalar(
         select(SourceSnapshot).where(
             SourceSnapshot.project_id == project.id,
