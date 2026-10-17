@@ -22,6 +22,8 @@ from hypertest.domain.enums import (
     RiskLifecycle,
     RiskProbability,
     RiskSeverity,
+    TestCaseLifecycle,
+    TestCaseType,
     TestRunStatus,
 )
 
@@ -159,6 +161,7 @@ class MissionExecuteRequest(BaseModel):
 class MissionAttemptRead(ORMModel):
     id: UUID
     mission_id: UUID
+    durable_job_id: UUID | None = None
     attempt_no: int
     agent_session_id: UUID | None
     provider: str | None
@@ -236,12 +239,58 @@ class RiskRead(ORMModel):
     requirement_keys: list[str] = Field(default_factory=list)
 
 
+class TestCaseRead(ORMModel):
+    id: UUID
+    key: str
+    project_id: UUID
+    source_snapshot_id: UUID
+    title: str
+    description: str
+    test_type: TestCaseType
+    priority: Priority
+    preconditions: list[str]
+    expected_result: str
+    case_fingerprint: str
+    lifecycle_status: TestCaseLifecycle
+    confidence: float | None
+    derived_from_id: UUID | None
+    created_by_type: str
+    created_by_ref: str | None
+    created_at: datetime
+    updated_at: datetime
+    row_version: int
+    risk_keys: list[str] = Field(default_factory=list)
+
+
+class RiskCoverageRead(BaseModel):
+    risk_id: UUID
+    risk_key: str
+    required_dimensions: list[TestCaseType]
+    covered_dimensions: list[TestCaseType]
+    missing_dimensions: list[TestCaseType]
+    complete: bool
+
+
+class TestRunCoverageRead(BaseModel):
+    requirement_count: int
+    risk_count: int
+    test_case_count: int
+    risk_identification_coverage: float | None
+    risk_test_coverage: float | None
+    risks: list[RiskCoverageRead]
+    rule_version: str = "risk-design-baseline/v1"
+    effective_policy_hash: str = ""
+
+
 class MissionExecutionRead(BaseModel):
     mission: MissionRead
     attempt: MissionAttemptRead
     proposals: list[MissionProposalRead]
     requirements: list[RequirementRead]
     risks: list[RiskRead]
+    test_cases: list[TestCaseRead] = Field(default_factory=list)
+    implementations: list[dict[str, Any]] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class PlannerRead(BaseModel):

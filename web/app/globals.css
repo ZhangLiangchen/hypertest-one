@@ -92,11 +92,62 @@ body {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   color: #526078;
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .section-card {
   border: 1px solid #e8ebf2;
   box-shadow: 0 6px 20px rgba(18, 30, 58, 0.04);
+}
+
+.entity-detail {
+  padding: 8px 16px;
+  max-width: 1000px;
+}
+
+.workbench-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.workbench-heading > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.workbench-heading h1 {
+  overflow-wrap: anywhere;
+}
+
+.pane-loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.artifact-content {
+  padding: 18px;
+  border: 1px solid #e0e5ee;
+  border-radius: 8px;
+  background: #f6f8fc;
+  color: #26344b;
+  max-height: 65vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.7 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.policy-rule {
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e0e5ee;
+  border-radius: 8px;
+  background: #fafbfe;
 }
 
 @media (max-width: 760px) {

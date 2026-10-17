@@ -25,6 +25,11 @@ def uuid7() -> UUID:
 
 
 def public_key(prefix: str) -> str:
-    """Create a compact human-readable key; UUID remains the canonical PK."""
+    """Create a human-readable key retaining UUIDv7's random uniqueness bits.
 
-    return f"{prefix}-{uuid7().hex[:12].upper()}"
+    The first 12 hex characters contain only milliseconds, so truncating there
+    causes every entity created in the same millisecond to share a public key.
+    Existing persisted keys remain valid; new keys retain the full UUID.
+    """
+
+    return f"{prefix}-{uuid7().hex.upper()}"

@@ -2,12 +2,9 @@ import "antd/dist/reset.css";
 import "./globals.css";
 
 import { ExperimentOutlined } from "@ant-design/icons";
-import { Layout, Typography } from "antd";
 import Link from "next/link";
 
 import { Providers } from "@/app/providers";
-
-const { Header, Content } = Layout;
 
 export const metadata = {
   title: "HyperTest One",
@@ -19,18 +16,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Providers>
-          <Layout className="app-shell">
-            <Header className="topbar">
+          <div className="app-shell">
+            <header className="topbar">
               <Link href="/" className="brand">
                 <ExperimentOutlined />
                 <span>HyperTest One</span>
               </Link>
-              <Typography.Text className="slogan">
+              <span className="slogan">
                 One Input. One Mission. One Complete Test Cycle.
-              </Typography.Text>
-            </Header>
-            <Content className="page-container">{children}</Content>
-          </Layout>
+              </span>
+            </header>
+            <div className="page-container">{children}</div>
+          </div>
         </Providers>
       </body>
     </html>

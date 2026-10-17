@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     )
     log_level: str = "INFO"
     api_prefix: str = "/api/v1"
+    artifact_root: str = "/workspace/.hypertest-artifacts"
+    runner_image: str = "hypertest-runner:py312"
+    runner_allow_local: bool = False
+    workspace_root: str = "/workspace"
+    codex_binary: str = "codex"
+    codex_model: str | None = None
+    codex_ignore_user_config: bool = False
+    worker_poll_seconds: float = 1.0
+    worker_lease_seconds: int = 30
+    worker_heartbeat_seconds: float = 5.0
 
 
 @lru_cache

@@ -120,6 +120,29 @@ class RiskLifecycle(StrEnum):
     OBSOLETE = "OBSOLETE"
 
 
+class TestCaseType(StrEnum):
+    FUNCTIONAL = "FUNCTIONAL"
+    BOUNDARY = "BOUNDARY"
+    NEGATIVE = "NEGATIVE"
+    FAILURE = "FAILURE"
+    CONCURRENCY = "CONCURRENCY"
+    CONSISTENCY = "CONSISTENCY"
+    COMPATIBILITY = "COMPATIBILITY"
+    SECURITY = "SECURITY"
+    PERFORMANCE = "PERFORMANCE"
+    RELIABILITY = "RELIABILITY"
+    UPGRADE = "UPGRADE"
+    DATA = "DATA"
+    RECOVERY = "RECOVERY"
+
+
+class TestCaseLifecycle(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    DEPRECATED = "DEPRECATED"
+
+
 class AgentSessionStatus(StrEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
@@ -140,6 +163,9 @@ class MissionAttemptStatus(StrEnum):
 class ProposalType(StrEnum):
     REQUIREMENT = "REQUIREMENT"
     RISK = "RISK"
+    TEST_CASE = "TEST_CASE"
+    TEST_IMPLEMENTATION = "TEST_IMPLEMENTATION"
+    FINDING = "FINDING"
 
 
 class ProposalOperation(StrEnum):
@@ -156,3 +182,155 @@ class ProposalStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
     SUPERSEDED = "SUPERSEDED"
+
+
+class ImplementationValidationStatus(StrEnum):
+    PENDING = "PENDING"
+    VALIDATED = "VALIDATED"
+    REJECTED = "REJECTED"
+    STALE = "STALE"
+
+
+class ExecutionPurpose(StrEnum):
+    EXPLORATORY = "EXPLORATORY"
+    VALIDATION = "VALIDATION"
+    OFFICIAL = "OFFICIAL"
+    REPRODUCTION = "REPRODUCTION"
+
+
+class ExecutionStatus(StrEnum):
+    QUEUED = "QUEUED"
+    PROVISIONING = "PROVISIONING"
+    RUNNING = "RUNNING"
+    COLLECTING = "COLLECTING"
+    COMPLETED = "COMPLETED"
+    ERROR = "ERROR"
+    TIMED_OUT = "TIMED_OUT"
+    CANCELLED = "CANCELLED"
+
+
+class ExecutionOutcome(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    BLOCKED = "BLOCKED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    UNKNOWN = "UNKNOWN"
+
+
+class CaseResult(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    SKIPPED = "SKIPPED"
+    BLOCKED = "BLOCKED"
+    ERROR = "ERROR"
+    NOT_RUN = "NOT_RUN"
+
+
+class EvidenceType(StrEnum):
+    EXECUTION_METADATA = "EXECUTION_METADATA"
+    STDOUT = "STDOUT"
+    STDERR = "STDERR"
+    JUNIT = "JUNIT"
+    HTTP_REQUEST = "HTTP_REQUEST"
+    HTTP_RESPONSE = "HTTP_RESPONSE"
+    LOG = "LOG"
+    METRIC = "METRIC"
+    TRACE = "TRACE"
+    SCREENSHOT = "SCREENSHOT"
+    DATABASE_STATE = "DATABASE_STATE"
+    FILE_ARTIFACT = "FILE_ARTIFACT"
+    GIT_DIFF = "GIT_DIFF"
+    ENVIRONMENT_FINGERPRINT = "ENVIRONMENT_FINGERPRINT"
+    CUSTOM = "CUSTOM"
+
+
+class TrustLevel(StrEnum):
+    RUNNER = "RUNNER"
+    SYSTEM = "SYSTEM"
+    EXTERNAL_VERIFIED = "EXTERNAL_VERIFIED"
+    AGENT_REPORTED = "AGENT_REPORTED"
+    USER_PROVIDED = "USER_PROVIDED"
+
+
+class EvidenceStatus(StrEnum):
+    COLLECTED = "COLLECTED"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class FindingClassification(StrEnum):
+    PRODUCT_DEFECT = "PRODUCT_DEFECT"
+    TEST_DEFECT = "TEST_DEFECT"
+    ENVIRONMENT_FAILURE = "ENVIRONMENT_FAILURE"
+    INFRA_FAILURE = "INFRA_FAILURE"
+    FLAKY = "FLAKY"
+    DATA_ISSUE = "DATA_ISSUE"
+    EXPECTED_BEHAVIOR = "EXPECTED_BEHAVIOR"
+    REQUIREMENT_ISSUE = "REQUIREMENT_ISSUE"
+    UNKNOWN = "UNKNOWN"
+
+
+class FindingSeverity(StrEnum):
+    BLOCKER = "BLOCKER"
+    CRITICAL = "CRITICAL"
+    MAJOR = "MAJOR"
+    MINOR = "MINOR"
+    INFO = "INFO"
+
+
+class FindingStatus(StrEnum):
+    NEW = "NEW"
+    TRIAGED = "TRIAGED"
+    INVALID = "INVALID"
+    CONFIRMED = "CONFIRMED"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+    REOPENED = "REOPENED"
+
+
+class FindingResolution(StrEnum):
+    FIXED = "FIXED"
+    DUPLICATE = "DUPLICATE"
+    WONT_FIX = "WONT_FIX"
+    RISK_ACCEPTED = "RISK_ACCEPTED"
+    NOT_REPRODUCIBLE = "NOT_REPRODUCIBLE"
+    ENVIRONMENT_FIXED = "ENVIRONMENT_FIXED"
+    TEST_FIXED = "TEST_FIXED"
+
+
+class FindingEvidenceRelation(StrEnum):
+    SUPPORTS = "SUPPORTS"
+    CONTRADICTS = "CONTRADICTS"
+    CONTEXT = "CONTEXT"
+
+
+class VerdictDecision(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    BLOCKED = "BLOCKED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    RETEST_REQUIRED = "RETEST_REQUIRED"
+    RISK_ACCEPTED = "RISK_ACCEPTED"
+    RELEASE_READY = "RELEASE_READY"
+    RELEASE_BLOCKED = "RELEASE_BLOCKED"
+
+
+class VerdictStatus(StrEnum):
+    DRAFT = "DRAFT"
+    FINAL = "FINAL"
+    REVOKED = "REVOKED"
+
+
+class VerdictScope(StrEnum):
+    TEST_RUN = "TEST_RUN"
+    REQUIREMENT = "REQUIREMENT"
+    RISK = "RISK"
+    RELEASE = "RELEASE"
+
+
+# Domain naming aliases retained for service readability.
+ExecutionCaseResult = CaseResult
+TestCaseResult = CaseResult
+EvidenceTrustLevel = TrustLevel
+EvidenceRelationType = FindingEvidenceRelation

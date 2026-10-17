@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hypertest.api.operation_guard import guard_synchronous_operation
 from hypertest.api.schemas import (
     MissionCreate,
     MissionExecuteRequest,
@@ -17,9 +18,12 @@ from hypertest.api.schemas import (
     RiskRead,
     SourceSnapshotCreate,
     SourceSnapshotRead,
+    TestCaseRead,
+    TestRunCoverageRead,
     TestRunCreate,
     TestRunRead,
 )
+from hypertest.application.coverage import get_test_run_coverage
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import MissionRuntimeError, execute_mission
 from hypertest.application.services import (
@@ -37,6 +41,7 @@ from hypertest.application.services import (
     list_projects,
     list_requirements_for_test_run,
     list_risks_for_test_run,
+    list_test_cases_for_test_run,
     list_test_runs_for_project,
 )
 from hypertest.db.session import get_db
@@ -49,7 +54,9 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "hypertest-one"}
 
 
-def translate_domain_error(exc: RuntimeError) -> HTTPException:
+def translate_domain_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, NotFoundError):
         return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, ConflictError):
@@ -115,7 +122,7 @@ async def post_policy_snapshot(
 ):
     try:
         return await create_policy_snapshot(db, payload)
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         raise translate_domain_error(exc) from exc
 
 
@@ -160,6 +167,26 @@ async def read_test_run_risks(
             RiskRead.model_validate(risk).model_copy(update={"requirement_keys": requirement_keys})
             for risk, requirement_keys in rows
         ]
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.get("/test-runs/{test_run_id}/test-cases", response_model=list[TestCaseRead])
+async def read_test_run_test_cases(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        rows = await list_test_cases_for_test_run(db, test_run_id)
+        return [
+            TestCaseRead.model_validate(item).model_copy(update={"risk_keys": keys})
+            for item, keys in rows
+        ]
+    except RuntimeError as exc:
+        raise translate_domain_error(exc) from exc
+
+
+@router.get("/test-runs/{test_run_id}/coverage", response_model=TestRunCoverageRead)
+async def read_test_run_coverage(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
+    try:
+        return await get_test_run_coverage(db, test_run_id)
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
 
@@ -211,7 +238,11 @@ async def post_execute_mission(
     payload: MissionExecuteRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    from hypertest.api.delivery_schemas import FindingRead, ImplementationRead
+
     try:
+        mission = await get_mission(db, mission_id)
+        await guard_synchronous_operation(db, mission.test_run_id)
         execution = await execute_mission(
             db,
             mission_id,
@@ -220,6 +251,8 @@ async def post_execute_mission(
         )
         risk_rows = await list_risks_for_test_run(db, execution.mission.test_run_id)
         risks_by_id = {risk.id: keys for risk, keys in risk_rows}
+        case_rows = await list_test_cases_for_test_run(db, execution.mission.test_run_id)
+        cases_by_id = {item.id: keys for item, keys in case_rows}
         return MissionExecutionRead(
             mission=execution.mission,
             attempt=execution.attempt,
@@ -230,6 +263,20 @@ async def post_execute_mission(
                     update={"requirement_keys": risks_by_id.get(risk.id, [])}
                 )
                 for risk in execution.risks
+            ],
+            test_cases=[
+                TestCaseRead.model_validate(item).model_copy(
+                    update={"risk_keys": cases_by_id.get(item.id, [])}
+                )
+                for item in execution.test_cases
+            ],
+            implementations=[
+                ImplementationRead.model_validate(item).model_dump(mode="json")
+                for item in execution.implementations
+            ],
+            findings=[
+                FindingRead.model_validate(item).model_dump(mode="json")
+                for item in execution.findings
             ],
         )
     except RuntimeError as exc:

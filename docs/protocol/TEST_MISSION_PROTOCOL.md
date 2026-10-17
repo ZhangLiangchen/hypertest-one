@@ -2,7 +2,7 @@
 
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
-**Version:** v0.1  
+**Version:** v0.3
 **Status:** Draft  
 **Owner:** HyperTest
 
@@ -15,6 +15,8 @@ Test Mission Protocol（TMP）定义 HyperTest 与外部 Agent Harness 之间的
 支持目标包括 Codex、Claude Code、Pi、OpenCode 以及 Future Agent Harnesses。
 
 TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context、retry tools；这些属于 Agent Harness 自身能力。
+
+Web 提交的 DurableJob 由独立 Worker 执行；bounded Run test cycle controller 可以依次调度多个符合 TMP 的 Mission、正式 Runner 执行与 Gate 评估。它根据 deterministic Planner 的 Canonical State gap 推进工作，不接管 Agent reasoning；max_steps 限制的是平台工作单元，单个 Mission 的 Proposal / Verifier / Attempt 契约不变。Job 是平台运行请求，不能把 Job SUCCEEDED 等同于测试 PASS 或把 Job payload 当作 Canonical State。
 
 TMP 定义的是：
 
@@ -68,6 +70,8 @@ Agent Harness
 ## 5. TestMission
 
 Mission 是不可变任务描述。Mission 进入 READY 后不得原地改变目标；需要改变目标时，应 cancel old mission + create new mission。
+
+HyperTest 在数据库层冻结已离开 CREATED 的 Mission 身份、优先级、协议版本、目标、spec 及摘要、幂等键与创建者信息。Retry 只创建新的 Attempt，不能改写原 Mission 或把状态退回 CREATED 重新编辑；已冻结 Mission 不允许删除。
 
 ---
 
@@ -133,13 +137,19 @@ VERIFY_COVERAGE
 
 ### DESIGN_TESTS
 
-输入：Requirement[]、Risk[]、Policy、Existing Test Cases。  
+输入：同一 Project / SourceSnapshot 的 Canonical Risk[]、PolicySnapshot 引用、已有设计覆盖与 missing dimensions；可附带相关 Requirement / Existing TestCase 引用。
 输出：`TestCaseProposal[]`。
+
+v0.2 必须使用 `proposal_type = TEST_CASE`、`operation = CREATE`。Agent 不写 Canonical TestCase 或 Canonical Lifecycle。Risk 关系以 `object_payload.risk_keys` 提议，由 HyperTest 解析并持久化为 `RiskTestCase` Join Table。
+
+Planner 创建的 Mission 固定 `targets.risks`、`context.risks`（已接受的 Canonical 内容）、`context.coverage` 与 `acceptance_criteria.risk_coverage_gaps`。后者记录 Risk key 和该 Mission 创建时的 missing dimensions，并保存 `coverage_rule_version` 和 `coverage_policy_hash`。规则由当前 TestRun 的不可变 PolicySnapshot 编译，默认 `risk-design-baseline/v1`，自定义维度为 `risk-design-policy/v1`。同一 Hash 表示解析后的相同覆盖规则，维度输入顺序不影响身份。Agent 无法用返回值覆盖这些约束；Verifier 拒绝与固定 Policy 不符的版本或 Hash。没有 Hash 的历史基线 Mission 只对未改变的基线规则兼容。
+
+Verifier 要求整批 Proposal 合法，并至少对一个仍缺失的目标 Risk / dimension 形成覆盖进展。允许一次 Mission 只补齐部分维度；剩余缺口由下次 Planner 创建 Mission。重复规划复用仍可执行的 Mission，历史 Mission spec 不被覆盖。设计阶段全部满足后，当前完整 MVP 继续规划 IMPLEMENT_TESTS；早期切片的 `TEST_DESIGN_COVERAGE_COMPLETE` 仅代表设计阶段边界，不表示已经执行测试、产生 Runner Evidence 或形成质量 Verdict。
 
 ### IMPLEMENT_TESTS
 
-输入：TestCase[]、Repository、Testing Framework Context、Constraints。  
-输出：`ImplementationProposal[]`。
+输入：ACTIVE Canonical TestCase[]、固定 Repository / Commit、Testing Framework Context、现有实现、Constraints。
+输出：`TEST_IMPLEMENTATION` / CREATE Proposal[]，可通过 `object_payload.code` 返回生成测试源码。HyperTest 保存 Artifact；Runner 独立验证并执行，Agent 不更新 Canonical validation status。
 
 ### DIAGNOSE_FAILURE
 
@@ -235,6 +245,18 @@ TMP 强制支持结构化结果：
 
 支持 Structured Output 的 Agent Harness 应直接将 Schema 映射到 Provider 能力。
 
+当前 DESIGN_TESTS 的运行时 Output Contract 同时提供 `proposal_type = TEST_CASE`、`operation = CREATE`、`object_payload_schema` 与 `result_schema`。Schema 来自 HyperTest 协议模型，Provider Adapter 负责传递，最终仍由 HyperTest Verifier 强制验证。
+
+五种已支持的 Mission（ANALYZE_REQUIREMENTS、ANALYZE_RISKS、DESIGN_TESTS、IMPLEMENT_TESTS、DIAGNOSE_FAILURE）都提供上述完整 Typed Contract，包括各自的 Proposal 类型和 Payload Schema；仅给出 Schema 名称不能作为 Agent 理解提交字段的前提。
+
+Codex CLI Adapter 使用官方 `--output-schema` 和 `--output-last-message`：Agent 在 read-only 工具沙箱中分析源代码，将结构化 JSON 作为最终响应，由 CLI 宿主保存结果文件。Agent 不需通过 Shell 写结果文件；生成测试源码仍通过 Proposal `code` 字段提交。Provider JSONL 只作为运行遥测，不能代替最终结果。
+
+IMPLEMENT_TESTS 的 `runner_validation_required` 由 HyperTest 在接受实现 Proposal 后交给正式 Runner 满足。Agent 仍须完成任务要求的代码与追溯产出；完整 Proposal 可标记 COMPLETED，不因 Agent 工作区没有 pytest 或尚未进行正式执行而自行降为 PARTIAL。缺少实际任务产出时仍须如实报告未完成。Implementation 的 `symbol` Schema 明确反映现有 pytest test function 约束；仅有模块名或类名不能作为可执行 Canonical 目标。
+
+当前 Codex Adapter 为每次 execution session 的 Proposal key 声明 `ASid:` 前缀，Prompt 与 Provider Schema 使用同一个前缀。同一 session 保持稳定，不同 Attempt 的 session 使用不同前缀，避免重用已被拒绝 Attempt 占用的 Mission-scoped key。它不改变 Mission identity、不改写冻结 spec，也不放宽 Canonical 的 `(mission_id, idempotency_key)` 唯一规则；历史拒绝与重试继续保留。
+
+Codex 的严格结构化输出投影使用本 Mission 的 Typed Payload，关闭对象的额外字段并列出全部 required 字段，nullable 字段仍允许 null。该投影只生成当前 MVP 所需的 protocol / mission_id / status / summary / proposals；TMP 可选的 artifacts / execution_requests / unresolved / metrics / provider_metadata 保持原协议语义，由 HyperTest 的完整 TMP 模型补齐默认值。这个 Adapter 映射不修改 Canonical Schema 或降低 Verifier 校验。参考 [官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode#create-structured-outputs-with-a-schema) 与 [严格结构化输出约束](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas)。
+
 ---
 
 ## 13. MissionResult
@@ -274,17 +296,18 @@ Agent 的 Domain Output 必须表示为 Proposal。
 
 ```json
 {
-  "proposal_id": "PROP-301",
-  "type": "TEST_CASE",
+  "proposal_type": "TEST_CASE",
   "operation": "CREATE",
-  "object": {},
+  "idempotency_key": "daily-limit:concurrency:v1",
+  "object_payload": {},
   "rationale": "...",
-  "source_refs": [],
   "confidence": 0.91
 }
 ```
 
-Proposal Operation：CREATE、UPDATE、DEPRECATE、LINK、UNLINK。v1 不建议开放 DELETE。
+`proposal_type`、`operation`、`idempotency_key`、`object_payload` 为提交边界必填字段；Proposal UUID 由 HyperTest 分配。此 envelope 是当前运行时契约，替代早期未落地示例中的 `type` / `object` 简写，不涉及已发布字段重命名。
+
+Proposal Operation 的长期模型包括 CREATE、UPDATE、DEPRECATE、LINK、UNLINK。当前 Requirement / Risk / TestCase / Implementation / Finding Canonical Verifier 仅支持 CREATE；其他操作不能绕过 Verifier。v1 不建议开放 DELETE。
 
 ---
 
@@ -292,9 +315,10 @@ Proposal Operation：CREATE、UPDATE、DEPRECATE、LINK、UNLINK。v1 不建议�
 
 ```json
 {
-  "type": "REQUIREMENT",
+  "proposal_type": "REQUIREMENT",
   "operation": "CREATE",
-  "object": {
+  "idempotency_key": "daily-limit:requirement:v1",
+  "object_payload": {
     "title": "支持 dailyLimit",
     "description": "...",
     "source_ref": "PRD#3.2"
@@ -310,11 +334,13 @@ Proposal Operation：CREATE、UPDATE、DEPRECATE、LINK、UNLINK。v1 不建议�
 
 ```json
 {
-  "type": "RISK",
+  "proposal_type": "RISK",
   "operation": "CREATE",
-  "object": {
-    "requirements": ["REQ-17"],
-    "category": "concurrency",
+  "idempotency_key": "daily-limit:concurrency-risk:v1",
+  "object_payload": {
+    "requirement_keys": ["REQ-17"],
+    "category": "CONCURRENCY",
+    "title": "并发转账超出额度",
     "severity": "HIGH",
     "description": "并发转账可能造成额度超卖"
   },
@@ -329,20 +355,36 @@ Proposal Operation：CREATE、UPDATE、DEPRECATE、LINK、UNLINK。v1 不建议�
 
 ```json
 {
-  "type": "TEST_CASE",
+  "proposal_type": "TEST_CASE",
   "operation": "CREATE",
-  "object": {
-    "requirements": ["REQ-17"],
-    "risks": ["RK-21"],
+  "idempotency_key": "daily-limit:concurrency-test:v1",
+  "object_payload": {
+    "risk_keys": ["RK-21"],
     "title": "并发请求不允许超过 dailyLimit",
+    "description": "并发提交累计超出 dailyLimit 的转账请求，检查最终已接受金额和请求结果。",
     "priority": "P0",
-    "type": "concurrency",
-    "preconditions": [],
-    "steps": [],
-    "expected": []
+    "test_type": "CONCURRENCY",
+    "preconditions": ["账户 dailyLimit 已配置", "当前累计转账金额为零"],
+    "expected_result": "已接受请求的总金额不超过 dailyLimit，超出额度的请求明确失败。",
+    "confidence": 0.95
   }
 }
 ```
+
+Payload 要求：至少一个非空 `risk_keys`；非空 `title`、`description`、`expected_result`；合法 `test_type`；`preconditions` 为字符串列表；priority 默认 P1，confidence 可省略且必须在 [0, 1]。Risk keys 会去除首尾空白、排序并去重。支持 FUNCTIONAL、BOUNDARY、FAILURE、CONCURRENCY、SECURITY、PERFORMANCE、RECOVERY，以及领域规范保留的 NEGATIVE、CONSISTENCY、COMPATIBILITY、RELIABILITY、UPGRADE、DATA。
+
+Verifier 在 Canonical 写入前完成：
+
+1. Result / proposal / payload schema 和 CREATE 操作校验。
+2. 所有 Risk 均存在、属于当前 Project / SourceSnapshot，且非 OBSOLETE；跨快照引用拒绝。
+3. Mission-scoped Proposal idempotency 校验，batch 中重复 key 或已使用 key 都拒绝；拒绝 Attempt 的原 Proposal 记录保留。
+4. 根据 source snapshot、归一化 description / preconditions / expected_result、test_type、排序的 Canonical Risk fingerprints 计算 `case_fingerprint`。标题、优先级与 confidence 不影响精确意图去重。
+5. 规划 Mission 的不可变 missing dimensions 与当前覆盖进展校验；仅生成无关维度不能使 Mission 完成。
+6. 在一个事务中提交 Canonical TestCase、关系表、Proposal ACCEPTED、AuditEvent、OutboxEvent 和 Mission / Attempt 成功状态；任何一项失败均回滚。
+
+同 fingerprint 的多条合法 Proposal 指向同一 Canonical TestCase，保留各自 Proposal 来源，不重复用例或 `test_case.accepted` 事件。preconditions 的顺序具有语义；文本只折叠空白，不改变大小写。跨 Snapshot 复用必须 clone / derive，不能直接引用旧 Snapshot 的 Canonical 行。
+
+v0.2 TestCase 的 `description` / `test_type` / 字符串 `expected_result` 是首次实现的域模型选择，替代旧草案未实现的 objective / case_type / steps / expected 示例；完整约束见领域规范 §14。
 
 ---
 
@@ -350,21 +392,27 @@ Proposal Operation：CREATE、UPDATE、DEPRECATE、LINK、UNLINK。v1 不建议�
 
 ```json
 {
-  "type": "TEST_IMPLEMENTATION",
+  "proposal_type": "TEST_IMPLEMENTATION",
   "operation": "CREATE",
-  "object": {
-    "cases": ["TC-31"],
-    "file": "tests/test_daily_limit.py",
-    "symbol": "test_concurrent_daily_limit"
-  },
-  "artifacts": [
-    {
-      "type": "git_diff",
-      "ref": "artifact://A-23"
-    }
-  ]
+  "idempotency_key": "daily-limit:implementation:v1",
+  "object_payload": {
+    "test_case_keys": ["TC-31"],
+    "repository_url": "https://github.com/example/payments",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "file_path": "tests/test_daily_limit.py",
+    "symbol": "test_concurrent_daily_limit",
+    "framework": "pytest",
+    "language": "python",
+    "code": "from concurrent.futures import ThreadPoolExecutor\nfrom app.limits import Account\n\ndef test_concurrent_daily_limit():\n    account = Account(daily_limit=100)\n    with ThreadPoolExecutor(max_workers=2) as pool:\n        accepted = list(pool.map(account.transfer, [60, 60]))\n    assert sum(accepted) == 1\n"
+  }
 }
 ```
+
+示例应用符号需根据被测仓库调整。当前支持 Python / pytest，payload 必须提供至少一个当前 Snapshot 下的 ACTIVE test_case_keys。Repository 与 Commit 必须匹配 Canonical SourceSnapshot；file_path 必须为安全相对 Python 路径，symbol 由 Python identifier / `::` 构成。正式 Runner 进一步限制安全 `tests/**/*.py` 和 pytest test function 目标。
+
+可选 code 必须可编译为 Python，生成路径必须在 tests/ 下。HyperTest 计算 source_sha256 并保存只写入一次的内容寻址 Artifact；Canonical TestImplementation 记录 artifact_uri / source_sha256。Fingerprint 使用规范化 repository / commit / file_path / symbol，生成源码另加入内容 hash。旧实现可被精确去重，但不同源码产生新版本；Case links 使用 ImplementationTestCase 关系表。
+
+没有 code 表示引用已存在于固定 SourceSnapshot 的测试；Runner 校验 tracked 路径与内容。生成代码仅在临时执行副本中覆盖未被 Snapshot 跟踪的测试文件，不修改应用快照。Verifier 创建 PENDING 实现；VALIDATED 是 Runner 校验结果，不是 Agent 提交字段。
 
 ---
 
@@ -372,18 +420,29 @@ Proposal Operation：CREATE、UPDATE、DEPRECATE、LINK、UNLINK。v1 不建议�
 
 ```json
 {
-  "type": "FINDING",
+  "proposal_type": "FINDING",
   "operation": "CREATE",
-  "object": {
+  "idempotency_key": "daily-limit:finding:v1",
+  "object_payload": {
     "classification": "PRODUCT_DEFECT",
-    "severity": "S2",
+    "severity": "CRITICAL",
     "title": "并发转账导致 dailyLimit 超卖",
-    "test_cases": ["TC-31"],
-    "evidence": ["EV-22", "EV-23"]
-  },
-  "confidence": 0.93
+    "description": "同一账户的两个并发额度预留请求均被接受，累计金额超出每日额度。",
+    "root_cause": "额度读取和更新缺少原子性。",
+    "test_case_keys": ["TC-31"],
+    "requirement_keys": ["REQ-17"],
+    "risk_keys": ["RK-21"],
+    "evidence_keys": ["EV-22", "EV-23"],
+    "confidence": 0.93
+  }
 }
 ```
+
+当前 DIAGNOSE_FAILURE 的 Proposal 必须为 FINDING / CREATE；INVESTIGATE_FINDING 保留为后续 Mission 类型。evidence_keys 至少一个，必须是本 TestRun 的 VERIFIED Evidence；PRODUCT_DEFECT 必须有 RUNNER / SYSTEM / EXTERNAL_VERIFIED 可信支持。Case / Requirement / Risk 引用限制在同一 Project / Snapshot 的有效 Canonical State。Source commit 不一致的执行证据不能跨快照混用。
+
+Verifier 以 project、classification、归一化 description 和 run-scoped affected component（Run ID + 排序 Case keys）去重，保存 FindingEvidence / FindingTestCase / FindingRequirement / FindingRisk Join Tables；接受后的初始状态为 NEW，Agent 不提交 CONFIRMED 或 Resolution。Proposal acceptance、Canonical 行/links、AuditEvent、OutboxEvent 在同一事务完成。
+
+用户受控生命周期操作必须提供 reason，可提供 expected_row_version 防止覆盖并发修改。CONFIRMED 需要 VERIFIED supporting Evidence；PRODUCT_DEFECT 还要求可信 trust level。RESOLVED 必须提供 Resolution；REOPENED 清除旧 resolution / resolved_at，历史通过审计保留。质量结论仍由 Gate 决定。
 
 ---
 
@@ -572,6 +631,10 @@ TMP 将 Retry 分两类：
 - **Mission Retry**：Agent crashed、result schema invalid、provider unavailable，由 HyperTest 重新调度。
 
 Mission Attempt 必须独立记录，历史 Attempt 不覆盖。
+
+接受 required outputs 的事务必须同时保存 `mission.completed` AuditEvent 与 OutboxEvent；SUBMITTED 或 Agent 自称 COMPLETED 不触发该平台事件。创建、开始、拒绝、超时、中断、取消和重试控制决策形成可审计的 Mission 生命周期，不能只从 Requirement / Case 的接受事件推测。生命周期事件只携带领域状态与原因，不承载 Vendor 日志、raw Proposal payload 或 reasoning。
+
+Worker 租约过期或进程中断时，平台保留失联 Attempt 并标记 FAILED，将 Mission 标记 RETRYING；旧 lease token 不能再提交 Canonical 结果。Job 记录 INTERRUPTED，不自动重放外部执行。用户确认后显式重试生成新的 Job；Mission 重试仍追加新的 Attempt，Execution 重试仍创建新 Execution。Web 刷新或 API 请求结束不会撤销已经入库的 Job。
 
 ---
 

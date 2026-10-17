@@ -15,6 +15,7 @@ from hypertest.api.schemas import (
 )
 from hypertest.application.runtime import execute_mission
 from hypertest.application.services import (
+    canonical_json_sha256,
     create_mission,
     create_policy_snapshot,
     create_project,
@@ -108,7 +109,7 @@ async def test_agent_result_commits_canonical_requirement_with_audit_and_outbox(
             PolicySnapshotCreate(
                 project_id=project.id,
                 policy_version="test-v1",
-                content_sha256="c" * 64,
+                content_sha256=canonical_json_sha256({}),
             ),
         )
         test_run = await create_test_run(

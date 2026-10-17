@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: hypertest
       POSTGRES_PASSWORD: hypertest
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hypertest -d hypertest"]
       interval: 3s
@@ -26,7 +26,7 @@ services:
       - ./src:/app/src
       - ./alembic:/app/alembic
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,7 +37,7 @@ services:
       args:
         HYPERTEST_API_ORIGIN: http://api:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api
 

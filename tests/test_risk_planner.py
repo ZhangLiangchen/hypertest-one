@@ -15,6 +15,7 @@ from hypertest.api.schemas import (
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import execute_mission
 from hypertest.application.services import (
+    canonical_json_sha256,
     create_policy_snapshot,
     create_project,
     create_source_snapshot,
@@ -117,7 +118,7 @@ async def test_planner_advances_requirement_to_risk_canonical_state() -> None:
             PolicySnapshotCreate(
                 project_id=project.id,
                 policy_version="planner-v1",
-                content_sha256="f" * 64,
+                content_sha256=canonical_json_sha256({}),
             ),
         )
         test_run = await create_test_run(
@@ -165,7 +166,9 @@ async def test_planner_advances_requirement_to_risk_canonical_state() -> None:
             select(func.count()).select_from(Risk).where(Risk.source_snapshot_id == snapshot.id)
         )
         link_count = await session.scalar(
-            select(func.count()).select_from(RequirementRisk).where(RequirementRisk.risk_id == risk.id)
+            select(func.count())
+            .select_from(RequirementRisk)
+            .where(RequirementRisk.risk_id == risk.id)
         )
         audit_count = await session.scalar(
             select(func.count())
@@ -183,5 +186,6 @@ async def test_planner_advances_requirement_to_risk_canonical_state() -> None:
         assert outbox_count == 1
 
         final_plan = await plan_next_mission(session, test_run.id)
-        assert final_plan.reason == "RISK_COVERAGE_COMPLETE"
-        assert final_plan.mission is None
+        assert final_plan.reason == "TEST_DESIGN_COVERAGE_GAP"
+        assert final_plan.mission is not None
+        assert final_plan.mission.mission_type is MissionType.DESIGN_TESTS

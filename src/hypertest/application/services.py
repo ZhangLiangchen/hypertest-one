@@ -23,7 +23,9 @@ from hypertest.domain.models import (
     Requirement,
     RequirementRisk,
     Risk,
+    RiskTestCase,
     SourceSnapshot,
+    TestCase,
     TestRun,
 )
 
@@ -109,17 +111,25 @@ async def create_source_snapshot(
 async def create_policy_snapshot(
     session: AsyncSession, payload: PolicySnapshotCreate
 ) -> PolicySnapshot:
+    from hypertest.application.policy import InvalidPolicyError, compile_policy
+
+    compile_policy(payload.compiled_policy)
+    expected_hash = canonical_json_sha256(payload.compiled_policy)
+    if payload.content_sha256.lower() != expected_hash:
+        raise InvalidPolicyError("content_sha256 must match the canonical compiled_policy JSON")
     await get_project(session, payload.project_id)
     existing = await session.scalar(
         select(PolicySnapshot).where(
             PolicySnapshot.project_id == payload.project_id,
-            PolicySnapshot.content_sha256 == payload.content_sha256,
+            PolicySnapshot.content_sha256 == expected_hash,
         )
     )
     if existing is not None:
         return existing
 
-    snapshot = PolicySnapshot(**payload.model_dump())
+    snapshot = PolicySnapshot(
+        **payload.model_dump(exclude={"content_sha256"}), content_sha256=expected_hash
+    )
     session.add(snapshot)
     await _commit(session)
     await session.refresh(snapshot)
@@ -149,14 +159,10 @@ async def get_test_run(session: AsyncSession, test_run_id: UUID) -> TestRun:
     return test_run
 
 
-async def list_test_runs_for_project(
-    session: AsyncSession, project_id: UUID
-) -> list[TestRun]:
+async def list_test_runs_for_project(session: AsyncSession, project_id: UUID) -> list[TestRun]:
     await get_project(session, project_id)
     result = await session.scalars(
-        select(TestRun)
-        .where(TestRun.project_id == project_id)
-        .order_by(TestRun.created_at.desc())
+        select(TestRun).where(TestRun.project_id == project_id).order_by(TestRun.created_at.desc())
     )
     return list(result)
 
@@ -183,6 +189,10 @@ async def create_mission(
         **payload.model_dump(),
     )
     session.add(mission)
+    await session.flush()
+    from hypertest.application.lifecycle import record_mission_event
+
+    await record_mission_event(session, mission, "mission.created")
     await _commit(session)
     await session.refresh(mission)
     return mission
@@ -195,14 +205,10 @@ async def get_mission(session: AsyncSession, mission_id: UUID) -> Mission:
     return mission
 
 
-async def list_missions_for_test_run(
-    session: AsyncSession, test_run_id: UUID
-) -> list[Mission]:
+async def list_missions_for_test_run(session: AsyncSession, test_run_id: UUID) -> list[Mission]:
     await get_test_run(session, test_run_id)
     result = await session.scalars(
-        select(Mission)
-        .where(Mission.test_run_id == test_run_id)
-        .order_by(Mission.created_at)
+        select(Mission).where(Mission.test_run_id == test_run_id).order_by(Mission.created_at)
     )
     return list(result)
 
@@ -245,3 +251,31 @@ async def list_risks_for_test_run(
     for risk_id, requirement_key in rows:
         keys_by_risk[risk_id].append(requirement_key)
     return [(risk, keys_by_risk[risk.id]) for risk in risks]
+
+
+async def list_test_cases_for_test_run(
+    session: AsyncSession, test_run_id: UUID
+) -> list[tuple[TestCase, list[str]]]:
+    test_run = await get_test_run(session, test_run_id)
+    cases = list(
+        await session.scalars(
+            select(TestCase)
+            .where(
+                TestCase.project_id == test_run.project_id,
+                TestCase.source_snapshot_id == test_run.source_snapshot_id,
+            )
+            .order_by(TestCase.created_at, TestCase.key)
+        )
+    )
+    if not cases:
+        return []
+    rows = await session.execute(
+        select(RiskTestCase.test_case_id, Risk.key)
+        .join(Risk, Risk.id == RiskTestCase.risk_id)
+        .where(RiskTestCase.test_case_id.in_([item.id for item in cases]))
+        .order_by(Risk.key)
+    )
+    keys: dict[UUID, list[str]] = {item.id: [] for item in cases}
+    for case_id, risk_key in rows:
+        keys[case_id].append(risk_key)
+    return [(item, keys[item.id]) for item in cases]
