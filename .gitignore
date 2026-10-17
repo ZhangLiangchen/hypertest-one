@@ -12,3 +12,14 @@ web/.env.local
 .DS_Store
 .hypertest-artifacts/
 .hypertest-workspaces/
+
+# Local design tooling and browser review evidence
+.impeccable/config.local.json
+.impeccable/questions/
+.impeccable/live/
+.impeccable/review/
+.playwright-cli/
+output/playwright/
+
+.agents/skills/impeccable/scripts/bin/
+.codex/environments/
