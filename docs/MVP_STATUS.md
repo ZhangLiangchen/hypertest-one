@@ -2,15 +2,26 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Release and acceptance baseline
+## PRD import, HTTP identities and VPN access acceptance
+
+The baseline for this change is main `d20a2bc78c2f57b3bc2835cdf253d021f6b8265a`. Its prior 298-model/302-check source identities and clipboard-based successful Run remain historical evidence. The current frozen 28-Web/86-backend input manifest is `0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07`; the 86 backend inputs equal d20/the 302-test source, with no backend, dependency or migration changes and no claim of a new backend-suite run.
+
+Native Chrome with the actual macOS file chooser passed **9 real fixtures / 15 UI checks** after reproducing the empty-file overwrite. Rejected imports preserve both draft and filename; valid UTF-8 content, BOM/CRLF, edit/reopen, cancellation/reselection, language switching, Review and back navigation were checked. No File/Input was injected, no browser file permission was changed, and no local Run or model call was created. [Browser matrix](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json).
+
+Persistent frontend tests passed **20/20 (14 PRD-decode + 6 UUID)**, with fresh install, typecheck, production build and npm audit 0. The PRD helper performs one fatal UTF-8 decode before replacing the draft, rejects empty/whitespace-only/BOM-only/malformed/NUL/oversized content, and preserves valid whitespace/newlines. The HTTP UUID helper uses native randomUUID or CSPRNG getRandomValues UUID v4, never weak randomness, without changing idempotency or Canonical ownership.
+
+The selected network policy permits VPN TCP peer `45.76.149.233/32` at both UFW and nginx on exact `155.138.206.106:8080`; SSH22 and the original `127.0.0.1:8080` tunnel remain, with API/Web-backend/PG loopback-bound. At commit preparation the candidate was reviewed and awaited activation/production acceptance. The [latest delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md) owns the subsequent commit/CI/deployment identity, actual allowed/denied HTTP probes, Project/Run/Job creation and one independent production file → edit → hash → real Codex/Docker → Evidence/Verdict cycle. These outcomes must be recorded from execution, not inferred from local tests. Egress-IP permission is not individual authentication/RBAC.
+
+## Historical release and acceptance baseline
+
 
 The development and pre-upgrade deployment baseline is main `79d329299d038ff9e6a3fe1659fb27bf589062c1`: its required backend checks passed with **223 tests / 3 warnings**, and both [CI jobs](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39033073576) succeeded. The four historical real Codex/model/Docker chains ran on `89d15ae` (the local analysis portion began on `5b1b7ce`); those execution identities and results remain unchanged. The 79d server synchronization independently preserved 64 API resource paths and all 12 Evidence/input artifacts.
 
 The final frozen working tree above 79d passed **302 backend tests / 3 warnings (32.87s)**, Ruff and dedicated-test-DB Alembic head `0008_job_ownership`. All 23 Web inputs remain hash-identical to the independent installation that passed typecheck, production build and npm audit 0; the backend-only final URL rejection patch did not rerun Web checks. The [check report](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-checks-2026-10-17.md) records the exact 86 backend and 23 Web inputs, commands and manifest `6ea1934a8a4a577d6990e38eda11a49c1727b9505b333d416d961b207f68e85f`.
 
-New live Web Run `01a149ff-2749-7ecc-b5f4-5a02307cb7b0` completed automatic GitHub source preparation, real Codex/model proposals, trusted Docker execution, evidence and FINAL **RELEASE_READY**: 7 Requirements, 6 Risks, 9 Cases, 9 Implementations, 1 Execution, 4 verified Evidence; JUnit **34 tests / 0 failures / 0 errors / 0 skipped**. The first Risk call was cancelled through Web after a long interval without new events; a linked explicit retry preserved all history and reused the accepted Requirements. Task → Verdict → JUnit navigation and original Attempt summaries were verified in the actual bilingual Web.
+The prior live Web Run `01a149ff-2749-7ecc-b5f4-5a02307cb7b0` completed automatic GitHub source preparation, real Codex/model proposals, trusted Docker execution, evidence and FINAL **RELEASE_READY**: 7 Requirements, 6 Risks, 9 Cases, 9 Implementations, 1 Execution, 4 verified Evidence; JUnit **34 tests / 0 failures / 0 errors / 0 skipped**. The first Risk call was cancelled through Web after a long interval without new events; a linked explicit retry preserved all history and reused the accepted Requirements. Task → Verdict → JUnit navigation and original Attempt summaries were verified in the actual bilingual Web.
 
-That live cycle used the 298-test frozen source manifest `0a34e3356d1b2f37b2731b160730747b5dcfa49e9e549c59ad94c8c7e29f1273`. A subsequent rejection-path-only URL parser hardening and four API regressions passed the final 302-test suite; valid GitHub behavior was unchanged. The running model process identity is not rewritten as a later commit. This iteration did not rerun the already accepted failure-diagnosis chains. See [first-phase acceptance](FIRST_PHASE_ACCEPTANCE.md) for the itemized current-versus-historical matrix and [delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-delivery-2026-10-17.md) for the final commit and actual deployment/readiness identity.
+That live cycle used the 298-test frozen source manifest `0a34e3356d1b2f37b2731b160730747b5dcfa49e9e549c59ad94c8c7e29f1273`. A subsequent rejection-path-only URL parser hardening and four API regressions passed the final 302-test suite; valid GitHub behavior was unchanged. The running model process identity is not rewritten as a later commit. That release did not rerun the already accepted failure-diagnosis chains. See [first-phase acceptance](FIRST_PHASE_ACCEPTANCE.md) for the itemized current-versus-historical matrix and [delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/phase-one-web-delivery-2026-10-17.md) for the final commit and actual deployment/readiness identity.
 
 ## Implemented workflow
 
@@ -55,7 +66,7 @@ explicit retry. Bootstrap rejects reuse of a request key for different substanti
 inputs before writing artifacts; branch reference labels follow the existing
 SourceSnapshot identity rules. See the [Web workflow guide](WEB_PRODUCT_WORKFLOW.md).
 
-The prior browser acceptance exercised pasted Chinese PRD text. Actual file import remains unverified: Chrome extension “Allow access to file URLs” was disabled, so only the file chooser entry and source implementation were inspected. It must not be reported as a completed import acceptance.
+The prior successful cycle used pasted Chinese PRD text; its extension permission limitation is historical. The repaired local native-Chrome import matrix now passes 9 fixtures/15 checks. Production file/hash/HTTP identity and live-model outcomes are separately maintained in the latest delivery record, rather than inferred from the local matrix.
 
 ## Current trust and coverage boundaries
 

@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { createProject, errorText, getProjects } from "@/lib/api";
 import { ClientModal as Modal } from "@/app/client-modal";
 import { useI18n } from "@/lib/i18n";
+import { createUuid } from "@/lib/uuid";
 
 type ProjectFormValues = {
   key: string;
@@ -56,7 +57,7 @@ export default function DashboardPage() {
     if (form.getFieldValue("key")) return;
     const name = String(form.getFieldValue("name") || "");
     const suggested = name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64);
-    form.setFieldValue("key", suggested.length >= 2 ? suggested : `PROJECT_${crypto.randomUUID().slice(0, 8).toUpperCase()}`);
+    form.setFieldValue("key", suggested.length >= 2 ? suggested : `PROJECT_${createUuid().slice(0, 8).toUpperCase()}`);
   };
   const openCreate = () => setCreateOpen(true);
 
