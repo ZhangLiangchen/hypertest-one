@@ -12,10 +12,11 @@ import { ClientModal as Modal } from "@/app/client-modal";
 import {
   cancelMission, errorText, getEvidence,
   getEvidenceContent, getExecution, getExecutions, getFindings, getImplementations,
-  getCapabilities, getMission, getMissionAttempts, getMissionProposals, getVerdicts, retryMission, transitionFinding,
+  getCapabilities, getMission, getMissionAttempts, getMissionProposals, getSourceSnapshot, getVerdicts, retryMission, transitionFinding,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useRunJobs } from "./use-run-jobs";
+import { AttemptHistory } from "./attempt-history";
 
 import type { Evidence, ExecutionCreate, Finding, Mission, MissionProposal, TestExecution, TestImplementation, Verdict } from "@/lib/types";
 
@@ -81,7 +82,17 @@ function FindingLifecycle({ finding, onUpdated }: { finding: Finding; onUpdated:
   </>;
 }
 
-export function useRunOperations(runId: string, onNavigate: (section: string) => void) {
+type ExecutionFormValues = ExecutionCreate & { source_mode?: "managed" | "existing" };
+
+function supportsManagedCheckout(repository: string | undefined): boolean {
+  if (!repository || !/^https:\/\/github\.com\//i.test(repository)) return false;
+  try {
+    const url = new URL(repository);
+    return url.protocol === "https:" && url.hostname === "github.com" && !url.port && !url.username && !url.password && !url.search && !url.hash && /^\/[\w.-]+\/[\w.-]+\/?$/.test(url.pathname);
+  } catch { return false; }
+}
+
+export function useRunOperations(runId: string, onNavigate: (section: string) => void, sourceId?: string) {
   const { t, label, locale, formatDate, verdictReason } = useI18n();
   const client = useQueryClient();
   const [notifications, contextHolder] = message.useMessage();
@@ -93,8 +104,12 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const [evidenceSelection, setEvidenceSelection] = useState<Evidence | null>(null);
   const [findingSelection, setFindingSelection] = useState<Finding | null>(null);
   const [verdictSelection, setVerdictSelection] = useState<Verdict | null>(null);
+  const [preparationJobId, setPreparationJobId] = useState<string | null>(null);
   const [missionForm] = Form.useForm<{ workspace: string }>();
-  const [executionForm] = Form.useForm<ExecutionCreate>();
+  const [executionForm] = Form.useForm<ExecutionFormValues>();
+  const sourceMode = Form.useWatch("source_mode", executionForm);
+  const source = useQuery({ queryKey: ["source-snapshot", sourceId], queryFn: () => getSourceSnapshot(sourceId!), enabled: !!sourceId, staleTime: Infinity });
+  const managedCheckout = supportsManagedCheckout(source.data?.repository_url);
 
   useEffect(() => {
     try { setWorkspace(localStorage.getItem(`hypertest.workspace.${runId}`) || ""); } catch { setWorkspace(""); }
@@ -161,7 +176,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     onSettled: refresh,
   });
   const execution = useMutation({
-    mutationFn: (values: ExecutionCreate) => { rememberWorkspace(values.workspace); return tasks.submit("EXECUTE_TESTS", { ...values, purpose: "OFFICIAL" }); },
+    mutationFn: (values: ExecutionCreate) => { rememberWorkspace(values.workspace); return tasks.submit("EXECUTE_TESTS", { workspace: values.workspace, backend: values.backend, timeout_seconds: values.timeout_seconds, purpose: "OFFICIAL" }); },
     onSuccess: () => setExecutionDialog(null),
     onSettled: refresh,
   });
@@ -170,23 +185,28 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     onSettled: refresh,
   });
   const cycle = useMutation({
-    mutationFn: (values: ExecutionCreate) => {
-      rememberWorkspace(values.workspace);
-      return tasks.submit("ADVANCE_RUN", { workspace: values.workspace, backend: values.backend, timeout_seconds: values.timeout_seconds, max_steps: 12 });
+    mutationFn: (values: ExecutionFormValues) => {
+      const automatic = values.source_mode === "managed";
+      if (!automatic) rememberWorkspace(values.workspace);
+      return tasks.submit("ADVANCE_RUN", { ...(automatic ? { prepare_workspace: true } : { workspace: values.workspace }), backend: values.backend, timeout_seconds: values.timeout_seconds, max_steps: 12 });
     },
     onSuccess: () => setExecutionDialog(null),
     onSettled: refresh,
   });
   const preparation = useMutation({
     mutationFn: (_target: "mission" | "runner") => tasks.submit("PREPARE_WORKSPACE", {}),
+    onSuccess: (job) => setPreparationJobId(job.id),
   });
   const preparingCheckout = tasks.active.find((job) => job.job_type === "PREPARE_WORKSPACE");
+  const preparationJob = tasks.rows.find((job) => job.id === preparationJobId);
+  const preparationFeedback = preparationJob && ["FAILED", "INTERRUPTED", "CANCELLED"].includes(preparationJob.status) ? <Alert type="error" showIcon message={t("Source checkout was not prepared", "源码目录未能准备完成")} description={preparationJob.error_message || t("Review the recorded checkout task before retrying.", "请检查已记录的检出任务后再重试。")} action={<Button onClick={() => { setMissionDialog(false); setExecutionDialog(null); tasks.openTask(preparationJob.id); }}>{t("View checkout task", "查看检出任务")}</Button>} style={{ marginBottom: 16 }} /> : null;
 
 
   function openMissionExecution(item: Mission) {
     setMissionSelection(item);
     missionExecution.reset();
     preparation.reset();
+    setPreparationJobId(null);
     missionForm.setFieldsValue({ workspace });
     setMissionDialog(true);
   }
@@ -256,23 +276,23 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     execution.reset();
     preparation.reset();
     cycle.reset();
-    executionForm.setFieldsValue({ workspace, backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300 });
+    setPreparationJobId(null);
+    executionForm.setFieldsValue({ workspace, source_mode: mode === "cycle" && managedCheckout && !workspace ? "managed" : "existing", backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300 });
     setExecutionDialog(mode);
   }
 
   const actions = <Space wrap>
-    <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={!capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>
+    <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={source.isLoading || !!source.error || !capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>
     <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !capabilities.data?.runner_backends.length || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
-      execution.reset();
-      preparation.reset();
-      executionForm.setFieldsValue({ workspace, backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300 });
-      setExecutionDialog("execution");
+      openExecutionDialog("execution");
     }}>{t("Execute tests", "执行测试")}</Button>
     <Button aria-label={t("Evaluate quality gate", "评估质量门禁")} disabled={tasks.busy} loading={gate.isPending} onClick={() => gate.mutate()}>{t("Evaluate quality gate", "评估质量门禁")}</Button>
   </Space>;
 
   const summary = <>
     {tasks.monitor}
+    {source.error && <Alert type="error" showIcon message={t("Unable to read pinned source", "无法读取固定源码输入")} description={errorText(source.error, locale)} action={<Button onClick={() => void source.refetch()}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 16 }} />}
+    {!tasks.rows.length && !executions.data?.length && !latestVerdict && <Alert type="info" showIcon message={t("Inputs saved. Start a complete test cycle.", "输入已保存，下一步运行完整测试周期。")} description={t("HyperTest will analyze requirements, identify risks, design and implement tests, run Docker and produce an evidence-backed verdict. GitHub sources can be prepared automatically; other sources use a checkout on the Worker host.", "HyperTest 会分析需求、识别风险、设计和实现测试，再通过 Docker 执行并形成有证据支持的质量判定。GitHub 来源可自动准备源码；其他来源使用 Worker 主机上的检出目录。")} style={{ marginBottom: 16 }} />}
     {capabilities.data?.worker?.available === false && <Alert type="warning" showIcon message={t("No worker heartbeat is available", "未检测到 Worker 心跳")} description={<>{t("Queued tasks stay saved until a worker becomes available.", "排队任务会持久保存，等待 Worker 恢复。")}{capabilities.data.worker.last_seen_at ? ` ${t("Last heartbeat", "最近心跳")}: ${formatDate(capabilities.data.worker.last_seen_at)}` : t(" Start the HyperTest worker service to process queued work.", " 请启动 HyperTest Worker 服务以处理任务。")}</>} style={{ marginBottom: 16 }} />}
     {!executionDialog && cycle.error && <Alert type="error" showIcon message={t("Unable to save test-cycle task", "无法保存测试周期任务")} description={errorText(cycle.error, locale)} style={{ marginBottom: 16 }} />}
     {capabilities.error && <Alert type="warning" showIcon message={t("Runtime capabilities could not be checked", "无法检查运行能力")} description={errorText(capabilities.error, locale)} action={<Button onClick={() => void capabilities.refetch()}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 16 }} />}
@@ -293,9 +313,10 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
       <Alert type="info" showIcon message={t("Codex must be installed and authenticated on the HyperTest host.", "HyperTest 主机必须已安装并认证 Codex。")} description={t("The agent submits proposals. HyperTest verifies them before updating canonical testing state.", "智能体提交提议，由 HyperTest 验证后更新正式测试状态。")} style={{ marginBottom: 20 }} />
       <Form name="execute-mission" form={missionForm} layout="vertical" onFinish={(values) => missionExecution.mutate(values)}>
         <Form.Item name="workspace" label={t("Repository workspace", "仓库工作目录")} rules={[{ required: true, whitespace: true, message: t("Enter the checkout path on the HyperTest host.", "请输入 HyperTest 主机上的检出目录绝对路径。") }]} extra={t("Absolute path to a checkout matching this run's pinned source commit.", "目录必须匹配本次运行固定的源码提交，填写主机上的绝对路径。")}><Input placeholder={`${capabilities.data?.workspace_root || "/workspaces"}/my-project`} disabled={missionExecution.isPending || preparation.isPending} /></Form.Item>
-        <Button size="small" loading={preparation.isPending} disabled={missionExecution.isPending || tasks.busy} onClick={() => preparation.mutate("mission")} style={{ marginBottom: 20 }}>{t("Prepare pinned checkout", "准备固定版本目录")}</Button>
+        <Button size="small" loading={preparation.isPending} disabled={!managedCheckout || missionExecution.isPending || tasks.busy} onClick={() => preparation.mutate("mission")} style={{ marginBottom: 20 }}>{t("Prepare pinned checkout", "准备固定版本目录")}</Button>
         {preparingCheckout && <Alert type="info" showIcon message={`${t("Checkout task", "检出任务")} · ${label(preparingCheckout.status)}`} description={t("You can close this dialog. The prepared path is filled in after the worker finishes.", "可关闭此对话框。Worker 完成准备后会自动填入目录路径。")} style={{ marginBottom: 16 }} />}
         {preparation.error && <Alert type="error" showIcon message={t("Unable to save checkout task", "无法保存检出任务")} description={errorText(preparation.error, locale)} style={{ marginBottom: 16 }} />}
+        {preparationFeedback}
       </Form>
       {missionExecution.isPending && <Alert type="info" showIcon message={t("Saving mission task", "正在保存智能体任务")} description={t("Once accepted, the worker executes this mission independently of the browser.", "任务保存后，由 Worker 独立执行，关闭浏览器不会中止。")} />}
       {missionExecution.error && <Alert type="error" showIcon message={t("Unable to save mission task", "无法保存智能体任务")} description={errorText(missionExecution.error, locale)} />}
@@ -306,12 +327,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
       {missionCancellation.error && <Alert type="error" showIcon message={t("Unable to cancel mission", "无法取消测试任务")} description={errorText(missionCancellation.error, locale)} />}
       <Typography.Title level={4}>{t("Attempts", "尝试历史")}</Typography.Title>
       <Pane loading={attempts.isLoading} error={attempts.error} empty={!attempts.data?.length} retry={() => void attempts.refetch()} description={t("This mission has not run yet.", "此测试任务尚未执行。")}>
-        <Table rowKey="id" size="small" dataSource={attempts.data} pagination={false} columns={[
-          { title: t("Attempt", "尝试序号"), dataIndex: "attempt_no", width: 80 },
-          { title: t("Provider", "提供方"), dataIndex: "provider" },
-          { title: t("Status", "状态"), dataIndex: "status", render: (value: string) => <Badge value={value} /> },
-          { title: t("Error", "错误"), key: "error", render: (_: unknown, item: { error_code?: string | null; error_message?: string | null }) => item.error_message ? <Typography.Text type="danger">{item.error_code}: {item.error_message}</Typography.Text> : "—" },
-        ]} />
+        <AttemptHistory attempts={attempts.data || []} />
       </Pane>
       <Typography.Title level={4}>{t("Proposals", "提议")}</Typography.Title><Typography.Paragraph className="muted">{t("Expand a proposal to inspect the original agent output and validation errors. Only accepted proposals enter canonical testing state.", "展开提议可查看智能体原始产出与验证错误。只有被接受的提议才会进入正式测试状态。")}</Typography.Paragraph>
       <Pane loading={proposals.isLoading} error={proposals.error} empty={!proposals.data?.length} retry={() => void proposals.refetch()} description={t("No proposals submitted yet.", "尚未提交提议。")}>
@@ -326,11 +342,20 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
     <Modal forceRender title={executionDialog === "cycle" ? t("Run a complete test cycle", "运行完整测试周期") : t("Run official tests", "运行正式测试")} open={!!executionDialog} width={640} okText={executionDialog === "cycle" ? t("Run test cycle", "运行完整测试周期") : t("Start execution", "开始执行")} okButtonProps={{ "aria-label": executionDialog === "cycle" ? t("Run test cycle", "运行完整测试周期") : t("Start execution", "开始执行"), disabled: tasks.busy }} confirmLoading={execution.isPending || cycle.isPending} cancelText={execution.isPending || cycle.isPending ? t("Return to workbench", "返回工作台") : t("Cancel", "取消")} maskClosable={!execution.isPending && !cycle.isPending} onCancel={() => setExecutionDialog(null)} onOk={() => executionForm.submit()}>
       <Typography.Paragraph>{executionDialog === "cycle" ? t("HyperTest plans and verifies agent missions, implements tests, runs them through a trusted runner and evaluates the quality gate. Each cycle is limited to 12 planning steps; progress remains available in the workbench.", "HyperTest 规划并验证智能体任务、生成测试实现、通过可信 Runner 执行测试，最后评估质量门禁。每次最多推进 12 个步骤，进度持续保存在工作台。") : t("HyperTest Runner executes accepted test implementations and collects verifiable evidence.", "HyperTest Runner 执行已接受的测试实现，并收集可验证的证据。")}</Typography.Paragraph>
+      <Alert type="info" showIcon message={t("Current Runner support: Python / pytest", "当前 Runner 支持 Python / pytest")} description={t("The default image includes the standard library and pytest. Application dependencies require an operator-prepared trusted image; execution has no network access.", "默认镜像包含标准库和 pytest。应用依赖需要运维预置在可信镜像中；正式执行时没有网络访问。")} style={{ marginBottom: 16 }} />
       <Form name="execute-run" form={executionForm} layout="vertical" onFinish={(values) => executionDialog === "cycle" ? cycle.mutate(values) : execution.mutate({ ...values, purpose: "OFFICIAL" })} disabled={execution.isPending || cycle.isPending}>
-        <Form.Item name="workspace" label={t("Repository workspace", "仓库工作目录")} rules={[{ required: true, whitespace: true, message: t("Enter the checkout path on the HyperTest host.", "请输入 HyperTest 主机上的检出目录绝对路径。") }]} extra={t("A checkout of this run's source with the accepted test implementations available.", "目录须对应本次运行的固定源码。平台会将已接受的测试实现提供给 Runner。")}><Input placeholder={`${capabilities.data?.workspace_root || "/workspaces"}/my-project`} /></Form.Item>
-        <Button size="small" loading={preparation.isPending} disabled={execution.isPending || cycle.isPending || tasks.busy} onClick={() => preparation.mutate("runner")} style={{ marginBottom: 20 }}>{t("Prepare pinned checkout", "准备固定版本目录")}</Button>
+        {executionDialog === "cycle" && <Form.Item name="source_mode" label={t("Source preparation", "源码准备方式")}><Select options={[
+          ...(managedCheckout ? [{ value: "managed", label: t("Prepare pinned source and run automatically", "自动准备固定源码并运行") }] : []),
+          { value: "existing", label: t("Use a checkout on the Worker host", "使用 Worker 主机已有检出目录") },
+        ]} /></Form.Item>}
+        {executionDialog === "cycle" && sourceMode === "managed" ? <Alert type="info" showIcon message={t("One durable task prepares source and runs the cycle", "同一后台任务会准备源码并继续完整周期")} description={<>{t("The Worker checks out the immutable commit first, then runs agent missions, Docker execution and the quality gate. Closing this page does not stop the saved task.", "Worker 会先检出不可变提交，再推进智能体任务、Docker 执行和质量判定。关闭页面不会停止已保存任务。")}<br /><Typography.Text code>{source.data?.commit_sha}</Typography.Text></>} style={{ marginBottom: 20 }} /> : <>
+        <Form.Item name="workspace" label={t("Repository workspace", "仓库工作目录")} rules={[{ required: true, whitespace: true, message: t("Enter the checkout path on the HyperTest host.", "请输入 HyperTest 主机上的检出目录绝对路径。") }]} extra={t("Absolute path on the Worker host. Its HEAD and git remote get-url origin must match this run's pinned source. A browser-local directory is not uploaded.", "填写 Worker 主机上的绝对路径；其 HEAD 和 git remote get-url origin 必须匹配本次固定源码。浏览器本机目录不会自动上传。")}><Input placeholder={`${capabilities.data?.workspace_root || "/workspaces"}/my-project`} /></Form.Item>
+        <Button size="small" loading={preparation.isPending} disabled={!managedCheckout || execution.isPending || cycle.isPending || tasks.busy} onClick={() => preparation.mutate("runner")} style={{ marginBottom: 20 }}>{t("Prepare pinned checkout", "准备固定版本目录")}</Button>
+        {!managedCheckout && <Typography.Paragraph type="secondary">{t("Automatic preparation supports GitHub HTTPS origins. Other sources need an existing checkout matching this run's commit and origin.", "自动准备支持 GitHub HTTPS 来源。其他来源需使用与本次固定提交和 origin 匹配的已有检出目录。")}</Typography.Paragraph>}
         {preparingCheckout && <Alert type="info" showIcon message={`${t("Checkout task", "检出任务")} · ${label(preparingCheckout.status)}`} description={t("You can close this dialog. The prepared path is filled in after the worker finishes.", "可关闭此对话框。Worker 完成准备后会自动填入目录路径。")} style={{ marginBottom: 16 }} />}
         {preparation.error && <Alert type="error" showIcon message={t("Unable to save checkout task", "无法保存检出任务")} description={errorText(preparation.error, locale)} style={{ marginBottom: 16 }} />}
+        {preparationFeedback}
+        </>}
         <Form.Item name="backend" label={t("Runner", "Runner")} rules={[{ required: true, message: t("Choose an available runner.", "请选择可用的 Runner。") }]}><Select options={capabilities.data?.runner_backends.map((value) => ({ value, label: value === "docker" ? t("Docker · isolated execution", "Docker · 隔离执行") : t("Local · trusted host process", "本机 · 可信主机进程") }))} /></Form.Item>
         <Form.Item name="timeout_seconds" label={t("Runner timeout (seconds)", "Runner 超时（秒）")} extra={t("Applies to each Runner execution. Agent mission time limits are configured by the operator.", "此限制适用于每次 Runner 执行。智能体任务的超时由运维配置。 ")} rules={[{ required: true, type: "number", min: 1, max: 3600, message: t("Enter a timeout between 1 and 3600 seconds.", "请输入 1 至 3600 秒的超时限制。") }]}><InputNumber min={1} max={3600} style={{ width: "100%" }} /></Form.Item>
       </Form>

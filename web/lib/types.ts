@@ -56,6 +56,12 @@ export type RunCreate = {
   idempotency_key?: string;
 };
 
+export type SourceResolution = {
+  repository_url: string;
+  commit_sha: string;
+  revision: string;
+};
+
 export type MissionAttempt = {
   id: string;
   mission_id: string;
@@ -67,6 +73,7 @@ export type MissionAttempt = {
   finished_at?: string | null;
   error_code?: string | null;
   error_message?: string | null;
+  result_payload?: Record<string, unknown> | null;
 };
 
 export type MissionProposal = {

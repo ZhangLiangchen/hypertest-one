@@ -218,6 +218,12 @@ created_at             timestamptz
 
 `0006_immutable_contracts` 通过 PostgreSQL Trigger 拒绝 SourceSnapshot 内容变更与 DELETE，包括尚未被 TestRun 引用的 Snapshot；语义完全相同的 no-op UPDATE 可通过。不修改历史 Snapshot 来修复或重解释已有 Run。
 
+输入物化规则：Web bootstrap 保存 PRD 与 configuration Artifact，非空 `prd_artifact_uri` 表示这一物化输入集。Runtime 在创建 AgentSession / MissionAttempt 前必须读取并校验两份输入的原始 UTF-8 与相应 SHA-256；空配置也有固定空内容 Artifact，缺失、不可读、非 UTF-8 或摘要不符必须停止，不能静默省略上下文。
+
+既有 direct API 创建的 hash-only Snapshot（无 `prd_artifact_uri`）保留原配置可选语义，不强制补造 Artifact；若其配置已经物化，仍必须按 `configuration_sha256` 验证。兼容判断不能修改 Snapshot、替换固定 Hash 或把缺失内容视作已验证。此规则不新增领域字段或迁移。
+
+Repository origin 安全边界：Project / SourceSnapshot / Run 创建输入拒绝 HTTP(S) userinfo 和可解析 URL 的 password（含空密码），在写入 Snapshot / Run / 输入 Artifact 前失败；认证配置属于宿主 Git，不持久化在源身份。无密码 SSH username、scp 形式与本地 origin 不因此改写。Runtime 在注入 Context 前对历史 Snapshot 重复校验，拒绝时不创建 AgentSession / MissionAttempt，也不修改旧 Snapshot。此规则不是对路径 / query / 任意输入内容的秘密扫描，不新增领域字段或迁移。API 422 校验错误仅返回 `type` / `loc` / `msg`，不包含 `input` / `ctx` / 原请求 body；错误响应不是领域事实或全面日志脱敏保证。
+
 Fingerprint：
 
 ```text
@@ -933,7 +939,13 @@ DurableJob 表示用户提交的平台工作请求，属于 Operational State。
 
 `durable_jobs` 使用 UUIDv7 主键，project_id / test_run_id 为关系 FK；EXECUTE_MISSION 必须具有同一 Run 的 mission_id，其他类型禁止该引用。retry_of_job_id 关联显式重试的历史请求。支持 ADVANCE_RUN、EXECUTE_MISSION、EXECUTE_TESTS、EVALUATE_GATE、PREPARE_WORKSPACE。
 
+ADVANCE_RUN 在 Git / Agent 前对受支持 backend 调用 Runner fingerprint 进行只读就绪预检。先验证 operation ownership 并提交释放 Run / Job 行锁，预检后以有效 lease / admission 再进入调度；Docker daemon / 可信镜像不可用或 local 未显式启用时，不启动 Git / Agent、不创建 Execution / Evidence、不自动安装或拉取镜像。预检只属于 Operational Readiness，不构成正式执行事实或环境预约；独立 EVALUATE_GATE 不依赖此预检。
+
+ADVANCE_RUN 请求必须恰选一种源方式：`prepare_workspace: true` 且不传 workspace，或提供非空 workspace 且 `prepare_workspace: false`（缺省）。自动方式在同一 Job 内调用既有 pinned checkout 服务，再继续 Planner 周期；保留原 GitHub HTTPS 白名单、固定 commit 与干净 tracked source 校验，其他 Host 仍使用已有 workspace。准备不占 max_steps，不新增 Job / Mission 类型，也不在成功并重新验证归属前创建 AgentSession / MissionAttempt。后续 Attempt / Execution 继续归属同一 Job。
+
 请求 identity、类型、FK、payload、idempotency_key 与 created_at 创建后不可变。payload 只保存工作区、Runner、timeout、work limit 等运行选项；Requirement / Risk / Case 等 Canonical 状态继续保存在对应关系表。`UNIQUE(test_run_id, idempotency_key)` 保证相同输入重复提交返回原 Job，不同输入复用同一 Key 被拒绝；部分唯一索引保证每个 Run 至多有一个 QUEUED / RUNNING / CANCEL_REQUESTED Job。
+
+新增缺省字段允许仅在内存中按当前请求 Schema 规范化后比较输入。例如既有手动 ADVANCE_RUN payload 缺少 `prepare_workspace` 与显式 `false` 等价；相同 key 重发与显式 retry 均不得为了适配新 Schema 改写原 payload。实际 workspace / Runner / limit 或模式等实质差异仍属于冲突，不放宽既有唯一约束。
 
 ```text
 QUEUED → RUNNING → SUCCEEDED / FAILED / INTERRUPTED
@@ -943,7 +955,11 @@ RUNNING → CANCEL_REQUESTED → CANCELLED
 
 SUCCEEDED 表示调度请求成功返回，不表示质量结论为 PASS；应读取 Job result 的 stop reason 和正式 Verdict。终态 Job 不可改写，所有 Job 禁止 DELETE。显式重试创建新的 Job 并记录 retry_of_job_id，不能原地清空错误、重开终态或覆盖历史结果。
 
+受控 `MISSION_REJECTED` / `MISSION_FAILED` 使 Job 进入 FAILED，允许同时保存 result 中的 stop reason、已持久步骤、关联 Mission ID 与已解析 workspace；独立 EXECUTE_MISSION 拒绝还保存对应 Attempt ID。FAILED Mission 不得误报为运行中或隐式重放。result 是对既有持久历史的运行索引，不能成为 Requirement / Execution / Evidence / Verdict 的替代事实。通用异常不保证存在部分 result；CANCELLED / INTERRUPTED 不保存迟到 handler 的结果。终态 result 与原失败历史仍受不可变保护。
+
 Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 worker_id、lease_token、heartbeat_at、lease_expires_at。使用数据库时钟验证租约；每个受控 Canonical commit 在 flush 前后检查 Run → Job 锁、状态和 token。租约失效或取消后的旧 Worker 不得提交 Canonical 状态。
+
+自动源准备必须在 Git 网络或文件 I/O 前提交并释放 TestRun / Job 行锁，不能把慢检出放进租约持锁事务。准备后进入领域调度前重新检查 operation ownership、Job 状态和 lease；租约过期或被取消即停止，不因已有工作区而继续启动 Agent。工作区准备与外部执行仍不具有 exactly-once 保证。
 
 `0008_job_ownership` 为 MissionAttempt / TestExecution 增加 nullable `durable_job_id` FK 和索引。归属创建后不可修改，必须匹配同一 TestRun；ADVANCE_RUN 可以拥有其内部 Attempt / Execution，EXECUTE_MISSION 只可拥有指定 Mission 的 Attempt，EXECUTE_TESTS 只可拥有 Execution。历史 / direct API 创建的 null 归属保留，不使用 started_at 等宿主时间猜测或回填归属。取消与失联恢复只更新该 Job 关系下的执行历史。
 

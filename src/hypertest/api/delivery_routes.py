@@ -19,6 +19,8 @@ from hypertest.api.delivery_schemas import (
     ImplementationRead,
     RunAdvance,
     RunBootstrap,
+    SourceResolveRead,
+    SourceResolveRequest,
     VerdictRead,
 )
 from hypertest.api.operation_guard import guard_synchronous_operation
@@ -39,7 +41,7 @@ from hypertest.application.gate import evaluate_gate
 from hypertest.application.jobs import get_worker_status
 from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.services import ConflictError, get_mission, get_test_run
-from hypertest.application.workspaces import prepare_workspace
+from hypertest.application.workspaces import prepare_workspace, resolve_source
 from hypertest.config import get_settings
 from hypertest.db.session import get_db
 from hypertest.domain.enums import MissionStatus
@@ -72,6 +74,14 @@ def _http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ValueError):
         return HTTPException(status_code=422, detail=str(exc))
     return translate_domain_error(exc)
+
+
+@router.post("/sources/resolve", response_model=SourceResolveRead)
+async def post_resolve_source(payload: SourceResolveRequest):
+    try:
+        return await resolve_source(payload.repository_url, payload.revision)
+    except (RuntimeError, ValueError) as exc:
+        raise _http_error(exc) from exc
 
 
 @router.get("/capabilities")

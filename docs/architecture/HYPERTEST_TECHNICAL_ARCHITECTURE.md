@@ -128,6 +128,8 @@ Agent Chat 可以存在，但只能是辅助界面，不能成为产品主界面
 
 API 不直接执行 Agent，所有 Agent 工作必须进入 Mission。
 
+请求校验失败的 HTTP 422 仅返回错误的 `type`、`loc`、`msg`；不回显 `input`、validator `ctx` 或原请求 body，避免把提交中的凭据和 PRD 放入表单错误响应。此约束不等于所有日志已全面脱敏，持久化边界见领域模型 §9。
+
 ---
 
 ## 8. Test State Engine
@@ -170,6 +172,10 @@ AgentSession
 ## 10. SourceSnapshot
 
 一次 TestRun 必须绑定不可变 SourceSnapshot，至少固定 Repository、Commit SHA、PRD Hash、Configuration Hash、Environment Definition。
+
+Web bootstrap 物化 PRD 与配置为输入 Artifact。Runtime 在创建 AgentSession / Attempt 前读取并校验这些原始 UTF-8 内容和快照 Hash；配置为空也必须保留其空内容 Artifact，缺失或损坏时停止，不能静默省略。已有 direct API 的 hash-only Snapshot（无 PRD Artifact URI）不因此强制补造配置文件；其配置仍为可选上下文，但一旦存在物化文件必须校验。此兼容范围不更改不可变输入或 Hash，具体规则见领域模型 §9。
+
+Repository origin 的身份不得包含 HTTP(S) userinfo 或可解析 URL 的 password（包括空密码），认证由宿主 Git 管理。创建 Project / SourceSnapshot / Run 的输入 Schema 拒绝这些形式，不重写原 URL；无密码 SSH username、scp 形式及本地 origin 保持兼容。Runtime 在注入 Snapshot 上下文前重复校验，历史含凭据 Snapshot 在 AgentSession / Attempt 创建前阻断且不改写历史。此守卫不扫描路径、query 或任意文本中的秘密，也不证明仓库可达。
 
 原则：
 
@@ -271,7 +277,13 @@ Planner 返回 Mission 或运行阶段原因；正式执行由 Runner API 发起
 
 PostgreSQL 保存 Job 的请求、状态、结果与 Worker liveness；队列属于平台 Operational State，不把 Canonical 状态塞入 Job JSON 或 Agent Session。每个 Run 同时最多一个活跃 Job，重复 idempotency key 必须匹配相同输入。独立进程 `python -m hypertest.worker` 通过 `FOR UPDATE SKIP LOCKED` 领取任务、续租并执行既有服务。API 与 Worker 共用数据库、Artifact Store、Workspace Root 和宿主集成配置。
 
+周期在 Git / Agent 之前调用所选 `DockerRunner` / `LocalRunner.fingerprint` 做只读就绪预检，确认 Docker daemon / 预制可信镜像可访问，或本地 Runner 已显式启用。预检前 owner guard 后提交释放 Run / Job 行锁，预检后重新 fence / admission；不持锁跨 Docker I/O，不自动 pull / install，不创建 Execution 或 Evidence。预检不保留环境可用性，正式执行仍重新检查。独立 Gate 评估不要求 Runner 就绪。
+
+`ADVANCE_RUN` 恰选一种输入方式：`prepare_workspace: true` 且不传 workspace，或使用已有 workspace 且 `prepare_workspace: false`（缺省）。自动方式由同一 Job 调用既有 source preparation 服务，准备固定 GitHub HTTPS commit 后继续周期；不新增 Job 类型。准备在 max_steps 计数前执行，失败时不创建 AgentSession / Mission。controller 在 Git I/O 前提交并释放 Run / Job 行锁，准备后重新检查 operation ownership / lease，失联 Worker 不得继续派发 Mission。最终周期 result 返回已解析 workspace，供 UI 后续操作；独立 `PREPARE_WORKSPACE` 仍可使用，其他 Host 保持明确已有 workspace 模式。
+
 Worker 对每次 Canonical commit 使用有效 lease token、Job 状态与数据库时钟进行 fencing，租约锁顺序为 TestRun → Job。MissionAttempt / TestExecution 使用不可变 nullable durable_job_id FK 保存同一 Run 的受控归属；恢复不依赖跨宿主时间戳推断，也不替历史 direct API 调用回填关系。取消先持久化，再中断外部工作；API 重启或 Web 刷新不取消已提交的请求。Worker 退出或租约过期会显式记录 INTERRUPTED，并把其拥有的未完成 Attempt / Execution 转为可观察的失败，保留原始历史。恢复不会自动重放可能已产生外部影响的任务，用户检查后创建关联新 Job 重试。租约不保证外部执行 exactly-once。
+
+受控 `MISSION_REJECTED` / `MISSION_FAILED` 停止使 Job 进入 FAILED，并保存 stop reason、已持久步骤、关联 Mission ID 与已解析 workspace；独立 EXECUTE_MISSION 拒绝还保存 Attempt ID。这些是导航与恢复信息，不是新的 Canonical 测试事实。已有 FAILED Mission 不能误报为活动中或自动重放。通用异常未必具有部分 result；取消与失联仍以其已提交终态为准，不写入迟到 handler 的推测结果。终态 Job、原 Proposal / Attempt 与显式 retry lineage 保持不变。旧 ADVANCE_RUN payload 缺少新增缺省 `prepare_workspace: false` 时，仅在内存中按 schema 规范化后比较幂等输入，不改写历史 payload。
 
 Docker 的 staging / execution containers 和预创建的 source / result volumes 均带 Job UUID label。失联恢复先提交领域终态，再在数据库锁外清理精确匹配的受控资源；`job.resources_cleanup` Audit / Outbox 记录可用性与清理数量。清理属于运行治理，不是测试 Evidence。Docker 不可访问或 provider 残留进程仍需 Operator 检查。
 
@@ -303,7 +315,7 @@ class AgentHarness:
     async def close(self, session): ...
 ```
 
-实现：`CodexAdapter`、`ClaudeCodeAdapter`、`PiAdapter`、`OpenCodeAdapter`。
+当前实现：`CodexAdapter`。`ClaudeCodeAdapter`、`PiAdapter`、`OpenCodeAdapter` 属于后续可替换 Harness 路线，统一接口不表示已完成这些集成。
 
 ---
 
@@ -320,6 +332,8 @@ HyperTest Session → Provider Session / Thread
 ```
 
 Provider-specific metadata 必须隔离在 Adapter 或 `provider_metadata` 中。
+
+Codex CLI Adapter 通过官方 `exec -` stdin 接口传输 UTF-8 Mission Prompt，避免大 PRD 进入 argv 触发宿主参数长度限制；写入与 stdout / stderr 读取并行，防止管道相互阻塞。正式响应仍使用严格 `--output-schema` 和 CLI 写入的 `--output-last-message` 文件，read-only sandbox 与非交互审批策略保持；Provider telemetry 不代替正式结果。大输入 subprocess 回归仅证明传输，不证明 Provider 上下文容量或语义处理能力。
 
 ---
 
@@ -370,7 +384,9 @@ Agent Context 不应该等于整个数据库 Dump。Context Compiler 根据 Miss
 
 Workspace 是 Agent 的操作世界；数据库是 HyperTest 的 Canonical World。
 
-当前 Web 可通过 prepare-workspace 为 GitHub HTTPS 源准备/复用 managed pinned checkout，使用既有 Git proxy/auth，不重置 Operator checkout；其他 Host 使用明确的既有 workspace。
+当前 Web 可通过同一 `ADVANCE_RUN` 的自动准备选项，或独立 prepare-workspace 操作，为 GitHub HTTPS 源准备/复用 managed pinned checkout，使用既有 Git proxy/auth，不重置 Operator checkout；其他 Host 使用明确的既有 workspace。准备阶段不得跨 Git 网络或文件 I/O 持有 Run / Job 行锁，进入后续领域工作前重新验证归属。
+
+创建 Run 前，Web 可通过只读 `/sources/resolve` 将 credential-free GitHub HTTPS 的分支或标签解析为固定完整 SHA；同名分支/标签必须明确 ref namespace。解析不创建 Canonical Snapshot、不改写 checkout，仍在 bootstrap 时固定 SHA，Runner 继续独立验证匹配的 origin、commit 与 tracked 内容。其他来源保留手工完整 SHA 与匹配 Worker checkout 路径，不能把任意检出目录当作 repository origin。
 
 当前 Runtime 在临时 tracked-source 副本中运行 Agent，固定 SourceSnapshot / PolicySnapshot 并注入 PRD 与规范化 Mission；Canonical Artifact 和业务状态不放入 Vendor Session。IMPLEMENT_TESTS 的生成源码作为 Proposal `code` 返回，经 Verifier 校验后进入内容寻址 Artifact Store，不直接修改用户 checkout 或应用 Commit。
 
@@ -378,7 +394,7 @@ Workspace 是 Agent 的操作世界；数据库是 HyperTest 的 Canonical World
 
 ## 21. HyperTest MCP
 
-HyperTest 提供领域 MCP Server。
+领域 MCP Server 是目标工具契约。当前 MVP 使用预先物化的 Mission Context 与结构化最终 Proposal 结果，尚未提供以下完整 MCP 域工具、Mission Token 工具授权或 WAITING_INPUT / 回答 / resume 闭环；不能由协议定义或状态枚举推断这些功能已实现。
 
 Read Tools：`get_mission`、`get_requirement`、`get_risk`、`get_test_case`、`get_coverage`、`get_execution`、`get_evidence`、`get_finding`。
 

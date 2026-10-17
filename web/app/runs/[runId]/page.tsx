@@ -65,13 +65,13 @@ export default function RunPage() {
     setActiveTab(key);
     try { sessionStorage.setItem(`hypertest.run-tab.${params.runId}`, key); } catch { /* Storage is optional. */ }
   }
-  const operations = useRunOperations(params.runId, selectTab);
   const [messageApi, contextHolder] = message.useMessage();
   const run = useQuery({
     queryKey: ["run", params.runId],
     queryFn: () => getRun(params.runId),
     refetchInterval: 5_000,
   });
+  const operations = useRunOperations(params.runId, selectTab, run.data?.source_snapshot_id);
   const requirements = useQuery({
     queryKey: ["requirements", params.runId],
     queryFn: () => getRequirements(params.runId),

@@ -131,7 +131,10 @@ async def submit_job(
     existing = await session.scalar(select(DurableJob).where(
         DurableJob.test_run_id == run_id, DurableJob.idempotency_key == idempotency_key))
     if existing is not None:
-        if (existing.job_type, existing.payload, existing.mission_id, existing.retry_of_job_id) != (
+        # Compare schema defaults in memory. Existing immutable history predates
+        # additive options such as prepare_workspace=False and must not be rewritten.
+        existing_payload = _validate_payload(existing.job_type, existing.payload)
+        if (existing.job_type, existing_payload, existing.mission_id, existing.retry_of_job_id) != (
             job_type, payload, mission_id, retry_of_job_id,
         ):
             raise ConflictError("idempotency key is already bound to a different job request")
@@ -166,7 +169,8 @@ async def submit_job(
         if (previous is None or previous.test_run_id != run_id
             or previous.status not in {JobStatus.FAILED, JobStatus.INTERRUPTED, JobStatus.CANCELLED}):
             raise ConflictError("only terminal unsuccessful jobs in this run can be retried")
-        if (previous.job_type, previous.payload, previous.mission_id) != (job_type, payload, mission_id):
+        previous_payload = _validate_payload(previous.job_type, previous.payload)
+        if (previous.job_type, previous_payload, previous.mission_id) != (job_type, payload, mission_id):
             raise ConflictError("retry must preserve the original job input")
     job = DurableJob(id=uuid7(), key=public_key("JOB"), project_id=run.project_id,
                      test_run_id=run_id, mission_id=mission_id, retry_of_job_id=retry_of_job_id,
@@ -356,7 +360,10 @@ async def finish_job(session: AsyncSession, job_id: UUID, lease_token: UUID, *, 
         target = JobStatus.SUCCEEDED
     # Set the complete terminal record together after any recovery queries;
     # the DB intentionally refuses a second update of terminal history.
-    job.status, job.result = target, result if target is JobStatus.SUCCEEDED else None
+    # Controlled dispatcher failures may carry committed steps/identities so the
+    # operator can inspect and recover. Cancellation/interruption still discard
+    # any speculative handler result; all terminal history remains immutable.
+    job.status, job.result = target, result if target in {JobStatus.SUCCEEDED, JobStatus.FAILED} else None
     job.error_code, job.error_message = error_code, error_message
     job.finished_at, job.lease_expires_at = now, None
     await _event(session, job, f"job.{job.status.value.lower()}")

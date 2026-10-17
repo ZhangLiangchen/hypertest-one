@@ -11,9 +11,11 @@ from hypertest.application.gate import evaluate_gate
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import execute_mission
 from hypertest.application.services import ConflictError, canonical_json_sha256, get_test_run
+from hypertest.application.workspaces import prepare_workspace as prepare_managed_workspace
 from hypertest.domain.enums import ExecutionPurpose, MissionAttemptStatus, MissionStatus
 from hypertest.domain.jobs import ACTIVE_JOB_STATUSES, DurableJob
 from hypertest.domain.models import TestExecution, TestImplementation, TestRun
+from hypertest.runner.backends import DockerRunner, LocalRunner
 
 
 async def _guard_operation_owner(session: AsyncSession, run_id: UUID) -> None:
@@ -32,7 +34,8 @@ async def advance_run(
     session: AsyncSession,
     run_id: UUID,
     *,
-    workspace: str,
+    workspace: str | None = None,
+    prepare_workspace: bool = False,
     backend: str = "docker",
     timeout_seconds: int = 300,
     max_steps: int = 12,
@@ -44,24 +47,52 @@ async def advance_run(
     visible through Attempts/Executions; no synthetic agent output is supplied.
     Harness injection exists only for integration tests, never in the HTTP schema.
     """
+    if prepare_workspace == bool(workspace and workspace.strip()):
+        raise ValueError("choose either automatic pinned checkout or an existing workspace")
+    if backend not in {"docker", "local"}:
+        raise ConflictError("unsupported runner backend")
     run = await get_test_run(session, run_id)
     steps: list[dict[str, str]] = []
+    # Check the actual daemon/trusted image (or explicit local opt-in) before
+    # spending Agent calls or fetching source. This is operational readiness,
+    # never an Execution/Evidence fact or an environment reservation.
+    await _guard_operation_owner(session, run_id)
+    await session.commit()
+    runner = DockerRunner() if backend == "docker" else LocalRunner()
+    try:
+        await runner.fingerprint()
+    except (OSError, RuntimeError, ValueError, KeyError) as exc:
+        raise ConflictError(f"runner preflight failed: {exc}") from exc
+    # Fenced sessions revalidate their lease even when this commit has no
+    # writes. Direct calls recheck admission before any subsequent dispatch.
+    await session.commit()
+    if prepare_workspace:
+        await _guard_operation_owner(session, run_id)
+        # Direct HTTP admission and fenced commits can hold aggregate/job row
+        # locks. Release them before Git I/O, then check the live lease again.
+        await session.commit()
+        prepared = await prepare_managed_workspace(session, run_id)
+        workspace = prepared["workspace"]
+        await session.commit()
+    assert workspace is not None
+
+    def recorded(reason: str, **references: str) -> dict:
+        return {"reason": reason, "steps": steps, "workspace": workspace, **references}
+
     for _ in range(max_steps):
         await _guard_operation_owner(session, run_id)
         planned = await plan_next_mission(session, run_id)
         await _guard_operation_owner(session, run_id)
         if planned.mission is not None:
             mission = planned.mission
+            if mission.status is MissionStatus.FAILED:
+                return recorded("MISSION_FAILED", mission_id=str(mission.id))
             if mission.status not in {
                 MissionStatus.CREATED,
                 MissionStatus.READY,
                 MissionStatus.RETRYING,
             }:
-                return {
-                    "reason": "MISSION_IN_PROGRESS",
-                    "steps": steps,
-                    "mission_id": str(mission.id),
-                }
+                return recorded("MISSION_IN_PROGRESS", mission_id=str(mission.id))
             result = await execute_mission(
                 session, mission.id, workspace=workspace, harness=harness
             )
@@ -74,7 +105,7 @@ async def advance_run(
                 }
             )
             if result.attempt.status is not MissionAttemptStatus.ACCEPTED:
-                return {"reason": "MISSION_REJECTED", "steps": steps, "mission_id": str(mission.id)}
+                return recorded("MISSION_REJECTED", mission_id=str(mission.id))
             continue
         if planned.reason == "EXECUTION_REQUIRED":
             assets = list(
@@ -123,6 +154,6 @@ async def advance_run(
                     "status": verdict.status.value,
                 }
             )
-            return {"reason": "VERDICT_FINALIZED", "steps": steps, "verdict_id": str(verdict.id)}
-        return {"reason": planned.reason, "steps": steps}
-    return {"reason": "STEP_LIMIT_REACHED", "steps": steps}
+            return recorded("VERDICT_FINALIZED", verdict_id=str(verdict.id))
+        return recorded(planned.reason)
+    return recorded("STEP_LIMIT_REACHED")

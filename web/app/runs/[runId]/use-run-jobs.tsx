@@ -236,5 +236,5 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     </Drawer>
   </>;
 
-  return { jobs, rows, active, busy: active.length > 0 || jobs.isLoading || !!jobs.error, submit, taskTab, monitor, dialog, latestPrepared };
+  return { jobs, rows, active, busy: active.length > 0 || jobs.isLoading || !!jobs.error, submit, taskTab, monitor, dialog, latestPrepared, openTask: (id: string) => setSelectedId(id) };
 }

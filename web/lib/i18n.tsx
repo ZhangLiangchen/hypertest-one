@@ -89,6 +89,9 @@ const labels: Record<string, [string, string]> = {
   VERDICT_REQUIRED: ["Quality decision required", "需要质量判定"],
   VERDICT_FINALIZED: ["Quality decision finalized", "质量判定已完成"],
   STEP_LIMIT_REACHED: ["Step limit reached", "已达到本次步骤上限"],
+  MISSION_REJECTED: ["Mission result was not accepted", "测试任务产出未被接受"],
+  MISSION_FAILED: ["Mission needs explicit recovery", "测试任务需要显式恢复"],
+  MISSION_IN_PROGRESS: ["Mission in progress", "测试任务仍在进行"],
   TEST_DESIGN_COVERAGE_COMPLETE: ["Test design coverage complete", "测试设计覆盖已完成"],
 };
 
