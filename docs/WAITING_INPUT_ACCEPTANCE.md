@@ -41,4 +41,25 @@
 
 ## 服务器验收登记
 
-本地真实链已通过；该提交创建时服务器仍为 `1b199f9` / schema0008，正在做配对备份、候选发布及相同问答路径验收，不能以本地结果推定服务器已完成。本轮继续保留现有数据、45.76.149.233/32 双层白名单、后端数据库回环绑定与 SSH 隧道；不改变 OAuth 或扩大公开入口。最终远端 SHA、迁移、旧数据 / Artifact 保全、实际进程目录与远端真实 Run 以部署交付记录为准。
+服务器已独立完成真实 Web / Codex / Docker 问答闭环，运行版本为 `8e01ac5e46b83e8bce950915892f2b74d16c140a`，数据库 `0009_mission_inputs`；PR #6 尚未合并。本次文档补录不改变该运行身份。服务器完整后端检查为 **345 passed / 3 既有 warnings**，31 Web tests / typecheck 通过，精确提交的两个 CI 作业通过。8e01 只修正一个既有测试的 heartbeat 行锁竞争：使用真实 FencedAsyncSession 隔离被测 controller，保留 Run / Job 两项 NOWAIT 断言及独立 Worker 测试；生产源码、Web / 配置 / lock 与 e511 相同，复用 e511 fresh npm ci 后成功生成的生产构建，不冒称重新构建。
+
+| 身份 / 结果 | 服务器实际记录 |
+|---|---|
+| Run | `01a14b53-4988-737e-8316-4b285c92e11c`，COMPLETED |
+| 同一 Job | `01a14b53-73af-71b5-915e-a304348141f8`，第 2 次领取后 SUCCEEDED / VERDICT_FINALIZED |
+| 同一提问 Attempt | `01a14b53-7b6e-749d-9827-973b24d322c8`，Attempt No.1 |
+| 同一 AgentSession | `01a14b53-7b6d-79ea-af92-d889c4d4b307` |
+| 同一原生 thread | `01a14b53-7f46-7821-868c-62715aab8a93`，与暂停前记录一致 |
+| 问答 | `01a14b53-961c-7734-b773-25cfaf835048`；真实提问、WAIT 期间 API / Worker 重启、Web 键盘提交、CONSUMED / version 3 |
+| Canonical / Runner | 2 Requirement / 5 Risk / 5 Case / 1 Implementation；4 Mission 完成；1 OFFICIAL Docker PASS / 4 VERIFIED Runner Evidence / 0 Finding |
+| JUnit | 1 pytest 函数 / 0 failures / 0 errors / 0 skipped；该函数的多项断言覆盖 5 个 Canonical Case |
+| Verdict | `01a14b58-4001-7423-9c94-edfed68a0b95`，FINAL / TEST_RUN / #1 / RELEASE_READY |
+| 独立终态采集 | 15 项检查全通过，44 条完整关系连接，53 Audit / 53 Outbox 按实体与动作配对；输入、spec、执行、证据字节和判定 manifest 均校验 |
+
+部署前旧 30 张业务表的 **1,029 行**逐字段多重集比较全部保留，34 个原产物引用 / 27 个独立 blob 的 SHA / size 匹配。最终配对备份 `/var/backups/hypertest/20261017T193526Z` 已恢复到独立库和目录：schema0009、32 张表完整逻辑哈希、41 个产物引用 / 32 个独立 blob、16 Evidence、1 个已消费问题均通过。正式库未做恢复或降级。已有输入历史，不可直接回退到旧 schema / 不支持 WAIT 状态的应用。
+
+API / Worker / Web 实际目录均为 8e01 release；单 Worker 可用、活动任务为 0，公网白名单入口与 SSH 隧道健康均 200。45.76.149.233/32 的 UFW + nginx 双层限制、API / Web 后端 / PostgreSQL 回环绑定及 OAuth 保持。见[服务器最终报告](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/waiting-input-server-acceptance-2026-10-18.md)和[只读终态原始证据](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/waiting-input-server-final-2026-10-18.json)。
+
+## 仍需继续的产品能力
+
+本轮完成白皮书的人机协作 Web 闭环，不将单函数 stdlib / pytest 的成功泛化为任意 API / SIT 项目。受控依赖与服务环境、长时模型活动和停滞诊断仍应优先完善；当前仍为单可信操作人，白名单不替代多人身份与权限。完整领域 MCP / 第二 Harness 是后续能力，历史失败诊断保留其原始版本和 Run，本轮没有重跑该失败链。

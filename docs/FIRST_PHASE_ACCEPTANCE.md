@@ -2,7 +2,7 @@
 
 ## 当前增量：等待输入、回答与原任务恢复
 
-新增迁移 `0009_mission_inputs`，已通过本地真实 Web → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。服务器候选发布与同路径验收单独登记，不以旧链路结果代替。见[本轮逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量与运行身份保留为历史。
+新增迁移 `0009_mission_inputs`，本地与 Debian 服务器均已通过真实 Web 提问 → 持久等待 → API / Worker 重启 → 回答 → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。服务器运行候选 `8e01ac5`，PR #6 未合并；旧 1,029 行历史 / 34 个产物引用保留，最终配对备份和隔离恢复已通过，45.76.149.233/32 白名单及 SSH 隧道保持。见[本轮逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量、运行身份及当时缺口保留为历史，以本节为当前问答能力状态；不以旧失败链路代替本轮实测，也不据此宣称任意 API / SIT、第二 Harness 或多人权限已完成。
 
 ## 本轮两阶段交付：已部署73d与后续范围修复
 
