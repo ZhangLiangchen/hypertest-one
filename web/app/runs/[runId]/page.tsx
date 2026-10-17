@@ -25,6 +25,7 @@ import {
   message,
 } from "antd";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
 import { getCoverage, getMissions, getRequirements, getRisks, getRun, getTestCases, planNext } from "@/lib/api";
 import type { Mission, Requirement, Risk, TestCase } from "@/lib/types";
@@ -50,7 +51,8 @@ function coveragePercent(ratio: number | null) {
   return ratio === null ? null : Math.round(ratio * 100);
 }
 
-export default function RunPage({ params }: { params: { runId: string } }) {
+export default function RunPage() {
+  const params = useParams<{ runId: string }>();
   const operations = useRunOperations(params.runId);
   const [messageApi, contextHolder] = message.useMessage();
   const run = useQuery({

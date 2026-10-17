@@ -5,6 +5,7 @@ import json
 import os
 import signal
 from collections.abc import AsyncIterator
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -12,12 +13,79 @@ from hypertest.agent.base import AgentEvent, AgentSession
 from hypertest.common.ids import public_key
 
 
+def _inline_schema(value: Any, definitions: dict[str, Any]) -> Any:
+    if isinstance(value, list):
+        return [_inline_schema(item, definitions) for item in value]
+    if not isinstance(value, dict):
+        return value
+    if "$ref" in value:
+        reference = value["$ref"]
+        if not reference.startswith("#/$defs/"):
+            raise ValueError("Codex output schema must use local definition references")
+        resolved = deepcopy(definitions[reference.removeprefix("#/$defs/")])
+        resolved.update({key: item for key, item in value.items() if key != "$ref"})
+        return _inline_schema(resolved, definitions)
+    return {
+        key: (
+            {name: _inline_schema(schema, definitions) for name, schema in item.items()}
+            if key == "properties" else _inline_schema(item, definitions)
+        )
+        for key, item in value.items()
+        if key not in {"$defs", "default", "title", "minLength", "maxLength"}
+    }
+
+
+def _close_schema(value: Any) -> Any:
+    """Use the provider's strict subset without changing the TMP validator."""
+    if isinstance(value, list):
+        return [_close_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    closed = {key: _close_schema(item) for key, item in value.items()}
+    if closed.get("type") == "object":
+        properties = closed.setdefault("properties", {})
+        closed["required"] = list(properties)
+        closed["additionalProperties"] = False
+    return closed
+
+
+def codex_output_schema(mission: dict[str, Any]) -> dict[str, Any]:
+    """Project the typed mission result into Codex Structured Outputs.
+
+    TMP permits optional operational dictionaries. They are omitted here rather
+    than silently narrowing their canonical meanings to empty objects. Current
+    supported missions need only the envelope and typed proposals; HyperTest
+    still applies the complete provider-independent validator on submission.
+    """
+    contract = mission["output_contract"]
+    result = contract["result_schema"]
+    proposal = _inline_schema(
+        result["$defs"]["ProposalSubmission"], result.get("$defs", {})
+    )
+    payload = contract["object_payload_schema"]
+    proposal["properties"]["object_payload"] = _inline_schema(
+        payload, payload.get("$defs", {})
+    )
+    proposal["properties"]["proposal_type"] = {
+        "type": "string", "enum": [contract["proposal_type"]],
+    }
+    proposal["properties"]["operation"] = {"type": "string", "enum": [contract["operation"]]}
+    properties = {
+        key: _inline_schema(result["properties"][key], result.get("$defs", {}))
+        for key in ("protocol", "mission_id", "status", "summary", "proposals")
+    }
+    properties["protocol"] = {"type": "string", "enum": [mission["protocol"]]}
+    properties["mission_id"] = {"type": "string", "enum": [mission["mission_id"]]}
+    properties["proposals"]["items"] = proposal
+    return _close_schema({"type": "object", "properties": properties})
+
+
 class CodexCliAdapter:
     """Thin Codex CLI adapter with an explicit TMP result boundary.
 
     Provider JSONL remains operational telemetry. The only final result exposed
-    to the HyperTest runtime is the validated JSON object written to the
-    mission-scoped result file.
+    to the HyperTest runtime is the JSON object the CLI writes through its
+    supported final-response output channel. Agent tools remain read-only.
     """
 
     def __init__(self, binary: str = "codex", extra_args: tuple[str, ...] = ()) -> None:
@@ -50,22 +118,35 @@ class CodexCliAdapter:
         result_dir.mkdir(parents=True, exist_ok=True)
         result_path = result_dir / f"{session.id}.json"
         result_path.unlink(missing_ok=True)
+        schema_path = result_dir / f"{session.id}.schema.json"
+        schema_path.write_text(
+            json.dumps(codex_output_schema(mission), ensure_ascii=False), encoding="utf-8"
+        )
 
         mission_json = json.dumps(mission, ensure_ascii=False, sort_keys=True)
         prompt = (
             "Execute the following HyperTest Test Mission as an immutable task contract. "
             "Use available repository and tools, do not redefine the mission. "
-            "Your final action MUST write exactly one valid JSON object matching the mission "
-            f"output contract to {result_path}. Do not use stdout as the final result channel.\n\n"
+            "Return exactly one JSON object matching the supplied mission output contract as "
+            "your final response. The CLI saves that response; do not write a result file or "
+            "modify application source. Submit generated test source in proposal code fields.\n\n"
             f"TEST_MISSION_JSON:\n{mission_json}"
         )
 
         process = await asyncio.create_subprocess_exec(
             self.binary,
+            "--ask-for-approval",
+            "never",
             "exec",
             "--json",
             "--skip-git-repo-check",
             *self.extra_args,
+            "--sandbox",
+            "read-only",
+            "--output-schema",
+            str(schema_path),
+            "--output-last-message",
+            str(result_path),
             prompt,
             cwd=workspace,
             stdout=asyncio.subprocess.PIPE,

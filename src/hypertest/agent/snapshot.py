@@ -68,7 +68,9 @@ class SnapshotHarness:
         if Path(workspace).resolve() != self.source:
             raise RuntimeError("agent source differs from its validated snapshot")
         temporary = tempfile.TemporaryDirectory(prefix="hypertest-agent-")
-        target = Path(temporary.name) / "repo"
+        # macOS exposes its temporary root through /var -> /private/var.
+        # Use one canonical root for both containment checks and provider paths.
+        target = (Path(temporary.name) / "repo").resolve()
         try:
             copy_tracked_source(self.source, target, self.tracked_files)
             hashes = {

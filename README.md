@@ -96,11 +96,22 @@ Install Web dependencies, configure the host, and start API, Worker, and Web:
 ```bash
 npm --prefix web ci
 export HYPERTEST_ARTIFACT_ROOT="$PWD/.hypertest-artifacts"
-export HYPERTEST_WORKSPACE_ROOT=/workspace
+export HYPERTEST_WORKSPACE_ROOT="$PWD/.hypertest-workspaces"
+mkdir -p "$HYPERTEST_WORKSPACE_ROOT"
 bash scripts/dev.sh
 ```
 
 The helper requires the installed `.venv` and `web/node_modules`, verifies Node.js 22, applies migrations, and starts API, Worker, and Web. API/Web listen on loopback. Exiting the helper cleans up its own service processes. Set `HYPERTEST_DEV_API_PORT` / `HYPERTEST_DEV_WEB_PORT` to override defaults 8000 / 3000. `bash scripts/dev.sh --check` applies migrations and verifies API/Worker imports without starting services.
+
+The supervisor supports macOS's system Bash and Linux without GNU `setsid` or
+`wait -n`. Configure paths for the actual host; `/workspace` is not a required path.
+`HYPERTEST_CODEX_BINARY` selects an installed official CLI (default `codex`).
+`HYPERTEST_CODEX_MODEL` optionally selects a model supported by that Worker's account.
+If desktop/user CLI settings select an incompatible model, explicitly set
+`HYPERTEST_CODEX_IGNORE_USER_CONFIG=true` to use the standalone CLI defaults while
+retaining its existing authentication. This does not change the user's global
+configuration or copy credentials. HyperTest supplies a typed output schema and
+collects the CLI's saved final response; model tools remain in the read-only sandbox.
 
 `HYPERTEST_WORKSPACE_ROOT` must contain the repository checkout paths supplied through Web. **Prepare pinned checkout** creates or reuses a clean pinned checkout under `.hypertest-checkouts/{source_snapshot_id}/repo` inside that root. Automatic preparation supports credential-free `https://github.com/owner/repository` URLs, uses the existing Git proxy/authentication, and does not reset operator checkouts. Other hosts retain the existing-workspace path. Each checkout must have the matching origin, full pinned commit at HEAD, and clean tracked content. Agent work and generated-test execution use temporary copies; keep the source checkout at its pinned commit.
 
@@ -244,6 +255,21 @@ ruff check src tests alembic
 alembic upgrade head
 pytest -q
 ```
+
+Tests isolate their workspace and artifact paths from the operator's `.env` settings.
+For a separate local test database, create and migrate it once, then set
+`HYPERTEST_TEST_DATABASE_URL` in the environment or ignored `.env` file:
+
+```bash
+docker compose exec postgres createdb -U hypertest hypertest_test
+export HYPERTEST_TEST_DATABASE_URL=postgresql+asyncpg://hypertest:hypertest@127.0.0.1:5432/hypertest_test
+HYPERTEST_DATABASE_URL="$HYPERTEST_TEST_DATABASE_URL" alembic upgrade head
+pytest -q
+```
+
+The test database must already exist; pytest never drops, recreates, or clears a
+database. Without this optional setting, tests use the configured development/CI
+database, which must be disposable.
 
 Web validation:
 

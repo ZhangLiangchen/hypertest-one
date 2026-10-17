@@ -10,3 +10,5 @@ web/.next/
 web/.env.local
 
 .DS_Store
+.hypertest-artifacts/
+.hypertest-workspaces/

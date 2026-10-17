@@ -2,6 +2,14 @@
 
 Validated on 2026-10-17 with Codex CLI 0.159.2. This records environment diagnosis, not a successful live-model acceptance test.
 
+The blockers below describe the previous cloud environment. Local acceptance must distinguish those historical observations from current results.
+
+## Structured result transport
+
+The original adapter instructed the Agent to write its final JSON with a tool. That conflicts with Codex's normal read-only tool sandbox. The adapter now uses the official `--output-schema` and `--output-last-message` options: the Agent returns JSON as its final response and the CLI host saves it, while model-generated tools remain read-only. All five supported Mission types carry their complete typed result and Proposal payload schemas, including requirement and risk analysis.
+
+The Codex-specific strict schema embeds the Mission's typed Proposal payload, closes objects, and makes every generated field required. It omits optional operational dictionaries from this provider projection, preserving the provider-independent TMP validator and defaults. A provider schema rejection is an integration/configuration error, not evidence of an authentication failure. See [official non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode#create-structured-outputs-with-a-schema) and [Structured Outputs schema restrictions](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas).
+
 ## Observed blockers
 
 1. Normal managed-shell execution fails before model execution with EROFS. File-only syscall tracing identifies writes to the managed Codex runtime: `tmp/arg0`, `state_5.sqlite`, and `installation_id`. The aliases warning is nonfatal; installation ID initialization is fatal.

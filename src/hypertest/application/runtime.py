@@ -43,6 +43,8 @@ from hypertest.domain.models import (
 )
 from hypertest.protocol import (
     MissionResultSubmission,
+    RequirementProposalPayload,
+    RiskProposalPayload,
     TestCaseProposalPayload,
     TestImplementationProposalPayload,
 )
@@ -99,7 +101,11 @@ def build_mission_contract(mission: Mission, test_run: TestRun) -> dict[str, Any
     )
     payload_model = None
     proposal_type = None
-    if mission.mission_type is MissionType.DESIGN_TESTS:
+    if mission.mission_type is MissionType.ANALYZE_REQUIREMENTS:
+        payload_model, proposal_type = RequirementProposalPayload, "REQUIREMENT"
+    elif mission.mission_type is MissionType.ANALYZE_RISKS:
+        payload_model, proposal_type = RiskProposalPayload, "RISK"
+    elif mission.mission_type is MissionType.DESIGN_TESTS:
         payload_model, proposal_type = TestCaseProposalPayload, "TEST_CASE"
     elif mission.mission_type is MissionType.IMPLEMENT_TESTS:
         payload_model, proposal_type = TestImplementationProposalPayload, "TEST_IMPLEMENTATION"
@@ -230,7 +236,11 @@ async def _fail_attempt(
 
 def _select_harness(provider: str) -> AgentHarness:
     if provider == "codex":
-        return CodexCliAdapter()
+        settings = get_settings()
+        extra_args = ("--ignore-user-config",) if settings.codex_ignore_user_config else ()
+        if settings.codex_model:
+            extra_args += ("--model", settings.codex_model)
+        return CodexCliAdapter(binary=settings.codex_binary, extra_args=extra_args)
     raise MissionRuntimeError(f"unsupported agent provider: {provider}")
 
 

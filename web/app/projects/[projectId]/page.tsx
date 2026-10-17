@@ -4,7 +4,7 @@ import { ArrowLeftOutlined, ArrowRightOutlined, BranchesOutlined, PlusOutlined }
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Row, Space, Spin, Steps, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createRun, getProject, getProjectRuns } from "@/lib/api";
@@ -26,7 +26,8 @@ const stepFields: (keyof RunFormValues)[][] = [
   ["coverage_default_dimensions", "coverage_by_category", "blocking_severities"],
 ];
 
-export default function ProjectPage({ params }: { params: { projectId: string } }) {
+export default function ProjectPage() {
+  const params = useParams<{ projectId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);

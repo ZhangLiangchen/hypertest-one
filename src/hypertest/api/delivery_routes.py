@@ -78,7 +78,7 @@ def _http_error(exc: Exception) -> HTTPException:
 async def read_capabilities(db: AsyncSession = Depends(get_db)):
     settings = get_settings()
     return {
-        "agent_providers": ["codex"] if shutil.which("codex") else [],
+        "agent_providers": ["codex"] if shutil.which(settings.codex_binary) else [],
         "runner_backends": (["docker"] if shutil.which("docker") else [])
         + (["local"] if settings.runner_allow_local else []),
         "workspace_root": settings.workspace_root,
