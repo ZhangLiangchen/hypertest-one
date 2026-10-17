@@ -128,7 +128,7 @@ Worker settings default to `HYPERTEST_WORKER_LEASE_SECONDS=30`, `HYPERTEST_WORKE
 
 Worker shutdown interrupts active work. Docker staging/execution containers and their volumes carry the owning Job UUID; recovery first commits interrupted domain history, then attempts cleanup of only those labelled resources outside database locks. Cleanup availability and removal counts are audited. If Docker is unreachable, or a provider process survived a hard host/process kill, inspect external resources before retrying. The system preserves canonical history without claiming exactly-once external execution.
 
-Live Codex end-to-end execution remains unverified in the current cloud environment: the available login was detected, but app-server startup failed with `EROFS` in managed read-only runtime state. Provider-neutral integration tests validate the platform loop; they do not establish live-model availability.
+Live Codex end-to-end execution remains unverified in the current cloud environment. Ordinary startup needs writable Codex runtime state; an approved diagnostic command passed initialization, then model connections were denied by the proxy with CONNECT 403. See [runtime troubleshooting](docs/CODEX_RUNTIME_TROUBLESHOOTING.md). Provider-neutral integration tests validate the platform loop; they do not establish live-model availability.
 
 For a controlled local-development fallback, explicitly set `HYPERTEST_RUNNER_ALLOW_LOCAL=true` for API and Worker and select the local Runner. It runs trusted repository code as a host process; it is not a container sandbox. Docker remains the default Runner.
 
