@@ -265,7 +265,7 @@ IMPLEMENT_TESTS 的 `runner_validation_required` 由 HyperTest 在接受实现 P
 
 当前 Codex Adapter 为每次 execution session 的 Proposal key 声明 `ASid:` 前缀，Prompt 与 Provider Schema 使用同一个前缀。同一 session 保持稳定，不同 Attempt 的 session 使用不同前缀，避免重用已被拒绝 Attempt 占用的 Mission-scoped key。它不改变 Mission identity、不改写冻结 spec，也不放宽 Canonical 的 `(mission_id, idempotency_key)` 唯一规则；历史拒绝与重试继续保留。
 
-Codex 的严格结构化输出投影使用本 Mission 的 Typed Payload，关闭对象的额外字段并列出全部 required 字段，nullable 字段仍允许 null。该投影只生成当前 MVP 所需的 protocol / mission_id / status / summary / proposals；TMP 可选的 artifacts / execution_requests / unresolved / metrics / provider_metadata 保持原协议语义，由 HyperTest 的完整 TMP 模型补齐默认值。这个 Adapter 映射不修改 Canonical Schema 或降低 Verifier 校验。参考 [官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode#create-structured-outputs-with-a-schema) 与 [严格结构化输出约束](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas)。
+Codex 的严格结构化输出投影使用本 Mission 的 Typed Payload，关闭对象的额外字段并列出全部 required 字段，nullable 字段仍允许 null。该投影生成 protocol / mission_id / status / summary / proposals / input_request；普通最终结果的 input_request 为 null，等待输入结果按 §29 提供问题且不包含 Proposal。TMP 可选的 artifacts / execution_requests / unresolved / metrics / provider_metadata 保持原协议语义，由 HyperTest 的完整 TMP 模型补齐默认值。旧冻结 Mission 的结果 Schema 可以由当前 Runtime 在内存中投影新增的输入控制字段和状态，不能改写持久 spec、spec_hash 或其业务输出契约。这个 Adapter 映射不修改 Canonical Schema 或降低 Verifier 校验。参考 [官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode#create-structured-outputs-with-a-schema) 与 [严格结构化输出约束](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas)。
 
 ---
 
@@ -278,6 +278,7 @@ Codex 的严格结构化输出投影使用本 Mission 的 Typed Payload，关闭
   "status": "COMPLETED",
   "summary": "完成 dailyLimit 风险驱动测试设计",
   "proposals": [],
+  "input_request": null,
   "artifacts": [],
   "execution_requests": [],
   "unresolved": [],
@@ -294,9 +295,12 @@ PARTIAL
 BLOCKED
 FAILED
 CANCELLED
+WAITING_INPUT
 ```
 
 `COMPLETED` 只表示 Agent 已提交工作，不代表 HyperTest 已接受 Mission。
+
+`WAITING_INPUT` 是非终态控制结果，不提交业务 Proposal，也不表示 Mission 已完成；问题、回答及恢复契约见 §29。
 
 ---
 
@@ -510,6 +514,8 @@ AgentEvent            ← Codex Streaming Event
 
 当前 CLI Adapter 用官方 `codex exec -` 的 stdin 传入 UTF-8 Prompt，不把大 PRD 作为 argv 参数；传输与事件流读取并行。严格 `--output-schema`、CLI 写入 `--output-last-message` 的最终响应、read-only sandbox 与非交互审批策略保持。stdin 是 Provider 传输细节，不修改 TMP 消息、权限或 Canonical identity；多兆输入的 subprocess 回归不能用作模型上下文容量或真实模型验收证据。
 
+Codex `thread.started.thread_id` 是真实 Provider 引用，独立于 HyperTest AgentSession / Gateway ID。恢复调用 `codex exec --sandbox read-only resume <明确的 thread UUID> --json --output-schema ... --output-last-message ... -`；resume 子命令自己的输出参数必须显式传递，不能依赖父命令同名选项的默认值。不得使用 `--last`、将旧 AS 占位值推断成原生 ID，或在原生会话丢失时静默新开会话。普通 exec 没有被假定支持 App Server 的实验性 requestUserInput 工具；当前人工输入使用 §29 的结构化控制结果。CLI 能力与语义以 [官方非交互模式](https://learn.chatgpt.com/docs/non-interactive-mode) 和部署 CLI 的 help 为准。
+
 ### Claude Mapping
 
 ```text
@@ -614,12 +620,16 @@ Agent 引用 Evidence ID，而不是复制全部 Evidence：
 
 ## 29. Human Input
 
-Agent 需要人工输入时发出 WAITING_INPUT：
+Agent 在固定输入无法消除的产品歧义阻止任务完成时提交结构化 WAITING_INPUT 控制结果：
 
 ```json
 {
-  "type": "WAITING_INPUT",
-  "payload": {
+  "protocol": "hypertest.tmp/v1alpha1",
+  "mission_id": "M-1024",
+  "status": "WAITING_INPUT",
+  "summary": "需要确认测试租户",
+  "proposals": [],
+  "input_request": {
     "question_id": "Q-1",
     "question": "测试环境中应使用哪个租户？",
     "options": ["tenant-a", "tenant-b"]
@@ -627,7 +637,15 @@ Agent 需要人工输入时发出 WAITING_INPUT：
 }
 ```
 
-目标交互由 HyperTest UI 展示，用户回答后 resume mission，Provider-specific resume 由 Adapter 完成。当前 MVP 尚未实现 WAITING_INPUT 问题持久化、回答 API / Web 与 Provider resume 闭环；状态和事件枚举的存在不构成功能验收。
+question_id 在同一 Attempt 中唯一且最长 128 字符；question 非空、最长 4096 字符；options 最多 8 项，每项非空、最长 256 字符且不能重复。WAITING_INPUT 不得包含 proposals、artifacts 或 execution_requests；非等待结果不得附带 input_request。所有 Question / Answer 是交互与控制记录，不能成为 Requirement、Execution、Evidence 或 Verdict，也不能替代正式 Runner 事实。
+
+Runtime 根据原有 Mission / Attempt / AgentSession / Job 组装可信等待标记，Provider 只提出 question_id / question / options。Worker 在同一事务验证当前 lease 与 Run→Job→Mission 归属，持久化 MissionInputRequest，并将原 Mission、AgentSession 与 DurableJob 转入 WAITING_INPUT，释放 Job lease；不得先在 Runtime 单独提交一半等待状态。暂停后没有活跃 Provider 进程，等待问题不能占用 Worker。无 DurableJob 的 direct 调用遇到等待结果必须明确失败，不能留下无法回答恢复的悬空 Mission。
+
+Web 展示问题原文并提交自由回答。回答长度上限 12000 字符，要求 idempotency_key 和预期 row_version：同 key / 同回答重试复用原结果，不同回答或并发过期写入拒绝。回答和问题不可覆盖；同一事务把原 Job 重新排队，保持 Mission、Attempt、AgentSession、Job 与不可变所有权。持久化约束和精确状态转换以领域模型 §23.2 为准。
+
+重新领取的 Worker 使用新 lease，锁定原 Mission 与已回答问题，校验原 Attempt / Session / Job 归属，并恢复托管副本与明确的原生 Provider thread。问题置为 CONSUMED、Mission / Session 恢复 RUNNING，与 input.consumed / mission.resumed 的成对 Audit / Outbox 一起提交后才调用 Harness.resume；同一 Attempt 多轮问题分别保留独立消费历史。回答仅附加为运行时 human_inputs 上下文，不改变 PRD、configuration、Snapshot、Policy、冻结 Mission spec 或 spec_hash。后续普通最终结果仍通过原 Verifier。
+
+托管 Agent 副本等待期间保留，恢复时依据原 pinned source 重建并验证可信源文件 Hash，不能信任 Agent 自报 Hash。原生会话或副本缺失、篡改、归属不符时明确失败，不用新会话冒充续接。取消清理只删除托管副本并保留问题、回答、Attempt 和拒绝历史；显式失败重试按既有新 Job / Attempt 规则追加记录。此节定义已实现控制路径，不单凭 fake Harness 回归宣称真实模型闭环验收，实际版本与证据登记在第一阶段验收报告。
 
 ---
 
@@ -734,7 +752,7 @@ Provider-specific Error 保留在 `provider_metadata`。
 
 Planner / Scheduler 可基于 Capability 选择 Worker。
 
-当前 MVP 使用配置的默认 Codex Harness；完整协商、跨 Harness 选择、MCP 与 session resume 尚未实现，不能根据上述示例的 `true` 声明支持。
+当前 MVP 使用配置的默认 Codex Harness，并提供 §29 的持久等待、Web 回答与明确原生 thread 的 Codex resume 控制路径。完整 Capability 协商、跨 Harness 选择、其他 Provider 的 resume 与完整 MCP 工具面仍未实现；不能根据上述示例的 `true` 推断额外能力，真实模型验收范围以实际版本证据为准。
 
 ---
 

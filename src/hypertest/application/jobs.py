@@ -5,6 +5,7 @@ once external execution: expired work is interrupted and requires operator retry
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import timedelta
 from typing import Any
@@ -156,7 +157,7 @@ async def submit_job(
         raise ConflictError("test run already has active work; wait or cancel the active job")
     active_mission = await session.scalar(select(Mission.id).where(
         Mission.test_run_id == run_id,
-        Mission.status.in_([MissionStatus.RUNNING, MissionStatus.DISPATCHED, MissionStatus.SUBMITTED, MissionStatus.VERIFYING]),
+        Mission.status.in_([MissionStatus.RUNNING, MissionStatus.DISPATCHED, MissionStatus.SUBMITTED, MissionStatus.VERIFYING, MissionStatus.WAITING_INPUT]),
     ).limit(1))
     active_execution = await session.scalar(select(TestExecution.id).where(
         TestExecution.test_run_id == run_id,
@@ -259,7 +260,7 @@ async def _recover_work(session: AsyncSession, job: DurableJob, *, cancelled: bo
     mission_query = select(Mission).where(
         Mission.test_run_id == job.test_run_id,
         Mission.id.in_(active_attempts),
-        Mission.status.in_([MissionStatus.RUNNING, MissionStatus.DISPATCHED, MissionStatus.SUBMITTED, MissionStatus.VERIFYING]),
+        Mission.status.in_([MissionStatus.RUNNING, MissionStatus.DISPATCHED, MissionStatus.SUBMITTED, MissionStatus.VERIFYING, MissionStatus.WAITING_INPUT]),
     )
     if job.job_type is JobType.EXECUTE_MISSION:
         mission_query = mission_query.where(Mission.id == job.mission_id)
@@ -290,6 +291,9 @@ async def _recover_work(session: AsyncSession, job: DurableJob, *, cancelled: bo
                 attempt=attempt, before_status=before_status,
                 metadata={"error_code": error_code, "reason": "durable_job_recovery", "job_id": str(job.id)},
             )
+    from hypertest.application.inputs import cancel_open_inputs
+
+    await cancel_open_inputs(session, job)
     executions = list(await session.scalars(select(TestExecution).where(
         TestExecution.test_run_id == job.test_run_id,
         TestExecution.durable_job_id == job.id,
@@ -328,8 +332,14 @@ async def cancel_job(session: AsyncSession, job_id: UUID) -> DurableJob:
         return job
     now = await _now(session)
     job.cancel_requested_at = job.cancel_requested_at or now
-    if job.status is JobStatus.QUEUED:
-        job.status, job.finished_at = JobStatus.CANCELLED, now
+    paused = job.status is JobStatus.WAITING_INPUT or (
+        job.status is JobStatus.QUEUED and bool((job.result or {}).get("input_request_id"))
+    )
+    if job.status in {JobStatus.QUEUED, JobStatus.WAITING_INPUT}:
+        if paused:
+            await _recover_work(session, job, cancelled=True, error_code="JOB_CANCELLED",
+                                message="Operator cancelled durable work")
+        job.status, job.finished_at, job.lease_expires_at = JobStatus.CANCELLED, now, None
         await _event(session, job, "job.cancelled")
     else:
         job.status = JobStatus.CANCEL_REQUESTED
@@ -338,6 +348,8 @@ async def cancel_job(session: AsyncSession, job_id: UUID) -> DurableJob:
         await _recover_work(session, job, cancelled=True, error_code="JOB_CANCELLED", message="Operator cancelled durable work")
         await _event(session, job, "job.cancel_requested")
     await session.commit()
+    if paused:
+        await cleanup_job_resources(session, job)
     return job
 
 
@@ -363,7 +375,13 @@ async def finish_job(session: AsyncSession, job_id: UUID, lease_token: UUID, *, 
     # Controlled dispatcher failures may carry committed steps/identities so the
     # operator can inspect and recover. Cancellation/interruption still discard
     # any speculative handler result; all terminal history remains immutable.
-    job.status, job.result = target, result if target in {JobStatus.SUCCEEDED, JobStatus.FAILED} else None
+    checkpoint = job.result if (job.result or {}).get("input_request_id") else None
+    terminal_result = result if target in {JobStatus.SUCCEEDED, JobStatus.FAILED} else None
+    if terminal_result is None and checkpoint is not None:
+        # This checkpoint was committed before the resumed handler began. Keep
+        # accepted progress even when restoration/preflight fails or is cancelled.
+        terminal_result = {**checkpoint, "reason": target.value, "resume_stopped": True}
+    job.status, job.result = target, terminal_result
     job.error_code, job.error_message = error_code, error_message
     job.finished_at, job.lease_expires_at = now, None
     await _event(session, job, f"job.{job.status.value.lower()}")
@@ -403,9 +421,23 @@ async def recover_expired_jobs(session: AsyncSession) -> list[DurableJob]:
 
 
 async def cleanup_job_resources(session: AsyncSession, job: DurableJob) -> dict[str, Any]:
+    from hypertest.agent.snapshot import cleanup_managed_agent_workspace
     from hypertest.runner.backends import cleanup_docker_job_resources
 
+    workspaces = list(await session.scalars(select(AgentSessionRecord.workspace_id).join(
+        MissionAttempt, MissionAttempt.agent_session_id == AgentSessionRecord.id,
+    ).where(MissionAttempt.durable_job_id == job.id,
+            AgentSessionRecord.status.in_([AgentSessionStatus.CLOSED, AgentSessionStatus.FAILED]))))
+    # Release all read/FK locks before filesystem or Docker I/O.
+    await session.commit()
     cleanup = await cleanup_docker_job_resources(job.id)
+    removed, failures = 0, 0
+    for workspace in set(workspaces):
+        try:
+            removed += bool(await asyncio.to_thread(cleanup_managed_agent_workspace, workspace))
+        except OSError:
+            failures += 1
+    cleanup = {**cleanup, "agent_workspaces_removed": removed, "agent_workspace_cleanup_failures": failures}
     payload = {"job_id": str(job.id), "test_run_id": str(job.test_run_id), **cleanup}
     session.add_all([
         AuditEvent(project_id=job.project_id, test_run_id=job.test_run_id,

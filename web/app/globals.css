@@ -154,6 +154,19 @@ a { text-underline-offset: 4px; }
 .ant-alert-description { line-height: 1.8; }
 .ant-alert-action { flex-shrink: 0; }
 .entity-detail { padding: 8px 16px; max-width: 1000px; overflow-wrap: anywhere; }
+.input-request-notice { padding: 20px 24px; margin-bottom: 20px; background: var(--ht-surface); border: 1px solid var(--ht-line); border-radius: 10px; }
+.input-request-notice .section-heading h2 { display: flex; align-items: center; gap: 8px; }
+.input-request-list { list-style: none; padding: 0; margin: 0; }
+.input-request-list > li { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid var(--ht-line); }
+.input-request-list > li > div { min-width: 0; }
+.input-question-preview { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.input-question-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.input-answer-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.input-answer-options .ant-btn { max-width: 100%; height: auto; min-height: 36px; white-space: normal; text-align: start; overflow-wrap: anywhere; }
+.input-answer-control { padding-block-end: 28px; }
+.input-answer-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.input-unsent-draft { margin: 20px 0; }
+.input-unsent-draft > summary { cursor: pointer; }
 .pane-loading { display: flex; justify-content: center; padding: 64px 24px; }
 .artifact-content { padding: 18px; border: 1px solid #d8e1ee; border-radius: 6px; background: #f3f6fb; color: #263b58; max-height: 65vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.8 "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .policy-rule { padding: 16px; margin-bottom: 16px; border: 1px solid var(--ht-line); border-radius: 8px; background: #f7f9fc; }
@@ -208,6 +221,9 @@ a { text-underline-offset: 4px; }
   .ant-drawer .ant-drawer-body { padding: 20px 16px; }
   .ant-drawer .ant-descriptions-view table { table-layout: fixed; }
   .ant-drawer .ant-descriptions-item-label { width: 33%; }
+  .input-request-notice { padding: 16px; }
+  .input-request-list > li { flex-direction: column; gap: 12px; }
+  .input-answer-actions > .ant-btn { height: auto; min-height: 36px; max-width: 100%; white-space: normal; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

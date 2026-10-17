@@ -21,6 +21,7 @@ const labels: Record<string, [string, string]> = {
   CANCEL_REQUESTED: ["Cancellation requested", "已请求取消"], INTERRUPTED: ["Interrupted", "已中断"],
   SUCCEEDED: ["Task completed", "任务已完成"], PARTIAL: ["Partial", "部分完成"],
   PENDING: ["Pending", "待处理"], VALIDATING: ["Validating", "校验中"],
+  ANSWERED: ["Answer saved", "回答已保存"], CONSUMED: ["Received by agent", "智能体已接收"],
   ACCEPTED: ["Accepted", "已接受"], REJECTED: ["Rejected", "已拒绝"],
   VALIDATED: ["Validated", "校验通过"], STALE: ["Stale", "已失效"],
   SUPERSEDED: ["Superseded", "已被替代"], DEPRECATED: ["Deprecated", "已弃用"],
@@ -92,6 +93,7 @@ const labels: Record<string, [string, string]> = {
   MISSION_REJECTED: ["Mission result was not accepted", "测试任务产出未被接受"],
   MISSION_FAILED: ["Mission needs explicit recovery", "测试任务需要显式恢复"],
   MISSION_IN_PROGRESS: ["Mission in progress", "测试任务仍在进行"],
+  RESUME_QUEUED: ["Answer saved; continuation queued", "回答已保存，继续任务已入队"],
   TEST_DESIGN_COVERAGE_COMPLETE: ["Test design coverage complete", "测试设计覆盖已完成"],
 };
 

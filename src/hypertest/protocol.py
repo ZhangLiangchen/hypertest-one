@@ -5,7 +5,7 @@ import re
 from pathlib import PurePosixPath
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hypertest.domain.enums import (
     Priority,
@@ -29,10 +29,36 @@ class ProposalSubmission(BaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
 
 
+class HumanInputRequest(BaseModel):
+    """A control-plane question, never a proposed quality fact."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: str = Field(min_length=1, max_length=128)
+    question: str = Field(min_length=1, max_length=4096)
+    options: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("question_id", "question")
+    @classmethod
+    def nonblank(cls, value: str) -> str:
+        if not value.strip() or "\x00" in value:
+            raise ValueError("input request text must be nonblank and contain no NUL")
+        return value
+
+    @field_validator("options")
+    @classmethod
+    def valid_options(cls, values: list[str]) -> list[str]:
+        if any(not value.strip() or len(value) > 256 or "\x00" in value for value in values):
+            raise ValueError("input options must be nonblank and at most 256 characters")
+        if len(set(values)) != len(values):
+            raise ValueError("input options must be distinct")
+        return values
+
+
 class MissionResultSubmission(BaseModel):
     protocol: str = "hypertest.tmp/v1alpha1"
     mission_id: str
-    status: Literal["COMPLETED", "PARTIAL", "BLOCKED", "FAILED", "CANCELLED"]
+    status: Literal["COMPLETED", "PARTIAL", "BLOCKED", "FAILED", "CANCELLED", "WAITING_INPUT"]
     summary: str = ""
     proposals: list[ProposalSubmission] = Field(default_factory=list)
     artifacts: list[dict[str, Any]] = Field(default_factory=list)
@@ -40,6 +66,18 @@ class MissionResultSubmission(BaseModel):
     unresolved: list[dict[str, Any]] = Field(default_factory=list)
     metrics: dict[str, Any] = Field(default_factory=dict)
     provider_metadata: dict[str, Any] = Field(default_factory=dict)
+    input_request: HumanInputRequest | None = None
+
+    @model_validator(mode="after")
+    def validate_input_request(self) -> MissionResultSubmission:
+        if self.status == "WAITING_INPUT":
+            if self.input_request is None:
+                raise ValueError("WAITING_INPUT requires an input_request")
+            if self.proposals or self.artifacts or self.execution_requests:
+                raise ValueError("WAITING_INPUT cannot submit proposals, artifacts or executions")
+        elif self.input_request is not None:
+            raise ValueError("input_request is only valid with WAITING_INPUT")
+        return self
 
 
 class RequirementProposalPayload(BaseModel):

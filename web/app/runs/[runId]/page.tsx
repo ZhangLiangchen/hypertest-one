@@ -33,6 +33,7 @@ function statusColor(status: string) {
   if (["COMPLETED", "ACCEPTED", "ACTIVE", "OPEN"].includes(status)) return "green";
   if (["FAILED", "REJECTED", "BLOCKED"].includes(status)) return "red";
   if (["RUNNING", "ANALYZING", "VERIFYING"].includes(status)) return "blue";
+  if (status === "WAITING_INPUT") return "gold";
   return "default";
 }
 

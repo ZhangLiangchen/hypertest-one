@@ -19,6 +19,7 @@ import { latestRunVerdict } from "@/lib/run-summary";
 import { useRunJobs } from "./use-run-jobs";
 import { AttemptHistory } from "./attempt-history";
 import { RunOverview } from "./run-overview";
+import { useRunInputRequests } from "./use-run-input-requests";
 
 import type { Evidence, ExecutionCreate, Finding, Mission, MissionProposal, TestExecution, TestImplementation, Verdict } from "@/lib/types";
 
@@ -156,12 +157,15 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
   async function refresh() {
     await Promise.all([
-      ...["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts"].map((key) => client.invalidateQueries({ queryKey: [key, runId] })),
+      ...["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts", "input-requests", "jobs"].map((key) => client.invalidateQueries({ queryKey: [key, runId] })),
       ...["mission", "attempts", "proposals"].map((key) => client.invalidateQueries({ queryKey: [key] })),
     ]);
   }
 
+  const inputRequests = useRunInputRequests(runId, tasks.rows, tasks.jobs.isLoading || !!tasks.jobs.error, tasks.openTask, () => { void refresh(); });
+
   const mission = selectedMission.data || missionSelection;
+  const waitingMissionJob = inputRequests.requests.data?.find((item) => item.mission_id === mission?.id && ["PENDING", "ANSWERED"].includes(item.status))?.durable_job_id;
   const missionExecution = useMutation({
     mutationFn: async (values: { workspace: string }) => {
       if (!mission) throw new Error(t("Select a mission first.", "请先选择测试任务。"));
@@ -216,6 +220,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const missionActions = (item: Mission) => (
     <Space wrap>
       <Button size="small" onClick={() => { setMissionSelection(item); missionCancellation.reset(); }}>{t("Details", "详情")}</Button>
+      {inputRequests.pending.some((question) => question.mission_id === item.id) && <Button size="small" type="primary" onClick={() => inputRequests.open(inputRequests.pending.find((question) => question.mission_id === item.id)!.id)}>{t("Answer question", "回答问题")}</Button>}
       {["CREATED", "READY", "RETRYING", "FAILED"].includes(item.status) && (
         <Button size="small" type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(item)}>
           {item.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")}
@@ -264,6 +269,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
   const tabs: NonNullable<TabsProps["items"]> = [
     tasks.taskTab,
+    inputRequests.tab,
     { key: "automation", label: `${t("Automation", "自动化实现")} (${implementations.data?.length ?? "—"})`, children: <Pane loading={implementations.isLoading} error={implementations.error} empty={!implementations.data?.length} retry={() => void implementations.refetch()} description={t("No accepted implementations yet. Plan an IMPLEMENT_TESTS mission after test design coverage is complete.", "暂无已接受的自动化实现。测试设计覆盖完成后，可规划实现测试任务（IMPLEMENT_TESTS）。")}><Table rowKey="id" columns={implementationColumns} dataSource={implementations.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
     { key: "executions", label: `${t("Executions", "执行")} (${executions.data?.length ?? "—"})`, children: <Pane loading={executions.isLoading} error={executions.error} empty={!executions.data?.length} retry={() => void executions.refetch()} description={t("No runner executions yet. Implement the test cases, then select Execute tests.", "暂无 Runner 执行。完成用例实现后，选择“执行测试”。")}><Table rowKey="id" columns={executionColumns} dataSource={executions.data} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} /></Pane> },
     { key: "evidence", label: `${t("Evidence", "证据")} (${evidence.data?.length ?? "—"})`, children: <Pane loading={evidence.isLoading} error={evidence.error} empty={!evidence.data?.length} retry={() => void evidence.refetch()} description={t("Evidence appears here when the trusted runner collects execution metadata, logs and test reports.", "可信 Runner 收集执行元数据、日志与测试报告后，证据将显示在这里。")}><Table rowKey="id" columns={evidenceColumns} dataSource={evidence.data} pagination={{ pageSize: 10 }} scroll={{ x: 800 }} /></Pane> },
@@ -284,7 +290,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   }
 
   const actions = <Space wrap>
-    <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={source.isLoading || !!source.error || !capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>
+    {inputRequests.pending.length ? <Button type="primary" onClick={() => inputRequests.open(inputRequests.pending[0].id)}>{t("Answer question", "回答问题")}</Button> : <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={inputRequests.busy || source.isLoading || !!source.error || !capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>}
   </Space>;
   const secondaryActions = <Space wrap>
     <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !capabilities.data?.runner_backends.length || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
@@ -311,6 +317,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const dialogs = <>
     {contextHolder}
     {tasks.dialog}
+    {inputRequests.dialog}
     <Modal forceRender title={mission?.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")} open={missionDialog} okText={mission?.status === "FAILED" ? t("Retry and execute", "重试并执行") : t("Execute mission", "执行任务")} okButtonProps={{ "aria-label": mission?.status === "FAILED" ? t("Retry and execute", "重试并执行") : t("Execute mission", "执行任务"), disabled: tasks.busy }} confirmLoading={missionExecution.isPending} cancelText={missionExecution.isPending ? t("View progress", "查看进度") : t("Cancel", "取消")} maskClosable={!missionExecution.isPending} onCancel={() => setMissionDialog(false)} onOk={() => missionForm.submit()}>
       <Typography.Paragraph><strong>{mission ? label(mission.mission_type) : ""}</strong> — {mission?.objective}</Typography.Paragraph>
       <Alert type="info" showIcon message={t("Codex must be installed and authenticated on the HyperTest host.", "HyperTest 主机必须已安装并认证 Codex。")} description={t("The agent submits proposals. HyperTest verifies them before updating canonical testing state.", "智能体提交提议，由 HyperTest 验证后更新正式测试状态。")} style={{ marginBottom: 20 }} />
@@ -325,8 +332,9 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
       {missionExecution.error && <Alert type="error" showIcon message={t("Unable to save mission task", "无法保存智能体任务")} description={errorText(missionExecution.error, locale)} />}
     </Modal>
 
-    <Drawer title={mission ? `${mission.key} · ${label(mission.mission_type)}` : t("Mission", "测试任务")} open={!!missionSelection && !missionDialog} width={850} onClose={() => setMissionSelection(null)} extra={mission && <Space><Badge value={mission.status} />{["CREATED", "READY", "RETRYING", "FAILED"].includes(mission.status) && <Button type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(mission)}>{mission.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")}</Button>}{!["COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(mission.status) && <Popconfirm title={t("Cancel this mission?", "确认取消此测试任务？")} description={t("Unaccepted proposals will not change canonical testing state.", "尚未接受的提议不会改变正式测试状态。")} onConfirm={() => missionCancellation.mutate(mission.id)}><Button danger loading={missionCancellation.isPending}>{t("Cancel mission", "取消测试任务")}</Button></Popconfirm>}</Space>}>
+    <Drawer title={mission ? `${mission.key} · ${label(mission.mission_type)}` : t("Mission", "测试任务")} open={!!missionSelection && !missionDialog} width={850} onClose={() => setMissionSelection(null)} extra={mission && <Space wrap><Badge value={mission.status} />{["CREATED", "READY", "RETRYING", "FAILED"].includes(mission.status) && <Button type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(mission)}>{mission.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")}</Button>}{mission.status === "WAITING_INPUT" ? <Button disabled={!waitingMissionJob} onClick={() => { if (waitingMissionJob) { setMissionSelection(null); tasks.openTask(waitingMissionJob); } }}>{t("Manage paused task", "管理暂停任务")}</Button> : !["COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(mission.status) && <Popconfirm title={t("Cancel this mission?", "确认取消此测试任务？")} description={t("Unaccepted proposals will not change canonical testing state.", "尚未接受的提议不会改变正式测试状态。")} onConfirm={() => missionCancellation.mutate(mission.id)}><Button danger loading={missionCancellation.isPending}>{t("Cancel mission", "取消测试任务")}</Button></Popconfirm>}</Space>}>
       <Typography.Paragraph>{mission?.objective}</Typography.Paragraph>
+      {mission && inputRequests.missionPanel(mission.id)}
       {missionCancellation.error && <Alert type="error" showIcon message={t("Unable to cancel mission", "无法取消测试任务")} description={errorText(missionCancellation.error, locale)} />}
       <Typography.Title level={4}>{t("Attempts", "尝试历史")}</Typography.Title>
       <Pane loading={attempts.isLoading} error={attempts.error} empty={!attempts.data?.length} retry={() => void attempts.refetch()} description={t("This mission has not run yet.", "此测试任务尚未执行。")}>
@@ -420,6 +428,6 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     </Drawer>
   </>;
 
-  const overview = <RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} />;
-  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, busy: tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
+  const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} /></>;
+  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }

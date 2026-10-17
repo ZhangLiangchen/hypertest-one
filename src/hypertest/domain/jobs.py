@@ -34,6 +34,7 @@ class JobType(StrEnum):
 class JobStatus(StrEnum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
+    WAITING_INPUT = "WAITING_INPUT"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     CANCEL_REQUESTED = "CANCEL_REQUESTED"
@@ -41,7 +42,9 @@ class JobStatus(StrEnum):
     INTERRUPTED = "INTERRUPTED"
 
 
-ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.CANCEL_REQUESTED)
+ACTIVE_JOB_STATUSES = (
+    JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.WAITING_INPUT, JobStatus.CANCEL_REQUESTED,
+)
 
 
 def _now() -> datetime:
@@ -56,7 +59,7 @@ class DurableJob(Base):
         CheckConstraint("attempts >= 0", name="ck_durable_job_attempts"),
         CheckConstraint("(job_type = 'EXECUTE_MISSION') = (mission_id IS NOT NULL)", name="ck_durable_job_mission"),
         Index("uq_durable_job_active_run", "test_run_id", unique=True,
-              postgresql_where=text("status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')")),
+              postgresql_where=text("status IN ('QUEUED', 'RUNNING', 'WAITING_INPUT', 'CANCEL_REQUESTED')")),
         Index("ix_durable_job_claim", "status", "created_at"),
     )
 

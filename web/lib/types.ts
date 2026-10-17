@@ -38,6 +38,29 @@ export type Mission = {
   completed_at?: string | null;
 };
 
+export type InputRequest = {
+  id: string;
+  key: string;
+  test_run_id: string;
+  mission_id: string;
+  attempt_id: string;
+  agent_session_id: string;
+  durable_job_id: string;
+  question_id: string;
+  question: string;
+  options: string[];
+  status: "PENDING" | "ANSWERED" | "CONSUMED" | "CANCELLED";
+  answer: string | null;
+  created_at: string;
+  answered_at: string | null;
+  consumed_at: string | null;
+  cancelled_at: string | null;
+  row_version: number;
+};
+
+export type InputAnswer = { answer: string; expected_row_version: number; idempotency_key: string };
+export type InputAnswerResult = { input_request: InputRequest; job: BackgroundJob };
+
 export type ProjectCreate = {
   key: string;
   name: string;
@@ -332,7 +355,7 @@ export type Coverage = {
 };
 
 export type JobOperation = "ADVANCE_RUN" | "EXECUTE_MISSION" | "EXECUTE_TESTS" | "EVALUATE_GATE" | "PREPARE_WORKSPACE";
-export type JobStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCEL_REQUESTED" | "CANCELLED" | "INTERRUPTED";
+export type JobStatus = "QUEUED" | "RUNNING" | "WAITING_INPUT" | "SUCCEEDED" | "FAILED" | "CANCEL_REQUESTED" | "CANCELLED" | "INTERRUPTED";
 
 export type BackgroundJob = {
   id: string;

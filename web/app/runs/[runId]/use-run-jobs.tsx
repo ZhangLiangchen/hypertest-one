@@ -1,5 +1,6 @@
 "use client";
 
+import { PauseCircleOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Descriptions, Drawer, Empty, Popconfirm, Space, Spin, Table, Tag, Timeline, Typography, message } from "antd";
 import { useEffect, useRef, useState } from "react";
@@ -9,12 +10,12 @@ import { useI18n } from "@/lib/i18n";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
 
-const activeStatuses: JobStatus[] = ["QUEUED", "RUNNING", "CANCEL_REQUESTED"];
+const activeStatuses: JobStatus[] = ["QUEUED", "RUNNING", "WAITING_INPUT", "CANCEL_REQUESTED"];
 const retryableStatuses: JobStatus[] = ["FAILED", "INTERRUPTED", "CANCELLED"];
 function jobColor(status: JobStatus) {
   if (status === "SUCCEEDED") return "green";
   if (status === "FAILED") return "red";
-  if (["CANCEL_REQUESTED", "INTERRUPTED"].includes(status)) return "gold";
+  if (["WAITING_INPUT", "CANCEL_REQUESTED", "INTERRUPTED"].includes(status)) return "gold";
   if (status === "RUNNING") return "blue";
   return "default";
 }
@@ -101,6 +102,10 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     let canonicalChanged = false;
     for (const job of jobs.data) {
       const previous = statuses.current.get(job.id);
+      if (previous && previous !== job.status && job.status === "WAITING_INPUT") {
+        canonicalChanged = true;
+        notifications.warning(t("Testing is paused for your answer. Open Questions & answers to continue.", "测试已暂停等待你的回答。请打开“问题与回答”继续。"));
+      }
       if (previous && previous !== job.status && !activeStatuses.includes(job.status)) {
         canonicalChanged = true;
         if (job.status === "SUCCEEDED") {
@@ -112,7 +117,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
       statuses.current.set(job.id, job.status);
     }
     if (canonicalChanged) {
-      for (const key of ["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts"]) {
+      for (const key of ["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts", "input-requests"]) {
         void client.invalidateQueries({ queryKey: [key, runId] });
       }
       for (const key of ["mission", "attempts", "proposals"]) void client.invalidateQueries({ queryKey: [key] });
@@ -149,6 +154,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     const unknownMission = job.job_type === "EXECUTE_MISSION" && !mission;
     return <Space wrap>
       <Button size="small" onClick={() => { setSelectedId(job.id); cancellation.reset(); retry.reset(); }}>{t("Details", "详情")}</Button>
+      {job.status === "WAITING_INPUT" && <Button size="small" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>}
       {activeStatuses.includes(job.status) && job.status !== "CANCEL_REQUESTED" && <Popconfirm title={t("Cancel this background task?", "确认取消此后台任务？")} description={t("The worker stops at a safe boundary. Accepted canonical testing state remains available.", "Worker 会在安全边界停止，已接受的正式测试状态仍会保留。")} onConfirm={() => cancellation.mutate(job)}><Button size="small" danger loading={cancellation.isPending && cancellation.variables?.id === job.id}>{t("Cancel task", "取消任务")}</Button></Popconfirm>}
       {retryableStatuses.includes(job.status) && (cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
     </Space>;
@@ -171,8 +177,8 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
 
   const monitor = <>
     {jobs.error && <Alert type="warning" showIcon message={t("Background task status is unavailable", "后台任务状态暂不可用")} description={t("Refresh task status before starting additional work.", "请刷新任务状态，再发起新操作。")} action={<Button onClick={() => void jobs.refetch()}>{t("Refresh tasks", "刷新任务")}</Button>} style={{ marginBottom: 16 }} />}
-    {active.length > 0 && <Card className="section-card" title={<Space><Spin size="small" />{t("Background tasks", "后台任务")} ({active.length})</Space>} style={{ marginBottom: 20 }}>
-      <Typography.Paragraph className="muted">{t("Work continues on the worker. You can leave this page and return to the same tasks.", "Worker 会继续处理。离开页面后，返回仍可查看同一任务。")}</Typography.Paragraph>
+    {active.length > 0 && <Card className="section-card" title={<Space>{active.every((job) => job.status === "WAITING_INPUT") ? <PauseCircleOutlined aria-hidden /> : <Spin size="small" />}{t("Background tasks", "后台任务")} ({active.length})</Space>} style={{ marginBottom: 20 }}>
+      <Typography.Paragraph className="muted">{active.every((job) => job.status === "WAITING_INPUT") ? t("Testing is paused until you answer the recorded question. This task keeps its place and does not occupy a worker while waiting.", "测试已暂停，等待你回答已记录的问题。此任务会保留运行位置，等待时不占用 Worker。") : t("Work continues on the worker. You can leave this page and return to the same tasks.", "Worker 会继续处理。离开页面后，返回仍可查看同一任务。")}</Typography.Paragraph>
       <Table rowKey="id" size="small" columns={columns} dataSource={active} pagination={false} scroll={{ x: 750 }} />
     </Card>}
     {rows[0] && ["FAILED", "INTERRUPTED"].includes(rows[0].status) && <Alert type={rows[0].status === "INTERRUPTED" ? "warning" : "error"} showIcon message={rows[0].status === "INTERRUPTED" ? t("A background task needs recovery", "后台任务需要恢复") : t("The latest background task failed", "最新后台任务失败")} description={rows[0].error_message || t("Review the task details and recorded canonical state before retrying.", "请先查看任务详情及已记录的正式状态，再决定是否重试。")} action={<Button onClick={() => setSelectedId(rows[0].id)}>{t("Review task", "查看任务")}</Button>} style={{ marginBottom: 20 }} />}
@@ -190,6 +196,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         <Space wrap style={{ marginBottom: 16 }}><Status job={current} />{actions(current)}</Space>
         {selected.error && <Alert type="warning" showIcon message={t("Task refresh failed; showing recorded data", "任务刷新失败，正在显示已加载记录")} description={errorText(selected.error, locale)} action={<Button onClick={() => void selected.refetch()}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 16 }} />}
         {current.status === "SUCCEEDED" && <Alert type="info" showIcon message={t("Task completed; the quality verdict determines test readiness", "后台任务已完成，测试质量以质量判定为准")} description={t("A successful task means the requested operation finished. Tests may still fail and the release may remain blocked. Inspect the execution, evidence and latest verdict below.", "任务成功表示请求的操作已完成。测试仍可能失败，发布仍可能被阻止。请继续查看执行、证据和最新质量判定。")} style={{ marginBottom: 16 }} />}
+        {current.status === "WAITING_INPUT" && <Alert type="warning" showIcon message={t("This task is paused for your answer", "此任务已暂停等待你的回答")} description={t("Answer the recorded question to queue this same task again. Do not start a separate cycle to bypass the question.", "回答已记录的问题后，同一任务将重新入队。请勿新建测试周期来绕过问题。")} action={<Button type="primary" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>} style={{ marginBottom: 16 }} />}
         <Space wrap style={{ marginBottom: 20 }}>
           <Button onClick={() => viewResult("missions")}>{t("View missions", "查看测试任务")}</Button>
           <Button onClick={() => viewResult("executions")}>{t("View executions", "查看执行")}</Button>

@@ -146,6 +146,7 @@ class TestCaseLifecycle(StrEnum):
 class AgentSessionStatus(StrEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
+    WAITING_INPUT = "WAITING_INPUT"
     CLOSED = "CLOSED"
     FAILED = "FAILED"
 

@@ -160,3 +160,19 @@ async def test_cycle_replans_cancelled_work_and_preserves_old_mission(tmp_path, 
         await session.refresh(first.mission)
         assert first.mission.status is MissionStatus.CANCELLED
         assert first.mission.spec == old_spec
+
+
+@pytest.mark.asyncio
+async def test_cycle_resume_preserves_original_step_budget(tmp_path, monkeypatch):
+    source, commit, origin = configure_workspace(tmp_path, monkeypatch)
+    async with AsyncSessionLocal() as session:
+        project = await create_project(session, ProjectCreate(
+            key=f"BUDGET_{public_key('IT')[-12:]}", name="Paused cycle budget"))
+        run = await bootstrap_run(session, project.id, RunBootstrap(
+            repository_url=origin, commit_sha=commit, prd_text=PRD_TEXT))
+        previous = [{"action": "mission", "id": "already-committed", "status": "ACCEPTED"}]
+        result = await advance_run(session, run.id, workspace=str(source), backend="local",
+                                   max_steps=1, previous_steps=previous, harness=CycleHarness())
+        assert result["reason"] == "STEP_LIMIT_REACHED"
+        assert result["steps"] == previous
+        assert result["steps"] is not previous

@@ -945,7 +945,7 @@ ADVANCE_RUN 在 Git / Agent 前对受支持 backend 调用 Runner fingerprint �
 
 ADVANCE_RUN 请求必须恰选一种源方式：`prepare_workspace: true` 且不传 workspace，或提供非空 workspace 且 `prepare_workspace: false`（缺省）。自动方式在同一 Job 内调用既有 pinned checkout 服务，再继续 Planner 周期；保留原 GitHub HTTPS 白名单、固定 commit 与干净 tracked source 校验，其他 Host 仍使用已有 workspace。准备不占 max_steps，不新增 Job / Mission 类型，也不在成功并重新验证归属前创建 AgentSession / MissionAttempt。后续 Attempt / Execution 继续归属同一 Job。
 
-请求 identity、类型、FK、payload、idempotency_key 与 created_at 创建后不可变。payload 只保存工作区、Runner、timeout、work limit 等运行选项；Requirement / Risk / Case 等 Canonical 状态继续保存在对应关系表。`UNIQUE(test_run_id, idempotency_key)` 保证相同输入重复提交返回原 Job，不同输入复用同一 Key 被拒绝；部分唯一索引保证每个 Run 至多有一个 QUEUED / RUNNING / CANCEL_REQUESTED Job。
+请求 identity、类型、FK、payload、idempotency_key 与 created_at 创建后不可变。payload 只保存工作区、Runner、timeout、work limit 等运行选项；Requirement / Risk / Case 等 Canonical 状态继续保存在对应关系表。`UNIQUE(test_run_id, idempotency_key)` 保证相同输入重复提交返回原 Job，不同输入复用同一 Key 被拒绝；部分唯一索引保证每个 Run 至多有一个 QUEUED / RUNNING / WAITING_INPUT / CANCEL_REQUESTED Job。
 
 新增缺省字段允许仅在内存中按当前请求 Schema 规范化后比较输入。例如既有手动 ADVANCE_RUN payload 缺少 `prepare_workspace` 与显式 `false` 等价；相同 key 重发与显式 retry 均不得为了适配新 Schema 改写原 payload。实际 workspace / Runner / limit 或模式等实质差异仍属于冲突，不放宽既有唯一约束。
 
@@ -953,11 +953,13 @@ ADVANCE_RUN 请求必须恰选一种源方式：`prepare_workspace: true` 且不
 QUEUED → RUNNING → SUCCEEDED / FAILED / INTERRUPTED
 QUEUED → CANCELLED
 RUNNING → CANCEL_REQUESTED → CANCELLED
+RUNNING → WAITING_INPUT → QUEUED → RUNNING
+WAITING_INPUT → CANCELLED
 ```
 
 SUCCEEDED 表示调度请求成功返回，不表示质量结论为 PASS；应读取 Job result 的 stop reason 和正式 Verdict。终态 Job 不可改写，所有 Job 禁止 DELETE。显式重试创建新的 Job 并记录 retry_of_job_id，不能原地清空错误、重开终态或覆盖历史结果。
 
-受控 `MISSION_REJECTED` / `MISSION_FAILED` 使 Job 进入 FAILED，允许同时保存 result 中的 stop reason、已持久步骤、关联 Mission ID 与已解析 workspace；独立 EXECUTE_MISSION 拒绝还保存对应 Attempt ID。FAILED Mission 不得误报为运行中或隐式重放。result 是对既有持久历史的运行索引，不能成为 Requirement / Execution / Evidence / Verdict 的替代事实。通用异常不保证存在部分 result；CANCELLED / INTERRUPTED 不保存迟到 handler 的结果。终态 result 与原失败历史仍受不可变保护。
+受控 `MISSION_REJECTED` / `MISSION_FAILED` 使 Job 进入 FAILED，允许同时保存 result 中的 stop reason、已持久步骤、关联 Mission ID 与已解析 workspace；独立 EXECUTE_MISSION 拒绝还保存对应 Attempt ID。FAILED Mission 不得误报为运行中或隐式重放。result 是对既有持久历史的运行索引，不能成为 Requirement / Execution / Evidence / Verdict 的替代事实。通用异常不保证存在部分 result；恢复阶段若已有暂停时提交的 checkpoint，则保留其已完成 steps、workspace 和 input reference，并记录停止原因。CANCELLED / INTERRUPTED 不保存迟到 handler 的结果，但不丢弃此前已经持久化的 checkpoint。终态 result 与原失败历史仍受不可变保护。
 
 Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 worker_id、lease_token、heartbeat_at、lease_expires_at。使用数据库时钟验证租约；每个受控 Canonical commit 在 flush 前后检查 Run → Job 锁、状态和 token。租约失效或取消后的旧 Worker 不得提交 Canonical 状态。
 
@@ -972,6 +974,18 @@ Docker 资源使用不可变 Job UUID label：包括 staging / execution contain
 `worker_heartbeats` 记录 Worker 的 last_seen_at 和 active_job_id，支持 API / Web 区分队列等待与可用 Worker。其 liveness 是运行数据，不影响测试事实可信度。Job 生命周期写 AuditEvent 与 OutboxEvent；它们与队列状态在同一事务提交。
 
 ---
+
+### 23.2 持久人工输入与原任务恢复
+
+`MissionInputRequest` 是平台的持久交互记录，不是 Requirement、Evidence 或 Verdict。字段为 `id/key/test_run_id/mission_id/attempt_id/agent_session_id/durable_job_id/question_id/question/options/status/answer/answer_idempotency_key/created_at/answered_at/consumed_at/cancelled_at/row_version`。所有关系必须指向同一 Run、同一 Attempt 及其不可变 Job/AgentSession 归属。问题、选项和关系创建后不可修改，`(attempt_id, question_id)` 唯一；一个 Attempt 同时最多一个 PENDING/ANSWERED 问题。文本问题上限4096字符、最多8个256字符的建议选项；回答上限12000字符且不能全空白，保留原文。
+
+问题状态为 PENDING → ANSWERED → CONSUMED；PENDING/ANSWERED 可变为 CANCELLED，历史不可删除。回答仅可写一次；同问题、同幂等key和相同原文重复提交返回原记录，异文或其他回答冲突。答案与将原 Job 重新排队在同一事务提交；不改写冻结 Mission spec、SourceSnapshot、PRD 或 Policy。澄清不能授权超出原权限的操作，实质目标变化必须新建输入快照/Run。
+
+受支持的持久 ADVANCE_RUN/EXECUTE_MISSION Job 新增非终态 WAITING_INPUT。等待仍占该Run的唯一活跃请求预约，但清除lease/worker并释放实际Worker，不占用进程或靠内存等待。Worker结束当前Provider turn后，在普通数据库事务中按 Run → Job → Mission → Question 锁序、有效token和数据库时钟验证，原子创建问题、Mission/AgentSession置WAITING_INPUT、保留RUNNING Attempt、保存已完成步骤、将Job置WAITING_INPUT并清lease，flush及事件完成后commit前再次验证原租约未过期；不在双重fence的运行Session内先改Job状态。回答原子将同Job WAITING_INPUT→QUEUED，新claim取得新token后恢复同Mission/Attempt/真实Provider会话；CONSUMED记录答案交付，不声称测试通过。Job attempts为领取次数，不等于Mission Attempt数，原有已完成steps和max_steps预算继续保留。
+
+HyperTest句柄持久保存在Attempt operational metadata，真实Provider session ID只作外部引用，不作为领域主键；旧占位引用不推断回填。等待工作副本置于受控临时会话目录，供跨进程恢复；恢复从固定源码重新验证文件hash，最终完成/取消/失效后清理。原始Agent对话不进入Canonical Testing State。丢失Provider会话或工作副本应显式失败、保留答案/Attempt，再由用户检查重试，不能静默改建会话并冒称resume。direct同步执行不支持可恢复人工等待，需明确报错并保留失败历史。
+
+取消等待Job立即成为CANCELLED，同时终止开放问题和所属未完成Mission/Attempt/Session；已回答原文保留。等待不受运行租约到期扫描自动重放。取消、回答、每次等待/恢复均写配对Audit/Outbox，按Question身份去重，事件不复制问题/回答或Provider日志。新增迁移`0009_mission_inputs`仅增加交互表、状态约束与活跃索引，不回填旧历史；有交互历史时禁止降级丢失。
 
 ## 24. 核心数据库表
 
@@ -1014,7 +1028,7 @@ outbox_events
 
 `0007_durable_jobs` 在 `0006_immutable_contracts` 后增加 Operational 表 `durable_jobs` 与 `worker_heartbeats`、FK、幂等 / 活跃请求唯一索引和请求 / 历史保护 Trigger；不重写 Canonical Entity 或 Vendor Session。
 
-当前迁移 head 为 `0008_job_ownership`，在上述队列表之后增加 Attempt / Execution 的显式归属关系和约束。历史行不推断归属；已有归属记录时禁止降级丢失关系。
+当前迁移 head 为 `0009_mission_inputs`：保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系；增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。历史行不推断或回填归属；已有归属或人工输入历史时禁止降级丢失关系。
 
 ---
 

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from hypertest.agent.base import AgentHarness
+from hypertest.agent.base import AgentHarness, AgentSession
 from hypertest.agent.codex import CodexCliAdapter
 from hypertest.agent.snapshot import SnapshotHarness
 from hypertest.application.lifecycle import record_mission_event
@@ -88,6 +88,7 @@ class MissionExecutionResult:
     test_cases: list[TestCase]
     implementations: list[TestImplementation] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
+    waiting_input: dict[str, Any] | None = None
 
 
 def _output_schema_for(mission_type: MissionType) -> str:
@@ -221,6 +222,26 @@ async def _hydrate_source_context(
     contract["context"] = context
 
 
+async def _hydrate_answer_context(
+    session: AsyncSession, test_run: TestRun, contract: dict[str, Any],
+) -> None:
+    from hypertest.domain.inputs import InputRequestStatus, MissionInputRequest
+
+    answered = list(await session.scalars(select(MissionInputRequest).where(
+        MissionInputRequest.test_run_id == test_run.id,
+        MissionInputRequest.status.in_([InputRequestStatus.ANSWERED, InputRequestStatus.CONSUMED]),
+    ).order_by(MissionInputRequest.created_at, MissionInputRequest.id)))
+    context = dict(contract.get("context", {}))
+    # Always replace this runtime projection; frozen input cannot inject an
+    # invented operator answer or overwrite PRD/configuration/source identity.
+    context["human_inputs"] = [
+        {"request_id": str(item.id), "question_id": item.question_id,
+         "question": item.question, "answer": item.answer}
+        for item in answered
+    ]
+    contract["context"] = context
+
+
 async def _fail_attempt(
     session: AsyncSession,
     mission: Mission,
@@ -249,7 +270,7 @@ async def _fail_attempt(
     attempt.finished_at = now
     attempt.error_code = error_code
     attempt.error_message = error_message
-    attempt.provider_metadata = provider_metadata
+    attempt.provider_metadata = {**(attempt.provider_metadata or {}), **provider_metadata}
     if result_payload is not None:
         attempt.result_payload = result_payload
     if rejected:
@@ -329,6 +350,7 @@ async def _execute_mission(
     workspace = str(workspace_path)
     contract = build_mission_contract(mission, test_run)
     await _hydrate_source_context(session, test_run, contract)
+    await _hydrate_answer_context(session, test_run, contract)
     if harness is None:
         from hypertest.runner.source import validate_checkout
 
@@ -352,10 +374,9 @@ async def _execute_mission(
     # request observes RUNNING before it can create another external agent session.
     await session.refresh(test_run, with_for_update=True)
     await session.refresh(mission, with_for_update=True)
+    is_resume = mission.status is MissionStatus.WAITING_INPUT
     if mission.status not in {
-        MissionStatus.CREATED,
-        MissionStatus.READY,
-        MissionStatus.RETRYING,
+        MissionStatus.CREATED, MissionStatus.READY, MissionStatus.RETRYING, MissionStatus.WAITING_INPUT,
     }:
         message = f"mission cannot execute from status {mission.status.value}"
         await session.rollback()
@@ -367,86 +388,140 @@ async def _execute_mission(
 
     job_reference = getattr(session, "job_id", None) or runner_job_id.get()
     durable_job_id = UUID(str(job_reference)) if job_reference is not None else None
-    try:
-        external_session = await selected_harness.create_session(workspace)
-    except Exception as exc:
-        await session.rollback()
-        from hypertest.application.jobs import JobLeaseLost
-
-        if isinstance(exc, JobLeaseLost):
-            raise
-        raise MissionRuntimeError(f"agent session could not be created: {exc}") from exc
     now = utcnow()
-    agent_record = AgentSessionRecord(
-        id=uuid7(),
-        test_run_id=test_run.id,
-        provider=external_session.provider,
-        harness=type(selected_harness).__name__,
-        provider_session_id=external_session.provider_session_id or external_session.id,
-        workspace_id=(
-            selected_harness.workspace_for(external_session)
-            if isinstance(selected_harness, SnapshotHarness)
-            else workspace
-        ),
-        status=AgentSessionStatus.RUNNING,
-        last_active_at=now,
-    )
-    attempt = MissionAttempt(
-        id=uuid7(),
-        mission_id=mission.id,
-        durable_job_id=durable_job_id,
-        attempt_no=mission.current_attempt_no + 1,
-        agent_session=agent_record,
-        provider=external_session.provider,
-        harness=type(selected_harness).__name__,
-        status=MissionAttemptStatus.CREATED,
-    )
-    session.add_all([agent_record, attempt])
-    attempt_context.update(attempt_id=attempt.id, agent_session_id=agent_record.id)
-    before_status = mission.status
-    mission.current_attempt_no = attempt.attempt_no
-    mission.status = MissionStatus.DISPATCHED
-    mission.dispatched_at = mission.dispatched_at or now
-    mission.row_version += 1
-    next_run_status = {
-        MissionType.DESIGN_TESTS: TestRunStatus.DESIGNING,
-        MissionType.IMPLEMENT_TESTS: TestRunStatus.IMPLEMENTING,
-        MissionType.DIAGNOSE_FAILURE: TestRunStatus.DIAGNOSING,
-    }.get(mission.mission_type, TestRunStatus.ANALYZING)
-    if test_run.status not in {TestRunStatus.COMPLETED, TestRunStatus.CANCELLED}:
-        test_run.status = next_run_status
-        test_run.started_at = test_run.started_at or now
-        test_run.row_version += 1
-    try:
-        await record_mission_event(
-            session, mission, "mission.dispatched", attempt=attempt,
-            metadata={"reason": "mission dispatched to a replaceable agent worker"},
-            before_status=before_status,
+    if is_resume:
+        from hypertest.domain.inputs import InputRequestStatus, MissionInputRequest
+
+        if durable_job_id is None:
+            raise MissionRuntimeError("human input resume requires its original durable job")
+        question = await session.scalar(select(MissionInputRequest).where(
+            MissionInputRequest.test_run_id == test_run.id,
+            MissionInputRequest.mission_id == mission.id,
+            MissionInputRequest.durable_job_id == durable_job_id,
+            MissionInputRequest.status == InputRequestStatus.ANSWERED,
+        ).order_by(MissionInputRequest.created_at.desc(), MissionInputRequest.id.desc())
+            .with_for_update().limit(1))
+        if question is None:
+            raise MissionRuntimeError("waiting mission has no answered input for this durable job")
+        attempt = await session.get(MissionAttempt, question.attempt_id)
+        agent_record = await session.get(AgentSessionRecord, question.agent_session_id)
+        if (attempt is None or agent_record is None or attempt.mission_id != mission.id
+                or attempt.attempt_no != mission.current_attempt_no
+                or attempt.durable_job_id != durable_job_id
+                or attempt.agent_session_id != agent_record.id
+                or agent_record.test_run_id != test_run.id
+                or agent_record.status is not AgentSessionStatus.WAITING_INPUT
+                or attempt.status is not MissionAttemptStatus.RUNNING):
+            raise MissionRuntimeError("answered input does not own the current waiting attempt/session")
+        gateway_id = (attempt.provider_metadata or {}).get("gateway_session_id")
+        if not isinstance(gateway_id, str) or not gateway_id or not agent_record.provider_session_id:
+            raise MissionRuntimeError("persisted provider session identity is unavailable for resume")
+        if agent_record.provider != provider:
+            raise MissionRuntimeError("resume must use the original agent provider")
+        external_session = AgentSession(
+            id=gateway_id, provider=agent_record.provider,
+            provider_session_id=agent_record.provider_session_id,
         )
+        attempt_context.update(attempt_id=attempt.id, agent_session_id=agent_record.id)
+        try:
+            await selected_harness.restore_session(external_session, agent_record.workspace_id)
+        except Exception as exc:
+            raise MissionRuntimeError(f"agent session could not be restored: {exc}") from exc
+        question.status = InputRequestStatus.CONSUMED
+        question.consumed_at = now
+        question.row_version += 1
         mission.status = MissionStatus.RUNNING
         mission.row_version += 1
-        attempt.status = MissionAttemptStatus.RUNNING
-        attempt.started_at = now
+        agent_record.status = AgentSessionStatus.RUNNING
+        agent_record.last_active_at = now
         await record_mission_event(
-            session, mission, "mission.started", attempt=attempt,
-            metadata={"reason": "agent attempt started"}, before_status=MissionStatus.DISPATCHED,
+            session, mission, "mission.resumed", attempt=attempt,
+            before_status=MissionStatus.WAITING_INPUT,
+            metadata={"request_id": str(question.id), "reason": "operator answer consumed",
+                      "event_key": f"{mission.id}:mission.resumed:{question.id}"},
         )
-        await session.commit()
-    except BaseException:
-        await session.rollback()
+        from hypertest.application.inputs import _input_event
+
+        await _input_event(session, question, "input.consumed")
         try:
-            await asyncio.wait_for(selected_harness.close(external_session), 5)
-        except Exception:
-            pass
-        raise
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            await selected_harness.close(external_session)
+            raise
+    else:
+        try:
+            external_session = await selected_harness.create_session(workspace)
+        except Exception as exc:
+            await session.rollback()
+            from hypertest.application.jobs import JobLeaseLost
+
+            if isinstance(exc, JobLeaseLost):
+                raise
+            raise MissionRuntimeError(f"agent session could not be created: {exc}") from exc
+        agent_record = AgentSessionRecord(
+            id=uuid7(), test_run_id=test_run.id, provider=external_session.provider,
+            harness=type(selected_harness).__name__,
+            provider_session_id=external_session.provider_session_id,
+            workspace_id=(selected_harness.workspace_for(external_session)
+                          if isinstance(selected_harness, SnapshotHarness) else workspace),
+            status=AgentSessionStatus.RUNNING, last_active_at=now,
+        )
+        attempt = MissionAttempt(
+            id=uuid7(), mission_id=mission.id, durable_job_id=durable_job_id,
+            attempt_no=mission.current_attempt_no + 1, agent_session=agent_record,
+            provider=external_session.provider, harness=type(selected_harness).__name__,
+            status=MissionAttemptStatus.CREATED,
+            provider_metadata={"gateway_session_id": external_session.id},
+        )
+        session.add_all([agent_record, attempt])
+        attempt_context.update(attempt_id=attempt.id, agent_session_id=agent_record.id)
+        before_status = mission.status
+        mission.current_attempt_no = attempt.attempt_no
+        mission.status = MissionStatus.DISPATCHED
+        mission.dispatched_at = mission.dispatched_at or now
+        mission.row_version += 1
+        next_run_status = {
+            MissionType.DESIGN_TESTS: TestRunStatus.DESIGNING,
+            MissionType.IMPLEMENT_TESTS: TestRunStatus.IMPLEMENTING,
+            MissionType.DIAGNOSE_FAILURE: TestRunStatus.DIAGNOSING,
+        }.get(mission.mission_type, TestRunStatus.ANALYZING)
+        if test_run.status not in {TestRunStatus.COMPLETED, TestRunStatus.CANCELLED}:
+            test_run.status = next_run_status
+            test_run.started_at = test_run.started_at or now
+            test_run.row_version += 1
+        try:
+            await record_mission_event(
+                session, mission, "mission.dispatched", attempt=attempt,
+                metadata={"reason": "mission dispatched to a replaceable agent worker"},
+                before_status=before_status,
+            )
+            mission.status = MissionStatus.RUNNING
+            mission.row_version += 1
+            attempt.status = MissionAttemptStatus.RUNNING
+            attempt.started_at = now
+            await record_mission_event(
+                session, mission, "mission.started", attempt=attempt,
+                metadata={"reason": "agent attempt started"}, before_status=MissionStatus.DISPATCHED,
+            )
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            try:
+                await asyncio.wait_for(selected_harness.close(external_session), 5)
+            except Exception:
+                pass
+            raise
 
     result_payload: dict[str, Any] | None = None
     error_payload: dict[str, Any] | None = None
-    event_types: list[str] = []
+    event_types: list[str] = list((attempt.provider_metadata or {}).get("event_types", []))
 
     async def consume_events() -> None:
         nonlocal result_payload, error_payload
-        async for event in selected_harness.execute(external_session, contract):
+        stream = (selected_harness.resume(external_session, contract) if is_resume
+                  else selected_harness.execute(external_session, contract))
+        async for event in stream:
             event_types.append(event.type)
             if event.type == "RESULT_SUBMITTED":
                 if result_payload is not None:
@@ -456,6 +531,15 @@ async def _execute_mission(
                     }
                 else:
                     result_payload = event.payload
+            elif event.type == "SESSION_STARTED":
+                reference = event.payload.get("provider_session_id")
+                if isinstance(reference, str) and reference:
+                    if (external_session.provider_session_id
+                            and external_session.provider_session_id != reference):
+                        error_payload = {"error_code": "PROVIDER_SESSION_CHANGED",
+                                         "message": "provider changed the persisted session identity"}
+                    else:
+                        external_session.provider_session_id = reference
             elif event.type == "ERROR":
                 error_payload = event.payload
 
@@ -490,132 +574,170 @@ async def _execute_mission(
                 return
 
     cancellation_task = asyncio.create_task(watch_cancellation())
+    retain_workspace = False
     try:
-        await asyncio.wait_for(execution_task, timeout=duration)
-    except asyncio.CancelledError:
-        if not cancellation_observed.is_set():
+        try:
+            await asyncio.wait_for(execution_task, timeout=duration)
+        except asyncio.CancelledError:
+            if not cancellation_observed.is_set():
+                try:
+                    await asyncio.wait_for(selected_harness.interrupt(external_session), 5)
+                except Exception:
+                    event_types.append("HARNESS_INTERRUPT_ERROR")
+                raise
+        except TimeoutError:
             try:
                 await asyncio.wait_for(selected_harness.interrupt(external_session), 5)
             except Exception:
                 event_types.append("HARNESS_INTERRUPT_ERROR")
-            raise
-    except TimeoutError:
-        try:
-            await asyncio.wait_for(selected_harness.interrupt(external_session), 5)
-        except Exception:
-            event_types.append("HARNESS_INTERRUPT_ERROR")
-        error_payload = {
-            "error_code": "MISSION_TIMEOUT",
-            "message": "mission exceeded its time limit",
-        }
-    except Exception as exc:
-        from hypertest.application.jobs import JobLeaseLost
+            error_payload = {
+                "error_code": "MISSION_TIMEOUT",
+                "message": "mission exceeded its time limit",
+            }
+        except Exception as exc:
+            from hypertest.application.jobs import JobLeaseLost
 
-        if isinstance(exc, JobLeaseLost):
-            raise
-        error_payload = {
-            "error_code": "HARNESS_ERROR",
-            "message": str(exc),
-        }
-    finally:
-        cancellation_task.cancel()
-        await asyncio.gather(cancellation_task, return_exceptions=True)
-        try:
-            await asyncio.wait_for(selected_harness.close(external_session), 5)
-        except Exception:
-            event_types.append("HARNESS_CLOSE_ERROR")
+            if isinstance(exc, JobLeaseLost):
+                raise
+            error_payload = {
+                "error_code": "HARNESS_ERROR",
+                "message": str(exc),
+            }
+        finally:
+            cancellation_task.cancel()
+            await asyncio.gather(cancellation_task, return_exceptions=True)
 
-    provider_metadata = {"event_types": event_types}
-    # Serialize completion with cancellation before processing any result or error.
-    await session.refresh(test_run, with_for_update=True)
-    await session.refresh(mission, with_for_update=True)
-    if mission.status is MissionStatus.CANCELLED or test_run.status is TestRunStatus.CANCELLED:
-        before_status = mission.status
-        if mission.status is not MissionStatus.CANCELLED:
-            mission.status = MissionStatus.CANCELLED
-            mission.cancelled_at = utcnow()
-            mission.row_version += 1
-        attempt.status = MissionAttemptStatus.CANCELLED
-        attempt.finished_at = utcnow()
-        attempt.provider_metadata = provider_metadata
+        provider_metadata = {**(attempt.provider_metadata or {}), "event_types": event_types}
+        # Serialize completion with cancellation before processing any result or error.
+        await session.refresh(test_run, with_for_update=True)
+        await session.refresh(mission, with_for_update=True)
+        if external_session.provider_session_id:
+            agent_record.provider_session_id = external_session.provider_session_id
+        if mission.status is MissionStatus.CANCELLED or test_run.status is TestRunStatus.CANCELLED:
+            before_status = mission.status
+            if mission.status is not MissionStatus.CANCELLED:
+                mission.status = MissionStatus.CANCELLED
+                mission.cancelled_at = utcnow()
+                mission.row_version += 1
+            attempt.status = MissionAttemptStatus.CANCELLED
+            attempt.finished_at = utcnow()
+            attempt.provider_metadata = provider_metadata
+            agent_record.status = AgentSessionStatus.CLOSED
+            agent_record.closed_at = utcnow()
+            agent_record.last_active_at = utcnow()
+            await record_mission_event(
+                session, mission, "mission.cancelled", attempt=attempt,
+                metadata={"reason": "mission execution cancelled by the control plane"},
+                before_status=before_status,
+            )
+            await session.commit()
+            return MissionExecutionResult(mission, attempt, [], [], [], [])
+        if harness is None and error_payload is None:
+            try:
+                await validate_checkout(workspace_path, source.commit_sha, source.repository_url)
+            except RuntimeError as exc:
+                error_payload = {"error_code": "SOURCE_CHANGED", "message": str(exc)}
+        if error_payload is not None:
+            error_code = str(error_payload.get("error_code", "AGENT_ERROR"))
+            error_message = str(error_payload.get("message") or error_payload)
+            await _fail_attempt(
+                session,
+                mission,
+                attempt,
+                agent_record,
+                error_code,
+                error_message,
+                provider_metadata,
+            )
+            raise MissionRuntimeError(error_message)
+        if result_payload is None:
+            message = "agent finished without RESULT_SUBMITTED"
+            await _fail_attempt(
+                session,
+                mission,
+                attempt,
+                agent_record,
+                "RESULT_MISSING",
+                message,
+                provider_metadata,
+            )
+            raise MissionRuntimeError(message)
+
+        try:
+            result = MissionResultSubmission.model_validate(result_payload)
+        except ValidationError as exc:
+            await _fail_attempt(
+                session,
+                mission,
+                attempt,
+                agent_record,
+                "RESULT_SCHEMA_ERROR",
+                str(exc),
+                provider_metadata,
+                result_payload=result_payload,
+            )
+            raise MissionRuntimeError("agent result failed TMP schema validation") from exc
+
+        if result.status == "WAITING_INPUT":
+            invalid_identity = (
+                result.mission_id != mission.key
+                or result.protocol != f"hypertest.tmp/{mission.protocol_version}"
+            )
+            if invalid_identity or durable_job_id is None or not external_session.provider_session_id:
+                message = ("input request does not match the immutable mission" if invalid_identity else
+                           "human input requires a durable job and a persisted native provider session")
+                await _fail_attempt(
+                    session, mission, attempt, agent_record, "INPUT_REQUEST_UNSUPPORTED",
+                    message, provider_metadata, result_payload=result_payload,
+                )
+                raise MissionRuntimeError(message)
+            assert result.input_request is not None
+            # Persist observed native identity while the original lease still owns
+            # RUNNING. Waiting states and the question are committed atomically by
+            # the Worker's separate pause transaction, never through this fence.
+            await session.commit()
+            marker = {
+                "mission_id": str(mission.id), "attempt_id": str(attempt.id),
+                "agent_session_id": str(agent_record.id),
+                "provider_session_id": external_session.provider_session_id,
+                "workspace_id": agent_record.workspace_id,
+                "request": result.input_request.model_dump(mode="json"),
+                "provider_metadata": provider_metadata,
+            }
+            retain_workspace = True
+            return MissionExecutionResult(
+                mission, attempt, [], [], [], [], waiting_input=marker,
+            )
+
         agent_record.status = AgentSessionStatus.CLOSED
-        agent_record.closed_at = utcnow()
         agent_record.last_active_at = utcnow()
-        await record_mission_event(
-            session, mission, "mission.cancelled", attempt=attempt,
-            metadata={"reason": "mission execution cancelled by the control plane"},
-            before_status=before_status,
-        )
-        await session.commit()
-        return MissionExecutionResult(mission, attempt, [], [], [], [])
-    if harness is None and error_payload is None:
-        try:
-            await validate_checkout(workspace_path, source.commit_sha, source.repository_url)
-        except RuntimeError as exc:
-            error_payload = {"error_code": "SOURCE_CHANGED", "message": str(exc)}
-    if error_payload is not None:
-        error_code = str(error_payload.get("error_code", "AGENT_ERROR"))
-        error_message = str(error_payload.get("message") or error_payload)
-        await _fail_attempt(
+        agent_record.closed_at = utcnow()
+        attempt.provider_metadata = provider_metadata
+        verification: VerificationResult = await verify_mission_result(
             session,
             mission,
             attempt,
-            agent_record,
-            error_code,
-            error_message,
-            provider_metadata,
+            result,
         )
-        raise MissionRuntimeError(error_message)
-    if result_payload is None:
-        message = "agent finished without RESULT_SUBMITTED"
-        await _fail_attempt(
-            session,
-            mission,
-            attempt,
-            agent_record,
-            "RESULT_MISSING",
-            message,
-            provider_metadata,
+        await session.refresh(mission)
+        await session.refresh(attempt)
+        return MissionExecutionResult(
+            mission=mission,
+            attempt=attempt,
+            proposals=verification.proposals,
+            requirements=verification.requirements,
+            risks=verification.risks,
+            test_cases=verification.test_cases,
+            implementations=verification.implementations,
+            findings=verification.findings,
         )
-        raise MissionRuntimeError(message)
 
-    try:
-        result = MissionResultSubmission.model_validate(result_payload)
-    except ValidationError as exc:
-        await _fail_attempt(
-            session,
-            mission,
-            attempt,
-            agent_record,
-            "RESULT_SCHEMA_ERROR",
-            str(exc),
-            provider_metadata,
-            result_payload=result_payload,
-        )
-        raise MissionRuntimeError("agent result failed TMP schema validation") from exc
-
-    agent_record.status = AgentSessionStatus.CLOSED
-    agent_record.last_active_at = utcnow()
-    agent_record.closed_at = utcnow()
-    attempt.provider_metadata = provider_metadata
-    verification: VerificationResult = await verify_mission_result(
-        session,
-        mission,
-        attempt,
-        result,
-    )
-    await session.refresh(mission)
-    await session.refresh(attempt)
-    return MissionExecutionResult(
-        mission=mission,
-        attempt=attempt,
-        proposals=verification.proposals,
-        requirements=verification.requirements,
-        risks=verification.risks,
-        test_cases=verification.test_cases,
-        implementations=verification.implementations,
-        findings=verification.findings,
-    )
+    finally:
+        if not retain_workspace:
+            try:
+                await asyncio.wait_for(selected_harness.close(external_session), 5)
+            except Exception:
+                event_types.append("HARNESS_CLOSE_ERROR")
 
 
 async def execute_mission(

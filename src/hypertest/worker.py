@@ -50,6 +50,12 @@ async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]
     payload = dict(job.payload)
     if job.job_type is JobType.ADVANCE_RUN:
         from hypertest.application.controller import advance_run
+        checkpoint = job.result or {}
+        if checkpoint.get("input_request_id"):
+            payload["previous_steps"] = checkpoint.get("steps", [])
+            if checkpoint.get("workspace"):
+                payload["workspace"] = checkpoint["workspace"]
+                payload["prepare_workspace"] = False
         result = await advance_run(session, job.test_run_id, **payload)
         if result["reason"] in {"MISSION_REJECTED", "MISSION_FAILED"}:
             raise JobDispatchError(
@@ -61,6 +67,8 @@ async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]
         result = await execute_mission(session, job.mission_id, **payload)
         recorded = {"mission_id": str(result.mission.id), "mission_key": result.mission.key,
                     "attempt_id": str(result.attempt.id), "status": result.mission.status.value}
+        if result.waiting_input is not None:
+            return {"reason": "WAITING_INPUT", "_waiting_input": result.waiting_input, **recorded}
         if result.attempt.status is not MissionAttemptStatus.ACCEPTED:
             raise JobDispatchError(
                 "MISSION_REJECTED", "mission proposals rejected; inspect its recorded details before retry",
@@ -163,10 +171,24 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
         await asyncio.gather(handler, return_exceptions=True)
     try:
         async with AsyncSessionLocal() as session:
-            finished = await finish_job(session, job.id, lease_token, result=result,
-                                        error_code=error_code, error_message=error_message,
-                                        interrupted=interrupted)
-            if finished.status is not JobStatus.SUCCEEDED:
+            if error_code is None and result and result.get("_waiting_input"):
+                from hypertest.application.inputs import pause_job_for_input
+
+                try:
+                    finished = await pause_job_for_input(session, job.id, lease_token, result=result)
+                except JobLeaseLost:
+                    raise
+                except Exception as exc:
+                    await session.rollback()
+                    finished = await finish_job(
+                        session, job.id, lease_token, error_code="INPUT_PAUSE_FAILED",
+                        error_message=str(exc)[:2048],
+                    )
+            else:
+                finished = await finish_job(session, job.id, lease_token, result=result,
+                                            error_code=error_code, error_message=error_message,
+                                            interrupted=interrupted)
+            if finished.status not in {JobStatus.SUCCEEDED, JobStatus.WAITING_INPUT}:
                 await cleanup_job_resources(session, finished)
             return finished
     except JobLeaseLost:
