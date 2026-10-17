@@ -3,8 +3,59 @@ import type {
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate,
   SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict,
 } from "@/lib/types";
+import type { Locale } from "@/lib/i18n";
 
 const API_PREFIX = "/api/v1";
+
+export class ApiError extends Error {
+  constructor(public readonly status: number, public readonly detail: string) {
+    super(detail || `Request failed: ${status}`);
+    this.name = "ApiError";
+  }
+}
+
+export function errorText(error: unknown, locale: Locale): string {
+  const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (locale === "en") return detail || "Something went wrong. Please try again.";
+  if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(detail)) {
+    return "无法连接服务。请确认 SSH 隧道已连接，再重试。";
+  }
+  const known: Record<string, string> = {
+    "project not found": "项目不存在，请返回项目列表刷新后重试。",
+    "project key already exists": "项目标识已存在。请打开已有项目，或使用其他标识。",
+    "idempotency key is already bound to a different run request": "此请求标识已用于另一组运行输入。请返回检查需求、源码和策略，再创建新的测试运行。",
+    "Select a mission first.": "请先选择一个任务阶段。",
+    "The saved requirements are unavailable or failed integrity verification.": "已保存的需求不可用，或未通过完整性校验。请重试；仍失败时检查服务端产物存储。",
+    "The saved configuration is unavailable or failed integrity verification.": "已保存的配置不可用，或未通过完整性校验。请重试；仍失败时检查服务端产物存储。",
+    "Unable to load evidence content": "无法读取证据内容，请重试并检查服务端产物存储。",
+  };
+  if (known[detail]) return known[detail];
+  if (error instanceof ApiError) {
+    const hint = error.status === 409 ? "请求与已有状态冲突。请刷新当前状态并检查输入后重试。"
+      : error.status === 422 || error.status === 400 ? "输入未通过校验，请检查表单。"
+      : error.status === 404 ? "未找到请求的数据，请刷新后重试。"
+      : error.status >= 500 ? "服务暂时不可用。请确认 SSH 隧道和服务运行状态后重试。"
+      : "请求未完成，请检查输入后重试。";
+    return detail ? `${hint} 服务端详情：${detail}` : hint;
+  }
+  return detail ? `操作未完成：${detail}` : "操作未完成，请重试。";
+}
+
+async function responseError(response: Response, fallback?: string): Promise<ApiError> {
+  const body = await response.text();
+  let detail = fallback || "";
+  try {
+    const problem = JSON.parse(body) as { detail?: unknown };
+    if (typeof problem.detail === "string") detail = problem.detail;
+    else if (Array.isArray(problem.detail)) {
+      detail = problem.detail.map((issue) => `${issue.loc?.slice(1).join(".") || "Input"}: ${issue.msg}`).join("; ");
+    }
+  } catch {
+    // Proxy HTML is not a useful form error. Retain safe text diagnostics only.
+    if (!response.headers.get("content-type")?.includes("text/html")) detail ||= body.slice(0, 2000);
+  }
+  return new ApiError(response.status, detail);
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_PREFIX}${path}`, {
@@ -15,18 +66,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    const body = await response.text();
-    let detail = body;
-    try {
-      const problem = JSON.parse(body) as { detail?: unknown };
-      if (typeof problem.detail === "string") detail = problem.detail;
-      else if (Array.isArray(problem.detail)) {
-        detail = problem.detail.map((issue) => `${issue.loc?.slice(1).join(".") || "Input"}: ${issue.msg}`).join("; ");
-      }
-    } catch {
-      // Non-JSON responses still retain the server's diagnostic message.
-    }
-    throw new Error(detail || `Request failed: ${response.status}`);
+    throw await responseError(response);
   }
   return (await response.json()) as T;
 }
@@ -59,7 +99,7 @@ export const getExecution = (executionId: string) => api<ExecutionDetail>(`/exec
 export const getEvidence = (runId: string) => api<Evidence[]>(`/test-runs/${runId}/evidence`);
 export const getEvidenceContent = async (evidenceId: string) => {
   const response = await fetch(`${API_PREFIX}/evidence/${evidenceId}/content`);
-  if (!response.ok) throw new Error((await response.text()) || "Unable to load evidence content");
+  if (!response.ok) throw await responseError(response, "Unable to load evidence content");
   return response.text();
 };
 export const getFindings = (runId: string) => api<Finding[]>(`/test-runs/${runId}/findings`);
@@ -70,12 +110,12 @@ export const getSourceSnapshot = (snapshotId: string) => api<SourceSnapshot>(`/s
 export const getPolicySnapshot = (snapshotId: string) => api<PolicySnapshot>(`/policy-snapshots/${snapshotId}`);
 export const getPrdContent = async (snapshotId: string) => {
   const response = await fetch(`${API_PREFIX}/source-snapshots/${snapshotId}/prd`);
-  if (!response.ok) throw new Error("The saved requirements are unavailable or failed integrity verification.");
+  if (!response.ok) throw await responseError(response, "The saved requirements are unavailable or failed integrity verification.");
   return response.text();
 };
 export const getConfigurationContent = async (snapshotId: string) => {
   const response = await fetch(`${API_PREFIX}/source-snapshots/${snapshotId}/configuration`);
-  if (!response.ok) throw new Error("The saved configuration is unavailable or failed integrity verification.");
+  if (!response.ok) throw await responseError(response, "The saved configuration is unavailable or failed integrity verification.");
   return response.text();
 };
 export const getVerdicts = (runId: string) => api<Verdict[]>(`/test-runs/${runId}/verdicts`);

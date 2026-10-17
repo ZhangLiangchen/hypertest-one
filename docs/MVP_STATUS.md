@@ -29,6 +29,18 @@ Mission Attempts and Executions carry immutable nullable `durable_job_id` relati
 
 Run creation uses Source → Requirements → Policy → Review. Operators select shared and category-specific design dimensions and gate-blocking Finding severities; the immutable resulting Policy is visible in the Run inputs and coverage rule/hash.
 
+The interface supports Chinese and English with a persisted browser preference,
+localized component controls, dates, state labels and validation messages. Project
+and run drafts survive closing/reopening the dialog and switching language within
+the page. UTF-8 Markdown/text PRDs can be imported into the editable requirements
+field. Task completion is explicitly separated from quality decisions; task steps
+and Verdict relations link directly to recorded execution, evidence and findings.
+Temporary polling errors preserve loaded data and the selected result tab.
+Uncertain task submissions recover the saved Job by request identity before any
+explicit retry. Bootstrap rejects reuse of a request key for different substantive
+inputs before writing artifacts; branch reference labels follow the existing
+SourceSnapshot identity rules. See the [Web workflow guide](WEB_PRODUCT_WORKFLOW.md).
+
 ## Current trust and coverage boundaries
 
 - Agent output is a Proposal. HyperTest alone validates and commits Canonical State.
