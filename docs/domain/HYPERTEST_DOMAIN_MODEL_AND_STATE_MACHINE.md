@@ -1,14 +1,16 @@
 # HyperTest Domain Model & State Machine Specification
 
-**Document Status:** Draft / Normative  
-**Version:** v0.3
+**Document Status:** Normative / Accepted v0.4 Target; v0.3 Implemented Baseline
+
+**Version:** v0.4 Target
 **Parent Documents:**
 
-- HyperTest Whitepaper v1.0
-- HyperTest Technical Architecture v0.3
-- Test Mission Protocol Specification v0.3
+- HyperTest Whitepaper v1.1
+- HyperTest Technical Architecture v0.4 Target
+- Test Mission Protocol Specification v0.4 Target
+- [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
 
-**Applies To:** HyperTest Canonical Testing State
+**Applies To:** HyperTest Canonical Testing State and its Operational Ownership Boundaries
 
 ---
 
@@ -17,6 +19,14 @@
 本文正式定义 HyperTest 的领域模型、实体关系、生命周期、数据库约束和持久化规则。
 
 本文是 HyperTest Canonical State 的规范性定义。如果本文与上层架构文档在 Field、Relationship、Lifecycle、Uniqueness、Persistence、State Transition 上冲突，以本文为准。
+
+### 1.1 实施边界
+
+v0.4 已接受设计为：一个稳定 SUT 对应一个 Project；一个 feat / MR 的完整 SHA 及固定测试输入对应一次用户可见 TestRun。每个 Run 只有一个逻辑 TaskWorker 绑定及一个持久主 AgentSession，串行推进多个 typed Mission / Attempt。平台 Worker 和 Control Plane 容器化；只有 Provider Harness、其认证 / 原生会话运行时及窄 Host Bridge 保留在宿主。不同 Run 可以并发，同一 Run 不引入多个平台 Worker 同时协作。
+
+**这些是 Accepted design，尚未实现。** 本文标为“v0.3 已实现”的字段、迁移、逐 Mission 会话、bounded controller 和现有 wire contract 是当前运行基线；标为“v0.4 目标”的 RunExecutionBinding、持久会话调度、typed domain tools 和 GitLab 集成需要后续代码、additive migration 与验收。不能仅因本文升级而宣称已有表、能力或部署已改变。目标协议 profile 的版本与工具 schema 以 TMP 为准；现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
+
+Canonical Chain、不可变快照、Proposal / Verifier、trusted Runner、deterministic Gate、Audit / Outbox 及已有历史保护在两者中均有效。目标迁移不得把历史上一个 Run 的多条 AgentSession 合并成一条，不得改写原 Attempt / Execution 的 `durable_job_id`。
 
 核心领域实体：
 
@@ -43,6 +53,8 @@ MissionAttempt
 MissionProposal
 AgentSession
 ```
+
+v0.4 另定义 Operational 支撑记录 `RunExecutionBinding`（§23.4），用于任务执行所有权；它不是 Canonical Test Fact，也不是新的用户可见测试任务实体。
 
 ---
 
@@ -195,6 +207,8 @@ row_version         bigint
 
 Project 不以 repository URL 为唯一键，长期允许 multi-repo。
 
+**v0.4 目标：** Project 对应一个稳定被测系统（SUT），用于组织其多个 feat / MR 测试轮次。新增 feat、MR、commit 或重测不创建另一个 Project。repository 是该 SUT 的源引用，不代替 SUT 身份；此产品约定不新增 `UNIQUE(repository_url)` 或假定当前已有独立 SUT 表。
+
 ---
 
 ## 9. SourceSnapshot
@@ -267,6 +281,12 @@ PolicySnapshot 创建后不可变。
 ## 11. TestRun
 
 TestRun 表示针对一个 SourceSnapshot，在某套 Policy 下的一次自治测试活动。
+
+**v0.4 目标：** TestRun 就是用户可见的“测试任务 / 测试轮次”，不另建与其重复的 Task Canonical 实体。典型任务针对某个 feat / MR 的一个明确完整 Commit SHA；MR / branch 名称只作来源和展示引用，push 后的新 SHA 创建新 Run。若需要区分 MR head 与 merge-result commit，必须先选定并固定实际被测 SHA，不能运行中随分支变化而漂移。
+
+SHA 不是完整测试身份。PRD、configuration、固定环境属于 SourceSnapshot；PolicySnapshot 由 Run 单独固定。相同 SHA 改 PRD / configuration / 环境须新建 Snapshot；改 Policy 或用户明确发起另一轮测试须新建 Run，完全相同的 Snapshot / Policy 可以被新轮次复用。禁止新增 `UNIQUE(project_id, commit_sha)` 或其他阻止同 SHA 重测的唯一约束。重复提交同一请求使用原幂等键返回原 Run；显式新轮次使用新请求身份并保留既有 Run、Verdict 与历史。Job retry、Mission retry 和 Execution retry 仍是原 Run 内追加运行历史，不等于偷偷创建另一轮测试。
+
+每个 v0.4 受控 Run 在首次 Provider 调用前建立且只建立一次 §23.4 的逻辑 TaskWorker / 主 AgentSession 绑定。进程尚未启动、WAITING_INPUT 或恢复中可以没有活跃 PID / lease，但不能另建第二个绑定或把 Run 分给无关 Worker。不同 Run，包括同一 Project 下不同 feat / MR，可以通过各自绑定并发执行；独占约束不是 Project 级锁。
 
 Web bootstrap 的幂等键按 Project 绑定规范化测试输入：repository 去首尾空白、commit 转小写，PRD/configuration 保持原始字节，Policy 按完整生效规则比较（包括 Gate 与 Coverage，默认值和无语义顺序不影响等价性）。同键同测试输入返回原 Run；同键不同测试输入在写入 Artifact 或 Canonical 行之前返回冲突，保留既有 Run、Snapshot 与历史。SourceSnapshot Fingerprint 仍遵循第 9 节：branch 只是参考标签，不参与 Source 或 bootstrap 幂等身份；不同 branch 标签可以引用相同固定 commit 的共享 Snapshot，既有 Snapshot 的标签不被重写。
 
@@ -623,6 +643,8 @@ Execution Idempotency：`UNIQUE(test_run_id, idempotency_key)`。
 
 客户端只选择 workspace、backend、purpose、timeout 和 idempotency key；Runner 从 Canonical 实现生成命令，客户端和 Agent 不提交正式结果或任意 Shell 命令。
 
+**v0.4 目标：** 持久 Harness 通过有界 typed domain tool 申请正式 Execution；受控 Runner 仍独立固定目标、执行和采集 Evidence。RunExecutionBinding 及当前 Job 的所有权验证约束请求 / 提交，不把 Harness Bridge 或 Agent 自行运行的命令变为可信 Runner。Execution 的既有 idempotency、不可变输入和 `durable_job_id` 归属不因主会话持续存在而改变。
+
 ---
 
 ## 17. Evidence
@@ -736,6 +758,14 @@ RESOLVED / CLOSED → REOPENED
 
 Resolution：FIXED、DUPLICATE、WONT_FIX、RISK_ACCEPTED、NOT_REPRODUCIBLE、ENVIRONMENT_FIXED、TEST_FIXED。
 
+### 18.1 v0.4 目标：受控 GitLab Issue 集成（未实现）
+
+现有 `external_issue_ref` 只是可选关联字段，不表示已有 GitLab 创建 Issue 或指派能力。Agent 可提交 typed Issue Request，引用同一授权范围内已接受 Finding、固定 Run / SourceSnapshot、已校验 Evidence 及负责人建议。HyperTest 按项目预配置的 integration、操作授权与负责人映射验证请求，不能把 Agent 给出的任意项目、用户或 URL 当作已批准目标。
+
+外部创建 / 指派属于受控集成副作用，不是 Agent 直接写 Finding 或持有 GitLab token。平台持久保存请求身份、Finding 关联、目标、映射依据和 correlation / idempotency key；同一逻辑请求不能因重试重复提单，Issue 去重也不能合并或改写不同 Run 的 Canonical Finding。需要人工决策时使用持久输入流程并恢复同一主会话。
+
+只有校验目标 GitLab 响应或回查确认 Issue 的真实身份后，才登记 `external_issue_ref` 和派单结果。超时或连接中断后不能确定是否已创建时，明确记录“结果未知”，先按 correlation 查询 / 人工核实，不盲目再次创建。请求失败、Issue 已创建或负责人已指派均不等于产品缺陷已确认、修复或 Gate 已放行。该 Operational 集成记录及其迁移另行实现，不由本文伪造已生效表结构。
+
 ---
 
 ## 19. Verdict
@@ -781,6 +811,8 @@ MVP 对 `(test_run_id, sequence_no)` 建立唯一约束，sequence_no > 0；FINA
 当前 `canonical-gate/v1` 要求：非空 Requirement / Risk / ACTIVE Case、Risk identification 与设计维度覆盖完整、每个 Case 最新 OFFICIAL 执行匹配 SourceSnapshot Commit、COMPLETED + aggregate PASS + exit code 0 + per-case PASS、通过 ExecutionEvidence 关联的 VERIFIED trusted EXECUTION_METADATA / JUNIT，且 Artifact hash 验证成功。最新按 queued_at、ID 倒序选择，不回退挑选更早的成功结果。
 
 缺失/未完成/不确定事实产生 BLOCKED；执行失败或 policy-blocking confirmed PRODUCT_DEFECT 产生 RELEASE_BLOCKED；全部满足产生 RELEASE_READY。默认阻断严重程度为 BLOCKER、CRITICAL；`compiled_policy.gate.blocking_finding_severities` 可配置，但 BLOCKER 不可豁免。当前基线不提供 Official Evidence waiver。设计覆盖完成本身不形成放行结论。
+
+v0.4 持久 Harness 的报告、会话结束、TaskWorker / Binding 状态和 GitLab 派单状态都不是 Verdict。报告只引用已接受 Canonical State、可信 Evidence 和正式 Gate 结果；即使 Agent 报告“测试完成”，也不能跳过当前固定 Policy 的 deterministic Gate。RunExecutionBinding、Provider 会话内容、进程身份和 binding_epoch 不进入 Gate 的 Canonical State Hash。
 
 ---
 
@@ -862,6 +894,10 @@ Mission 唯一：`UNIQUE(test_run_id, idempotency_key)`。
 
 Cancelled / expired Mission 不被重新打开或改写。用户明确再次规划仍缺失的工作时，Planner 为原 intent 分配新的 `:generation:N` idempotency key 并创建新 Mission；原 specification、Attempt、Proposal 与取消历史保留。
 
+**v0.4 目标：** Mission 继续作为 typed、不可变、可验收的测试阶段边界，但多个串行 Mission 可以使用同一 Run 的持久主 AgentSession。持久 Harness 自驱需求分析、风险分析、设计、实现、申请正式执行、诊断和报告；Planner 对其阶段请求执行确定性的依赖、范围、覆盖缺口和预算准入，不接管每个 reasoning turn，也不因阶段转换重新创建 Provider 会话。一个 Run 同时只有一条主 Harness 执行线，不把多个阶段派给不同逻辑 TaskWorker 并行执行。
+
+Mission COMPLETED 仅表示该 Mission 的 required outputs 已被接受，不关闭主 Session / RunExecutionBinding，不重置整个 Run 的上下文。阶段失败、人工等待、正式 Runner 执行和 Run 最终结束分别保留自己的状态；Mission 与 Agent turn、CLI 进程、用户可见 TestRun 仍不能混用。
+
 ---
 
 ## 21. MissionAttempt
@@ -892,6 +928,8 @@ provider_metadata JSONB
 Attempt Status：CREATED、RUNNING、SUBMITTED、ACCEPTED、REJECTED、FAILED、CANCELLED。
 
 Mission 描述业务工作状态；MissionAttempt 描述某一次 Agent 执行，两者禁止混用。
+
+v0.3 已实现基线为每个新 Mission 执行 / retry 创建新的 AgentSession；只有原 WAITING_INPUT 的恢复复用原 Attempt / Session。v0.4 目标改为同一 Run 的串行 Mission / 新 Attempt 引用同一个 §23.4 `primary_agent_session_id`。Attempt 仍按 Mission 追加编号，原结果、Proposal、Job 归属及时间历史不可覆盖；Attempt 被拒绝 / 失败不自动表示整个持久 Session 失效。若主 Session 仍可验证恢复，显式 Mission retry 可以在原绑定 / 主会话下新建 Attempt；若原生 Session 或受控 workspace 已丢失，任务明确失败，必须显式新建 TestRun 才能开启替代主会话。禁止沿用旧 Attempt 并冒充同一会话恢复。
 
 ---
 
@@ -944,9 +982,15 @@ closed_at
 
 AgentSession 属于 Operational State，不是 Canonical Test Fact，不能直接决定 Coverage、Finding、Verdict。
 
+**v0.3 已实现：** 普通 Mission 执行创建一条 AgentSession，Mission 返回终态后关闭该 Session 并清理其托管副本。持久 WAITING_INPUT 是当前复用同一 Session 的例外；本文记录现状，不把它解释为已经实现 Run 级长会话。
+
+**v0.4 目标：** 一个 RunExecutionBinding 固定一个主 AgentSession，跨该 Run 的串行 Mission / Attempt 复用，正常阶段完成不关闭。AgentSession 一对多 Attempt 不是多条同时运行的 Agent 执行线。只有 Run 受控结束、取消或主会话不可恢复时，才终结该主 Session 并按审计范围清理工作副本；单个 Mission 拒绝 / retry 或运行 Job 的终态不能直接套用 v0.3 的逐阶段 close / fail 行为。
+
+持久会话是外部原生 thread / session 与受控工作副本的持续身份，不要求同一个 CLI PID 永久常驻。原生 `provider_session_id` 初次由 Provider 真实返回后固定；恢复必须引用该身份，同一主 Session 不能变更 Provider、覆盖已有原生引用或用新原生会话冒充恢复。原生认证 / 会话运行时保存在绑定的宿主 Harness 节点，平台 Canonical 数据库状态及数据库 / GitLab 集成凭证不进入 Vendor Session。
+
 ### 23.1 DurableJob 与 WorkerHeartbeat
 
-DurableJob 表示用户提交的平台工作请求，属于 Operational State。它调度现有 Planner、Mission Runtime、Runner 与 Gate，不代替这些组件，也不成为 Canonical Testing Semantic Chain 的新事实节点。
+DurableJob 表示用户提交的平台工作请求，属于 Operational State，不是用户可见测试任务 TestRun 或 Canonical Testing Semantic Chain 的新事实节点。v0.3 中它调度现有 Planner、Mission Runtime、Runner 与 Gate；v0.4 中它仍承担持久请求 / 租约 / 取消，但必须在原 RunExecutionBinding 下调用持久 Harness 和所属领域服务，不变成另一个自研通用 Agent Loop。
 
 `durable_jobs` 使用 UUIDv7 主键，project_id / test_run_id 为关系 FK；EXECUTE_MISSION 必须具有同一 Run 的 mission_id，其他类型禁止该引用。retry_of_job_id 关联显式重试的历史请求。支持 ADVANCE_RUN、EXECUTE_MISSION、EXECUTE_TESTS、EVALUATE_GATE、PREPARE_WORKSPACE。
 
@@ -970,7 +1014,9 @@ SUCCEEDED 表示调度请求成功返回，不表示质量结论为 PASS；应�
 
 受控 `MISSION_REJECTED` / `MISSION_FAILED` 使 Job 进入 FAILED，允许同时保存 result 中的 stop reason、已持久步骤、关联 Mission ID 与已解析 workspace；独立 EXECUTE_MISSION 拒绝还保存对应 Attempt ID。FAILED Mission 不得误报为运行中或隐式重放。result 是对既有持久历史的运行索引，不能成为 Requirement / Execution / Evidence / Verdict 的替代事实。通用异常不保证存在部分 result；恢复阶段若已有暂停时提交的 checkpoint，则保留其已完成 steps、workspace 和 input reference，并记录停止原因。CANCELLED / INTERRUPTED 不保存迟到 handler 的结果，但不丢弃此前已经持久化的 checkpoint。终态 result 与原失败历史仍受不可变保护。
 
-Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 worker_id、lease_token、heartbeat_at、lease_expires_at。使用数据库时钟验证租约；每个受控 Canonical commit 在 flush 前后检查 Run → Job 锁、状态和 token。租约失效或取消后的旧 Worker 不得提交 Canonical 状态。
+v0.3 Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 worker_id、lease_token、heartbeat_at、lease_expires_at。使用数据库时钟验证租约；每个受控 Canonical commit 在 flush 前后检查 Run → Job 锁、状态和 token。租约失效或取消后的旧 Worker 不得提交 Canonical 状态。
+
+v0.4 目标继续使用数据库队列，但领取时还必须验证 §23.4 的稳定逻辑所有者、Harness 节点亲和及 binding_epoch。`DurableJob.worker_id` / WorkerHeartbeat 标识当前实际进程，是可随显式恢复改变的运行占用记录；它们不能充当 Run 的稳定 `logical_worker_id`，也不能因 WAITING_INPUT 清空而解除 Run 绑定。未绑定的其他 Worker 即使空闲，也不得领取该 Run 的恢复工作或同时启动第二个主 Session。绑定前的首次调度可以从可用执行节点中选择，绑定后的继续执行必须回到同一逻辑所有者。
 
 自动源准备必须在 Git 网络或文件 I/O 前提交并释放 TestRun / Job 行锁，不能把慢检出放进租约持锁事务。准备后进入领域调度前重新检查 operation ownership、Job 状态和 lease；租约过期或被取消即停止，不因已有工作区而继续启动 Agent。工作区准备与外部执行仍不具有 exactly-once 保证。
 
@@ -978,7 +1024,9 @@ Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 wor
 
 租约过期后 Job 进入 INTERRUPTED；其未完成 Mission 的 Attempt 进入 FAILED、Mission 进入 RETRYING，未完成 Execution 进入 ERROR / INCONCLUSIVE，并保留错误和历史。取消则记录 CANCEL_REQUESTED / CANCELLED，并中断受控外部工作。恢复不会自动重放可能已发生的外部操作；用户检查后显式重试。系统不宣称外部执行 exactly-once。
 
-Docker 资源使用不可变 Job UUID label：包括 staging / execution containers 和预创建的 source / result volumes。恢复事务先提交领域终态，再于无数据库行锁时尽力清理精确匹配该 Job 的受控资源，记录 `job.resources_cleanup` AuditEvent / OutboxEvent、可用性与删除数量。Docker daemon 不可访问、未受控的 provider 残留进程等情况仍需 Operator 检查；清理记录不是 Execution Evidence。
+v0.3 失联恢复还将所属 AgentSession 标记失败并清理其阶段副本。v0.4 中 Job / Attempt 的失败历史照常终结，但不能仅因一次进程租约过期就关闭 / 替换 Run 的主会话或删除其持久副本：绑定进入 RECOVERY_REQUIRED，由显式恢复核验原 Session / workspace、fence 旧调用后再决定能否继续。可恢复时在同一 Binding / Session 下追加新 Job / Attempt / Execution；不可恢复时使绑定 / 主 Session 明确失败并停止该 Run 的执行，新的主会话必须属于显式新 TestRun。不得改写旧 `durable_job_id`、旧结果或历史 Session 来伪造无缝续跑。
+
+Docker 资源使用不可变 Job UUID label：包括 staging / execution containers 和预创建的 source / result volumes。恢复事务先提交领域终态，再于无数据库行锁时尽力清理精确匹配该 Job 的受控资源，记录 `job.resources_cleanup` AuditEvent / OutboxEvent、可用性与删除数量。Docker daemon 不可访问、未受控的 provider 残留进程等情况仍需 Operator 检查；清理记录不是 Execution Evidence。v0.4 必须区分 Job 所有的临时 Runner 资源与 Run 主 Session 的持久 workspace；Job 清理不能删掉仍等待输入或待恢复的主会话副本。
 
 `worker_heartbeats` 记录 Worker 的 last_seen_at 和 active_job_id，支持 API / Web 区分队列等待与可用 Worker。其 liveness 是运行数据，不影响测试事实可信度。Job 生命周期写 AuditEvent 与 OutboxEvent；它们与队列状态在同一事务提交。
 
@@ -990,11 +1038,43 @@ Docker 资源使用不可变 Job UUID label：包括 staging / execution contain
 
 问题状态为 PENDING → ANSWERED → CONSUMED；PENDING/ANSWERED 可变为 CANCELLED，历史不可删除。回答仅可写一次；同问题、同幂等key和相同原文重复提交返回原记录，异文或其他回答冲突。答案与将原 Job 重新排队在同一事务提交；不改写冻结 Mission spec、SourceSnapshot、PRD 或 Policy。澄清不能授权超出原权限的操作，实质目标变化必须新建输入快照/Run。
 
-受支持的持久 ADVANCE_RUN/EXECUTE_MISSION Job 新增非终态 WAITING_INPUT。等待仍占该Run的唯一活跃请求预约，但清除lease/worker并释放实际Worker，不占用进程或靠内存等待。Worker结束当前Provider turn后，在普通数据库事务中按 Run → Job → Mission → Question 锁序、有效token和数据库时钟验证，原子创建问题、Mission/AgentSession置WAITING_INPUT、保留RUNNING Attempt、保存已完成步骤、将Job置WAITING_INPUT并清lease，flush及事件完成后commit前再次验证原租约未过期；不在双重fence的运行Session内先改Job状态。回答原子将同Job WAITING_INPUT→QUEUED，新claim取得新token后恢复同Mission/Attempt/真实Provider会话；CONSUMED记录答案交付，不声称测试通过。Job attempts为领取次数，不等于Mission Attempt数，原有已完成steps和max_steps预算继续保留。
+v0.3 已实现的持久 ADVANCE_RUN/EXECUTE_MISSION Job 支持非终态 WAITING_INPUT。等待仍占该Run的唯一活跃请求预约，但清除lease/worker并释放实际Worker，不占用进程或靠内存等待。Worker结束当前Provider turn后，在普通数据库事务中按 Run → Job → Mission → Question 锁序、有效token和数据库时钟验证，原子创建问题、Mission/AgentSession置WAITING_INPUT、保留RUNNING Attempt、保存已完成步骤、将Job置WAITING_INPUT并清lease，flush及事件完成后commit前再次验证原租约未过期；不在双重fence的运行Session内先改Job状态。回答原子将同Job WAITING_INPUT→QUEUED，新claim取得新token后恢复同Mission/Attempt/真实Provider会话；CONSUMED记录答案交付，不声称测试通过。Job attempts为领取次数，不等于Mission Attempt数，原有已完成steps和max_steps预算继续保留。
 
-HyperTest句柄持久保存在Attempt operational metadata，真实Provider session ID只作外部引用，不作为领域主键；旧占位引用不推断回填。等待工作副本置于受控临时会话目录，供跨进程恢复；恢复从固定源码重新验证文件hash，最终完成/取消/失效后清理。原始Agent对话不进入Canonical Testing State。丢失Provider会话或工作副本应显式失败、保留答案/Attempt，再由用户检查重试，不能静默改建会话并冒称resume。direct同步执行不支持可恢复人工等待，需明确报错并保留失败历史。
+v0.4 目标保留 Mission 进行中提问的上述事务性问答与同 Attempt 恢复语义，并把原 RunExecutionBinding / logical_worker_id / 主 AgentSession / harness_host_id 作为额外所有权边界。WAITING_INPUT 只释放实际 PID、CPU 占用及当前 Job lease，不释放逻辑任务绑定，不改 binding_epoch，不把恢复请求分给无关 Worker。回答后必须在该绑定中重新取得有效 Job lease，校验同一原生会话及受控 workspace，再消费答案。阶段边界、报告或 GitLab 派单策略要求的 Run 级问题使用下述 RunInputRequest，不重新打开已完成 Mission / 已接受 Attempt；人工澄清不能代替 Scope / Snapshot / Policy 变更流程。
 
-取消等待Job立即成为CANCELLED，同时终止开放问题和所属未完成Mission/Attempt/Session；已回答原文保留。等待不受运行租约到期扫描自动重放。取消、回答、每次等待/恢复均写配对Audit/Outbox，按Question身份去重，事件不复制问题/回答或Provider日志。新增迁移`0009_mission_inputs`仅增加交互表、状态约束与活跃索引，不回填旧历史；有交互历史时禁止降级丢失。
+HyperTest句柄持久保存在Attempt operational metadata，真实Provider session ID只作外部引用，不作为领域主键；旧占位引用不推断回填。等待工作副本置于受控会话目录，供跨进程恢复；恢复从固定源码重新验证文件hash。v0.3 在阶段最终完成/取消/失效后清理副本；v0.4 在 Run 主会话终结时才清理，正常 Mission 完成或可恢复 Job 中断不能触发主副本删除。原始Agent对话不进入Canonical Testing State。丢失Provider会话或工作副本应显式失败、保留答案/Attempt，不能静默改建会话并冒称resume；v0.4 替代主会话需要显式新 Run。direct同步执行不支持可恢复人工等待，需明确报错并保留失败历史。
+
+v0.3 取消等待Job立即成为CANCELLED，同时终止开放问题和所属未完成Mission/Attempt/Session；已回答原文保留。v0.4 取消当前 Job 仍终结其开放问题 / 未完成 Attempt 并中断对应调用，但不能偷偷释放任务绑定或创建替代主 Session；若只是取消阶段操作，继续原 Run 前须显式核验同一绑定与原 Session。取消整个 Run 则终结绑定 / 主 Session。等待不受运行租约到期扫描自动重放。取消、回答、每次等待/恢复均写配对Audit/Outbox，按Question身份去重，事件不复制问题/回答或Provider日志。新增迁移`0009_mission_inputs`仅增加交互表、状态约束与活跃索引，不回填旧历史；有交互历史时禁止降级丢失。
+
+#### 23.2.1 v0.4 目标：RunInputRequest（Accepted design / 未实现）
+
+`RunInputRequest` / 目标表 `run_input_requests` 是阶段之间的 Operational 问答记录，与现有 MissionInputRequest 并存，不是新 Task、Canonical Fact 或 Mission Type。当没有进行中的 MissionAttempt，或必须在已完成阶段之后决定是否报告 / 派单时，问题属于 Run 级范围；禁止为满足旧表的关系要求而伪造 RUNNING Attempt、重新打开 COMPLETED Mission 或改动 ACCEPTED Attempt。
+
+目标字段与约束（尚无 migration）：
+
+| 字段 | 目标语义 |
+|---|---|
+| `id` / `key` | UUIDv7 PK / 稳定 Operational Key |
+| `test_run_id` | NOT NULL FK → TestRun |
+| `binding_id` | NOT NULL FK → RunExecutionBinding；与 test_run_id 一致 |
+| `agent_session_id` | NOT NULL FK → AgentSession；必须等于该 Binding 的 primary_agent_session_id |
+| `durable_job_id` | NOT NULL FK → 当前同 Run 的 DurableJob；是该问题的不可变运行请求归属 |
+| `question_id` / `question` / `options` | 稳定 question_id 为 1–128 字符；问题原文 / 选项限制沿用 MissionInputRequest |
+| `context_mission_id` / `context_attempt_id` | nullable FK，若提供必须指向同 Run 的已完成阶段 / 所属 Attempt；只作上下文引用，不是可恢复或可变的所有者 |
+| `status` | PENDING / ANSWERED / CONSUMED / CANCELLED |
+| `answer` / `answer_idempotency_key` | nullable，回答时仅写一次；原文、长度与重复回答规则沿用 MissionInputRequest |
+| `created_at` / `answered_at` / `consumed_at` / `cancelled_at` | timestamptz，未发生的转换时间为 NULL |
+| `row_version` | bigint，回答 / 消费 / 取消的乐观并发版本 |
+
+`UNIQUE(binding_id, question_id)` 固定问题身份；身份、问题 / 选项、Run / Binding / Job / Session 关系和已提供的阶段引用创建后不可修改。相同身份且相同输入的重复创建返回原记录，异文或不同范围复用该身份拒绝。FK 使用 `ON DELETE RESTRICT`；受控服务及后续数据库关系保护必须验证全部归属同一 Run，不能只验证 UUID 存在。可选 Attempt 引用若与 Mission 引用并存，必须属于该 Mission；这些历史行始终保持原状态。
+
+在 Run 锁下，跨 MissionInputRequest 与 RunInputRequest 合计最多一个 PENDING / ANSWERED 问题。创建 / 消费 / 取消检查遵守 Run → Binding → Job → 对应 Question 的目标锁序；Mission 范围继续保留原 Mission / Attempt 的相对锁序。此跨表不变量须由后续 migration / 受控写路径共同保护，不能仅给两表各加局部唯一索引后声称已满足。
+
+Run 级暂停在当前有效执行授权下结束对应 Provider turn，核验 Binding / epoch / 原主 Session 与当前 Job token，在同一事务创建 RunInputRequest、保存 checkpoint，将原 Job / 主 AgentSession / Binding 置为 WAITING_INPUT，并清除该 Job 的 live lease / worker 占用。事务提交前再次检查数据库租约时间；不改任何已完成 Mission / Attempt，不释放逻辑绑定、原生 thread 或 workspace，不递增 epoch。
+
+问题状态仍为 PENDING → ANSWERED → CONSUMED，PENDING / ANSWERED 可转 CANCELLED；历史不删除。回答只写一次，使用 expected row_version 与幂等键；同键同原文重试返回原记录，冲突拒绝。回答与同一原 Job 重新 QUEUED 在同一事务提交。原逻辑绑定重新取得有效 claim 后，校验原 primary / native Session 和受控 workspace，在事务中消费答案、将主 AgentSession 恢复 RUNNING / Binding 恢复 ACTIVE，再继续原会话的 Run 级工作；不得创建或重开一个阶段 Attempt 来“承接”该答案。
+
+取消原 Job / Run 会取消尚未消费的 RunInputRequest，保留问题与已回答原文；Job 与 Run 的 Session 终结范围仍按 §23.4 区分。等待、回答、消费、取消及恢复写配对 Audit / Outbox，事件不复制正文或 Provider 日志。原生 Session / workspace 丢失仍显式失败；不把问题转绑另一个 Job、Session 或 Run 来冒充恢复。该目标新增表及双范围互斥检查必须 additive 实现，现有 v1alpha1 MissionInputRequest、问答、Attempt、Job 和 Session 历史保持原样。
 
 ### 23.3 有界任务活动与 Provider 信号
 
@@ -1009,6 +1089,74 @@ Provider 信号表示平台观察到外部事件，不证明模型推理有效�
 活动写入使用独立短事务，按 Run → Job → Attempt 顺序检查关系、RUNNING 状态、当前 token / claim 和数据库时钟中的有效租约；取消、暂停、终态、旧领取及租约过期后的迟到事件拒绝写入。不能在 Provider I/O 期间持锁，不能使主任务等待一个也等待其行锁的活动写入器。写入繁忙、队列满或遥测失败可丢弃活动；有界收尾在主事务取得完成锁前进行。辅助遥测故障不能将有效 Proposal 变成失败、改变 Runner / Gate 决策或触发自动重放。
 
 只读任务活动接口返回数据库观察时间、当前阶段 / Attempt、当前领取的最近 Provider 信号、该 Job 的 Worker 心跳及安全活动分页。阶段只由已持久运行状态推导；没有信号时应表示未知。长时间无新信号只是观察提示，不等于卡死；WAITING_INPUT、正式 Runner 执行和终态不显示“模型静默”警报。刷新失败保留已加载内容并说明尚未更新，用户取消、回答和显式重试继续由原受控流程处理。
+
+v0.4 目标的活动和执行结果回调还必须匹配当前 RunExecutionBinding / binding_epoch 与 Job claim。持久会话跨 Mission 不允许把上一 Attempt / 旧 epoch 的信号计作当前活动；这些 Operational 关联不把 Provider 原文、原生认证或会话内容加入 Canonical 序列化。撤销后对旧调用的受限查询 / 清理权限按 §23.4 单独处理，不允许据此写入当前 Provider 活动。
+
+### 23.4 v0.4 目标：RunExecutionBinding（Accepted design / 未实现）
+
+`RunExecutionBinding` 是一个 TestRun 的持久执行归属，目标表名为 `run_execution_bindings`。它不是 Canonical Test Fact，不取代 TestRun、DurableJob、AgentSession 或 WorkerHeartbeat，也不表示一个新测试任务。首次 Provider 调用前，平台原子建立同一 Run 的绑定和主 AgentSession 记录；主 Session 的原生引用允许在首次真实 Provider 回应前暂为 NULL，但不得伪造。
+
+以下是待实现的字段与约束，不是当前 Alembic schema：
+
+| 字段 | 目标语义 |
+|---|---|
+| `id` | UUIDv7 PK，稳定 Binding 身份 |
+| `test_run_id` | NOT NULL FK → TestRun，`UNIQUE(test_run_id)` |
+| `logical_worker_id` | NOT NULL UUID，`UNIQUE(logical_worker_id)`；该 Run 唯一逻辑 TaskWorker，不是进程 PID 或 `DurableJob.worker_id` |
+| `primary_agent_session_id` | NOT NULL FK → AgentSession，UNIQUE；只绑定本 Run 的一条主 Session |
+| `harness_host_id` | NOT NULL，稳定的宿主 Harness 节点引用；指向原生会话 / 认证运行时所在节点，不以临时 IP / 容器名代替 |
+| `workspace_id` | NOT NULL，原主 Session 的受控持久工作副本引用，必须等于其 AgentSession.workspace_id |
+| `binding_epoch` | NOT NULL bigint，初值 1 且 > 0；只有显式受控恢复可单调递增 |
+| `status` | RESERVED / ACTIVE / WAITING_INPUT / RECOVERY_REQUIRED / CLOSED / FAILED / CANCELLED |
+| `created_at` / `updated_at` | timestamptz，平台观察时间 |
+| `row_version` | bigint，状态 / epoch 的乐观并发版本 |
+
+关系 / 唯一 / 历史约束：
+
+1. `test_run_id`、`logical_worker_id`、`primary_agent_session_id`、`harness_host_id`、`workspace_id` 创建后不可改绑；Session 与 Binding 必须属于同一 Run。FK 使用 `ON DELETE RESTRICT`，拒绝删除有任务 / Attempt 归属的记录。表和约束需由后续 migration / 受控服务共同实现，不能只靠请求 JSON 声明所有权。
+2. 同一 Run 全生命周期只建立一个逻辑 TaskWorker 绑定和一个主 Session。多个串行 MissionAttempt 可引用这个 Session；一个 Session 不能作为两个 Run 的主会话。不同 Run 各自独立绑定，可以同时运行；不允许一个 Run 通过多个绑定、多个活跃 owner 或多个主 Session fanout。
+3. 现有每 Run 单活跃 DurableJob 约束继续有效。Job 的 request / `durable_job_id` 归属、Attempt 的 Mission / Session 关系及正式 Execution 身份仍独立且不可变。跨 Job 继续同一 Run 不意味着把历史 Attempt / Execution 改绑到新 Job。
+4. 目标 admission / commit 按 Run → RunExecutionBinding → Job 的所有权锁序验证，再由领域服务遵守既有 Mission / Question / SourceSnapshot 相对锁序；插入 Binding 检查不反转已有 Run → Job 顺序。验证范围包括 Binding status、epoch、原 Session / workspace / Harness 节点和当前有效 Job token / 数据库时钟。事务不能跨 Host Bridge、Provider、Git 或 Docker I/O 持有这些锁，返回后重新 fencing。
+5. 进程 ID、容器 ID、Job worker_id / lease_token、WorkerHeartbeat 是暂时占用。正常阶段转换或 WAITING_INPUT 不分配新的 logical_worker_id、不替换主 Session、不增加 epoch；每个新 Job claim 仍有独立 token。平台 Owner 进程 / 容器失联后只能经显式恢复接续同一逻辑绑定。Provider CLI 为正常执行 / resume 启停进程本身不等于替换逻辑 TaskWorker。
+6. 新建 / execute / resume 等会启动 Provider 工作的 Bridge 调用，以及业务 typed tool 写入 / 正式结果提交，必须具有当前 Binding / epoch 和有效 Job claim，并匹配相应 Run / Mission / Attempt 范围。Run 级问答 / 报告等使用明确 Run 范围，不伪造阶段所有者。已取消、失联、旧 epoch、旧 claim 或错误范围的迟到执行请求不得继续工作或提交；相同 provider session 字符串本身不是授权。Bridge / Provider 不持有 Canonical 数据库或 GitLab 集成凭证，不拥有 Canonical 状态写权限。
+7. Binding 生命周期和恢复决策写 Audit / Outbox，与状态更新事务提交；事件保存归属、旧新 epoch、原因和受控操作结果，不保存认证、原生对话或推理。Binding 不参与 Coverage、Evidence manifest 或 Gate State Hash。
+
+执行授权与管理 / 恢复授权必须分开。可信 HyperTest 服务身份可以持有窄 management capability，明确限定 Binding、primary / native Session、原 call_id 和要检查 / 清理的历史 generation。即使该调用原 Job claim 已撤销，也可查询 get_call、只读核验既有会话 / workspace，或 interrupt / close 该受控旧调用以完成取消、失联处理和资源回收。该权限不启动新的 Provider 工作，不 resume 推理、不建立替代会话、不提交 Canonical 结果，也不把旧 owner 恢复成有效执行者。
+
+管理操作必须显式匹配目标调用与历史 epoch；按旧 generation 清理不得影响新 epoch 的活动调用。若需要关闭整个主 Session / 删除其持久 workspace，还须满足 Run 终结或不可恢复失败的明确清理授权，不能仅因一个旧 Job 被取消而破坏仍可恢复的主会话。管理查询 / 清理的结果只用于受控恢复和审计；随后若要执行 Provider，仍必须重新通过当前 epoch / active claim 的执行准入。
+
+状态转换：
+
+```text
+RESERVED → ACTIVE
+ACTIVE → WAITING_INPUT → ACTIVE
+RESERVED / ACTIVE / WAITING_INPUT → RECOVERY_REQUIRED
+RECOVERY_REQUIRED → ACTIVE           # 仅显式 fenced recovery 成功
+RESERVED / ACTIVE / WAITING_INPUT / RECOVERY_REQUIRED → CLOSED / FAILED / CANCELLED
+```
+
+RESERVED 表示绑定已建立但未开始主会话执行；ACTIVE 表示该逻辑主会话可在原绑定内继续，不能据此推断存在活跃 PID 或测试已通过。WAITING_INPUT 保留同一绑定 / 会话 / 原生 thread / workspace，释放运行 lease 与 CPU。正常 Mission 完成仍保持非终态绑定；CLOSED 只用于 Run 的受控结束，FAILED 用于任务执行不可恢复，CANCELLED 用于 Run 取消。三种终态不可重新打开或替换主会话，均不表达质量 PASS / FAIL。
+
+显式恢复必须满足：
+
+- 先按原有规则结束失联 Job / Attempt / Execution 并保留历史，绑定进入 RECOVERY_REQUIRED。确认旧 owner 与外部调用已经被 fence / 中断后，才在同一绑定递增 `binding_epoch`；状态 / epoch 及审计按同一事务提交。无法确认旧调用是否仍运行时保持 RECOVERY_REQUIRED，不先启动第二个 owner。
+- 在无聚合行锁时验证原 Harness 节点、已固定原生 Session、受控 workspace 及 pinned source Hash；返回后再次验证新 epoch / 当前恢复授权。不能用 Agent 保存的 Hash、自报完成或新会话代替核验。
+- 核验成功后回到 ACTIVE，在同一逻辑绑定 / 主 Session 下使用按原规则新建的 Job / Attempt / Execution。不得重开 INTERRUPTED Job、复用失效 token、覆盖旧 Attempt 或自动重放结果未知的外部执行。
+- 原生会话 / workspace 丢失、被篡改或无法恢复时，明确使绑定 / 主 Session 失败并停止当前 Run 的执行，保留任务与已接受事实供查看；替代主 Session 必须由用户明确开始新 Run / 轮次。不得悄悄改 `primary_agent_session_id`、换 Provider / Harness 节点或用另一 PID 创建新 thread 冒充恢复。
+
+### 23.5 v0.4 目标：持久 Harness 的受控自驱边界（未实现）
+
+宿主 Harness 在同一主会话中串行完成分析、风险识别、测试设计、实现、请求正式执行、失败诊断和报告。平台容器中的 TaskWorker 保持任务归属、租约和治理；窄 Host Bridge 仅托管允许的 Provider session / 调用，不承担 Planner、Canonical Verifier、Runner 事实认证或 Gate。具体目标 tools / transport profile 由 TMP 与 ADR-013 定义，不通过修改现有 wire version 偷渡语义。
+
+持久会话可以通过有界、类型化、幂等的领域工具读取已接受状态，请求 / 进入 typed Mission，提交 Proposal batch，申请正式 Runner，读取受控结果，发起人工决策及报告 / GitLab Issue Request。执行调用必须限制 Run / Snapshot、当前绑定 / epoch / lease、目标及预算；阶段内调用还绑定当前 Mission / Attempt，阶段间的 Run 级问答按 §23.2 的 RunInputRequest 范围验证。Planner 检查 deterministic dependency、coverage gap、范围和预算准入；Agent 自主决定如何推理和组织其允许范围内的串行工作。禁止为了此部署形态重新实现通用 Think / Tool / Observe Agent Loop，或把任意 shell / SQL / 工作目录暴露为平台写工具。
+
+typed Proposal 工具不直接接受 Canonical Lifecycle；Verifier 对每个显式提交 batch 保持全批合法、原子接受 / 拒绝、Audit / Outbox 和来源追溯。Mission 只有 required outputs 全部被接受才完成，不因某个工具返回成功就跳过阶段验收。Agent 申请执行不等于 Execution COMPLETED；只有可信 Runner 采集产生正式事实。报告可持久保存为可追溯输出，但不能创建另一个由模型决定的 Verdict 或把会话 / Job / Binding 终态当作质量决策。
+
+### 23.6 v0.3 历史与 v0.4 迁移边界
+
+现有 Run 可以具有多条阶段 AgentSession，也可能具有无 Job 归属的 direct 调用记录；这些都是有效历史。不得推断、合并、回填主会话或把历史原生 thread 换写成新的 Binding。v0.4 绑定仅在后续实现 / migration 明确支持的任务上建立；旧 Run 保留 v0.3 解释，必要时通过显式新测试轮次进入目标形态。
+
+新增绑定、RunInputRequest、跨问答表互斥、唯一 / FK 约束、恢复 generation、Session 关闭策略、阶段准入和 typed tools 必须在实现时一并验证；部署容器、升级文档或配置 Host Bridge 地址都不能单独宣称该状态模型已实现。v0.3 的逐 Mission close、暂停恢复和显式 retry 测试仍只证明原行为，需要新的 Run 级会话 / owner fencing / 丢失会话 / 人工等待 / 不同 Run 并发验收证明目标成立。
 
 ## 24. 核心数据库表
 
@@ -1051,7 +1199,9 @@ outbox_events
 
 `0007_durable_jobs` 在 `0006_immutable_contracts` 后增加 Operational 表 `durable_jobs` 与 `worker_heartbeats`、FK、幂等 / 活跃请求唯一索引和请求 / 历史保护 Trigger；不重写 Canonical Entity 或 Vendor Session。
 
-当前迁移 head 为 `0010_mission_activity`：在 `0009_mission_inputs` 之上增加独立的有界活动表，不回填或重写历史行。`0009` 保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系，并增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。已有归属或人工输入历史时禁止降级丢失关系；活动裁剪不构成这些历史的删除许可。
+`0010_mission_activity` 交付时在 `0009_mission_inputs` 之上增加独立的有界活动表，不回填或重写历史行。`0009` 保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系，并增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。已有归属或人工输入历史时禁止降级丢失关系；活动裁剪不构成这些历史的删除许可。
+
+当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。v0.4 的 `run_execution_bindings` / `run_input_requests` 尚不存在，未出现在以上已实现表或 SQL 示例中；其 additive migration、状态 / 关系保护及目标集成派单记录须另行交付。
 
 ---
 
@@ -1311,7 +1461,9 @@ Risk test coverage = Complete 的非 OBSOLETE Risks / 全部非 OBSOLETE Risks
 
 DESIGN_TESTS 的 Mission idempotency identity 与 acceptance criteria 包含生效的 coverage Hash 和规则版本；Verifier 拒绝与当前固定 Policy 不符的 Mission 约束。规则仍由专用确定性评估组件执行，不把 Planner 改造成通用 LLM Agent。更丰富的语义覆盖仍可通过该组件扩展。
 
-Planner 在 Requirement 和 Risk 缺口满足后，对剩余维度创建 DESIGN_TESTS Mission。全部 Risk 达到基线表示测试设计覆盖完成；当前完整 MVP 继续创建 IMPLEMENT_TESTS，随后返回 EXECUTION_REQUIRED / EXECUTION_IN_PROGRESS，失败时创建 DIAGNOSE_FAILURE，最后返回 VERDICT_REQUIRED。早期切片的 TEST_DESIGN_COVERAGE_COMPLETE 是设计阶段边界，不是 TestRun 的 PASS / FINAL Verdict。
+v0.3 已实现的 Planner 在 Requirement 和 Risk 缺口满足后，对剩余维度创建 DESIGN_TESTS Mission。全部 Risk 达到基线表示测试设计覆盖完成；当前完整 MVP 继续创建 IMPLEMENT_TESTS，随后返回 EXECUTION_REQUIRED / EXECUTION_IN_PROGRESS，失败时创建 DIAGNOSE_FAILURE，最后返回 VERDICT_REQUIRED。早期切片的 TEST_DESIGN_COVERAGE_COMPLETE 是设计阶段边界，不是 TestRun 的 PASS / FINAL Verdict。
+
+v0.4 保留这些确定性依赖 / Coverage 判定作为持久 Harness 的阶段准入和完成检查，不再以逐 Mission 新建会话作为推进机制。Agent 可以在同一主会话请求下一 typed 阶段；缺口、目标和验收仍由当前固定 Snapshot / Policy 计算，不能由 Agent 自述覆盖或绕过 Verifier。
 
 Risk Coverage 分层：
 
@@ -1403,6 +1555,8 @@ Mission SUBMITTED 不等于 COMPLETED。只有 Verifier 接受 required outputs 
 
 若 Result Schema invalid、Policy violation、required outputs incomplete：Attempt = REJECTED，Mission = RETRYING，新建 Attempt N+1；禁止覆盖历史 Attempt Result。
 
+v0.4 的可恢复拒绝 / retry 仍使用原 RunExecutionBinding 和主 AgentSession，不因新 Attempt 重建 Provider thread。主 Session 的不可恢复失败与普通 Proposal 拒绝是不同事件；恢复、工作副本保留和终结按 §23.4 处理。Mission COMPLETED 也不终结该 Run 的主 Session。
+
 ---
 
 ## 35. Execution Retry Rule
@@ -1488,6 +1642,8 @@ REQ-1 → RISK-2 → TC-3 → EX-7 FAIL → EV-20/EV-21
 | Evidence | Evidence Collector / Verifier |
 | Finding | HyperTest Finding Service |
 | Verdict | Gate Engine |
+| RunExecutionBinding（v0.4 目标） | HyperTest Task Runtime；保持唯一逻辑 owner，Bridge 不拥有 Canonical State |
+| 持久主 AgentSession（v0.4 目标） | HyperTest Task Runtime / Agent Gateway 管理身份及生命周期，宿主 Harness 托管原生运行时 |
 
 Agent 不直接拥有任何 Canonical Lifecycle。
 
@@ -1512,6 +1668,8 @@ Agent 不直接拥有任何 Canonical Lifecycle。
 规则：No destructive migration without backfill；No enum semantic changes in-place；No dropping canonical column in same release；Deprecate → migrate → remove。
 
 v1 初期不使用 PostgreSQL native ENUM，使用 varchar + application enum + CHECK constraint，以便协议快速演进。
+
+v0.4 的 Binding / Session 生命周期、唯一 / FK、epoch fencing 与 typed tools 需要 additive migration、版本化契约和成套验收。旧 Run / Session / Attempt / Job 的身份、原生引用与历史解释不因目标规则而回填或合并；新的绑定不能用改写旧结果代替显式恢复或新测试轮次。
 
 ---
 
@@ -1627,6 +1785,14 @@ Final Verdict History
 9. Coverage 是 Derived State，不是 Agent Claim。
 10. Mission Retry 不覆盖历史 Attempt。
 
+v0.4 目标新增运行归属不变量（待实现）：
+
+11. 一个稳定 SUT 对应一个 Project；feat / MR 完整 SHA 的一轮固定输入测试由 TestRun 表达，SHA 不是禁止重测的唯一任务键。
+12. 每个受控 Run 只有一个稳定 RunExecutionBinding / logical_worker_id 和一个主 AgentSession；不同 Run 可并发，同一 Run 不 fanout 到多个逻辑 Worker。
+13. 正常 Mission 完成、WAITING_INPUT 和可恢复 Attempt 拒绝不关闭 / 替换主 Session；释放进程 lease 不解除任务绑定。
+14. 只有原 Binding / 原生 Session / workspace 的显式 fenced recovery 能接续所有权；旧 epoch / token 不能提交，不可恢复时明确失败，替代会话属于新 Run。
+15. Harness 通过 typed Proposal / Request 自驱；正式事实仍来自可信 Runner，质量决策仍来自 deterministic Gate。报告、GitLab Issue、Binding / Session / Worker 状态不代替 Verdict。
+
 ---
 
 ## 47. 最终领域结构
@@ -1666,6 +1832,18 @@ Final Verdict History
           Finding
              │
              └────────────────────────────► Verdict
+```
+
+v0.4 目标的 Operational 所有权侧链（未实现，不加入质量事实链）：
+
+```text
+TestRun ── 1:1 ── RunExecutionBinding
+                      ├── logical_worker_id（稳定）
+                      ├── primary AgentSession ── 多个串行 MissionAttempt
+                      ├── harness_host_id / workspace_id
+                      └── binding_epoch（显式恢复 generation）
+
+TestRun ── 多个串行 DurableJob ── 当前 worker_id / lease_token（暂时）
 ```
 
 ---
