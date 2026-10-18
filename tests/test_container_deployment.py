@@ -6,6 +6,7 @@ import os
 import stat
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -212,7 +213,22 @@ def test_staging_ingress_does_not_open_any_public_listener(tmp_path):
     assert config.count("listen ") == 1
 
 
-def test_optional_gitlab_policy_mount_is_worker_only_and_read_only(tmp_path):
+def assert_worker_only_gitlab_policy_mount(services):
+    assert "worker" in services
+    for name, service in services.items():
+        mounts = [mount for mount in service.get("volumes", []) if mount["target"] == "/run/hypertest-gitlab"]
+        if name == "worker":
+            assert len(mounts) == 1 and mounts[0]["type"] == "bind"
+            assert mounts[0]["read_only"] is True
+            # Compose versions can omit the false default from normalized JSON.
+            # An explicit true (including short-syntax auto-creation) is still unsafe.
+            assert mounts[0]["bind"].get("create_host_path", False) is False
+        else:
+            assert mounts == []
+
+
+@pytest.mark.parametrize("omit_false", [False, True], ids=["explicit-false", "omitted-false"])
+def test_optional_gitlab_policy_mount_is_worker_only_and_read_only(tmp_path, omit_false):
     if not __import__("shutil").which("docker"):
         pytest.skip("Docker CLI required for production Compose parser check")
     values = configuration(tmp_path)
@@ -226,13 +242,25 @@ def test_optional_gitlab_policy_mount_is_worker_only_and_read_only(tmp_path):
     command = stack.compose_command(env, "config", "--format", "json")
     result = subprocess.run(command, capture_output=True, text=True, check=True)
     services = __import__("json").loads(result.stdout)["services"]
-    for name, service in services.items():
-        mounts = [mount for mount in service.get("volumes", []) if mount["target"] == "/run/hypertest-gitlab"]
-        if name == "worker":
-            assert len(mounts) == 1 and mounts[0]["read_only"] is True
-            assert mounts[0]["bind"]["create_host_path"] is False
+    # Check the actual installed parser first, then exercise both valid wire forms.
+    assert_worker_only_gitlab_policy_mount(services)
+    mount = next(mount for mount in services["worker"]["volumes"] if mount["target"] == "/run/hypertest-gitlab")
+    if omit_false:
+        mount["bind"].pop("create_host_path", None)
+    else:
+        mount["bind"]["create_host_path"] = False
+    assert_worker_only_gitlab_policy_mount(services)
+    for unsafe in ("auto-create", "writable", "api", "web", "migrate", "bridge"):
+        changed = deepcopy(services)
+        changed_mount = next(mount for mount in changed["worker"]["volumes"] if mount["target"] == "/run/hypertest-gitlab")
+        if unsafe == "auto-create":
+            changed_mount["bind"]["create_host_path"] = True
+        elif unsafe == "writable":
+            changed_mount["read_only"] = False
         else:
-            assert mounts == []
+            changed.setdefault(unsafe, {}).setdefault("volumes", []).append(deepcopy(changed_mount))
+        with pytest.raises(AssertionError):
+            assert_worker_only_gitlab_policy_mount(changed)
     unit = (ROOT / "ops/container/hypertest-harness-bridge.service").read_text()
     assert "-/etc/hypertest/container/gitlab" in unit
     assert "RuntimeDirectoryPreserve=yes" in unit
