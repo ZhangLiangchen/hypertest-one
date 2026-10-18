@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run from the configured local Mac. Read-only checks; no password fallback.
+# Run from the configured local Mac; no password fallback or business Run creation.
+# Container capabilities use the Worker operational queue, not Canonical writes.
 set -euo pipefail
 
 exec ssh -T \
@@ -13,6 +14,36 @@ exec ssh -T \
 set -euo pipefail
 
 date -Is
+deployment_mode=legacy
+if [ -e /etc/hypertest/deployment-mode ]; then
+    deployment_mode=$(cat /etc/hypertest/deployment-mode)
+fi
+case "$deployment_mode" in
+    container-v1)
+        readlink -f /opt/hypertest/container-current
+        for service in hypertest-container-stack hypertest-harness-bridge; do
+            systemctl is-active --quiet "$service"
+            printf '%s: active\n' "$service"
+        done
+        for service in hypertest-api hypertest-worker hypertest-web nginx; do
+            state=$(systemctl is-active "$service" || true)
+            if [ "$state" != inactive ]; then
+                printf 'Legacy service must be inactive in container mode: %s (%s)\n' "$service" "$state" >&2
+                exit 1
+            fi
+        done
+        python3 /opt/hypertest/container-current/ops/container/readiness.py \
+            --env /etc/hypertest/container/compose.env
+        printf 'Remote container platform health checks passed.\n'
+        exit 0
+        ;;
+    legacy) ;;
+    *)
+        printf 'Unknown HyperTest deployment mode: %s\n' "$deployment_mode" >&2
+        exit 1
+        ;;
+esac
+
 readlink -f /opt/hypertest/current
 for service in hypertest-api hypertest-worker hypertest-web nginx; do
     systemctl is-active --quiet "$service"

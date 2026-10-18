@@ -1,6 +1,7 @@
 [Unit]
 Description=HyperTest platform with fail-closed ingress preparation
-Requires=docker.service hypertest-harness-bridge.service
+Requires=docker.service
+Wants=hypertest-harness-bridge.service
 After=docker.service hypertest-harness-bridge.service network-online.target
 BindsTo=docker.service
 
@@ -8,6 +9,7 @@ BindsTo=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/hypertest/container-current
+ExecStartPre=/usr/bin/systemctl is-active --quiet hypertest-harness-bridge.service
 ExecStart=/usr/bin/python3 /opt/hypertest/container-current/ops/container/start.py --env /etc/hypertest/container/compose.env --lock /run/lock/hypertest-maintenance.lock start
 ExecStop=/usr/bin/python3 /opt/hypertest/container-current/ops/container/start.py --env /etc/hypertest/container/compose.env --lock /run/lock/hypertest-maintenance.lock stop
 TimeoutStartSec=300

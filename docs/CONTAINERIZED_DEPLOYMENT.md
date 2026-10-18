@@ -133,7 +133,11 @@ bridge 上安装一条带唯一标记的 DOCKER-USER 规则：拒绝其他接口
 或守卫失败会停止本栈。它不运行迁移，也不停止其他项目。
 
 安装 `hypertest-container-stack.service` 前替换其中 release/env/lock/Bridge unit 路径。
-该 unit `After/Requires/BindsTo=docker.service`，每次宿主开机都重新通过守卫启动，
+该 unit `After/Requires/BindsTo=docker.service`，并 `Wants/After` Host Bridge；
+`ExecStartPre` 要求 Bridge 已 active 后才允许启动平台。Bridge 不再位于 `Requires`，
+防止冷备显式停止 Bridge 时连带触发 stack 的 `ExecStop`，重新争用同一维护锁。
+Worker 的 Bridge 准入和真实 capabilities 仍须通过，Bridge 不可用不能报告完整就绪。
+每次宿主开机都重新通过守卫启动，
 而非依赖 iptables 规则持久化。正式启用前先手动执行同一入口验证：
 
 ```bash
@@ -239,6 +243,29 @@ Provider session 身份、跨 Mission 复用、等待/回答/重启及旧 owner 
 整机灾难恢复另需操作者管理的加密 Provider runtime 备份，不能从此数据备份凭空恢复会话。
 隔离 staging 使用自己的 `--bridge-service hypertest-adr013-staging-bridge` 与
 `--lock-file`；不通过正式 Bridge 的停止状态推断 staging Bridge 已停止。
+
+正式切换时必须同步替换旧 `hypertest-backup.service` 的 `ExecStart`，保留既有 timer
+时间与随机延迟；旧脚本硬编码宿主 API/Worker 和 `hypertest-postgres`，不能用于新栈。
+新入口为：
+
+```bash
+/usr/bin/python3 /opt/hypertest/container-current/ops/container/scheduled_backup.py \
+  --env /etc/hypertest/container/compose.env
+```
+
+该 wrapper 要求完整栈与 Bridge 已健康，只在进程内持有一把维护锁，不嵌套执行
+`start.py` / `backup.py` CLI 或 stack unit 的 ExecStart/ExecStop。先关闭 API 写入口；
+存在排队、执行、取消中的 Job 或未完成 runtime control 请求时，仅恢复 API 并跳过，
+不停止 Worker。空闲时停止本栈容器和 Bridge，用同一守卫恢复 PostgreSQL-only，调用
+配对备份内部方法，再恢复 Bridge 与完整栈。新 profile 的 WAITING_INPUT 原绑定、
+workspace 与 ledger 纳入备份，原生 Provider runtime 仍在原宿主目录保留。
+备份失败保留未完成目录并尝试恢复原健康服务；恢复后必须通过实际 readiness，
+失败返回非零并停止本栈监听，不能把生成了备份目录作为成功。锁被占用时安全跳过。
+
+启用 timer 前必须实测空闲期 `systemctl start hypertest-backup.service`：新配对目录
+具有有效 COMPLETE / manifest，Bridge active、五个容器 healthy，原数据不变；另在
+独立验收栈验证忙任务只暂停 API、原 Job / Worker / native Session 不被中断且不产生
+新备份。不可在正式真实验收 Job 运行中为了测试备份而中断其会话。
 
 ```bash
 python3 ops/container/backup.py --env /absolute/compose.env backup \
