@@ -2,7 +2,7 @@
 
 ## 当前增量：受控依赖与服务型 API 环境
 
-新增不可变 Source 环境绑定、预置完整依赖锁、隔离单 ASGI 服务启动/HTTP就绪/真实HTTP测试/日志和退出采集，Web提供五步双语选择与执行身份查看；迁移0011兼容旧NULL和原FINAL hash。**464后端/53Web、8独立真实Docker、Ruff/typecheck/build/audit0及独立恢复19项已通过**（默认pytest另跳过8项需要预置镜像的opt-inDocker测试，均已独立实际执行通过）。本轮真实模型业务成功与失败诊断验收仍在进行，见[本轮环境验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)，不预写通过；服务器a48bc96/schema0009保持。
+新增不可变 Source 环境绑定、预制完整依赖锁和单 ASGI 服务真实 HTTP 测试，Web提供五步双语选择与只读执行身份；迁移0011兼容旧NULL/FINAL hash，0012仅扩 API-v2 profile CHECK。首轮真实模型暴露仓库 conftest 收集依赖问题，旧 ERROR/BLOCKED 历史保留；新 API-v2 隔离仓库 pytest 配置/conftest，旧 profile 原身份保持。**474后端/55Web、18独立真实Docker、Ruff/typecheck/build、独立恢复19/19已通过**（默认pytest的18项opt-inDocker均已另行实际执行）。新的真实Web/Codex/Docker双链已验收：91PASS→RELEASE_READY；30PASS/22FAIL→产品缺陷诊断→RELEASE_BLOCKED，各28/28独立检查，结果见[本轮环境验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)；服务器a48bc96/schema0009未改动。
 
 ## 前轮本地已验收：辅助活动与等待诊断
 
