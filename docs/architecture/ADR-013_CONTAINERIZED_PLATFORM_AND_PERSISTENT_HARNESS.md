@@ -1,6 +1,6 @@
 # ADR-013：容器化平台与单任务持续 Harness 会话
 
-**Status:** Accepted；本分支已实现并进入验收，正式服务器尚未迁移（[实施与验收记录](../ADR013_ACCEPTANCE.md)）
+**Status:** Accepted；已实现并完成正式服务器容器切换，运行构建 `95e92c5` / schema0014（[正式部署与真实验收](../ADR013_PRODUCTION_DEPLOYMENT.md)；[原实施验收](../ADR013_ACCEPTANCE.md)）
 
 **Date:** 2026-10-19（Asia/Singapore；根据 2026-10-18 起的工作流讨论形成）
 
@@ -166,6 +166,6 @@ Docker 端口发布会改变流量经过的防火墙链，不能直接把现有 
 - [x] GitLab 项目 / 责任人 / 策略配置、请求关联及未知结果只核对不盲目重建；受控 HTTP 回归通过。
 - [x] 真实 Codex → Docker Runner → Evidence → Gate → 报告的成功、失败诊断、人工补充链路通过。
 - [ ] GitLab 真实外部创建 / 指派验收（需实际配置与授权）；其他 Provider 分别实施与验收。
-- [ ] 正式服务切换及切换后网络来源复核。独立 Linux Compose、迁移、配对恢复与应用回滚演练的结果单独登记，不等同于此项完成。
+- [x] 正式服务切换、原数据/OAuth保全及配对备份恢复；切换后 VPN 实际允许、独立手机移动网络实际拒绝、SSH 隧道与容器后端隔离复核。正式正反模型链路与显式恢复结果见[部署记录](../ADR013_PRODUCTION_DEPLOYMENT.md)，未将隔离 staging 结果代替正式验收。
 
 部署就绪状态另记于验收与[服务器操作交付](../SERVER_OPERATIONS.md)，不能由 ADR 的 Accepted 状态推断。

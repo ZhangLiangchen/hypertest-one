@@ -1,5 +1,48 @@
 # HyperTest One 服务器操作交付
 
+## 当前部署：ADR-013 容器栈（2026-10-19）
+
+PR #9 已合并为 `740a74d3bf66edfe916a2f3e80e459edf63e61dc`；正式发布另含备份与巡检适配
+`2ceff17fe7d4e090e651e12c3a57e4d1d802ffe2`，并更新至真实验收发现的会话修复
+`95e92c584897ff18bc1a0006823891ca45a619be`。当前运行入口是
+`/opt/hypertest/container-current`，不是保留的旧 `/opt/hypertest/current`。
+五个 `hypertest-production` Compose 服务承载 nginx、Web、API、Worker 和 PostgreSQL；
+宿主 `hypertest-harness-bridge` 保留原 Codex OAuth、原生会话与运行时。
+数据库已从 0012 升至 `0014_harness_operations`，继续使用原 `hypertest_pgdata`。
+完整切换、旧数据逐项核验、配对备份恢复、真实运行与限制见
+[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)。下文旧版本操作保留为历史记录。
+
+连接 VPN 后仍访问 `http://155.138.206.106:8080`，公网仅允许来源
+`45.76.149.233/32`；API8000、Web3000、PG5432 只绑定回环。SSH 备用入口：
+
+```bash
+ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 hypertest-one
+# 浏览器打开 http://127.0.0.1:8080
+```
+
+在本机仓库执行 `bash ops/check-remote.sh` 会根据受保护的
+`/etc/hypertest/deployment-mode` 检查实际容器、数据库、Worker、Bridge 和 HTTP，
+不创建业务测试运行。查看正式服务与日志：
+
+```bash
+ssh hypertest-one
+systemctl status hypertest-container-stack hypertest-harness-bridge hypertest-backup.timer
+journalctl -u hypertest-harness-bridge --since '30 minutes ago'
+cd /opt/hypertest/container-current
+python3 ops/container/stack.py --env /etc/hypertest/container/compose.env status
+```
+
+恢复平台必须经 `systemctl restart hypertest-container-stack` 重建并检查网络守卫，
+不直接执行 `docker compose up`。操作前确认活跃任务与维护锁，按
+[容器部署与恢复](CONTAINERIZED_DEPLOYMENT.md) 处理；暂停中的持续会话必须保留其数据库、
+Bridge ledger、原生会话和工作副本。旧 `hypertest-api/worker/web/nginx` 已停止并禁用，
+不要同时启动它们或让旧 PostgreSQL 容器挂载同一数据卷。
+
+`hypertest-backup.service` 已切换到新版本 `scheduled_backup.py`，使用原维护锁；
+每日 UTC03:30、最多20分钟随机延迟的 timer 保留。忙时恢复 API 并跳过冷备，
+不打断 Worker；空闲时配对保存 DB、Artifact、Workspace 和 Bridge ledger，
+随后通过守卫恢复服务。备份不包含 OAuth 或平台凭据；原认证目录留在宿主。
+
 核验日期：2026-10-17，Asia/Singapore。本文中的“交接目录”指本机 `/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff`，可移交证据副本见 [第一阶段验收](FIRST_PHASE_ACCEPTANCE.md)。目标：155.138.206.106，root SSH/22。实际主机是 Debian13.7 x86_64、2CPU/3915MiB，已有7.7GiB swap保留。此部署面向一个可信操作者。d20 已部署时使用 SSH 隧道访问；用户现已选择 VPN 来源 IP 白名单入口加 SSH 备选。阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212`已部署并激活白名单；当前范围修复的后续实际版本、网络状态与运行结果以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准。来源白名单不等于应用登录/RBAC。
 
 <a id="ssh-access"></a>

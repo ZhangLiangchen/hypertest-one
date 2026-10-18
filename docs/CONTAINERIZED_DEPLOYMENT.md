@@ -3,8 +3,9 @@
 本目录实现单 Linux 宿主的生产打包边界：nginx / Web / API / Task Worker /
 PostgreSQL 使用固定镜像，Provider CLI、原生认证和 Host Harness Bridge 保留宿主。
 开发用 `docker-compose.yml` 继续独立；生产使用 `compose.production.yml`。
-本文是待发布版本的操作材料，**不是正式服务器已经迁移或完整 ADR 已验收的记录**。
-实际应用、迁移、Bridge 版本及真实测试周期以该版本验收记录为准。
+本文是容器栈的操作材料。2026-10-19 的正式切换、实际应用/迁移/Bridge 版本、
+保全检查和真实测试周期另见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)，
+不能仅凭本文中的配置或命令推断某项验收已经完成。
 
 领域/协议仍由四份奠基文档和 [ADR-013](architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
 定义。Job 完成、容器 healthy、Bridge 连通都不能替代正式 Runner / Evidence / Gate。
@@ -43,8 +44,8 @@ web search，源码与领域事实经平台限定工具提供。Bridge 与 Provi
 
 ## 固定镜像和配置准备
 
-操作前使用 [服务器 SSH 约定](SERVER_OPERATIONS.md#ssh-access)。本次实现不执行正式
-服务器切换、UFW 修改、OAuth 登录或数据删除。
+操作前使用 [服务器 SSH 约定](SERVER_OPERATIONS.md#ssh-access)。脚本不会自动修改
+UFW、执行 OAuth 登录或删除原数据；正式切换必须遵循后文的维护与保全步骤。
 
 在经过测试的 release checkout 执行：
 
@@ -155,7 +156,8 @@ Engine 重启导致本栈停止后，操作者用 `systemctl restart hypertest-c
 恢复（不是直接 `compose up`）；应用意外退出也以此受控入口恢复。本方案选择安全停止，
 不承诺应用自动重启。停止后才可用 `network_guard.py ... remove` 删除精确自有规则。
 未在共享生产 Engine 上执行真实 daemon/宿主重启试验，不能将静态约束声称为实机
-重启验收。本轮只安装/操作独立 staging unit，不启用它的开机启动、不重启生产 Docker。
+重启验收。正式 stack 和 Bridge 已启用开机启动，独立 staging 保持停止；
+生产 Docker / 宿主实机重启仍未执行。
 
 部署仍需实测以下项目，配置存在不等于已通过：
 
@@ -300,9 +302,9 @@ nginx回退只是恢复已核验的原host站点/服务；不改 SSH、不清 UF
 生产迁移前后的实际结果应追加到服务器交付记录，不能把本 runbook 的目标写成已实现
 验收事实。
 
-## 已执行的隔离验证边界（2026-10-19）
+## 首次隔离验证的历史边界（2026-10-19，正式切换前）
 
-正式服务仍为 `0a2af9c4f5034c118f1a19abd786290f0959a648` / schema0012，
+该次隔离验证时，正式服务仍为 `0a2af9c4f5034c118f1a19abd786290f0959a648` / schema0012，
 正式数据卷、服务 PID、Artifact 清单和 UFW 规则与隔离验证前一致。隔离栈使用
 新 `hypertest_adr013_staging_final_pgdata` 卷和独立 Artifact/workspace/Bridge state，
 仅监听回环15432/18000/13000/18080；没有切换正式公网入口。
@@ -347,4 +349,5 @@ inactive/disabled，容器restart policy均为no，四个隔离回环端口全�
 该staging网络的自有DROP，DOCKER-USER恢复原有RETURN；保留两套staging PG卷、
 配对备份、恢复目录、Artifact、工作副本、Bridge ledger和镜像供复核。正式release、
 schema、业务计数、Artifact清单、原PG卷挂载、各服务PID及UFW与验收前快照完全一致，
-正式Web与API仍HTTP200。正式环境尚未执行本ADR的生产切换。
+当时正式Web与API仍HTTP200，尚未执行本ADR的生产切换。之后的正式切换与
+真实验收已完成，见[正式部署记录](ADR013_PRODUCTION_DEPLOYMENT.md)。

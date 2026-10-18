@@ -2,7 +2,7 @@
 
 日期：2026-10-19，Asia/Singapore。对应 [ADR-013](architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)。
 
-本轮实现生产 Compose、宿主 Harness Bridge、Run 持久主会话、运行中领域工具和 Web 会话/报告/恢复入口。真实模型验收使用 Codex；正式测试事实均来自 Docker Runner。**正式服务器尚未切换至本版本**，不能把独立 staging 的验收当作生产迁移完成。
+本轮实现生产 Compose、宿主 Harness Bridge、Run 持久主会话、运行中领域工具和 Web 会话/报告/恢复入口。真实模型验收使用 Codex；正式测试事实均来自 Docker Runner。本文保留实现期本地与独立 staging 的原始结果；2026-10-19 的正式服务器切换、后续修复和生产真实链路另见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)，各阶段证据不互相替代。
 
 ## 实现范围
 
@@ -101,12 +101,14 @@ Linux 上的新真实 Run `01a1501c-509f-7806-8340-4adb9c6abfb8`，Job `01a1501c
 
 真实 Web 另复核了终态绑定的任务历史：失败记录保留，重试按钮替换为“从项目创建新轮次”的提示与链接。验收结束停止本轮临时 Web/API/Worker/Bridge 进程及本地 PostgreSQL 容器；`hypertest-one-pg17-data` 卷、数据库、报告、源码和会话资料全部保留。
 
-## 交付边界
+## 原实现期的交付边界（正式切换前）
 
-本轮只在独立 Linux staging 栈验证新拓扑。正式实例仍为 `0a2af9c4f5034c118f1a19abd786290f0959a648` / `0012_api_environment_v2`；原 PostgreSQL 卷、Artifact、源码、认证、`45.76.149.233/32` 白名单和 SSH 隧道保留。正式切换应按 [部署与恢复手册](CONTAINERIZED_DEPLOYMENT.md) 在合并发布后进行，不能同时让两个 PostgreSQL 容器挂载原 PGDATA。
+该次实现期验收只在独立 Linux staging 栈验证新拓扑，当时正式实例仍为 `0a2af9c4f5034c118f1a19abd786290f0959a648` / `0012_api_environment_v2`；原 PostgreSQL 卷、Artifact、源码、认证、`45.76.149.233/32` 白名单和 SSH 隧道保留。正式切换应按 [部署与恢复手册](CONTAINERIZED_DEPLOYMENT.md) 在合并发布后进行，不能同时让两个 PostgreSQL 容器挂载原 PGDATA。
 
 本轮独立执行 `ops/check-remote.sh`，正式 API/Worker/Web/nginx active、PG healthy/SELECT 1、API/Worker 与 Web HTTP 均通过；另新建临时 SSH 转发验证正式 HTML 和 API health 均 200，随后仅关闭该临时隧道。正式 release、schema、业务计数、原 32 个 Artifact（79,623 字节，manifest `7ef4dd1171808d9b0878ac17e6d50ace2018ac5a98bee05ce3759af4fe0f1d5c`）、PG 卷、服务 PID 和 UFW 与前置取样一致。
 
 验收结束已停止 staging 的五个容器与 Bridge，两项 staging systemd unit 均 inactive/disabled，四个 staging 端口全部关闭；仅移除自有网络守卫，保留所有卷、备份、恢复目录、会话和镜像。最终正式快照 `adr013-staging-production-final.json` 与前置 JSON 逐字段完全一致，正式 Web/API 仍为 HTTP 200。
 
-剩余范围：正式迁移及切换后的允许/拒绝公网来源复核；真实 GitLab 提单；Claude Code / 其他 Harness 适配和真实验收；多宿主调度。当前实现限定单宿主 Codex，未声称这些能力完成。
+当时的剩余范围：正式迁移及切换后的允许/拒绝公网来源复核；真实 GitLab 提单；Claude Code / 其他 Harness 适配和真实验收；多宿主调度。当前实现限定单宿主 Codex，未声称这些能力完成。
+
+随后已完成正式容器切换、真实正反链路及来源复核，详见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)。以上历史数据和版本保持原样；GitLab真实外部验收、其他Provider及多宿主仍未完成。
