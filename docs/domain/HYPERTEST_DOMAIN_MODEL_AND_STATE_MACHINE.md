@@ -987,6 +987,20 @@ HyperTest句柄持久保存在Attempt operational metadata，真实Provider sess
 
 取消等待Job立即成为CANCELLED，同时终止开放问题和所属未完成Mission/Attempt/Session；已回答原文保留。等待不受运行租约到期扫描自动重放。取消、回答、每次等待/恢复均写配对Audit/Outbox，按Question身份去重，事件不复制问题/回答或Provider日志。新增迁移`0009_mission_inputs`仅增加交互表、状态约束与活跃索引，不回填旧历史；有交互历史时禁止降级丢失。
 
+### 23.3 有界任务活动与 Provider 信号
+
+`mission_activity_events` 是可裁剪的 Operational State，属于白皮书的辅助 Agent Activity，不是 Canonical Testing State、可信 Evidence、质量进度或生命周期 Audit。新增迁移 `0010_mission_activity` 不改写既有快照、问题回答、Attempt、Job 或测试历史。活动表不进入 Gate 的状态序列化、Evidence manifest、覆盖计算或领域 Outbox。
+
+每条记录关联同一 Run 的 DurableJob、Mission、MissionAttempt、AgentSession，保留 UUIDv7 身份、当前领取次数、固定活动类型、来源、平台记录时间和合并计数。来源区分 `PROVIDER` 与 `CONTROL_PLANE`。不允许自由文本 payload、原生 Provider 事件 / ID、命令及参数、文件路径、推理、消息正文、PRD、回答、stdout/stderr 或认证资料。Adapter 先将 Provider 事件投影至允许列表；未知事件只可产生固定的“收到信号”类型，不透传原文。错误只提供受控错误类别和退出码，不将 CLI stderr 当作活动或用户错误详情持久化。
+
+Provider 信号表示平台观察到外部事件，不证明模型推理有效、工作已完成或测试已通过。本地生成的 Mission 开始、恢复、结果提交和结束事件不能更新 Provider 信号时间；Worker 心跳另行表示 Worker 存活。原 Attempt 在人工等待和恢复中保持，活动按新领取次数区分；最近 Provider 时间只针对当前领取，不能用上一轮事件、原始 Job.started_at 或心跳补出本轮进度。数据库记录时间是平台接收 / 持久记录时刻，不冒称 Provider 原生时间。
+
+采集器使用有界内存队列、单独写入器及约 2 秒合并窗口；每 Attempt 最多保留最近 200 条活动。裁剪仅影响此辅助记录，不删除正式历史或问答。API 提供有上限的分页并说明近期记录可能截断，不承诺完整逐事件日志或 exactly-once 遥测。
+
+活动写入使用独立短事务，按 Run → Job → Attempt 顺序检查关系、RUNNING 状态、当前 token / claim 和数据库时钟中的有效租约；取消、暂停、终态、旧领取及租约过期后的迟到事件拒绝写入。不能在 Provider I/O 期间持锁，不能使主任务等待一个也等待其行锁的活动写入器。写入繁忙、队列满或遥测失败可丢弃活动；有界收尾在主事务取得完成锁前进行。辅助遥测故障不能将有效 Proposal 变成失败、改变 Runner / Gate 决策或触发自动重放。
+
+只读任务活动接口返回数据库观察时间、当前阶段 / Attempt、当前领取的最近 Provider 信号、该 Job 的 Worker 心跳及安全活动分页。阶段只由已持久运行状态推导；没有信号时应表示未知。长时间无新信号只是观察提示，不等于卡死；WAITING_INPUT、正式 Runner 执行和终态不显示“模型静默”警报。刷新失败保留已加载内容并说明尚未更新，用户取消、回答和显式重试继续由原受控流程处理。
+
 ## 24. 核心数据库表
 
 MVP 必须存在：
@@ -1028,7 +1042,7 @@ outbox_events
 
 `0007_durable_jobs` 在 `0006_immutable_contracts` 后增加 Operational 表 `durable_jobs` 与 `worker_heartbeats`、FK、幂等 / 活跃请求唯一索引和请求 / 历史保护 Trigger；不重写 Canonical Entity 或 Vendor Session。
 
-当前迁移 head 为 `0009_mission_inputs`：保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系；增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。历史行不推断或回填归属；已有归属或人工输入历史时禁止降级丢失关系。
+当前迁移 head 为 `0010_mission_activity`：在 `0009_mission_inputs` 之上增加独立的有界活动表，不回填或重写历史行。`0009` 保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系，并增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。已有归属或人工输入历史时禁止降级丢失关系；活动裁剪不构成这些历史的删除许可。
 
 ---
 

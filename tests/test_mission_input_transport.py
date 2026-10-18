@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import sys
 
 import pytest
@@ -78,7 +79,10 @@ async def test_early_provider_exit_preserves_error_instead_of_stdin_pipe_failure
         errors = [event for event in events if event.type == "ERROR"]
         assert len(errors) == 1
         assert errors[0].payload["return_code"] == 2
-        assert "provider rejected before consuming input" in errors[0].payload["stderr"]
+        assert errors[0].payload["error_code"] == "PROVIDER_ERROR"
+        assert errors[0].payload["message"] == "Codex process exited unsuccessfully"
+        assert "stderr" not in errors[0].payload
+        assert "provider rejected before consuming input" not in json.dumps([event.payload for event in events])
         assert not any(event.type == "RESULT_SUBMITTED" for event in events)
     finally:
         await adapter.close(session)

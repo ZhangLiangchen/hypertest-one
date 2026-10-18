@@ -29,7 +29,9 @@ deployed release, SSH access, service management, and paired backup/recovery ste
 
 The current product targets **one trusted operator** in a controlled development/test environment. Application login, tenant isolation, RBAC, and hardened public deployment are future work.
 
-The current `WAITING_INPUT` change adds persisted Mission questions, Web answers and continuation of the same durable Job. It introduces migration `0009_mission_inputs`. Its isolated Web checks pass 31 tests, typecheck, production build and audit 0; **local real Web / Codex same-thread resume / official Docker / FINAL RELEASE_READY acceptance has passed; server acceptance is registered separately**. See [human input operation](docs/WEB_PRODUCT_WORKFLOW.md#等待输入回答并继续--waiting-for-input-answer-and-continue) and the [frontend check record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/waiting-input-web-checks-2026-10-18.md). See [the current continuation acceptance](docs/WAITING_INPUT_ACCEPTANCE.md); earlier live records below retain their own execution identities. This change does not alter the recorded VPN/SSH access policy or existing testing history.
+The current increment adds a persistent, bilingual **Agent activity** panel and waiting diagnostics under migration `0010_mission_activity`. Fixed safe event types and platform timestamps distinguish current-turn Provider signals from Worker heartbeat without recording transcript content or changing Evidence/Verdict. Local checks passed **384 backend / 41 Web tests**, Ruff, migrations, typecheck, production build and audit 0. A fresh real Web/Codex/Docker cycle, including waiting, API/Worker restart and same-thread answer/resume, reached **FINAL RELEASE_READY / JUnit 8 PASS**. See [activity acceptance](docs/MISSION_ACTIVITY_ACCEPTANCE.md) for source identity, preservation and limits. This increment is not yet deployed; production remains `a48bc96` / schema0009 with the recorded VPN/SSH access policy.
+
+The delivered `WAITING_INPUT` workflow persists Mission questions, Web answers and continuation of the same durable Job under migration `0009_mission_inputs`. Local and server real Web/Codex/Docker acceptance passed before PR #6 was merged and deployed as `a48bc96`. See [human input operation](docs/WEB_PRODUCT_WORKFLOW.md#等待输入回答并继续--waiting-for-input-answer-and-continue) and [continuation acceptance](docs/WAITING_INPUT_ACCEPTANCE.md); earlier records retain their own execution identities.
 
 Delivery has two stages. **Stage 1**, deployed as `73dff989b87fa7349d9b36bd8416ece948a82212`, passed 9 real PRD-file fixtures/15 native-browser checks, 20 frontend regressions and fresh Web checks. Its backend inputs were unchanged from d20/the 302-test source; that historical 114-input manifest is `0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07` and does not identify the subsequent backend scope fix.
 
@@ -227,6 +229,7 @@ GET  /executions/{execution_id}
 GET  /evidence/{evidence_id}/content
 POST /findings/{finding_id}/transition
 GET  /jobs/{job_id}
+GET  /jobs/{job_id}/activity
 POST /jobs/{job_id}/cancel
 POST /jobs/{job_id}/retry
 GET  /input-requests/{input_request_id}
@@ -253,6 +256,12 @@ Web uses the Job API for long operations. `POST /test-runs/{id}/jobs` accepts `o
 For automatic GitHub checkout, replace `workspace` with `"prepare_workspace": true`; provide exactly one source mode. The same Worker request prepares the pinned source before starting missions. `POST /sources/resolve` accepts `repository_url` and a branch/tag `revision` before bootstrap, returning the full SHA without changing canonical state or a checkout. Other origins continue to use an existing workspace.
 
 Poll the Run's Job list or `GET /jobs/{id}` for state and result. The same key and input return the original request; conflicting input or another active request returns 409. Cancellation returns 202. Retry accepts a new `idempotency_key` and returns 202 with a new linked Job. A cancelled Mission remains cancelled; explicitly plan a new Mission generation when its work is still needed. A FAILED Mission must first use the controlled Mission retry action before execution can be submitted again. `RETRYING` is displayed as **Awaiting retry**: it is a stopped Mission waiting for an explicit action, not evidence that a Worker is actively executing it. `GET /capabilities` includes `worker.available`, `worker.last_seen_at`, and `worker.active_workers`.
+
+### Safe task activity API
+
+`GET /jobs/{job_id}/activity?limit=30&before=<event UUID>` reads recent operational activity without starting work. The response separates the server observation time, current Mission/Attempt, current claim's most recent Provider signal and that Job's Worker heartbeat. Items contain fixed activity types, source, platform timestamps, count and HyperTest-owned relational IDs; they do not expose Provider events, reasoning, messages, commands, paths or stderr. Earlier records can be read using the returned cursor. Each Attempt retains at most 200 recent records; this is a bounded activity view, not a complete transcript.
+
+A Worker heartbeat proves Worker liveness, not model progress. A quiet model may still be working. No progress percentage, automatic cancellation or replay follows from silence; waiting for a human answer, official Runner work and terminal Jobs are shown according to their actual states. Read-only activity polling has no effect on Canonical State, Evidence or Verdict. See [the operator flow](docs/WEB_PRODUCT_WORKFLOW.md#任务活动与等待诊断--task-activity-and-waiting) and [activity acceptance](docs/MISSION_ACTIVITY_ACCEPTANCE.md) for current verification and limits.
 
 ### Human input API
 
@@ -299,7 +308,7 @@ Direct `POST /policy-snapshots` callers must provide `content_sha256` matching t
 
 ## Migrations and validation
 
-`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. `0009_mission_inputs` adds durable question/answer history and waiting/resume governance while retaining existing snapshots and testing history. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008 → 0009`.
+`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. `0009_mission_inputs` adds durable question/answer history and waiting/resume governance. `0010_mission_activity` adds a separate bounded operational activity table without backfilling or rewriting history. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008 → 0009 → 0010`.
 
 Backend validation requires a real PostgreSQL database:
 

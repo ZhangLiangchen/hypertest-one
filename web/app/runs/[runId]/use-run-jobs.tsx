@@ -9,6 +9,7 @@ import { cancelJob, createJob, errorText, getJob, getJobs, getMission, retryJob,
 import { useI18n } from "@/lib/i18n";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
+import { JobActivityPanel } from "./job-activity";
 
 const activeStatuses: JobStatus[] = ["QUEUED", "RUNNING", "WAITING_INPUT", "CANCEL_REQUESTED"];
 const retryableStatuses: JobStatus[] = ["FAILED", "INTERRUPTED", "CANCELLED"];
@@ -196,7 +197,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         <Space wrap style={{ marginBottom: 16 }}><Status job={current} />{actions(current)}</Space>
         {selected.error && <Alert type="warning" showIcon message={t("Task refresh failed; showing recorded data", "任务刷新失败，正在显示已加载记录")} description={errorText(selected.error, locale)} action={<Button onClick={() => void selected.refetch()}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 16 }} />}
         {current.status === "SUCCEEDED" && <Alert type="info" showIcon message={t("Task completed; the quality verdict determines test readiness", "后台任务已完成，测试质量以质量判定为准")} description={t("A successful task means the requested operation finished. Tests may still fail and the release may remain blocked. Inspect the execution, evidence and latest verdict below.", "任务成功表示请求的操作已完成。测试仍可能失败，发布仍可能被阻止。请继续查看执行、证据和最新质量判定。")} style={{ marginBottom: 16 }} />}
-        {current.status === "WAITING_INPUT" && <Alert type="warning" showIcon message={t("This task is paused for your answer", "此任务已暂停等待你的回答")} description={t("Answer the recorded question to queue this same task again. Do not start a separate cycle to bypass the question.", "回答已记录的问题后，同一任务将重新入队。请勿新建测试周期来绕过问题。")} action={<Button type="primary" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>} style={{ marginBottom: 16 }} />}
+        {current.status === "WAITING_INPUT" && <Alert className="job-waiting-notice" type="warning" showIcon message={t("This task is paused for your answer", "此任务已暂停等待你的回答")} description={t("Answer the recorded question to queue this same task again. Do not start a separate cycle to bypass the question.", "回答已记录的问题后，同一任务将重新入队。请勿新建测试周期来绕过问题。")} action={<Button type="primary" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>} style={{ marginBottom: 16 }} />}
         <Space wrap style={{ marginBottom: 20 }}>
           <Button onClick={() => viewResult("missions")}>{t("View missions", "查看测试任务")}</Button>
           <Button onClick={() => viewResult("executions")}>{t("View executions", "查看执行")}</Button>
@@ -208,6 +209,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         {current.status === "INTERRUPTED" && <Alert type="warning" showIcon message={t("Worker execution was interrupted", "Worker 执行已中断")} description={t("Review the recorded missions, executions and evidence. Retry creates a new task and preserves this task's history; completed canonical state remains available.", "请检查已记录的智能体任务、执行和证据。重试会创建新任务并保留原历史，已完成的正式状态仍会保留。")} style={{ marginBottom: 20 }} />}
         {current.status === "CANCEL_REQUESTED" && <Alert type="info" showIcon message={t("Waiting for the worker to acknowledge cancellation", "等待 Worker 确认取消")} description={t("The recorded status changes to CANCELLED after the worker stops at a safe boundary.", "Worker 在安全边界停止后，状态会更新为“已取消”（CANCELLED）。")} style={{ marginBottom: 20 }} />}
         {current.error_message && <Alert type="error" showIcon message={current.error_code || t("Task error", "任务错误")} description={<span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{current.error_message}</span>} style={{ marginBottom: 20 }} />}
+        {!!selectedId && <JobActivityPanel key={current.id} job={current} taskStale={selected.isError} onResults={() => viewResult("verdicts")} />}
         <Descriptions bordered column={1} size="small" items={[
           { key: "operation", label: t("Operation", "操作"), children: label(current.job_type) },
           { key: "retry", label: t("Previous task", "前一任务"), children: current.retry_of_job_id ? <Button type="link" onClick={() => setSelectedId(current.retry_of_job_id!)}>{current.retry_of_job_id}</Button> : t("First attempt", "首次任务") },
