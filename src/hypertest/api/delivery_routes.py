@@ -23,7 +23,7 @@ from hypertest.api.delivery_schemas import (
     SourceResolveRequest,
     VerdictRead,
 )
-from hypertest.api.operation_guard import guard_synchronous_operation
+from hypertest.api.operation_guard import guard_manual_mission_mutation, guard_synchronous_operation
 from hypertest.api.routes import translate_domain_error
 from hypertest.api.schemas import (
     MissionAttemptRead,
@@ -71,9 +71,15 @@ router = APIRouter()
 
 
 @router.get("/execution-environments")
-async def read_execution_environments():
+async def read_execution_environments(db: AsyncSession = Depends(get_db)):
     from hypertest.runner.environments import environment_catalog
 
+    if get_settings().execution_mode == "queued":
+        from hypertest.application.runtime_control import request_control
+        try:
+            return await request_control(db, "ENVIRONMENTS", {})
+        except RuntimeError as exc:
+            raise _http_error(exc) from exc
     return {"profiles": await environment_catalog()}
 
 
@@ -94,6 +100,16 @@ async def post_resolve_source(payload: SourceResolveRequest):
 @router.get("/capabilities")
 async def read_capabilities(db: AsyncSession = Depends(get_db)):
     settings = get_settings()
+    if settings.execution_mode == "queued":
+        from hypertest.application.runtime_control import request_control
+        try:
+            return await request_control(db, "CAPABILITIES", {})
+        except RuntimeError:
+            profile = ({"execution_profile": "run-persistent-harness/v1", "harness_bridge": "UNAVAILABLE"}
+                       if settings.harness_mode == "bridge" else {})
+            return {"agent_providers": [], "runner_backends": [], "workspace_root": settings.workspace_root,
+                    "runner_image": settings.runner_image, "mode": "single_operator",
+                    **profile, "worker": await get_worker_status(db)}
     return {
         "agent_providers": ["codex"] if shutil.which(settings.codex_binary) else [],
         "runner_backends": (["docker"] if shutil.which("docker") else [])
@@ -438,6 +454,7 @@ async def read_proposals(mission_id: UUID, db: AsyncSession = Depends(get_db)):
 
 async def _mission_action(db: AsyncSession, mission_id: UUID, retry: bool):
     mission = await get_mission(db, mission_id)
+    await guard_manual_mission_mutation(db, mission.test_run_id)
     await db.scalar(
         select(TestRun)
         .where(TestRun.id == mission.test_run_id)

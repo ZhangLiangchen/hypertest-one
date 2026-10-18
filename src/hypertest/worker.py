@@ -49,6 +49,12 @@ class JobDispatchError(RuntimeError):
 async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]:
     payload = dict(job.payload)
     if job.job_type is JobType.ADVANCE_RUN:
+        if payload.get("execution_profile") == "run-persistent-harness/v1":
+            from hypertest.application.persistent import advance_persistent_run
+            return await advance_persistent_run(session, job)
+        if get_settings().harness_mode == "bridge":
+            raise JobDispatchError("LEGACY_PROFILE_UNAVAILABLE",
+                "Legacy jobs cannot be converted to the persistent profile; start a new testing round", {})
         from hypertest.application.controller import advance_run
         checkpoint = job.result or {}
         if checkpoint.get("input_request_id"):
@@ -175,7 +181,17 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
                 from hypertest.application.inputs import pause_job_for_input
 
                 try:
-                    finished = await pause_job_for_input(session, job.id, lease_token, result=result)
+                    marker = result["_waiting_input"]
+                    if marker.get("scope") == "run":
+                        from uuid import UUID
+
+                        from hypertest.application.run_inputs import pause_run_for_input
+                        finished = await pause_run_for_input(session, UUID(marker["binding_id"]),
+                            marker["binding_epoch"], job_id=job.id, lease_token=lease_token,
+                            input_request=marker["request"],
+                            checkpoint={key: value for key, value in result.items() if key != "_waiting_input"})
+                    else:
+                        finished = await pause_job_for_input(session, job.id, lease_token, result=result)
                 except JobLeaseLost:
                     raise
                 except Exception as exc:
@@ -189,7 +205,7 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
                                             error_code=error_code, error_message=error_message,
                                             interrupted=interrupted)
             if finished.status not in {JobStatus.SUCCEEDED, JobStatus.WAITING_INPUT}:
-                await cleanup_job_resources(session, finished)
+                await cleanup_job_resources(session, finished, on_worker=True)
             return finished
     except JobLeaseLost:
         logger.warning("Job %s interrupted after ownership loss; lease recovery will preserve history", job.key)
@@ -218,6 +234,9 @@ async def run_worker(*, once: bool = False) -> None:
     for signum in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(signum, stop)
     logger.info("Worker %s ready", worker_id)
+    from hypertest.application.runtime_control import serve_runtime_control
+
+    control_task = asyncio.create_task(serve_runtime_control(AsyncSessionLocal, stopping))
     try:
         while not stopping.is_set():
             try:
@@ -251,6 +270,9 @@ async def run_worker(*, once: bool = False) -> None:
                 except TimeoutError:
                     pass
     finally:
+        stopping.set()
+        control_task.cancel()
+        await asyncio.gather(control_task, return_exceptions=True)
         # Mark this worker immediately unavailable, preserving historical liveness.
         from datetime import timedelta
 

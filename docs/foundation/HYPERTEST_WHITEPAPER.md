@@ -2,13 +2,13 @@
 
 **版本：v1.1**
 
-**部署与工作流决策：ADR-013 Accepted，目标能力尚未实现**
+**部署与工作流决策：ADR-013 Accepted，本分支已实现，生产迁移待验收**
 
 **定位：Agent-native Autonomous Testing Platform**
 
 **架构角色：Autonomous Testing Control Plane**
 
-[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义本文的部署与工作流目标。该决定已被接受，不代表当前代码、数据库、Provider 或远端部署已实现；实施差距与验收条件见 ADR。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。
+[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义本文的部署与工作流目标。本分支已实现持久 Run Binding、宿主 Bridge、九个领域工具和受控 GitLab 集成，并提供 additive migrations `0013_run_bindings` / `0014_harness_operations`。本地真实 Codex / Docker 成功链形成 `RELEASE_READY`；失败诊断链经 Web 显式恢复后提交负向报告；Mission / Run 两类问答在原 Job、原 Session、原 epoch 下消费回答并完成成功报告。具体证据与剩余条件见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`；未据此宣称生产迁移、真实 GitLab 提单或其他 Provider 验收完成。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。
 
 ---
 
@@ -283,7 +283,7 @@ HyperTest 与 Agent 不是简单 Prompt 调用，而是：
 
 HyperTest 定义 Mission 和验收标准；Agent 决定如何推理与完成工作。
 
-ADR-013 的目标是在一个 TestRun 的持续原生会话内串行处理多个有类型的 Mission / Attempt。Harness 自驱思考和调用领域工具；平台执行范围、依赖、预算、权限与产物验收，不为每个阶段建立新会话，不接管 Provider 的推理循环。当前 v0.3 的逐 Mission 最终结果调用和 bounded controller 是待迁移的实现基线。
+ADR-013 的目标是在一个 TestRun 的持续原生会话内串行处理多个有类型的 Mission / Attempt。Harness 自驱思考和调用领域工具；平台执行范围、依赖、预算、权限与产物验收，不为每个阶段建立新会话，不接管 Provider 的推理循环。v0.3 的逐 Mission 最终结果调用和 bounded controller 保留为历史兼容基线；本分支的新 profile 已实现上述持续会话路径，旧 Run 不被回填或重解释。
 
 ---
 
@@ -344,7 +344,7 @@ Canonical State
 
 HyperTest 应对 Agent 提供领域 MCP Server。读取工具包括 `get_requirement`、`get_risk`、`get_test_case`、`get_execution`、`get_evidence`、`get_coverage`；写工具采用 Proposal 语义，包括 `propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`、`request_execution`。
 
-持续会话目标还包括申请 / 完成有类型 Mission、提问、读取正式执行结果、请求 Gate、提交报告和请求 GitLab Issue。工具由平台验证并审计，按既定项目 / 责任人 / 权限策略执行外部操作；未知外部结果需要核对，不能盲目重复提单。这些运行中工具是 ADR-013 的待实现能力，不从当前最终结果通道或文档中的工具名推断已接入。
+持续会话目标还包括申请 / 完成有类型 Mission、提问、读取正式执行结果、请求 Gate、提交报告和请求 GitLab Issue。工具由平台验证并审计，按既定项目 / 责任人 / 权限策略执行外部操作；未知外部结果需要核对，不能盲目重复提单。本分支以九个固定工具实现这些能力：读取语义映射到分页 `get_state`，Proposal batch 经 `complete_mission` 提交，Gate 请求使用 `evaluate_gate`；完整名称和契约映射见 TMP §25.2。上述细粒度名称保留为领域语义，不代表另有同名端点。
 
 Agent 默认只能：
 
@@ -464,7 +464,7 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 
 平台通过 PostgreSQL 持久队列和容器化任务 Worker 托管测试任务，让用户关闭页面后工作仍可继续。Planner 对可接受动作提供确定性守卫；Provider 的循环、上下文压缩和工具选择由 Harness 负责。队列和绑定属于 Operational State，不拥有 Canonical Testing State。Worker 失联保留 Attempt / Execution 历史并显式中断，不自动重放外部执行。任务间可以并发，任务内保持单 Worker、单主会话、串行测试周期。
 
-以上是 ADR-013 目标。当前 v0.3 由平台 bounded controller 逐步选择 Mission 并收取阶段最终结果，尚未实现持续会话与运行中领域工具；文档更新本身不改变这一运行事实。
+以上是 ADR-013 的目标工作流，本分支已实现并取得本地真实成功、失败诊断及两类问答证据，范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。v0.3 的历史路径仍由平台 bounded controller 逐步选择 Mission 并收取阶段最终结果；它不被描述为持续会话验收，也不被新 profile 改写。
 
 ---
 
@@ -544,7 +544,7 @@ Report / Verdict
 
 MVP 建议只支持一个 Agent Harness（Codex）、API / Backend Functional Test、pytest、Docker / existing SIT，以及基础 Requirement / Risk / Case / Finding / Evidence / Verdict 模型。
 
-现有 MVP 能力与 ADR-013 目标须分别验收：容器任务 Worker、宿主 Bridge、整个 Run 一个持续会话、运行中领域工具与 GitLab 提单尚需实施；Claude Code / DeepSeek 等适配器也需各自的真实运行证据。
+现有 MVP 能力与 ADR-013 目标须分别验收：本分支已提供容器部署材料、宿主 Bridge、整个 Run 的持续会话、运行中领域工具与受控 GitLab 集成；生产容器迁移、数据与访问边界保全仍需部署验收，GitLab 实际提单仍需授权配置与真实服务证据。Claude Code / DeepSeek 等适配器也需各自的真实运行证据，不能由 Codex 结果代替。
 
 第一阶段不做复杂多 Agent Blackboard、自研 LLM Agent Loop、复杂 Workflow DSL、跨公司通用测试 Ontology、完全无人值守 Release。
 

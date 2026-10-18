@@ -1,0 +1,185 @@
+# Single Linux host. Generate/validate compose.env with ops/container/stack.py.
+# No source mounts, implicit image pulls/builds, automatic migrations or auth mounts.
+name: ${HYPERTEST_STACK_NAME:-hypertest-production}
+x-platform: &platform
+  pull_policy: never
+  restart: "no"
+  user: ${HYPERTEST_UID:-999}:${HYPERTEST_GID:-999}
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  env_file: ["${HYPERTEST_PLATFORM_ENV_FILE:?absolute platform env file required}"]
+  networks: [backend]
+  stop_grace_period: 45s
+  pids_limit: 256
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
+services:
+  postgres:
+    image: ${HYPERTEST_POSTGRES_IMAGE:?fixed postgres image ID required}
+    pull_policy: never
+    restart: "no"
+    env_file: ["${HYPERTEST_POSTGRES_ENV_FILE:?existing PostgreSQL env file required}"]
+    ports: ["127.0.0.1:${HYPERTEST_POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    mem_limit: 512m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+  migrate:
+    <<: *platform
+    image: ${HYPERTEST_API_IMAGE:?fixed API image ID required}
+    restart: "no"
+    profiles: [maintenance]
+    command: [alembic, upgrade, head]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    <<: *platform
+    image: ${HYPERTEST_API_IMAGE:?fixed API image ID required}
+    ports: ["127.0.0.1:${HYPERTEST_API_PORT:-8000}:8000"]
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_ARTIFACT_ROOT:?existing artifact path required}
+        target: ${HYPERTEST_ARTIFACT_ROOT}
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_WORKSPACE_ROOT:?existing workspace path required}
+        target: ${HYPERTEST_WORKSPACE_ROOT}
+        bind: {create_host_path: false}
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, /app/healthcheck.py, api]
+      interval: 10s
+      timeout: 8s
+      retries: 5
+    mem_limit: 384m
+
+  worker:
+    <<: *platform
+    image: ${HYPERTEST_WORKER_IMAGE:?fixed Worker image ID required}
+    environment:
+      HYPERTEST_HARNESS_MODE: bridge
+      HYPERTEST_BRIDGE_SOCKET: ${HYPERTEST_BRIDGE_SOCKET_DIR:?bridge socket directory required}/harness.sock
+      HYPERTEST_BRIDGE_EXECUTION_KEY_FILE: /run/secrets/bridge-execution.key
+      HYPERTEST_BRIDGE_MANAGEMENT_KEY_FILE: /run/secrets/bridge-management.key
+      HYPERTEST_BRIDGE_HOST_ID: ${HYPERTEST_BRIDGE_HOST_ID:?stable host identity required}
+    group_add: ["${HYPERTEST_DOCKER_GID:?host Docker socket group required}", "${HYPERTEST_BRIDGE_GID:?bridge socket group required}"]
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_ARTIFACT_ROOT}
+        target: ${HYPERTEST_ARTIFACT_ROOT}
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_WORKSPACE_ROOT}
+        target: ${HYPERTEST_WORKSPACE_ROOT}
+        bind: {create_host_path: false}
+      # Mount directories so socket replacement after a Bridge restart is visible.
+      - type: bind
+        source: ${HYPERTEST_BRIDGE_SOCKET_DIR}
+        target: ${HYPERTEST_BRIDGE_SOCKET_DIR}
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_BRIDGE_EXECUTION_KEY_FILE:?execution key path required}
+        target: /run/secrets/bridge-execution.key
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_BRIDGE_MANAGEMENT_KEY_FILE:?management key path required}
+        target: /run/secrets/bridge-management.key
+        read_only: true
+        bind: {create_host_path: false}
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, /app/healthcheck.py, worker]
+      interval: 10s
+      timeout: 8s
+      retries: 5
+    mem_limit: 512m
+
+  web:
+    image: ${HYPERTEST_WEB_IMAGE:?fixed Web image ID required}
+    pull_policy: never
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      HYPERTEST_API_ORIGIN: http://api:8000
+    ports: ["127.0.0.1:${HYPERTEST_WEB_PORT:-3000}:3000"]
+    networks: [backend]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 8s
+      retries: 5
+    mem_limit: 384m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+  nginx:
+    image: ${HYPERTEST_NGINX_IMAGE:?fixed nginx image ID required}
+    pull_policy: never
+    restart: "no"
+    # Host networking keeps the real peer and existing UFW INPUT / SSH policy.
+    # Never publish nginx ports using Docker DNAT.
+    network_mode: host
+    user: "101:101"
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [nginx]
+    command: [-g, "daemon off;"]
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_NGINX_CONFIG:?rendered nginx configuration required}
+        target: /etc/nginx/nginx.conf
+        read_only: true
+        bind: {create_host_path: false}
+    depends_on:
+      api: {condition: service_healthy}
+      web: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, 'if command -v wget >/dev/null; then exec wget -q -O /dev/null http://127.0.0.1:${HYPERTEST_INGRESS_PORT:-8080}/api/v1/health; else exec curl -fsS -o /dev/null http://127.0.0.1:${HYPERTEST_INGRESS_PORT:-8080}/api/v1/health; fi']
+      interval: 10s
+      timeout: 8s
+      retries: 5
+    mem_limit: 64m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+networks:
+  backend:
+    driver: bridge
+volumes:
+  postgres_data:
+    external: true
+    name: ${HYPERTEST_POSTGRES_VOLUME:?existing volume name required}

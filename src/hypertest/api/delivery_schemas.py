@@ -56,6 +56,7 @@ class GateRequest(BaseModel):
 
 
 class RunAdvance(BaseModel):
+    execution_profile: Literal["run-persistent-harness/v1"] | None = None
     workspace: str | None = Field(default=None, min_length=1)
     prepare_workspace: bool = False
     backend: Literal["docker", "local"] = "docker"

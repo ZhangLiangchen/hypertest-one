@@ -10,6 +10,7 @@ from hypertest.application.inputs import answer_input_request, get_input_request
 from hypertest.application.services import get_test_run
 from hypertest.db.session import get_db
 from hypertest.domain.inputs import MissionInputRequest
+from hypertest.domain.run_inputs import RunInputRequest
 
 router = APIRouter()
 
@@ -18,9 +19,13 @@ router = APIRouter()
 async def read_inputs(run_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
         await get_test_run(db, run_id)
-        return list(await db.scalars(select(MissionInputRequest).where(
+        mission_inputs = list(await db.scalars(select(MissionInputRequest).where(
             MissionInputRequest.test_run_id == run_id,
         ).order_by(MissionInputRequest.created_at, MissionInputRequest.id)))
+        run_inputs = list(await db.scalars(select(RunInputRequest).where(
+            RunInputRequest.test_run_id == run_id,
+        ).order_by(RunInputRequest.created_at, RunInputRequest.id)))
+        return sorted([*mission_inputs, *run_inputs], key=lambda request: (request.created_at, request.id))
     except RuntimeError as exc:
         raise _http_error(exc) from exc
 

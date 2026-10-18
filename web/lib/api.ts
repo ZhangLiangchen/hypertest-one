@@ -1,5 +1,5 @@
 import type {
-  BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
+  RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
 } from "@/lib/types";
@@ -30,6 +30,10 @@ export function errorText(error: unknown, locale: Locale): string {
     "controlled environment unavailable; build the configured profile on this host": "受控环境当前不可用。请在执行主机准备与所选配置匹配的可信镜像，再刷新环境可用性；当前草稿会保留。",
     "ASGI application module must be tracked in the pinned source": "ASGI 应用模块必须是固定源码中已跟踪的文件。请核对应用对象路径与提交 SHA。",
     "controlled environments require the Docker runner": "固定受控环境必须通过 Docker Runner 执行，不能改用本机进程。",
+    "report artifact unavailable or checksum mismatch": "报告文件不可用或完整性校验失败。请检查服务端产物存储后重试，不能将未校验内容当作已保存报告。",
+    "binding recovery state changed; refresh before trying again": "会话恢复状态已变化。请刷新当前状态后再操作，避免重复接管。",
+    "persistent or queued missions are controlled by their background task; use task controls": "此运行的阶段由后台任务统一控制。请在后台任务中操作，或检查持续会话状态。",
+    "persistent missions are controlled by their background task; use task controls": "此运行使用持续会话。请通过后台任务继续，避免单独启动新的阶段会话。",
     "project not found": "项目不存在，请返回项目列表刷新后重试。",
     "project key already exists": "项目标识已存在。请打开已有项目，或使用其他标识。",
     "cannot resolve repository revision; verify the branch/tag, configured Git access and network availability": "无法解析仓库版本。请检查分支或标签是否存在，以及主机上的 Git 访问授权和网络。",
@@ -157,3 +161,14 @@ export const createJob = (runId: string, payload: JobCreate) =>
 export const cancelJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}/cancel`, { method: "POST" });
 export const retryJob = (jobId: string, idempotencyKey: string) =>
   api<BackgroundJob>(`/jobs/${jobId}/retry`, { method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey }) });
+
+export const getRunHarness = (runId: string) => api<RunHarness>(`/test-runs/${runId}/harness`);
+export const getRunReports = (runId: string) => api<RunReport[]>(`/test-runs/${runId}/reports`);
+export const getRunReportContent = async (reportId: string) => {
+  const response = await fetch(`${API_PREFIX}/reports/${reportId}/content`);
+  if (!response.ok) throw await responseError(response, "The saved report is unavailable or failed integrity verification.");
+  return response.text();
+};
+export const recoverRunBinding = (binding: RunBinding) => api<unknown>(`/bindings/${binding.id}/recover`, {
+  method: "POST", body: JSON.stringify({ expected_epoch: binding.binding_epoch, expected_row_version: binding.row_version }),
+});

@@ -188,7 +188,16 @@ async def evaluate_gate(
     session: AsyncSession,
     run_id: UUID,
     finalize: bool = True,
+    harness_tool_call_id: UUID | None = None,
 ) -> Verdict:
+    def record_harness_observation(verdict: Verdict) -> None:
+        if harness_tool_call_id is not None:
+            # Correlation is operational and deliberately excluded from Gate hashes.
+            session.add(AuditEvent(project_id=run.project_id, test_run_id=run.id,
+                actor_type="SYSTEM", actor_ref="hypertest.worker", action="harness.gate_observed",
+                entity_type="HarnessOperation", entity_id=harness_tool_call_id,
+                after_state={"status": verdict.status.value, "verdict_id": str(verdict.id),
+                    "verdict_key": verdict.key, "decision": verdict.decision.value, "reason": verdict.reason}))
     # Keep the Run -> SourceSnapshot lock order used by canonical proposal commits.
     # A run lock alone cannot protect canonical state shared with other runs that
     # reference this same immutable source snapshot.
@@ -374,6 +383,7 @@ async def evaluate_gate(
         if finalize and run.current_verdict_id != existing.id:
             run.current_verdict_id = existing.id
             run.row_version += 1
+        record_harness_observation(existing)
         await session.commit()
         return existing
     sequence_no = (
@@ -408,6 +418,7 @@ async def evaluate_gate(
         session.add_all(
             VerdictFinding(verdict_id=verdict.id, finding_id=item.id) for item in findings
         )
+        record_harness_observation(verdict)
         if finalize:
             run.current_verdict_id = verdict.id
             run.row_version += 1

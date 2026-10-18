@@ -1,23 +1,24 @@
-FROM node:22-alpine AS deps
+ARG NODE_IMAGE=node:22-bookworm-slim
+FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
-FROM node:22-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG HYPERTEST_API_ORIGIN=http://api:8000
-ENV HYPERTEST_API_ORIGIN=$HYPERTEST_API_ORIGIN
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+ENV HYPERTEST_API_ORIGIN=$HYPERTEST_API_ORIGIN NEXT_TELEMETRY_DISABLED=1
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
 
-FROM node:22-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --from=builder --chown=node:node /app/next.config.mjs ./next.config.mjs
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/.next ./.next
+USER node
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3000"]

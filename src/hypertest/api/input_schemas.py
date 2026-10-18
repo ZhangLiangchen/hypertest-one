@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -12,8 +13,12 @@ class InputRequestRead(ORMModel):
     id: UUID
     key: str
     test_run_id: UUID
-    mission_id: UUID
-    attempt_id: UUID
+    scope: Literal["mission", "run"] = "mission"
+    mission_id: UUID | None = None
+    attempt_id: UUID | None = None
+    binding_id: UUID | None = None
+    context_mission_id: UUID | None = None
+    context_attempt_id: UUID | None = None
     agent_session_id: UUID
     durable_job_id: UUID
     question_id: str

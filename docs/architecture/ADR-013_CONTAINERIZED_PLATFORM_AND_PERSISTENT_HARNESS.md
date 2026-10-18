@@ -1,6 +1,6 @@
 # ADR-013：容器化平台与单任务持续 Harness 会话
 
-**Status:** Accepted（目标架构；尚未实现、迁移或部署）
+**Status:** Accepted；本分支已实现并进入验收，正式服务器尚未迁移（[实施与验收记录](../ADR013_ACCEPTANCE.md)）
 
 **Date:** 2026-10-19（Asia/Singapore；根据 2026-10-18 起的工作流讨论形成）
 
@@ -14,9 +14,9 @@
 
 HyperTest 应承载并治理这一工作方式，同时保留自身的 Canonical Testing State、可信 Runner、Verifier、Gate 和审计能力。平台不重新实现通用 Agent Loop，也不把整个测试活动拆成互不连续的 Provider 会话。
 
-当前实现基线仍是：systemd 管理 API / Web / Worker、Docker PostgreSQL；仓库的开发 Compose 使用 API reload，缺少生产任务 Worker 和 Host Harness Bridge。运行时由 bounded controller 逐阶段调度，每个新 Mission 创建会话，仅人工等待支持恢复原会话；完整运行中领域工具、GitLab 提单和其他 Provider 适配尚未交付。
+本 ADR 接受时的 v0.3 实现基线是：systemd 管理 API / Web / Worker、Docker PostgreSQL；仓库的开发 Compose 使用 API reload，缺少生产任务 Worker 和 Host Harness Bridge。运行时由 bounded controller 逐阶段调度，每个新 Mission 创建会话，仅人工等待支持恢复原会话；完整运行中领域工具、GitLab 提单和其他 Provider 适配尚未交付。
 
-本 ADR 接受未来目标，不把现有实现或旧验收记录改写为新能力已经通过。它替代四份基础文档中以下默认目标：混合宿主平台服务部署、每个 Mission 新会话、平台逐阶段调用短会话作为主流程。v0.3 行为继续作为迁移前基线保留。ADR-011 的持久队列与租约治理、ADR-012 的受控执行环境及既有历史保全要求继续有效。
+本 ADR 接受以下架构；后续实现和真实验收单独登记，不把旧验收记录改写为新能力已经通过。它替代四份基础文档中以下默认目标：混合宿主平台服务部署、每个 Mission 新会话、平台逐阶段调用短会话作为主流程。v0.3 行为继续作为迁移前基线保留。ADR-011 的持久队列与租约治理、ADR-012 的受控执行环境及既有历史保全要求继续有效。
 
 ## Decision
 
@@ -99,7 +99,7 @@ Harness 自行思考、选择工具并推进串行流程。平台保留 typed Mi
 
 新建会话、execute、resume 及其他启动新工作的操作需要当前有效的执行授权、Job claim 和绑定代际。查询旧调用、核验既有会话 / 工作区、中断和关闭另有受限的管理 / 恢复授权：由可信服务身份明确指定原绑定、Session、call 和历史代际，即使原执行租约已被取消或过期，也能对账和清理。管理授权不能启动新工作、换会话或提交 Canonical State，不能让旧 owner 重新取得执行权。
 
-TMP 目标为待实现的 `run-persistent-harness/v1` profile，预留 `hypertest.tmp/v1alpha2`；Bridge 预留 `hypertest.harness-bridge/v1alpha1`。现有 `hypertest.tmp/v1alpha1` 及最终结果调用语义继续作为当前实现记录。新 profile 需明确能力协商与版本校验，不能让现有 CLI / MCP 自动声称支持未实现工具。
+本分支实现 `run-persistent-harness/v1` profile，使用 `hypertest.tmp/v1alpha2` 和 Bridge `hypertest.harness-bridge/v1alpha1`。既有 `hypertest.tmp/v1alpha1` 及最终结果调用语义保留为 legacy profile；新 profile 执行明确的能力协商与版本校验，不让旧 CLI / MCP 自动声称支持新工具。具体 wire 工具与传输映射由 TMP 规定。
 
 运行中的领域工具承载读取状态、申请 / 完成有类型 Mission、提交 Proposal、请求 Runner、提问、请求 Gate、提交报告和请求 GitLab Issue。平台逐次验证并持久化，工具权限以任务和具体工作范围限定；完整契约由 TMP 拥有。
 
@@ -118,7 +118,7 @@ TMP 目标为待实现的 `run-persistent-harness/v1` profile，预留 `hypertes
 
 保留既有 Canonical 链、不可变 Snapshot / Policy / Mission / ExecutionSpec、Audit / Outbox、幂等与租约 fencing。一个 Run 至多一个活跃 Job 的规则继续有效；Attempt / Execution 的原 `durable_job_id` 不得更换。
 
-已存在的逐 Mission Session 记录仍按其原运行事实解释，不能合并成一个虚构主会话或伪造旧 Worker 绑定。新绑定、新能力字段和版本化协议需要后续显式迁移与实现，不在本次文档变更中创建表、回填数据或改动运行时。
+已存在的逐 Mission Session 记录仍按其原运行事实解释，不能合并成一个虚构主会话或伪造旧 Worker 绑定。本分支以显式 additive migrations `0013_run_bindings` / `0014_harness_operations` 实现新绑定与 Operational 记录，不为旧 Run 回填主会话或改写历史结果。
 
 生产迁移保留原 PostgreSQL 数据卷、Artifact Store、托管源码与暂停会话工作区、Provider 认证、SSH 与 VPN 访问。生产配置独立于开发 Compose；使用固定应用镜像和兼容的 API / Worker / Bridge 版本，一次性迁移任务、健康检查与显式启停次序。
 
@@ -140,7 +140,7 @@ Docker 端口发布会改变流量经过的防火墙链，不能直接把现有 
 - 平台复用原生 Harness 能力，减少对推理过程的重复实现；任务状态、正式事实和质量决策保持独立可审计。
 - 每项任务有连续上下文；暂停和恢复要求持久原生会话与受控工作副本，节点归属与旧调用隔离必须实现。
 - 多任务实例可统一运维，但并发受 Host Harness、Runner、数据库连接和主机容量共同约束；不能直接承诺随 Worker 数线性加速。
-- Bridge、运行中领域工具、镜像查询、取消清理、GitLab 集成与迁移验收增加实现工作；本 ADR 不把这些能力计为已完成。
+- Bridge、运行中领域工具、镜像查询、取消清理、GitLab 集成与迁移验收需要各自证据；实现、真实外部验收和正式切换分别记录。
 
 ## Specification ownership
 
@@ -153,18 +153,19 @@ Docker 端口发布会改变流量经过的防火墙链，不能直接把现有 
 
 基础文档之间的既有优先级继续有效；不得只在实现代码里默默改变本 ADR 的业务和信任边界。
 
-## Implementation gaps and acceptance
+## Implementation and acceptance
 
-以下为后续工作，本次仅完成 ADR 与规格同步：
+本分支实现的详细记录、真实 Run / Session / Report 身份、自动检查及边界见 [ADR-013 验收](../ADR013_ACCEPTANCE.md)：
 
-- [ ] 为新 profile 实现 RunExecutionBinding 与主会话持久化，保留旧行与旧 hash 语义。
-- [ ] 实现容器任务 Worker、宿主 Bridge、能力协商和经过过滤的 Provider 子进程环境，去除 CLI 对平台数据库凭据的继承。
-- [ ] 同一原生 Session 串行完成多个 typed Mission / Attempt，阶段结束不销毁任务工作副本；可恢复重试复用主会话。
-- [ ] 实现运行中领域工具和确定性 admission，API 不再依赖本地 CLI / 完整 Docker 权限；保留实际镜像冻结与取消资源清理。
-- [ ] 验证阶段内与阶段边界问题的持久化、同会话回答恢复、已完成阶段不被重开、容器 / Bridge 重启、旧租约拒绝、缺失会话显式失败、撤销执行授权后的受控取消清理和外部未知结果核对。
-- [ ] 验证一个 SUT 的不同 feat / MR SHA 可并发，单任务始终只有一个逻辑 Worker、主 Session 和有效执行所有者，任务目录与产物互不串用。
-- [ ] 实现 GitLab 项目 / 责任人 / 策略配置、关联去重与 Issue 回写；真实外部提单需具备该操作的实际授权。
-- [ ] 用真实 Harness → 可信 Runner → Evidence → Gate → 报告链分别验证成功、失败诊断和人工补充；模拟测试不替代真实验收，其他 Provider 分别验收。
-- [ ] 在独立环境验证生产 Compose、数据迁移、配对备份恢复、Docker / Nginx 网络边界及应用回滚，再按现有交付流程迁移正式服务。
+- [x] RunExecutionBinding 与主会话持久化、additive migration、旧行与旧 hash 保护。
+- [x] 容器任务 Worker、宿主 Bridge、能力协商和过滤后的 Provider 子进程环境；API 不持有 Docker / Bridge / CLI 权限。
+- [x] 同一原生 Session 串行完成 typed Mission / Attempt，保留任务副本；显式恢复复用原 Session 并隔离旧 epoch。
+- [x] 九个领域工具、确定性 admission、真实镜像冻结、Runner 与撤销授权后的取消清理。
+- [x] Mission / Run 问题持久化与同 Job / Session 回答恢复；真实 Web 回答与等待期间 Worker / Bridge 重启通过。过期租约、丢失会话、未知外部结果由专项 PostgreSQL / Bridge 回归覆盖。
+- [x] 同 Project 不同 SHA 真实并发，独立绑定 / Session / 副本，单任务只有一个有效执行所有者。
+- [x] GitLab 项目 / 责任人 / 策略配置、请求关联及未知结果只核对不盲目重建；受控 HTTP 回归通过。
+- [x] 真实 Codex → Docker Runner → Evidence → Gate → 报告的成功、失败诊断、人工补充链路通过。
+- [ ] GitLab 真实外部创建 / 指派验收（需实际配置与授权）；其他 Provider 分别实施与验收。
+- [ ] 正式服务切换及切换后网络来源复核。独立 Linux Compose、迁移、配对恢复与应用回滚演练的结果单独登记，不等同于此项完成。
 
-实现或部署就绪状态应另记于验收与[服务器操作交付](../SERVER_OPERATIONS.md)，不能由 ADR 的 Accepted 状态推断。
+部署就绪状态另记于验收与[服务器操作交付](../SERVER_OPERATIONS.md)，不能由 ADR 的 Accepted 状态推断。

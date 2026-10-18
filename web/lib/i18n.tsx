@@ -6,6 +6,7 @@ export type Locale = "zh" | "en";
 export const LOCALE_COOKIE = "hypertest_locale";
 
 const labels: Record<string, [string, string]> = {
+  RESERVED: ["Reserved", "已绑定待启动"], RECOVERY_REQUIRED: ["Recovery required", "需要恢复"],
   ACTIVE: ["Active", "启用"], ARCHIVED: ["Archived", "已归档"],
   CREATED: ["Created", "已创建"], READY: ["Ready", "就绪"],
   ANALYZING: ["Analyzing", "分析中"], DESIGNING: ["Designing", "设计中"],

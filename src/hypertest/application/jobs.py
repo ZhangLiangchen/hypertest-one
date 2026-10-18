@@ -58,6 +58,17 @@ class FencedAsyncSession(AsyncSession):
             # Canonical services use this aggregate lock too. Always acquire it
             # before the job lock so cancellation/recovery cannot deadlock them.
             await self.scalar(select(TestRun.id).where(TestRun.id == self.test_run_id).with_for_update())
+            from hypertest.domain.bindings import BindingStatus, RunExecutionBinding
+
+            binding = (await self.execute(select(
+                RunExecutionBinding.id, RunExecutionBinding.binding_epoch, RunExecutionBinding.status,
+            ).where(RunExecutionBinding.test_run_id == self.test_run_id).with_for_update())).one_or_none()
+            expected_id = getattr(self, "binding_id", None)
+            if expected_id is not None and (binding is None or binding[0] != expected_id
+                    or binding[1] != self.binding_epoch or binding[2] not in {
+                        BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT}):
+                await self.rollback()
+                raise JobLeaseLost("persistent run binding was revoked or recovered by another owner")
             row = (await self.execute(select(
                 DurableJob.status, DurableJob.lease_token, DurableJob.lease_expires_at,
             ).where(DurableJob.id == self.job_id).with_for_update())).one_or_none()
@@ -113,7 +124,10 @@ def _validate_payload(job_type: JobType, payload: dict[str, Any]) -> dict[str, A
     extras = set(payload) - set(model.model_fields)
     if extras:
         raise ConflictError("unsupported job payload fields: " + ", ".join(sorted(extras)))
-    return model.model_validate(payload).model_dump(mode="json")
+    result = model.model_validate(payload).model_dump(mode="json")
+    if result.get("execution_profile") is None:
+        result.pop("execution_profile", None)
+    return result
 
 
 async def submit_job(
@@ -143,6 +157,15 @@ async def submit_job(
         return existing
     if run.status is TestRunStatus.CANCELLED:
         raise ConflictError("cancelled test runs cannot accept work")
+    from hypertest.application.bindings import get_run_binding
+    from hypertest.domain.bindings import BindingStatus
+
+    binding = await get_run_binding(session, run_id, lock=True)
+    if binding is not None:
+        if job_type is not JobType.ADVANCE_RUN or payload.get("execution_profile") != "run-persistent-harness/v1":
+            raise ConflictError("persistent runs must continue through their original Harness profile")
+        if binding.status is not BindingStatus.ACTIVE:
+            raise ConflictError("run binding requires explicit recovery or a new testing round")
     if (job_type is JobType.EXECUTE_MISSION) != (mission_id is not None):
         raise ConflictError("EXECUTE_MISSION requires exactly one mission reference")
     if mission_id is not None:
@@ -195,14 +218,26 @@ async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: flo
         raise ValueError("worker identity and positive lease duration required")
     # Lock the aggregate before the queue row. Audit inserts reference TestRun,
     # so a Job-first claim can deadlock with Run-first cancellation via FK locks.
+    from sqlalchemy import or_
+
+    from hypertest.config import get_settings
+    from hypertest.domain.bindings import BindingStatus, RunExecutionBinding
+
     run = await session.scalar(select(TestRun).join(
         DurableJob, DurableJob.test_run_id == TestRun.id,
-    ).where(DurableJob.status == JobStatus.QUEUED)
+    ).outerjoin(RunExecutionBinding, RunExecutionBinding.test_run_id == TestRun.id)
+        .where(DurableJob.status == JobStatus.QUEUED,
+               or_(RunExecutionBinding.id.is_(None),
+                   (RunExecutionBinding.harness_host_id == get_settings().bridge_host_id)
+                   & RunExecutionBinding.status.in_([BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT])))
         .order_by(DurableJob.created_at, DurableJob.id)
         .with_for_update(of=TestRun, skip_locked=True).limit(1))
     if run is None:
         await session.rollback()
         return None
+    from hypertest.application.bindings import get_run_binding
+
+    await get_run_binding(session, run.id, lock=True)
     job = await session.scalar(select(DurableJob).where(
         DurableJob.test_run_id == run.id, DurableJob.status == JobStatus.QUEUED,
     ).with_for_update(skip_locked=True).limit(1))
@@ -243,13 +278,32 @@ async def _lock_job(session: AsyncSession, job_id: UUID) -> DurableJob:
     if run_id is None:
         raise NotFoundError("job not found")
     await session.scalar(select(TestRun).where(TestRun.id == run_id).with_for_update().execution_options(populate_existing=True))
+    from hypertest.application.bindings import get_run_binding
+
+    await get_run_binding(session, run_id, lock=True)
     return await session.scalar(select(DurableJob).where(DurableJob.id == job_id)
                                 .with_for_update().execution_options(populate_existing=True))
 
 
 async def _recover_work(session: AsyncSession, job: DurableJob, *, cancelled: bool, error_code: str, message: str) -> None:
     now = await _now(session)
+    from hypertest.application.bindings import (
+        get_run_binding,
+        terminate_run_binding,
+        transition_binding,
+    )
     from hypertest.application.lifecycle import record_mission_event
+    from hypertest.domain.bindings import TERMINAL_BINDING_STATUSES, BindingStatus
+
+    binding = await get_run_binding(session, job.test_run_id, lock=True)
+    if binding is not None and binding.status not in TERMINAL_BINDING_STATUSES:
+        bound_run = await session.get(TestRun, job.test_run_id)
+        if bound_run.status is TestRunStatus.CANCELLED:
+            await terminate_run_binding(session, binding.id, status=BindingStatus.CANCELLED,
+                                        reason="run_cancelled")
+        else:
+            await transition_binding(session, binding, BindingStatus.RECOVERY_REQUIRED,
+                                     reason=error_code)
 
     # Explicit ownership survives process/DB clock skew and never guesses which
     # legacy synchronous operation happened to overlap this job.
@@ -283,7 +337,7 @@ async def _recover_work(session: AsyncSession, job: DurableJob, *, cancelled: bo
             attempt.error_code, attempt.error_message, attempt.finished_at = error_code, message, now
             if attempt.agent_session_id:
                 agent = await session.get(AgentSessionRecord, attempt.agent_session_id)
-                if agent is not None:
+                if agent is not None and (binding is None or agent.id != binding.primary_agent_session_id):
                     agent.status = AgentSessionStatus.CLOSED if cancelled else AgentSessionStatus.FAILED
                     agent.closed_at = agent.last_active_at = now
             await record_mission_event(
@@ -370,6 +424,17 @@ async def finish_job(session: AsyncSession, job_id: UUID, lease_token: UUID, *, 
         await _recover_work(session, job, cancelled=False, error_code=error_code, message=error_message)
     else:
         target = JobStatus.SUCCEEDED
+        from hypertest.application.bindings import get_run_binding, terminate_run_binding
+        from hypertest.domain.bindings import BindingStatus
+        from hypertest.domain.harness import RunReport
+
+        binding = await get_run_binding(session, job.test_run_id, lock=True)
+        if binding is not None and job.job_type is JobType.ADVANCE_RUN:
+            report = await session.get(RunReport, UUID((result or {}).get("report_id", "")))
+            if report is None or report.binding_id != binding.id or report.durable_job_id != job.id:
+                raise ConflictError("persistent job completion requires its accepted report")
+            await terminate_run_binding(session, binding.id, status=BindingStatus.CLOSED,
+                                        reason="report_accepted_native_call_closed")
     # Set the complete terminal record together after any recovery queries;
     # the DB intentionally refuses a second update of terminal history.
     # Controlled dispatcher failures may carry committed steps/identities so the
@@ -416,11 +481,17 @@ async def recover_expired_jobs(session: AsyncSession) -> list[DurableJob]:
         recovered.append(job)
     # No aggregate/job row locks are held while calling the Docker API.
     for job in recovered:
-        await cleanup_job_resources(session, job)
+        await cleanup_job_resources(session, job, on_worker=True)
     return recovered
 
 
-async def cleanup_job_resources(session: AsyncSession, job: DurableJob) -> dict[str, Any]:
+async def cleanup_job_resources(session: AsyncSession, job: DurableJob, *, on_worker: bool = False) -> dict[str, Any]:
+    from hypertest.config import get_settings
+
+    if get_settings().execution_mode == "queued" and not on_worker:
+        from hypertest.application.runtime_control import request_control
+
+        return await request_control(session, "CLEANUP_JOB", {"job_id": str(job.id)}, wait=False)
     from hypertest.agent.snapshot import cleanup_managed_agent_workspace
     from hypertest.runner.backends import cleanup_docker_job_resources
 
@@ -431,6 +502,9 @@ async def cleanup_job_resources(session: AsyncSession, job: DurableJob) -> dict[
     # Release all read/FK locks before filesystem or Docker I/O.
     await session.commit()
     cleanup = await cleanup_docker_job_resources(job.id)
+    from hypertest.application.persistent import cleanup_bound_call
+
+    cleanup.update(await cleanup_bound_call(session, job))
     removed, failures = 0, 0
     for workspace in set(workspaces):
         try:

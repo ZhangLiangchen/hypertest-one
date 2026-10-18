@@ -8,10 +8,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hypertest.application.bindings import assert_binding_claim, get_run_binding, transition_binding
 from hypertest.application.jobs import JobLeaseLost, _event, _lock_job, _now, finish_job
 from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.services import ConflictError, NotFoundError
 from hypertest.common.ids import public_key, uuid7
+from hypertest.domain.bindings import BindingStatus
 from hypertest.domain.enums import (
     AgentSessionStatus,
     MissionAttemptStatus,
@@ -28,6 +30,7 @@ from hypertest.domain.models import (
     OutboxEvent,
     TestRun,
 )
+from hypertest.domain.run_inputs import RunInputRequest
 from hypertest.protocol import HumanInputRequest
 
 
@@ -46,10 +49,12 @@ async def _input_event(session: AsyncSession, request: MissionInputRequest, acti
     ])
 
 
-async def get_input_request(session: AsyncSession, request_id: UUID) -> MissionInputRequest:
+async def get_input_request(session: AsyncSession, request_id: UUID) -> MissionInputRequest | RunInputRequest:
     request = await session.get(MissionInputRequest, request_id)
     if request is None:
-        raise NotFoundError("input request not found")
+        request = await session.get(RunInputRequest, request_id)
+        if request is None:
+            raise NotFoundError("input request not found")
     return request
 
 
@@ -69,6 +74,12 @@ async def pause_job_for_input(
         raise ConflictError("this operation cannot request human input")
     owned_expiry = job.lease_expires_at
     marker = result["_waiting_input"]
+    binding = await get_run_binding(session, job.test_run_id)
+    if binding is not None:
+        if marker.get("binding_id") != str(binding.id) or marker.get("binding_epoch") != binding.binding_epoch:
+            raise JobLeaseLost("waiting marker belongs to a stale run binding")
+        await assert_binding_claim(session, binding.id, binding.binding_epoch, job_id=job.id,
+                                   lease_token=lease_token, allowed_statuses=(BindingStatus.ACTIVE,))
     question = HumanInputRequest.model_validate(marker["request"])
     mission = await session.scalar(select(Mission).where(Mission.id == UUID(marker["mission_id"])).with_for_update())
     attempt = await session.get(MissionAttempt, UUID(marker["attempt_id"]))
@@ -84,6 +95,12 @@ async def pause_job_for_input(
         raise ConflictError("provider did not supply a resumable session reference")
     if marker.get("workspace_id") != agent.workspace_id:
         raise ConflictError("waiting workspace identity changed")
+    if binding is not None and (agent.id != binding.primary_agent_session_id
+                               or (agent.provider_session_id is not None and agent.provider_session_id != reference)):
+        raise ConflictError("waiting input must retain its persistent primary session")
+    from hypertest.application.run_inputs import assert_no_open_run_input
+
+    await assert_no_open_run_input(session, job.test_run_id)
     request = MissionInputRequest(
         id=uuid7(), key=public_key("Q"), test_run_id=job.test_run_id, mission_id=mission.id,
         attempt_id=attempt.id, agent_session_id=agent.id, durable_job_id=job.id,
@@ -96,6 +113,8 @@ async def pause_job_for_input(
     agent.status = AgentSessionStatus.WAITING_INPUT
     agent.provider_session_id = reference
     agent.last_active_at = now
+    if binding is not None:
+        await transition_binding(session, binding, BindingStatus.WAITING_INPUT, reason="mission_input_requested")
     attempt.provider_metadata = {**(attempt.provider_metadata or {}), **marker.get("provider_metadata", {})}
     job.result = {key: value for key, value in result.items() if key != "_waiting_input"}
     job.result = {**job.result, "reason": "WAITING_INPUT", "mission_id": str(mission.id), "input_request_id": str(request.id)}
@@ -120,12 +139,17 @@ async def pause_job_for_input(
 
 async def answer_input_request(
     session: AsyncSession, request_id: UUID, *, answer: str, expected_row_version: int, idempotency_key: str,
-) -> tuple[MissionInputRequest, DurableJob]:
+) -> tuple[MissionInputRequest | RunInputRequest, DurableJob]:
     if not answer.strip() or len(answer) > 12000 or "\x00" in answer:
         raise ConflictError("answer must contain 1–12000 characters and no NUL")
     if not idempotency_key.strip() or len(idempotency_key) > 512:
         raise ConflictError("answer requires an idempotency key of 1–512 characters")
     request = await get_input_request(session, request_id)
+    if isinstance(request, RunInputRequest):
+        from hypertest.application.run_inputs import answer_run_input_request
+
+        return await answer_run_input_request(session, request_id, answer=answer,
+                                             expected_row_version=expected_row_version, idempotency_key=idempotency_key)
     job = await _lock_job(session, request.durable_job_id)
     mission = await session.scalar(select(Mission).where(Mission.id == request.mission_id).with_for_update())
     await session.refresh(request, with_for_update=True)
@@ -136,9 +160,12 @@ async def answer_input_request(
             return request, job
         raise ConflictError("this question already has an immutable answer")
     run = await session.get(TestRun, request.test_run_id)
+    binding = await get_run_binding(session, request.test_run_id)
     if (request.status is not InputRequestStatus.PENDING or request.row_version != expected_row_version
             or run.status is TestRunStatus.CANCELLED or job.status is not JobStatus.WAITING_INPUT
-            or mission.status is not MissionStatus.WAITING_INPUT):
+            or mission.status is not MissionStatus.WAITING_INPUT
+            or (binding is not None and (binding.status is not BindingStatus.WAITING_INPUT
+                                        or request.agent_session_id != binding.primary_agent_session_id))):
         raise ConflictError("question is no longer awaiting this answer; refresh its current state")
     now = await _now(session)
     request.answer, request.answer_idempotency_key = answer, idempotency_key
@@ -164,3 +191,6 @@ async def cancel_open_inputs(session: AsyncSession, job: DurableJob) -> None:
         request.cancelled_at = now
         request.row_version += 1
         await _input_event(session, request, "input.cancelled")
+    from hypertest.application.run_inputs import cancel_run_input_requests
+
+    await cancel_run_input_requests(session, job)

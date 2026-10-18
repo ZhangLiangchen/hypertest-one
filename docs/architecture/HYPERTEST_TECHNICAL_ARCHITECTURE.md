@@ -8,7 +8,7 @@
 
 **Architecture Role:** Autonomous Testing Control Plane
 
-v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。本文的 v0.4 目标规则已接受，但不表示容器化迁移、Host Harness Bridge、持续会话和 GitLab 集成已经实现或部署。标注“当前 v0.3”的段落记录既有实现；部署现状以 [服务器运维文档](../SERVER_OPERATIONS.md) 与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
+v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。本分支已实现 Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成，新增 `0013_run_bindings` / `0014_harness_operations`；本地真实成功、失败诊断和两类问答证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`，生产迁移、真实 GitLab 提单和其他 Provider 验收未因此完成。标注“当前 v0.3”的段落记录既有兼容路径；部署现状以 [服务器运维文档](../SERVER_OPERATIONS.md) 与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
 
 ---
 
@@ -254,13 +254,13 @@ v0.4 的 Planner 是确定性的依赖、准入与覆盖守卫，不是驱动模
 
 WAITING_INPUT 原子持久化问题和等待状态，释放运行 lease、CPU 和 Provider 调用名额，保留逻辑绑定、原生会话与宿主亲和性。用户回答后恢复原会话；阶段内等待还恢复原 Mission / Attempt。物理 Worker 容器或 PID 可以在显式恢复后变化，但必须 fencing 掉旧持有者并继续同一绑定与工作区；不能由任意空闲 Worker 静默换会话接管。租约失效或未知外部结果仍显式中断，不承诺 exactly-once，也不自动重放正式执行或 GitLab 副作用。
 
-阶段内问题沿用 `MissionInputRequest`；阶段边界或 GitLab 策略决策处没有非终态 Mission / Attempt 时，使用目标 Operational `RunInputRequest`，不重开已经完成的阶段。两种问答都暂停同一 Job / Session / Run 绑定，回答重新排队原 Job，并在原绑定下继续。字段与互斥约束以领域模型为准。
+阶段内问题沿用 `MissionInputRequest`；阶段边界或 GitLab 策略决策处没有非终态 Mission / Attempt 时，使用 Operational `RunInputRequest`，不重开已经完成的阶段。两种问答都暂停同一 Job / Session / Run 绑定，回答重新排队原 Job，并在原绑定下继续。字段与互斥约束以领域模型为准。
 
 多个 Run 可各自绑定逻辑 Worker 并发推进；同一 Project 不需要全局串行。调度分别限制活跃 Run、宿主 Harness 调用和 Runner 执行数量，避免把 Worker 副本数误认为可安全运行的模型或测试并发数。
 
 ### 14.2 当前 v0.3 deterministic controller
 
-以下为既有 bounded controller 的实现记录，供迁移与历史兼容使用；它尚未实现 §14.1 的持续会话、自驱域工具与绑定调度：
+以下为既有 bounded controller 的实现记录，供迁移与历史兼容使用；此旧路径不提供 §14.1 的持续会话、自驱域工具与绑定调度，本分支通过独立 persistent profile 实现这些能力：
 
 ```text
 无 ACTIVE Requirement → ANALYZE_REQUIREMENTS
@@ -329,7 +329,7 @@ restore_session 使用已持久化的 Gateway handle、真实 Provider thread �
 
 ### 16.1 Host Harness Bridge 边界（v0.4 目标）
 
-单台 Linux 宿主机首先使用受限 Unix domain socket，把 socket 的专用目录挂载给授权 Task Worker；按专用服务 UID/GID 和文件权限控制访问，不向 Web、API 或测试容器挂载。Bridge 校验调用方身份、Run 绑定、执行性调用的有效 epoch / lease、Mission / Attempt 范围和允许操作，串行处理同一 Run 的会话调用。协议使用预留的 `hypertest.harness-bridge/v1alpha1`；这是待实现契约，不是已存在的端点。
+单台 Linux 宿主机首先使用受限 Unix domain socket，把 socket 的专用目录挂载给授权 Task Worker；按专用服务 UID/GID 和文件权限控制访问，不向 Web、API 或测试容器挂载。Bridge 校验调用方身份、Run 绑定、执行性调用的有效 epoch / lease，Worker 进一步校验当前 Mission / Attempt 范围和领域准入，串行处理同一 Run 的会话调用。本分支已实现 `hypertest.harness-bridge/v1alpha1`；实际操作、签名上下文、续约与管理授权见 [Host Harness Bridge](../HARNESS_BRIDGE.md)，生产启用单独验收。
 
 执行授权与管理/恢复授权分开：create / execute / resume 及领域写调用必须匹配当前有效绑定、epoch 和 Job claim；原 claim 撤销后，可信管理组件仍可用限范围管理授权查询、对账、interrupt / close 和清理明确的历史 binding / Session / call。该授权可以指向原调用的历史 epoch，但不能启动新执行、创建替代会话、提交 Canonical 事实或绕过显式恢复。不能以“旧 claim 无效”阻止取消清理，也不能把管理授权变成新的执行 owner。
 
@@ -414,7 +414,7 @@ Workspace 需要区分固定源码、可写的生成/临时目录和已接受 Ar
 
 单宿主机中，Worker 和宿主 Bridge 通过专用持久目录共享必要 Workspace，并保持可验证的绝对路径映射、UID/GID 和读写权限；它不包含 Provider OAuth、API key 或完整原生配置目录。Provider 认证与原生会话目录仅由宿主服务访问，既不挂给平台容器，也不进入 Runner。API 与 Task Worker 的 Canonical Artifact Store 暂时必须使用同一持久根目录和相同绝对路径，保留已有 URI；后续改成对象存储必须先做显式 URI/读取兼容迁移。
 
-以下为当前 v0.3 Workspace 实现记录；当前按 Mission 创建/结束 Agent 副本的生命周期不满足持续 Run Workspace 目标，须单独迁移：
+以下为当前 v0.3 Workspace 实现记录；该旧路径按 Mission 创建/结束 Agent 副本，不满足持续 Run Workspace 目标。本分支 persistent profile 另以稳定 Binding 保留并核验原副本，不修改旧生命周期历史：
 
 当前 Web 可通过同一 `ADVANCE_RUN` 的自动准备选项，或独立 prepare-workspace 操作，为 GitHub HTTPS 源准备/复用 managed pinned checkout，使用既有 Git proxy/auth，不重置 Operator checkout；其他 Host 使用明确的既有 workspace。准备阶段不得跨 Git 网络或文件 I/O 持有 Run / Job 行锁，进入后续领域工作前重新验证归属。
 
@@ -428,19 +428,19 @@ Workspace 需要区分固定源码、可写的生成/临时目录和已接受 Ar
 
 ## 21. HyperTest MCP
 
-领域 MCP / typed domain tools 是 v0.4 自驱工作流的工具契约，以 TMP 预留的 `hypertest.tmp/v1alpha2` 与 `run-persistent-harness/v1` profile 为准；它们尚未实现，不能按现有 `v1alpha1` 消息直接改变语义。Harness 使用 `request_mission` / `complete_mission` 顺序推进阶段，使用 Proposal 工具提交领域产物，使用 `request_execution` 申请可信 Runner，读取正式事实继续诊断，最后通过 `request_gate` 和 `submit_report` 请求判定并提交报告。平台保留工具准入、Schema/Policy/关系校验、事务提交及审计；不在工具实现中重建通用 Agent Loop。报告不引入新的 Mission Type，也不替代 Canonical State 或 Verdict。
+领域 MCP / typed domain tools 是 v0.4 自驱工作流的工具契约，本分支已在 `hypertest.tmp/v1alpha2` 与 `run-persistent-harness/v1` profile 实现，不能按现有 `v1alpha1` 消息直接改变语义。Harness 使用 `request_mission` / `complete_mission` 顺序推进阶段并提交 Proposal batch，使用 `request_execution` 申请可信 Runner，通过 `get_state` 读取正式事实继续诊断，最后通过 `evaluate_gate` 和 `submit_report` 请求判定并提交报告。平台保留工具准入、Schema/Policy/关系校验、事务提交及审计；不在工具实现中重建通用 Agent Loop。报告不引入新的 Mission Type，也不替代 Canonical State 或 Verdict。
 
 当前 v0.3 使用预先物化的 Mission Context、结构化最终 Proposal 结果及独立 WAITING_INPUT 控制结果；尚未提供完整 MCP 域工具或 Mission Token 工具授权，不能由协议定义或状态枚举推断这些功能已实现。WAITING_INPUT 的持久问题、Web 回答与原会话 resume 不依赖完整 MCP，具体契约见 TMP §29、领域模型 §23.2；真实模型验收按实际版本单独登记。
 
-当前阶段内等待时，同一 DurableJob 保持非终态但释放 Worker lease，继续保留 per-Run 操作独占。Worker 原子提交 Question、Mission / Session WAITING_INPUT 与 Job WAITING_INPUT；回答通过 row_version 和 idempotency_key 防并发覆盖，在原 Job 上重新排队。新 lease 的 Worker 消费已回答问题、同事务记录 Audit / Outbox 后恢复同一 Attempt / Session，不重复启动已完成步骤，也不覆盖取消或失败历史。v0.4 还必须保留并检查原逻辑绑定和宿主亲和性，而不是因 lease 释放就重新选择会话。v0.4 的阶段边界问题使用领域模型规划的 `RunInputRequest` / `run_input_requests`，暂停同一 Job / Session / Binding，不依赖或重开已完成的 Mission / Attempt；回答后继续原会话，由下一阶段准入建立后续工作。回答仅作为补充上下文，原 PRD、Snapshot、Policy、spec / spec_hash 与 Canonical 接受规则不变。Provider 会话丢失时明确失败，显式重试仍保留旧记录；direct 无持久 Job 的等待请求不能留下不可恢复的暂停状态。
+当前阶段内等待时，同一 DurableJob 保持非终态但释放 Worker lease，继续保留 per-Run 操作独占。Worker 原子提交 Question、Mission / Session WAITING_INPUT 与 Job WAITING_INPUT；回答通过 row_version 和 idempotency_key 防并发覆盖，在原 Job 上重新排队。新 lease 的 Worker 消费已回答问题、同事务记录 Audit / Outbox 后恢复同一 Attempt / Session，不重复启动已完成步骤，也不覆盖取消或失败历史。v0.4 还必须保留并检查原逻辑绑定和宿主亲和性，而不是因 lease 释放就重新选择会话。v0.4 的阶段边界问题使用本分支已实现的 `RunInputRequest` / `run_input_requests`，暂停同一 Job / Session / Binding，不依赖或重开已完成的 Mission / Attempt；回答后继续原会话，由下一阶段准入建立后续工作。回答仅作为补充上下文，原 PRD、Snapshot、Policy、spec / spec_hash 与 Canonical 接受规则不变。Provider 会话丢失时明确失败，显式重试仍保留旧记录；direct 无持久 Job 的等待请求不能留下不可恢复的暂停状态。
 
-Read Tools：`get_mission`、`get_requirement`、`get_risk`、`get_test_case`、`get_coverage`、`get_execution`、`get_evidence`、`get_finding`。
+Read Tools 目标语义：`get_mission`、`get_requirement`、`get_risk`、`get_test_case`、`get_coverage`、`get_execution`、`get_evidence`、`get_finding`。本分支统一通过分页 `get_state` 的受控资源读取，不提供这些同名别名端点。
 
-Proposal Tools：`propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`。
+Proposal Tools 目标语义：`propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`。本分支通过当前 Attempt 的 `complete_mission` batch 交由既有 Verifier 原子接受 / 拒绝。
 
 Execution Tool：`request_execution`。
 
-Interaction / completion tools（v0.4 目标）：`ask_user`、`request_gate`、`submit_report`、`request_gitlab_issue`。关键产品歧义和需要用户决策的分支通过 `ask_user` 进入持久 WAITING_INPUT；回答后继续原会话。对开发的缺陷协作通过受控 GitLab 集成：只允许已配置的 Project、责任人映射与提单策略，必须关联已接受 Finding / 可信 Evidence、精确 SHA 和 Run；先执行去重/幂等校验，外部写入结果与 Issue 引用进入审计。GitLab 凭据仅由可信集成持有，不传给 Agent。Issue 创建不自动确认 Finding、不替代修复验证或改变 Gate 结论，未知外部结果先查询/核对，不自动重复提单。该集成尚未实现。
+Interaction / completion tools（本分支）：`ask_user`、`evaluate_gate`、`submit_report`、`request_gitlab_issue`、`get_issue`；其中 `evaluate_gate` 实现目标 `request_gate` 语义。关键产品歧义和需要用户决策的分支通过 `ask_user` 进入持久 WAITING_INPUT；回答后继续原会话。对开发的缺陷协作通过受控 GitLab 集成：只允许已配置的 Project、责任人映射与提单策略，必须关联已接受 Finding / 可信 Evidence、精确 SHA 和 Run；先执行去重/幂等校验，外部写入结果与 Issue 引用进入审计。GitLab 凭据仅由可信集成持有，不传给 Agent。Issue 创建不自动确认 Finding、不替代修复验证或改变 Gate 结论，未知外部结果先查询/核对，不自动重复提单。该受控集成已有实现及注入 HTTP transport 的数据库回归，尚未向真实 GitLab 提单验收。九工具名称、分页与权限映射见 TMP §25.2。
 
 Agent 默认只能：
 
@@ -703,16 +703,18 @@ Kubernetes 可以在有需求时承载平台或 Runner，而宿主 Harness 仍�
 
 当前 v0.3 已有 CodexAdapter、Python/pytest、DockerRunner、受控 ASGI profile，以及 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding / Verdict 闭环。其目标仍是验证 Testing Semantic Chain，而非仅验证 Agent 能生成测试。
 
-以下为本次 ADR 相对现有实现的差距，不是已完成能力：
+以下区分生产基线、本分支实现与仍需独立验收的边界：
 
-| 领域 | 当前实现 / 已有运维记录 | v0.4 接受目标，待实现验收 |
+| 领域 | 生产基线 / 历史兼容路径 | 本分支实现与验收边界 |
 |---|---|---|
-| 平台部署 | 运维记录为宿主 Nginx 与 systemd Web/API/Worker + Docker PostgreSQL，现有 Compose 是开发配置 | Nginx/Web/API/Task Worker/PostgreSQL 的生产容器部署 |
-| Harness 调用 | Worker 直接运行 Codex CLI | 宿主 Bridge + 受限 UDS，Provider 认证与原生会话留在宿主 |
-| 调度与会话 | PostgreSQL Job；逐 Mission 创建/关闭 Session；bounded controller 推进 | RunExecutionBinding + 单持续主 Session，Harness 自驱串行周期 |
-| 人工交互 | 阶段内持久 WAITING_INPUT、Web 回答和原 Attempt/Session resume | 保留逻辑绑定/宿主亲和性，支持 RunInputRequest 阶段边界提问、显式进程恢复和 fencing |
-| 运行工具 | Mission Context + 结构化最终结果，完整域工具未提供 | TMP 持续会话 profile、域工具准入/验证、请求执行与 Gate、报告 |
-| Provider / 协作 | 默认 Codex；无完整多 Harness 协商和 GitLab 提单集成 | 逐个验证 Claude Code / DeepSeek Adapter；配置化 GitLab 项目/责任人、去重与审计 |
+| 平台部署 | `0a2af9c` / `0012`，宿主 Nginx 与 systemd Web/API/Worker + Docker PostgreSQL | 已提供生产 Compose 与 Bridge systemd 材料；生产迁移、数据 / 认证 / SSH / VPN 保全另行验收 |
+| Harness 调用 | Worker 直接运行 Codex CLI | 已实现宿主 Bridge + 受限 UDS，认证与原生会话留宿主；本地真实 Codex 已运行 |
+| 调度与会话 | PostgreSQL Job；逐 Mission 创建/关闭 Session；bounded controller 推进 | `0013` / `0014` 支撑稳定 Binding、主 Session 与运行账本；本地真实成功链及失败诊断后 Web 显式恢复已完成报告 |
+| 人工交互 | 阶段内持久 WAITING_INPUT、Web 回答和原 Attempt/Session resume | Mission / Run 两类问答已实现并真实消费回答，原 Job / Session / epoch 保持，最终形成 `RELEASE_READY` 报告 |
+| 运行工具 | Mission Context + 结构化最终结果，无完整域工具 | 已实现 v1alpha2 profile 九工具、分页读取、准入 / 验证、正式执行与 Gate、报告及 Run 总活跃时间预算 |
+| Provider / 协作 | 默认 Codex；无完整多 Harness 协商和 GitLab 提单集成 | Codex 能力探测已实现；受控 GitLab 配置、去重与未知结果对账已有回归，真实提单与其他 Provider 尚待验收 |
+
+各项真实证据和未完成条件见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。
 
 v0.4 验收至少覆盖：同一 Project 的两个独立 Run 并发；单 Run 全周期只有一个逻辑 Worker 绑定和一个真实原生 Session；跨多个 Mission 的上下文保持；人工等待释放运行资源后原会话恢复；物理 Worker 显式恢复时拒绝旧 epoch/lease；会话/Workspace 丢失不静默替换；可信执行、Evidence 验证与 Gate 判定；Issue 幂等与取消；迁移前后数据/Artifacts/认证/SSH/VPN 保全。fake Harness 或文档检查只能验证契约，不能代替真实 Provider、生产拓扑和多任务验收。
 
@@ -749,7 +751,7 @@ TestRun（feat/MR 的精确 SHA + 冻结输入/Policy + 一次测试轮次）
   │      ↕ typed domain tools / Mission admission / WAITING_INPUT
   ├─ Proposal → Verifier → Canonical State
   ├─ request_execution → 可信 Runner → Verified Evidence
-  └─ request_gate → Gate → Verdict
+  └─ evaluate_gate（request_gate 语义）→ Gate → Verdict
 
 多个独立 TestRun 可并发；同一 Run 不派生并行平台 Worker。
 ```

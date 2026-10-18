@@ -1,0 +1,12 @@
+# Optional controlled GitLab integration. Never mount this directory into
+# API/Web/Bridge or pass tokens through their environment.
+services:
+  worker:
+    environment:
+      HYPERTEST_GITLAB_POLICY_FILE: /run/hypertest-gitlab/policy.json
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_GITLAB_POLICY_DIR:?absolute protected policy directory required}
+        target: /run/hypertest-gitlab
+        read_only: true
+        bind: {create_host_path: false}

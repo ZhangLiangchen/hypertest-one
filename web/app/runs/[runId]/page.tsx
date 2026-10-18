@@ -28,6 +28,7 @@ import type { Mission, Requirement, Risk, TestCase } from "@/lib/types";
 
 import { useRunOperations } from "./use-run-operations";
 import { RunInputs } from "./run-inputs";
+import { RunHarness } from "./run-harness";
 
 function statusColor(status: string) {
   if (["COMPLETED", "ACCEPTED", "ACTIVE", "OPEN"].includes(status)) return "green";
@@ -268,7 +269,7 @@ export default function RunPage() {
             <details className="secondary-actions">
               <summary>{t("More actions", "更多操作")}</summary>
               <div className="secondary-action-list">
-                <Button icon={<PlayCircleOutlined aria-hidden />} loading={planner.isPending} disabled={operations.busy} onClick={() => planner.mutate()}>{t("Plan next mission", "规划下一任务")}</Button>
+                {operations.manualMissionControl && <Button icon={<PlayCircleOutlined aria-hidden />} loading={planner.isPending} disabled={operations.busy} onClick={() => planner.mutate()}>{t("Plan next mission", "规划下一任务")}</Button>}
                 {operations.secondaryActions}
                 <RunInputs sourceId={run.data.source_snapshot_id} policyId={run.data.policy_snapshot_id} />
               </div>
@@ -303,6 +304,7 @@ export default function RunPage() {
           items={[
             {key: "overview", label: t("Overview", "运行概览"), children: <>{operations.overview}{operations.summary}</>},
             ...operations.tabs.filter((tab) => tab.key !== "automation"),
+            { key: "harness", label: t("Session & reports", "持续会话与报告"), children: <RunHarness runId={params.runId} refreshRun={operations.refresh} selectTab={selectTab} /> },
             {
               key: "requirements",
               label: `${t("Requirements", "需求")} (${requirements.data ? requirementData.length : "—"})`,

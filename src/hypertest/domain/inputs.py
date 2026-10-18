@@ -61,3 +61,7 @@ class MissionInputRequest(Base):
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     row_version: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+
+    @property
+    def scope(self) -> str:
+        return "mission"

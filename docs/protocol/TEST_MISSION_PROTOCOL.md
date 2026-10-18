@@ -6,7 +6,9 @@
 **Status:** Draft  
 **Owner:** HyperTest
 **Accepted target decision:** [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
-**Implementation boundary:** 本版包含已接受但尚未实现的目标 profile；文档版本不升级现有 wire schema 或宣称部署已迁移。
+**Implementation boundary:** 本分支已实现 v1alpha2 持续会话 profile、Host Bridge 与九个领域工具；旧 v1alpha1 保留原语义，生产迁移和各 Provider / 外部集成的真实验收分别登记。
+
+本分支包含 `0013_run_bindings` / `0014_harness_operations`。本地真实 Codex / Docker 成功链形成 `RELEASE_READY`，失败诊断经 Web 显式恢复后完成负向报告；Mission / Run 两类问答均在原 Job / Session / epoch 下消费回答并完成成功报告。证据与未完成项见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`；受控 GitLab 实现已做注入 transport 回归，尚未做真实提单或其他 Provider 验收。
 
 ---
 
@@ -22,7 +24,7 @@ TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context
 
 平台服务及任务 Worker 容器化，Agent Harness 与最小 Host Harness Bridge 留在宿主机。容器 Worker 通过受控接口托管会话；Provider 登录、原生会话及其运行工作目录由宿主集成管理，不能因容器重建而丢失会话身份。部署边界见 ADR-013，绑定、租约、生命周期和持久化约束以领域模型为准。
 
-当前 `hypertest.tmp/v1alpha1` 实现仍由 Web 提交 DurableJob、独立 Worker 调用 bounded Run test cycle controller，按 deterministic Planner 的 Canonical State gap 逐个启动 Mission；每次新 Attempt 创建会话，人工等待按 §29 恢复原会话。`max_steps` 限制当前平台工作单元；Job SUCCEEDED 不等于测试 PASS，Job payload 不是 Canonical State。持续会话目标需实现 §6.1 的新 profile，不能从本次文档调整推断当前 controller 已改变。
+当前 `hypertest.tmp/v1alpha1` 兼容路径仍由 Web 提交 DurableJob、独立 Worker 调用 bounded Run test cycle controller，按 deterministic Planner 的 Canonical State gap 逐个启动 Mission；每次新 Attempt 创建会话，人工等待按 §29 恢复原会话。`max_steps` 限制当前平台工作单元；Job SUCCEEDED 不等于测试 PASS，Job payload 不是 Canonical State。本分支的持续会话使用 §6.1 独立协商的新 profile，不重解释旧 controller 或冻结的 v1alpha1 历史。
 
 周期先以所选 Runner 的只读 fingerprint 预检实际 daemon / 可信镜像或显式 local 启用条件，成功后才进行 Git / Agent；前后重新验证归属，预检 I/O 不持 Run / Job 行锁。失败不创建正式 Execution / Evidence，预检成功也不等于测试通过。独立 Gate-only 操作不要求 Runner。
 
@@ -114,11 +116,11 @@ HyperTest 在数据库层冻结已离开 CREATED 的 Mission 身份、优先级�
 
 ### 6.1 目标持续会话 profile 与协商
 
-ADR-013 的目标 profile 为 **`run-persistent-harness/v1`**，只在显式协商的 **`hypertest.tmp/v1alpha2`** 上启用；这是待实现的协议版本，不能把 `profile` 等新字段附加到现有 v1alpha1 请求后假定支持。新 Run admission 固定 wire version、profile、Provider / Harness 能力与策略，任何一项不支持时明确拒绝，不能降级为每阶段新建会话并声称仍满足本 profile。已冻结 v1alpha1 Mission 保留原执行语义；迁移不得改写其版本、spec / hash、Attempt、Job 或 Session 历史。
+ADR-013 的持续会话 profile 为 **`run-persistent-harness/v1`**，只在显式协商的 **`hypertest.tmp/v1alpha2`** 上启用；本分支已实现该版本，不能把 `profile` 等新字段附加到现有 v1alpha1 请求后假定支持。新 Run admission 固定 wire version、profile、Provider / Harness 能力与策略，任何一项不支持时明确拒绝，不能降级为每阶段新建会话并声称仍满足本 profile。已冻结 v1alpha1 Mission 保留原执行语义；迁移不得改写其版本、spec / hash、Attempt、Job 或 Session 历史。
 
 目标 `RunWorkflowContract` 引用固定 Project、TestRun、SourceSnapshot、PolicySnapshot、MR / feat 来源及完整 SHA，声明串行阶段、验收规则、允许工具与运行预算。该 Contract 是受控任务上下文，不新建 Canonical 事实链，也不把源输入保存在聊天历史中代替数据库。
 
-稳定运行身份引用领域模型的 `RunExecutionBinding` / `run_execution_bindings`：`logical_worker_id`、`primary_agent_session_id`、`harness_host_id`、`workspace_id` 和单调递增的 `binding_epoch`。这些是规划中的 Operational State，不是当前数据库已有字段；关系、唯一性和不可变约束以领域模型为准。原生 Provider session ID 仅在首次创建事件前允许未绑定，之后不可被新 session 替换。`logical_worker_id` 表示专属于该 Run 的逻辑 Worker 身份，不能与某次领取的 `Job.worker_id`、租约 token、容器 / PID 混用；进程可在显式 fencing 后替换，逻辑绑定、主 AgentSession 与原生 Provider session 保持。一个物理 Worker 实例同一时刻只推进一个 Run，完成后可服务其他任务。
+稳定运行身份引用领域模型的 `RunExecutionBinding` / `run_execution_bindings`：`logical_worker_id`、`primary_agent_session_id`、`harness_host_id`、`workspace_id` 和单调递增的 `binding_epoch`。这些 Operational State 已由本分支 `0013_run_bindings` 实现；关系、唯一性和不可变约束以领域模型为准。原生 Provider session ID 仅在首次创建事件前允许未绑定，之后不可被新 session 替换。`logical_worker_id` 表示专属于该 Run 的逻辑 Worker 身份，不能与某次领取的 `Job.worker_id`、租约 token、容器 / PID 混用；进程可在显式 fencing 后替换，逻辑绑定、主 AgentSession 与原生 Provider session 保持。一个物理 Worker 实例同一时刻只推进一个 Run，完成后可服务其他任务。
 
 正常阶段转换或 `WAITING_INPUT` 不增加 binding_epoch。阶段完成只结束相应 Mission / Attempt；不得关闭主 Session、删除 Run 工作目录或建立新的 Provider 会话。新阶段按相同 Session 继续；失败后显式 Mission Retry 追加 Attempt，但仍引用该 Run 的主 Session。`WAITING_INPUT` 保留绑定、会话和工作目录，释放实时租约和计算资源；恢复需要原主 Session 和精确原生引用。其缺失必须显式进入失败 / 恢复决策，不能换 Provider 或新建会话冒充续接。Run 结束 / 取消后的受控 close 与清理遵守保留策略，不能删除 Canonical、问答或审计历史。
 
@@ -208,7 +210,7 @@ Context 使用引用优先，不把所有对象直接嵌进 Mission。
 }
 ```
 
-协议的目标工具模式允许 Agent 通过 HyperTest MCP 获取详细对象。当前 MVP 由 Runtime 预先读取必要对象并注入 Context，使用结构化最终结果提交 Proposal；完整 MCP 域工具尚未实现。
+协议的目标工具模式允许 Agent 通过 HyperTest MCP 获取详细对象。v1alpha1 兼容路径由 Runtime 预先读取必要对象并注入 Context，使用结构化最终结果提交 Proposal；本分支 v1alpha2 通过 §25.2 的分页 `get_state` 获取详细对象，使用 `complete_mission` 提交当前 Attempt 的 Proposal batch。
 
 原则：
 
@@ -575,9 +577,11 @@ Provider-specific model 永远不能成为 HyperTest Domain Contract。当前只
 
 ### 22.1 宿主 Harness Bridge 目标传输契约
 
-`hypertest.harness-bridge/v1alpha1` 是待实现的容器 Worker ↔ 宿主 Bridge 传输版本，与 TMP wire version / profile 分别协商。初版同机使用限权 Unix domain socket 或等效受控私有端点；后续跨主机必须使用经过认证和加密的传输，不能把无认证本机接口直接暴露到网络。Bridge 仅适配 Provider 生命周期、身份、工作目录和标准化事件 / 结果，不接管测试规划或 Canonical 提交。
+`hypertest.harness-bridge/v1alpha1` 是本分支已实现的容器 Worker ↔ 宿主 Bridge 传输版本，与 TMP wire version / profile 分别协商。初版同机使用限权 Unix domain socket；后续跨主机必须使用经过认证和加密的传输，不能把无认证本机接口直接暴露到网络。Bridge 仅适配 Provider 生命周期、身份、工作目录和标准化事件 / 结果，不接管测试规划或 Canonical 提交。
 
 允许操作为 `capabilities`、`create_session`（仅 Run 初次绑定）、`restore_session`、`execute`、`resume`、`interrupt`、`close` 与只读 `get_call`；它不是 arbitrary shell / SSH 执行接口。已绑定 Run 上的 execute / resume 必须引用已登记的原生会话，不能隐式 create；具体 CLI 的启动和 resume 差异由 Adapter 封装。
+
+上述为生命周期语义；本分支实际操作名为 `capabilities`、`create_session`、`start_call`、`get_call`、`renew`、`respond_tool`、`restore_session`、`interrupt`、`recover`、`close`。`start_call(resume=false/true)` 对应 execute / resume，`renew` 仅续当前有效执行授权，`respond_tool` 仅交付平台已验权的工具结果；二者均不能恢复失效 claim。`recover` 使用管理权限核验已静止的原调用及原生会话后，将 Bridge generation 与领域显式恢复的下一 epoch 对齐，不启动模型。实际参数和签名上下文见 [Host Harness Bridge](../HARNESS_BRIDGE.md)，不提供名为 execute / resume 的额外 wire 操作。
 
 Bridge 区分执行授权与管理 / 恢复授权，不能要求已取消或租约失效的调用继续持有原执行 claim 才能停止和对账：
 
@@ -592,6 +596,8 @@ Bridge 和平台共同拒绝以旧 epoch / 旧 claim 执行工作、跨 Run / Se
 
 Bridge 按已授权 deadline / lease watchdog 停止失联调用；interrupt 结果区分请求已受理与进程确已停止。取消先在平台持久化终态 Binding / 取消状态并撤销执行 call / 工具权限，再以窄管理授权尽力 interrupt / close；租约撤销不阻止清理和对账。取消不自行增加 binding_epoch，epoch 只在领域模型允许的显式恢复中递增。可恢复的中断必须确认原调用静止后才能重新获得执行授权；终态取消不能恢复执行。迟到事件 / 结果必须按 owner、claim、epoch、call 和当前状态校验，过期响应不得写 Canonical 或触发新的外部调用；管理对账只可记录受控操作结果。CLI 的 stdout / stderr、原生事件与秘密由 Adapter 投影或受控保留，不直接进入持久活动记录。
 
+本分支执行 grant 不超过当前 Job lease 和 120 秒传输上限，Worker 在长工具 / Runner I/O 期间独立续约；Bridge 到期中断且不自动重放。`get_call` 提供持久的 `created_at`、`finished_at`、`elapsed_seconds` 与 `stopped`，仅确认进程停止后固定耗时，供 Run 总预算对账；它不提供计费 token 或 reasoning 内容。
+
 ---
 
 ## 23. TMP 与 MCP 分工
@@ -603,7 +609,7 @@ MCP = Runtime Domain Tool Contract
 
 TMP 告诉 Agent“你要完成什么”；MCP 允许 Agent 在执行过程中读取 Testing State、提交 Proposal、申请 Execution。
 
-§24–26 定义目标 MCP 工具面，持续会话 profile 需要可在会话内调用的版本化领域工具。当前 Codex MVP 采用逐 Mission 最终结果通道，不声称已经提供这些运行时工具、Host Bridge 或完整会话级自驱能力。正式 Execution 由平台校验和 Runner 执行，Agent 自行运行命令不能形成正式事实。
+§24–26 定义 MCP 领域语义，持续会话 profile 需要可在会话内调用的版本化领域工具。本分支以 §25.2 的固定九工具实现该工具面；§24–25 的细粒度名称表达目标操作语义，不表示另有同名端点。v1alpha1 Codex 兼容路径仍采用逐 Mission 最终结果通道。正式 Execution 由平台校验和 Runner 执行，Agent 自行运行命令不能形成正式事实。
 
 ---
 
@@ -650,7 +656,29 @@ hypertest.report_finding
 
 每次写调用携带由平台验证的 Run / 主 Session / binding_epoch 及当前 Mission / Attempt（若适用）、幂等键和输入摘要，重复调用不得重复接受 Proposal、启动测试或提单。工具完成响应包含已持久对象引用或明确的 pending / rejected / failed 状态；Agent 不能以请求已发送当作成功。Token 按 Run / Binding 与具体工具 scope 授权并随阶段更新：Mission scope 绑定当前 Mission / Attempt，阶段边界的 Run scope 不伪造这些引用；只授予该 Run 当前允许的工具及资源。
 
-报告 envelope 至少声明 schema version、TestRun、SourceSnapshot、完整 SHA、PolicySnapshot、summary、coverage / execution / evidence / finding 引用、未完成项及平台 Verdict 引用（若已形成）；Markdown / HTML 正文作为有 hash 的 Artifact 保存。Agent 生成的摘要、解释和建议属于报告内容，质量结论只引用平台已持久 Verdict，未形成时明确标示未判定。平台验证必需阶段、引用范围和内容完整性后才能接受 Run completion；报告写入失败或存在未满足 guard 不得伪报完整周期结束。这里不新增未实现的 MissionType、Canonical Report 表或当前 API 字段。
+报告 envelope 至少声明 schema version、TestRun、SourceSnapshot、完整 SHA、PolicySnapshot、summary、coverage / execution / evidence / finding 引用、未完成项及平台 Verdict 引用（若已形成）；Markdown / HTML 正文作为有 hash 的 Artifact 保存。Agent 生成的摘要、解释和建议属于报告内容，质量结论只引用平台已持久 Verdict，未形成时明确标示未判定。平台验证必需阶段、引用范围和内容完整性后才能接受 Run completion；报告写入失败或存在未满足 guard 不得伪报完整周期结束。本分支的完成报告使用 §25.2 实际参数及领域模型 §23.7 的 Operational RunReport，必须引用已形成的最新正式 Verdict；不新增报告 MissionType 或另一个 Canonical 质量结论。
+
+### 25.2 本分支实际九工具与分页契约
+
+MCP 工具名不带 `hypertest.` 前缀；仅开放下表九个名字，运行时 `inputSchema` 由 Worker 的严格类型模型产生，未知字段拒绝。Run / Binding / Session / Job / epoch 由受信传输上下文提供并由 Worker 核验，不要求 Agent 自报授权身份。§24–25 的语义通过下表映射，不能把示例 envelope 或细粒度语义名称直接当作实际工具参数。
+
+| 实际工具 | 参数与语义映射 |
+|---|---|
+| `get_state` | `resource`、`offset`、`limit` 及对应的 `collection` / `entity_id` / `mission_id` / `path` / `evidence_id`；统一读取本 Run 的状态、冻结输入、契约、源码与可信 Evidence。 |
+| `request_mission` | `mission_type`、`idempotency_key`；本版支持需求、风险、设计、实现和失败诊断五种 typed intent，返回确定性准入后的冻结契约。 |
+| `complete_mission` | `mission_id`、`attempt_id`、`result`、`idempotency_key`；`result.protocol=hypertest.tmp/v1alpha2`，沿用结构化 Proposal 验证语义，由 Verifier 原子接受 / 拒绝。 |
+| `request_execution` | `idempotency_key`；平台从绑定的固定 Run 输入、已接受实现和受控环境推导正式执行，Agent 不传命令、镜像或任意工作目录。 |
+| `ask_user` | `scope`、`request`、`idempotency_key`；`request` 保留既有 HumanInputRequest 约束，成功确认后结束当前 turn，按 §29.1 暂停。 |
+| `evaluate_gate` | `idempotency_key`；实现 `request_gate` 语义，返回平台决定及 Verdict 引用。 |
+| `submit_report` | `schema_version`、`test_run_id`、`source_snapshot_id`、`policy_snapshot_id`、`commit_sha`、`summary`、`markdown`、`execution_keys`、`evidence_keys`、`finding_keys`、`verdict_key`、`unresolved`、`idempotency_key`；必须引用最新正式 Verdict，平台另核验其覆盖、状态 hash 与 Artifact 新鲜度。 |
+| `request_gitlab_issue` | `finding_id`、`title`、`description`、`assignee`、`idempotency_key`；Run / SHA / Evidence 由已接受 Finding 与绑定推导，GitLab 项目和责任人权限由 Worker 固定策略解析。 |
+| `get_issue` | `operation_id`；读取或 GET 对账既有操作，不能再次 POST。 |
+
+`get_state.resource` 允许 `state`、`source`、`evidence`、`prd`、`configuration`、`entity`、`contract`、`coverage`、`human_inputs`、`operations`。Canonical 集合默认每类 30 行，`limit` 范围 1–100；完整响应最多 500,000 UTF-8 JSON 字节，达到预算会减少实际行数并返回正确的 `collections.<name>.next_offset`。大行显式标为 `_truncated` 并提供 `_detail`；`entity` 按 collection / entity_id 读完整原值，`contract` 按 mission_id 读完整冻结契约，不能把摘要当作全部目标或验收规则。
+
+文本资源每页最多 24,000 Unicode 字符，`offset` / `next_offset` 是字符索引而非字节索引。`entity`、`contract`、`coverage`、`human_inputs`、`operations` 使用 `encoding=json` 的 `content` 文本页，按 next_offset 拼接后解析；其他资源按对应文本或源码列表结构分页。Mission 响应中的大型 PRD / configuration 摘要提供后续资源引用，原始 spec / targets / Schema / 内容不被截断或改写。写调用若已提交而响应较大，返回已持久结果身份和显式读取指引，不因响应超限把已接受事实改称失败。
+
+`operations` 提供有界、安全的 GitLab operation ID / 状态 / Finding 引用及已核验 URL，并暴露可对账的领域工具记录；不返回凭据、授权配置或原 draft。Worker 保留的 `__bridge_call__` 预算账本不是第十个工具。工具 `STARTED` / `UNKNOWN` 的重试按原输入摘要与既有 Canonical / Operational 关联核对；外部结果未知时不自动重放 Provider、正式执行或 GitLab POST。
 
 ---
 
@@ -733,18 +761,18 @@ Web 展示问题原文并提交自由回答。回答长度上限 12000 字符，
 
 托管 Agent 副本等待期间保留，恢复时依据原 pinned source 重建并验证可信源文件 Hash，不能信任 Agent 自报 Hash。原生会话或副本缺失、篡改、归属不符时明确失败，不用新会话冒充续接。取消清理只删除托管副本并保留问题、回答、Attempt 和拒绝历史；显式失败重试按既有新 Job / Attempt 规则追加记录。以上 v1alpha1 路径不单凭 fake Harness 回归宣称真实模型闭环验收，实际版本与证据登记在第一阶段验收报告。目标 profile 的新 claim 还需校验稳定 RunExecutionBinding / binding_epoch，必要时先显式 fence 原物理进程，再由同一逻辑 Worker 恢复；不能启动第二个 Worker / 新原生会话继续该 Run。失败后按 §31 追加 Attempt 的恢复也保留原绑定，丢失会话时必须明确进入恢复或新 Run 决策。
 
-### 29.1 目标 profile 的 Mission / Run scope 问题（未实现）
+### 29.1 持续会话 profile 的 Mission / Run scope 问题（本分支已实现）
 
 `hypertest.ask_user` 必须显式声明 `scope=mission` 或 `scope=run`，由平台验证问题实际所处的工作边界；目标 v1alpha2 工具不把现有 v1alpha1 的 mission_id / attempt_id 改为 nullable，也不改写旧问题 Schema：
 
 - **Mission scope**：存在当前未终态 Mission / Attempt 时，沿用 `MissionInputRequest` 的归属、问答和同 Attempt 恢复规则；问题必须引用当前 Run 的绑定、主 Session、当前 Job 及该 Mission / Attempt。
-- **Run scope**：用于前一 Mission 已完成后的阶段边界、报告准备或 GitLab 策略决策，创建规划中的独立 `RunInputRequest`，归属同一 RunExecutionBinding、主 Session 与当前 DurableJob；问题有稳定 question_id、不可变问题 / 选项 / 归属及受控回答状态。不得虚构 Mission / Attempt、重开已完成 Mission 或改变历史 Attempt 状态以容纳该问题。
+- **Run scope**：用于前一 Mission 已完成后的阶段边界、报告准备或 GitLab 策略决策，创建独立 `RunInputRequest`（本分支 `0013_run_bindings`），归属同一 RunExecutionBinding、主 Session 与当前 DurableJob；问题有稳定 question_id、不可变问题 / 选项 / 归属及受控回答状态。不得虚构 Mission / Attempt、重开已完成 Mission 或改变历史 Attempt 状态以容纳该问题。
 
 两个 scope 均在 Run 锁下验证当前有效 Binding / epoch / Job claim，并共同保证同一 Run 同时最多一个 PENDING / ANSWERED 问题，而不是在两张表各允许一个。提出问题、保存已完成步骤、Job / 主 Session / Binding 进入 WAITING_INPUT、释放实时执行 lease 在同一事务提交；Mission scope 还暂停其当前未终态 Mission，Run scope 不触碰已完成阶段。问题、选项和归属不可修改，回答采用幂等键、预期 row_version 与只写一次语义；字段、唯一性、状态和锁序以领域模型为准，不能仅靠工具 payload 声明实现。
 
 答案与原 Job 重新排队在同一事务提交，不新建 Job、Attempt 或会话。重新取得有效 claim 后，校验同一 Binding / 原生 Session / 受控工作区，把答案按问题身份原子置为 CONSUMED，并恢复原主会话；Mission scope 另恢复其原未终态 Mission / Attempt，Run scope 只继续 Run 级工作，不改变已完成 Mission。正常问答恢复不增加 binding_epoch，不重置阶段预算，不改写固定输入 / Policy / spec，答案也不自动扩大外部操作权限。
 
-暂停后查询、核验、中断和清理使用 §22.1 的窄管理授权；新 Provider 工作仍须恢复后的有效执行授权。取消终止任一 scope 的开放问题，保留问题、回答、归属和成对 Audit / Outbox 历史；取消 / 失联 / 旧 epoch 后的迟到回答或执行结果不得推进任务。原生会话无法恢复时明确失败并保留历史，不能创建替代会话冒充续接。`RunInputRequest` 及跨 scope 唯一性需后续独立实现 / additive migration，现有 v1alpha1 仅支持原 Mission scope 控制路径。
+暂停后查询、核验、中断和清理使用 §22.1 的窄管理授权；新 Provider 工作仍须恢复后的有效执行授权。取消终止任一 scope 的开放问题，保留问题、回答、归属和成对 Audit / Outbox 历史；取消 / 失联 / 旧 epoch 后的迟到回答或执行结果不得推进任务。原生会话无法恢复时明确失败并保留历史，不能创建替代会话冒充续接。`RunInputRequest` 及跨 scope 唯一性已由本分支 `0013_run_bindings` additive 实现，现有 v1alpha1 仅支持原 Mission scope 控制路径。
 
 ---
 
@@ -752,11 +780,11 @@ Web 展示问题原文并提交自由回答。回答长度上限 12000 字符，
 
 对于 production mutation、database delete、external side effect、secret access 等危险操作，Mission 可声明审批策略。Adapter 尽量映射 Provider Approval / Sandbox 能力；Provider 不支持时由 HyperTest Tool Layer 拦截。预先配置的授权策略可以允许受控外部操作；问题或回答不能绕过固定权限和平台验证。
 
-### 30.1 GitLab 缺陷协作（目标，尚未实现）
+### 30.1 GitLab 缺陷协作（本分支实现，真实提单待验收）
 
 Harness 通过 `hypertest.request_gitlab_issue` 提交 Issue draft、当前 Run / SHA、已接受 Finding 及可信 Evidence 引用和可选责任人建议。平台检查预先配置的 GitLab Project 白名单、提单 / 通知策略、责任人映射、调用者权限和关联范围；未配置或超出规则时请求人工决策，不把 GitLab token、任意项目 URL 或直接外部写权限暴露给 Agent。关键决策可通过 §29 暂停询问；若前一 Mission 已完成，使用 §29.1 的 Run scope 问题，不重开原 Mission / Attempt。非阻塞提单可返回操作句柄供同会话继续查询。
 
-外部操作以稳定 correlation / idempotency key 去重，保存 draft 摘要、Run / Finding / Evidence 关联、授权来源、请求状态及实际 GitLab project / issue IID / URL；同一逻辑缺陷的重复调用应返回既有 Issue 或明确更新请求，不重复创建。超时或连接中断产生 outcome unknown 时，必须先依据 correlation 对账；不能假定失败后自动重提。审计记录平台实际确认的外部结果，Issue 本身不成为可信 Evidence 或质量 Verdict。当前仓库没有此 GitLab 集成，需后续实现、授权配置及验收。
+外部操作以稳定 correlation / idempotency key 去重，保存 draft 摘要、Run / Finding / Evidence 关联、授权来源、请求状态及实际 GitLab project / issue IID / URL；同一逻辑缺陷的重复调用应返回既有 Issue 或明确更新请求，不重复创建。超时或连接中断产生 outcome unknown 时，必须先依据 correlation 对账；不能假定失败后自动重提。审计记录平台实际确认的外部结果，Issue 本身不成为可信 Evidence 或质量 Verdict。本分支已实现固定项目 / 责任人策略、`0014` 操作账本及仅 GET 的未知结果对账；未配置或未授权时返回 `DECISION_REQUIRED`。现有验证使用注入 HTTP transport，真实 GitLab 提单仍待明确授权、配置及验收。
 
 ---
 
@@ -776,6 +804,8 @@ Worker 租约过期或进程中断时，平台保留失联 Attempt 并标记 FAI
 周期因 `MISSION_REJECTED` / `MISSION_FAILED` 受控停止时，FAILED Job result 保留 stop reason、已持久步骤、相关 Mission ID 和已解析 workspace；独立 EXECUTE_MISSION 拒绝还保留 Attempt ID。它只索引已有历史，不接受模型自报为执行事实，也不重新打开终态 Mission。FAILED Mission 必须明确报告失败，不能作为 `MISSION_IN_PROGRESS` 返回。通用异常可没有部分 result；取消或租约失效不接受迟到 handler 结果。用户显式 retry 仍生成关联新 Job，不覆盖旧 Job / Attempt / Proposal。
 
 目标 profile 中需要先对账旧 Bridge call、确认停止并提高 binding_epoch，才可由替代 PID / 容器继续该 Run；保留 logical_worker_id、主 Session、宿主路由、固定输入及历史。如果原生 Session / 工作目录不可恢复，必须明确报告并由 Operator 选择恢复原环境或创建关联新 Run；不得在原 Run 中静默新建 Provider Session。预算由 Run 总预算、阶段 / Attempt 限额、Bridge call deadline 和允许重试次数共同约束，等待人工输入不消耗活跃 lease；恢复不能重置已消耗步骤 / 费用。达到预算或外部结果不明时可观察停止，不构造自动重试循环。
+
+本分支的实际预算为首次绑定时冻结的 `max_steps`、Runner 单次 timeout 与 Run 总 `harness_budget_seconds`（默认 3600，范围 1–7200 秒）。总预算按原生调用活跃墙钟时间计量，包含工具等待，不包含已停止后的人工等待；不是计费 token、金额或账号额度硬限制。每次 start 预留剩余预算；只有 Bridge 确认 `stopped` 并返回可信 `elapsed_seconds` 后，才按向上取整秒数结算并释放未用预留。未知调用保留全部预留，显式恢复须先取得停止与耗时证明；问答、新 Job、配置变化和 epoch 递增都不重置累计使用量。预算用尽不再启动新 turn。
 
 ---
 
@@ -824,7 +854,7 @@ EXECUTION_ERROR
 UNKNOWN
 ```
 
-目标 Bridge 还须区分 `SESSION_UNAVAILABLE`、`STALE_BINDING`、`CAPABILITY_UNSUPPORTED`、`OUTCOME_UNKNOWN` 等受控错误；不能把这些规划错误值加入当前 v1alpha1 enum 后假定兼容。Provider-specific Error 经脱敏和限长后隔离于受控 `provider_metadata`；原生 stderr、秘密与 reasoning 不直接成为用户错误详情或活动记录。
+本分支 Bridge 区分 `SESSION_UNAVAILABLE`、`STALE_BINDING`、`CAPABILITY_UNSUPPORTED`、`OUTCOME_UNKNOWN` 等受控错误；这些属于独立 Bridge 传输，不加入当前 v1alpha1 enum 后假定兼容。Provider-specific Error 经脱敏和限长后隔离于受控 `provider_metadata`；原生 stderr、秘密与 reasoning 不直接成为用户错误详情或活动记录。
 
 ---
 
@@ -836,7 +866,7 @@ UNKNOWN
 
 同一 Major 优先 additive change；禁止无版本重命名 required field、改变字段语义或删除 enum value。
 
-文档 v0.4、已实现 wire `hypertest.tmp/v1alpha1`、目标 wire `hypertest.tmp/v1alpha2`、profile `run-persistent-harness/v1` 与宿主 transport `hypertest.harness-bridge/v1alpha1` 是不同版本轴。持续会话生命周期、能力要求和工具 envelope 只在新版本 / profile 明确协商后适用；旧 Run 仍按其冻结版本执行，不通过调整 Adapter 默认值重解释历史。
+文档 v0.4、兼容 wire `hypertest.tmp/v1alpha1`、本分支持续会话 wire `hypertest.tmp/v1alpha2`、profile `run-persistent-harness/v1` 与宿主 transport `hypertest.harness-bridge/v1alpha1` 是不同版本轴。持续会话生命周期、能力要求和工具 envelope 只在新版本 / profile 明确协商后适用；旧 Run 仍按其冻结版本执行，不通过调整 Adapter 默认值重解释历史。
 
 ---
 
@@ -863,7 +893,7 @@ Planner / Scheduler 在 Run 初次 admission 时基于 Capability 选择逻辑 W
 
 目标 profile 至少要求：persistent native session、精确 resume、Run-scoped isolated workspace、结构化提交、运行中 typed domain tools、受控暂停 / 中断、调用对账及 version / binding fencing。`session_resume: true` 单独不足以证明能跨多个 Mission / Attempt 保持同一会话；Adapter 必须证明阶段完成不 close、新阶段不 create、人工等待不丢绑定和失联不自动重放。
 
-当前 MVP 使用配置的默认 Codex Harness，并提供 §29 的持久等待、Web 回答与明确原生 thread 的 Codex resume 控制路径。完整 Capability 协商、跨 Harness 选择、其他 Provider 的 resume 与完整 MCP 工具面仍未实现；不能根据上述示例的 `true` 推断额外能力，真实模型验收范围以实际版本证据为准。
+v1alpha1 兼容路径使用默认 Codex Harness，并提供 §29 的持久等待、Web 回答与明确原生 thread 的 Codex resume 控制路径。本分支 Bridge 另对实际 Codex CLI 版本、功能开关及精确 resume 参数做能力探测，并协商 transport / wire / profile / 固定九工具。它明确关闭原生 shell、filesystem、多 Agent 及外部通用工具；不能根据上述目标示例的 `true` 推断已开放。跨 Harness 选择和其他 Provider 的 resume 仍待独立实现与真实验收，Codex 的已验收范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。
 
 ---
 
@@ -879,7 +909,9 @@ MVP 可简单配置 `default_agent = codex`。
 
 TMP 明确区分 Agent Identity、User Identity、HyperTest Service Identity、Runner Identity。
 
-目标 Agent 对 HyperTest MCP 的访问权限由受控工具 Token 控制，至少绑定 mission_id / attempt_id（若适用）、test_run_id、project_id、agent_session_id、logical_worker_id、binding_epoch、allowed_tools、allowed_resources、expiration。Token 为可撤销、限范围的授权，容器 Worker 和 Bridge 另以服务身份认证；不得把原始 Job lease、宿主登录或 GitLab 管理凭据交给 Agent。当前 MVP 尚未实现完整 Mission Token 工具授权，不能用此定义宣称已有安全能力。
+目标 Agent 对 HyperTest MCP 的访问权限由受控工具 Token 控制，至少绑定 mission_id / attempt_id（若适用）、test_run_id、project_id、agent_session_id、logical_worker_id、binding_epoch、allowed_tools、allowed_resources、expiration。Token 为可撤销、限范围的授权，容器 Worker 和 Bridge 另以服务身份认证；不得把原始 Job lease、宿主登录或 GitLab 管理凭据交给 Agent。
+
+本分支采用分层授权落实上述范围：Agent 的 relay 仅持有可撤销、单 call 的随机 capability；Bridge 以独立执行 / 管理签名、固定绑定上下文、epoch、call 和短期 grant 约束传输，Worker 每次工具读取、写入及响应交付再核验当前数据库 claim、阶段、资源和策略。relay token 不自含所有领域权限，也不能越过 Worker 准入；不将其描述为独立通用 Mission Token 服务。首版只开放九个受控 MCP 工具，明确声明 `native_shell=false`、`native_filesystem=false`；原生 shell、外部 MCP、浏览器及其他通用工具不在当前能力内。v1alpha1 的最终结果路径保留原有边界。
 
 Agent Session 不拥有项目全局管理员权限。
 
@@ -893,7 +925,7 @@ Mission Created、Mission Dispatched、Tool Called、Proposal Submitted、Propos
 
 ## 40. End-to-End Example
 
-以下是 ADR-013 目标 profile 的完整周期；当前 v1alpha1 仍为逐 Mission 新会话，仅支持同 Mission 人工等待后的原会话恢复。
+以下是 ADR-013 持续会话 profile 的完整周期，本分支实际工具映射见 §25.2，真实验收范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)；当前 v1alpha1 仍为逐 Mission 新会话，仅支持同 Mission 人工等待后的原会话恢复。
 
 ```text
 SUT: payments → Project P-1
@@ -912,7 +944,7 @@ SUT: payments → Project P-1
   │              7. 读取事实，必要时 DIAGNOSE_FAILURE → M-5
   │                 Finding Proposal → Verifier accept
   │                 按预授权策略 request_gitlab_issue → 实际 Issue 引用
-  │              8. request_gate → 平台持久 Verdict
+  │              8. evaluate_gate（request_gate 语义）→ 平台持久 Verdict
   │              9. submit_report → 有 hash 的报告 + 事实 / Verdict 引用
   │             10. 平台确认完整周期后受控结束会话，保留历史
   └─ MR !102 @ full SHA-B → TestRun TR-B

@@ -84,7 +84,13 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
         # Docker inspection can block. No project/aggregate locks span that I/O.
         await session.commit()
         try:
-            environment_definition = await resolve_environment(payload.environment)
+            if get_settings().execution_mode == "queued":
+                from hypertest.application.runtime_control import request_control
+
+                result = await request_control(session, "RESOLVE_ENVIRONMENT", payload.environment.model_dump(mode="json"))
+                environment_definition = result["binding"]
+            else:
+                environment_definition = await resolve_environment(payload.environment)
         except (OSError, RuntimeError, ValueError, KeyError) as exc:
             raise ConflictError("controlled environment unavailable; build the configured profile on this host") from exc
     project = await session.scalar(select(Project).where(Project.id == project_id).with_for_update())
