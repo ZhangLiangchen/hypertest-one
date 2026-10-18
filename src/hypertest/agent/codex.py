@@ -9,9 +9,11 @@ from collections.abc import AsyncIterator
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from hypertest.agent.base import AgentEvent, AgentSession
 from hypertest.common.ids import public_key
+from hypertest.protocol import MissionResultSubmission
 
 _MAX_TELEMETRY_LINE_BYTES = 2_000_000
 
@@ -114,10 +116,17 @@ def codex_output_schema(
     proposal["properties"]["operation"] = {"type": "string", "enum": [contract["operation"]]}
     if idempotency_prefix is not None:
         proposal["properties"]["idempotency_key"]["pattern"] = f"^{re.escape(idempotency_prefix)}"
+    # Frozen older missions lack the additive input_request field. Project it
+    # from the current typed control envelope without rewriting their spec.
+    current = MissionResultSubmission.model_json_schema()
     properties = {
         key: _inline_schema(result["properties"][key], result.get("$defs", {}))
         for key in ("protocol", "mission_id", "status", "summary", "proposals")
     }
+    properties["status"] = _inline_schema(current["properties"]["status"], current.get("$defs", {}))
+    properties["input_request"] = _inline_schema(
+        current["properties"]["input_request"], current.get("$defs", {}),
+    )
     properties["protocol"] = {"type": "string", "enum": [mission["protocol"]]}
     properties["mission_id"] = {"type": "string", "enum": [mission["mission_id"]]}
     properties["proposals"]["items"] = proposal
@@ -147,6 +156,32 @@ class CodexCliAdapter:
         self,
         session: AgentSession,
         mission: dict[str, Any],
+    ) -> AsyncIterator[AgentEvent]:
+        async for event in self._execute(session, mission, resume=False):
+            yield event
+
+    async def restore_session(self, session: AgentSession, workspace: str) -> AgentSession:
+        if session.provider != "codex" or not session.provider_session_id:
+            raise RuntimeError("Codex resume requires its original persisted provider session")
+        try:
+            UUID(session.provider_session_id)
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("Codex provider session reference is not a native thread UUID") from exc
+        if not Path(workspace).is_dir():
+            raise RuntimeError("Codex resume workspace is missing")
+        self._workspaces[session.id] = workspace
+        return session
+
+    async def resume(
+        self, session: AgentSession, mission: dict[str, Any],
+    ) -> AsyncIterator[AgentEvent]:
+        if not session.provider_session_id:
+            raise RuntimeError("Codex resume requires its original persisted provider session")
+        async for event in self._execute(session, mission, resume=True):
+            yield event
+
+    async def _execute(
+        self, session: AgentSession, mission: dict[str, Any], *, resume: bool,
     ) -> AsyncIterator[AgentEvent]:
         workspace = self._workspaces.get(session.id)
         if workspace is None:
@@ -178,6 +213,13 @@ class CodexCliAdapter:
             "Return exactly one JSON object matching the supplied mission output contract as "
             "your final response. The CLI saves that response; do not write a result file or "
             "modify application source. Submit generated test source in proposal code fields.\n\n"
+            "If essential product intent is genuinely ambiguous and cannot be resolved from the "
+            "pinned inputs, return status WAITING_INPUT with input_request containing a stable "
+            "question_id, a concise question and optional answer options; submit no proposals. "
+            "For every other status set input_request to null. HyperTest will persist the question "
+            "and resume this same session with the operator's answer. Previous clarifications in "
+            "context.human_inputs are supplemental input, not permission to change the immutable "
+            "mission, source, policy or testing scope. Do not ask an already answered question again.\n\n"
             "Follow context.testing_scope when provided: distinguish the pinned application's "
             "requested behavior from directions for producing or executing tests. Those directions "
             "remain binding, but do not make HyperTest's orchestration infrastructure an implicit "
@@ -201,11 +243,14 @@ class CodexCliAdapter:
             "--ask-for-approval",
             "never",
             "exec",
+            # Resume declares its own result/JSON/model flags. Place those
+            # after the subcommand so child defaults cannot shadow them.
+            "--sandbox",
+            "read-only",
+            *(["resume", session.provider_session_id] if resume else []),
             "--json",
             "--skip-git-repo-check",
             *self.extra_args,
-            "--sandbox",
-            "read-only",
             "--output-schema",
             str(schema_path),
             "--output-last-message",
@@ -243,6 +288,26 @@ class CodexCliAdapter:
 
             assert process.stdout is not None
             async for provider_event in _read_jsonl_telemetry(process.stdout):
+                if isinstance(provider_event, dict) and provider_event.get("type") == "thread.started":
+                    reference = provider_event.get("thread_id")
+                    try:
+                        UUID(reference)
+                    except (ValueError, TypeError, AttributeError):
+                        yield AgentEvent(type="ERROR", payload={
+                            "error_code": "PROVIDER_SESSION_INVALID",
+                            "message": "Codex did not supply a valid native thread reference",
+                        })
+                        continue
+                    if session.provider_session_id and session.provider_session_id != reference:
+                        yield AgentEvent(type="ERROR", payload={
+                            "error_code": "PROVIDER_SESSION_CHANGED",
+                            "message": "Codex resumed a different provider session",
+                        })
+                        continue
+                    session.provider_session_id = reference
+                    yield AgentEvent(type="SESSION_STARTED", payload={
+                        "provider": "codex", "provider_session_id": reference,
+                    })
                 yield AgentEvent(
                     type="ACTIVITY",
                     payload={
@@ -267,6 +332,7 @@ class CodexCliAdapter:
                 type="ERROR",
                 payload={
                     "provider": "codex",
+                    "error_code": "PROVIDER_RESUME_FAILED" if resume else "PROVIDER_ERROR",
                     "return_code": return_code,
                     "stderr": stderr,
                 },

@@ -1,7 +1,7 @@
 import type {
   BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate,
-  SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict,
+  SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 
@@ -38,6 +38,12 @@ export function errorText(error: unknown, locale: Locale): string {
     "The saved requirements are unavailable or failed integrity verification.": "已保存的需求不可用，或未通过完整性校验。请重试；仍失败时检查服务端产物存储。",
     "The saved configuration is unavailable or failed integrity verification.": "已保存的配置不可用，或未通过完整性校验。请重试；仍失败时检查服务端产物存储。",
     "Unable to load evidence content": "无法读取证据内容，请重试并检查服务端产物存储。",
+    "input request not found": "未找到此问题。请刷新“问题与回答”，核对当前任务。",
+    "this question already has an immutable answer": "此问题已有不可修改的回答。请刷新查看已保存回答及原后台任务，未提交的草稿会保留。",
+    "question is no longer awaiting this answer; refresh its current state": "此问题的状态已变化。请刷新问题与后台任务，再决定下一步；不要创建新周期来绕过问题。",
+    "answer must contain 1–12000 characters and no NUL": "请输入 1–12,000 个字符的非空白回答，并移除 NUL 空字符。",
+    "test run has active background work; use its task controls": "此运行已有后台任务。请使用该任务的回答或取消入口，等待期间不能新建周期。",
+    "test run already has active work; wait or cancel the active job": "此运行已有任务。请等待、回答待答问题，或在后台任务详情中取消。",
   };
   if (known[detail]) return known[detail];
   if (error instanceof ApiError) {
@@ -99,6 +105,10 @@ export const getTestCases = (runId: string) => api<TestCase[]>(`/test-runs/${run
 export const getCoverage = (runId: string) => api<Coverage>(`/test-runs/${runId}/coverage`);
 export const getMissions = (runId: string) => api<Mission[]>(`/test-runs/${runId}/missions`);
 export const getMission = (missionId: string) => api<Mission>(`/missions/${missionId}`);
+export const getInputRequests = (runId: string) => api<InputRequest[]>(`/test-runs/${runId}/input-requests`);
+export const getInputRequest = (requestId: string) => api<InputRequest>(`/input-requests/${requestId}`);
+export const answerInputRequest = (requestId: string, payload: InputAnswer) =>
+  api<InputAnswerResult>(`/input-requests/${requestId}/answer`, { method: "POST", body: JSON.stringify(payload) });
 export const planNext = (runId: string) =>
   api<PlannerResult>(`/test-runs/${runId}/plan-next`, { method: "POST" });
 export const getMissionAttempts = (missionId: string) => api<MissionAttempt[]>(`/missions/${missionId}/attempts`);

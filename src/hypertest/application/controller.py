@@ -40,6 +40,7 @@ async def advance_run(
     timeout_seconds: int = 300,
     max_steps: int = 12,
     harness: AgentHarness | None = None,
+    previous_steps: list[dict[str, str]] | None = None,
 ) -> dict:
     """Run concrete missions/executions until a verdict, interruption, or step limit.
 
@@ -52,7 +53,7 @@ async def advance_run(
     if backend not in {"docker", "local"}:
         raise ConflictError("unsupported runner backend")
     run = await get_test_run(session, run_id)
-    steps: list[dict[str, str]] = []
+    steps: list[dict[str, str]] = list(previous_steps or [])
     # Check the actual daemon/trusted image (or explicit local opt-in) before
     # spending Agent calls or fetching source. This is operational readiness,
     # never an Execution/Evidence fact or an environment reservation.
@@ -79,7 +80,7 @@ async def advance_run(
     def recorded(reason: str, **references: str) -> dict:
         return {"reason": reason, "steps": steps, "workspace": workspace, **references}
 
-    for _ in range(max_steps):
+    for _ in range(max(0, max_steps - len(steps))):
         await _guard_operation_owner(session, run_id)
         planned = await plan_next_mission(session, run_id)
         await _guard_operation_owner(session, run_id)
@@ -91,11 +92,15 @@ async def advance_run(
                 MissionStatus.CREATED,
                 MissionStatus.READY,
                 MissionStatus.RETRYING,
+                MissionStatus.WAITING_INPUT,
             }:
                 return recorded("MISSION_IN_PROGRESS", mission_id=str(mission.id))
             result = await execute_mission(
                 session, mission.id, workspace=workspace, harness=harness
             )
+            if result.waiting_input is not None:
+                return recorded("WAITING_INPUT", mission_id=str(mission.id),
+                                _waiting_input=result.waiting_input)
             steps.append(
                 {
                     "action": "mission",

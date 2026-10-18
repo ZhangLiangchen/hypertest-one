@@ -570,4 +570,5 @@ from hypertest.domain.delivery import (  # noqa: E402, F401
     VerdictEvidence,
     VerdictFinding,
 )
+from hypertest.domain.inputs import MissionInputRequest  # noqa: E402, F401
 from hypertest.domain.jobs import DurableJob  # noqa: E402, F401

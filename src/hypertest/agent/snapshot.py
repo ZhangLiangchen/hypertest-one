@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-import tempfile
+import shutil
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from hypertest.agent.base import AgentEvent, AgentHarness, AgentSession
+from hypertest.common.ids import uuid7
+from hypertest.config import get_settings
 from hypertest.runner.source import copy_tracked_source
 
 _CREDENTIAL_DIRECTORIES = {
@@ -35,6 +37,40 @@ _CREDENTIAL_FILES = {
 _ENVIRONMENT_EXAMPLES = {".env.example", ".env.sample", ".env.template"}
 
 
+def _managed_agent_root() -> Path:
+    root = Path(get_settings().workspace_root).resolve() / ".hypertest-agent-sessions"
+    if root.is_symlink():
+        raise RuntimeError("managed agent workspace root cannot be a symlink")
+    return root
+
+
+def _managed_workspace_directory(workspace: str) -> Path | None:
+    path = Path(workspace)
+    root = path.parent
+    try:
+        managed = _managed_agent_root()
+        if (not path.is_absolute() or path.name != "repo" or root.parent != managed
+                or path.is_symlink() or root.is_symlink() or path.resolve() != path
+                or len(root.name) != 32 or any(c not in "0123456789abcdef" for c in root.name)):
+            return None
+    except (OSError, RuntimeError):
+        return None
+    return root
+
+
+def cleanup_managed_agent_workspace(workspace: str) -> bool:
+    """Remove only our exact managed UUID/repo container; never an operator path.
+
+    The caller must finish its ownership/cancellation transaction before filesystem
+    cleanup. Missing or unsafe legacy locations are deliberately left untouched.
+    """
+    root = _managed_workspace_directory(workspace)
+    if root is None or not root.is_dir():
+        return False
+    shutil.rmtree(root)
+    return True
+
+
 def _is_source_file(relative: str) -> bool:
     path = PurePosixPath(relative)
     return not (
@@ -46,7 +82,7 @@ def _is_source_file(relative: str) -> bool:
 
 @dataclass(slots=True)
 class _Workspace:
-    temporary: tempfile.TemporaryDirectory
+    root: Path
     path: Path
     file_hashes: dict[str, str]
 
@@ -64,24 +100,48 @@ class SnapshotHarness:
         self.tracked_files = [item for item in tracked_files if _is_source_file(item)]
         self._workspaces: dict[str, _Workspace] = {}
 
+    def _managed_root(self) -> Path:
+        return _managed_agent_root()
+
+    def _expected_hashes(self) -> dict[str, str]:
+        return {
+            relative: hashlib.sha256((self.source / relative).read_bytes()).hexdigest()
+            for relative in self.tracked_files
+        }
+
     async def create_session(self, workspace: str) -> AgentSession:
         if Path(workspace).resolve() != self.source:
             raise RuntimeError("agent source differs from its validated snapshot")
-        temporary = tempfile.TemporaryDirectory(prefix="hypertest-agent-")
-        # macOS exposes its temporary root through /var -> /private/var.
-        # Use one canonical root for both containment checks and provider paths.
-        target = (Path(temporary.name) / "repo").resolve()
+        managed = self._managed_root()
+        managed.mkdir(parents=True, mode=0o700, exist_ok=True)
+        root = managed / uuid7().hex
+        root.mkdir(mode=0o700)
+        target = root / "repo"
         try:
             copy_tracked_source(self.source, target, self.tracked_files)
-            hashes = {
-                relative: hashlib.sha256((target / relative).read_bytes()).hexdigest()
-                for relative in self.tracked_files
-            }
+            hashes = self._expected_hashes()
             session = await self.harness.create_session(str(target))
-            self._workspaces[session.id] = _Workspace(temporary, target, hashes)
+            self._workspaces[session.id] = _Workspace(root, target, hashes)
             return session
         except BaseException:
-            temporary.cleanup()
+            shutil.rmtree(root, ignore_errors=True)
+            raise
+
+    async def restore_session(self, session: AgentSession, workspace: str) -> AgentSession:
+        # The database identifies the managed directory, but source integrity is
+        # reconstructed from the validated pinned checkout, never agent files.
+        path = Path(workspace)
+        root = _managed_workspace_directory(workspace)
+        if root is None or not path.is_dir():
+            raise RuntimeError("persisted managed agent workspace is missing or unsafe")
+        self._workspaces[session.id] = _Workspace(root, path, self._expected_hashes())
+        if not self._source_unchanged(session):
+            self._workspaces.pop(session.id)
+            raise RuntimeError("persisted agent workspace differs from its pinned source")
+        try:
+            return await self.harness.restore_session(session, str(path))
+        except BaseException:
+            self._workspaces.pop(session.id, None)
             raise
 
     def workspace_for(self, session: AgentSession) -> str:
@@ -108,6 +168,18 @@ class SnapshotHarness:
         session: AgentSession,
         mission: dict[str, Any],
     ) -> AsyncIterator[AgentEvent]:
+        async for event in self._run(session, mission, resume=False):
+            yield event
+
+    async def resume(
+        self, session: AgentSession, mission: dict[str, Any],
+    ) -> AsyncIterator[AgentEvent]:
+        async for event in self._run(session, mission, resume=True):
+            yield event
+
+    async def _run(
+        self, session: AgentSession, mission: dict[str, Any], *, resume: bool,
+    ) -> AsyncIterator[AgentEvent]:
         contract = dict(mission)
         constraints = dict(contract.get("constraints", {}))
         constraints.update(
@@ -117,7 +189,8 @@ class SnapshotHarness:
             credential_files_omitted=True,
         )
         contract["constraints"] = constraints
-        async for event in self.harness.execute(session, contract):
+        stream = self.harness.resume(session, contract) if resume else self.harness.execute(session, contract)
+        async for event in stream:
             if event.type == "RESULT_SUBMITTED" and not self._source_unchanged(session):
                 yield AgentEvent(
                     type="ERROR",
@@ -138,4 +211,4 @@ class SnapshotHarness:
         finally:
             workspace = self._workspaces.pop(session.id, None)
             if workspace is not None:
-                workspace.temporary.cleanup()
+                cleanup_managed_agent_workspace(str(workspace.path))

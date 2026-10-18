@@ -1,5 +1,9 @@
 # HyperTest One 第一阶段验收
 
+## 当前增量：等待输入、回答与原任务恢复
+
+新增迁移 `0009_mission_inputs`，本地与 Debian 服务器均已通过真实 Web 提问 → 持久等待 → API / Worker 重启 → 回答 → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。服务器运行候选 `8e01ac5`，PR #6 未合并；旧 1,029 行历史 / 34 个产物引用保留，最终配对备份和隔离恢复已通过，45.76.149.233/32 白名单及 SSH 隧道保持。见[本轮逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量、运行身份及当时缺口保留为历史，以本节为当前问答能力状态；不以旧失败链路代替本轮实测，也不据此宣称任意 API / SIT、第二 Harness 或多人权限已完成。
+
 ## 本轮两阶段交付：已部署73d与后续范围修复
 
 阶段1执行版本为 `73dff989b87fa7349d9b36bd8416ece948a82212`，已部署并激活VPN公网白名单，SSH备选保留。[阶段1部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr4-deployment-2026-10-17.md)与[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)保存实际CI/目录/协议与数据保全身份。d20/302、298模型执行manifest及更早Run继续作为历史证据，不改写为本轮范围修复后的模型执行。

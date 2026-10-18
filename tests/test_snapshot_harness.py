@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import func, select
 
 from hypertest.agent.base import AgentEvent, AgentSession
-from hypertest.agent.snapshot import SnapshotHarness
+from hypertest.agent.snapshot import SnapshotHarness, cleanup_managed_agent_workspace
 from hypertest.api.delivery_schemas import RunBootstrap
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application import runtime
@@ -126,6 +126,14 @@ class RecordingProvider:
     async def interrupt(self, session: AgentSession) -> None:
         self.interrupted += 1
 
+    async def restore_session(self, session: AgentSession, workspace: str) -> AgentSession:
+        self.workspace = Path(workspace)
+        return session
+
+    async def resume(self, session: AgentSession, mission: dict) -> AsyncIterator[AgentEvent]:
+        async for event in self.execute(session, mission):
+            yield event
+
     async def close(self, session: AgentSession) -> None:
         self.closed += 1
         if self.mode == "close_failure":
@@ -180,6 +188,52 @@ async def test_disposable_workspace_contains_tracked_source_without_credentials_
     assert (source / ".env").is_file()
     assert (source / "untracked_credentials.txt").is_file()
     await validate_checkout(source, commit, repository)
+
+
+@pytest.mark.asyncio
+async def test_managed_snapshot_survives_gateway_recreation_and_revalidates_trusted_source(
+    source_snapshot, monkeypatch,
+):
+    import gc
+
+    source, commit, repository = source_snapshot
+    monkeypatch.setattr(get_settings(), "workspace_root", str(source.parent))
+    files = await validate_checkout(source, commit, repository)
+    first = SnapshotHarness(RecordingProvider(), source, files)
+    session = await first.create_session(str(source))
+    workspace = first.workspace_for(session)
+    del first
+    gc.collect()
+    assert Path(workspace).is_dir()
+    restored = SnapshotHarness(RecordingProvider(), source, files)
+    await restored.restore_session(session, workspace)
+    events = [event async for event in restored.resume(session, {"mission_id": "MIS-resumed"})]
+    assert any(event.type == "RESULT_SUBMITTED" for event in events)
+    await restored.close(session)
+    assert not Path(workspace).exists()
+
+    damaged = SnapshotHarness(RecordingProvider(), source, files)
+    session = await damaged.create_session(str(source))
+    workspace = damaged.workspace_for(session)
+    (Path(workspace) / "src/arithmetic.py").write_text("def add(a,b): return 0\n")
+    competitor = SnapshotHarness(RecordingProvider(), source, files)
+    with pytest.raises(RuntimeError, match="differs from its pinned source"):
+        await competitor.restore_session(session, workspace)
+    await damaged.close(session)
+    await validate_checkout(source, commit, repository)
+
+
+def test_managed_cleanup_refuses_operator_directory_and_symlink_escape(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_settings(), "workspace_root", str(tmp_path))
+    operator = tmp_path / "operator-repo"
+    operator.mkdir()
+    (operator / "keep.txt").write_text("operator content")
+    assert not cleanup_managed_agent_workspace(str(operator))
+    managed = tmp_path / ".hypertest-agent-sessions"
+    managed.mkdir()
+    (managed / ("1" * 32)).symlink_to(operator, target_is_directory=True)
+    assert not cleanup_managed_agent_workspace(str(managed / ("1" * 32) / "repo"))
+    assert (operator / "keep.txt").read_text() == "operator content"
 
 
 @pytest.mark.asyncio

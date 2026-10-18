@@ -311,11 +311,15 @@ Agent Gateway 是 HyperTest 与外部 Agent Harness 的 Anti-Corruption Layer，
 class AgentHarness:
     async def create_session(self, workspace, profile): ...
     async def execute(self, session, mission): ...
+    async def restore_session(self, session, workspace): ...
+    async def resume(self, session, mission): ...
     async def interrupt(self, session): ...
     async def close(self, session): ...
 ```
 
 当前实现：`CodexAdapter`。`ClaudeCodeAdapter`、`PiAdapter`、`OpenCodeAdapter` 属于后续可替换 Harness 路线，统一接口不表示已完成这些集成。
+
+restore_session 使用已持久化的 Gateway handle、真实 Provider thread 引用和受控 workspace 恢复进程内映射，不能创建新会话冒充原会话。resume 是原 Mission / Attempt 的下一交互轮次；人工回答不是新 Mission，原 Attempt 的 Job 所有权和冻结 spec 保持不变。完整 Capability 协商和跨 Provider 的恢复不由接口声明推断为已实现。
 
 ---
 
@@ -334,6 +338,8 @@ HyperTest Session → Provider Session / Thread
 Provider-specific metadata 必须隔离在 Adapter 或 `provider_metadata` 中。
 
 Codex CLI Adapter 通过官方 `exec -` stdin 接口传输 UTF-8 Mission Prompt，避免大 PRD 进入 argv 触发宿主参数长度限制；写入与 stdout / stderr 读取并行，防止管道相互阻塞。正式响应仍使用严格 `--output-schema` 和 CLI 写入的 `--output-last-message` 文件，read-only sandbox 与非交互审批策略保持；Provider telemetry 不代替正式结果。大输入 subprocess 回归仅证明传输，不证明 Provider 上下文容量或语义处理能力。
+
+Codex 的真实 thread.started 引用与 HyperTest 自有 AgentSession ID 分离持久化；Attempt.provider_metadata 保存 Gateway handle，恢复只调用明确的 thread UUID，不使用 --last 或旧占位值。exec resume 的 JSON / Schema / 最终结果文件选项显式传给 resume 子命令；Agent 仍在父 exec 的 read-only 沙箱内。人工输入使用结构化 WAITING_INPUT 控制结果，不假定普通 CLI 暴露实验性 App Server 工具。Provider 进程结束后返回可暂停标记，由 Worker 的租约归属事务决定是否持久暂停；Adapter 不自行改变 Canonical 状态。
 
 ---
 
@@ -390,11 +396,15 @@ Workspace 是 Agent 的操作世界；数据库是 HyperTest 的 Canonical World
 
 当前 Runtime 在临时 tracked-source 副本中运行 Agent，固定 SourceSnapshot / PolicySnapshot 并注入 PRD 与规范化 Mission；Canonical Artifact 和业务状态不放入 Vendor Session。IMPLEMENT_TESTS 的生成源码作为 Proposal `code` 返回，经 Verifier 校验后进入内容寻址 Artifact Store，不直接修改用户 checkout 或应用 Commit。
 
+该副本位于配置 workspace_root 下的 `.hypertest-agent-sessions/<UUID>/repo`，是可清理的托管 Agent 数据。WAITING_INPUT 时保留副本以跨 Worker / Gateway 实例恢复，不依赖 TemporaryDirectory 析构；正常完成、失败或取消时通过受限路径清理。恢复前从原 pinned source 重建 expected Hash 并验证副本，不使用 Agent 保存的 Hash 作为可信来源。缺失、改动或越界路径必须停止恢复；清理函数不能删除 Operator checkout、其他目录或符号链接目标。Provider 原生会话、临时副本及运行遥测都不升级为 Canonical Testing State。
+
 ---
 
 ## 21. HyperTest MCP
 
-领域 MCP Server 是目标工具契约。当前 MVP 使用预先物化的 Mission Context 与结构化最终 Proposal 结果，尚未提供以下完整 MCP 域工具、Mission Token 工具授权或 WAITING_INPUT / 回答 / resume 闭环；不能由协议定义或状态枚举推断这些功能已实现。
+领域 MCP Server 是目标工具契约。当前 MVP 使用预先物化的 Mission Context、结构化最终 Proposal 结果及独立 WAITING_INPUT 控制结果；尚未提供以下完整 MCP 域工具或 Mission Token 工具授权，不能由协议定义或状态枚举推断这些功能已实现。WAITING_INPUT 的持久问题、Web 回答与原会话 resume 不依赖完整 MCP，具体契约见 TMP §29、领域模型 §23.2；真实模型验收按实际版本单独登记。
+
+等待时同一 DurableJob 保持非终态但释放 Worker lease，继续保留 per-Run 操作独占。Worker 原子提交 Question、Mission / Session WAITING_INPUT 与 Job WAITING_INPUT；回答通过 row_version 和 idempotency_key 防并发覆盖，在原 Job 上重新排队。新 lease 的 Worker 消费已回答问题、同事务记录 Audit / Outbox 后恢复同一 Attempt / Session，不重复启动已完成步骤，也不覆盖取消或失败历史。回答仅作为补充上下文，原 PRD、Snapshot、Policy、spec / spec_hash 与 Canonical 接受规则不变。Provider 会话丢失时明确失败，显式重试仍保留旧记录；direct 无持久 Job 的等待请求不能留下不可恢复的暂停状态。
 
 Read Tools：`get_mission`、`get_requirement`、`get_risk`、`get_test_case`、`get_coverage`、`get_execution`、`get_evidence`、`get_finding`。
 

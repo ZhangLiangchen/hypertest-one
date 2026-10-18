@@ -29,6 +29,8 @@ deployed release, SSH access, service management, and paired backup/recovery ste
 
 The current product targets **one trusted operator** in a controlled development/test environment. Application login, tenant isolation, RBAC, and hardened public deployment are future work.
 
+The current `WAITING_INPUT` change adds persisted Mission questions, Web answers and continuation of the same durable Job. It introduces migration `0009_mission_inputs`. Its isolated Web checks pass 31 tests, typecheck, production build and audit 0; **local real Web / Codex same-thread resume / official Docker / FINAL RELEASE_READY acceptance has passed; server acceptance is registered separately**. See [human input operation](docs/WEB_PRODUCT_WORKFLOW.md#等待输入回答并继续--waiting-for-input-answer-and-continue) and the [frontend check record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/waiting-input-web-checks-2026-10-18.md). See [the current continuation acceptance](docs/WAITING_INPUT_ACCEPTANCE.md); earlier live records below retain their own execution identities. This change does not alter the recorded VPN/SSH access policy or existing testing history.
+
 Delivery has two stages. **Stage 1**, deployed as `73dff989b87fa7349d9b36bd8416ece948a82212`, passed 9 real PRD-file fixtures/15 native-browser checks, 20 frontend regressions and fresh Web checks. Its backend inputs were unchanged from d20/the 302-test source; that historical 114-input manifest is `0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07` and does not identify the subsequent backend scope fix.
 
 The VPN entry **http://155.138.206.106:8080** is active under the Stage 1 record, restricted at both UFW and nginx to TCP peer `45.76.149.233/32`. SSH22 and `127.0.0.1:8080` remain as a fallback; API, Web backend and PostgreSQL stay loopback-bound. This shared-egress network permission is not individual login/RBAC. Actual release/network results are maintained in the [latest delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md) and [server operations](docs/SERVER_OPERATIONS.md).
@@ -60,13 +62,15 @@ and a passing testing verdict. The SSH tunnel remains available alongside the re
 5. Inspect queued/running work, errors, and stop reasons. Cancel a request or explicitly retry unsuccessful work; retries create linked history rather than overwriting old requests. Controlled Mission rejection retains recorded cycle steps. Expand an Attempt to read its original Agent summary and unresolved items separately from formal test facts. Interrupted work requires inspection and explicit retry.
 6. Inspect the final quality verdict, rationale, canonical state hash, evidence manifest hash, and history. Findings support controlled triage, confirmation, resolution, closure, and reopening with a recorded reason.
 
+If a Mission pauses for input, use **Answer question** in the Run overview, Mission/task details, or **Questions & answers**. Read the original question, choose an optional suggestion or write a free-text answer, then select **Submit answer & continue**. Closing the answer drawer or switching language preserves its draft in the current page; refreshing or leaving the page does not promise unsent-draft recovery. A successful answer queues the **same** Job and retains its Mission, Attempt and AgentSession identities. Do not start another cycle or use ordinary task retry to bypass a pending question. To stop waiting, cancel that Job through its task controls; its question and any recorded answer remain in history. Answers supplement context without changing the frozen PRD, source, Mission contract or testing scope, and cannot substitute for accepted Proposals, trusted execution evidence or a Verdict.
+
 PRD import must decode UTF-8 once with fatal error handling, reject empty/whitespace-only/BOM-only input, and preserve the existing PRD on any invalid import. It must not trim valid content or normalize its line endings. Native Chrome reproduced an empty-file defect in d20: it replaced an existing draft, then Next failed the required-field validation. The repaired local [browser matrix](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json) passed all 9 fixtures/15 checks, including rejection without losing the draft or filename, successful import/review, editing, cancellation/reselection and language switching. This local validation created no Run and called no model. Production acceptance uses one independent Project/Run on the VPN HTTP origin to check file → edit → persisted hash → real Codex/Docker/Evidence/Verdict; its actual outcome is separately recorded in the [latest delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md). Previous clipboard-based model runs do not prove that production import path.
 
 Request identities use `crypto.randomUUID()` when available and otherwise a UUID v4 generated with `crypto.getRandomValues()`, allowing ordinary public-IP HTTP without a weak-random fallback. The three HTTP entry points (Project, Run and Job creation) were exercised in the Stage 1 production record; the later scope-fix model acceptance is separate. The helper does not change immutable-input or idempotency rules.
 
 Individual **Plan next mission**, Mission execution, **Execute tests**, and **Evaluate quality gate** controls remain available for inspection and intervention. Cancelled/expired Missions retain their immutable specification and history; explicitly planning again creates a new generation when the work is still needed. Generated Python tests become checksum-addressed artifacts linked to canonical TestCases; the application commit stays fixed.
 
-The Run workbench includes Requirements, Risks, Test Cases, Missions, Automation, Executions, Evidence, Findings, Verdicts, and Tasks. The background task monitor and task details show queue state, timestamps, errors, cancellation, and retry history. Tasks refresh every 1.5 seconds and canonical state every 5 seconds. Refreshing the page observes saved work without submitting another request. Attempts, rejected proposals, execution errors, artifact content, and finding transitions remain inspectable.
+The Run workbench includes Requirements, Risks, Test Cases, Missions, Automation, Executions, Evidence, Findings, Verdicts, Tasks, and Questions & answers. The background task monitor and task details show queue state, timestamps, errors, cancellation, and retry history. Tasks refresh every 1.5 seconds, questions every 2 seconds and canonical state every 5 seconds. Refreshing the page observes saved work without submitting another request. Attempts, rejected proposals, execution errors, artifact content, and finding transitions remain inspectable.
 
 The Planner is deterministic-first:
 
@@ -204,6 +208,7 @@ POST /test-runs/{test_run_id}/advance
 POST /test-runs/{test_run_id}/prepare-workspace
 POST /test-runs/{test_run_id}/jobs
 GET  /test-runs/{test_run_id}/jobs
+GET  /test-runs/{test_run_id}/input-requests
 GET  /test-runs/{test_run_id}/implementations
 GET  /test-runs/{test_run_id}/executions
 POST /test-runs/{test_run_id}/executions
@@ -224,6 +229,8 @@ POST /findings/{finding_id}/transition
 GET  /jobs/{job_id}
 POST /jobs/{job_id}/cancel
 POST /jobs/{job_id}/retry
+GET  /input-requests/{input_request_id}
+POST /input-requests/{input_request_id}/answer
 ```
 
 The prepare-workspace endpoint needs no request body and returns `workspace`, `repository_url`, and the pinned `commit_sha`. PRD and configuration text reads verify their saved snapshot checksums.
@@ -246,6 +253,24 @@ Web uses the Job API for long operations. `POST /test-runs/{id}/jobs` accepts `o
 For automatic GitHub checkout, replace `workspace` with `"prepare_workspace": true`; provide exactly one source mode. The same Worker request prepares the pinned source before starting missions. `POST /sources/resolve` accepts `repository_url` and a branch/tag `revision` before bootstrap, returning the full SHA without changing canonical state or a checkout. Other origins continue to use an existing workspace.
 
 Poll the Run's Job list or `GET /jobs/{id}` for state and result. The same key and input return the original request; conflicting input or another active request returns 409. Cancellation returns 202. Retry accepts a new `idempotency_key` and returns 202 with a new linked Job. A cancelled Mission remains cancelled; explicitly plan a new Mission generation when its work is still needed. A FAILED Mission must first use the controlled Mission retry action before execution can be submitted again. `RETRYING` is displayed as **Awaiting retry**: it is a stopped Mission waiting for an explicit action, not evidence that a Worker is actively executing it. `GET /capabilities` includes `worker.available`, `worker.last_seen_at`, and `worker.active_workers`.
+
+### Human input API
+
+Question reads return the recorded question/options, status, original answer/timestamps, `row_version`, and the owning Run/Mission/Attempt/AgentSession/Job identities. Options are suggestions; free-text answers remain allowed. A question can be `PENDING`, `ANSWERED`, `CONSUMED`, or `CANCELLED`. It belongs to operational Mission context and does not itself create a Canonical Requirement or Evidence.
+
+Submit an answer to `POST /input-requests/{id}/answer`:
+
+```json
+{
+  "answer": "Use the isolated test tenant described in the PRD.",
+  "expected_row_version": 1,
+  "idempotency_key": "answer:question-1:request-1"
+}
+```
+
+The answer must contain 1–12,000 characters, cannot be blank or contain NUL, and is stored without trimming or line-ending normalization. HTTP 202 returns `{ "input_request": { ... }, "job": { ... } }`: saving the answer and changing its original Job from `WAITING_INPUT` to `QUEUED` are atomic. Waiting retains the Run's active-work reservation but releases its Worker lease; a Worker claims the queued continuation with a **new lease** and resumes the same Mission/Attempt/AgentSession. It does not create a replacement Job or rewrite the frozen Job payload/specification.
+
+If submission is uncertain, retain the exact answer, original `expected_row_version` and idempotency key, refresh the recorded state, then explicitly retry the same request if needed. The same key/body returns the original question/Job even after consumption or completion. A different saved answer, changed request identity, stale question, or incompatible task state returns 409. Web keeps the draft and explains the refresh/retry action. A `WAITING_INPUT` Job can be cancelled through `POST /jobs/{id}/cancel`; direct Mission cancellation is not the waiting-task control path. The supported human-input path uses durable `ADVANCE_RUN` or `EXECUTE_MISSION` work, rather than keeping a synchronous HTTP request open.
 
 The older direct `/advance`, Mission execute, Runner execute, Gate, and prepare-workspace endpoints remain available for compatibility. They run synchronously and check for conflicting queued work. The direct advance loop rechecks operation ownership before and after each Planner step and stops if a durable request was admitted between service commits; it does not hold exclusive ownership for its entire loop. The advance payload accepts `workspace`, `backend` (`docker` by default), `timeout_seconds`, and `max_steps` (default 12, range 1–32). Its controller uses real Mission/Runner/Gate services until a final Verdict, interruption, rejection, or work limit; the HTTP API does not accept synthetic Agent results. Job results retain completed steps and a stop reason.
 
@@ -274,7 +299,7 @@ Direct `POST /policy-snapshots` callers must provide `content_sha256` matching t
 
 ## Migrations and validation
 
-`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008`.
+`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. `0009_mission_inputs` adds durable question/answer history and waiting/resume governance while retaining existing snapshots and testing history. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008 → 0009`.
 
 Backend validation requires a real PostgreSQL database:
 
@@ -306,6 +331,7 @@ Web validation:
 ```bash
 cd web
 npm ci
+npm test
 npm run typecheck
 npm run build
 ```

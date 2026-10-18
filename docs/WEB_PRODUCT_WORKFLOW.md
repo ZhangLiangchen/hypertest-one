@@ -1,5 +1,9 @@
 # Web 工作台操作指南 / Web workbench guide
 
+## 当前等待输入功能的状态
+
+本轮新增 WAITING_INPUT 问题持久化、Web 回答及同一后台任务恢复，数据库迁移为 `0009_mission_inputs`。独立前端安装、31 项回归、类型检查、生产构建及依赖审计 0 漏洞已通过；**真实 Web 回答 → Provider resume → Runner → Evidence → Verdict 闭环仍待本轮验收**。[前端检查记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/waiting-input-web-checks-2026-10-18.md)不代替真实模型和部署证据。以下既有文件导入、测试链及 VPN/SSH 记录保留原身份，不作为新恢复功能已验收的证明。
+
 ## 两阶段版本与验收状态
 
 阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212` 已部署，VPN公网 `http://155.138.206.106:8080` 的45.76.149.233/32双层白名单已激活，SSH隧道保留。本地9实际PRD文件/15UI检查、20前端回归及生产HTTP Project/Run/Job创建、导入编辑稿原文/hash均有实际证据。
@@ -62,6 +66,33 @@ Invalid PRD imports preserve the current draft and filename. Native Chrome/macOS
 后台任务提交具有幂等身份。响应丢失时，Web 先查询相同请求是否已保存；无法确认时保留同一请求标识供重试。创建 Run 的同一标识不能绑定不同的实质输入，平台返回 409 并保留原记录；分支参考标签不改变 SourceSnapshot 的身份。
 
 **Task completion is not a passing quality verdict.** Inspect official execution facts and the final verdict. Requests preserve identity across uncertain submissions; retries retain prior history.
+
+## 等待输入、回答并继续 / Waiting for input, answer and continue
+
+当智能体需要澄清时，运行概览会显示“需要你的回答”，主操作变为“回答问题”。也可从测试任务详情、后台任务详情或“问题与回答”页签进入。此时后台任务为 `WAITING_INPUT`，表示流程暂停，既不代表失败，也不代表操作或测试通过；等待期间保留此 Run 的任务位置，但不占用 Worker。
+
+1. 打开问题，阅读智能体问题原文。建议回答只是填入草稿的快捷入口，不会自动提交，也不限制自由文本。
+2. 填写 1–12,000 个字符的非空白回答，不能含 NUL 空字符。正文保留原空白与换行。关闭面板、重开或切换中英文时，当前页面内的草稿会保留；离开或刷新页面不保证未提交草稿恢复。
+3. 选择“提交回答并继续”。保存回答与原 Job 的 `WAITING_INPUT → QUEUED` 在同一事务完成。Worker 用新 lease 领取该任务，继续原 Mission、Attempt 和 AgentSession；不新建 Job，不改写原 Job payload 或 Mission spec。
+4. 查看原后台任务的后续状态和正式产物。`ANSWERED` 表示回答已保存；`CONSUMED` 表示已供恢复任务使用，均不表示提议被接受、执行通过或可发布。正式结论仍以最高序号、`FINAL` 且 scope 为 `TEST_RUN` 的判定及其证据为准。
+
+网络或状态刷新失败时，已加载问题和草稿会保留。请先刷新；提交结果不确定时，再次提交相同回答会复用原幂等标识和原 `row_version`，避免重复恢复。另一页面已回答或任务状态改变时，服务返回 409；查看保存的答案和任务记录，未提交的不同草稿仍可在面板中查看，不能覆盖原答案。
+
+需要停止等待时，进入原后台任务详情并“取消任务”；Mission 的“管理暂停任务”会引导到该 Job。取消会保留问题及已记录回答，不能回答已取消的问题来重开任务。不要发起新周期或普通重试来绕过待答问题。
+
+回答只补充任务上下文，不改变冻结 PRD、仓库提交、Mission 契约或被测范围。若澄清实际需要变更需求或源码，请另建输入正确的 Run；回答本身不是 Canonical Requirement、Runner Evidence 或质量决策。
+
+The overview and **Questions & answers** section expose each recorded question. Suggestions fill an editable draft; free text is always allowed. **Submit answer & continue** atomically saves the answer and queues the same paused Job. A new Worker lease resumes the same Mission, Attempt and AgentSession. A failed read keeps loaded content; an uncertain same-body retry retains its original request key/version. Cancel the original Job to stop waiting. Answers remain context and do not modify frozen inputs, authorize a different testing scope, or establish test facts. The local real Web/Codex same-thread/Docker continuation path has passed; exact identities and separate server verification are tracked in [current acceptance](WAITING_INPUT_ACCEPTANCE.md).
+
+API reference: `GET /api/v1/test-runs/{run_id}/input-requests`, `GET /api/v1/input-requests/{id}`, and `POST /api/v1/input-requests/{id}/answer` with `{answer, expected_row_version, idempotency_key}`. Successful answer submission returns HTTP 202 `{input_request, job}`; conflicting state or a different immutable answer returns 409. See [README API details](../README.md#human-input-api).
+
+| 展示 | 含义 |
+|---|---|
+| 等待输入 / WAITING_INPUT | 同一后台任务暂停，等待回答；保留 Run reservation，不占用 Worker |
+| PENDING | 问题待回答；Worker 安全暂停后才可提交 |
+| 回答已保存 / ANSWERED | 原问题已记录答案，原 Job 已重新入队 |
+| 智能体已接收 / CONSUMED | 回答已用于恢复过程，不代表已产生正式测试事实 |
+| 已取消 / CANCELLED | 问题历史保留，不能再提交回答或据此重开任务 |
 
 ## VPN 白名单入口与 SSH 备选
 

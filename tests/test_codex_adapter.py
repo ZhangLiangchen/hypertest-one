@@ -1,9 +1,11 @@
 import asyncio
+import json
 import re
 import sys
 
 import pytest
 
+from hypertest.agent.base import AgentSession
 from hypertest.agent.codex import CodexCliAdapter, codex_output_schema
 from hypertest.application.runtime import build_mission_contract
 from hypertest.domain.enums import MissionType, Priority
@@ -142,3 +144,73 @@ def test_provider_proposal_keys_are_stable_per_session_and_distinct_across_retri
     assert not re.search(retry_pattern, "AS-FIRST:requirement-addition")
     assert re.search(retry_pattern, "AS-RETRY:requirement-addition")
     assert "pattern" not in mission["output_contract"]["result_schema"]["$defs"]["ProposalSubmission"]["properties"]["idempotency_key"]
+
+
+@pytest.mark.asyncio
+async def test_native_session_reference_survives_adapter_recreation_and_exact_resume(tmp_path):
+    provider = tmp_path / "resumable_provider.py"
+    reference = "12345678-1234-4567-8123-123456789012"
+    provider.write_text(f'''#!{sys.executable}
+import json,pathlib,sys
+args=sys.argv[1:]
+mission=json.loads(sys.stdin.read().split("TEST_MISSION_JSON:\\n",1)[1])
+assert "--last" not in args
+assert args[args.index("--sandbox")+1] == "read-only"
+schema=json.loads(pathlib.Path(args[args.index("--output-schema")+1]).read_text())
+assert "input_request" in schema["properties"]
+assert "WAITING_INPUT" in schema["properties"]["status"]["enum"]
+payload={{"protocol":mission["protocol"],"mission_id":mission["mission_id"],"proposals":[]}}
+if "resume" in args:
+    assert args[args.index("resume")+1] == {reference!r}
+    assert args.index("--sandbox") < args.index("resume")
+    assert all(args.index(flag) > args.index("resume") for flag in ("--json", "--output-schema", "--output-last-message"))
+    assert mission["context"]["human_inputs"][0]["answer"] == "zero is supported"
+    payload.update(status="COMPLETED", input_request=None)
+else:
+    payload.update(status="WAITING_INPUT", input_request={{"question_id":"zero-policy","question":"Is zero supported?","options":["yes","no"]}})
+print(json.dumps({{"type":"thread.started","thread_id":{reference!r}}}))
+pathlib.Path(args[args.index("--output-last-message")+1]).write_text(json.dumps(payload))
+''')
+    provider.chmod(0o700)
+    adapter = CodexCliAdapter(binary=str(provider))
+    original = await adapter.create_session(str(tmp_path))
+    contract = mission_contract("MISSION-INPUT")
+    initial = [event async for event in adapter.execute(original, contract)]
+    assert original.provider_session_id == reference
+    assert next(e.payload for e in initial if e.type == "RESULT_SUBMITTED")["status"] == "WAITING_INPUT"
+    first_schema = json.loads(next((tmp_path / ".hypertest/results").glob("*.schema.json")).read_text())
+
+    recreated = CodexCliAdapter(binary=str(provider))
+    restored = AgentSession(original.id, "codex", original.provider_session_id)
+    await recreated.restore_session(restored, str(tmp_path))
+    contract["context"] = {"human_inputs": [{"answer": "zero is supported"}]}
+    final = [event async for event in recreated.resume(restored, contract)]
+    assert next(e.payload for e in final if e.type == "RESULT_SUBMITTED")["status"] == "COMPLETED"
+    assert json.loads(next((tmp_path / ".hypertest/results").glob("*.schema.json")).read_text()) == first_schema
+    await recreated.close(restored)
+
+
+@pytest.mark.asyncio
+async def test_resume_refuses_historical_placeholder_instead_of_selecting_last_session(tmp_path):
+    adapter = CodexCliAdapter(binary="must-not-run")
+    with pytest.raises(RuntimeError, match="native thread UUID"):
+        await adapter.restore_session(AgentSession("AS-stable", "codex", "AS-old-placeholder"), str(tmp_path))
+
+
+def test_legacy_frozen_result_contract_accepts_additive_input_control_without_mutation():
+    from copy import deepcopy
+
+    mission = mission_contract("MISSION-LEGACY-INPUT")
+    result = mission["output_contract"]["result_schema"]
+    result["properties"].pop("input_request", None)
+    result["properties"]["status"]["enum"].remove("WAITING_INPUT")
+    result.get("$defs", {}).pop("HumanInputRequest", None)
+    frozen = deepcopy(mission)
+
+    schema = codex_output_schema(mission)
+
+    assert "WAITING_INPUT" in schema["properties"]["status"]["enum"]
+    request = next(item for item in schema["properties"]["input_request"]["anyOf"] if item.get("type") == "object")
+    assert set(request["required"]) == {"question_id", "question", "options"}
+    assert request["additionalProperties"] is False
+    assert mission == frozen

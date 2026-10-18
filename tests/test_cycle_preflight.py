@@ -13,14 +13,16 @@ from test_test_design import create_run
 from hypertest.application import controller
 from hypertest.application.gate import evaluate_gate
 from hypertest.application.jobs import (
+    FencedAsyncSession,
     cancel_job,
     claim_job,
+    finish_job,
     recover_expired_jobs,
     submit_job,
 )
 from hypertest.application.services import ConflictError
 from hypertest.config import get_settings
-from hypertest.db.session import AsyncSessionLocal
+from hypertest.db.session import AsyncSessionLocal, engine
 from hypertest.domain.enums import VerdictDecision
 from hypertest.domain.jobs import DurableJob, JobStatus, JobType
 from hypertest.domain.models import AgentSessionRecord, Evidence, Mission, MissionAttempt
@@ -163,7 +165,18 @@ async def test_docker_preflight_releases_run_and_job_locks_before_io(monkeypatch
     monkeypatch.setattr(backends, "run_process", inspect)
     monkeypatch.setattr(controller, "prepare_managed_workspace", prepare)
     monkeypatch.setattr(controller, "plan_next_mission", plan)
-    assert (await run_claimed_job(job)).status is JobStatus.SUCCEEDED
+    # Isolate the dispatcher's transaction: a real Worker monitor independently
+    # locks this Job while heartbeating, which can legitimately race NOWAIT.
+    # Keep the actual lease fence and both NOWAIT assertions, without treating
+    # a different transaction's short-lived heartbeat lock as a retained I/O lock.
+    async with FencedAsyncSession(
+        bind=engine, expire_on_commit=False, job_id=job.id,
+        lease_token=job.lease_token, test_run_id=run_id,
+    ) as controlled:
+        result = await controller.advance_run(controlled, run_id, **job.payload)
+    async with AsyncSessionLocal() as session:
+        finished = await finish_job(session, job.id, job.lease_token, result=result)
+        assert finished.status is JobStatus.SUCCEEDED
     await assert_no_testing_facts(run_id)
 
 
