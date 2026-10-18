@@ -7,8 +7,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { createRun, errorText, getProject, getProjectRuns, resolveSource } from "@/lib/api";
+import { createRun, errorText, getExecutionEnvironments, getProject, getProjectRuns, resolveSource } from "@/lib/api";
 import { ClientModal as Modal } from "@/app/client-modal";
+import { EnvironmentFields, EnvironmentRequestSummary } from "@/app/execution-environment";
+import { buildEnvironmentRequest, canUseEnvironment, defaultEnvironmentValues, environmentInputIssue, runInputSignature, selectedEnvironmentProfile } from "@/lib/execution-environment";
+import type { EnvironmentFormValues } from "@/lib/execution-environment";
 import { useI18n } from "@/lib/i18n";
 import { decodePrdBytes, MAX_PRD_CHARACTERS } from "@/lib/prd-import";
 import type { PrdDecodeError } from "@/lib/prd-import";
@@ -17,7 +20,7 @@ import type { RunCreate, SourceResolution } from "@/lib/types";
 import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
 import type { PolicyFormValues } from "./policy-fields";
 
-type RunFormValues = PolicyFormValues & {
+type RunFormValues = PolicyFormValues & EnvironmentFormValues & {
   repository_url: string;
   source_mode: "revision" | "sha";
   revision: string;
@@ -51,6 +54,7 @@ function buildRunInput(values: RunFormValues): Omit<RunCreate, "idempotency_key"
     prd_text: values.prd_text,
     configuration_text: values.configuration_text || "{}",
     policy: compileFormPolicy(values),
+    environment: buildEnvironmentRequest(values),
   };
 }
 
@@ -65,6 +69,7 @@ export default function ProjectPage() {
   const [draft, setDraft] = useState<RunFormValues>({
     repository_url: "", source_mode: "revision", revision: "main", commit_sha: "", branch: "main", prd_text: "", configuration_text: "{}",
     ...defaultPolicyValues(),
+    ...defaultEnvironmentValues(),
   });
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<ImportError | null>(null);
@@ -79,6 +84,9 @@ export default function ProjectPage() {
   const [form] = Form.useForm<RunFormValues>();
   const sourceMode = Form.useWatch("source_mode", { form, preserve: true }) || "revision";
   const repositoryOrigin = Form.useWatch("repository_url", { form, preserve: true }) || "";
+  const environmentProfile = Form.useWatch("environment_profile_id", { form, preserve: true }) || "python-pytest-v1";
+  const environments = useQuery({ queryKey: ["execution-environments"], queryFn: getExecutionEnvironments, enabled: createOpen, retry: false });
+  const environmentAvailable = canUseEnvironment(environments.data, environmentProfile, environments.isError);
   const sourceResolver = useMutation({
     mutationFn: ({ repository_url, revision }: SourceLookup) => resolveSource({ repository_url, revision }),
     onSuccess: (result, request) => {
@@ -143,6 +151,7 @@ export default function ProjectPage() {
         prd_text: "",
         configuration_text: "{}",
         ...defaultPolicyValues(),
+        ...defaultEnvironmentValues(),
       };
       form.resetFields();
       form.setFieldsValue(initialValues);
@@ -166,13 +175,17 @@ export default function ProjectPage() {
   const submitStep = () => {
     const values = form.getFieldsValue(true) as RunFormValues;
     setDraft(values);
-    if (step < 3) {
+    if (step >= 2 && (!canUseEnvironment(environments.data, values.environment_profile_id, environments.isError) || environmentInputIssue(values))) {
+      setStep(2);
+      return;
+    }
+    if (step < 4) {
       setStep(step + 1);
       return;
     }
     const input = buildRunInput(values);
     // Reference labels do not change the canonical SourceSnapshot identity.
-    const signature = JSON.stringify({ project_id: params.projectId, ...input, branch: undefined });
+    const signature = runInputSignature(params.projectId, input);
     // Retry identical inputs with the same key. Edited inputs must never reopen an older run.
     if (requestIdentity.current?.signature !== signature) {
       requestIdentity.current = { signature, key: `web:${createUuid()}` };
@@ -304,7 +317,7 @@ export default function ProjectPage() {
         <Steps
           current={step}
           size="small"
-          items={[{ title: t("Source", "源码") }, { title: t("Requirements", "需求") }, { title: t("Policy", "策略") }, { title: t("Review", "确认") }]}
+          items={[{ title: t("Source", "源码") }, { title: t("Requirements", "需求") }, { title: t("Environment", "执行环境") }, { title: t("Policy", "策略") }, { title: t("Review", "确认") }]}
           style={{ margin: "24px 0" }}
         />
         {creation.isError ? (
@@ -316,6 +329,7 @@ export default function ProjectPage() {
         {requestTooLarge ? (
           <Alert type="error" showIcon message={t("The inputs exceed the 10 MiB request limit.", "输入超出 10 MiB 请求上限。")} description={t("Shorten the requirements or configuration, then review and submit again. Your draft is preserved.", "请精简需求或测试配置，再确认提交。当前草稿已保留。")} style={{ marginBottom: 20 }} />
         ) : null}
+        {step >= 3 && !environmentAvailable && <Alert type="warning" showIcon message={t("Review environment availability before continuing", "请先核对环境可用性再继续")} description={t("The selected image is unavailable or its catalog could not be refreshed. Your draft is preserved.", "所选镜像不可用，或环境目录未能刷新。当前草稿已保留。") } action={<Button onClick={() => { setDraft(form.getFieldsValue(true) as RunFormValues); setStep(2); }}>{t("Review environment", "核对环境")}</Button>} style={{ marginBottom: 20 }} />}
         <Form
           name="create-test-run"
           form={form}
@@ -433,14 +447,14 @@ export default function ProjectPage() {
               </Form.Item>
               <Form.Item
                 name="configuration_text"
-                label={t("Testing configuration", "测试配置")}
-                extra={t("Optional text or JSON, up to 100,000 characters. Saved with this run's immutable inputs. Leave empty to use {}.", "可选纯文本或 JSON，最多 100,000 个字符；与本次运行的不可变输入一并保存。留空使用 {}。")}
+                label={t("Testing context (optional)", "测试上下文（可选）")}
+                extra={t("Original text or JSON, up to 100,000 characters, saved unchanged. It does not install dependencies or configure services; choose the controlled environment in the next step. Leave empty to use {}.", "原始文字或 JSON，最多 100,000 个字符，原样保存。此文字不会安装依赖或配置服务；受控执行环境请在下一步选择。留空使用 {}。")}
                 rules={[{ max: MAX_CONFIGURATION_CHARACTERS, message: t("Configuration must contain at most 100,000 characters.", "测试配置最多 100,000 个字符。") }]}
               >
                 <Input.TextArea rows={4} showCount maxLength={MAX_CONFIGURATION_CHARACTERS} placeholder="{}" style={{ fontFamily: "monospace" }} />
               </Form.Item>
             </>
-          ) : step === 2 ? <PolicyFields /> : (
+          ) : step === 2 ? <EnvironmentFields catalog={environments.data} loading={environments.isPending} failed={environments.isError} refreshing={environments.isFetching} refresh={() => void environments.refetch()} /> : step === 3 ? <PolicyFields /> : (
             <Space direction="vertical" size={18} style={{ width: "100%", marginBottom: 24 }}>
               <Alert
                 type="info"
@@ -454,6 +468,7 @@ export default function ProjectPage() {
                 <Descriptions.Item label={t("Commit", "提交")}><Typography.Text code copyable style={{ overflowWrap: "anywhere", wordBreak: "break-all" }}>{draft.commit_sha}</Typography.Text></Descriptions.Item>
                 <Descriptions.Item label={t("Reference label", "参考版本标签")}>{draft.branch?.trim() || t("Not specified", "未指定")}</Descriptions.Item>
                 <Descriptions.Item label={t("Policy", "策略")}><PolicyReview values={draft} /></Descriptions.Item>
+                <Descriptions.Item label={t("Execution environment", "执行环境")}><EnvironmentRequestSummary request={buildEnvironmentRequest(draft)} profile={selectedEnvironmentProfile(environments.data, draft.environment_profile_id)} /></Descriptions.Item>
               </Descriptions>
               <div style={{ width: "100%" }}>
                 <Typography.Title level={5} style={{ marginTop: 0 }}>{t("Product requirements", "产品需求")}</Typography.Title>
@@ -461,7 +476,7 @@ export default function ProjectPage() {
                 <div className="artifact-content" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 220, overflowY: "auto", padding: 12, borderRadius: 6 }}>{draft.prd_text}</div>
               </div>
               <details style={{ width: "100%" }}>
-                <summary style={{ cursor: "pointer" }}>{t("Testing configuration", "测试配置")}</summary>
+                <summary style={{ cursor: "pointer" }}>{t("Original testing context", "原始测试上下文")}</summary>
                 <pre className="artifact-content" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 180, overflowY: "auto" }}>{draft.configuration_text || "{}"}</pre>
               </details>
             </Space>
@@ -474,11 +489,11 @@ export default function ProjectPage() {
               <Button
                 type="primary"
                 htmlType="submit"
-                aria-label={step < 3 ? t("Continue to next step", "继续下一步") : t("Create test run", "创建测试运行")}
+                aria-label={step < 4 ? t("Continue to next step", "继续下一步") : t("Create test run", "创建测试运行")}
                 loading={creation.isPending || creation.isSuccess}
-                disabled={step === 0 && sourceMode === "revision" && sourceResolver.isPending}
+                disabled={(step === 0 && sourceMode === "revision" && sourceResolver.isPending) || (step >= 2 && !environmentAvailable)}
               >
-                {step < 3 ? <>{t("Continue", "下一步")} <ArrowRightOutlined aria-hidden /></> : t("Create test run", "创建测试运行")}
+                {step < 4 ? <>{t("Continue", "下一步")} <ArrowRightOutlined aria-hidden /></> : t("Create test run", "创建测试运行")}
               </Button>
             </Space>
           </Space>

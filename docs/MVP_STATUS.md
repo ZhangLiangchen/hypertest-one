@@ -2,7 +2,11 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: safe task activity and waiting diagnostics
+## Current increment: controlled dependencies and service API environments
+
+The five-step bilingual Web selects approved Python/pytest or isolated ASGI API-v2 profiles. Bootstrap freezes actual image/dependency/service identity under migrations0011/0012; the Docker Runner owns start/readiness, real HTTP execution, bounded logs and cleanup. API-v2 isolates repository pytest configuration/conftest; archived API-v1 retains its original launcher, locks, image and history. Legacy NULL inputs retain original source/Gate hashes. **474 backend tests /18 opt-in skipped /3 existing warnings**, **18 independently executed real Docker checks**, **55 Web tests**, Ruff/typecheck/build and 19/19 isolated restore checks have passed. The v1 real attempts correctly ended with environment-error BLOCKED verdicts; fresh v2 Web/Codex/Docker acceptance passed both the 91-PASS RELEASE_READY path and the 30-PASS/22-FAIL product-diagnosis RELEASE_BLOCKED path, each with 28/28 independent checks in [the acceptance record](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md). Production remains a48bc96/schema0009 and is untouched.
+
+## Prior increment: safe task activity and waiting diagnostics
 
 This branch adds a bounded operational activity view under migration `0010_mission_activity`: fixed Provider/control-plane activity types, platform timestamps and counts, current Mission/Attempt, current-claim Provider signals and per-Job Worker heartbeat. It does not persist transcript content or change Canonical State, official Evidence, Coverage or Verdict. The Web keeps this information in a bilingual auxiliary task-detail panel, distinguishes waiting for human input from quiet Agent work, and preserves loaded records on refresh failure. Silence does not trigger automatic cancellation, retry or a percentage estimate.
 

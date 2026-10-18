@@ -210,6 +210,7 @@ branch                 varchar(255)
 prd_sha256             char(64)
 prd_artifact_uri       text
 configuration_sha256   char(64)
+environment_definition jsonb nullable
 source_fingerprint     char(64)
 created_at             timestamptz
 ```
@@ -231,6 +232,14 @@ SHA256(project_id + repository + commit_sha + prd_sha256 + configuration_sha256)
 ```
 
 唯一：`UNIQUE(project_id, source_fingerprint)`。
+
+`0011_execution_environments` 新增 nullable JSONB `environment_definition`。旧 Snapshot 保留 SQL NULL，不回填或重算历史 hash。新 Web/bootstrap 可选严格受控环境请求（`python-pytest-v1`，或 `python-api-v1` 加 ASGI `module:attribute` / 本地 health path / 有界启动时限）；平台在任何输入 Artifact / Snapshot 写入前、Project 行锁之外解析当前可信预制镜像，固定 schema version、规范化请求、实际 image ID / OS / architecture、完整依赖版本与锁 SHA-256、可信 launcher SHA-256。调用者不提交任意镜像、安装命令或冻结绑定。原 PRD/configuration 字节和各自 hash 保持独立。
+
+对 non-NULL 新绑定，Source fingerprint 的规范化对象额外纳入完整 `environment_definition`；旧 NULL 不添加此键，保留原算法。Gate 的 SourceSnapshot 语义序列化同样仅在 non-NULL 时包含此键，防止增加空列改变旧 FINAL 的 state hash。全行 immutable trigger 同时保护新字段；不同环境或实际镜像创建新 Snapshot。既有低层 hash-only SourceSnapshot API 保持 NULL 的 legacy 路径，不通过缺省推断服务环境。
+
+bootstrap 同幂等键重试先比较原始 PRD/configuration、规范化 repo/commit、生效 Policy 和规范化环境请求，匹配时直接返回原 Run/绑定；不因镜像 tag 漂移重新解析或替换。新请求解析后取得 Project 锁，再次检查同键竞争。新绑定只支持 Docker；正式执行必须按固定 image ID 重新核验依赖/launcher，不改用当前 tag 或降级。
+
+`0012_api_environment_v2` 仅扩展受控 profile CHECK，增加 `python-api-v2`，不修改已有行、环境绑定或指纹。当前 Web 目录为 pytest-v1/API-v2；API-v1 历史请求与幂等重放仍受支持。API-v2 的新 launcher 明确禁用仓库 pytest 配置和 conftest，生成的 HTTP 测试须自包含。API-v1 与 pytest-v1 保留原 launcher/lock/镜像身份；不得把旧绑定重新解释成 v2。改变此执行语义、依赖或 launcher 必须另建 profile 版本与新 Snapshot，已有 FINAL 历史不得回填。
 
 ---
 

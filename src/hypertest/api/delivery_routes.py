@@ -70,6 +70,13 @@ from hypertest.domain.models import (
 router = APIRouter()
 
 
+@router.get("/execution-environments")
+async def read_execution_environments():
+    from hypertest.runner.environments import environment_catalog
+
+    return {"profiles": await environment_catalog()}
+
+
 def _http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ValueError):
         return HTTPException(status_code=422, detail=str(exc))

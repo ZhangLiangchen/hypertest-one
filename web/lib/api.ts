@@ -1,6 +1,6 @@
 import type {
   BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
-  MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate,
+  MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
@@ -27,6 +27,9 @@ export function errorText(error: unknown, locale: Locale): string {
     return "仓库源地址格式无效。请检查 origin 地址，并在 Worker 主机配置 Git 访问授权。";
   }
   const known: Record<string, string> = {
+    "controlled environment unavailable; build the configured profile on this host": "受控环境当前不可用。请在执行主机准备与所选配置匹配的可信镜像，再刷新环境可用性；当前草稿会保留。",
+    "ASGI application module must be tracked in the pinned source": "ASGI 应用模块必须是固定源码中已跟踪的文件。请核对应用对象路径与提交 SHA。",
+    "controlled environments require the Docker runner": "固定受控环境必须通过 Docker Runner 执行，不能改用本机进程。",
     "project not found": "项目不存在，请返回项目列表刷新后重试。",
     "project key already exists": "项目标识已存在。请打开已有项目，或使用其他标识。",
     "cannot resolve repository revision; verify the branch/tag, configured Git access and network availability": "无法解析仓库版本。请检查分支或标签是否存在，以及主机上的 Git 访问授权和网络。",
@@ -128,6 +131,7 @@ export const getFindings = (runId: string) => api<Finding[]>(`/test-runs/${runId
 export const transitionFinding = (findingId: string, payload: FindingTransition) =>
   api<Finding>(`/findings/${findingId}/transition`, { method: "POST", body: JSON.stringify(payload) });
 export const getCapabilities = () => api<Capabilities>("/capabilities");
+export const getExecutionEnvironments = () => api<EnvironmentCatalog>("/execution-environments");
 export const getSourceSnapshot = (snapshotId: string) => api<SourceSnapshot>(`/source-snapshots/${snapshotId}`);
 export const getPolicySnapshot = (snapshotId: string) => api<PolicySnapshot>(`/policy-snapshots/${snapshotId}`);
 export const getPrdContent = async (snapshotId: string) => {

@@ -1,6 +1,10 @@
 # HyperTest One 第一阶段验收
 
-## 当前增量：辅助活动与等待诊断
+## 当前增量：受控依赖与服务型 API 环境
+
+新增不可变 Source 环境绑定、预制完整依赖锁和单 ASGI 服务真实 HTTP 测试，Web提供五步双语选择与只读执行身份；迁移0011兼容旧NULL/FINAL hash，0012仅扩 API-v2 profile CHECK。首轮真实模型暴露仓库 conftest 收集依赖问题，旧 ERROR/BLOCKED 历史保留；新 API-v2 隔离仓库 pytest 配置/conftest，旧 profile 原身份保持。**474后端/55Web、18独立真实Docker、Ruff/typecheck/build、独立恢复19/19已通过**（默认pytest的18项opt-inDocker均已另行实际执行）。新的真实Web/Codex/Docker双链已验收：91PASS→RELEASE_READY；30PASS/22FAIL→产品缺陷诊断→RELEASE_BLOCKED，各28/28独立检查，结果见[本轮环境验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)；服务器a48bc96/schema0009未改动。
+
+## 前轮本地已验收：辅助活动与等待诊断
 
 本轮补齐白皮书 §22 的辅助 Agent Activity：独立有界 Operational 记录、Provider 信号与本 Job 心跳分开、当前领取隔离、双语只读时间线和等待诊断。迁移为 `0010_mission_activity`；**384 后端 / 41 Web tests、Ruff、typecheck、build、audit0、独立备份恢复均通过**。新真实 Web/Codex/Docker Run 经等待、API/Worker 重启和原会话回答恢复，完成 **2Req / 5Risk / 8Case / 1Impl / 1Exec / 4Evidence / FINAL RELEASE_READY，JUnit8PASS**。42 条安全活动、claim 隔离及旧31表1132行/128旧产物保全已独立实核。见[本轮活动验收](MISSION_ACTIVITY_ACCEPTANCE.md)。服务器保持已合并部署的 `a48bc96` / schema0009；本轮未部署，不改既有数据、VPN 白名单或 SSH 隧道。受控依赖/服务型 API、第二 Harness 与多人权限等边界仍未泛化验收，不据该增量宣称整个第一阶段完成。
 

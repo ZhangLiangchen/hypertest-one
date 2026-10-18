@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from hypertest.common.ids import uuid7
@@ -102,6 +103,8 @@ class SourceSnapshot(Base):
     prd_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     prd_artifact_uri: Mapped[str | None] = mapped_column(Text)
     configuration_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    # NULL is the original unbound environment contract; never backfill history.
+    environment_definition: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False

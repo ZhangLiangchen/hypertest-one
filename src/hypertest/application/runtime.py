@@ -187,6 +187,43 @@ async def _hydrate_source_context(
         raise MissionRuntimeError(str(exc)) from None
     context = dict(contract.get("context", {}))
     context.update(repository_url=snapshot.repository_url, commit_sha=snapshot.commit_sha)
+    context.pop("execution_environment", None)
+    if snapshot.environment_definition is not None:
+        from hypertest.runner.environments import validate_binding_content
+
+        try:
+            request = validate_binding_content(snapshot.environment_definition)
+        except ValueError as exc:
+            raise MissionRuntimeError("controlled environment binding is invalid") from exc
+        context["execution_environment"] = {
+            **snapshot.environment_definition,
+            "instructions": (
+                "HyperTest fixes this approved environment and installs its locked dependencies "
+                "before execution. Do not install packages, change the environment, start a server, "
+                "or report exploratory tool output as official evidence."
+            ),
+        }
+        if request.service is not None:
+            context["execution_environment"].update(
+                service_base_url="http://127.0.0.1:8765",
+                base_url_environment_variable="HYPERTEST_BASE_URL",
+                service_testing_instructions=(
+                    "The trusted Docker Runner starts the pinned ASGI application, checks HTTP "
+                    "readiness and injects HYPERTEST_BASE_URL into pytest. Implement the requested "
+                    "API cases as real HTTP requests to that environment variable. Use the available "
+                    "httpx client with trust_env=False or standard library HTTP; do not use TestClient, "
+                    "ASGITransport, mocks or direct Python calls as substitutes for API behavior. "
+                    "Do not start/stop the service from generated tests. The URL is available only "
+                    "inside the isolated Runner, not in this Agent workspace or the user's browser."
+                ),
+            )
+            if request.profile_id == "python-api-v2":
+                context["execution_environment"]["pytest_isolation"] = (
+                    "The platform disables repository pytest configuration and all conftest.py files "
+                    "(-c /dev/null --noconftest --rootdir=/repo). Generated HTTP tests must be "
+                    "self-contained; define any fixtures in the submitted test module. Do not rely "
+                    "on repository conftest fixtures, plugins, pytest.ini, setup.cfg or pyproject settings."
+                )
     scope_guidance = _APPLICATION_SCOPE_GUIDANCE.get(contract["type"])
     if scope_guidance is not None:
         context["testing_scope"] = {
@@ -376,6 +413,18 @@ async def _execute_mission(
     contract = build_mission_contract(mission, test_run)
     await _hydrate_source_context(session, test_run, contract)
     await _hydrate_answer_context(session, test_run, contract)
+    if contract["context"].get("execution_environment") is not None:
+        from hypertest.runner.environments import validate_environment_binding
+
+        binding = (await session.get(SourceSnapshot, test_run.source_snapshot_id)).environment_definition
+        # Release any owning controller locks before Docker I/O. The later
+        # attempt reservation and fenced commits recheck ownership/cancellation.
+        await session.commit()
+        try:
+            await validate_environment_binding(binding)
+        except (OSError, RuntimeError, ValueError, KeyError) as exc:
+            raise MissionRuntimeError("controlled environment unavailable before Agent execution") from exc
+        await session.commit()
     if harness is None:
         from hypertest.runner.source import validate_checkout
 
@@ -384,6 +433,16 @@ async def _execute_mission(
         tracked_files = await validate_checkout(
             workspace_path, source.commit_sha, source.repository_url
         )
+        if source.environment_definition is not None:
+            from hypertest.domain.environments import EnvironmentRequest
+            from hypertest.runner.environments import validate_service_app
+
+            request = EnvironmentRequest.model_validate(source.environment_definition["request"])
+            if request.service is not None:
+                try:
+                    validate_service_app(workspace_path, request.service.app, tracked_files)
+                except ValueError as exc:
+                    raise MissionRuntimeError("controlled ASGI application is not valid pinned source") from exc
     try:
         duration = float(mission.spec.get("constraints", {}).get("max_duration_seconds", 1800))
     except (TypeError, ValueError) as exc:
@@ -413,6 +472,13 @@ async def _execute_mission(
 
     job_reference = getattr(session, "job_id", None) or runner_job_id.get()
     durable_job_id = UUID(str(job_reference)) if job_reference is not None else None
+    from hypertest.domain.jobs import ACTIVE_JOB_STATUSES, DurableJob
+
+    active_job_id = await session.scalar(select(DurableJob.id).where(
+        DurableJob.test_run_id == test_run.id, DurableJob.status.in_(ACTIVE_JOB_STATUSES),
+    ))
+    if active_job_id is not None and active_job_id != durable_job_id:
+        raise MissionRuntimeError("test run has active background work; use its task controls")
     now = utcnow()
     if is_resume:
         from hypertest.domain.inputs import InputRequestStatus, MissionInputRequest

@@ -86,6 +86,7 @@ class SourceSnapshotRead(ORMModel):
     prd_sha256: str
     prd_artifact_uri: str | None
     configuration_sha256: str
+    environment_definition: dict[str, Any] | None = None
     source_fingerprint: str
     created_at: datetime
 

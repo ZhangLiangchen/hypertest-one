@@ -471,7 +471,13 @@ ExecutionSpec 至少固定 execution_id、source_commit、environment、framewor
 
 长期优先 Kubernetes Job，因为具备 Isolation、Resource Limit、Scheduling、Cleanup、Parallel Execution。
 
-MVP 提供 DockerRunner 与显式开启的 LocalRunner。DockerRunner 使用预构建 Python/pytest 镜像，并记录解析出的 image ID；禁用网络、只读根文件系统、非 root、移除 capabilities、限制资源。执行时不安装依赖。LocalRunner 仅用于受控开发环境，需 `HYPERTEST_RUNNER_ALLOW_LOCAL=true`，不是安全沙箱。其他框架/语言和应用依赖需通过后续可信镜像扩展。
+MVP 提供 DockerRunner 与显式开启的 LocalRunner。DockerRunner 使用预构建 Python/pytest 镜像，并记录解析出的 image ID；禁用网络、只读根文件系统、非 root、移除 capabilities、限制资源。执行时不安装依赖。LocalRunner 仅用于受控开发环境，需 `HYPERTEST_RUNNER_ALLOW_LOCAL=true`，不是安全沙箱。
+
+受控环境扩展见 [ADR-012](ADR-012_CONTROLLED_API_ENVIRONMENTS.md) 与领域模型 §9：平台提供 `python-pytest-v1` 和预装 FastAPI / uvicorn / httpx 的 `python-api-v2`，完整传递依赖经 pin/hash 的 binary wheelhouse 离线安装到 digest-pinned 基础镜像。bootstrap 固定实际镜像、依赖锁和 launcher 身份，运行按绑定 image ID 校验；不执行 Repo Dockerfile / 安装 hooks，不接受 Agent 或 Web 提供任意依赖、Shell、host mount、外部 URL 或网络配置。
+
+当前 API-v2 固定禁用仓库 pytest 配置和所有 conftest（`-c /dev/null --noconftest --rootdir=/repo`），生成测试/fixtures 须在提交模块内自包含；原 API-v1 与 pytest-v1 launcher/lock/image 保持历史身份，迁移0012只扩profile CHECK。
+
+API profile 的可信 launcher 在同一 Docker 容器内启动单个 ASGI SUT，通过 `127.0.0.1:8765` 有界 HTTP200 就绪探测后启动 pytest，注入 `HYPERTEST_BASE_URL`。保留 `--network none`（仅容器 loopback）、只读源、非 root、资源限制及 Job 标签清理，不开放宿主端口。Runner 采集服务生命周期、探测身份、退出/清理结果及有界日志；未就绪、早退、超时或证明缺失不得形成 PASS。服务就绪仅为环境事实，真实业务断言与最终 Gate 仍独立。image inspection、服务等待和 Docker 执行不持 Run/Job/Project 行锁；正式 Execution 预留与结果提交前后仍按已有 lease 重新 fencing。External SIT、多服务、外部数据库、秘密与其他语言/框架另需明确契约。
 
 ---
 
@@ -660,6 +666,7 @@ MVP 仅支持：CodexAdapter、pytest、DockerRunner、Backend/API Testing，以
 - **ADR-009** v0.2 首次实现 TestCase 时采用 `description`、`test_type`、字符串 `expected_result` 和 `risk_test_cases` Join Table；替代早期草案未实现的 `objective` / `case_type` / 结构化步骤方案。详细持久化约束以领域模型为准，不涉及已有 Canonical 列的破坏性重命名。
 - **ADR-010** MVP 的生成测试是 checksum-addressed Artifact，应用 SourceSnapshot 保持不变；正式结果由 Runner 独立采集，Gate 基于最新正式事实形成不可改写的质量决策。
 - **ADR-011** 用户触发的长任务使用 PostgreSQL DurableJob 与独立 Worker；租约 fencing 约束 Canonical commit，失联工作显式中断并人工重试，不宣称外部 exactly-once，也不引入 Redis / Kafka 前提。
+- **ADR-012** [受控 Python 与隔离 ASGI 环境](ADR-012_CONTROLLED_API_ENVIRONMENTS.md)：SourceSnapshot 固定实际镜像/依赖/launcher，可信 Runner 管理同容器 loopback HTTP 服务生命周期与证据，legacy NULL 保持旧身份。
 
 ---
 

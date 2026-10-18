@@ -9,6 +9,7 @@ import signal
 import sys
 import tarfile
 from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -26,6 +27,9 @@ class ProcessResult:
     stderr: bytes
     exit_code: int | None
     timed_out: bool = False
+    service_metadata: dict | None = None
+    service_log: bytes | None = None
+    error_code: str | None = None
 
 
 async def run_process(
@@ -146,7 +150,21 @@ class LocalRunner:
 class DockerRunner:
     name = "docker"
 
+    def __init__(self, environment: dict | None = None):
+        self.environment = deepcopy(environment)
+
     async def fingerprint(self) -> dict:
+        if self.environment is not None:
+            from hypertest.runner.environments import LABEL_PREFIX, validate_environment_binding
+
+            details = await validate_environment_binding(self.environment)
+            return {
+                "backend": self.name, "image_id": details["Id"],
+                "os": details["Os"], "architecture": details["Architecture"],
+                "environment_definition": deepcopy(self.environment),
+                "base_image_digest": details["Config"]["Labels"][LABEL_PREFIX + "base_image_digest"],
+                "network": "none", "read_only": True,
+            }
         image = get_settings().runner_image
         result = await run_process(
             ["docker", "image", "inspect", image, "--format", "{{json .}}"],
@@ -169,6 +187,19 @@ class DockerRunner:
     async def execute(
         self, source: Path, output: Path, nodeids: list[str], timeout: int, identity: dict
     ) -> ProcessResult:
+        service = None
+        if self.environment is not None:
+            observed = await self.fingerprint()
+            if identity != observed:
+                raise ValueError("controlled runner identity changed before execution")
+            service = self.environment["request"].get("service")
+            if service is not None:
+                from hypertest.runner.service_launcher import validate_app
+
+                try:
+                    validate_app(source, service["app"])
+                except ValueError:
+                    return ProcessResult(b"", b"", None, error_code="SERVICE_SOURCE_INVALID")
         token = uuid4().hex
         name, staging = f"hypertest-runner-{token}", f"hypertest-stage-{token}"
         source_volume, output_volume = f"hypertest-source-{token}", f"hypertest-results-{token}"
@@ -178,6 +209,24 @@ class DockerRunner:
             if required and result.exit_code != 0:
                 raise RuntimeError(f"runner container operation failed ({args[0]})")
             return result
+
+        async def collect_file(filename: str, limit: int) -> bytes | None:
+            archive = await run_process(
+                ["docker", "cp", name + ":/results/" + filename, "-"],
+                cwd=source, timeout=30, output_limit=limit + 65536,
+            )
+            if archive.exit_code != 0 or archive.timed_out:
+                return None
+            if len(archive.stdout) > limit + 65536:
+                raise ValueError("Runner artifact transport exceeds collection limit")
+            with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as bundle:
+                members = bundle.getmembers()
+                if (len(members) != 1 or not members[0].isfile()
+                    or members[0].name != filename or members[0].size > limit):
+                    raise ValueError("Runner artifact transport contains an unsafe report")
+                content = bundle.extractfile(members[0])
+                assert content is not None
+                return content.read()
 
         label_args = ["--label", "org.hypertest.managed=true"]
         job_id = runner_job_id.get()
@@ -198,6 +247,7 @@ class DockerRunner:
             # Populate a dedicated source volume before mounting it read-only for execution.
             await docker(
                 "create",
+                "--pull=never",
                 *label_args,
                 "--name",
                 staging,
@@ -212,6 +262,7 @@ class DockerRunner:
             await docker("rm", "-f", staging)
             command = [
                 "create",
+                "--pull=never",
                 *label_args,
                 "--name",
                 name,
@@ -228,6 +279,12 @@ class DockerRunner:
                 "512m",
                 "--cpus",
                 "1",
+                "--log-driver",
+                "local",
+                "--log-opt",
+                "max-size=1m",
+                "--log-opt",
+                "max-file=2",
                 "--user",
                 "65534:65534",
                 "--mount",
@@ -246,10 +303,24 @@ class DockerRunner:
                 "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
                 "--env",
                 "PYTHONPATH=/repo:/repo/src",
-                identity["image_id"],
-                "python",
-                *pytest_arguments(nodeids, "/results/junit.xml"),
+                identity["image_id"], "python",
             ]
+            if self.environment is not None:
+                # The Docker client can inject configured proxies. Approved
+                # workloads inherit neither those credentials nor host routing.
+                command += ["-I", "/opt/hypertest/service_launcher.py"]
+                image_index = command.index(identity["image_id"])
+                command[image_index:image_index] = [item for name in (
+                    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
+                ) for item in ("--env", name + "=")] + ["--env", "NO_PROXY=127.0.0.1,localhost"]
+            if service is None and self.environment is None:
+                command += pytest_arguments(nodeids, "/results/junit.xml")
+            elif service is None:
+                command += ["--pytest", *pytest_arguments(nodeids, "/results/junit.xml")[2:]]
+            else:
+                command += [json.dumps({
+                    "service": service, "nodeids": nodeids,
+                }, sort_keys=True)]
             await docker(*command)
             process = await run_process(
                 ["docker", "start", "--attach", name], cwd=source, timeout=timeout
@@ -258,29 +329,31 @@ class DockerRunner:
                 await docker("kill", name, required=False)
             state = await docker("inspect", "--format", "{{json .State}}", name)
             details = json.loads(state.stdout)
-            # Copy one bounded report through the API, never arbitrary result-directory files.
-            archive = await run_process(
-                ["docker", "cp", name + ":/results/junit.xml", "-"],
-                cwd=source,
-                timeout=30,
-                output_limit=17 * 1024 * 1024,
-            )
-            if archive.exit_code == 0:
-                if len(archive.stdout) > 17 * 1024 * 1024:
-                    raise ValueError("JUnit transport exceeds collection limit")
-                with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as bundle:
-                    members = bundle.getmembers()
-                    if (
-                        len(members) != 1
-                        or not members[0].isfile()
-                        or members[0].size > 16 * 1024 * 1024
-                    ):
-                        raise ValueError("JUnit transport contains an unsafe report")
-                    content = bundle.extractfile(members[0])
-                    assert content is not None
-                    (output / "junit.xml").write_bytes(content.read())
+            # Only fixed, bounded reports cross the daemon API, never a result directory.
+            junit = await collect_file("junit.xml", 16 * 1024 * 1024)
+            if junit is not None:
+                (output / "junit.xml").write_bytes(junit)
+            metadata = service_log = error_code = None
+            if service is not None:
+                try:
+                    from hypertest.runner.service_launcher import validate_metadata
+
+                    raw = await collect_file("service-metadata.json", 65536)
+                    service_log = await collect_file("service.log", 256 * 1024)
+                    if raw is None or service_log is None:
+                        error_code = "SERVICE_EVIDENCE_MISSING"
+                    else:
+                        metadata = json.loads(raw)
+                        validate_metadata(metadata, service, details["ExitCode"])
+                        error_code = metadata["error_code"]
+                except (ValueError, TypeError, KeyError):
+                    metadata = service_log = None
+                    error_code = "SERVICE_EVIDENCE_INVALID"
+                if details.get("OOMKilled"):
+                    error_code = "SERVICE_RESOURCE_LIMIT"
             return ProcessResult(
-                process.stdout, process.stderr, details["ExitCode"], process.timed_out
+                process.stdout, process.stderr, details["ExitCode"], process.timed_out,
+                metadata, service_log, error_code,
             )
         finally:
             await docker("rm", "-f", "-v", name, staging, required=False)

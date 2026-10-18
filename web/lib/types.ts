@@ -77,6 +77,33 @@ export type RunCreate = {
   configuration_text: string;
   policy?: Record<string, unknown>;
   idempotency_key?: string;
+  environment?: EnvironmentRequest;
+};
+
+export type EnvironmentProfileId = "python-pytest-v1" | "python-api-v1" | "python-api-v2";
+export type ServiceRequest = { app: string; health_path: string; startup_timeout_seconds: number };
+export type EnvironmentRequest = { profile_id: EnvironmentProfileId; service?: ServiceRequest };
+export type ExecutionEnvironmentProfile = {
+  profile_id: EnvironmentProfileId;
+  kind: "pytest" | "asgi";
+  dependencies: Record<string, string>;
+  dependency_lock_sha256: string;
+  launcher_sha256: string;
+  network: "none";
+  available: boolean;
+  reason_code?: string;
+  checked_at: string;
+};
+export type EnvironmentCatalog = { profiles: ExecutionEnvironmentProfile[] };
+export type EnvironmentDefinition = {
+  schema_version: "hypertest.environment/v1";
+  request: EnvironmentRequest;
+  image_id: string;
+  image_os: string;
+  image_architecture: string;
+  dependency_lock_sha256: string;
+  dependencies: Record<string, string>;
+  launcher_sha256: string;
 };
 
 export type SourceResolution = {
@@ -146,6 +173,9 @@ export type TestExecution = {
   runner_backend: string;
   source_commit: string;
   execution_spec_sha256: string;
+  environment_id?: string | null;
+  environment_fingerprint?: string | null;
+  spec?: Record<string, unknown> | null;
   status: string;
   outcome: string | null;
   started_at?: string | null;
@@ -247,6 +277,7 @@ export type SourceSnapshot = {
   configuration_sha256: string;
   source_fingerprint: string;
   created_at: string;
+  environment_definition?: EnvironmentDefinition | null;
 };
 
 export type PolicySnapshot = {

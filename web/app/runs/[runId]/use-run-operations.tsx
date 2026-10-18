@@ -8,6 +8,8 @@ import {
 import type { TabsProps } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ClientModal as Modal } from "@/app/client-modal";
+import { ExecutionEnvironmentIdentity, PinnedEnvironment } from "@/app/execution-environment";
+import { executionBackend, visibleEnvironmentDefinition } from "@/lib/execution-environment";
 
 import {
   cancelMission, errorText, getEvidence,
@@ -113,6 +115,13 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const sourceMode = Form.useWatch("source_mode", executionForm);
   const source = useQuery({ queryKey: ["source-snapshot", sourceId], queryFn: () => getSourceSnapshot(sourceId!), enabled: !!sourceId, staleTime: Infinity });
   const managedCheckout = supportsManagedCheckout(source.data?.repository_url);
+  const hasPinnedEnvironment = source.data?.environment_definition != null;
+  const unreadableEnvironment = hasPinnedEnvironment && !visibleEnvironmentDefinition(source.data?.environment_definition);
+
+  function verifiedBackend(selected: "docker" | "local") {
+    if (!source.data || source.isError || unreadableEnvironment) throw new Error(t("Refresh the pinned source and environment before starting execution.", "请先刷新固定源码和环境身份，再开始执行。"));
+    return executionBackend(source.data.environment_definition, selected);
+  }
 
   useEffect(() => {
     try { setWorkspace(localStorage.getItem(`hypertest.workspace.${runId}`) || ""); } catch { setWorkspace(""); }
@@ -182,7 +191,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     onSettled: refresh,
   });
   const execution = useMutation({
-    mutationFn: (values: ExecutionCreate) => { rememberWorkspace(values.workspace); return tasks.submit("EXECUTE_TESTS", { workspace: values.workspace, backend: values.backend, timeout_seconds: values.timeout_seconds, purpose: "OFFICIAL" }); },
+    mutationFn: (values: ExecutionCreate) => { const backend = verifiedBackend(values.backend); rememberWorkspace(values.workspace); return tasks.submit("EXECUTE_TESTS", { workspace: values.workspace, backend, timeout_seconds: values.timeout_seconds, purpose: "OFFICIAL" }); },
     onSuccess: () => setExecutionDialog(null),
     onSettled: refresh,
   });
@@ -192,9 +201,10 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   });
   const cycle = useMutation({
     mutationFn: (values: ExecutionFormValues) => {
+      const backend = verifiedBackend(values.backend);
       const automatic = values.source_mode === "managed";
       if (!automatic) rememberWorkspace(values.workspace);
-      return tasks.submit("ADVANCE_RUN", { ...(automatic ? { prepare_workspace: true } : { workspace: values.workspace }), backend: values.backend, timeout_seconds: values.timeout_seconds, max_steps: 12 });
+      return tasks.submit("ADVANCE_RUN", { ...(automatic ? { prepare_workspace: true } : { workspace: values.workspace }), backend, timeout_seconds: values.timeout_seconds, max_steps: 12 });
     },
     onSuccess: () => setExecutionDialog(null),
     onSettled: refresh,
@@ -285,15 +295,15 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     preparation.reset();
     cycle.reset();
     setPreparationJobId(null);
-    executionForm.setFieldsValue({ workspace, source_mode: mode === "cycle" && managedCheckout && !workspace ? "managed" : "existing", backend: capabilities.data?.runner_backends[0] || "docker", purpose: "OFFICIAL", timeout_seconds: 300 });
+    executionForm.setFieldsValue({ workspace, source_mode: mode === "cycle" && managedCheckout && !workspace ? "managed" : "existing", backend: executionBackend(source.data?.environment_definition, capabilities.data?.runner_backends[0] || "docker"), purpose: "OFFICIAL", timeout_seconds: 300 });
     setExecutionDialog(mode);
   }
 
   const actions = <Space wrap>
-    {inputRequests.pending.length ? <Button type="primary" onClick={() => inputRequests.open(inputRequests.pending[0].id)}>{t("Answer question", "回答问题")}</Button> : <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={inputRequests.busy || source.isLoading || !!source.error || !capabilities.data?.agent_providers.includes("codex") || !capabilities.data.runner_backends.length || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>}
+    {inputRequests.pending.length ? <Button type="primary" onClick={() => inputRequests.open(inputRequests.pending[0].id)}>{t("Answer question", "回答问题")}</Button> : <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={inputRequests.busy || source.isLoading || !source.data || !!source.error || unreadableEnvironment || !capabilities.data?.agent_providers.includes("codex") || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>}
   </Space>;
   const secondaryActions = <Space wrap>
-    <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !capabilities.data?.runner_backends.length || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
+    <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !source.data || !!source.error || unreadableEnvironment || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
       openExecutionDialog("execution");
     }}>{t("Execute tests", "执行测试")}</Button>
     <Button aria-label={t("Evaluate quality gate", "评估质量门禁")} disabled={tasks.busy} loading={gate.isPending} onClick={() => gate.mutate()}>{t("Evaluate quality gate", "评估质量门禁")}</Button>
@@ -301,6 +311,8 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
   const summary = <>
     {tasks.monitor}
+    {source.data && <PinnedEnvironment definition={source.data.environment_definition} />}
+    {hasPinnedEnvironment && capabilities.data && !capabilities.data.runner_backends.includes("docker") && <Alert type="warning" showIcon message={t("The pinned environment requires Docker", "固定环境需要 Docker")} description={t("Configure the trusted Docker runner on the execution host. This run cannot fall back to a local process.", "请在执行主机配置可信 Docker Runner。此运行不能改用本机进程执行。") } style={{ marginBottom: 16 }} />}
     {source.error && <Alert type="error" showIcon message={t("Unable to read pinned source", "无法读取固定源码输入")} description={errorText(source.error, locale)} action={<Button onClick={() => void source.refetch()}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 16 }} />}
     {!tasks.rows.length && !executions.data?.length && !latestVerdict && <Alert type="info" showIcon message={t("Inputs saved. Start a complete test cycle.", "输入已保存，下一步运行完整测试周期。")} description={t("HyperTest will analyze requirements, identify risks, design and implement tests, run Docker and produce an evidence-backed verdict. GitHub sources can be prepared automatically; other sources use a checkout on the Worker host.", "HyperTest 会分析需求、识别风险、设计和实现测试，再通过 Docker 执行并形成有证据支持的质量判定。GitHub 来源可自动准备源码；其他来源使用 Worker 主机上的检出目录。")} style={{ marginBottom: 16 }} />}
     {capabilities.data?.worker?.available === false && <Alert type="warning" showIcon message={t("No worker heartbeat is available", "未检测到 Worker 心跳")} description={<>{t("Queued tasks stay saved until a worker becomes available.", "排队任务会持久保存，等待 Worker 恢复。")}{capabilities.data.worker.last_seen_at ? ` ${t("Last heartbeat", "最近心跳")}: ${formatDate(capabilities.data.worker.last_seen_at)}` : t(" Start the HyperTest worker service to process queued work.", " 请启动 HyperTest Worker 服务以处理任务。")}</>} style={{ marginBottom: 16 }} />}
@@ -351,9 +363,10 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
       </Pane>
     </Drawer>
 
-    <Modal forceRender title={executionDialog === "cycle" ? t("Run a complete test cycle", "运行完整测试周期") : t("Run official tests", "运行正式测试")} open={!!executionDialog} width={640} okText={executionDialog === "cycle" ? t("Run test cycle", "运行完整测试周期") : t("Start execution", "开始执行")} okButtonProps={{ "aria-label": executionDialog === "cycle" ? t("Run test cycle", "运行完整测试周期") : t("Start execution", "开始执行"), disabled: tasks.busy }} confirmLoading={execution.isPending || cycle.isPending} cancelText={execution.isPending || cycle.isPending ? t("Return to workbench", "返回工作台") : t("Cancel", "取消")} maskClosable={!execution.isPending && !cycle.isPending} onCancel={() => setExecutionDialog(null)} onOk={() => executionForm.submit()}>
+    <Modal forceRender title={executionDialog === "cycle" ? t("Run a complete test cycle", "运行完整测试周期") : t("Run official tests", "运行正式测试")} open={!!executionDialog} width={640} okText={executionDialog === "cycle" ? t("Run test cycle", "运行完整测试周期") : t("Start execution", "开始执行")} okButtonProps={{ "aria-label": executionDialog === "cycle" ? t("Run test cycle", "运行完整测试周期") : t("Start execution", "开始执行"), disabled: tasks.busy || !source.data || !!source.error || unreadableEnvironment || (hasPinnedEnvironment && !capabilities.data?.runner_backends.includes("docker")) }} confirmLoading={execution.isPending || cycle.isPending} cancelText={execution.isPending || cycle.isPending ? t("Return to workbench", "返回工作台") : t("Cancel", "取消")} maskClosable={!execution.isPending && !cycle.isPending} onCancel={() => setExecutionDialog(null)} onOk={() => executionForm.submit()}>
       <Typography.Paragraph>{executionDialog === "cycle" ? t("HyperTest plans and verifies agent missions, implements tests, runs them through a trusted runner and evaluates the quality gate. Each cycle is limited to 12 planning steps; progress remains available in the workbench.", "HyperTest 规划并验证智能体任务、生成测试实现、通过可信 Runner 执行测试，最后评估质量门禁。每次最多推进 12 个步骤，进度持续保存在工作台。") : t("HyperTest Runner executes accepted test implementations and collects verifiable evidence.", "HyperTest Runner 执行已接受的测试实现，并收集可验证的证据。")}</Typography.Paragraph>
-      <Alert type="info" showIcon message={t("Current Runner support: Python / pytest", "当前 Runner 支持 Python / pytest")} description={t("The default image includes the standard library and pytest. Application dependencies require an operator-prepared trusted image; execution has no network access.", "默认镜像包含标准库和 pytest。应用依赖需要运维预置在可信镜像中；正式执行时没有网络访问。")} style={{ marginBottom: 16 }} />
+      {source.data && <PinnedEnvironment definition={source.data.environment_definition} />}
+      {hasPinnedEnvironment ? <Typography.Paragraph className="muted">{t("This run uses its pinned environment through Docker. To change dependencies or service inputs, create a new run. Service readiness is verified during execution and is not a passing test result.", "本次运行通过 Docker 使用固定环境。更换依赖或服务参数需创建新运行。服务就绪在执行时验证，并不代表测试通过。")}</Typography.Paragraph> : <Alert type="info" showIcon message={t("Legacy Runner support: Python / pytest", "历史 Runner 支持 Python / pytest")} description={t("The operator-configured image provides dependencies. This legacy run has no environment binding from creation; execution records its actual image identity.", "依赖由运维配置的镜像提供。此历史运行创建时未绑定环境，实际镜像身份会记录在每次执行中。正式执行不联网安装依赖。")} style={{ marginBottom: 16 }} />}
       <Form name="execute-run" form={executionForm} layout="vertical" onFinish={(values) => executionDialog === "cycle" ? cycle.mutate(values) : execution.mutate({ ...values, purpose: "OFFICIAL" })} disabled={execution.isPending || cycle.isPending}>
         {executionDialog === "cycle" && <Form.Item name="source_mode" label={t("Source preparation", "源码准备方式")}><Select options={[
           ...(managedCheckout ? [{ value: "managed", label: t("Prepare pinned source and run automatically", "自动准备固定源码并运行") }] : []),
@@ -367,7 +380,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
         {preparation.error && <Alert type="error" showIcon message={t("Unable to save checkout task", "无法保存检出任务")} description={errorText(preparation.error, locale)} style={{ marginBottom: 16 }} />}
         {preparationFeedback}
         </>}
-        <Form.Item name="backend" label={t("Runner", "Runner")} rules={[{ required: true, message: t("Choose an available runner.", "请选择可用的 Runner。") }]}><Select options={capabilities.data?.runner_backends.map((value) => ({ value, label: value === "docker" ? t("Docker · isolated execution", "Docker · 隔离执行") : t("Local · trusted host process", "本机 · 可信主机进程") }))} /></Form.Item>
+        <Form.Item name="backend" label={t("Runner", "Runner")} rules={[{ validator: async (_, value) => { if (!capabilities.data?.runner_backends.includes(value) || (hasPinnedEnvironment && value !== "docker")) throw new Error(t("The selected runner is unavailable for this pinned environment.", "所选 Runner 不适用于此固定环境，或当前不可用。")); } }]}><Select disabled={hasPinnedEnvironment} options={capabilities.data?.runner_backends.filter((value) => !hasPinnedEnvironment || value === "docker").map((value) => ({ value, label: value === "docker" ? t("Docker · isolated execution", "Docker · 隔离执行") : t("Local · trusted host process", "本机 · 可信主机进程") }))} /></Form.Item>
         <Form.Item name="timeout_seconds" label={t("Runner timeout (seconds)", "Runner 超时（秒）")} extra={t("Applies to each Runner execution. Agent mission time limits are configured by the operator.", "此限制适用于每次 Runner 执行。智能体任务的超时由运维配置。 ")} rules={[{ required: true, type: "number", min: 1, max: 3600, message: t("Enter a timeout between 1 and 3600 seconds.", "请输入 1 至 3600 秒的超时限制。") }]}><InputNumber min={1} max={3600} style={{ width: "100%" }} /></Form.Item>
       </Form>
       {cycle.isPending && <Alert type="info" showIcon message={t("Saving test-cycle task. Once accepted, work continues independently of this browser.", "正在保存测试周期任务。任务保存后会独立于浏览器继续执行。")} />}
@@ -389,6 +402,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
           { key: "exit", label: t("Exit code", "退出码"), children: executionDetail.data.execution.exit_code ?? "—" },
           { key: "started", label: t("Started", "开始时间"), children: <Timestamp value={executionDetail.data.execution.started_at} /> },
         ]} />
+        <ExecutionEnvironmentIdentity execution={executionDetail.data.execution} />
         {executionDetail.data.execution.error_message && <Alert type="error" showIcon style={{ marginTop: 16 }} message={executionDetail.data.execution.error_code || t("Execution error", "执行错误")} description={executionDetail.data.execution.error_message} />}
         <Typography.Title level={4}>{t("Per-case results", "各正式用例结果")}</Typography.Title>
         <Typography.Paragraph className="muted">{t("These are canonical test-case results aggregated from accepted implementations. A parameterized test can produce a different number of JUnit instances; inspect the verified report below for individual assertions.", "此处按已接受的测试实现汇总正式用例结果。参数化测试的 JUnit 实例数可能与正式用例数不同，具体断言请查看下方已验证的测试报告。")}</Typography.Paragraph>

@@ -110,6 +110,10 @@ def _semantic_row(instance: Any) -> dict[str, Any]:
         "finalized_at",
         "revoked_at",
     }
+    if isinstance(instance, SourceSnapshot) and instance.environment_definition is None:
+        # 0011 adds an optional binding. Existing FINAL hashes must serialize
+        # legacy inputs exactly as they did before the nullable column existed.
+        excluded.add("environment_definition")
     return {
         column.key: _json_value(getattr(instance, column.key))
         for column in instance.__mapper__.columns
