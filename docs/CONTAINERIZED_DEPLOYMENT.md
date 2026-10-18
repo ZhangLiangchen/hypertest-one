@@ -291,5 +291,33 @@ nginx回退只是恢复已核验的原host站点/服务；不改 SSH、不清 UF
 restart=no、live-restore=false通过。没有重启共享生产Docker/宿主；这不等同于
 真实开机验收，也不能替代正式切换时的VPN允许和另一公网出口拒绝实测。
 
-完整模型/恢复演练的身份、证据与限制另见本次ADR-013验收记录；单凭这里的
-迁移与拓扑结果不能认定真实Runner/Evidence/Gate闭环已经通过。
+最终构建输入与实现 commit `dae0ef8cf3cd7ad2fe5498b62c017c557127847b` 的内容和
+文件 mode 完全一致：platform 97个文件、Web 46个文件、ops 14个文件。真实 Linux
+容器 Worker → 宿主 Bridge → Codex → Docker API 环境已完成一个独立 Run：
+4个 Mission 复用同一原生会话，26项 JUnit 测试通过、无失败/跳过，5份证据均为
+`RUNNER/VERIFIED`，最终 `RELEASE_READY` 且会话绑定 `CLOSED`。页面及18份静态资源
+HTTP200，报告和JUnit引用已实际读取；这项 Linux 检查没有代替本地真实浏览器交互验收。
+
+完成冷备后恢复到全新隔离库/目录：41张表的全部行一致，Artifact 9个文件、
+workspace 529个文件、Bridge ledger 2个文件 hash一致。最终 API 镜像以非root、
+禁网络和只读恢复 Artifact mount调用真实应用reader，验证11个引用（25,361 bytes），
+另校验2个 PRD/config输入摘要，数据库约束全部有效。恢复库没有启动Worker/Provider；
+因此这些证据覆盖应用数据读取完整性，不宣称完成原生Provider整机灾难恢复。
+
+限定Web回滚演练将当前镜像 `sha256:c698b031557bf297e389e970676cc9f33f256872431947eef23ff4c7a4af29fe`
+切换到兼容旧Web镜像 `sha256:e67115577e8ee0de87a368105b4093af040f26a429c7036c0cd8c72309c2f0c0`，
+再恢复当前镜像。两个版本均通过实际就绪和同一已完成Run的绑定/报告读取，完整
+harness响应一致；API/Worker/Bridge/schema保持原版本。**完整核心版本回滚未验收**，
+不能据此绕过前述新绑定/协议兼容性限制。
+
+另在停止整个隔离栈后删除其唯一自有guard，验证检查拒绝，再通过systemd受控入口
+重新安装首条DROP后启动；就绪通过。没有重启共享Docker/宿主，不把该演练写成
+真实主机重启验证。身份、镜像、证据和剩余限制见
+[ADR-013验收记录](ADR013_ACCEPTANCE.md)。
+
+验收结束后已停止独立staging的五个容器与宿主Bridge，两项staging systemd unit均为
+inactive/disabled，容器restart policy均为no，四个隔离回环端口全部关闭。只移除了
+该staging网络的自有DROP，DOCKER-USER恢复原有RETURN；保留两套staging PG卷、
+配对备份、恢复目录、Artifact、工作副本、Bridge ledger和镜像供复核。正式release、
+schema、业务计数、Artifact清单、原PG卷挂载、各服务PID及UFW与验收前快照完全一致，
+正式Web与API仍HTTP200。正式环境尚未执行本ADR的生产切换。
