@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from hypertest.api.schemas import ORMModel
+from hypertest.domain.activity import ActivityKind, ActivitySource
 from hypertest.domain.jobs import JobStatus, JobType
 
 
@@ -46,3 +47,45 @@ class JobRead(ORMModel):
     started_at: datetime | None
     finished_at: datetime | None
     cancel_requested_at: datetime | None
+
+
+class ActivityAttemptRead(BaseModel):
+    mission_id: UUID
+    mission_key: str
+    mission_type: str
+    attempt_id: UUID
+    attempt_no: int
+    agent_session_id: UUID
+
+
+class ActivitySummaryRead(BaseModel):
+    phase: Literal["QUEUED", "WAITING_INPUT", "CANCEL_REQUESTED", "AGENT_RUNNING", "RESULT_VALIDATION", "PLATFORM_WORK", "TERMINAL"]
+    current_attempt: ActivityAttemptRead | None
+    turn_started_at: datetime | None
+    last_provider_signal_at: datetime | None
+    provider_signal_age_seconds: float | None
+    worker_heartbeat_at: datetime | None
+    worker_heartbeat_age_seconds: float | None
+
+
+class ActivityItemRead(BaseModel):
+    id: UUID
+    kind: ActivityKind
+    source: ActivitySource
+    recorded_at: datetime
+    last_observed_at: datetime
+    count: int
+    mission_id: UUID
+    attempt_id: UUID
+    agent_session_id: UUID
+
+
+class JobActivityRead(BaseModel):
+    job_id: UUID
+    server_time: datetime
+    summary: ActivitySummaryRead
+    items: list[ActivityItemRead]
+    next_cursor: UUID | None
+    retention_per_attempt: int
+    window_seconds: int
+    truncated: bool

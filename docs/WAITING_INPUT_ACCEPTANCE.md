@@ -41,7 +41,7 @@
 
 ## 服务器验收登记
 
-服务器已独立完成真实 Web / Codex / Docker 问答闭环，运行版本为 `8e01ac5e46b83e8bce950915892f2b74d16c140a`，数据库 `0009_mission_inputs`；PR #6 尚未合并。本次文档补录不改变该运行身份。服务器完整后端检查为 **345 passed / 3 既有 warnings**，31 Web tests / typecheck 通过，精确提交的两个 CI 作业通过。8e01 只修正一个既有测试的 heartbeat 行锁竞争：使用真实 FencedAsyncSession 隔离被测 controller，保留 Run / Job 两项 NOWAIT 断言及独立 Worker 测试；生产源码、Web / 配置 / lock 与 e511 相同，复用 e511 fresh npm ci 后成功生成的生产构建，不冒称重新构建。
+服务器已独立完成真实 Web / Codex / Docker 问答闭环，实际执行版本为 `8e01ac5e46b83e8bce950915892f2b74d16c140a`，数据库 `0009_mission_inputs`。之后 PR #6 已合并并部署 main `a48bc96`，部署前后 32 表 / 1,219 行、41 产物引用 / 16 Evidence 完全一致；见[合并部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr6-deployment-2026-10-18.md)。不将该同步冒称为重跑模型。原服务器完整后端检查为 **345 passed / 3 既有 warnings**，31 Web tests / typecheck 通过，精确提交的两个 CI 作业通过。8e01 只修正一个既有测试的 heartbeat 行锁竞争：使用真实 FencedAsyncSession 隔离被测 controller，保留 Run / Job 两项 NOWAIT 断言及独立 Worker 测试；生产源码、Web / 配置 / lock 与 e511 相同，复用 e511 fresh npm ci 后成功生成的生产构建，不冒称重新构建。
 
 | 身份 / 结果 | 服务器实际记录 |
 |---|---|

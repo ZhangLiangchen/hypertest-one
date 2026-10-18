@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from test_codex_adapter import mission_contract
 
+from hypertest.agent import codex as codex_module
 from hypertest.agent.codex import CodexCliAdapter
 
 
@@ -56,8 +57,20 @@ async def test_valid_70kb_final_message_survives_provider_jsonl(tmp_path: Path) 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("trailing_newline", [True, False])
 async def test_oversized_telemetry_preserves_saved_result_and_recovers_next_line(
-    tmp_path: Path, trailing_newline: bool,
+    tmp_path: Path, trailing_newline: bool, monkeypatch,
 ) -> None:
+    # Inspect the bounded parser at its private boundary as well as the public
+    # safe projection. Fixed outward SIGNAL codes alone cannot prove that the
+    # oversized line was discarded rather than decoded and then hidden.
+    original_reader = codex_module._read_jsonl_telemetry
+    positions, raw_types = [], []
+    async def observed_reader(stream):
+        async for event in original_reader(stream):
+            raw_types.append(event.get("type"))
+            if event.get("type") == "review.marker":
+                positions.append(event["position"])
+            yield event
+    monkeypatch.setattr(codex_module, "_read_jsonl_telemetry", observed_reader)
     adapter = CodexCliAdapter(binary=telemetry_provider(
         tmp_path, oversized=True, trailing_newline=trailing_newline,
     ))
@@ -69,17 +82,14 @@ async def test_oversized_telemetry_preserves_saved_result_and_recovers_next_line
         submitted = [event for event in events if event.type == "RESULT_SUBMITTED"]
         assert len(submitted) == 1
         assert submitted[0].payload["summary"] == "ok"
-        provider_events = [
-            event.payload["provider_event"] for event in events
-            if event.type == "ACTIVITY" and "provider_event" in event.payload
-        ]
-        positions = [
-            event["position"] for event in provider_events
-            if event.get("type") == "review.marker"
-        ]
         assert positions == (["before", "after"] if trailing_newline else ["before"])
-        assert all(event.get("type") != "review.oversized" for event in provider_events)
-        assert all(len(json.dumps(event)) < 2_000_000 for event in provider_events)
+        assert raw_types.count("telemetry.line_discarded") == 1
+        assert "review.oversized" not in raw_types
+        provider_events = [event.payload for event in events if event.type == "ACTIVITY"]
+        assert provider_events == [{"activity_kind": "SIGNAL_RECEIVED"}] * (3 if trailing_newline else 2)
+        assert all(len(json.dumps(event)) < 100 for event in provider_events)
+        assert all("provider_event" not in event and "raw" not in event for event in provider_events)
+        assert "x" * 100 not in json.dumps(provider_events)
         assert not any(event.type == "ERROR" for event in events)
     finally:
         await adapter.close(session)

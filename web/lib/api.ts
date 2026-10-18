@@ -1,5 +1,5 @@
 import type {
-  BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobCreate, Mission, MissionAttempt,
+  BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
 } from "@/lib/types";
@@ -143,6 +143,11 @@ export const getConfigurationContent = async (snapshotId: string) => {
 export const getVerdicts = (runId: string) => api<Verdict[]>(`/test-runs/${runId}/verdicts`);
 export const getJobs = (runId: string) => api<BackgroundJob[]>(`/test-runs/${runId}/jobs`);
 export const getJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}`);
+export const getJobActivity = (jobId: string, before?: string, signal?: AbortSignal) => {
+  const query = new URLSearchParams({ limit: "30" });
+  if (before) query.set("before", before);
+  return api<JobActivity>(`/jobs/${jobId}/activity?${query}`, { signal });
+};
 export const createJob = (runId: string, payload: JobCreate) =>
   api<BackgroundJob>(`/test-runs/${runId}/jobs`, { method: "POST", body: JSON.stringify(payload) });
 export const cancelJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}/cancel`, { method: "POST" });

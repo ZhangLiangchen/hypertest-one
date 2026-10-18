@@ -497,6 +497,12 @@ ACTIVITY 主要服务 UI、Audit、Debug。
 
 PROGRESS 可选，Agent 无法可靠估计时不得伪造百分比。
 
+当前 Web 可观察性使用受控活动类型、来源、平台时间和合并计数，不展示上例中的自由文本 message。Adapter 必须在跨越边界前投影 Provider JSONL；推理、命令、路径、输出、消息正文、PRD / 回答和凭据不进入持久活动记录。未知事件只产生固定信号类型；Provider 错误仅保留受控类别和退出码，不持久化 stderr 作为活动或错误详情。原始事件流不是 Result 通道。
+
+`PROVIDER` 与 `CONTROL_PLANE` 来源分开。本地开始 / 恢复 / 结果提交事件和 Worker 心跳不能被计作模型新信号。人工等待恢复继续原 Attempt，但本轮信号按当前 Job 领取次数隔离；没有信号时为未知。活动不改变 Mission 状态、Canonical State、Coverage、Evidence 或 Verdict。
+
+实现采用有界异步队列、约 2 秒窗口合并、每 Attempt 最近 200 条与有上限的只读分页，细则见领域模型 §23.3。有效租约及归属校验失败、繁忙或遥测故障可以丢弃记录，不得阻塞正式 Result 的处理，也不得自动取消、重放或估算百分比。长时间未收到信号的提示必须保留“仍可能正常工作”的含义；WAITING_INPUT、Runner 执行与终态不按模型静默判断。
+
 ---
 
 ## 22. Provider Mapping

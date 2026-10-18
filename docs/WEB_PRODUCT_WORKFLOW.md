@@ -2,7 +2,7 @@
 
 ## 当前等待输入功能的状态
 
-本轮新增 WAITING_INPUT 问题持久化、Web 回答及同一后台任务恢复，数据库迁移为 `0009_mission_inputs`。独立前端安装、31 项回归、类型检查、生产构建及依赖审计 0 漏洞已通过；**真实 Web 回答 → Provider resume → Runner → Evidence → Verdict 闭环仍待本轮验收**。[前端检查记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/waiting-input-web-checks-2026-10-18.md)不代替真实模型和部署证据。以下既有文件导入、测试链及 VPN/SSH 记录保留原身份，不作为新恢复功能已验收的证明。
+WAITING_INPUT 问题持久化、Web 回答及同一后台任务恢复已在本地和服务器通过真实模型 / Docker 验收，数据库迁移为 `0009_mission_inputs`。其 345 后端 / 31 Web 回归及检查、同 Job / Attempt / 原生 thread 恢复身份见[问答验收](WAITING_INPUT_ACCEPTANCE.md)。PR #6 已合并，服务器同步为 `a48bc96`；原真实执行身份仍为 `8e01ac5`，不改写成合并版本重新运行。见[合并部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr6-deployment-2026-10-18.md)。以下既有文件导入、测试链及 VPN/SSH 记录保留各自身份。
 
 ## 两阶段版本与验收状态
 
@@ -66,6 +66,17 @@ Invalid PRD imports preserve the current draft and filename. Native Chrome/macOS
 后台任务提交具有幂等身份。响应丢失时，Web 先查询相同请求是否已保存；无法确认时保留同一请求标识供重试。创建 Run 的同一标识不能绑定不同的实质输入，平台返回 409 并保留原记录；分支参考标签不改变 SourceSnapshot 的身份。
 
 **Task completion is not a passing quality verdict.** Inspect official execution facts and the final verdict. Requests preserve identity across uncertain submissions; retries retain prior history.
+
+## 任务活动与等待诊断 / Task activity and waiting
+
+在后台任务详情中查看辅助活动区。它展示已知的当前阶段 / Mission / Attempt、最近 Provider 信号、本 Job 的 Worker 心跳和最近成功刷新；活动类型提供中文和英文，不展示模型原文、命令或推理。
+
+- **Worker 心跳**说明负责本任务的 Worker 仍在续租，不等于模型有新进展。其他 Worker 的在线状态不能替代本 Job 的心跳。
+- **Provider 信号**说明平台最近接收了外部事件，不证明测试已完成。长时间未收到信号时模型仍可能正常工作；可检查任务期限与已有状态，按需要使用现有取消操作，不应仅因沉默盲目重试。
+- **等待你的回答**按 WAITING_INPUT 显示，不当作模型卡死。回答恢复后仍为同一 Attempt，但本轮信号与等待前的一轮分开计算。Runner 执行和任务终态也不显示模型静默警报。
+- **近期活动**每 Attempt 最多保留 200 条，约 2 秒内同类信号可合并计数，可按需查看更早记录；不承诺完整会话日志。刷新失败时保留已加载内容并提示尚未更新，不能把旧活动时间当成实时状态。
+
+活动记录是运行观察信息，不能替代已接受的 Proposal、可信 Evidence 或 FINAL Verdict，不显示百分比或预计完成时间，也不触发自动取消、重试、重新规划或质量判定。[本轮活动验收](MISSION_ACTIVITY_ACCEPTANCE.md)区分自动化、真实模型检查和部署状态。
 
 ## 等待输入、回答并继续 / Waiting for input, answer and continue
 

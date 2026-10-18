@@ -13,9 +13,48 @@ from uuid import UUID
 
 from hypertest.agent.base import AgentEvent, AgentSession
 from hypertest.common.ids import public_key
+from hypertest.domain.activity import ActivityKind
 from hypertest.protocol import MissionResultSubmission
 
 _MAX_TELEMETRY_LINE_BYTES = 2_000_000
+
+
+def provider_activity_kind(event: Any) -> ActivityKind:
+    """Project only fixed codes; unknown/malformed messages reveal no content."""
+    if not isinstance(event, dict):
+        return ActivityKind.SIGNAL_RECEIVED
+    event_type = event.get("type")
+    if not isinstance(event_type, str):
+        return ActivityKind.SIGNAL_RECEIVED
+    if event_type == "turn.started":
+        return ActivityKind.TURN_STARTED
+    if event_type == "turn.completed":
+        return ActivityKind.TURN_COMPLETED
+    if event_type in {"turn.failed", "error"}:
+        return ActivityKind.ERROR
+    if event_type in {"item.started", "item.updated", "item.completed"}:
+        item = event.get("item")
+        item_type = item.get("type") if isinstance(item, dict) else None
+        if not isinstance(item_type, str):
+            return ActivityKind.SIGNAL_RECEIVED
+        if item_type in {"command_execution", "mcp_tool_call", "web_search"}:
+            if event_type == "item.started":
+                return ActivityKind.TOOL_STARTED
+            if event_type == "item.completed":
+                return ActivityKind.TOOL_COMPLETED
+            return ActivityKind.SIGNAL_RECEIVED
+        if item_type == "file_change":
+            return ActivityKind.FILE_ACTIVITY
+        if item_type in {"agent_message", "reasoning"}:
+            return ActivityKind.MODEL_ACTIVITY
+    return ActivityKind.SIGNAL_RECEIVED
+
+
+async def _drain_stderr(stream: asyncio.StreamReader) -> None:
+    # Exit code is sufficient for the fixed safe error summary. Do not retain
+    # arbitrary provider stderr in memory, a result, logs or an API error.
+    while await stream.read(65536):
+        pass
 
 
 async def _read_jsonl_telemetry(stream: asyncio.StreamReader) -> AsyncIterator[Any]:
@@ -281,7 +320,7 @@ class CodexCliAdapter:
         prompt_task = asyncio.create_task(send_prompt())
         stderr_task = None
         if process.stderr is not None:
-            stderr_task = asyncio.create_task(process.stderr.read())
+            stderr_task = asyncio.create_task(_drain_stderr(process.stderr))
 
         try:
             yield AgentEvent(type="MISSION_STARTED", payload={"provider": "codex"})
@@ -310,10 +349,7 @@ class CodexCliAdapter:
                     })
                 yield AgentEvent(
                     type="ACTIVITY",
-                    payload={
-                        "provider": "codex",
-                        "provider_event": provider_event,
-                    },
+                    payload={"activity_kind": provider_activity_kind(provider_event).value},
                 )
 
             return_code = await process.wait()
@@ -323,9 +359,8 @@ class CodexCliAdapter:
                 prompt_task.cancel()
             await asyncio.gather(prompt_task, return_exceptions=True)
         self._processes.pop(session.id, None)
-        stderr = ""
         if stderr_task is not None:
-            stderr = (await stderr_task).decode("utf-8", errors="replace")
+            await stderr_task
 
         if return_code != 0:
             yield AgentEvent(
@@ -334,7 +369,7 @@ class CodexCliAdapter:
                     "provider": "codex",
                     "error_code": "PROVIDER_RESUME_FAILED" if resume else "PROVIDER_ERROR",
                     "return_code": return_code,
-                    "stderr": stderr,
+                    "message": "Codex process exited unsuccessfully",
                 },
             )
             return
@@ -345,7 +380,7 @@ class CodexCliAdapter:
                 payload={
                     "provider": "codex",
                     "error_code": "RESULT_MISSING",
-                    "message": f"mission result file not found: {result_path}",
+                    "message": "Codex did not produce a structured result",
                 },
             )
             return
@@ -354,13 +389,13 @@ class CodexCliAdapter:
             if result_path.stat().st_size > 2_000_000:
                 raise ValueError("mission result exceeds the 2 MB structured output limit")
             result_payload = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError):
             yield AgentEvent(
                 type="ERROR",
                 payload={
                     "provider": "codex",
                     "error_code": "RESULT_INVALID",
-                    "message": str(exc),
+                    "message": "Codex structured result is invalid",
                 },
             )
             return

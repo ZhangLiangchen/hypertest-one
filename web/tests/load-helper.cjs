@@ -7,7 +7,7 @@ const ts = require("typescript");
 module.exports = function loadHelper(relativePath, globals = {}) {
   const filename = path.join(__dirname, "..", relativePath);
   const compiled = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     reportDiagnostics: true,
   });
   assert.equal(compiled.diagnostics.length, 0);

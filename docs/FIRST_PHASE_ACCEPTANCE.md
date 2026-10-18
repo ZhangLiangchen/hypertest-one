@@ -1,8 +1,12 @@
 # HyperTest One 第一阶段验收
 
-## 当前增量：等待输入、回答与原任务恢复
+## 当前增量：辅助活动与等待诊断
 
-新增迁移 `0009_mission_inputs`，本地与 Debian 服务器均已通过真实 Web 提问 → 持久等待 → API / Worker 重启 → 回答 → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。服务器运行候选 `8e01ac5`，PR #6 未合并；旧 1,029 行历史 / 34 个产物引用保留，最终配对备份和隔离恢复已通过，45.76.149.233/32 白名单及 SSH 隧道保持。见[本轮逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量、运行身份及当时缺口保留为历史，以本节为当前问答能力状态；不以旧失败链路代替本轮实测，也不据此宣称任意 API / SIT、第二 Harness 或多人权限已完成。
+本轮补齐白皮书 §22 的辅助 Agent Activity：独立有界 Operational 记录、Provider 信号与本 Job 心跳分开、当前领取隔离、双语只读时间线和等待诊断。迁移为 `0010_mission_activity`；**384 后端 / 41 Web tests、Ruff、typecheck、build、audit0、独立备份恢复均通过**。新真实 Web/Codex/Docker Run 经等待、API/Worker 重启和原会话回答恢复，完成 **2Req / 5Risk / 8Case / 1Impl / 1Exec / 4Evidence / FINAL RELEASE_READY，JUnit8PASS**。42 条安全活动、claim 隔离及旧31表1132行/128旧产物保全已独立实核。见[本轮活动验收](MISSION_ACTIVITY_ACCEPTANCE.md)。服务器保持已合并部署的 `a48bc96` / schema0009；本轮未部署，不改既有数据、VPN 白名单或 SSH 隧道。受控依赖/服务型 API、第二 Harness 与多人权限等边界仍未泛化验收，不据该增量宣称整个第一阶段完成。
+
+## 已交付增量：等待输入、回答与原任务恢复
+
+新增迁移 `0009_mission_inputs`，本地与 Debian 服务器均已通过真实 Web 提问 → 持久等待 → API / Worker 重启 → 回答 → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。真实运行版本为 `8e01ac5`，PR #6 随后已合并并部署 `a48bc96`；旧 1,029 行历史 / 34 个产物引用保留，最终配对备份和隔离恢复已通过，45.76.149.233/32 白名单及 SSH 隧道保持。见[问答逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量、运行身份及当时缺口保留为历史，以本节为问答能力状态；不以旧失败链路结果代替新功能实测，也不据此宣称任意 API / SIT、第二 Harness 或多人权限已完成。
 
 ## 本轮两阶段交付：已部署73d与后续范围修复
 

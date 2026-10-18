@@ -257,7 +257,7 @@ async def test_provider_failure_event_records_code_without_provider_diagnostics(
         plan = await plan_next_mission(session, run.id)
         assert plan.mission is not None
         mission_id = plan.mission.id
-        with pytest.raises(MissionRuntimeError, match="provider private diagnostic"):
+        with pytest.raises(MissionRuntimeError, match="Agent provider process exited unsuccessfully"):
             await execute_mission(session, mission_id, ".", harness=ErrorHarness([]))
         attempt = await session.scalar(
             select(MissionAttempt).where(MissionAttempt.mission_id == mission_id)
@@ -265,6 +265,8 @@ async def test_provider_failure_event_records_code_without_provider_diagnostics(
         assert attempt is not None
         assert attempt.status is MissionAttemptStatus.FAILED
         assert attempt.error_code == "PROVIDER_ERROR"
+        assert attempt.error_message == "Agent provider process exited unsuccessfully"
+        assert "provider private diagnostic" not in str(attempt.provider_metadata)
         audit, event = await event_pair(session, mission_id, "mission.attempt_failed")
         assert audit.event_metadata["error_code"] == event.payload["error_code"] == "PROVIDER_ERROR"
         assert "provider private diagnostic" not in str(audit.event_metadata)

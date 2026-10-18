@@ -554,6 +554,7 @@ class OutboxEvent(Base):
 
 
 # Register the remaining canonical chain on the shared declarative metadata.
+from hypertest.domain.activity import MissionActivityEvent  # noqa: E402, F401
 from hypertest.domain.delivery import (  # noqa: E402, F401
     Evidence,
     ExecutionEvidence,

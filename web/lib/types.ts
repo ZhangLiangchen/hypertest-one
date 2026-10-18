@@ -388,3 +388,43 @@ export type JobCreate = {
   idempotency_key: string;
   payload: Record<string, unknown>;
 };
+
+export type ActivityKind = "SIGNAL_RECEIVED" | "TURN_STARTED" | "TURN_COMPLETED" | "MODEL_ACTIVITY" | "TOOL_STARTED" | "TOOL_COMPLETED" | "FILE_ACTIVITY" | "MISSION_STARTED" | "RESUMED" | "RESULT_SUBMITTED" | "MISSION_FINISHED" | "ERROR";
+export type ActivitySource = "PROVIDER" | "CONTROL_PLANE";
+export type ActivityPhase = "QUEUED" | "WAITING_INPUT" | "CANCEL_REQUESTED" | "AGENT_RUNNING" | "RESULT_VALIDATION" | "PLATFORM_WORK" | "TERMINAL";
+export type JobActivityItem = {
+  id: string;
+  kind: ActivityKind;
+  source: ActivitySource;
+  recorded_at: string;
+  last_observed_at: string;
+  count: number;
+  mission_id: string;
+  attempt_id: string;
+  agent_session_id: string | null;
+};
+export type JobActivity = {
+  job_id: string;
+  server_time: string;
+  summary: {
+    phase: ActivityPhase;
+    current_attempt: {
+      mission_id: string;
+      mission_key: string;
+      mission_type: string;
+      attempt_id: string;
+      attempt_no: number;
+      agent_session_id: string | null;
+    } | null;
+    turn_started_at: string | null;
+    last_provider_signal_at: string | null;
+    provider_signal_age_seconds: number | null;
+    worker_heartbeat_at: string | null;
+    worker_heartbeat_age_seconds: number | null;
+  };
+  items: JobActivityItem[];
+  next_cursor: string | null;
+  retention_per_attempt: number;
+  window_seconds: number;
+  truncated: boolean;
+};

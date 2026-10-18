@@ -567,6 +567,12 @@ AgentEvent
 
 这些用于 UI、Observability、Debug、Audit，但不是 Canonical Testing State。
 
+当前辅助活动面板通过独立 Operational 表 `mission_activity_events` 与只读 Job activity API 提供。Adapter 只输出允许列表的活动代码；不透传 Provider JSONL、推理、命令、路径、消息正文或 stderr。固定类型、来源、平台时间、合并计数和平台所属身份足以说明“最近观察到了什么”，不把原始 Agent 会话复制成平台状态。
+
+采集通过有界队列和独立单写入器，约 2 秒合并、每 Attempt 保留最近 200 条。短事务检查当前有效 Job lease / claim、Run / Attempt / AgentSession 关系；繁忙或失效时丢弃遥测，不跨 Provider I/O 持锁，不让活动收尾与主任务完成事务互等。正式 Result 与 Runner 事实仍由原通道提交，遥测失败不会变更 Canonical 结果。活动不写领域 Outbox，也不参与 Gate hash。
+
+Web 区分当前领取的 Provider 信号、该 Job 的 Worker 心跳与接口最近成功刷新，使用服务器观察时间避免浏览器时钟误差。人工等待不消耗运行 lease，也不构成模型静默；沉默提示不判定卡死或自动重放。首次实现使用有界轮询，不以引入 SSE / Redis 作为前提。关系、保留与取消边界见领域模型 §23.3，消息边界见 TMP §21。
+
 ---
 
 ## 34. Persistence

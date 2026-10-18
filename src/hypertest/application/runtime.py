@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,11 +11,12 @@ from uuid import UUID
 
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from hypertest.agent.base import AgentHarness, AgentSession
 from hypertest.agent.codex import CodexCliAdapter
 from hypertest.agent.snapshot import SnapshotHarness
+from hypertest.application.activity import ActivityOwner, ActivityRecorder
 from hypertest.application.lifecycle import record_mission_event
 from hypertest.application.verifier import VerificationResult, verify_mission_result
 from hypertest.common.ids import uuid7
@@ -49,6 +51,29 @@ from hypertest.protocol import (
     TestCaseProposalPayload,
     TestImplementationProposalPayload,
 )
+
+
+def _safe_agent_error(payload: dict[str, Any]) -> tuple[str, str]:
+    messages = {
+        "PROVIDER_ERROR": "Agent provider process exited unsuccessfully",
+        "PROVIDER_RESUME_FAILED": "Agent provider could not resume the recorded session",
+        "PROVIDER_SESSION_INVALID": "Agent provider supplied an invalid session reference",
+        "PROVIDER_SESSION_CHANGED": "Agent provider changed its recorded session identity",
+        "RESULT_MISSING": "Agent did not produce a structured result",
+        "RESULT_INVALID": "Agent structured result is invalid",
+        "MULTIPLE_RESULTS": "Agent submitted more than one final result",
+        "MISSION_TIMEOUT": "mission exceeded its time limit",
+        "SOURCE_CHANGED": "Agent workspace changed the immutable source",
+        "HARNESS_ERROR": "Agent harness failed before completing a structured result",
+    }
+    code = payload.get("error_code")
+    if not isinstance(code, str) or code not in messages:
+        return "AGENT_ERROR", "Agent execution failed before structured verification"
+    message = messages[code]
+    value = payload.get("return_code")
+    if type(value) is int and -32768 <= value <= 32767:
+        message += f" (exit code {value})"
+    return code, message
 
 
 class MissionRuntimeError(RuntimeError):
@@ -426,7 +451,7 @@ async def _execute_mission(
         try:
             await selected_harness.restore_session(external_session, agent_record.workspace_id)
         except Exception as exc:
-            raise MissionRuntimeError(f"agent session could not be restored: {exc}") from exc
+            raise MissionRuntimeError("agent session could not be restored") from exc
         question.status = InputRequestStatus.CONSUMED
         question.consumed_at = now
         question.row_version += 1
@@ -458,7 +483,7 @@ async def _execute_mission(
 
             if isinstance(exc, JobLeaseLost):
                 raise
-            raise MissionRuntimeError(f"agent session could not be created: {exc}") from exc
+            raise MissionRuntimeError("agent session could not be created") from exc
         agent_record = AgentSessionRecord(
             id=uuid7(), test_run_id=test_run.id, provider=external_session.provider,
             harness=type(selected_harness).__name__,
@@ -515,14 +540,26 @@ async def _execute_mission(
 
     result_payload: dict[str, Any] | None = None
     error_payload: dict[str, Any] | None = None
-    event_types: list[str] = list((attempt.provider_metadata or {}).get("event_types", []))
+    event_types = deque((attempt.provider_metadata or {}).get("event_types", [])[-256:], maxlen=256)
+    known_events = {"SESSION_STARTED", "MISSION_STARTED", "ACTIVITY", "TOOL_STARTED", "TOOL_COMPLETED",
+                    "FILE_CHANGED", "EXECUTION_REQUESTED", "WAITING_INPUT", "PROGRESS", "WARNING",
+                    "ERROR", "RESULT_SUBMITTED", "MISSION_FINISHED"}
+    activity = None
+    owned_token = getattr(session, "lease_token", None)
+    if durable_job_id is not None and isinstance(owned_token, UUID):
+        activity = ActivityRecorder(async_sessionmaker(session.bind, expire_on_commit=False), ActivityOwner(
+            test_run.id, durable_job_id, mission.id, attempt.id, agent_record.id, owned_token,
+        ))
+        activity.start(resumed=is_resume)
 
     async def consume_events() -> None:
         nonlocal result_payload, error_payload
         stream = (selected_harness.resume(external_session, contract) if is_resume
                   else selected_harness.execute(external_session, contract))
         async for event in stream:
-            event_types.append(event.type)
+            event_types.append(event.type if isinstance(event.type, str) and event.type in known_events else "UNKNOWN_EVENT")
+            if activity is not None:
+                activity.observe(event.type, event.payload if isinstance(event.payload, dict) else {})
             if event.type == "RESULT_SUBMITTED":
                 if result_payload is not None:
                     error_payload = {
@@ -607,7 +644,12 @@ async def _execute_mission(
             cancellation_task.cancel()
             await asyncio.gather(cancellation_task, return_exceptions=True)
 
-        provider_metadata = {**(attempt.provider_metadata or {}), "event_types": event_types}
+        # No completion/verification row lock is held while a separate writer
+        # drains. Its NOWAIT/time bounds also make collisions lossy, not blocking.
+        if activity is not None:
+            await activity.close()
+
+        provider_metadata = {**(attempt.provider_metadata or {}), "event_types": list(event_types)}
         # Serialize completion with cancellation before processing any result or error.
         await session.refresh(test_run, with_for_update=True)
         await session.refresh(mission, with_for_update=True)
@@ -638,8 +680,7 @@ async def _execute_mission(
             except RuntimeError as exc:
                 error_payload = {"error_code": "SOURCE_CHANGED", "message": str(exc)}
         if error_payload is not None:
-            error_code = str(error_payload.get("error_code", "AGENT_ERROR"))
-            error_message = str(error_payload.get("message") or error_payload)
+            error_code, error_message = _safe_agent_error(error_payload)
             await _fail_attempt(
                 session,
                 mission,
@@ -733,6 +774,8 @@ async def _execute_mission(
         )
 
     finally:
+        if activity is not None:
+            await activity.close()
         if not retain_workspace:
             try:
                 await asyncio.wait_for(selected_harness.close(external_session), 5)
