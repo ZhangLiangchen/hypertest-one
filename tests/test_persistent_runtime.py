@@ -211,6 +211,35 @@ async def test_ambiguous_start_ack_reconciles_original_call_without_replay(runti
     assert len(bridge.started) == 1 and len(bridge.created) == 1
 
 
+@pytest.mark.parametrize("rejected_tool", [
+    ("get_state", {"resource": "evidence"}),
+    ("get_state", {"resource": "entity", "collection": "requirements", "entity_id": str(uuid7())}),
+    ("request_execution", {"idempotency_key": "premature-execution"}),
+])
+@pytest.mark.parametrize("active_mission", [False, True])
+async def test_rejected_tool_continues_same_native_call_after_database_rollback(
+    runtime_context, rejected_tool, active_mission,
+):
+    bridge = runtime_context["bridge"]
+    prefix = [("request_mission", {"mission_type": "ANALYZE_REQUIREMENTS", "idempotency_key": "analysis"})] if active_mission else []
+    bridge.program = [*prefix, rejected_tool, ("get_state", {}), question("mission" if active_mission else "run")]
+    paused = await run_claimed_job(runtime_context["job"])
+    assert paused.status is JobStatus.WAITING_INPUT, (paused.error_code, paused.error_message, bridge.results)
+    assert bridge.results[len(prefix)][1]["status"] == "REJECTED"
+    assert [name for name, _ in bridge.results] == [*(name for name, _ in prefix), rejected_tool[0], "get_state", "ask_user"]
+    assert len(bridge.created) == len(bridge.started) == 1
+    async with AsyncSessionLocal() as session:
+        binding, agent, state = await binding_rows(session, runtime_context)
+        assert binding.status is BindingStatus.WAITING_INPUT and binding.binding_epoch == 1
+        assert agent.provider_session_id == bridge.native
+        assert state.pending_input["request"]["question_id"] == "question-one"
+        if rejected_tool[0] == "request_execution":
+            call = await session.scalar(select(RunToolCall).where(
+                RunToolCall.binding_id == binding.id,
+                RunToolCall.idempotency_key == "premature-execution"))
+            assert call.status == "FAILED" and call.result["status"] == "REJECTED"
+
+
 async def test_native_turn_without_question_or_accepted_report_is_failure(runtime_context):
     bridge = runtime_context["bridge"]
     bridge.program = [("get_state", {})]

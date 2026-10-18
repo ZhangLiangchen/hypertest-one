@@ -294,6 +294,10 @@ async def advance_persistent_run(db: AsyncSession, job: DurableJob) -> dict:
                     response = await tools.dispatch(pending["name"], pending["arguments"])
                 except (ValueError, ConflictError) as exc:
                     await db.rollback()
+                    # Rollback expires ORM state even with expire_on_commit=False.
+                    # Reload this long-lived checkpoint explicitly before the next
+                    # activity/pause check; the rejected tool must not end the call.
+                    await db.refresh(state)
                     response = {"status": "REJECTED", "reason": str(exc)[:2000]}
                 context = await execution_context(db, binding_id, epoch, job_id, token)
                 await client.respond_tool(context, call_id, pending["tool_call_id"], response)
