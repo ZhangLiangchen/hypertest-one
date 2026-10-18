@@ -14,7 +14,7 @@ from hypertest.application.services import ConflictError, canonical_json_sha256,
 from hypertest.application.workspaces import prepare_workspace as prepare_managed_workspace
 from hypertest.domain.enums import ExecutionPurpose, MissionAttemptStatus, MissionStatus
 from hypertest.domain.jobs import ACTIVE_JOB_STATUSES, DurableJob
-from hypertest.domain.models import TestExecution, TestImplementation, TestRun
+from hypertest.domain.models import SourceSnapshot, TestExecution, TestImplementation, TestRun
 from hypertest.runner.backends import DockerRunner, LocalRunner
 
 
@@ -58,8 +58,14 @@ async def advance_run(
     # spending Agent calls or fetching source. This is operational readiness,
     # never an Execution/Evidence fact or an environment reservation.
     await _guard_operation_owner(session, run_id)
+    snapshot = await session.get(SourceSnapshot, run.source_snapshot_id)
+    assert snapshot is not None
+    binding = snapshot.environment_definition
+    if binding is not None and backend != "docker":
+        raise ConflictError("controlled environments require the Docker runner")
     await session.commit()
-    runner = DockerRunner() if backend == "docker" else LocalRunner()
+    runner = (DockerRunner(environment=binding) if binding is not None else
+              DockerRunner() if backend == "docker" else LocalRunner())
     try:
         await runner.fingerprint()
     except (OSError, RuntimeError, ValueError, KeyError) as exc:

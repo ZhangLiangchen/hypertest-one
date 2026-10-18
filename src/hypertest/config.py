@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     artifact_root: str = "/workspace/.hypertest-artifacts"
     runner_image: str = "hypertest-runner:py312"
+    runner_controlled_image: str = "hypertest-runner:py312-controlled"
+    runner_api_image: str = "hypertest-runner:py312-api-v1"
     runner_allow_local: bool = False
     workspace_root: str = "/workspace"
     codex_binary: str = "codex"

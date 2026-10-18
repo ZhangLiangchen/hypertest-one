@@ -257,6 +257,20 @@ html .ant-tag.ant-tag-blue, html .ant-tag.ant-tag-geekblue { color: #225d83; bac
 
 html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-color: #e7c2b6; }
 
+.environment-catalog-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.environment-profile-info { margin-bottom: 24px; }
+.environment-profile-info > .ant-typography { font-size: 12px; line-height: 1.8; margin-top: 8px; }
+.environment-details { margin-block: 12px; overflow-wrap: anywhere; }
+.environment-details > summary { cursor: pointer; margin-bottom: 8px; }
+.environment-dependencies { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 8px 0 12px; padding: 0; }
+.environment-dependencies code { font-size: 12px; overflow-wrap: anywhere; }
+.environment-request-summary { min-width: 0; overflow-wrap: anywhere; }
+.environment-request-summary > .ant-typography { font-size: 12px; margin: 8px 0; line-height: 1.8; }
+.pinned-environment { margin-bottom: 20px; padding-block: 16px; border-block: 1px solid var(--ht-line); overflow-wrap: anywhere; }
+.pinned-environment h5.ant-typography { margin-top: 0; }
+.environment-details .ant-descriptions-item-content { overflow-wrap: anywhere; }
+.execution-environment-identity { margin-block: 24px; overflow-wrap: anywhere; }
+
 .job-activity { margin: 4px 0 28px; padding-block: 20px; border-block: 1px solid var(--ht-line); }
 .activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .activity-heading h4.ant-typography { margin: 0; font-size: 17px; }

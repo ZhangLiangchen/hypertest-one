@@ -43,7 +43,9 @@ def canonical_json_sha256(value: dict) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def source_fingerprint(project_id: UUID, payload: SourceSnapshotCreate) -> str:
+def source_fingerprint(
+    project_id: UUID, payload: SourceSnapshotCreate, *, environment_definition: dict | None = None,
+) -> str:
     canonical = {
         "project_id": str(project_id),
         "repository_url": payload.repository_url,
@@ -51,6 +53,8 @@ def source_fingerprint(project_id: UUID, payload: SourceSnapshotCreate) -> str:
         "prd_sha256": payload.prd_sha256,
         "configuration_sha256": payload.configuration_sha256,
     }
+    if environment_definition is not None:
+        canonical["environment_definition"] = environment_definition
     return canonical_json_sha256(canonical)
 
 

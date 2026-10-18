@@ -11,6 +11,7 @@ from hypertest.domain.enums import (
     FindingResolution,
     FindingStatus,
 )
+from hypertest.domain.environments import EnvironmentRequest
 
 
 class RunBootstrap(BaseModel):
@@ -22,6 +23,7 @@ class RunBootstrap(BaseModel):
     prd_text: str = Field(min_length=1, max_length=2_000_000)
     configuration_text: str = Field(default="{}", max_length=100_000)
     policy: dict[str, Any] = Field(default_factory=dict)
+    environment: EnvironmentRequest | None = None
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("repository_url")

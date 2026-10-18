@@ -26,16 +26,39 @@ from hypertest.domain.models import (
     SourceSnapshot,
     TestRun,
 )
+from hypertest.runner.environments import resolve_environment
+
+
+async def _existing_request(
+    session: AsyncSession, project_id: UUID, payload: RunBootstrap,
+    source: SourceSnapshotCreate, effective_policy_hash: str,
+) -> TestRun | None:
+    """A replay uses the original binding, even if a mutable image tag moved."""
+    if not payload.idempotency_key:
+        return None
+    existing = await session.scalar(select(TestRun).where(
+        TestRun.project_id == project_id, TestRun.trigger_type == "WEB",
+        TestRun.trigger_ref == payload.idempotency_key,
+    ))
+    if existing is None:
+        return None
+    snapshot = await session.get(SourceSnapshot, existing.source_snapshot_id)
+    policy = await session.get(PolicySnapshot, existing.policy_snapshot_id)
+    request = payload.environment.model_dump(mode="json", exclude_none=True) if payload.environment else None
+    binding = snapshot.environment_definition if snapshot is not None else None
+    original_request = binding.get("request") if binding is not None else None
+    if (snapshot is None or policy is None or original_request != request
+            or snapshot.source_fingerprint != source_fingerprint(
+                project_id, source, environment_definition=binding,
+            )
+            or compile_policy(policy.compiled_policy).effective_policy_hash != effective_policy_hash):
+        raise ConflictError("idempotency key is already bound to a different run request")
+    return existing
 
 
 async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBootstrap) -> TestRun:
     policy_content = {"gate_version": "mvp/v1", **payload.policy}
     compiled_policy = compile_policy(policy_content)
-    project = await session.scalar(
-        select(Project).where(Project.id == project_id).with_for_update()
-    )
-    if project is None:
-        raise NotFoundError("project not found")
     if not payload.prd_text.strip():
         raise ValueError("PRD text must not be blank")
     prd = payload.prd_text.encode("utf-8")
@@ -50,27 +73,30 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
         prd_sha256=digest,
         configuration_sha256=configuration_digest,
     )
-    fingerprint = source_fingerprint(project.id, source)
-    if payload.idempotency_key:
-        existing = await session.scalar(
-            select(TestRun).where(
-                TestRun.project_id == project.id,
-                TestRun.trigger_type == "WEB",
-                TestRun.trigger_ref == payload.idempotency_key,
-            )
-        )
-        if existing is not None:
-            existing_source = await session.get(SourceSnapshot, existing.source_snapshot_id)
-            existing_policy = await session.get(PolicySnapshot, existing.policy_snapshot_id)
-            if (
-                existing_source is None
-                or existing_policy is None
-                or existing_source.source_fingerprint != fingerprint
-                or compile_policy(existing_policy.compiled_policy).effective_policy_hash
-                != compiled_policy.effective_policy_hash
-            ):
-                raise ConflictError("idempotency key is already bound to a different run request")
-            return existing
+    existing = await _existing_request(session, project_id, payload, source, compiled_policy.effective_policy_hash)
+    if existing is not None:
+        await session.commit()
+        return existing
+    environment_definition = None
+    if payload.environment is not None:
+        if await session.scalar(select(Project.id).where(Project.id == project_id)) is None:
+            raise NotFoundError("project not found")
+        # Docker inspection can block. No project/aggregate locks span that I/O.
+        await session.commit()
+        try:
+            environment_definition = await resolve_environment(payload.environment)
+        except (OSError, RuntimeError, ValueError, KeyError) as exc:
+            raise ConflictError("controlled environment unavailable; build the configured profile on this host") from exc
+    project = await session.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    if project is None:
+        raise NotFoundError("project not found")
+    # Serialize same-key requests after resolution. A racing request may have
+    # frozen a different actual image; never replace its first accepted binding.
+    existing = await _existing_request(session, project_id, payload, source, compiled_policy.effective_policy_hash)
+    if existing is not None:
+        await session.commit()
+        return existing
+    fingerprint = source_fingerprint(project.id, source, environment_definition=environment_definition)
     root = Path(get_settings().artifact_root).resolve()
     inputs = root / "inputs"
     inputs.mkdir(parents=True, exist_ok=True)
@@ -103,7 +129,8 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     )
     if snapshot is None:
         snapshot = SourceSnapshot(
-            project_id=project.id, source_fingerprint=fingerprint, **source.model_dump()
+            project_id=project.id, source_fingerprint=fingerprint,
+            environment_definition=environment_definition, **source.model_dump()
         )
         session.add(snapshot)
         await session.flush()

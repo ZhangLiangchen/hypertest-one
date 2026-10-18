@@ -2,7 +2,11 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: safe task activity and waiting diagnostics
+## Current increment: controlled dependencies and service API environments
+
+The five-step bilingual Web can select approved Python/pytest or ASGI API profiles. Bootstrap fixes the actual image, dependency lock and service definition in SourceSnapshot under migration0011; the Docker Runner owns service start/readiness, real HTTP execution, bounded logs and cleanup. Legacy NULL inputs retain their original source/Gate hashes. **464 backend tests / 8 optional Docker tests skipped in the default suite / 3 existing warnings**, plus **8 independently opted-in real Docker checks**, **53 Web tests**, Ruff/typecheck/build/audit0 and isolated backup restore have passed. Actual new Web/Codex business success and failure diagnosis are still being verified; [the new acceptance record](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md) owns their results. Production remains a48bc96/schema0009 and is untouched.
+
+## Prior increment: safe task activity and waiting diagnostics
 
 This branch adds a bounded operational activity view under migration `0010_mission_activity`: fixed Provider/control-plane activity types, platform timestamps and counts, current Mission/Attempt, current-claim Provider signals and per-Job Worker heartbeat. It does not persist transcript content or change Canonical State, official Evidence, Coverage or Verdict. The Web keeps this information in a bilingual auxiliary task-detail panel, distinguishes waiting for human input from quiet Agent work, and preserves loaded records on refresh failure. Silence does not trigger automatic cancellation, retry or a percentage estimate.
 

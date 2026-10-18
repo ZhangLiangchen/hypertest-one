@@ -109,12 +109,14 @@ async def execute_test_run(
 ) -> TestExecution:
     """Execute canonical implementations; clients supply neither commands nor result facts."""
     from hypertest.application.jobs import JobLeaseLost
+    from hypertest.runner.backends import runner_job_id
 
     if not idempotency_key.strip() or len(idempotency_key) > 512:
         raise ConflictError("execution requires an idempotency key of 1–512 characters")
     if backend not in {"docker", "local"} or not 1 <= timeout_seconds <= 3600:
         raise ConflictError("unsupported runner backend or timeout outside 1–3600 seconds")
-    run = await session.scalar(select(TestRun).where(TestRun.id == run_id).with_for_update())
+    run = await session.scalar(select(TestRun).where(TestRun.id == run_id).with_for_update()
+                               .execution_options(populate_existing=True))
     if run is None:
         raise NotFoundError("test run not found")
     existing = await session.scalar(select(TestExecution).where(
@@ -125,6 +127,44 @@ async def execute_test_run(
         return existing
     if run.status == TestRunStatus.CANCELLED:
         raise ConflictError("cancelled test runs cannot execute")
+    snapshot = await session.get(SourceSnapshot, run.source_snapshot_id)
+    assert snapshot is not None
+    binding = snapshot.environment_definition
+    if binding is not None and backend != "docker":
+        raise ConflictError("controlled environments require the Docker runner")
+    runner = (DockerRunner(environment=binding) if binding is not None else
+              DockerRunner() if backend == "docker" else LocalRunner())
+    identity = {"backend": backend, "available": False}
+    setup_error: Exception | None = None
+    # Fingerprinting can contact Docker. Release aggregate/lease locks and then
+    # recheck admission before reserving formal execution facts.
+    await session.commit()
+    try:
+        identity = await runner.fingerprint()
+    except JobLeaseLost:
+        raise
+    except Exception as exc:
+        setup_error = exc
+    await session.commit()
+    run = await session.scalar(select(TestRun).where(TestRun.id == run_id).with_for_update()
+                               .execution_options(populate_existing=True))
+    assert run is not None
+    existing = await session.scalar(select(TestExecution).where(
+        TestExecution.test_run_id == run_id, TestExecution.idempotency_key == idempotency_key,
+    ))
+    if existing is not None:
+        await session.commit()
+        return existing
+    if run.status == TestRunStatus.CANCELLED:
+        raise ConflictError("cancelled test runs cannot execute")
+    from hypertest.domain.jobs import ACTIVE_JOB_STATUSES, DurableJob
+
+    active_owner = await session.scalar(select(DurableJob.id).where(
+        DurableJob.test_run_id == run_id, DurableJob.status.in_(ACTIVE_JOB_STATUSES),
+    ))
+    owning_job = getattr(session, "job_id", None) or runner_job_id.get()
+    if active_owner is not None and active_owner != (UUID(str(owning_job)) if owning_job else None):
+        raise ConflictError("test run has active background work; use its task controls")
     # Implementations belong to the shared source snapshot. Gate and Verifier
     # take the same lock after TestRun so cross-run reads see one coherent state.
     snapshot = await session.scalar(select(SourceSnapshot).where(
@@ -150,14 +190,10 @@ async def execute_test_run(
     )).all())
     implementations = {item.id: item for item, _ in links}
     source = Path(workspace).expanduser().resolve()
-    runner = DockerRunner() if backend == "docker" else LocalRunner()
-    identity = {"backend": backend, "available": False}
-    setup_error: Exception | None = None
     observed_hashes: dict[UUID, str] = {}
     nodeids: dict[UUID, str] = {}
     invalid_implementations: set[UUID] = set()
     try:
-        identity = await runner.fingerprint()
         for implementation in implementations.values():
             nodeids[implementation.id] = safe_nodeid(implementation.file_path, implementation.symbol)
             if implementation.commit_sha != snapshot.commit_sha or implementation.repository_url != snapshot.repository_url:
@@ -191,12 +227,12 @@ async def execute_test_run(
         "case_links": [{"implementation_id": str(item.id), "test_case_id": str(case_id)}
                        for item, case_id in links],
     }
+    if binding is not None:
+        spec["environment_definition"] = binding
     previous = await session.scalar(select(TestExecution).where(
         TestExecution.test_run_id == run.id, TestExecution.purpose == purpose,
         TestExecution.source_commit == snapshot.commit_sha,
     ).order_by(TestExecution.created_at.desc(), TestExecution.id.desc()).limit(1))
-    from hypertest.runner.backends import runner_job_id
-
     owner = getattr(session, "job_id", None) or runner_job_id.get()
     execution = TestExecution(
         durable_job_id=UUID(str(owner)) if owner is not None else None,
@@ -204,7 +240,8 @@ async def execute_test_run(
         retry_of_execution_id=(previous.id if previous is not None and previous.status in {
             ExecutionStatus.ERROR, ExecutionStatus.TIMED_OUT, ExecutionStatus.CANCELLED,
         } else None),
-        purpose=purpose, runner_backend=backend, environment_id=f"{backend}:pytest",
+        purpose=purpose, runner_backend=backend,
+        environment_id=(f"docker:{binding['request']['profile_id']}" if binding is not None else f"{backend}:pytest"),
         environment_fingerprint=canonical_json_sha256(identity),
         source_commit=snapshot.commit_sha, execution_spec_sha256=canonical_json_sha256(spec),
         spec=spec, status=ExecutionStatus.RUNNING, started_at=utcnow(),
@@ -281,6 +318,10 @@ async def execute_test_run(
                 execution.status, execution.outcome = ExecutionStatus.TIMED_OUT, ExecutionOutcome.INCONCLUSIVE
                 execution.error_code = "EXECUTION_TIMEOUT"
                 execution.error_message = "Runner exceeded the execution timeout"
+            elif process.error_code:
+                execution.status, execution.outcome = ExecutionStatus.ERROR, ExecutionOutcome.INCONCLUSIVE
+                execution.error_code = process.error_code
+                execution.error_message = "The controlled service environment did not complete reliably"
             elif process.exit_code not in {0, 1} or not results:
                 execution.status, execution.outcome = ExecutionStatus.ERROR, ExecutionOutcome.INCONCLUSIVE
                 execution.error_code = "COLLECTION_ERROR"
@@ -304,7 +345,8 @@ async def execute_test_run(
         raise
     except Exception as exc:
         execution.status, execution.outcome = ExecutionStatus.ERROR, ExecutionOutcome.INCONCLUSIVE
-        execution.error_code = "SOURCE_VALIDATION_ERROR" if isinstance(exc, SourceValidationError) else "RUNNER_ERROR"
+        execution.error_code = ("SOURCE_VALIDATION_ERROR" if isinstance(exc, SourceValidationError) else
+                                "ENVIRONMENT_UNAVAILABLE" if binding is not None and setup_error is not None else "RUNNER_ERROR")
         execution.error_message = str(exc)[:2048]
     # Serialize fact completion with gate evaluation on the aggregate root.
     with session.no_autoflush:
@@ -357,6 +399,7 @@ async def execute_test_run(
             (EvidenceType.STDOUT, process.stdout, "text/plain"),
             (EvidenceType.STDERR, process.stderr, "text/plain"),
             *([(EvidenceType.JUNIT, junit, "application/xml")] if junit is not None else []),
+            *([(EvidenceType.LOG, process.service_log, "text/plain")] if process.service_log is not None else []),
         ]:
             evidence.append(await _evidence(session, run, execution, kind, content, content_type))
         metadata = {
@@ -371,6 +414,8 @@ async def execute_test_run(
             "test_results": {nodeid: {"result": result.result.value, "duration_ms": result.duration_ms,
                                       "summary": result.summary} for nodeid, result in results.items()},
         }
+        if process.service_metadata is not None:
+            metadata["service"] = process.service_metadata
         await _evidence(session, run, execution, EvidenceType.EXECUTION_METADATA,
                         json.dumps(metadata, sort_keys=True).encode(), "application/json")
         run.status = TestRunStatus.VERIFYING

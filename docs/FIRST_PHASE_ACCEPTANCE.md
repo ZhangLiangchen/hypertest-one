@@ -1,6 +1,10 @@
 # HyperTest One 第一阶段验收
 
-## 当前增量：辅助活动与等待诊断
+## 当前增量：受控依赖与服务型 API 环境
+
+新增不可变 Source 环境绑定、预置完整依赖锁、隔离单 ASGI 服务启动/HTTP就绪/真实HTTP测试/日志和退出采集，Web提供五步双语选择与执行身份查看；迁移0011兼容旧NULL和原FINAL hash。**464后端/53Web、8独立真实Docker、Ruff/typecheck/build/audit0及独立恢复19项已通过**（默认pytest另跳过8项需要预置镜像的opt-inDocker测试，均已独立实际执行通过）。本轮真实模型业务成功与失败诊断验收仍在进行，见[本轮环境验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)，不预写通过；服务器a48bc96/schema0009保持。
+
+## 前轮本地已验收：辅助活动与等待诊断
 
 本轮补齐白皮书 §22 的辅助 Agent Activity：独立有界 Operational 记录、Provider 信号与本 Job 心跳分开、当前领取隔离、双语只读时间线和等待诊断。迁移为 `0010_mission_activity`；**384 后端 / 41 Web tests、Ruff、typecheck、build、audit0、独立备份恢复均通过**。新真实 Web/Codex/Docker Run 经等待、API/Worker 重启和原会话回答恢复，完成 **2Req / 5Risk / 8Case / 1Impl / 1Exec / 4Evidence / FINAL RELEASE_READY，JUnit8PASS**。42 条安全活动、claim 隔离及旧31表1132行/128旧产物保全已独立实核。见[本轮活动验收](MISSION_ACTIVITY_ACCEPTANCE.md)。服务器保持已合并部署的 `a48bc96` / schema0009；本轮未部署，不改既有数据、VPN 白名单或 SSH 隧道。受控依赖/服务型 API、第二 Harness 与多人权限等边界仍未泛化验收，不据该增量宣称整个第一阶段完成。
 

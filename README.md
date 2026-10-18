@@ -29,7 +29,9 @@ deployed release, SSH access, service management, and paired backup/recovery ste
 
 The current product targets **one trusted operator** in a controlled development/test environment. Application login, tenant isolation, RBAC, and hardened public deployment are future work.
 
-The current increment adds a persistent, bilingual **Agent activity** panel and waiting diagnostics under migration `0010_mission_activity`. Fixed safe event types and platform timestamps distinguish current-turn Provider signals from Worker heartbeat without recording transcript content or changing Evidence/Verdict. Local checks passed **384 backend / 41 Web tests**, Ruff, migrations, typecheck, production build and audit 0. A fresh real Web/Codex/Docker cycle, including waiting, API/Worker restart and same-thread answer/resume, reached **FINAL RELEASE_READY / JUnit 8 PASS**. See [activity acceptance](docs/MISSION_ACTIVITY_ACCEPTANCE.md) for source identity, preservation and limits. This increment is not yet deployed; production remains `a48bc96` / schema0009 with the recorded VPN/SSH access policy.
+The current increment adds **controlled Python / ASGI API environments** under migration `0011_execution_environments`. The five-step Web flow freezes an approved prebuilt image, locked dependencies and a typed service entry point at Run creation. The trusted Runner starts the service inside its isolated container, probes HTTP readiness and executes real HTTP pytest tests; no host port or runtime package installation is introduced. Automated and independent Docker checks have passed; actual Web/model success and failure-diagnosis acceptance is recorded separately in [controlled-environment acceptance](docs/CONTROLLED_ENVIRONMENT_ACCEPTANCE.md). This increment is not deployed; production remains `a48bc96` / schema0009.
+
+The preceding increment adds a persistent, bilingual **Agent activity** panel and waiting diagnostics under migration `0010_mission_activity`. Fixed safe event types and platform timestamps distinguish current-turn Provider signals from Worker heartbeat without recording transcript content or changing Evidence/Verdict. Local checks passed **384 backend / 41 Web tests**, Ruff, migrations, typecheck, production build and audit 0. A fresh real Web/Codex/Docker cycle, including waiting, API/Worker restart and same-thread answer/resume, reached **FINAL RELEASE_READY / JUnit 8 PASS**. See [activity acceptance](docs/MISSION_ACTIVITY_ACCEPTANCE.md) for source identity, preservation and limits. This increment is not yet deployed; production remains `a48bc96` / schema0009 with the recorded VPN/SSH access policy.
 
 The delivered `WAITING_INPUT` workflow persists Mission questions, Web answers and continuation of the same durable Job under migration `0009_mission_inputs`. Local and server real Web/Codex/Docker acceptance passed before PR #6 was merged and deployed as `a48bc96`. See [human input operation](docs/WEB_PRODUCT_WORKFLOW.md#等待输入回答并继续--waiting-for-input-answer-and-continue) and [continuation acceptance](docs/WAITING_INPUT_ACCEPTANCE.md); earlier records retain their own execution identities.
 
@@ -116,10 +118,19 @@ alembic upgrade head
 Build the trusted Runner image before running tests:
 
 ```bash
-bash scripts/build-runner-image.sh
+bash scripts/build-runner-image.sh python-pytest-v1
+bash scripts/build-runner-image.sh python-api-v1
 ```
 
-The script downloads pinned pytest wheels through the host's supported HTTPS route and builds the image without package-index access inside Docker. It uses `hypertest-runner:py312` by default; set `HYPERTEST_RUNNER_IMAGE` consistently for a different image. Project-specific dependencies belong in a trusted prebuilt image. Runner execution never installs dependencies.
+The operator script downloads the full pinned/hash-verified binary wheel closure, resolves the base image digest and builds offline (`--network none`). The two defaults are `hypertest-runner:py312-controlled` and `hypertest-runner:py312-api-v1`; configure `HYPERTEST_RUNNER_CONTROLLED_IMAGE` / `HYPERTEST_RUNNER_API_IMAGE` consistently on API and Worker. Existing legacy unbound Runs continue to use their configured `HYPERTEST_RUNNER_IMAGE` and are never silently migrated or rebound. Profile v1 lock/launcher contents are versioned contracts: future changes need a new profile version. Runner execution never builds, pulls or installs dependencies.
+
+Choose the approved profile in the Web's **Execution environment** step. For the API profile enter, for example, `examples.api_sut.app:app`, health path `/health` and a 30-second startup limit. The request shape is:
+
+```json
+{"environment":{"profile_id":"python-api-v1","service":{"app":"examples.api_sut.app:app","health_path":"/health","startup_timeout_seconds":30}}}
+```
+
+`GET /execution-environments` reports API-host image inspection, not a guarantee that a Worker or SUT is ready. Bootstrap freezes the actual image ID; executions revalidate that ID rather than the current tag. Missing/altered images fail closed. `HYPERTEST_BASE_URL=http://127.0.0.1:8765` exists only inside the isolated Runner. Generated tests send real HTTP to that variable; they do not launch the service. Service logs and lifecycle/readiness facts are verified Runner evidence. Readiness does not imply passing tests. Environment-bound Runs require Docker. Arbitrary dependencies, external services/databases, credentials and remote SIT are separate contracts.
 
 Install Web dependencies, configure the host, and start API, Worker, and Web:
 
@@ -184,6 +195,7 @@ All routes use `/api/v1` by default. OpenAPI documents request and response sche
 ```text
 GET  /health
 GET  /capabilities
+GET  /execution-environments
 
 POST /projects
 GET  /projects
@@ -283,7 +295,7 @@ If submission is uncertain, retain the exact answer, original `expected_row_vers
 
 The older direct `/advance`, Mission execute, Runner execute, Gate, and prepare-workspace endpoints remain available for compatibility. They run synchronously and check for conflicting queued work. The direct advance loop rechecks operation ownership before and after each Planner step and stops if a durable request was admitted between service commits; it does not hold exclusive ownership for its entire loop. The advance payload accepts `workspace`, `backend` (`docker` by default), `timeout_seconds`, and `max_steps` (default 12, range 1–32). Its controller uses real Mission/Runner/Gate services until a final Verdict, interruption, rejection, or work limit; the HTTP API does not accept synthetic Agent results. Job results retain completed steps and a stop reason.
 
-The bootstrap request accepts `repository_url`, a full 40- or 64-character `commit_sha`, `prd_text`, optional `branch`, `configuration_text`, `policy`, and `idempotency_key`. Retrying the same project/key returns its original Run. A supported policy example is:
+The bootstrap request accepts `repository_url`, a full 40- or 64-character `commit_sha`, `prd_text`, optional `branch`, `configuration_text`, `environment`, `policy`, and `idempotency_key`. Retrying the same project/key returns its original Run. A supported policy example is:
 
 ```json
 {
@@ -308,7 +320,7 @@ Direct `POST /policy-snapshots` callers must provide `content_sha256` matching t
 
 ## Migrations and validation
 
-`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. `0009_mission_inputs` adds durable question/answer history and waiting/resume governance. `0010_mission_activity` adds a separate bounded operational activity table without backfilling or rewriting history. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008 → 0009 → 0010`.
+`0004_test_design` creates TestCase and RiskTestCase. `0005_delivery` adds canonical implementations, executions, evidence, findings, verdicts, relational links, proposal types, and delivery history guards. `0006_immutable_contracts` adds immutable SourceSnapshot/PolicySnapshot and frozen Mission contract guards without rewriting historical rows. `0007_durable_jobs` adds operational jobs, Worker liveness, request idempotency, one-active-request-per-Run enforcement, and immutable Job history. `0008_job_ownership` adds immutable nullable Job FKs to Mission Attempts and Executions, with same-Run and supported-operation guards. Existing direct-operation history keeps null ownership. `0009_mission_inputs` adds durable question/answer history and waiting/resume governance. `0010_mission_activity` adds a separate bounded operational activity table without backfilling or rewriting history. `0011_execution_environments` adds a nullable immutable Source environment binding; old SQL NULL inputs retain their original source/Gate hash semantics. Upgrade from a clean database applies `0001 → 0002 → 0003 → 0004 → 0005 → 0006 → 0007 → 0008 → 0009 → 0010 → 0011`.
 
 Backend validation requires a real PostgreSQL database:
 
