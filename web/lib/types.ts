@@ -80,7 +80,7 @@ export type RunCreate = {
   environment?: EnvironmentRequest;
 };
 
-export type EnvironmentProfileId = "python-pytest-v1" | "python-api-v1";
+export type EnvironmentProfileId = "python-pytest-v1" | "python-api-v1" | "python-api-v2";
 export type ServiceRequest = { app: string; health_path: string; startup_timeout_seconds: number };
 export type EnvironmentRequest = { profile_id: EnvironmentProfileId; service?: ServiceRequest };
 export type ExecutionEnvironmentProfile = {

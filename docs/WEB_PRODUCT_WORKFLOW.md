@@ -44,7 +44,7 @@ Repository addresses must not embed credentials. Configure Git authentication on
 
 ## 受控依赖与 API 环境 / Controlled dependencies and API environments
 
-环境选择与 PRD/configuration 原文分开。`python-pytest-v1` 提供标准pytest；`python-api-v1` 预装完整锁定的FastAPI、uvicorn、httpx等依赖。运维先构建可信镜像，Web不接受任意requirements/pip、Shell、Dockerfile、镜像名、外部URL或凭据。详情可核对依赖版本、锁和launcher摘要。切回基础profile不会发送隐藏的服务参数。
+环境选择与 PRD/configuration 原文分开。`python-pytest-v1` 提供标准pytest；`python-api-v2` 预装完整锁定的FastAPI、uvicorn、httpx等依赖。运维先构建可信镜像，Web不接受任意requirements/pip、Shell、Dockerfile、镜像名、外部URL或凭据。详情可核对依赖版本、锁和launcher摘要。切回基础profile不会发送隐藏的服务参数。API-v2 明确隔离仓库 pytest 配置/conftest，生成模块内的 fixtures 必须自包含；历史 API-v1 按原身份只读展示，不能静默升级。
 
 创建Run时固定实际imageID、依赖与服务定义。修改目录或镜像tag不会改变已有Run，缺少固定镜像时明确失败；新环境或依赖需要新Run，不能在执行表单临时覆盖。旧环境NULL显示旧运行语义，未知/损坏绑定不可降级绕过。周期和独立执行窗口只读显示绑定，受控环境强制Docker。
 

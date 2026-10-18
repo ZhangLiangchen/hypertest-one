@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import os
@@ -23,7 +24,7 @@ from hypertest.runner.service_launcher import BASE_URL, probe, validate_app, val
 
 def request(profile="python-api-v1"):
     return EnvironmentRequest(profile_id=profile, **(
-        {"service": {"app": "app:app"}} if profile == "python-api-v1" else {}
+        {"service": {"app": "app:app"}} if profile != "python-pytest-v1" else {}
     ))
 
 
@@ -84,6 +85,19 @@ def test_normalized_request_and_transitive_pinned_dependencies():
         assert all("==" in line and "--hash=sha256:" in line for line in content.splitlines() if not line.startswith("#"))
 
 
+def test_v1_profiles_retain_exact_historical_launcher_and_locks():
+    root = Path(environments.__file__).parent
+    archived_digest = "7f2c37e97c21c118eeca1cf929a338f9c97b26e50cbbf31a575ed855616e3815"
+    assert hashlib.sha256((root / "service_launcher_v1.py").read_bytes()).hexdigest() == archived_digest
+    assert environments.profile_manifest("python-pytest-v1")["launcher_sha256"] == archived_digest
+    assert environments.profile_manifest("python-api-v1")["launcher_sha256"] == archived_digest
+    assert environments.profile_manifest("python-api-v1")["dependency_lock_sha256"] == "67b4693d830ec8127bf2164acbcc4a5044d6e9997173656186f31655dce337df"
+    assert environments.profile_manifest("python-pytest-v1")["dependency_lock_sha256"] == "12c17eed82377b0eb50c790e4a5741cd7b7529554e826bd221f31a4b2c4b2780"
+    assert environments.profile_manifest("python-api-v2")["launcher_sha256"] != archived_digest
+    assert set(environments.PROFILE_IDS) == {"python-pytest-v1", "python-api-v1", "python-api-v2"}
+    assert environments.CATALOG_PROFILE_IDS == ("python-pytest-v1", "python-api-v2")
+
+
 @pytest.mark.asyncio
 async def test_resolution_pins_actual_image_and_execution_uses_id_not_mutable_tag(monkeypatch):
     calls = []
@@ -102,6 +116,22 @@ async def test_resolution_pins_actual_image_and_execution_uses_id_not_mutable_ta
     assert identity["network"] == "none" and identity["read_only"]
     assert identity["base_image_digest"].startswith("python@sha256:")
     assert all(command[:3] == ["docker", "image", "inspect"] for command in calls)
+
+
+@pytest.mark.asyncio
+async def test_v2_resolution_uses_its_own_setting_and_manifest(monkeypatch):
+    calls = []
+
+    async def inspect(command, **_options):
+        calls.append(command)
+        return ProcessResult(json.dumps(image("python-api-v2")).encode(), b"", 0)
+
+    monkeypatch.setattr(environments, "run_process", inspect)
+    resolved = await environments.resolve_environment(request("python-api-v2"))
+    assert calls[-1][3] == get_settings().runner_api_v2_image
+    assert resolved == binding("python-api-v2")
+    await DockerRunner(resolved).fingerprint()
+    assert calls[-1][3] == resolved["image_id"]
 
 
 @pytest.mark.asyncio
@@ -284,6 +314,7 @@ async def test_environment_catalog_reports_api_host_inspection_only(monkeypatch)
     monkeypatch.setattr(environments, "run_process", inspect)
     catalog = await environments.environment_catalog()
     assert len(catalog) == 2
+    assert [item['profile_id'] for item in catalog] == ['python-pytest-v1', 'python-api-v2']
     assert all(not item["available"] and item["reason_code"] == "CONTROLLED_IMAGE_UNAVAILABLE" for item in catalog)
     assert all("checked_at" in item and item["network"] == "none" for item in catalog)
 
@@ -343,6 +374,7 @@ async def test_real_api_service_runner_preserves_isolation_and_reliably_cleans(t
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(os.environ.get("HYPERTEST_TEST_CONTROLLED_DOCKER") != "1", reason="explicit isolated Docker smoke")
+@pytest.mark.parametrize("profile_id", ["python-api-v1", "python-api-v2"])
 @pytest.mark.parametrize("scenario,error_code,exit_code", [
     ("assertion", None, 1),
     ("startup", "SERVICE_START_FAILED", 3),
@@ -351,7 +383,7 @@ async def test_real_api_service_runner_preserves_isolation_and_reliably_cleans(t
     ("early_exit", "SERVICE_EXITED", 3),
     ("timeout", "SERVICE_EVIDENCE_MISSING", None),
 ])
-async def test_real_service_failure_timeout_and_cleanup_are_not_passing_facts(tmp_path, scenario, error_code, exit_code):
+async def test_real_service_failure_timeout_and_cleanup_are_not_passing_facts(tmp_path, scenario, error_code, exit_code, profile_id):
     source, output = tmp_path / "repo", tmp_path / "output"
     source.mkdir()
     output.mkdir()
@@ -374,7 +406,7 @@ async def test_real_service_failure_timeout_and_cleanup_are_not_passing_facts(tm
         body = "import time\ndef test_health():\n    time.sleep(10)\n"
     (source / "app.py").write_text(app)
     (source / "tests/test_api.py").write_text(body)
-    environment_request = EnvironmentRequest(profile_id="python-api-v1", service={
+    environment_request = EnvironmentRequest(profile_id=profile_id, service={
         "app": "app:app", "startup_timeout_seconds": 1,
     })
     resolved = await environments.resolve_environment(environment_request)
@@ -411,3 +443,54 @@ async def test_real_controlled_pytest_profile_uses_approved_dependencies_without
     assert result.exit_code == 0 and result.error_code is None
     assert result.service_metadata is None and result.service_log is None
     assert (output / "junit.xml").is_file()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.environ.get("HYPERTEST_TEST_CONTROLLED_DOCKER") != "1", reason="explicit isolated Docker smoke")
+@pytest.mark.parametrize("broken", [False, True])
+@pytest.mark.parametrize("config_name", ["pytest.ini", "pyproject.toml"])
+async def test_real_v2_http_tests_ignore_poison_configuration_and_conftests(tmp_path, broken, config_name):
+    import shutil
+
+    from hypertest.runner.results import parse_junit
+
+    source, output = tmp_path / "repo", tmp_path / "output"
+    source.mkdir()
+    output.mkdir()
+    (source / "tests").mkdir()
+    examples = source / "examples/api_sut"
+    examples.mkdir(parents=True)
+    repository = Path(__file__).resolve().parents[1]
+    for name in ("app.py", "broken_app.py"):
+        shutil.copyfile(repository / "examples/api_sut" / name, examples / name)
+    # These are realistic repository-level test requirements that the isolated
+    # API profile explicitly does not claim to install or execute.
+    (source / "conftest.py").write_text("raise RuntimeError('root conftest must not run')\n")
+    (source / "tests/conftest.py").write_text("import hypertest_missing_repository_test_dependency\n")
+    (source / config_name).write_text(("[pytest]\n" if config_name == "pytest.ini" else "[tool.pytest.ini_options]\n") + (
+        "required_plugins = hypertest_missing_plugin==999\npython_files = nonexistent_*.py\n"
+        if config_name == "pytest.ini" else 'required_plugins = ["hypertest_missing_plugin==999"]\npython_files = ["nonexistent_*.py"]\n'
+    ))
+    (source / "tests/test_http.py").write_text('''import os
+import httpx
+
+def test_sum_http():
+    with httpx.Client(base_url=os.environ["HYPERTEST_BASE_URL"], trust_env=False) as client:
+        response = client.post("/v1/sum", json={"a": 7, "b": 3})
+        assert response.status_code == 200
+        assert response.json() == {"result": 10}
+''')
+    app = "examples.api_sut.broken_app:app" if broken else "examples.api_sut.app:app"
+    runner = DockerRunner(await environments.resolve_environment(EnvironmentRequest(
+        profile_id="python-api-v2", service={"app": app},
+    )))
+    result = await runner.execute(source, output, ["tests/test_http.py::test_sum_http"], 20, await runner.fingerprint())
+    assert result.error_code is None and not result.timed_out, result.stderr.decode()
+    assert result.exit_code == (1 if broken else 0), result.stderr.decode()
+    assert result.service_metadata['health']['status'] == 200
+    assert result.service_metadata['cleanup_complete'] and not result.service_metadata['service_early_exit']
+    assert result.service_metadata['pytest_exit_code'] == result.exit_code
+    junit = parse_junit((output / "junit.xml").read_bytes(), ["tests/test_http.py::test_sum_http"])
+    assert str(junit["tests/test_http.py::test_sum_http"].result) == ("FAIL" if broken else "PASS")
+    assert b"missing_repository_test_dependency" not in result.stderr
+    assert b"missing_plugin" not in result.stderr

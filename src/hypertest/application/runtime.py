@@ -217,6 +217,13 @@ async def _hydrate_source_context(
                     "inside the isolated Runner, not in this Agent workspace or the user's browser."
                 ),
             )
+            if request.profile_id == "python-api-v2":
+                context["execution_environment"]["pytest_isolation"] = (
+                    "The platform disables repository pytest configuration and all conftest.py files "
+                    "(-c /dev/null --noconftest --rootdir=/repo). Generated HTTP tests must be "
+                    "self-contained; define any fixtures in the submitted test module. Do not rely "
+                    "on repository conftest fixtures, plugins, pytest.ini, setup.cfg or pyproject settings."
+                )
     scope_guidance = _APPLICATION_SCOPE_GUIDANCE.get(contract["type"])
     if scope_guidance is not None:
         context["testing_scope"] = {

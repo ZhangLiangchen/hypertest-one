@@ -200,6 +200,8 @@ ANALYZE_REQUIREMENTS / ANALYZE_RISKS / DESIGN_TESTS / IMPLEMENT_TESTS 的 Runtim
 
 上下文含规范化 profile/service 请求、image ID/platform、依赖清单和锁/launcher hash。API profile 另含固定 `service_base_url=http://127.0.0.1:8765`、`base_url_environment_variable=HYPERTEST_BASE_URL`：正式 Runner 负责启动服务和探测就绪，再执行 pytest。Agent 只生成真实 HTTP 断言源码，使用该变量和可用 httpx（`trust_env=False`）或标准库客户端；不得以 TestClient、ASGITransport、mock 或直接应用函数调用代替本轮 HTTP API 行为。Agent 工作区不保证有运行中的服务，也不允许生成测试自行启动/停止 SUT、安装依赖或修改环境。
 
+API-v2 上下文另含 `pytest_isolation`：平台固定 `-c /dev/null --noconftest --rootdir=/repo`，不加载仓库 pytest 配置或任何 conftest；生成的 HTTP 测试及 fixtures 必须在提交的测试模块内自包含。该规则仅属于新 profile；旧 API-v1 / pytest-v1 继续按原 launcher 身份执行，不能静默升级历史。
+
 服务健康探测成功、Agent 自行 curl/pytest、模型自报成功都不是 Case PASS。正式服务启动/退出/日志与执行结果由 Runner 采集，缺少环境事实产生 ERROR/INCONCLUSIVE，产品 HTTP 断言失败产生正式 FAIL 后再 DIAGNOSE_FAILURE。环境上下文不修改冻结 Mission spec、原 PRD/configuration 或 Canonical Proposal/Gate 规则。
 
 ## 10. Constraints

@@ -4,7 +4,7 @@
 
 ## 实现与自动化
 
-创建向导为源码 → PRD → 执行环境 → 策略 → 确认。环境目录只允许 `python-pytest-v1` / `python-api-v1`；API host 镜像检查与 Worker/服务就绪明确分开。原 configuration_text 仍按原字节保存，不解释成 Shell 或依赖安装。bootstrap 冻结实际镜像与依赖/launcher身份；重复请求返回原绑定，不重新解析 tag。迁移 `0011_execution_environments` 仅加 nullable JSONB，不回填旧 Source 或修改原指纹/FINAL hash。
+创建向导为源码 → PRD → 执行环境 → 策略 → 确认。环境目录只允许 `python-pytest-v1` / `python-api-v2`；API host 镜像检查与 Worker/服务就绪明确分开。原 configuration_text 仍按原字节保存，不解释成 Shell 或依赖安装。bootstrap 冻结实际镜像与依赖/launcher身份；重复请求返回原绑定，不重新解析 tag。迁移 `0011_execution_environments` 仅加 nullable JSONB，不回填旧 Source 或修改原指纹/FINAL hash。
 
 可信镜像使用 digest-pinned base 和全传递依赖的版本/SHA256 binary wheel锁。运行阶段不 build/pull/install，固定 imageID 缺失或清单不符就停止。服务入口为受限 `module:attribute`，health 仅本地相对 path；不接受任意镜像、命令、URL、挂载、端口或凭据。Runner 内真实服务及 HTTP pytest 共享 loopback，保持 network none、nonroot、只读源/根、capdrop、CPU/内存/PID限制。服务启动/健康/退出/清理及有界日志进入可信 Evidence；就绪不替代 Case PASS。
 
@@ -21,6 +21,20 @@
 独立审阅发现并修复了 SQL NULL/JSON null、旧Gate新增空键，以及锁外检查后直接调用入队/取消竞争窗口；对应回归已通过。环境错误可以进入基于证据的诊断，但不预判模型根因，也不把 NEW Finding 视为人工确认。
 
 [后端日志](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/controlled-environment-backend-full-2026-10-18.log) · [Web检查](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/controlled-environment-web-checks-2026-10-18.md) · [Runner检查](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/controlled-runner-implementation-2026-10-18.md) · [本地迁移](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/controlled-environment-local-migration-2026-10-18.json) · [独立恢复](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/controlled-environment-migration-rehearsal-2026-10-18.json)
+
+## API v2 集成修复与复验
+
+首轮两个真实 Web/Codex 运行均已完成正式 Docker 服务就绪（HTTP200、cleanup true），但仓库 `tests/conftest.py` 的 dotenv 导入导致 pytest 收集失败。它们真实保留为 ERROR/INCONCLUSIVE、ENVIRONMENT_FAILURE Finding 和 FINAL BLOCKED，不能算业务失败诊断通过，也不删除或回写。
+
+新增不可变 API-v2 profile，固定 `-c /dev/null --noconftest --rootdir=/repo`，生成模块的 fixtures 自包含；依赖锁保持批准闭包，未为偶然仓库依赖扩包。API-v1 / pytest-v1 使用原字节归档 launcher `7f2c37e97c21c118eeca1cf929a338f9c97b26e50cbbf31a575ed855616e3815` 与原镜像身份。0012 仅扩 profile CHECK。
+
+| 复验 | 结果 |
+|---|---|
+| 全量后端 | Ruff、testDB0012、474 passed /18 opt-in skipped /3 existing warnings（49.76s） |
+| 真实 Docker | 67 passed =49 unit +18真实Docker；双污染pytest.ini/pyproject与conftest下均验证HTTP成功及业务FAIL |
+| Web | 全量55 tests、环境定向14、typecheck、build通过；当前42文件manifest e40e8f7712edcc1fd6acd6d977d31916f015f3f5d5be28be6a3dd62e5a111de2 |
+| 历史保全 | 新停机配对备份后本地0011→0012，7/7检查通过，161产物字节及所有原表行保持；独立恢复复验另记 |
+| 绑定兼容 | 33真实PG/API检查：旧v1原key重放不resolve、跨版本同key409零写、newkey新Snapshot、旧fingerprint/Gate语义保持 |
 
 ## 真实产品验收登记
 

@@ -38,11 +38,18 @@ from hypertest.domain.models import (
 )
 from hypertest.domain.models import TestRun as CanonicalRun
 from hypertest.main import app
+from hypertest.runner import environments
 from hypertest.runner.environments import SCHEMA_VERSION, profile_manifest
 
 IMAGE_A = "sha256:" + "a" * 64
 IMAGE_B = "sha256:" + "b" * 64
 API_REQUEST = {"profile_id": "python-api-v1", "service": {"app": "application:app"}}
+API_V2_REQUEST = {**API_REQUEST, "profile_id": "python-api-v2"}
+EXECUTED_V1_LAUNCHER_SHA256 = "7f2c37e97c21c118eeca1cf929a338f9c97b26e50cbbf31a575ed855616e3815"
+EXECUTED_V1_LOCKS = {
+    "python-api-v1": "67b4693d830ec8127bf2164acbcc4a5044d6e9997173656186f31655dce337df",
+    "python-pytest-v1": "12c17eed82377b0eb50c790e4a5741cd7b7529554e826bd221f31a4b2c4b2780",
+}
 
 
 def binding(request: EnvironmentRequest, image_id: str = IMAGE_A) -> dict:
@@ -125,16 +132,17 @@ async def test_legacy_bootstrap_keeps_sql_null_and_original_source_fingerprint(m
 
 
 @pytest.mark.asyncio
-async def test_typed_request_freezes_platform_binding_without_rewriting_input_bytes(monkeypatch):
+@pytest.mark.parametrize("environment_request", [API_REQUEST, API_V2_REQUEST], ids=["retained-v1", "current-v2"])
+async def test_typed_request_freezes_platform_binding_without_rewriting_input_bytes(monkeypatch, environment_request):
     calls = resolver(monkeypatch)
     prd, configuration = "\ufeff需求：真实 API。\r\n保留换行。\n", "arbitrary legacy config\r\n非 JSON: unchanged\n"
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        _, _, run = await create_original(client, environment=copy.deepcopy(API_REQUEST),
+        _, _, run = await create_original(client, environment=copy.deepcopy(environment_request),
                                           prd_text=prd, configuration_text=configuration)
     assert len(calls) == 1
     async with AsyncSessionLocal() as db:
         snapshot = await db.get(SourceSnapshot, UUID(run["source_snapshot_id"]))
-        expected = binding(EnvironmentRequest.model_validate(API_REQUEST))
+        expected = binding(EnvironmentRequest.model_validate(environment_request))
         assert snapshot.environment_definition == expected
         assert snapshot.environment_definition["request"]["service"] == {
             "app": "application:app", "health_path": "/health", "startup_timeout_seconds": 30,
@@ -148,10 +156,11 @@ async def test_typed_request_freezes_platform_binding_without_rewriting_input_by
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tag_state", ["moved", "missing"])
-async def test_normalized_replay_returns_original_run_without_resolving_tag_again(monkeypatch, tag_state):
+@pytest.mark.parametrize("environment_request", [API_REQUEST, API_V2_REQUEST], ids=["retained-v1", "current-v2"])
+async def test_normalized_replay_returns_original_run_without_resolving_tag_again(monkeypatch, tag_state, environment_request):
     resolver(monkeypatch)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        path, payload, run = await create_original(client, environment=copy.deepcopy(API_REQUEST))
+        path, payload, run = await create_original(client, environment=copy.deepcopy(environment_request))
         original = await saved_state(run)
         calls = []
 
@@ -163,7 +172,7 @@ async def test_normalized_replay_returns_original_run_without_resolving_tag_agai
 
         monkeypatch.setattr(bootstrap, "resolve_environment", changed_tag)
         equivalent = {**payload, "environment": {
-            "profile_id": "python-api-v1",
+            "profile_id": environment_request["profile_id"],
             "service": {"startup_timeout_seconds": 30, "health_path": "/health", "app": "application:app"},
         }}
         repeated = await client.post(path, json=equivalent)
@@ -400,3 +409,88 @@ async def test_legacy_final_keeps_pre_binding_semantics_and_original_verdict_ide
         assert await db.scalar(select(func.count()).select_from(Verdict).where(
             Verdict.test_run_id == state.run.id, Verdict.status == VerdictStatus.FINAL,
         )) == 1
+
+
+@pytest.mark.parametrize("profile_id", EXECUTED_V1_LOCKS)
+def test_executed_v1_profiles_keep_their_original_launcher_and_dependency_identity(profile_id):
+    """These bytes identify images that already produced real execution history."""
+    manifest = profile_manifest(profile_id)
+    assert manifest["launcher_sha256"] == EXECUTED_V1_LAUNCHER_SHA256
+    assert manifest["dependency_lock_sha256"] == EXECUTED_V1_LOCKS[profile_id]
+    if profile_id == "python-api-v1":
+        frozen = binding(EnvironmentRequest.model_validate(API_REQUEST))
+        assert environments.validate_binding_content(frozen).profile_id == profile_id
+
+
+@pytest.mark.asyncio
+async def test_catalog_offers_current_v2_while_retained_v1_is_still_a_valid_binding(monkeypatch):
+    inspected = []
+
+    async def inspect(_image, manifest):
+        inspected.append(manifest["profile_id"])
+        return {"Id": IMAGE_A, "Os": "linux", "Architecture": "amd64"}
+
+    monkeypatch.setattr(environments, "inspect_bound_image", inspect)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/execution-environments")
+    assert response.status_code == 200, response.text
+    profiles = response.json()["profiles"]
+    assert [(item["profile_id"], item["kind"]) for item in profiles] == [
+        ("python-pytest-v1", "pytest"), ("python-api-v2", "asgi"),
+    ]
+    assert inspected == ["python-pytest-v1", "python-api-v2"]
+    assert all(item["available"] is True and item["network"] == "none" for item in profiles)
+    # Being absent from the new-Run selector must not invalidate saved v1 data.
+    assert environments.validate_binding_content(
+        binding(EnvironmentRequest.model_validate(API_REQUEST)),
+    ).profile_id == "python-api-v1"
+
+
+@pytest.mark.asyncio
+async def test_v2_is_a_new_request_and_cannot_rebind_or_mutate_saved_v1_history(monkeypatch):
+    resolver(monkeypatch)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        path, original_payload, first = await create_original(client, environment=copy.deepcopy(API_REQUEST))
+        source_path = f"/api/v1/source-snapshots/{first['source_snapshot_id']}"
+        original_source = await client.get(source_path)
+        assert original_source.status_code == 200, original_source.text
+        original_rows = await saved_state(first)
+        async with AsyncSessionLocal() as db:
+            source = await db.get(SourceSnapshot, UUID(first["source_snapshot_id"]))
+            original_state_hash = canonical_json_sha256(gate._semantic_row(source))
+
+        async def forbidden(_request):
+            pytest.fail("same-key environment conflicts and legacy replays must not resolve images")
+
+        monkeypatch.setattr(bootstrap, "resolve_environment", forbidden)
+        conflicting = {**original_payload, "environment": copy.deepcopy(API_V2_REQUEST)}
+        response = await client.post(path, json=conflicting)
+        assert response.status_code == 409, response.text
+        assert await saved_state(first) == original_rows
+
+        calls = resolver(monkeypatch, image_id=IMAGE_B)
+        response = await client.post(path, json={**conflicting, "idempotency_key": "environment:explicit-v2"})
+        assert response.status_code == 201, response.text
+        second = response.json()
+        assert len(calls) == 1 and calls[0].profile_id == "python-api-v2"
+        assert first["id"] != second["id"] and first["source_snapshot_id"] != second["source_snapshot_id"]
+
+        monkeypatch.setattr(bootstrap, "resolve_environment", forbidden)
+        replay = await client.post(path, json=original_payload)
+        assert replay.status_code == 201 and replay.json() == first
+        reread = await client.get(source_path)
+        assert reread.status_code == 200 and reread.json() == original_source.json()
+
+    async with AsyncSessionLocal() as db:
+        original = await db.get(SourceSnapshot, UUID(first["source_snapshot_id"]))
+        current = await db.get(SourceSnapshot, UUID(second["source_snapshot_id"]))
+        assert canonical_json_sha256(gate._semantic_row(original)) == original_state_hash
+        assert original.source_fingerprint == original_source.json()["source_fingerprint"]
+        assert original.environment_definition["request"]["profile_id"] == "python-api-v1"
+        assert original.environment_definition["launcher_sha256"] == EXECUTED_V1_LAUNCHER_SHA256
+        assert current.environment_definition["request"]["profile_id"] == "python-api-v2"
+        assert current.environment_definition["image_id"] == IMAGE_B
+        assert current.environment_definition["launcher_sha256"] != original.environment_definition["launcher_sha256"]
+        assert original.source_fingerprint != current.source_fingerprint
+        assert original.prd_sha256 == current.prd_sha256
+        assert original.configuration_sha256 == current.configuration_sha256

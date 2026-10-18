@@ -44,9 +44,9 @@ from hypertest.runner import environments
 from hypertest.runner.backends import DockerRunner, ProcessResult
 
 
-async def controlled_run(session, tmp_path, monkeypatch, app="checkout:app"):
+async def controlled_run(session, tmp_path, monkeypatch, app="checkout:app", profile="python-api-v1"):
     source, commit, origin = configure_workspace(tmp_path, monkeypatch)
-    request = EnvironmentRequest(profile_id="python-api-v1", service={"app": app})
+    request = EnvironmentRequest(profile_id=profile, service={"app": app})
     frozen = binding(request)
 
     async def resolve(_request):
@@ -160,9 +160,10 @@ async def test_service_failure_cannot_become_pass_even_with_complete_passing_jun
 
 
 @pytest.mark.asyncio
-async def test_hydrated_environment_is_authoritative_and_docker_required(tmp_path, monkeypatch):
+@pytest.mark.parametrize("profile", ["python-api-v1", "python-api-v2"])
+async def test_hydrated_environment_is_authoritative_and_docker_required(tmp_path, monkeypatch, profile):
     async with AsyncSessionLocal() as session:
-        source, run, frozen = await controlled_run(session, tmp_path, monkeypatch)
+        source, run, frozen = await controlled_run(session, tmp_path, monkeypatch, profile=profile)
         with pytest.raises(ConflictError, match="Docker"):
             await controller.advance_run(session, run.id, workspace=str(source), backend="local")
 
@@ -179,6 +180,11 @@ async def test_hydrated_environment_is_authoritative_and_docker_required(tmp_pat
         assert context["base_url_environment_variable"] == "HYPERTEST_BASE_URL"
         assert context["service_base_url"] == "http://127.0.0.1:8765"
         assert "TestClient" in context["service_testing_instructions"]
+        if profile == "python-api-v2":
+            assert "--noconftest" in context["pytest_isolation"]
+            assert "submitted test module" in context["pytest_isolation"]
+        else:
+            assert "pytest_isolation" not in context
 
 
 @pytest.mark.asyncio

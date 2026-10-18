@@ -2,12 +2,13 @@
 set -euo pipefail
 
 # Explicit operator operation. Runs never invoke this script, pull or install.
-# Both approved profiles share the same offline, digest-pinned Dockerfile.
+# Approved profiles share an offline Dockerfile; v1 launcher bytes are archived.
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 profile_id="${1:-python-pytest-v1}"
 case "$profile_id" in
   python-pytest-v1) image="${HYPERTEST_RUNNER_CONTROLLED_IMAGE:-hypertest-runner:py312-controlled}" ;;
   python-api-v1) image="${HYPERTEST_RUNNER_API_IMAGE:-hypertest-runner:py312-api-v1}" ;;
+  python-api-v2) image="${HYPERTEST_RUNNER_API_V2_IMAGE:-hypertest-runner:py312-api-v2}" ;;
   *) printf '%s\n' 'Unsupported trusted Runner profile' >&2; exit 2 ;;
 esac
 build_context="$(mktemp -d "${TMPDIR:-/tmp}/hypertest-runner-build.XXXXXX")"
@@ -15,7 +16,11 @@ trap 'rm -rf -- "$build_context"' EXIT
 runner_root="$repo_root/src/hypertest/runner"
 cp "$runner_root/Dockerfile" "$build_context/Dockerfile"
 cp "$runner_root/locks/$profile_id.txt" "$build_context/requirements.txt"
-cp "$runner_root/service_launcher.py" "$build_context/service_launcher.py"
+if [[ "$profile_id" == python-api-v2 ]]; then
+  cp "$runner_root/service_launcher.py" "$build_context/service_launcher.py"
+else
+  cp "$runner_root/service_launcher_v1.py" "$build_context/service_launcher.py"
+fi
 base_image="${HYPERTEST_RUNNER_BASE_IMAGE:-python:3.12-slim}"
 # Pin the manifest digest used for this image, even when the operator supplied a tag.
 docker pull "$base_image"

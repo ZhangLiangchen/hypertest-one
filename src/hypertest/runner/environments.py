@@ -14,7 +14,8 @@ from hypertest.runner.backends import run_process
 
 LABEL_PREFIX = "org.hypertest.environment."
 SCHEMA_VERSION = "hypertest.environment/v1"
-PROFILE_IDS = ("python-pytest-v1", "python-api-v1")
+PROFILE_IDS = ("python-pytest-v1", "python-api-v1", "python-api-v2")
+CATALOG_PROFILE_IDS = ("python-pytest-v1", "python-api-v2")
 
 
 def validate_service_app(source: Path, app: str, tracked_files: list[str]) -> None:
@@ -31,12 +32,13 @@ def profile_manifest(profile_id: str) -> dict:
         raise ValueError("unsupported controlled environment profile")
     root = Path(__file__).parent
     lock = (root / "locks" / f"{profile_id}.txt").read_bytes()
+    launcher = "service_launcher.py" if profile_id == "python-api-v2" else "service_launcher_v1.py"
     dependencies = dict(re.findall(r"^([A-Za-z0-9_.-]+)==([^\s\\]+)", lock.decode(), re.M))
     return {
         "profile_id": profile_id,
         "dependency_lock_sha256": hashlib.sha256(lock).hexdigest(),
         "dependencies": dependencies,
-        "launcher_sha256": hashlib.sha256((root / "service_launcher.py").read_bytes()).hexdigest(),
+        "launcher_sha256": hashlib.sha256((root / launcher).read_bytes()).hexdigest(),
     }
 
 
@@ -74,7 +76,12 @@ async def resolve_environment(request: EnvironmentRequest) -> dict:
     request = EnvironmentRequest.model_validate(request)
     manifest = profile_manifest(request.profile_id)
     settings = get_settings()
-    image = settings.runner_controlled_image if request.profile_id == "python-pytest-v1" else settings.runner_api_image
+    if request.profile_id == "python-pytest-v1":
+        image = settings.runner_controlled_image
+    elif request.profile_id == "python-api-v1":
+        image = settings.runner_api_image
+    else:
+        image = settings.runner_api_v2_image
     details = await inspect_bound_image(image, manifest)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -117,14 +124,14 @@ async def validate_environment_binding(binding: dict) -> dict:
 async def environment_catalog() -> list[dict]:
     """API-host inspection only; this does not assert independent Worker readiness."""
     catalog = []
-    for profile_id in PROFILE_IDS:
+    for profile_id in CATALOG_PROFILE_IDS:
         manifest = profile_manifest(profile_id)
-        item = {**manifest, "kind": "asgi" if profile_id == "python-api-v1" else "pytest",
+        item = {**manifest, "kind": "pytest" if profile_id == "python-pytest-v1" else "asgi",
                 "network": "none", "available": False,
                 "checked_at": datetime.now(UTC).isoformat()}
         try:
             request = EnvironmentRequest(profile_id=profile_id, **(
-                {"service": {"app": "application:app"}} if profile_id == "python-api-v1" else {}
+                {"service": {"app": "application:app"}} if profile_id != "python-pytest-v1" else {}
             ))
             await resolve_environment(request)
             item["available"] = True

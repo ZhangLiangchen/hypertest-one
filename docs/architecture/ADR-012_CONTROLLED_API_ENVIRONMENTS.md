@@ -13,8 +13,8 @@ arbitrary existing text as commands would change historical semantics.
 
 ## Decision
 
-Provide two platform-approved versioned profiles, `python-pytest-v1` and
-`python-api-v1`. The latter adds locked FastAPI, uvicorn and httpx dependencies
+Provide two current platform-approved profiles, `python-pytest-v1` and
+`python-api-v2`. The latter adds locked FastAPI, uvicorn and httpx dependencies
 and a platform-owned service launcher. Build complete SHA-256-locked binary
 wheelhouses before execution, then install offline in digest-pinned images.
 [pip documents hash checking for all pinned dependencies and binary-only installs](https://pip.pypa.io/en/stable/topics/secure-installs/).
@@ -36,6 +36,18 @@ observation, log collection and cleanup. The fixed address is injected through
 `module:attribute` entry point, local health path and bounded startup timeout are
 accepted. There is no submitted shell, package-install command or image reference.
 
+Real model acceptance of API v1 exposed unrelated repository `tests/conftest.py`
+imports during collection. Preserve that environment failure and its immutable
+binding; do not add arbitrary repository dependencies to the approved closure.
+API v2 runs self-contained HTTP tests with `-c /dev/null --noconftest
+--rootdir=/repo`, bypassing repository pytest configuration and conftest files.
+Generated fixtures belong in the submitted test module. These are fixed platform
+arguments, not Agent options. [pytest documents configuration selection and
+conftest isolation](https://docs.pytest.org/en/stable/reference/reference.html#cmdoption-noconftest).
+The archived API v1 and pytest v1 retain the exact original launcher, locks and
+image bindings. The catalog offers only current profiles; direct historical
+binding validation and idempotent replay continue to support API v1.
+
 ## Options considered
 
 | Option | Complexity / resources | Trade-off |
@@ -54,7 +66,8 @@ accepted. There is no submitted shell, package-install command or image referenc
 - Execution revalidates the frozen image ID and records dependency/launcher and
   service identities. Missing or altered environments fail closed; no pull,
   installation, fallback or automatic replay occurs.
-- New snapshots need migration0011; old FINAL verdict hashes remain stable.
+- New snapshots need migration0011; migration0012 only widens its profile CHECK
+  for API v2 without changing rows. Old FINAL verdict hashes remain stable.
 - External databases, multi-service composition, arbitrary dependencies, secrets,
   remote SIT and other language/framework profiles need explicit later contracts.
 

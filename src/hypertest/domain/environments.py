@@ -26,11 +26,11 @@ class ServiceRequest(BaseModel):
 class EnvironmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    profile_id: Literal["python-pytest-v1", "python-api-v1"]
+    profile_id: Literal["python-pytest-v1", "python-api-v1", "python-api-v2"]
     service: ServiceRequest | None = None
 
     @model_validator(mode="after")
     def service_matches_profile(self):
-        if (self.profile_id == "python-api-v1") != (self.service is not None):
-            raise ValueError("python-api-v1 requires service; python-pytest-v1 forbids service")
+        if self.profile_id.startswith("python-api-") != (self.service is not None):
+            raise ValueError("Python API profiles require service; python-pytest-v1 forbids service")
         return self

@@ -4,14 +4,14 @@ const loadHelper = require("./load-helper.cjs");
 const helper = loadHelper("lib/execution-environment.ts");
 const { buildEnvironmentRequest, canUseEnvironment, defaultEnvironmentValues, environmentInputIssue, executionBackend, runInputSignature, selectedEnvironmentProfile, validHealthPath, validServiceApp, validStartupTimeout, visibleEnvironmentDefinition, visibleExecutionIdentity } = helper;
 const sha = "a".repeat(64);
-const apiDraft = () => ({ ...defaultEnvironmentValues(), environment_profile_id: "python-api-v1", service_app: "package.api:app" });
-const profile = (id = "python-api-v1", extra = {}) => ({ profile_id: id, kind: id === "python-api-v1" ? "asgi" : "pytest", dependencies: { pytest: "8.3.3", fastapi: "0.115.0" }, dependency_lock_sha256: sha, launcher_sha256: sha, network: "none", available: true, checked_at: "2026-10-18T12:00:00Z", ...extra });
+const apiDraft = () => ({ ...defaultEnvironmentValues(), environment_profile_id: "python-api-v2", service_app: "package.api:app" });
+const profile = (id = "python-api-v2", extra = {}) => ({ profile_id: id, kind: id === "python-api-v2" ? "asgi" : "pytest", dependencies: { pytest: "8.3.3", fastapi: "0.115.0" }, dependency_lock_sha256: sha, launcher_sha256: sha, network: "none", available: true, checked_at: "2026-10-18T12:00:00Z", ...extra });
 const binding = () => ({ schema_version: "hypertest.environment/v1", request: buildEnvironmentRequest(apiDraft()), image_id: `sha256:${sha}`, image_os: "linux", image_architecture: "amd64", dependency_lock_sha256: sha, dependencies: { pytest: "8.3.3", fastapi: "0.115.0" }, launcher_sha256: sha });
 
 test("defaults and ASGI request bodies contain only supported environment inputs", () => {
   assert.equal(defaultEnvironmentValues().environment_profile_id, "python-pytest-v1");
   const draft = { ...apiDraft(), image: "untrusted", command: "SECRET_COMMAND", service_port: 1234, env: { TOKEN: "SECRET" } };
-  assert.equal(JSON.stringify(buildEnvironmentRequest(draft)), JSON.stringify({ profile_id: "python-api-v1", service: { app: "package.api:app", health_path: "/health", startup_timeout_seconds: 30 } }));
+  assert.equal(JSON.stringify(buildEnvironmentRequest(draft)), JSON.stringify({ profile_id: "python-api-v2", service: { app: "package.api:app", health_path: "/health", startup_timeout_seconds: 30 } }));
 });
 
 test("switching to pytest preserves the ASGI draft without leaking hidden service fields", () => {
@@ -71,11 +71,31 @@ test("bindings force Docker while historical null bindings retain the legacy Run
   assert.equal(executionBackend(undefined, "docker"), "docker");
 });
 
+test("new API selections require v2 and never reuse an available archived v1 profile", () => {
+  const archivedDraft = { ...apiDraft(), environment_profile_id: "python-api-v1" };
+  const catalog = { profiles: [profile("python-api-v1", { kind: "asgi" }), profile("python-api-v2")] };
+  assert.equal(canUseEnvironment(catalog, "python-api-v1", false), false);
+  assert.equal(canUseEnvironment(catalog, "python-api-v2", false), true);
+  assert.equal(canUseEnvironment({ profiles: [profile("python-api-v1", { kind: "asgi" })] }, "python-api-v2", false), false);
+  assert.throws(() => buildEnvironmentRequest(archivedDraft));
+});
+
+test("archived API v1 bindings remain readable without changing their profile, request or image", () => {
+  const archived = binding(); archived.request.profile_id = "python-api-v1";
+  const before = JSON.stringify(archived);
+  const safe = visibleEnvironmentDefinition(archived);
+  assert.equal(safe.request.profile_id, "python-api-v1");
+  assert.equal(safe.request.service.app, archived.request.service.app);
+  assert.equal(safe.image_id, archived.image_id);
+  assert.equal(JSON.stringify(archived), before);
+  assert.equal(visibleExecutionIdentity({ environment_definition: archived }).definition.request.profile_id, "python-api-v1");
+});
+
 test("frozen definitions exclude unknown fields and do not adopt later catalog updates", () => {
   const original = binding(); original.raw = "SECRET_RAW"; original.request.service.env = { TOKEN: "SECRET_TOKEN" };
   const safe = visibleEnvironmentDefinition(original);
   const updatedCatalog = { profiles: [profile(undefined, { dependencies: { fastapi: "999.0" } })] };
-  assert.equal(selectedEnvironmentProfile(updatedCatalog, "python-api-v1").dependencies.fastapi, "999.0");
+  assert.equal(selectedEnvironmentProfile(updatedCatalog, "python-api-v2").dependencies.fastapi, "999.0");
   assert.equal(safe.dependencies.fastapi, "0.115.0");
   assert.equal(JSON.stringify(safe).includes("SECRET"), false);
   assert.equal(visibleEnvironmentDefinition({ ...original, schema_version: "unknown" }), null);
@@ -96,7 +116,7 @@ test("execution uses its own top-level definition and records the actual Runner 
 test("catalog API makes one readonly request", async () => {
   const calls = [];
   const { getExecutionEnvironments } = loadHelper("lib/api.ts", { fetch: async (url, init) => { calls.push({ url, init }); return new Response(JSON.stringify({ profiles: [profile()] }), { status: 200 }); } });
-  assert.equal((await getExecutionEnvironments()).profiles[0].profile_id, "python-api-v1");
+  assert.equal((await getExecutionEnvironments()).profiles[0].profile_id, "python-api-v2");
   assert.equal(calls.length, 1); assert.equal(calls[0].url, "/api/v1/execution-environments");
   assert.equal(calls[0].init.method, undefined); assert.equal(calls[0].init.body, undefined);
 });
@@ -110,5 +130,10 @@ test("real bilingual components render pinned identities without raw payloads or
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(React.Fragment, null, React.createElement(PinnedEnvironment, { definition }), React.createElement(ExecutionEnvironmentIdentity, { execution: { environment_id: "SECRET_UNKNOWN_ID", environment_fingerprint: sha, spec: { environment_definition: definition, environment: { image_id: definition.image_id, network: "none", raw: "SECRET_RAW" } } } }))));
     assert.equal(html.includes("SECRET"), false); assert.equal(html.includes("package.api:app"), true);
     assert.equal(html.includes(locale === "en" ? "Pinned execution environment" : "固定执行环境"), true);
+    const archived = { ...definition, request: { ...definition.request, profile_id: "python-api-v1" } };
+    const historicalHtml = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(PinnedEnvironment, { definition: archived })));
+    assert.equal(historicalHtml.includes("python-api-v1"), true);
+    assert.equal(historicalHtml.includes(locale === "en" ? "v1 (archived)" : "v1（历史版本）"), true);
+    assert.equal(historicalHtml.includes("SECRET"), false);
   }
 });

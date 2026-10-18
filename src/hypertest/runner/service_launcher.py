@@ -1,4 +1,4 @@
-"""Trusted image entry point for one ASGI service and canonical pytest targets.
+"""Trusted v2 API entry point: one ASGI service and self-contained pytest targets.
 
 This file deliberately uses only the standard library and never installs code.
 The host pins its digest in the image and collects only the two named outputs.
@@ -198,6 +198,7 @@ async def execute(payload: dict, source: Path = Path("/repo"), output: Path = Pa
             environment = dict(os.environ, HYPERTEST_BASE_URL=BASE_URL)
             test = await asyncio.create_subprocess_exec(
                 sys.executable, "-I", "-c", PYTEST_BOOTSTRAP, "-q", "-p", "no:cacheprovider",
+                "-c", "/dev/null", "--noconftest", "--rootdir=/repo",
                 "-o", "addopts=", "-o", "junit_family=xunit2",
                 f"--junitxml={output / 'junit.xml'}", *nodeids,
                 cwd=source, env=environment, start_new_session=True,

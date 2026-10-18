@@ -9,7 +9,9 @@ import type { EnvironmentCatalog, EnvironmentProfileId, EnvironmentRequest, Exec
 
 function ProfileName({ id }: { id: EnvironmentProfileId }) {
   const { t } = useI18n();
-  return id === "python-api-v1" ? t("Python API · ASGI service", "Python API · ASGI 服务") : t("Python · pytest", "Python · pytest");
+  if (id === "python-api-v2") return t("Python API · ASGI v2", "Python API · ASGI v2");
+  if (id === "python-api-v1") return t("Python API · ASGI v1 (archived)", "Python API · ASGI v1（历史版本）");
+  return t("Python · pytest", "Python · pytest");
 }
 function Dependencies({ values }: { values: unknown }) {
   const { t } = useI18n();
@@ -21,6 +23,8 @@ export function EnvironmentRequestSummary({ request, profile }: { request: Envir
   return <div className="environment-request-summary">
     <Space wrap><Typography.Text strong><ProfileName id={request.profile_id} /></Typography.Text><Tag>{request.profile_id}</Tag></Space>
     <Typography.Paragraph className="muted">{t("Trusted prebuilt image; no external network or package installation during execution.", "使用可信预制镜像；执行时不访问外部网络，不安装依赖。")}</Typography.Paragraph>
+    {request.profile_id === "python-api-v2" && <Typography.Paragraph className="muted">{t("API v2 isolates generated-test collection from repository pytest configuration and conftest files. Generated test modules must include their own fixtures.", "API v2 隔离仓库的 pytest 配置与 conftest，生成的测试模块必须自带所需 fixture。")}</Typography.Paragraph>}
+    {request.profile_id === "python-api-v1" && <Typography.Paragraph className="muted">{t("This archived binding retains its original collection behavior and identity. New runs use API v2; this record has not been upgraded.", "此历史绑定保留原有测试收集行为与身份。新运行使用 API v2，此记录并未升级。")}</Typography.Paragraph>}
     {request.service && <Descriptions size="small" column={1} items={[
       { key: "app", label: t("ASGI application", "ASGI 应用"), children: <Typography.Text code>{request.service.app}</Typography.Text> },
       { key: "health", label: t("Health path", "就绪检查路径"), children: <Typography.Text code>{request.service.health_path}</Typography.Text> },
@@ -43,8 +47,8 @@ export function EnvironmentFields({ catalog, loading, failed, refreshing, refres
     </div>
     {failed && <Alert type="warning" showIcon message={t("Environment catalog is unavailable", "环境目录暂不可读取")} description={t("Your selection and service draft are preserved. Refresh availability before continuing; another environment will not be selected automatically.", "已保留环境选择和服务草稿。请刷新可用性后继续，系统不会自动替换环境。")} />}
     {!loading && !failed && !profile && <Alert type="warning" showIcon message={t("The selected environment is not listed", "目录中未提供所选环境")} description={t("Choose an available controlled profile below, or refresh the catalog. Your current draft remains available.", "请明确选择下方可用的受控环境，或刷新目录。当前草稿仍会保留。")}/>}
-    <Form.Item name="environment_profile_id" label={t("Execution environment", "执行环境")} rules={[{ validator: async (_, value) => { if (!canUseEnvironment(catalog, value, failed)) throw new Error(t("Choose an available controlled image, or refresh image availability.", "请选择镜像可用的受控环境，或先刷新镜像可用性。")); } }]}>
-      <Select options={environmentProfiles.map((id) => ({ value: id, label: id === "python-api-v1" ? t("Python API · ASGI service", "Python API · ASGI 服务") : t("Python · pytest", "Python · pytest"), disabled: !canUseEnvironment(catalog, id, failed) }))} />
+    <Form.Item required name="environment_profile_id" label={t("Execution environment", "执行环境")} rules={[{ validator: async (_, value) => { if (!canUseEnvironment(catalog, value, failed)) throw new Error(t("Choose an available controlled image, or refresh image availability.", "请选择镜像可用的受控环境，或先刷新镜像可用性。")); } }]}>
+      <Select options={environmentProfiles.map((id) => ({ value: id, label: id === "python-api-v2" ? t("Python API · ASGI v2", "Python API · ASGI v2") : t("Python · pytest", "Python · pytest"), disabled: !canUseEnvironment(catalog, id, failed) }))} />
     </Form.Item>
     {profile && <div className="environment-profile-info">
       <Tag color={profile.available && !failed ? "blue" : "gold"}>{profile.available && !failed ? t("Image available on API host", "API 主机镜像可用") : t("Image unavailable", "镜像不可用")}</Tag>
@@ -52,11 +56,12 @@ export function EnvironmentFields({ catalog, loading, failed, refreshing, refres
       {!profile.available && <Typography.Paragraph>{t("Prepare the trusted image on the execution host, then refresh. This form cannot build images or install packages.", "请在执行主机准备可信镜像，再刷新。本表单不会构建镜像或安装软件包。")}</Typography.Paragraph>}
       <Dependencies values={profile.dependencies} />
     </div>}
-    {selected === "python-api-v1" && <>
+    {selected === "python-api-v2" && <>
       <Alert type="info" showIcon message={t("Run an ASGI application inside the isolated Runner", "在隔离 Runner 内运行 ASGI 应用")} description={<>{t("Use an application object from the pinned repository, not an application factory. The service listens only inside the Runner at ", "使用固定仓库中的应用对象，不支持应用工厂。服务仅在 Runner 内监听 ")}<Typography.Text code>127.0.0.1:8765</Typography.Text>{t(". Tests use HYPERTEST_BASE_URL; this address is not a browser link or a host port. Service readiness does not mean tests passed.", "。测试通过 HYPERTEST_BASE_URL 访问；此地址不是浏览器入口，也不映射宿主端口。服务就绪不代表测试通过。")}</>} />
-      <Form.Item name="service_app" label={t("ASGI application object", "ASGI 应用对象")} extra={t("Use package.module:attribute from the pinned repository. ASCII Python identifiers only; no (), arguments or shell commands.", "填写固定仓库中的 package.module:attribute，只允许 ASCII Python 标识符，不接受 ()、参数或 Shell 命令。")} rules={[{ validator: async (_, value) => { if (!validServiceApp(value)) throw new Error(t("Enter an ASGI application such as api.main:app, up to 256 ASCII characters.", "请输入 api.main:app 形式的 ASGI 应用对象，最多 256 个 ASCII 字符。")); } }]}><Input placeholder="api.main:app" autoComplete="off" /></Form.Item>
-      <Form.Item name="service_health_path" label={t("Health path", "就绪检查路径")} extra={t("Use an existing readiness endpoint such as /health. No URL, query, fragment, percent encoding or traversal.", "填写应用已有的就绪检查端点，如 /health；不接受 URL、查询、片段、百分号编码或路径穿越。")} rules={[{ validator: async (_, value) => { if (!validHealthPath(value)) throw new Error(t("Enter a local absolute path, such as /health, up to 256 characters.", "请输入 /health 形式的本地绝对路径，最多 256 个字符。")); } }]}><Input placeholder="/health" autoComplete="off" maxLength={256} /></Form.Item>
-      <Form.Item name="service_startup_timeout_seconds" label={t("Service startup timeout (seconds)", "服务启动超时（秒）")} rules={[{ validator: async (_, value) => { if (!validStartupTimeout(value)) throw new Error(t("Enter a whole number from 1 to 120.", "请输入 1 至 120 的整数。")); } }]}><InputNumber min={1} max={120} style={{ width: "100%" }} /></Form.Item>
+      <Typography.Paragraph className="muted">{t("API v2 ignores repository pytest configuration and conftest during generated-test collection. Generated modules must provide self-contained fixtures.", "API v2 收集生成测试时不加载仓库 pytest 配置与 conftest，生成模块必须自带所需 fixture。")}</Typography.Paragraph>
+      <Form.Item required name="service_app" label={t("ASGI application object", "ASGI 应用对象")} extra={t("Use package.module:attribute from the pinned repository. ASCII Python identifiers only; no (), arguments or shell commands.", "填写固定仓库中的 package.module:attribute，只允许 ASCII Python 标识符，不接受 ()、参数或 Shell 命令。")} rules={[{ validator: async (_, value) => { if (!validServiceApp(value)) throw new Error(t("Enter an ASGI application such as api.main:app, up to 256 ASCII characters.", "请输入 api.main:app 形式的 ASGI 应用对象，最多 256 个 ASCII 字符。")); } }]}><Input placeholder="api.main:app" autoComplete="off" /></Form.Item>
+      <Form.Item required name="service_health_path" label={t("Health path", "就绪检查路径")} extra={t("Use an existing readiness endpoint such as /health. No URL, query, fragment, percent encoding or traversal.", "填写应用已有的就绪检查端点，如 /health；不接受 URL、查询、片段、百分号编码或路径穿越。")} rules={[{ validator: async (_, value) => { if (!validHealthPath(value)) throw new Error(t("Enter a local absolute path, such as /health, up to 256 characters.", "请输入 /health 形式的本地绝对路径，最多 256 个字符。")); } }]}><Input placeholder="/health" autoComplete="off" maxLength={256} /></Form.Item>
+      <Form.Item required name="service_startup_timeout_seconds" label={t("Service startup timeout (seconds)", "服务启动超时（秒）")} rules={[{ validator: async (_, value) => { if (!validStartupTimeout(value)) throw new Error(t("Enter a whole number from 1 to 120.", "请输入 1 至 120 的整数。")); } }]}><InputNumber min={1} max={120} style={{ width: "100%" }} /></Form.Item>
     </>}
   </>;
 }
@@ -82,7 +87,7 @@ export function PinnedEnvironment({ definition }: { definition: unknown }) {
 export function ExecutionEnvironmentIdentity({ execution }: { execution: TestExecution }) {
   const { t } = useI18n();
   const identity = visibleExecutionIdentity(execution.spec);
-  const knownIds = ["python-pytest-v1", "python-api-v1", "docker:python-pytest-v1", "docker:python-api-v1", "docker:pytest", "local:pytest"];
+  const knownIds = ["python-pytest-v1", "python-api-v1", "python-api-v2", "docker:python-pytest-v1", "docker:python-api-v1", "docker:python-api-v2", "docker:pytest", "local:pytest"];
   return <section className="execution-environment-identity">
     <Typography.Title level={4}>{t("Execution environment identity", "执行环境身份")}</Typography.Title>
     <Descriptions bordered size="small" column={1} items={[

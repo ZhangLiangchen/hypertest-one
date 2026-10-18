@@ -239,6 +239,8 @@ SHA256(project_id + repository + commit_sha + prd_sha256 + configuration_sha256)
 
 bootstrap 同幂等键重试先比较原始 PRD/configuration、规范化 repo/commit、生效 Policy 和规范化环境请求，匹配时直接返回原 Run/绑定；不因镜像 tag 漂移重新解析或替换。新请求解析后取得 Project 锁，再次检查同键竞争。新绑定只支持 Docker；正式执行必须按固定 image ID 重新核验依赖/launcher，不改用当前 tag 或降级。
 
+`0012_api_environment_v2` 仅扩展受控 profile CHECK，增加 `python-api-v2`，不修改已有行、环境绑定或指纹。当前 Web 目录为 pytest-v1/API-v2；API-v1 历史请求与幂等重放仍受支持。API-v2 的新 launcher 明确禁用仓库 pytest 配置和 conftest，生成的 HTTP 测试须自包含。API-v1 与 pytest-v1 保留原 launcher/lock/镜像身份；不得把旧绑定重新解释成 v2。改变此执行语义、依赖或 launcher 必须另建 profile 版本与新 Snapshot，已有 FINAL 历史不得回填。
+
 ---
 
 ## 10. PolicySnapshot
