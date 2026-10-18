@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Descriptions, Drawer, Empty, Popconfirm, Space, Spin, Table, Tag, Timeline, Typography, message } from "antd";
 import { useEffect, useRef, useState } from "react";
 
-import { cancelJob, createJob, errorText, getJob, getJobs, getMission, retryJob, retryMission } from "@/lib/api";
+import { cancelJob, createJob, errorText, getJob, getJobs, getMission, getRunHarness, retryJob, retryMission } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
@@ -42,6 +42,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
   const pendingRequests = useRef(new Map<string, { signature: string; key: string }>());
   const statuses = useRef(new Map<string, JobStatus>());
   const jobs = useQuery({ queryKey: ["jobs", runId], queryFn: () => getJobs(runId), refetchInterval: 1_500 });
+  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
   const selected = useQuery({ queryKey: ["job", selectedId], queryFn: () => getJob(selectedId!), enabled: !!selectedId, refetchInterval: 1_500 });
 
   function pendingKey(scope: string, request: unknown) {
@@ -118,7 +119,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
       statuses.current.set(job.id, job.status);
     }
     if (canonicalChanged) {
-      for (const key of ["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts", "input-requests"]) {
+      for (const key of ["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts", "input-requests", "harness"]) {
         void client.invalidateQueries({ queryKey: [key, runId] });
       }
       for (const key of ["mission", "attempts", "proposals"]) void client.invalidateQueries({ queryKey: [key] });
@@ -131,6 +132,11 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
   });
   const retry = useMutation({
     mutationFn: async (job: BackgroundJob) => {
+      const current = await getRunHarness(runId);
+      client.setQueryData(["harness", runId], current);
+      if (current.binding && current.binding.status !== "ACTIVE") {
+        throw new Error(t("This session cannot retry tasks. Review Session & reports to recover it or start a new run from the project.", "此会话当前不能重试任务。请查看“持续会话与报告”进行恢复，或回到项目创建新的运行。"));
+      }
       if (job.job_type === "EXECUTE_MISSION" && job.mission_id) {
         const mission = await getMission(job.mission_id);
         if (mission.status === "CANCELLED") throw new Error(t("This mission was cancelled. Plan a new mission instead of retrying its task.", "此测试任务已取消。请规划新任务，而非重试原任务。"));
@@ -153,11 +159,14 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     const mission = job.mission_id ? client.getQueryData<Mission[]>(["missions", runId])?.find((item) => item.id === job.mission_id) : undefined;
     const cancelledMission = job.job_type === "EXECUTE_MISSION" && mission?.status === "CANCELLED";
     const unknownMission = job.job_type === "EXECUTE_MISSION" && !mission;
+    const bindingStatus = harness.data?.binding?.status;
+    const sessionEnded = !!bindingStatus && ["CLOSED", "FAILED", "CANCELLED"].includes(bindingStatus);
+    const sessionBlocked = !!bindingStatus && bindingStatus !== "ACTIVE";
     return <Space wrap>
       <Button size="small" onClick={() => { setSelectedId(job.id); cancellation.reset(); retry.reset(); }}>{t("Details", "详情")}</Button>
       {job.status === "WAITING_INPUT" && <Button size="small" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>}
       {activeStatuses.includes(job.status) && job.status !== "CANCEL_REQUESTED" && <Popconfirm title={t("Cancel this background task?", "确认取消此后台任务？")} description={t("The worker stops at a safe boundary. Accepted canonical testing state remains available.", "Worker 会在安全边界停止，已接受的正式测试状态仍会保留。")} onConfirm={() => cancellation.mutate(job)}><Button size="small" danger loading={cancellation.isPending && cancellation.variables?.id === job.id}>{t("Cancel task", "取消任务")}</Button></Popconfirm>}
-      {retryableStatuses.includes(job.status) && (cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
+      {retryableStatuses.includes(job.status) && (sessionEnded ? <Typography.Text type="secondary">{t("This session has ended. Start a new run from the project.", "此会话已结束，请回到项目创建新的运行。")} <a href={`/projects/${job.project_id}`}>{t("Open project", "打开项目")}</a></Typography.Text> : sessionBlocked ? <Button size="small" onClick={() => viewResult("harness")}>{bindingStatus === "RECOVERY_REQUIRED" ? t("Recover session first", "请先恢复会话") : t("Review session", "查看会话")}</Button> : cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission || !harness.data || !!harness.error} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{!harness.data || harness.error ? t("Checking session state", "正在检查会话状态") : unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
     </Space>;
   }
 

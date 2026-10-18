@@ -61,6 +61,8 @@ async def _create_planned_mission(
     session: AsyncSession, test_run_id: UUID, payload: MissionCreate
 ) -> Mission:
     """Preserve cancelled intent history while allowing an explicit new plan."""
+    if getattr(session, "binding_id", None) is not None:
+        payload = payload.model_copy(update={"protocol_version": "v1alpha2"})
     base = payload.idempotency_key
     missions = list(
         await session.scalars(select(Mission).where(Mission.test_run_id == test_run_id))
@@ -72,7 +74,15 @@ async def _create_planned_mission(
         generation += 1
         key = f"{base}:generation:{generation}"
     if key in by_key:
+        # Completed diagnosis is still consulted when deciding whether Gate is
+        # admissible. Merely reading that immutable stage must not demand it again.
         return by_key[key]
+    if getattr(session, "binding_id", None) is not None:
+        from hypertest.application.services import ConflictError
+
+        intent = getattr(session, "requested_mission_type", None)
+        if intent is not None and intent != payload.mission_type.value:
+            raise ConflictError(f"admission requires {payload.mission_type.value} before this action")
     return await create_mission(
         session, test_run_id, payload.model_copy(update={"idempotency_key": key})
     )

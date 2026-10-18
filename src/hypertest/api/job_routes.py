@@ -31,8 +31,17 @@ async def get_job_activity(job_id: UUID, limit: int = Query(default=30, ge=1, le
 @router.post("/test-runs/{run_id}/jobs", response_model=JobRead, status_code=202)
 async def post_job(run_id: UUID, payload: JobCreate, db: AsyncSession = Depends(get_db)):
     try:
+        from hypertest.config import get_settings
+        from hypertest.domain.jobs import JobType
+        options = dict(payload.payload)
+        if (get_settings().harness_mode == "bridge" and payload.operation is JobType.ADVANCE_RUN
+                and "execution_profile" not in options):
+            old = await db.scalar(select(DurableJob).where(DurableJob.test_run_id == run_id,
+                DurableJob.idempotency_key == payload.idempotency_key))
+            if old is None or old.payload.get("execution_profile"):
+                options["execution_profile"] = "run-persistent-harness/v1"
         return await submit_job(
-            db, run_id, payload.operation, payload=payload.payload,
+            db, run_id, payload.operation, payload=options,
             idempotency_key=payload.idempotency_key, mission_id=payload.mission_id,
         )
     except (RuntimeError, ValueError) as exc:

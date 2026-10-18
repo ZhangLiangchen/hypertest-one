@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +31,17 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 1.0
     worker_lease_seconds: int = 30
     worker_heartbeat_seconds: float = 5.0
+    # Legacy histories retain their original per-Mission protocol. Container
+    # deployments explicitly select the versioned persistent profile for new work.
+    execution_mode: Literal["direct", "queued"] = "direct"
+    harness_mode: Literal["legacy", "bridge"] = "legacy"
+    bridge_socket: str = "/run/hypertest-bridge/control.sock"
+    bridge_execution_key_file: str = "/run/secrets/bridge_execution"
+    bridge_management_key_file: str = "/run/secrets/bridge_management"
+    bridge_host_id: str = "hypertest-host-1"
+    runtime_control_timeout_seconds: float = 20.0
+    harness_max_seconds: int = Field(default=3600, ge=1, le=7200)
+    gitlab_policy_file: str | None = None
 
 
 @lru_cache

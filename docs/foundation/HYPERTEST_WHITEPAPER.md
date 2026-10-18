@@ -1,8 +1,14 @@
 # HyperTest 白皮书
 
-**版本：v1.0 Draft**  
-**定位：Agent-native Autonomous Testing Platform**  
+**版本：v1.1**
+
+**部署与工作流决策：ADR-013 Accepted，本分支已实现，生产迁移待验收**
+
+**定位：Agent-native Autonomous Testing Platform**
+
 **架构角色：Autonomous Testing Control Plane**
+
+[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义本文的部署与工作流目标。本分支已实现持久 Run Binding、宿主 Bridge、九个领域工具和受控 GitLab 集成，并提供 additive migrations `0013_run_bindings` / `0014_harness_operations`。本地真实 Codex / Docker 成功链形成 `RELEASE_READY`；失败诊断链经 Web 显式恢复后提交负向报告；Mission / Run 两类问答在原 Job、原 Session、原 epoch 下消费回答并完成成功报告。具体证据与剩余条件见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`；未据此宣称生产迁移、真实 GitLab 提单或其他 Provider 验收完成。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。
 
 ---
 
@@ -59,6 +65,20 @@ HyperTest 的核心链路为：
 **Requirement → Risk → Test Case → Implementation → Execution → Evidence → Finding → Verdict**
 
 这条 Testing Semantic Chain，是 HyperTest 的核心领域模型，也是其长期技术与产品壁垒。
+
+### 1.1 实际使用单位与执行方式
+
+- 一个 SUT（被测系统）对应一个长期存在的 Project；同一系统的 feat / MR 在项目内组织，而非各建一个项目。Project 是系统身份，仓库 URL 不是唯一系统标识，长期仍可支持一个系统的多个仓库。
+- 一个 feat / MR 的确定完整 SHA 的一次完整测试活动对应一个 TestRun，即用户看到的测试任务。任务同时冻结需求原文、配置、执行环境和 Policy；MR 编号、分支名是关联与展示信息，不替代实际被测 SHA。
+- 一个任务绑定一个逻辑 Task Worker 和一个持续的主 Harness 会话。该会话串行、自驱地完成测试分析、风险分析、测试设计、代码实现、正式执行请求、失败诊断和报告；阶段切换不重新开会话。
+- 同一任务不由多个平台 Worker 同时协作；多个不同任务可并发，包括同一个 SUT 的不同 feat / MR SHA。并发上限由平台、Harness 和 Runner 的实际容量共同约束。
+- 关键决策通过持久人工问题交给操作者，回答后恢复原会话。缺陷可按已配置的 GitLab 项目、责任人和提单策略形成 Issue，并关联测试任务、Finding 与正式 Evidence。
+
+Task Worker 的稳定身份与操作系统进程、容器 ID、一次 Job 租约不同。等待人工输入可以释放运行资源，但保留任务绑定、原生会话和工作区；进程替换必须显式恢复同一绑定并隔离旧执行者。原会话丢失时停止并保留历史，不能另开会话冒充续接。
+
+人工问题既可以属于当前阶段，也可以发生在阶段之间或缺陷派单时。任务级提问不重开已完成的阶段；平台保留明确的问答归属，回答后继续同一主会话。具体持久化与暂停恢复规则由领域模型和 TMP 定义。
+
+相同测试输入的重复提交应幂等复用原请求；新 SHA 创建新测试任务。同一 SHA 需要改变需求、策略或环境、或显式重新测试时，保留新的测试轮次与旧结论，不以 `Project + SHA` 唯一约束阻止复测，也不改写旧快照。
 
 ---
 
@@ -234,7 +254,7 @@ HyperTest 基于 Policy + State + Agent Intelligence + Execution Facts 形成 PA
 HyperTest 第一性架构可以归纳为六个组件：
 
 1. **Test Knowledge Model**：描述 Requirement / Risk / TestCase / Execution / Evidence / Finding / Verdict 等测试世界对象。
-2. **Test Planner**：基于当前状态、Policy、Coverage Gap 和历史，回答“下一步应该做什么”。
+2. **Test Planner**：基于当前状态、Policy、Coverage Gap 和依赖验证可接受的测试动作，向 Harness 返回允许的范围、缺口与约束。
 3. **Mission Compiler**：把 Testing Intent 编译成 Agent 可执行的标准 TestMission。
 4. **Agent Gateway**：屏蔽 Codex / Claude Code / Pi / OpenCode 的差异，统一 AgentHarness。
 5. **Test Runner**：执行正式、可复现、可审计的测试并产出 Evidence。
@@ -263,11 +283,15 @@ HyperTest 与 Agent 不是简单 Prompt 调用，而是：
 
 HyperTest 定义 Mission 和验收标准；Agent 决定如何推理与完成工作。
 
+ADR-013 的目标是在一个 TestRun 的持续原生会话内串行处理多个有类型的 Mission / Attempt。Harness 自驱思考和调用领域工具；平台执行范围、依赖、预算、权限与产物验收，不为每个阶段建立新会话，不接管 Provider 的推理循环。v0.3 的逐 Mission 最终结果调用和 bounded controller 保留为历史兼容基线；本分支的新 profile 已实现上述持续会话路径，旧 Run 不被回填或重解释。
+
 ---
 
 ## 10. Agent Harness Interface
 
-HyperTest 定义统一 `AgentHarness` 抽象，具体实现包括 `CodexAdapter`、`ClaudeCodeAdapter`、`OpenCodeAdapter`、`PiAdapter`。上层仅理解 `AgentSession`、`TestMission`、`AgentEvent`、`AgentResult`，Provider-specific CLI 参数、事件与 Session 格式由 Adapter Normalize。
+HyperTest 定义统一 `AgentHarness` 抽象，目标适配 Codex CLI、Claude Code CLI、DeepSeek Harness 及其他 CLI / SDK。上层仅理解 `AgentSession`、`TestMission`、`AgentEvent`、`AgentResult`，Provider-specific 参数、事件与原生会话格式由 Adapter Normalize。当前已接入的 Codex 实现不能作为其他 Provider 已可运行的证明。
+
+平台任务 Worker 容器通过受控 Host Harness Bridge 调用宿主适配器。Bridge 托管原生会话、进程、事件和中断，不持有数据库写权限，不代替 Verifier、Runner 或 Gate。宿主原生认证与会话目录持久保留，平台不复制认证数据到镜像或 Agent Context。
 
 ---
 
@@ -275,7 +299,7 @@ HyperTest 定义统一 `AgentHarness` 抽象，具体实现包括 `CodexAdapter`
 
 Test Mission Protocol 是 HyperTest 控制 Agent 的核心协议。Mission 至少包含 Mission ID、Mission Type、Objective、Target、Context References、Constraints、Acceptance Criteria、Expected Output Schema。
 
-Agent 不再被要求“帮我搞定测试”，而是“完成 Mission M-203”。
+用户提交的是完整测试任务；Mission M-203 等内部契约为同一持续会话中的测试工作划定目标、依赖、输出和权限。Mission 完成关闭该工作单元，主会话在任务结束时统一收尾。
 
 这是 HyperTest 从 Prompt Engineering 走向 **Protocol Engineering** 的关键一步。
 
@@ -319,6 +343,8 @@ Canonical State
 ## 14. HyperTest MCP
 
 HyperTest 应对 Agent 提供领域 MCP Server。读取工具包括 `get_requirement`、`get_risk`、`get_test_case`、`get_execution`、`get_evidence`、`get_coverage`；写工具采用 Proposal 语义，包括 `propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`、`request_execution`。
+
+持续会话目标还包括申请 / 完成有类型 Mission、提问、读取正式执行结果、请求 Gate、提交报告和请求 GitLab Issue。工具由平台验证并审计，按既定项目 / 责任人 / 权限策略执行外部操作；未知外部结果需要核对，不能盲目重复提单。本分支以九个固定工具实现这些能力：读取语义映射到分页 `get_state`，Proposal batch 经 `complete_mission` 提交，Gate 请求使用 `evaluate_gate`；完整名称和契约映射见 TMP §25.2。上述细粒度名称保留为领域语义，不代表另有同名端点。
 
 Agent 默认只能：
 
@@ -408,43 +434,37 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 
 ## 20. 典型端到端工作流
 
-用户输入 PRD、Git Repository、Branch / Commit、Test Environment 后，HyperTest 创建 TestRun，并依次执行：
+用户在 SUT 的 Project 中为一个 feat / MR 的完整 SHA 提交 PRD、配置、策略与测试环境，平台创建 TestRun。以下步骤在同一个主 Harness 会话内自驱、串行推进：
 
-1. **Snapshot**：固定 PRD Hash、Repo Commit、Environment Fingerprint。
-2. **Requirement Analysis**：创建 `ANALYZE_REQUIREMENTS` Mission，Agent 形成 Requirement Proposal，HyperTest 验证并落库。
-3. **Risk Analysis**：基于 Requirement 创建 `ANALYZE_RISKS` Mission，形成 Requirement → Risk。
-4. **Test Design**：基于 Coverage Gap 创建 `DESIGN_TESTS` Mission，形成 Risk → TestCase。
-5. **Test Implementation**：创建 `IMPLEMENT_TESTS` Mission，Agent 生成测试代码，形成 TestCase → Implementation。
-6. **Official Execution**：HyperTest Runner 在明确环境正式执行，产生 Execution → Evidence。
-7. **Failure Diagnosis**：失败后创建 `DIAGNOSE_FAILURE` Mission，Agent 基于代码、日志、指标和 Evidence 形成 Finding Proposal。
-8. **Verification**：Verifier 检查 Evidence 是否充分、Finding 是否可复现、Coverage 是否充分。
-9. **Verdict**：Gate 形成 RELEASE_READY 或 RELEASE_BLOCKED 等最终结论。
+1. **Snapshot / Binding**：冻结输入和实际执行环境，建立唯一任务 Worker 绑定与主 AgentSession。
+2. **Requirement Analysis**：Harness 申请 `ANALYZE_REQUIREMENTS` Mission，形成 Proposal；HyperTest 验证后保存 Requirement。
+3. **Risk Analysis**：读取已接受需求，申请 `ANALYZE_RISKS`，形成 Requirement → Risk。
+4. **Test Design**：根据覆盖缺口申请 `DESIGN_TESTS`，形成 Risk → TestCase。
+5. **Test Implementation**：申请 `IMPLEMENT_TESTS` 并提交测试代码 Proposal，经校验形成 TestCase → Implementation。
+6. **Official Execution**：Harness 请求可信 Runner 在冻结环境执行，等待并读取 Execution → Evidence；自行 shell 探索不能替代这一事实通道。
+7. **Failure Diagnosis / Collaboration**：需要时申请 `DIAGNOSE_FAILURE`，关联 Finding 和 Evidence，并按配置策略请求 GitLab Issue。任意阶段遇到关键歧义可提问，回答后恢复同一会话。
+8. **Verification / Verdict**：平台验证产物、覆盖和证据；Harness 请求评估，Gate 根据正式状态形成可追溯结论。
+9. **Report / Close**：Harness 提交引用输入、Evidence、Finding、Issue 与 Verdict 的报告，平台保存引用并收尾该任务的会话和绑定。报告文字不代替 Gate 结论。
 
 ---
 
 ## 21. HyperTest Runtime Loop
 
-```python
-while not run.finished:
-    state = load_test_state()
-    mission = planner.next(state)
-
-    if mission.requires_agent:
-        result = agent_gateway.execute(mission)
-        proposal = verifier.validate(result)
-        state.apply(proposal)
-
-    if mission.requires_execution:
-        evidence = runner.execute(mission)
-        state.apply(evidence)
-
-    verdict = gate.evaluate(state)
-    persist(state, verdict)
+```text
+创建冻结输入的 TestRun
+  → 建立一个 RunExecutionBinding 与一个主 AgentSession
+  → 原生 Harness 在同一会话中思考并串行调用领域工具
+  → 平台逐次验证范围、依赖、权限、租约和 Proposal
+  → 可信 Runner 执行并保存可校验事实
+  → 人工回答后恢复原会话，或按预算 / 取消 / 失联停止
+  → Gate 判定，保存报告与历史，关闭任务绑定
 ```
 
 复杂的 Think / Tool / Observe / Edit / Retry Agent Loop 交由 Codex / Claude Code 自身完成。HyperTest 不重复实现。
 
-平台可通过持久化队列与独立 Worker 推进上述 Testing Runtime Loop，让用户关闭页面后工作仍可继续。队列保存可恢复的工作请求，不拥有 Canonical Testing State；Worker 失联需保留 Attempt / Execution 历史并显式中断，不能把可能发生过的正式执行静默重放。调度完成与测试通过是不同状态，质量结论仍属于 Gate。
+平台通过 PostgreSQL 持久队列和容器化任务 Worker 托管测试任务，让用户关闭页面后工作仍可继续。Planner 对可接受动作提供确定性守卫；Provider 的循环、上下文压缩和工具选择由 Harness 负责。队列和绑定属于 Operational State，不拥有 Canonical Testing State。Worker 失联保留 Attempt / Execution 历史并显式中断，不自动重放外部执行。任务间可以并发，任务内保持单 Worker、单主会话、串行测试周期。
+
+以上是 ADR-013 的目标工作流，本分支已实现并取得本地真实成功、失败诊断及两类问答证据，范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。v0.3 的历史路径仍由平台 bounded controller 逐步选择 Mission 并收取阶段最终结果；它不被描述为持续会话验收，也不被新 profile 改写。
 
 ---
 
@@ -458,27 +478,28 @@ HyperTest 的核心 UI 不应该是聊天框，而应该呈现 Requirements、Ri
 
 ## 23. 推荐技术架构
 
-第一阶段建议：
+ADR-013 接受的单机目标为 Docker Compose 管理平台常驻服务，宿主托管 Harness。具体版本与实际部署状态由交付记录维护：
 
 ```text
-Frontend:       Next.js / Ant Design / TanStack Query
-Backend:        FastAPI
-Database:       PostgreSQL
-Agent Gateway:  Node.js / TypeScript
-Agent:          Codex SDK / Claude Agent SDK
-Queue:          Redis / PostgreSQL Queue
-Runner:         Docker
-Future Runner:  Kubernetes Job
-Artifacts:      S3 / MinIO
-Streaming:      SSE / WebSocket
-Observability:  Prometheus / Grafana / Loki
+Ingress:        nginx container
+Frontend:       Next.js container
+Backend:        FastAPI container
+Task Worker:    HyperTest Worker container, one logical binding per task
+Database:       PostgreSQL container + persistent volume
+Queue:          PostgreSQL DurableJob + audit / transactional outbox
+Host Harness:   Host Harness Bridge + provider CLI / SDK + native sessions
+Runner:         trusted controller + short-lived isolated Docker containers
+Artifacts:      shared persistent platform store; object storage when required
+Middleware:     containerized when justified by an actual dependency
 ```
+
+已有数据库卷、Artifact、工作区、原生认证与 SSH / VPN 边界需要在迁移中保全；容器删除不代表数据删除。各类常驻服务、宿主 Harness 和正式 Runner 分别配置容量与资源预算。现有开发 Compose 不是该生产目标的完整实现。
 
 ---
 
 ## 24. Workspace 模型
 
-每个 Mission 或 TestRun 拥有隔离工作区：
+每个 TestRun 的主会话拥有独立、可恢复的托管工作副本，串行阶段共享任务上下文；正式 Runner 使用独立执行环境：
 
 ```text
 /workspace
@@ -493,7 +514,9 @@ Observability:  Prometheus / Grafana / Loki
 └── results/
 ```
 
-长期可迁移到 Kubernetes Job。Control Plane 长期运行，Agent / Runner Worker 短生命周期。
+主会话的工作副本在阶段完成和人工等待时保留，任务终止后按策略收尾；重启仅能恢复已记录的绑定、原生会话和工作区。宿主 Harness 只访问任务受控副本及其自身认证目录，Canonical Artifact Store 由平台维护。运行目录、原始 Provider 对话和认证内容不成为 Canonical Testing State。
+
+平台 Worker、宿主 Bridge 和 Runner 的部署生命周期与持久会话身份独立。多机执行及其他编排方式是后续能力，必须先解决会话节点定位、共享存储和恢复，不能由镜像可复制推断已经可用。
 
 ---
 
@@ -521,6 +544,8 @@ Report / Verdict
 
 MVP 建议只支持一个 Agent Harness（Codex）、API / Backend Functional Test、pytest、Docker / existing SIT，以及基础 Requirement / Risk / Case / Finding / Evidence / Verdict 模型。
 
+现有 MVP 能力与 ADR-013 目标须分别验收：本分支已提供容器部署材料、宿主 Bridge、整个 Run 的持续会话、运行中领域工具与受控 GitLab 集成；生产容器迁移、数据与访问边界保全仍需部署验收，GitLab 实际提单仍需授权配置与真实服务证据。Claude Code / DeepSeek 等适配器也需各自的真实运行证据，不能由 Codex 结果代替。
+
 第一阶段不做复杂多 Agent Blackboard、自研 LLM Agent Loop、复杂 Workflow DSL、跨公司通用测试 Ontology、完全无人值守 Release。
 
 ---
@@ -535,7 +560,7 @@ MVP 建议只支持一个 Agent Harness（Codex）、API / Backend Functional Te
 
 长期目标是 **Autonomous Testing System**，逐渐支持需求变化检测、Impact Analysis、自动回归范围选择、自主实验、Failure Hypothesis、Dynamic Test Generation、Test Coverage Convergence、Agent Collaboration、Cross-version Learning、Cross-project Testing Knowledge、Continuous Quality Evaluation。
 
-Blackboard / Event-driven Collaboration / Specialized Testing Agents 可以作为长期实验方向，但不应成为当前架构前提。
+Blackboard / Event-driven Collaboration / Specialized Testing Agents 仅是长期实验方向。ADR-013 的任务执行模型明确保持单 Worker、单主会话和任务内串行；改变为任务内多个平台 Worker 协作需要新的 ADR，不能把它作为当前目标的默认扩展方式。
 
 ---
 
@@ -556,6 +581,8 @@ HyperTest 如果重新实现这一层，会增加开发与长期维护成本，�
 ## 29. Agent Orchestration 的真正含义
 
 HyperTest 的 Agent Orchestration 不微管理 Agent reasoning。它真正编排的是 Testing Mission：Analyze Requirement、Analyze Risk、Design Tests、Implement Tests、Diagnose Failure、Investigate Finding 等。
+
+在 ADR-013 中，Harness 在同一持续会话中自驱申请和完成这些有类型的工作，平台对其输入、依赖、权限、输出、预算和事实负责。Mission / Attempt 保持审计边界，但不意味着换一个 Worker 或新开原生会话。平台不再把逐 Mission 重建会话的旧实现作为目标工作流。
 
 > **HyperTest orchestrates testing work, not model reasoning.**
 
@@ -653,6 +680,8 @@ HyperTest One 的产品 slogan：
 - **Agent 提议，HyperTest 验证并提交。**
 - **BUGate 定义 Protocol，HyperTest 执行 Protocol。**
 - **HyperTest 编排 Testing Mission，而不是微管理 Agent reasoning。**
+- **一个 SUT 一个 Project；一个确定变更版本的测试任务绑定一个逻辑 Worker 和一个持续主会话。**
+- **Harness 自驱任务内串行工作；平台管理任务间并发、状态、证据与决策。**
 - **通用 Agent 越强，HyperTest 应该越强，而不是受到威胁。**
 
 ---

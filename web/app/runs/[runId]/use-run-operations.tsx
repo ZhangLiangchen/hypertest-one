@@ -14,7 +14,7 @@ import { executionBackend, visibleEnvironmentDefinition } from "@/lib/execution-
 import {
   cancelMission, errorText, getEvidence,
   getEvidenceContent, getExecution, getExecutions, getFindings, getImplementations,
-  getCapabilities, getMission, getMissionAttempts, getMissionProposals, getSourceSnapshot, getVerdicts, retryMission, transitionFinding,
+  getCapabilities, getMission, getMissionAttempts, getMissionProposals, getRunHarness, getSourceSnapshot, getVerdicts, retryMission, transitionFinding,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { latestRunVerdict } from "@/lib/run-summary";
@@ -153,6 +153,10 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   }, [workspace, tasks.latestPrepared, applyWorkspace]);
 
   const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: getCapabilities, refetchInterval: 5_000 });
+  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
+  const persistentRun = !!harness.data?.binding || capabilities.data?.execution_profile === "run-persistent-harness/v1";
+  const manualMissionControl = !!capabilities.data && !capabilities.error && !!harness.data && !harness.error && !persistentRun;
+  const sessionNeedsAttention = harness.data?.binding && ["RECOVERY_REQUIRED", "CLOSED", "FAILED", "CANCELLED"].includes(harness.data.binding.status);
   const implementations = useQuery({ queryKey: ["implementations", runId], queryFn: () => getImplementations(runId), refetchInterval: 5_000 });
   const executions = useQuery({ queryKey: ["executions", runId], queryFn: () => getExecutions(runId), refetchInterval: 5_000 });
   const evidence = useQuery({ queryKey: ["evidence", runId], queryFn: () => getEvidence(runId), refetchInterval: 5_000 });
@@ -231,7 +235,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     <Space wrap>
       <Button size="small" onClick={() => { setMissionSelection(item); missionCancellation.reset(); }}>{t("Details", "详情")}</Button>
       {inputRequests.pending.some((question) => question.mission_id === item.id) && <Button size="small" type="primary" onClick={() => inputRequests.open(inputRequests.pending.find((question) => question.mission_id === item.id)!.id)}>{t("Answer question", "回答问题")}</Button>}
-      {["CREATED", "READY", "RETRYING", "FAILED"].includes(item.status) && (
+      {manualMissionControl && ["CREATED", "READY", "RETRYING", "FAILED"].includes(item.status) && (
         <Button size="small" type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(item)}>
           {item.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")}
         </Button>
@@ -300,14 +304,14 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   }
 
   const actions = <Space wrap>
-    {inputRequests.pending.length ? <Button type="primary" onClick={() => inputRequests.open(inputRequests.pending[0].id)}>{t("Answer question", "回答问题")}</Button> : <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={inputRequests.busy || source.isLoading || !source.data || !!source.error || unreadableEnvironment || !capabilities.data?.agent_providers.includes("codex") || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>}
+    {inputRequests.pending.length ? <Button type="primary" onClick={() => inputRequests.open(inputRequests.pending[0].id)}>{t("Answer question", "回答问题")}</Button> : sessionNeedsAttention ? <Button type="primary" onClick={() => onNavigate("harness")}>{t("Review session", "检查会话")}</Button> : <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={inputRequests.busy || harness.isLoading || !!harness.error || source.isLoading || !source.data || !!source.error || unreadableEnvironment || !capabilities.data?.agent_providers.includes("codex") || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>}
   </Space>;
-  const secondaryActions = <Space wrap>
+  const secondaryActions = manualMissionControl ? <Space wrap>
     <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !source.data || !!source.error || unreadableEnvironment || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
       openExecutionDialog("execution");
     }}>{t("Execute tests", "执行测试")}</Button>
     <Button aria-label={t("Evaluate quality gate", "评估质量门禁")} disabled={tasks.busy} loading={gate.isPending} onClick={() => gate.mutate()}>{t("Evaluate quality gate", "评估质量门禁")}</Button>
-  </Space>;
+  </Space> : null;
 
   const summary = <>
     {tasks.monitor}
@@ -344,7 +348,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
       {missionExecution.error && <Alert type="error" showIcon message={t("Unable to save mission task", "无法保存智能体任务")} description={errorText(missionExecution.error, locale)} />}
     </Modal>
 
-    <Drawer title={mission ? `${mission.key} · ${label(mission.mission_type)}` : t("Mission", "测试任务")} open={!!missionSelection && !missionDialog} width={850} onClose={() => setMissionSelection(null)} extra={mission && <Space wrap><Badge value={mission.status} />{["CREATED", "READY", "RETRYING", "FAILED"].includes(mission.status) && <Button type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(mission)}>{mission.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")}</Button>}{mission.status === "WAITING_INPUT" ? <Button disabled={!waitingMissionJob} onClick={() => { if (waitingMissionJob) { setMissionSelection(null); tasks.openTask(waitingMissionJob); } }}>{t("Manage paused task", "管理暂停任务")}</Button> : !["COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(mission.status) && <Popconfirm title={t("Cancel this mission?", "确认取消此测试任务？")} description={t("Unaccepted proposals will not change canonical testing state.", "尚未接受的提议不会改变正式测试状态。")} onConfirm={() => missionCancellation.mutate(mission.id)}><Button danger loading={missionCancellation.isPending}>{t("Cancel mission", "取消测试任务")}</Button></Popconfirm>}</Space>}>
+    <Drawer title={mission ? `${mission.key} · ${label(mission.mission_type)}` : t("Mission", "测试任务")} open={!!missionSelection && !missionDialog} width={850} onClose={() => setMissionSelection(null)} extra={mission && <Space wrap><Badge value={mission.status} />{manualMissionControl && ["CREATED", "READY", "RETRYING", "FAILED"].includes(mission.status) && <Button type="primary" disabled={missionExecution.isPending || tasks.busy || !capabilities.data?.agent_providers.includes("codex")} onClick={() => openMissionExecution(mission)}>{mission.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")}</Button>}{mission.status === "WAITING_INPUT" ? <Button disabled={!waitingMissionJob} onClick={() => { if (waitingMissionJob) { setMissionSelection(null); tasks.openTask(waitingMissionJob); } }}>{t("Manage paused task", "管理暂停任务")}</Button> : manualMissionControl && !["COMPLETED", "FAILED", "CANCELLED", "EXPIRED"].includes(mission.status) && <Popconfirm title={t("Cancel this mission?", "确认取消此测试任务？")} description={t("Unaccepted proposals will not change canonical testing state.", "尚未接受的提议不会改变正式测试状态。")} onConfirm={() => missionCancellation.mutate(mission.id)}><Button danger loading={missionCancellation.isPending}>{t("Cancel mission", "取消测试任务")}</Button></Popconfirm>}</Space>}>
       <Typography.Paragraph>{mission?.objective}</Typography.Paragraph>
       {mission && inputRequests.missionPanel(mission.id)}
       {missionCancellation.error && <Alert type="error" showIcon message={t("Unable to cancel mission", "无法取消测试任务")} description={errorText(missionCancellation.error, locale)} />}
@@ -443,5 +447,5 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   </>;
 
   const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} /></>;
-  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
+  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, manualMissionControl, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }

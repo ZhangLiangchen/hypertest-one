@@ -42,8 +42,12 @@ export type InputRequest = {
   id: string;
   key: string;
   test_run_id: string;
-  mission_id: string;
-  attempt_id: string;
+  scope?: "mission" | "run";
+  mission_id: string | null;
+  attempt_id: string | null;
+  binding_id?: string | null;
+  context_mission_id?: string | null;
+  context_attempt_id?: string | null;
   agent_session_id: string;
   durable_job_id: string;
   question_id: string;
@@ -253,6 +257,8 @@ export type ExecutionCreate = {
 };
 
 export type Capabilities = {
+  execution_profile?: "run-persistent-harness/v1" | null;
+  harness_bridge?: string;
   agent_providers: string[];
   runner_backends: Array<"docker" | "local">;
   workspace_root: string;
@@ -391,6 +397,7 @@ export type JobStatus = "QUEUED" | "RUNNING" | "WAITING_INPUT" | "SUCCEEDED" | "
 export type BackgroundJob = {
   id: string;
   key: string;
+  project_id: string;
   test_run_id: string;
   mission_id?: string | null;
   job_type: JobOperation;
@@ -458,4 +465,39 @@ export type JobActivity = {
   retention_per_attempt: number;
   window_seconds: number;
   truncated: boolean;
+};
+
+export type RunBinding = {
+  id: string;
+  test_run_id: string;
+  logical_worker_id: string;
+  primary_agent_session_id: string;
+  binding_epoch: number;
+  status: "RESERVED" | "ACTIVE" | "WAITING_INPUT" | "RECOVERY_REQUIRED" | "CLOSED" | "FAILED" | "CANCELLED";
+  created_at: string;
+  updated_at: string;
+  row_version: number;
+};
+export type RunReport = {
+  id: string;
+  test_run_id: string;
+  binding_id: string;
+  durable_job_id: string;
+  content_sha256: string;
+  created_at: string;
+};
+export type GitLabIssueOperation = {
+  id: string;
+  finding_id: string;
+  status: "PENDING" | "UNKNOWN" | "SUCCEEDED" | "REJECTED";
+  issue_iid: number | null;
+  issue_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type RunHarness = {
+  binding: RunBinding | null;
+  state: { max_steps: number; timeout_seconds: number; harness_budget_seconds: number; active_mission_id: string | null; active_attempt_id: string | null } | null;
+  reports: RunReport[];
+  issues: GitLabIssueOperation[];
 };

@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from hypertest.api.operation_guard import guard_synchronous_operation
+from hypertest.api.operation_guard import guard_manual_mission_mutation, guard_synchronous_operation
 from hypertest.api.schemas import (
     MissionCreate,
     MissionExecuteRequest,
@@ -202,6 +202,7 @@ async def post_mission(
     db: AsyncSession = Depends(get_db),
 ):
     try:
+        await guard_manual_mission_mutation(db, test_run_id)
         return await create_mission(db, test_run_id, payload)
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
@@ -218,6 +219,7 @@ async def read_test_run_missions(test_run_id: UUID, db: AsyncSession = Depends(g
 @router.post("/test-runs/{test_run_id}/plan-next", response_model=PlannerRead)
 async def post_plan_next(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
+        await guard_manual_mission_mutation(db, test_run_id)
         result = await plan_next_mission(db, test_run_id)
         return PlannerRead(reason=result.reason, mission=result.mission)
     except RuntimeError as exc:

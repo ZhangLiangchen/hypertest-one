@@ -1,0 +1,24 @@
+# Only application inputs enter the platform build context.
+**
+!Dockerfile
+!pyproject.toml
+!README.md
+!alembic.ini
+!src/
+!src/**
+!alembic/
+!alembic/**
+!ops/
+!ops/container/
+!ops/container/healthcheck.py
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.env
+**/*.env
+**/.env.*
+**/*.key
+**/*.pem
+**/auth.json
+**/.codex
+**/.claude

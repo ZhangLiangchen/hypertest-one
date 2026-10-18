@@ -70,7 +70,7 @@ export function useRunInputRequests(runId: string, jobs: BackgroundJob[], jobsUn
 
   function list(items: InputRequest[]) {
     return <ul className="input-request-list">{items.map((item) => <li key={item.id}>
-      <div><Space wrap>{recordStatus(item)}<span className="entity-key">{item.key}</span></Space><p className="input-question-preview">{item.question}</p></div>
+      <div><Space wrap>{recordStatus(item)}{item.scope === "run" && <Tag>{t("Run decision", "运行决策")}</Tag>}<span className="entity-key">{item.key}</span></Space><p className="input-question-preview">{item.question}</p></div>
       <Button onClick={() => open(item.id)}>{item.status === "PENDING" ? t("Answer question", "回答问题") : t("View answer", "查看回答")}</Button>
     </li>)}</ul>;
   }
@@ -85,7 +85,7 @@ export function useRunInputRequests(runId: string, jobs: BackgroundJob[], jobsUn
   </>;
   const tab = {
     key: "input-requests", label: `${t("Questions & answers", "问题与回答")} (${requests.data ? rows.length : "—"})`, children: <>
-      <Typography.Paragraph className="muted">{t("Questions and answers supplement the mission context. They do not change the frozen PRD or source and do not count as accepted proposals, execution evidence or quality decisions.", "问题与回答补充测试任务的上下文，不会修改固定的 PRD 或源码，也不等同于已接受的提议、执行证据或质量判定。")}</Typography.Paragraph>
+      <Typography.Paragraph className="muted">{t("Questions and answers supplement the testing context. They do not change the frozen PRD or source and do not count as accepted proposals, execution evidence or quality decisions.", "问题与回答补充测试上下文，不会修改固定的 PRD 或源码，也不等同于已接受的提议、执行证据或质量判定。")}</Typography.Paragraph>
       {readError}
       {requests.isLoading ? <div className="pane-loading"><Spin /></div> : rows.length ? list(rows) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={requests.error ? t("Questions are unavailable. Refresh to try again.", "暂无法读取问题，请刷新重试。") : t("No clarification questions have been recorded for this run.", "本次运行尚未记录澄清问题。")} />}
     </>,
@@ -97,7 +97,7 @@ export function useRunInputRequests(runId: string, jobs: BackgroundJob[], jobsUn
       {readError}{list(items)}
     </section> : null;
   };
-  const dialog = <Drawer title={t("Mission question", "测试任务问题")} open={!!selectedId} width={740} onClose={() => setSelectedId(null)}>
+  const dialog = <Drawer title={selected?.scope === "run" ? t("Run decision", "运行决策") : t("Mission question", "测试任务问题")} open={!!selectedId} width={740} onClose={() => setSelectedId(null)}>
     {readError}
     {!selected ? selectedId ? <Alert type="warning" showIcon message={t("This question is unavailable", "暂无法读取此问题")} description={t("Refresh the questions without closing this page. Your draft is retained.", "请刷新问题，无需关闭此页面。回答草稿会保留。")} action={<Button onClick={refresh}>{t("Refresh", "刷新")}</Button>} /> : null : <>
       <Space wrap>{recordStatus(selected)}<span className="entity-key">{selected.key}</span></Space>
@@ -121,7 +121,8 @@ export function useRunInputRequests(runId: string, jobs: BackgroundJob[], jobsUn
         {draft && draft !== selected.answer && <details className="input-unsent-draft"><summary>{t("Your unsent draft", "你的未提交草稿")}</summary><p className="input-question-text">{draft}</p></details>}
       </>}
       <Descriptions column={1} size="small" style={{ marginTop: 24 }} items={[
-        { key: "mission", label: t("Mission", "测试任务"), children: <Typography.Text code copyable>{client.getQueryData<Mission[]>(["missions", runId])?.find((item) => item.id === selected.mission_id)?.key || selected.mission_id}</Typography.Text> },
+        { key: "scope", label: t("Question scope", "问题范围"), children: selected.scope === "run" ? t("Run decision between stages", "阶段之间的运行决策") : t("Current mission", "当前任务阶段") },
+        ...(selected.mission_id || selected.context_mission_id ? [{ key: "mission", label: selected.scope === "run" ? t("Completed stage for context", "关联的已完成阶段") : t("Mission", "测试任务"), children: <Typography.Text code copyable>{client.getQueryData<Mission[]>(["missions", runId])?.find((item) => item.id === (selected.mission_id || selected.context_mission_id))?.key || selected.mission_id || selected.context_mission_id}</Typography.Text> }] : []),
         { key: "asked", label: t("Asked", "提问时间"), children: formatDate(selected.created_at) },
         ...(selected.answered_at ? [{ key: "answered", label: t("Answered", "回答时间"), children: formatDate(selected.answered_at) }] : []),
       ]} />

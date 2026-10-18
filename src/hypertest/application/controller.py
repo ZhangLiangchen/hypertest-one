@@ -41,6 +41,7 @@ async def advance_run(
     max_steps: int = 12,
     harness: AgentHarness | None = None,
     previous_steps: list[dict[str, str]] | None = None,
+    execution_profile: str | None = None,
 ) -> dict:
     """Run concrete missions/executions until a verdict, interruption, or step limit.
 
@@ -48,6 +49,8 @@ async def advance_run(
     visible through Attempts/Executions; no synthetic agent output is supplied.
     Harness injection exists only for integration tests, never in the HTTP schema.
     """
+    if execution_profile is not None:
+        raise ConflictError("persistent execution requires a durable Worker job")
     if prepare_workspace == bool(workspace and workspace.strip()):
         raise ValueError("choose either automatic pinned checkout or an existing workspace")
     if backend not in {"docker", "local"}:

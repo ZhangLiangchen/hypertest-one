@@ -14,12 +14,12 @@ esac
 build_context="$(mktemp -d "${TMPDIR:-/tmp}/hypertest-runner-build.XXXXXX")"
 trap 'rm -rf -- "$build_context"' EXIT
 runner_root="$repo_root/src/hypertest/runner"
-cp "$runner_root/Dockerfile" "$build_context/Dockerfile"
-cp "$runner_root/locks/$profile_id.txt" "$build_context/requirements.txt"
+install -m 0644 "$runner_root/Dockerfile" "$build_context/Dockerfile"
+install -m 0644 "$runner_root/locks/$profile_id.txt" "$build_context/requirements.txt"
 if [[ "$profile_id" == python-api-v2 ]]; then
-  cp "$runner_root/service_launcher.py" "$build_context/service_launcher.py"
+  install -m 0644 "$runner_root/service_launcher.py" "$build_context/service_launcher.py"
 else
-  cp "$runner_root/service_launcher_v1.py" "$build_context/service_launcher.py"
+  install -m 0644 "$runner_root/service_launcher_v1.py" "$build_context/service_launcher.py"
 fi
 base_image="${HYPERTEST_RUNNER_BASE_IMAGE:-python:3.12-slim}"
 # Pin the manifest digest used for this image, even when the operator supplied a tag.

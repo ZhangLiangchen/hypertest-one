@@ -1,0 +1,47 @@
+[Unit]
+Description=HyperTest controlled host Harness Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Preserve the existing hypertest HOME/native OAuth runtime. Never run as root.
+User=hypertest
+Group=hypertest
+SupplementaryGroups=hypertest-bridge
+WorkingDirectory=/var/lib/hypertest
+Environment=HOME=/var/lib/hypertest
+Environment=CODEX_HOME=/var/lib/hypertest/.codex
+Environment=PATH=/opt/hypertest/node/bin:/opt/hypertest/codex/bin:/usr/bin:/bin
+# This is a dedicated allowlisted config, NOT /etc/hypertest/hypertest.env.
+EnvironmentFile=/etc/hypertest/container/bridge.env
+ExecStart=/opt/hypertest/bridge-current/.venv/bin/python -m hypertest.harness_bridge
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=45
+UMask=0007
+RuntimeDirectory=hypertest-harness
+RuntimeDirectoryMode=0770
+# Keep the shared mount directory during Bridge stop/restart and cold backup.
+# The server replaces socket files; Worker mounts the stable parent directory.
+RuntimeDirectoryPreserve=yes
+StateDirectory=hypertest-harness
+StateDirectoryMode=0700
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/hypertest/.codex /var/lib/hypertest/workspaces/.hypertest-agent-sessions /var/lib/hypertest-harness /run/hypertest-harness
+InaccessiblePaths=-/var/run/docker.sock -/run/docker.sock -/var/lib/docker -/var/lib/hypertest/artifacts -/etc/hypertest/hypertest.env -/etc/hypertest/postgres.env -/etc/hypertest/container/platform.env -/etc/hypertest/container/gitlab
+# No host/Compose DB access. Provider HTTPS to public services remains available.
+IPAddressDeny=127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 ::1/128 fc00::/7
+MemoryMax=768M
+TasksMax=128
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
