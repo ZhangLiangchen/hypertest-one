@@ -2,6 +2,59 @@
 
 核验日期：2026-10-17，Asia/Singapore。本文中的“交接目录”指本机 `/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff`，可移交证据副本见 [第一阶段验收](FIRST_PHASE_ACCEPTANCE.md)。目标：155.138.206.106，root SSH/22。实际主机是 Debian13.7 x86_64、2CPU/3915MiB，已有7.7GiB swap保留。此部署面向一个可信操作者。d20 已部署时使用 SSH 隧道访问；用户现已选择 VPN 来源 IP 白名单入口加 SSH 备选。阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212`已部署并激活白名单；当前范围修复的后续实际版本、网络状态与运行结果以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准。来源白名单不等于应用登录/RBAC。
 
+<a id="ssh-access"></a>
+
+## SSH 登录与自动检查（2026-10-18 更新）
+
+本机后续远端检查统一使用 `hypertest-one` SSH 别名与专用 Ed25519 密钥。目标为 `root@155.138.206.106:22`。2026-10-18 已分别实测别名密钥登录、IP 密钥登录和强制密码登录成功；原有密码登录继续保留。本文其余版本与验收记录保留各自的历史时间。
+
+本机 `~/.ssh/config` 中的配置如下；原 OrbStack Include 保留在文件顶部：
+
+```sshconfig
+Host hypertest-one 155.138.206.106
+    HostName 155.138.206.106
+    User root
+    Port 22
+    IdentityFile ~/.ssh/hypertest_one_ed25519
+    IdentitiesOnly yes
+    PreferredAuthentications publickey,password
+    StrictHostKeyChecking yes
+```
+
+私钥 `~/.ssh/hypertest_one_ed25519` 仅保存在这台 Mac，权限为 `600`；远端 `/root/.ssh/authorized_keys` 仅追加对应公钥。其他电脑、CI 和云执行器需要独立配置及授权，不能直接假定此别名可用。不要把私钥或密码写入仓库、交付归档或日志。
+
+- 专用登录公钥指纹：`SHA256:qA1hUtHN3M+8o6LLBhjUQWG6XVeJh2P/ONwvlgiDJKE`。
+- 服务器 Ed25519 主机密钥指纹：`SHA256:PoYUrSTDnN10A010My98ydOX3HQq/FynK/VxU9T5AqI`。这是服务器身份，与登录公钥不同；后续连接继续校验已有 `known_hosts`。
+- 本机配置备份：`~/.ssh/config.before-hypertest-one-20261018T125515637563Z`。
+- 远端授权文件备份：`/root/.ssh/authorized_keys.before-hypertest-one-20261018T125452257501Z`。恢复前保留之后新增的授权，不能盲目覆盖。
+
+日常交互登录：
+
+```bash
+ssh hypertest-one
+```
+
+自动连接预检及统一的只读健康检查，在本机仓库根目录运行：
+
+```bash
+ssh -o BatchMode=yes -o PreferredAuthentications=publickey -o ConnectTimeout=15 hypertest-one 'hostname'
+bash ops/check-remote.sh
+```
+
+[健康检查脚本](../ops/check-remote.sh)检查 API、worker、生产 Web、nginx 的服务状态，PostgreSQL 容器健康与实际 SQL 查询，以及 API 健康响应、worker 心跳和 Web HTTP 状态。任一项失败返回非零退出码；SSH 认证失败同样返回失败，不进入密码交互。该结果只说明平台运行状况，不代表真实 Agent 测试周期已通过或获得 `RELEASE_READY`。
+
+2026-10-18 21:29（Asia/Singapore）已通过该脚本实测：四项 systemd 服务 active、数据库 healthy 且 `SELECT 1` 成功、API 直连和代理健康、worker 可用且 active_workers=1、Web 直连和代理均 HTTP 200。该次实际 release 为 `0a2af9c4f5034c118f1a19abd786290f0959a648`；以后仍以每次远端检查结果为准。
+
+后续自动检查与新建运维脚本统一沿用上述别名和密钥参数，不再使用临时目录中的 `SSH_ASKPASS`。此前失败是默认公钥未获授权，而 `BatchMode=yes` 又禁用了密码交互；密钥安装后该问题已解决。不要在全局 SSH 配置中禁用密码登录。
+
+需要人工密码恢复时，在本机终端执行，由操作者输入现有密码：
+
+```bash
+ssh -o BatchMode=no -o PreferredAuthentications=password -o PubkeyAuthentication=no hypertest-one
+```
+
+本次配置未修改远端 sshd 的密码认证设置、应用服务或网络白名单。
+
 ## 本轮访问方案与最新运行登记
 
 最新用户选择：公网 HTTP `155.138.206.106:8080` 仅允许来源 `45.76.149.233/32`，SSH22及原 `127.0.0.1:8080` 隧道保留。用户已连接 VPN，服务器记录的 SSH 实际 peer 为 `45.76.149.233`；这不替代浏览器 HTTP 实际出口确认。
@@ -54,8 +107,8 @@ d20时代仅SSH22公网监听属于历史。阶段1 73d已启用精确公网155.
 以后在本机终端重新建立（终端保持打开）：
 
 ```bash
-ssh -p 22 -N -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:8080:127.0.0.1:8080 root@155.138.206.106
+ssh -N -o BatchMode=yes -o PreferredAuthentications=publickey -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:8080:127.0.0.1:8080 hypertest-one
 ```
 
 原有known_hosts与远端Ed25519公钥指纹已一致核验：`SHA256:PoYUrSTDnN10A010My98ydOX3HQq/FynK/VxU9T5AqI`。
@@ -67,7 +120,7 @@ ssh -p 22 -N -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
 先从本机进入你已经验证过的服务器终端：
 
 ```bash
-ssh -p 22 root@155.138.206.106
+ssh hypertest-one
 ```
 
 再在服务器root终端执行，让CLI在正确服务账号下完成device OAuth；按CLI提示在自己的浏览器完成授权：

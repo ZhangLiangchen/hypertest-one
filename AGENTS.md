@@ -43,3 +43,10 @@ Before changing a core domain entity, mission lifecycle, runner/evidence trust m
 4. Do not silently encode architecture decisions only in implementation code.
 
 The goal is for HyperTest One to remain agent-independent, model-independent, evidence-driven, auditable, reproducible, and replaceable at the harness layer.
+
+## Remote operations
+
+- Read [server operations](docs/SERVER_OPERATIONS.md#ssh-access) before connecting to the deployed server.
+- On the configured local Mac, use `ssh hypertest-one` for interactive access. Automated checks must use the same alias with `BatchMode=yes` and `PreferredAuthentications=publickey`; use `bash ops/check-remote.sh` for platform health checks.
+- Keep the existing password login available for manual recovery. Automated checks must fail on key authentication errors rather than depend on a temporary `SSH_ASKPASS` helper or prompt for a password.
+- The alias and private key are local to this Mac, not provisioned in CI or cloud executors. Preserve host-key verification, existing server access, and the VPN allowlist.
