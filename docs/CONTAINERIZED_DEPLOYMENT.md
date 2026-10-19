@@ -1,5 +1,11 @@
 # ADR-013 容器化部署与恢复
 
+当前访问规则（2026-10-19）：用户 Web 仅走既有跳板机来源白名单；SSH 保留运维
+登录，停用转发与 Web 隧道。真实地址留在服务器受保护配置中，示例使用文档地址。
+首次启用或 ACL 变更做一次外部允许/拒绝验收；日常部署核对 ACL 有效与内部就绪，
+不反复进行手机/VPN 连通性检查。本文末尾首次切换记录保留当时边界，不能用其旧
+隧道步骤恢复另一用户入口。配置的实际激活结果须独立登记。
+
 本目录实现单 Linux 宿主的生产打包边界：nginx / Web / API / Task Worker /
 PostgreSQL 使用固定镜像，Provider CLI、原生认证和 Host Harness Bridge 保留宿主。
 开发用 `docker-compose.yml` 继续独立；生产使用 `compose.production.yml`。
@@ -106,12 +112,18 @@ root 与 Worker 身份读取，token 不可 world-readable。在 compose.env 增
 
 ## 网络边界
 
-nginx **仅**使用 `network_mode: host`，监听 `127.0.0.1:8080`（SSH 隧道）和
-`155.138.206.106:8080`（公网 VPN）。公网 server 固定 `allow 45.76.149.233/32; deny all`，
-同时保留既有精确 UFW INPUT 规则。nginx 无 `ports:`，因此公网入口没有 Docker DNAT
+nginx **仅**使用 `network_mode: host`，公网监听地址/端口取自受保护的
+`HYPERTEST_PUBLIC_IP` / `HYPERTEST_INGRESS_PORT`；公网 server 只允许
+`HYPERTEST_VPN_CIDR` 配置的单个 IPv4 `/32`，其余 `deny all`。该值来自现有已授权
+配置，不由 Web/Agent 提供，不自动增加来源或扩大网段。同时保留既有精确 UFW
+INPUT 规则。nginx 无 `ports:`，因此公网入口没有 Docker DNAT
 绕过原 INPUT 白名单的问题。API/Web/PostgreSQL 只映射 host loopback；没有 wildcard
-或 IPv6 公网绑定。隔离验收使用 `HYPERTEST_PUBLIC_INGRESS=disabled`（生成配置只监听
-loopback），并修改四个宿主端口以避开正式服务。正式环境保持 `enabled` 与原白名单。
+或 IPv6 公网绑定。生产回环 nginx 只提供精确 `GET` / `HEAD /api/v1/health`；
+其他方法或路径一律拒绝，不能通过它访问 Web、capabilities 或业务 API。隔离验收
+使用 `HYPERTEST_PUBLIC_INGRESS=disabled`（生成配置只监听 loopback，提供完整隔离
+Web/API），并修改四个宿主端口以避开正式服务。正式环境保持 `enabled` 与原白名单，
+不能用 staging 配置替换正式入口。生成新 nginx 配置使用全新目标路径，先核对原
+白名单现值，再测试并在维护窗口切换；不要直接覆盖已有 bind mount 文件。
 
 nginx 使用真实 TCP peer 作为 ACL 和日志身份，不信任 Real-IP、PROXY protocol、
 来客 X-Forwarded-For / Forwarded。转发时覆盖身份头，公网 Host / unsafe Origin 再作
@@ -159,17 +171,55 @@ Engine 重启导致本栈停止后，操作者用 `systemctl restart hypertest-c
 重启验收。正式 stack 和 Bridge 已启用开机启动，独立 staging 保持停止；
 生产 Docker / 宿主实机重启仍未执行。
 
-部署仍需实测以下项目，配置存在不等于已通过：
+首次安装或访问策略变更时实测白名单入口 HTML/API/静态资源可用、非白名单拒绝
+（伪造 XFF 也拒绝）、内部端口无公网旁路；核对正常 SSH 管理登录及新转发被拒绝。
+既有允许/拒绝证据保留，不将历史结果改写成新策略已经验收。
 
-1. 从已连接 VPN 的实际出口访问 `http://155.138.206.106:8080`，HTML/API/静态资源通过，
-   nginx 日志 peer 确认为 `45.76.149.233`。
-2. 从不同真实公网出口（如未连接 VPN 的手机移动网络）访问失败；伪造 XFF 不得放行。
-3. 公网 API8000/Web3000/PG5432 与 IPv6 不可访问；宿主 `ss -lntp`、Docker 发布配置
-   和实际网络路径核对一致。不能只靠 UFW 展示推断 Docker 端口安全。
-4. 原 `ssh hypertest-one` / 密码恢复方式与隧道保持有效，隧道 HTML/API 通过。
+常规应用部署核对实际配置与既有 `/32` ACL、UFW 和 Docker 守卫继续有效，再做
+内部 readiness 即可；不用每轮重复手机/VPN、公网多出口、SSH 隧道或密码登录测试。
+`readiness.py` 比较实际挂载的 nginx 配置与受保护配置的渲染结果，直接请求内部
+API/Web、nginx health；capabilities 走内部 API，不依赖回环业务入口。该比较不
+冒充首次实际公网允许/拒绝验收。网络策略修改保留回退记录，不重放旧 activate
+脚本或添加重复规则。
 
-当前允许的白名单和 SSH 配置不由本目录脚本自动修改。任何网络策略修改须保留
-回退记录，不重放旧的 activate 脚本或增添重复规则。
+### SSH 仅作运维
+
+使用仓库中的 `ops/ssh/00-hypertest-no-forwarding.conf` 作为 sshd drop-in：
+
+```text
+DisableForwarding yes
+AllowTcpForwarding no
+AllowStreamLocalForwarding no
+PermitTunnel no
+```
+
+安装前保持现有管理 SSH 连接打开，确认 `/etc/ssh/sshd_config` 在全局段包含
+`Include /etc/ssh/sshd_config.d/*.conf`，并运行 `/usr/sbin/sshd -t`。在新的受保护
+备份目录保存原主配置、同名 drop-in（若存在）及 `/usr/sbin/sshd -T` 输出；不复制
+私钥或认证内容。再安装该文件到 `/etc/ssh/sshd_config.d/00-hypertest-no-forwarding.conf`
+（root:root、0644），运行：
+
+```bash
+/usr/sbin/sshd -t
+/usr/sbin/sshd -T
+# 再用现有 SSH_CONNECTION 中的实际连接上下文检查 Match 生效结果：
+/usr/sbin/sshd -T -C 'user=root,host=<peer>,addr=<peer>,laddr=<server>,lport=22'
+```
+
+全局及 root 实际上下文必须均为 `disableforwarding yes`、`allowtcpforwarding no`、
+`allowstreamlocalforwarding no`、`permittunnel no`。认证相关的
+`passwordauthentication`、`pubkeyauthentication`、`permitrootlogin`、
+`authenticationmethods` 和 `hostkey` 必须与安装前相同，并保留已有公钥/密码登录。
+Include 顺序或 Match 规则导致效果不同则拒绝应用，不另行改认证规则。校验失败
+立即恢复原 drop-in（原先不存在则只删除新文件），重新 `sshd -t`，不执行 reload。
+
+全部通过后才 `systemctl reload ssh.service`，从本机另开一条严格公钥的新连接验证
+管理登录成功，再关闭旧检查连接。reload 不会撤销既有 SSH 连接的旧转发能力；
+只结束逐一核对为旧 Web 隧道的本机进程。若需关闭远端旧会话，核对其 PID、完整
+命令、peer 与用途，不批量结束 sshd 子进程、不沿用历史 PID、不影响其他管理连接。
+用一条新的临时连接验证 TCP / streamlocal 转发被拒绝后关闭该验证连接。此项仅在
+策略初次安装或改变时执行，常规部署不重复改 sshd，也不要求操作者重复密码登录。
+禁转发不限制受信 root 运维 shell 的管理权限。
 
 ## 首次切换与常规升级
 
@@ -182,6 +232,22 @@ Engine 重启导致本栈停止后，操作者用 `systemctl restart hypertest-c
 ```bash
 docker compose --env-file /absolute/compose.env -f compose.production.yml ps
 ```
+
+需要独立发布运维修复时，保持业务 `container-current`、Bridge 与运行镜像身份不变，
+把 `ops/container` 和所需 Compose 文件打包到
+`/opt/hypertest/ops-releases/<manifest-digest>`，保留每文件 SHA-256 与来源 provenance。
+运维包不含生产 env、OAuth 或密钥；未提交快照须明确记录，不能宣称来自 main。
+`ops-current` 原子指向固定包；stack 的 ExecStart/ExecStop、backup 的 ExecStart
+通过窄 drop-in 使用该入口，其余 unit 依赖、工作目录、维护锁和 timer 不变。
+`check-remote.sh` 优先用 `ops-current`，仅在此入口从未配置时兼容业务 release；
+断链或不完整入口必须失败。构建镜像仍从完整业务 release 执行，不从此运行运维包构建。
+
+新 nginx 与新 readiness/backup 在同一维护窗口切换。维护程序持有既有排他锁时，
+按 scheduled backup 的方式调用受控 `start.start()`，不能在该锁内再执行会获取
+同一锁的 `systemctl restart` / `start.py` CLI。先停止 API 接收新工作、复核没有
+活动请求；忙时恢复 API 并退出，不中断 Worker。失败恢复原 env、ops symlink 和
+unit drop-in，再以原运维代码受控启动并核对就绪。原业务源码、镜像、数据库和
+历史文件均不回写，应用与运维身份分开登记。
 
 切换窗口必须有同一时间的配对备份、隔离恢复和新 image 的检查结果。现有服务器
 systemd API/Worker/Web/nginx 与生产端口不能并行争抢；原 PostgreSQL 容器也不能和
@@ -206,7 +272,7 @@ Compose 同时挂载同一个 PGDATA。只停止明确核验的旧服务/容器�
    仅安装兼容包不执行 OAuth 登录。确认 UDS/身份/协议能力和 key 权限。
 6. 停止旧 nginx 并核验端口释放后，`systemctl start hypertest-container-stack`。
    受控启动不含 migration；不要绕过守卫直接 `up`，也不要用 `up --build`。
-7. 完成下一节真实就绪与数据保全检查，至少观察 15 分钟，再登记实际激活版本。
+7. 完成下一节真实就绪与数据保全检查，按变更风险观察服务，再登记实际激活版本。
 
 新持续 profile 的 WAITING_INPUT 在平台升级时仍需要保留原 Bridge state/native
 session/workspace，以及兼容代码/协议，停止 Provider 后才能做配对备份；不能把
@@ -223,7 +289,8 @@ session/workspace，以及兼容代码/协议，停止 Provider 后才能做配�
 健康、PG 卷、API 的 CLI / socket 边界、loopback HTTP 与 Worker 返回的真实 Bridge /
 Docker 能力。隔离环境增加 `--bridge-service hypertest-adr013-staging-bridge`。
 此命令不提交测试 Run；capabilities 请求会写入独立 Operational 控制队列。
-输出明确保留公网来源、旧数据和真实测试周期的未验收项，不能替代这些检查。
+输出明确区分首次公网边界、旧数据和真实测试周期的独立证据；日常升级无需重复
+外部连通性验收，内部 readiness 也不替代真实测试结果。
 
 核验安装镜像内 API/Web 不含 Codex、API 不含 Docker；`docker inspect` 核对挂载、
 只读根、非 root、cap_drop、无 host auth。Worker 有 Docker/Bridge 且无原生认证。

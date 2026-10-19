@@ -32,7 +32,10 @@ def test_fixed_images_and_authorized_peer_are_required(tmp_path):
     for unsafe in ("latest", "hypertest:release", "sha256:short", "repo@sha256:" + "g" * 64):
         with pytest.raises(ValueError, match="tags are refused"):
             stack.validate({**values, "HYPERTEST_API_IMAGE": unsafe}, live=False)
-    for unsafe in ("0.0.0.0/0", "45.76.149.0/24", "127.0.0.1/32"):
+    stack.validate({**values, "HYPERTEST_VPN_CIDR": "192.0.2.44/32"}, live=False)
+    for unsafe in ("", "0.0.0.0/0", "198.51.100.0/24", "127.0.0.1/32", "::1/128",
+                   "198.51.100.7", "198.51.100.7/255.255.255.255", "169.254.1.2/32",
+                   "224.0.0.1/32", "0.0.0.0/32", "255.255.255.255/32"):
         with pytest.raises(ValueError, match="authorized VPN"):
             stack.validate({**values, "HYPERTEST_VPN_CIDR": unsafe}, live=False)
 
@@ -64,13 +67,23 @@ def test_nginx_uses_specific_host_listeners_and_overwrites_forwarded_identity(tm
     values = configuration(tmp_path)
     config = stack.render_nginx(values)
     assert "listen 127.0.0.1:8080;" in config
-    assert "listen 155.138.206.106:8080 default_server;" in config
-    assert "allow 45.76.149.233/32;" in config
+    assert "listen 203.0.113.10:8080 default_server;" in config
+    assert "allow 198.51.100.7/32;" in config
     assert "real_ip_header" not in config and "set_real_ip_from" not in config
     assert "$proxy_add_x_forwarded_for" not in config
-    assert config.count("proxy_set_header X-Forwarded-For $remote_addr;") == 4
+    assert config.count("proxy_set_header X-Forwarded-For $remote_addr;") == 3
     assert "deny all;" in config
     assert "map $http_origin" in config
+    loopback, public = config.split("listen 203.0.113.10:8080 default_server;")
+    assert "location = /api/v1/health {" in loopback
+    assert "limit_except GET HEAD { deny all; }" in loopback
+    assert "proxy_method GET;" in loopback
+    assert "location / { return 403; }" in loopback
+    assert "location /api/v1/ {" not in loopback
+    assert "proxy_pass http://127.0.0.1:3000;" not in loopback
+    assert "location /api/v1/ {" in public
+    assert "proxy_pass http://127.0.0.1:3000;" in public
+    assert "allow 198.51.100.7/32;" in public
 
 
 def test_compose_isolates_privileged_mounts_and_preserves_external_volume(tmp_path):
@@ -209,8 +222,11 @@ def test_staging_ingress_does_not_open_any_public_listener(tmp_path):
     stack.validate(values, live=False)
     config = stack.render_nginx(values)
     assert "listen 127.0.0.1:18080;" in config
-    assert "listen 155.138.206.106" not in config
+    assert "listen 203.0.113.10" not in config
     assert config.count("listen ") == 1
+    assert "location /api/v1/ {" in config
+    assert "proxy_pass http://127.0.0.1:3000;" in config
+    assert "location / { return 403; }" not in config
 
 
 def assert_worker_only_gitlab_policy_mount(services):

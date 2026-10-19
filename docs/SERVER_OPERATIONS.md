@@ -1,6 +1,54 @@
 # HyperTest One 服务器操作交付
 
-## 当前部署：ADR-013 容器栈（2026-10-19）
+## 当前访问与巡检规则（2026-10-19 更新）
+
+Web 的唯一用户入口是既有跳板机出口对应的来源白名单入口。真实入口地址及唯一
+IPv4 `/32` 来源保存在服务器受保护的 `compose.env`，分别由
+`HYPERTEST_PUBLIC_IP` / `HYPERTEST_INGRESS_PORT` / `HYPERTEST_VPN_CIDR` 指定；
+产品说明、白皮书和新的验收摘要不列出跳板机地址。配置升级必须沿用这些现值，
+不能照抄示例中的文档地址。原始历史证据保留其当时的真实内容。
+
+生产 nginx 的回环监听仅接受 `GET` / `HEAD /api/v1/health`，其余路径拒绝；
+它供容器与运维检查，不再提供备用 Web/API 入口。API、Web、数据库的内部回环
+映射仍保留，用于可信组件和运维。SSH 仅作管理与人工恢复，公钥、现有密码登录、
+SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用，不再建立 Web
+隧道。`ops/ssh/00-hypertest-no-forwarding.conf` 及安全安装步骤见
+[容器部署网络边界](CONTAINERIZED_DEPLOYMENT.md#网络边界)。受信 root shell 本身
+仍具有管理能力，禁转发不构成对 root 的权限隔离。
+
+首次启用或变更访问策略时，做一次实际白名单允许与拒绝验证，并保留结果。
+常规应用部署只核对受保护配置、实际 nginx ACL / UFW / Docker 守卫继续有效，
+加上内部服务就绪检查；不重复要求手机断 VPN、VPN 重连或整套外部连通性验收。
+访问异常时再针对故障检查。`bash ops/check-remote.sh` 保持按原 SSH 别名和严格
+公钥方式执行平台检查，不创建业务测试任务，也不检查备用隧道。
+
+业务与运维版本分别登记：`container-current` 指向业务源码发布，平台镜像和
+`bridge-current` 各自记录构建身份；`ops-current` 可指向
+`/opt/hypertest/ops-releases/<manifest-digest>` 中固定的运维源码包。它包含运行所需
+`ops/container`、Compose 文件、SHA-256 manifest 与 provenance，不含生产 env 或
+认证。stack / backup 的窄 systemd drop-in 使用该入口，保留原依赖、维护锁和 timer；
+健康检查优先使用它，无此入口时兼容旧 `container-current`。已配置却断链或缺文件
+必须失败，不能偷偷回退旧巡检。运维快照的 digest 不冒称已合并的 main commit。
+业务升级前必须核对固定运维 Compose 与新镜像/协议兼容；改变运维代码或 Compose
+时生成并验收新的运维包，不能让旧 `ops-current` 静默遗漏发布所需配置。
+
+本轮已实际安装 sshd drop-in，并将 health-only nginx 与新版巡检/备份成对切换。
+业务源码入口仍为 `828225d1c1d698f820aebb265ad962e3ab6c2151`，Bridge 仍为
+`95e92c584897ff18bc1a0006823891ca45a619be`，五个运行 image ID 均保留；本轮仅发布
+运维修复，未部署 Finding / Gate 新业务功能。当前运维源码 manifest digest 是
+`90037658b11338ea183e9daa197d1bde5671cf8617bc6322f9ead96f009c2c96`，属于明确登记
+的 working-tree 快照，不宣称已合并到 main。新 SSH 公钥登录、TCP / Unix socket
+转发拒绝、内部 readiness、实际白名单浏览器 Web/health 及内部非白名单拒绝均已
+通过；39 张纳入保全范围的原表与 2451 个既有 Artifact / Workspace / Bridge 文件 hash
+保持，原 OAuth、UFW、Docker 守卫及登录配置保留。详细证据见本机交接目录
+`closed-gate-20261019/evidence/server-access/` 与该轮运维报告。
+备份 timer 继续每日 UTC03:30 加最多20分钟随机延迟；daemon-reload 后随机触发点
+从03:43:38变为03:44:10，原 timer 文件、日历策略与持久配置未修改。
+
+以下旧部署和 SSH 隧道段落是历史记录，
+不授权恢复旧 Web 隧道或重放早期白名单激活脚本。
+
+## ADR-013 首次生产切换记录（历史，2026-10-19）
 
 PR #9 已合并为 `740a74d3bf66edfe916a2f3e80e459edf63e61dc`；正式发布另含备份与巡检适配
 `2ceff17fe7d4e090e651e12c3a57e4d1d802ffe2`，并更新至真实验收发现的会话修复

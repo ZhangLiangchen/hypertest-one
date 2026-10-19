@@ -236,6 +236,19 @@ export type Finding = {
   row_version: number;
 };
 
+export type FindingHistoryState = { status: string | null; resolution: string | null; row_version: number | null };
+export type FindingHistoryEvent = {
+  id: string;
+  created_at: string;
+  actor_type: string;
+  action: string;
+  before: FindingHistoryState | null;
+  after: FindingHistoryState | null;
+  reason: string | null;
+  reason_truncated: boolean;
+};
+export type FindingHistory = { events: FindingHistoryEvent[]; truncated: boolean };
+
 export type Verdict = {
   id: string;
   key: string;
@@ -409,6 +422,7 @@ export type BackgroundJob = {
   status: JobStatus;
   idempotency_key: string;
   retry_of_job_id?: string | null;
+  payload?: Record<string, unknown>;
   progress?: Record<string, unknown> | null;
   result?: Record<string, unknown> | null;
   error_code?: string | null;
@@ -489,6 +503,8 @@ export type RunReport = {
   binding_id: string;
   durable_job_id: string;
   content_sha256: string;
+  verdict_key?: string | null;
+  verdict_decision?: string | null;
   created_at: string;
 };
 export type GitLabIssueOperation = {

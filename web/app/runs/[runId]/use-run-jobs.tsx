@@ -89,17 +89,24 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     const request = { operation, payload: options, ...(missionId ? { mission_id: missionId } : {}) };
     const pending = pendingKey(`${operation}:${missionId || "run"}`, request);
     let recorded: BackgroundJob | undefined;
-    if (operation === "ADVANCE_RUN") {
+    if (operation === "ADVANCE_RUN" || operation === "EVALUATE_GATE") {
       // Keep an uncertain submission recoverable by its original key, while a
       // fresh request must not bypass the retry relationship after recovery.
       const [currentJobs, currentHarness] = await Promise.all([getJobs(runId), getRunHarness(runId)]);
       client.setQueryData(["harness", runId], currentHarness);
       recorded = currentJobs.find((job) => job.idempotency_key === pending.key);
       if (!recorded) {
-        if (currentHarness.binding && currentHarness.binding.status !== "ACTIVE") throw new Error(t("Review the original session before continuing. Ended sessions require a new testing round.", "继续前请检查原会话。已结束的会话需要创建新测试轮次。"));
-        const latest = [...currentJobs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-        if (latest && retryableStatuses.includes(latest.status)
+        if (operation === "EVALUATE_GATE") {
+          if (currentHarness.binding && (currentHarness.binding.status !== "CLOSED" || !currentHarness.reports.length)) throw new Error(t("Independent reevaluation requires a closed session with an accepted report. Review Session & reports before continuing.", "独立重评需要已关闭会话和已接受的报告。请先查看“持续会话与报告”。"));
+          if (currentJobs.some((job) => activeStatuses.includes(job.status))) throw new Error(t("Wait for the active task to finish before reevaluating the gate.", "请等待当前后台任务结束，再重评质量门禁。"));
+          const latest = [...currentJobs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+          if (latest?.job_type === "EVALUATE_GATE" && retryableStatuses.includes(latest.status)) throw new Error(t("Review and retry the recorded gate task so its recovery history stays linked.", "请检查并重试已记录的门禁任务，以保留恢复关联。"));
+        } else {
+          if (currentHarness.binding && currentHarness.binding.status !== "ACTIVE") throw new Error(t("Review the original session before continuing. Ended sessions require a new testing round.", "继续前请检查原会话。已结束的会话需要创建新测试轮次。"));
+          const latest = [...currentJobs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+          if (latest && retryableStatuses.includes(latest.status)
           && (currentHarness.binding || latest.job_type === "ADVANCE_RUN")) throw new Error(t("Retry the recorded task explicitly so its recovery history stays linked. Do not start a separate cycle.", "请显式重试已记录任务，以保留恢复关联。请勿另建测试周期绕过重试历史。"));
+        }
       }
     }
     const job = recorded || await confirmSubmission(() => createJob(runId, {
@@ -149,7 +156,8 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     mutationFn: async (job: BackgroundJob) => {
       const current = await getRunHarness(runId);
       client.setQueryData(["harness", runId], current);
-      if (current.binding && current.binding.status !== "ACTIVE") {
+      const closedGate = job.job_type === "EVALUATE_GATE" && current.binding?.status === "CLOSED" && !!current.reports.length;
+      if (current.binding && (job.job_type === "EVALUATE_GATE" ? !closedGate : current.binding.status !== "ACTIVE")) {
         throw new Error(t("This session cannot retry tasks. Review Session & reports to recover it or start a new run from the project.", "此会话当前不能重试任务。请查看“持续会话与报告”进行恢复，或回到项目创建新的运行。"));
       }
       if (job.job_type === "EXECUTE_MISSION" && job.mission_id) {
@@ -175,8 +183,9 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     const cancelledMission = job.job_type === "EXECUTE_MISSION" && mission?.status === "CANCELLED";
     const unknownMission = job.job_type === "EXECUTE_MISSION" && !mission;
     const bindingStatus = harness.data?.binding?.status;
-    const sessionEnded = !!bindingStatus && ["CLOSED", "FAILED", "CANCELLED"].includes(bindingStatus);
-    const sessionBlocked = !!bindingStatus && bindingStatus !== "ACTIVE";
+    const closedGate = job.job_type === "EVALUATE_GATE" && bindingStatus === "CLOSED" && !!harness.data?.reports.length;
+    const sessionEnded = !!bindingStatus && ["CLOSED", "FAILED", "CANCELLED"].includes(bindingStatus) && !closedGate;
+    const sessionBlocked = !!bindingStatus && (job.job_type === "EVALUATE_GATE" ? !closedGate : bindingStatus !== "ACTIVE");
     return <Space wrap>
       <Button size="small" onClick={() => { setSelectedId(job.id); cancellation.reset(); retry.reset(); }}>{t("Details", "详情")}</Button>
       {job.status === "WAITING_INPUT" && <Button size="small" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>}
@@ -234,6 +243,8 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         {current.status === "INTERRUPTED" && <Alert type="warning" showIcon message={t("Worker execution was interrupted", "Worker 执行已中断")} description={t("Review the recorded missions, executions and evidence. Retry creates a new task and preserves this task's history; completed canonical state remains available.", "请检查已记录的智能体任务、执行和证据。重试会创建新任务并保留原历史，已完成的正式状态仍会保留。")} style={{ marginBottom: 20 }} />}
         {current.status === "CANCEL_REQUESTED" && <Alert type="info" showIcon message={t("Waiting for the worker to acknowledge cancellation", "等待 Worker 确认取消")} description={t("The recorded status changes to CANCELLED after the worker stops at a safe boundary.", "Worker 在安全边界停止后，状态会更新为“已取消”（CANCELLED）。")} style={{ marginBottom: 20 }} />}
         {current.error_message && <Alert type="error" showIcon message={current.error_code || t("Task error", "任务错误")} description={<span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{current.error_message}</span>} style={{ marginBottom: 20 }} />}
+        {current.job_type === "EVALUATE_GATE" && <Alert type="info" showIcon message={t("Independent quality-gate task", "独立质量门禁任务")} description={t("This task reads canonical state and verifies existing evidence. It does not start or resume an agent session, rerun tests or rewrite the original report.", "此任务读取正式状态并校验已有证据，不会启动或恢复智能体会话、重跑测试或改写原报告。")} style={{ marginBottom: 20 }} />}
+        {current.job_type === "EVALUATE_GATE" && typeof current.payload?.reason === "string" && <><Typography.Title level={5}>{t("Reason for reevaluation", "重评原因")}</Typography.Title><Typography.Paragraph style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{current.payload.reason}</Typography.Paragraph></>}
         {!!selectedId && <JobActivityPanel key={current.id} job={current} taskStale={selected.isError} onResults={() => viewResult("verdicts")} />}
         <Descriptions bordered column={1} size="small" items={[
           { key: "operation", label: t("Operation", "操作"), children: label(current.job_type) },
@@ -253,7 +264,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         {current.result && ["mission_key", "execution_key", "verdict_key", "decision", "outcome"].some((key) => typeof current.result?.[key] === "string") && <>
           <Typography.Title level={4}>{t("Recorded result", "已记录结果")}</Typography.Title>
           <Descriptions bordered column={1} size="small" items={[
-            ...["mission_key", "execution_key", "verdict_key"].filter((key) => typeof current.result?.[key] === "string").map((key) => ({ key, label: key === "mission_key" ? t("Mission", "测试任务") : key === "execution_key" ? t("Execution", "执行") : t("Verdict", "质量判定"), children: <Typography.Text code copyable>{current.result![key] as string}</Typography.Text> })),
+            ...["mission_key", "execution_key", "verdict_key"].filter((key) => typeof current.result?.[key] === "string").map((key) => ({ key, label: key === "mission_key" ? t("Mission", "测试任务") : key === "execution_key" ? t("Execution", "执行") : t("Verdict", "质量判定"), children: <Space wrap><Typography.Text code copyable>{current.result![key] as string}</Typography.Text>{key === "verdict_key" && <Button size="small" onClick={() => viewResult("verdicts", current.result![key] as string)}>{t("Open recorded verdict", "打开已记录判定")}</Button>}</Space> })),
             ...["decision", "outcome"].filter((key) => typeof current.result?.[key] === "string").map((key) => ({ key, label: key === "decision" ? t("Quality decision", "质量判定") : t("Execution outcome", "执行结果"), children: <Tag color={["PASS", "RELEASE_READY"].includes(current.result![key] as string) ? "green" : "red"}>{label(current.result![key] as string)}</Tag> })),
           ]} />
         </>}

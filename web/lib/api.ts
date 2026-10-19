@@ -1,5 +1,5 @@
 import type {
-  RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
+  RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingHistory, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
 } from "@/lib/types";
@@ -18,7 +18,7 @@ export function errorText(error: unknown, locale: Locale): string {
   const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   if (locale === "en") return detail || "Something went wrong. Please try again.";
   if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(detail)) {
-    return "无法连接服务。请确认 SSH 隧道已连接，再重试。";
+    return "无法连接服务。请确认已连接获准访问的网络，再重试。";
   }
   if (detail.includes("repository origin must not contain embedded credentials")) {
     return "仓库源地址不能包含 token、用户名密码等内嵌凭据。请使用不含凭据的 origin 地址，并在 Worker 主机配置 Git 访问授权。";
@@ -60,7 +60,7 @@ export function errorText(error: unknown, locale: Locale): string {
     const hint = error.status === 409 ? "请求与已有状态冲突。请刷新当前状态并检查输入后重试。"
       : error.status === 422 || error.status === 400 ? "输入未通过校验，请检查表单。"
       : error.status === 404 ? "未找到请求的数据，请刷新后重试。"
-      : error.status >= 500 ? "服务暂时不可用。请确认 SSH 隧道和服务运行状态后重试。"
+      : error.status >= 500 ? "服务暂时不可用。请确认访问网络和服务运行状态后重试。"
       : "请求未完成，请检查输入后重试。";
     return detail ? `${hint} 服务端详情：${detail}` : hint;
   }
@@ -140,6 +140,7 @@ export const getEvidenceContent = async (evidenceId: string) => {
   return response.text();
 };
 export const getFindings = (runId: string) => api<Finding[]>(`/test-runs/${runId}/findings`);
+export const getFindingHistory = (findingId: string) => api<FindingHistory>(`/findings/${findingId}/history?limit=50`);
 export const transitionFinding = (findingId: string, payload: FindingTransition) =>
   api<Finding>(`/findings/${findingId}/transition`, { method: "POST", body: JSON.stringify(payload) });
 export const getCapabilities = () => api<Capabilities>("/capabilities");

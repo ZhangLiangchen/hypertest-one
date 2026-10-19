@@ -94,9 +94,14 @@ async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]
                 "status": execution.status.value, "outcome": execution.outcome.value}
     if job.job_type is JobType.EVALUATE_GATE:
         from hypertest.application.gate import evaluate_gate
+        from hypertest.application.gate_governance import authorize_gate_job
+
+        await authorize_gate_job(session, job.test_run_id, payload)
+        payload.pop("reason", None)  # Intent is preserved in Job / Audit, not Gate facts.
         verdict = await evaluate_gate(session, job.test_run_id, **payload)
         return {"verdict_id": str(verdict.id), "verdict_key": verdict.key,
-                "decision": verdict.decision.value, "status": verdict.status.value}
+                "decision": verdict.decision.value, "status": verdict.status.value,
+                "sequence_no": verdict.sequence_no}
     if job.job_type is JobType.PREPARE_WORKSPACE:
         from hypertest.application.workspaces import prepare_workspace
         return await prepare_workspace(session, job.test_run_id)

@@ -62,18 +62,19 @@ test("overview exposes saved reports while retaining the canonical final verdict
   }
 });
 
-function taskController(currentBinding, recordedJobs, createdJob) {
+function taskController(currentBinding, recordedJobs, createdJob, reports = []) {
   let controller;
   let posts = 0;
+  const requests = [];
   const cache = new Map();
   const i18n = load("lib/i18n.tsx", { require });
   const followUp = load("app/runs/[runId]/run-next-action.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
   const hooks = { useQuery: ({ queryKey }) => ({ data: queryKey[0] === "jobs" ? [] : queryKey[0] === "harness" ? { binding: { status: "ACTIVE" }, reports: [] } : undefined }), useMutation: () => ({ reset() {} }), useQueryClient: () => ({ getQueryData() {}, setQueryData(key, value) { cache.set(JSON.stringify(key), value); } }) };
-  const api = { getJobs: async () => recordedJobs, getRunHarness: async () => ({ binding: currentBinding, reports: [] }), createJob: async () => { posts++; if (createdJob) return createdJob; throw new Error("unexpected new job"); } };
+  const api = { getJobs: async () => recordedJobs, getRunHarness: async () => ({ binding: currentBinding, reports }), createJob: async (runId, request) => { requests.push({ runId, request }); posts++; if (createdJob) return createdJob; throw new Error("unexpected new job"); } };
   const { useRunJobs } = load("app/runs/[runId]/use-run-jobs.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@tanstack/react-query" ? hooks : name === "@/lib/api" ? api : name === "@/lib/uuid" ? { createUuid: () => "fixed" } : name === "./run-next-action" ? followUp : name === "./job-activity" ? { JobActivityPanel: () => null } : name === "antd" ? { ...require(name), message: { useMessage: () => [{ success() {} }, null] } } : require(name) });
   function Capture() { controller = useRunJobs(id(1), () => {}, () => {}); return null; }
   renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(Capture)));
-  return { controller, posts: () => posts, cache };
+  return { controller, posts: () => posts, cache, requests };
 }
 
 test("a stale cycle dialog cannot bypass the original task retry after session recovery", async () => {
@@ -130,4 +131,42 @@ test("fresh cycle submission preserves pre-binding retry lineage, uncertain resp
   const legacy = taskController(null, [job("FAILED", { job_type: "EXECUTE_TESTS" })], queued);
   assert.equal((await legacy.controller.submit("ADVANCE_RUN", {})).id, queued.id);
   assert.equal(legacy.posts(), 1);
+});
+
+
+test("independent gate admission uses the fresh closed session, accepted report and absence of active work", async () => {
+  const reports = [{ id: id(7) }];
+  const queued = job("QUEUED", { job_type: "EVALUATE_GATE", id: id(8) });
+  const allowed = taskController({ status: "CLOSED" }, [], queued, reports);
+  assert.equal((await allowed.controller.submit("EVALUATE_GATE", { finalize: true, reason: "Triage reviewed" })).id, queued.id);
+  assert.equal(allowed.posts(), 1);
+  assert.equal(JSON.stringify(allowed.requests[0].request.payload), JSON.stringify({ finalize: true, reason: "Triage reviewed" }));
+  for (const status of ["RESERVED", "ACTIVE", "WAITING_INPUT", "RECOVERY_REQUIRED", "FAILED", "CANCELLED"]) {
+    const denied = taskController({ status }, [], queued, reports);
+    await assert.rejects(denied.controller.submit("EVALUATE_GATE", { finalize: true, reason: "Review" }), /requires a closed session/);
+    assert.equal(denied.posts(), 0);
+  }
+  const missingReport = taskController({ status: "CLOSED" }, [], queued);
+  await assert.rejects(missingReport.controller.submit("EVALUATE_GATE", { finalize: true, reason: "Review" }), /accepted report/);
+  const active = taskController({ status: "CLOSED" }, [job("RUNNING")], queued, reports);
+  await assert.rejects(active.controller.submit("EVALUATE_GATE", { finalize: true, reason: "Review" }), /Wait for the active task/);
+  assert.equal(active.posts(), 0);
+});
+
+test("gate submission preserves failed-task retry lineage and recovers an already-recorded request", async () => {
+  const reports = [{ id: id(7) }];
+  const failed = taskController({ status: "CLOSED" }, [job("FAILED", { job_type: "EVALUATE_GATE" })], undefined, reports);
+  await assert.rejects(failed.controller.submit("EVALUATE_GATE", { finalize: true, reason: "Review" }), /retry the recorded gate task/);
+  assert.equal(failed.posts(), 0);
+  const saved = job("SUCCEEDED", { job_type: "EVALUATE_GATE", idempotency_key: "web:fixed" });
+  const uncertain = taskController({ status: "RECOVERY_REQUIRED" }, [saved]);
+  assert.equal((await uncertain.controller.submit("EVALUATE_GATE", { finalize: true, reason: "Review" })).id, saved.id);
+  assert.equal(uncertain.posts(), 0);
+});
+
+test("closed session main actions expose independent gate progress and exact failed-gate retry", () => {
+  for (const locale of ["en", "zh"]) {
+    assert.equal(followUp(locale, { binding: { status: "CLOSED" }, jobs: [job("RUNNING", { job_type: "EVALUATE_GATE" })] }).includes(locale === "en" ? "View reevaluation task" : "查看重评任务"), true);
+    assert.equal(followUp(locale, { binding: { status: "CLOSED" }, jobs: [job("FAILED", { job_type: "EVALUATE_GATE" })] }).includes(locale === "en" ? "Review &amp; retry gate task" : "检查并重试门禁任务"), true);
+  }
 });

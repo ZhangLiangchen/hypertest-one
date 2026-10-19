@@ -24,7 +24,7 @@
 
 v0.4 已接受设计为：一个稳定 SUT 对应一个 Project；一个 feat / MR 的完整 SHA 及固定测试输入对应一次用户可见 TestRun。每个 Run 只有一个逻辑 TaskWorker 绑定及一个持久主 AgentSession，串行推进多个 typed Mission / Attempt。平台 Worker 和 Control Plane 容器化；只有 Provider Harness、其认证 / 原生会话运行时及窄 Host Bridge 保留在宿主。不同 Run 可以并发，同一 Run 不引入多个平台 Worker 同时协作。
 
-**这些运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。当前生产源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`；原数据、Codex OAuth、VPN 白名单和 SSH 隧道保留，精确正反链路、显式恢复及保全结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。真实 GitLab 提单、其他 Provider 及后续 Web 改进仍须独立验收。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
+**这些运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。ADR-013 正式切换与恢复的历史结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。后续 PR #10 已部署源码 `828225d`，API/Worker/Web 同源更新，兼容 Host Bridge 保留 `95e92c5`，数据库仍为 `0014_harness_operations`；当前运维边界见[服务器操作](../SERVER_OPERATIONS.md)。会话关闭后的平台治理准入由 [ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 与 §23.8 规定，其实现和真实验收另行登记。真实 GitLab 提单、其他 Provider 及后续 Web 改进仍须独立验收。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
 
 Canonical Chain、不可变快照、Proposal / Verifier、trusted Runner、deterministic Gate、Audit / Outbox 及已有历史保护在两者中均有效。目标迁移不得把历史上一个 Run 的多条 AgentSession 合并成一条，不得改写原 Attempt / Execution 的 `durable_job_id`。
 
@@ -758,6 +758,8 @@ RESOLVED / CLOSED → REOPENED
 
 Resolution：FIXED、DUPLICATE、WONT_FIX、RISK_ACCEPTED、NOT_REPRODUCIBLE、ENVIRONMENT_FIXED、TEST_FIXED。
 
+Web 人工处置必须携带预期 row_version 和非空 reason；既有 API 的可选预期版本语义保持兼容。处置按当前状态机提交 before/after、操作者、时间及配对 Audit/Outbox；会话 CLOSED 不使这些人工治理失效。处置不自动产生 Verdict，也不能修改原执行与可信证据。Web 可读取同 Finding/Run 的有限生命周期审计投影（状态、resolution、row_version、reason），不透传任意审计 metadata；截断的近期列表必须明确说明，不能冒称完整历史。
+
 ### 18.1 v0.4 受控 GitLab Issue 集成（本分支实现，真实提单待验收）
 
 `external_issue_ref` 本身只是可选关联字段，不能单独证明 GitLab 创建 Issue 或指派成功。本分支已实现受控集成，Agent 可提交 typed Issue Request，引用同一授权范围内已接受 Finding、固定 Run / SourceSnapshot、已校验 Evidence 及负责人建议。HyperTest 按项目预配置的 integration、操作授权与负责人映射验证请求，不能把 Agent 给出的任意项目、用户或 URL 当作已批准目标。
@@ -804,7 +806,7 @@ FINAL Verdict Append-only：禁止原地 UPDATE；质量状态变化时创建新
 
 每个 FINAL Verdict 必须保存 `state_snapshot_hash`，证明 Verdict 基于哪一个 Canonical Testing State 得出。
 
-MVP 对 `(test_run_id, sequence_no)` 建立唯一约束，sequence_no > 0；FINAL 必须同时有 state_snapshot_hash、evidence_manifest_sha256、finalized_at。`TestRun.current_verdict_id` 指向最近 FINAL 决策。重复评估只有在 Run / Scope / Policy / State Hash / status / decision / Evidence Manifest 均匹配时返回已有 Verdict，变化创建新 sequence，不能复用与本次决策矛盾的历史记录。
+MVP 对 `(test_run_id, sequence_no)` 建立唯一约束，sequence_no > 0；FINAL 必须同时有 state_snapshot_hash、evidence_manifest_sha256、finalized_at。`TestRun.current_verdict_id` 指向最近 FINAL 决策。重复评估仅在 Run / Scope 最新的相应状态 Verdict 与本次 Policy / State Hash / status / decision / Evidence Manifest 均匹配时复用；变化创建新 sequence。状态返回曾出现的旧语义也不得倒指较早 FINAL，`current_verdict_id` 必须保持最近正式结论，不能从全部历史中选择旧匹配项。
 
 数据库 Trigger 禁止改变 FINAL 内容，只允许 FINAL → REVOKED 并设置 revoked_at，其他字段必须不变；REVOKED 同样不可重写，FINAL / REVOKED 禁止 DELETE。VerdictEvidence / VerdictFinding 保存决策引用，Canonical 内容、links、审计和 Outbox 事务性提交。
 
@@ -1184,6 +1186,16 @@ typed Proposal 工具不直接接受 Canonical Lifecycle；Verifier 对每个显
 
 `GitLabIssueOperation` 初态 PENDING，允许 `PENDING → UNKNOWN / SUCCEEDED / REJECTED`、`UNKNOWN → SUCCEEDED / REJECTED` 或保持 UNKNOWN；不确定状态仅查询核对，禁止再次 POST。SUCCEEDED / REJECTED 历史不可改写或删除，只有 SUCCEEDED 可携带正数 issue IID 与核验后的 HTTPS URL。Finding 必须与 Run / Binding / Job 同属；draft、授权项目 / 受派人、输入摘要不可在请求之后更换。真实凭据只留在受控执行环境；授权快照不得保存 token 或认证文件内容。提单成功仅增加集成引用，不自动确认、解决 Finding 或改变 Verdict。
 
+### 23.8 CLOSED 后的独立平台 Gate 治理（ADR-014）
+
+原 Binding 和 primary AgentSession 同为 CLOSED、且同 Run/Binding 已有被接受 RunReport 时，可信平台可以接受操作者显式的 EVALUATE_GATE DurableJob。只允许 finalize=true，reason 去除首尾空白后非空、不含 NUL、最长2000字符；理由存于 Operational 请求及 Audit/Outbox，不影响质量决策或 Gate hash。没有 Binding 的历史 Run 保持既有语义，reason 缺省兼容原请求；不修改冻结的旧 payload。
+
+准入、领取、写事务均验证 Run 排他、原 Binding ID/epoch、primary CLOSED、操作类型、当前 lease/token/数据库时钟，遵守 Run → Binding → Job → SourceSnapshot 锁序。存在活跃 Job/Mission/Execution 时拒绝并行提交。RESERVED/ACTIVE/WAITING_INPUT/RECOVERY_REQUIRED/FAILED/CANCELLED，以及缺少已接受报告的 CLOSED，不得借此绕过现有 Harness 准入。
+
+这是平台治理授权，不是新的 Binding 执行 claim：不调用模型、Bridge、Git、Runner 或能力预检，不创建/恢复 AgentSession，不改变 Binding/原生会话/checkpoint/预算/Mission/Attempt/Execution/Evidence/RunReport。失败、取消或过期 Job 的资源清理同样不访问这些外部组件，也不关闭原主 Session。重试保留原 reason/payload 和 retry_of，通过新 Job 的租约与当前 CLOSED-only 准入执行。
+
+Gate 仍根据固定 Policy 和可信事实决定；Finding 关闭或风险处置不能豁免失败的正式执行。只复用最新相同语义结论，否则追加新 sequence，旧 FINAL/links/报告原样保留。每个独立请求均保存理由与返回 Verdict 的配对审计/Outbox，即使复用原结论。报告读模型可从 immutable envelope 投影 nullable verdict_key/verdict_decision；未知或不合法引用保持未知，不回填报告。Web 应区分报告原结论与最新 FINAL，不重新调用 Agent 更新历史报告。
+
 ## 24. 核心数据库表
 
 MVP 必须存在：
@@ -1227,7 +1239,7 @@ outbox_events
 
 `0010_mission_activity` 交付时在 `0009_mission_inputs` 之上增加独立的有界活动表，不回填或重写历史行。`0009` 保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系，并增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。已有归属或人工输入历史时禁止降级丢失关系；活动裁剪不构成这些历史的删除许可。
 
-当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。本分支 `0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；生产数据库仍为 `0012`，本分支迁移不表示生产已升级。
+当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。`0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；生产已完成 ADR-013 切换，当前 schema 为 `0014_harness_operations`。ADR-014 不增加迁移；功能实现和部署分别记录。
 
 ---
 

@@ -20,6 +20,7 @@ def remote_check(tmp_path):
     commands.mkdir()
     log = tmp_path / "commands.jsonl"
     marker = tmp_path / "deployment-mode"
+    operations = tmp_path / "ops-current"
     # Only redirect the remote marker path; run the checked-in shell unchanged.
     stub = "#!" + sys.executable + "\n" + '''
 import json, os, pathlib, subprocess, sys
@@ -33,6 +34,7 @@ if name == "ssh":
                 "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "hypertest-one", "bash -se"]
     assert args == expected
     script = sys.stdin.read().replace("/etc/hypertest/deployment-mode", os.environ["CHECK_MARKER"])
+    script = script.replace("/opt/hypertest/ops-current", os.environ["CHECK_OPERATIONS"])
     raise SystemExit(subprocess.run(["bash", "-se"], input=script, text=True).returncode)
 if name == "systemctl":
     assert args[0] == "is-active"
@@ -47,7 +49,8 @@ elif name == "python3":
     if args == ["-"]:
         assert "get_json" in sys.stdin.read()
     else:
-        assert args == ["/opt/hypertest/container-current/ops/container/readiness.py",
+        prefix = os.environ["CHECK_OPERATIONS"] if pathlib.Path(os.environ["CHECK_OPERATIONS"]).exists() else "/opt/hypertest/container-current"
+        assert args == [prefix + "/ops/container/readiness.py",
                         "--env", "/etc/hypertest/container/compose.env"]
         raise SystemExit(int(os.environ.get("CHECK_READINESS_EXIT", "0")))
 elif name == "readlink":
@@ -62,9 +65,17 @@ elif name == "date":
         path.write_text(stub)
         path.chmod(0o755)
 
-    def run(mode, *, unit_states=None, readiness_exit=0):
+    def run(mode, *, unit_states=None, readiness_exit=0, operations_state="absent"):
         if mode is not None:
             marker.write_text(mode + "\n")
+        if operations_state == "ready":
+            readiness = operations / "ops/container/readiness.py"
+            readiness.parent.mkdir(parents=True)
+            readiness.write_text("# protected release fixture\n")
+        elif operations_state == "incomplete":
+            operations.mkdir()
+        elif operations_state == "dangling":
+            operations.symlink_to(tmp_path / "missing-operations")
         container = mode == "container-v1"
         states = {unit: "inactive" if container else "active" for unit in LEGACY}
         states.update({unit: "active" for unit in CONTAINER})
@@ -73,6 +84,7 @@ elif name == "date":
             ["bash", str(ROOT / "ops/check-remote.sh")], capture_output=True, text=True,
             env={**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"],
                  "CHECK_LOG": str(log), "CHECK_MARKER": str(marker),
+                 "CHECK_OPERATIONS": str(operations),
                  "CHECK_UNITS": json.dumps(states), "CHECK_READINESS_EXIT": str(readiness_exit)},
         )
         calls = [json.loads(line) for line in log.read_text().splitlines()]
@@ -96,6 +108,22 @@ def test_remote_check_uses_container_readiness_and_preserves_ssh_policy(remote_c
     assert ["python3", "/opt/hypertest/container-current/ops/container/readiness.py",
             "--env", "/etc/hypertest/container/compose.env"] in calls
     assert not any(call[0] == "docker" or call == ["python3", "-"] for call in calls)
+
+
+def test_remote_check_prefers_the_explicit_operations_release(remote_check):
+    result, calls = remote_check("container-v1", operations_state="ready")
+    assert result.returncode == 0, result.stderr
+    python_calls = [call for call in calls if call[0] == "python3"]
+    assert len(python_calls) == 1 and "/ops-current/ops/container/readiness.py" in python_calls[0][1]
+    assert not any("container-current/ops/container/readiness.py" in " ".join(call) for call in calls)
+
+
+@pytest.mark.parametrize("state", ["incomplete", "dangling"])
+def test_remote_check_never_falls_back_from_a_broken_operations_release(remote_check, state):
+    result, calls = remote_check("container-v1", operations_state=state)
+    assert result.returncode != 0
+    assert "operations release is incomplete" in result.stderr
+    assert not any(call[0] in {"python3", "docker", "systemctl"} for call in calls)
 
 
 @pytest.mark.parametrize("unit", [*CONTAINER, *LEGACY])

@@ -3,7 +3,8 @@ import shutil
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ from hypertest.api.delivery_schemas import (
     ExecutionCreate,
     ExecutionDetail,
     ExecutionRead,
+    FindingHistoryRead,
     FindingRead,
     FindingTransition,
     GateRequest,
@@ -46,6 +48,7 @@ from hypertest.config import get_settings
 from hypertest.db.session import get_db
 from hypertest.domain.enums import MissionStatus
 from hypertest.domain.models import (
+    AuditEvent,
     Evidence,
     ExecutionEvidence,
     ExecutionTestCase,
@@ -55,6 +58,7 @@ from hypertest.domain.models import (
     ImplementationTestCase,
     MissionAttempt,
     MissionProposal,
+    OutboxEvent,
     PolicySnapshot,
     SourceSnapshot,
     TestCase,
@@ -85,6 +89,11 @@ async def read_execution_environments(db: AsyncSession = Depends(get_db)):
 
 
 def _http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, ValidationError):
+        return HTTPException(status_code=422, detail=[
+            {key: item[key] for key in ("type", "loc", "msg") if key in item}
+            for item in exc.errors()
+        ])
     if isinstance(exc, ValueError):
         return HTTPException(status_code=422, detail=str(exc))
     return translate_domain_error(exc)
@@ -408,6 +417,18 @@ async def post_finding_transition(
         raise _http_error(exc) from exc
 
 
+@router.get("/findings/{finding_id}/history", response_model=FindingHistoryRead)
+async def get_finding_history(
+    finding_id: UUID, limit: int = Query(default=50, ge=1, le=100), db: AsyncSession = Depends(get_db),
+):
+    from hypertest.application.finding_history import read_finding_history
+
+    try:
+        return await read_finding_history(db, finding_id, limit=limit)
+    except RuntimeError as exc:
+        raise _http_error(exc) from exc
+
+
 async def _verdict_read(db: AsyncSession, item: Verdict) -> VerdictRead:
     evidence_keys = list(
         await db.scalars(
@@ -451,6 +472,18 @@ async def read_verdicts(run_id: UUID, db: AsyncSession = Depends(get_db)):
 async def post_gate(run_id: UUID, payload: GateRequest, db: AsyncSession = Depends(get_db)):
     try:
         await guard_synchronous_operation(db, run_id)
+        if payload.reason is not None:
+            # Legacy direct requests have no DurableJob on which to retain intent.
+            run = await get_test_run(db, run_id)
+            request = {"test_run_id": str(run_id), "request_reason": payload.reason,
+                       "finalize": payload.finalize}
+            db.add_all([
+                AuditEvent(project_id=run.project_id, test_run_id=run.id, actor_type="USER",
+                           actor_ref=None, action="gate.evaluation_requested", entity_type="TestRun",
+                           entity_id=run.id, after_state=request),
+                OutboxEvent(aggregate_type="TestRun", aggregate_id=run.id,
+                            event_type="gate.evaluation_requested", payload=request),
+            ])
         item = await evaluate_gate(db, run_id, finalize=payload.finalize)
         return await _verdict_read(db, item)
     except (RuntimeError, ValueError) as exc:

@@ -52,7 +52,19 @@ class ExecutionCreate(BaseModel):
 
 
 class GateRequest(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     finalize: bool = True
+    reason: str | None = Field(default=None, min_length=1, max_length=2000)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def controlled_reason(cls, value: str | None) -> str | None:
+        if isinstance(value, str):
+            if "\x00" in value:
+                raise ValueError("Gate request reason cannot contain NUL")
+            return value.strip()
+        return value
 
 
 class RunAdvance(BaseModel):
@@ -185,6 +197,28 @@ class FindingRead(ORMModel):
     row_version: int
     evidence_keys: list[str] = Field(default_factory=list)
     test_case_keys: list[str] = Field(default_factory=list)
+
+
+class FindingHistoryState(BaseModel):
+    status: FindingStatus | None
+    resolution: FindingResolution | None
+    row_version: int | None
+
+
+class FindingHistoryEvent(BaseModel):
+    id: UUID
+    created_at: datetime
+    actor_type: str
+    action: str
+    before: FindingHistoryState | None
+    after: FindingHistoryState | None
+    reason: str | None
+    reason_truncated: bool
+
+
+class FindingHistoryRead(BaseModel):
+    events: list[FindingHistoryEvent]
+    truncated: bool
 
 
 class VerdictRead(ORMModel):

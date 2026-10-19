@@ -1,17 +1,54 @@
 # HyperTest One 第一阶段验收
 
-## 本轮功能验收：结果复核与修复后复测
+## 本轮状态：CLOSED 后 Finding 处置与独立 Gate（ADR-014）
+
+[ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 已实现，**本地真实 Web / Codex / Docker 正反链与关闭后治理均已通过，应用功能尚未部署**。
+[完整验收](POST_SESSION_GATE_ACCEPTANCE.md) 区分实际模型、PostgreSQL边界回归与生产访问配置，不据此宣布全部白皮书目标完成。
+
+| 第一阶段补齐项 | 本轮实际结果 | 边界 |
+|---|---|---|
+| CLOSED 后人工处置 Finding | 真实诊断 Finding 完成分诊、确认、WONT_FIX解决及关闭，版本1→5；原因与Audit/Outbox匹配 | 保留原状态机；Web必传预期版本，旧API字段可选兼容 |
+| 独立 Gate Job | 真实Web提交3次负向和1次正向任务，任务原因与结果可追溯；无新增模型、Bridge、Runner或报告 | 仅原Binding/主Session CLOSED且有同归属已接受报告；失败/取消/租约边界由回归覆盖 |
+| 新旧结论与报告历史 | 确认后FINAL #2、关闭后#3、重复复用#3；原报告仍指#1并显示历史差异；正向复用原#1 | 旧FINAL、报告字节、会话预算和原生文件摘要保持 |
+| 关闭发现不掩盖失败 | 负向27项＝18 PASS/9 assertion FAIL，关闭后仍RELEASE_BLOCKED；治理最终32/32检查通过 | 验证修复需新SHA轮次，不能改旧执行 |
+| 新轮次正向测试 | 同Project Review沿用输入、更换修复SHA/服务并重新文件导入；15/15 JUnit PASS，RELEASE_READY；模型32/32、治理31/31、复用4/4通过 | 两fresh模型链未触发问答或故障重试，不冒称新问答验收 |
+| 自动化与迁移 | Ruff、686 passed/18 opt-in Docker skipped/3既有warnings；96 Web tests/typecheck/build；两独立库0001→0014通过，无新增迁移 | 最后两处运维输入另有48/48定向检查及真实nginx允许/拒绝验证 |
+| 访问配置实交付 | 新SSH管理连接成功且禁转发；回环仅健康GET/HEAD、Web/API拒绝；唯一既有白名单Web实际可用；29/29保全通过 | 生产业务828225d/Bridge95e不变；运维manifest90037658独立追溯 |
+
+操作：**发现 → 核对证据 → 填写处置原因并保存 → 查看处置历史 → 重新评估质量门禁 →
+填写重评原因 → 提交重评任务 → 打开已记录判定 → 对照最新 FINAL 与原报告**。
+失败后检查原 Gate Job 并显式追加关联重试；已关闭会话保持关闭。
+
+English: inspect the Finding's evidence, record the disposition and reason, then review disposition
+history. On a reported CLOSED cycle, choose **Reevaluate quality gate**, enter a nonblank reason,
+select **Save reevaluation task**, and open its recorded Verdict. Compare the latest FINAL with
+previous decisions and the report's original reference. Gate-only work does not resume a model or
+rerun tests. Existing official failures still block release; verify repaired code in a new round.
+[完整双语操作指南](WEB_PRODUCT_WORKFLOW.md#会话关闭后的发现处置与门禁重评--post-session-disposition-and-gate-reassessment)。
+
+## 当前生产基线与访问策略
+
+生产应用已部署合并后的 **`828225d`**，Host Bridge 构建仍为 **`95e92c5`**，数据库为
+**`0014_harness_operations`**。这是 PR #10 后的业务基线，不是本分支 ADR-014 的部署声明。
+数据、旧原生会话与 Codex OAuth 保持持久化，实际服务器身份见[运维交付](SERVER_OPERATIONS.md)。
+
+现行 Web 只允许受保护配置中的跳板出口白名单路径；SSH 仅管理和人工恢复，转发已禁用，
+不再保留 Web SSH 隧道。常规部署核对 ACL 与内部就绪，不逐轮重复外部连接检查；首次开放
+或访问边界变化另做专项验证。以下历史记录保留各自当时的版本、执行事实和访问策略，
+其中隧道描述不再是当前操作要求，实际跳板地址不在本产品文档中重复发布。
+
+## 已部署 PR #10：结果复核与修复后复测
 
 本轮以白皮书§20/§22/§25为范围，补齐可操作的测试产物详情、报告入口、结束/恢复
 状态及同Project的新轮次复测。实际模型和Docker、输入与历史保全、检查及未覆盖项
-见[本轮验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。本轮代码不等同于已部署版本；
-生产仍为下方记录的f415/95e/0014。
+见[当时本地验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。PR #10 随后已合并并部署为
+828225d；该记录保留其原始本地执行身份，现行生产身份见上节。
 
-## 当前已部署基线：ADR-013 容器栈与持续会话（2026-10-19）
+## 历史生产验收：ADR-013 容器栈与持续会话（2026-10-19）
 
-PR #9 已合并并完成正式容器切换；当前生产源码入口为 `f415fd0`，API / Worker / Bridge
+PR #9 已合并并完成正式容器切换；当时生产源码入口为 `f415fd0`，API / Worker / Bridge
 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`。原 PostgreSQL 卷、
-Canonical 数据与产物、Codex OAuth、`45.76.149.233/32` 白名单及 SSH 隧道均已保全。
+Canonical 数据与产物、Codex OAuth、当时配置的 VPN 出口白名单及 SSH 隧道均已保全。
 完整身份、配对备份 / 隔离恢复、就绪与限制见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)。
 
 | 已实际验收项目 | 正式结果 |
@@ -40,7 +77,7 @@ Canonical 数据与产物、Codex OAuth、`45.76.149.233/32` 白名单及 SSH �
 
 ## 已交付增量：等待输入、回答与原任务恢复
 
-新增迁移 `0009_mission_inputs`，本地与 Debian 服务器均已通过真实 Web 提问 → 持久等待 → API / Worker 重启 → 回答 → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。真实运行版本为 `8e01ac5`，PR #6 随后已合并并部署 `a48bc96`；旧 1,029 行历史 / 34 个产物引用保留，最终配对备份和隔离恢复已通过，45.76.149.233/32 白名单及 SSH 隧道保持。见[问答逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量、运行身份及当时缺口保留为历史，以本节为问答能力状态；不以旧失败链路结果代替新功能实测，也不据此宣称任意 API / SIT、第二 Harness 或多人权限已完成。
+新增迁移 `0009_mission_inputs`，本地与 Debian 服务器均已通过真实 Web 提问 → 持久等待 → API / Worker 重启 → 回答 → Codex 原会话恢复 → 正式 Docker → Evidence → FINAL RELEASE_READY；完整必需检查 **345 后端 / 31 Web tests** 通过。真实运行版本为 `8e01ac5`，PR #6 随后已合并并部署 `a48bc96`；旧 1,029 行历史 / 34 个产物引用保留，最终配对备份和隔离恢复已通过，当时配置的 VPN 出口白名单及 SSH 隧道保持。见[问答逐项验收](WAITING_INPUT_ACCEPTANCE.md)。下方 PRD / 旧版本的数量、运行身份及当时缺口保留为历史，以本节为问答能力状态；不以旧失败链路结果代替新功能实测，也不据此宣称任意 API / SIT、第二 Harness 或多人权限已完成。
 
 ## 本轮两阶段交付：已部署73d与后续范围修复
 
@@ -50,7 +87,7 @@ Canonical 数据与产物、Codex OAuth、`45.76.149.233/32` 白名单及 SSH �
 |---|---|---|
 | 1：PRD导入 | 原生Chrome/macOS选择器 **9实际fixtures/15UIchecks全通过**；无效文件保留正文/原文件名；合法UTF-8/BOM/CRLF、编辑/重开、取消/重选、中英切换与Review通过 | [浏览器矩阵](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-browser-matrix-2026-10-17.json)；本地没有新建Run或调用模型 |
 | 1：HTTP/自动化 | CSPRNG UUID三入口在公网实际创建Project/Run/Job；**20 Node回归（14decode+6UUID）**及fresh npmci/typecheck/build/audit0通过 | 阶段1的86后端输入等d20/302；历史114输入manifest为`0d58f4c0990f87d50b49c15b9148c72bdbe3957e5093d5f91a8626e6476d2c07`，不代表后续scope补丁 |
-| 1：白名单 | 公网精确155.138.206.106:8080，UFW /32+nginx peer45.76.149.233双层ACL已激活；允许HTTP/13静态资源、Host/Origin、非允许peer及伪造头检查通过；SSH隧道与后端PG回环保留 | 用户手机非VPN访问失败及同窗UFW BLOCK属于关联证据，不冒称精确手机IP归属；实际完整边界见阶段1部署记录 |
+| 1：白名单 | 公网精确155.138.206.106:8080，UFW 精确来源限制与 nginx peer 双层 ACL已激活；允许HTTP/13静态资源、Host/Origin、非允许peer及伪造头检查通过；SSH隧道与后端PG回环保留 | 用户手机非VPN访问失败及同窗UFW BLOCK属于关联证据，不冒称精确手机IP归属；实际完整边界见阶段1部署记录 |
 | 1：真实模型失败 | Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5`接受 **10Req/6Risk/8Case**，其中2Case错误要求被测pypa仓库之外的Runner guard功能 | 实现Agent返回PARTIAL/6提案，Verifier以`RESULT_NOT_COMPLETED`拒绝；Job FAILED/MISSION_REJECTED、Run BLOCKED，**6条未接受实现Proposal保留，0Canonical Implementation/Execution/Evidence/Verdict** |
 | 2：范围修复 | Runtime从trusted SourceSnapshot提供provider-independent `context.testing_scope`，四阶段明确产品行为/产品约束与测试实施指令；Codex仅遵循该范围 | 领域[§12](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement)、TMP[§9](protocol/TEST_MISSION_PROTOCOL.md#9-mission-context)为权威；不删除合法产品CONSTRAINT，不禁止显式真实Runner-SUT，不放宽PARTIAL或Gate |
 | 2：新源码检查 | 后端runtime/codex与回归已改变，不再沿用“86后端未变化”结论；无新迁移，head仍0008 | 新冻结工作树 **303 passed / 3 warnings / 48.70s**、Ruff、独立测试库0008及fresh Web20/typecheck/build/audit0全部通过；后续提交SHA/CI/部署与真实模型语义验收以最新交付登记为准 |
@@ -298,12 +335,7 @@ TMP 与运行排障说明随实现同步更新；这两次修复均无 schema mi
 
 [服务器成功JSON](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-live-pass-2026-10-17.json)、[成功说明](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-live-pass-2026-10-17.md)、[服务器失败JSON](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-live-failure-2026-10-17.json)、[失败说明](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-live-failure-2026-10-17.md)保留Attempt、Proposal、正式执行、Artifact校验和幂等证据；独立服务器SQL/审计核对见服务器验收记录。
 
-访问地址：[生产工作台](http://127.0.0.1:8080)。本机通过 SSH 隧道访问；连接命令如下（仅本机监听，使用前检查现有连接）：
-
-```bash
-ssh -p 22 -N -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:8080:127.0.0.1:8080 root@155.138.206.106
-```
+历史首次交付通过本机回环 SSH 隧道访问，此事实保留；该路径现已撤销，不再提供旧连接命令。当前访问按顶部白名单 Web 策略和运维交付执行。
 
 ## 证据索引与阶段边界
 

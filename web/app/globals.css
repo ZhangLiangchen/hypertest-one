@@ -297,10 +297,10 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .activity-pagination > span { font-size: 12px; }
 .activity-footnote.ant-typography { margin: 12px 0 0; }
 @media (max-width: 640px) {
-  .job-waiting-notice.ant-alert-with-description { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 12px; }
-  .job-waiting-notice .ant-alert-icon { grid-area: 1 / 1; margin: 0; }
-  .job-waiting-notice .ant-alert-content { grid-area: 1 / 2; }
-  .job-waiting-notice .ant-alert-action { grid-area: 2 / 2; margin: 0; justify-self: start; }
+  .job-waiting-notice.ant-alert-with-description, .gate-review-notice.ant-alert-with-description { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 12px; }
+  .job-waiting-notice .ant-alert-icon, .gate-review-notice .ant-alert-icon { grid-area: 1 / 1; margin: 0; }
+  .job-waiting-notice .ant-alert-content, .gate-review-notice .ant-alert-content { grid-area: 1 / 2; }
+  .job-waiting-notice .ant-alert-action, .gate-review-notice .ant-alert-action { grid-area: 2 / 2; margin: 0; justify-self: start; }
   .activity-summary { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .activity-heading { align-items: flex-start; gap: 12px; }
   .activity-heading .ant-btn { flex-shrink: 0; }

@@ -18,6 +18,8 @@ export function RunNextAction({ runId, projectId, binding, jobs, questionId, rea
   const latest = [...jobs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const active = jobs.find((job) => ["QUEUED", "RUNNING", "WAITING_INPUT", "CANCEL_REQUESTED"].includes(job.status));
   if (!ready) return <Button disabled>{t("Checking task state", "正在检查任务状态")}</Button>;
+  if (binding?.status === "CLOSED" && active?.job_type === "EVALUATE_GATE") return <Button type="primary" onClick={() => reviewTask(active.id)}>{t("View reevaluation task", "查看重评任务")}</Button>;
+  if (binding?.status === "CLOSED" && !active && latest?.job_type === "EVALUATE_GATE" && ["FAILED", "INTERRUPTED", "CANCELLED"].includes(latest.status)) return <Button type="primary" onClick={() => reviewTask(latest.id)}>{t("Review & retry gate task", "检查并重试门禁任务")}</Button>;
   if (binding && ["CLOSED", "FAILED", "CANCELLED"].includes(binding.status)) {
     return projectId ? <NewRunLink runId={runId} projectId={projectId} primary /> : <Button disabled>{t("Checking project", "正在检查项目")}</Button>;
   }
@@ -35,5 +37,5 @@ export function RunNextAction({ runId, projectId, binding, jobs, questionId, rea
 
 export function VerdictHistoryNotice({ runId, projectId }: { runId: string; projectId?: string }) {
   const { t } = useI18n();
-  return <Alert type="info" showIcon style={{ marginTop: 16, marginBottom: 16 }} message={t("Saved verdicts and reports preserve their original state", "已保存判定和报告保留原始状态")} description={t("Updating a finding does not rewrite an earlier quality decision or report. Start a new testing round to verify a fix and obtain a new decision.", "更新发现不会改写先前的质量判定或报告。验证修复并取得新结论，请创建新的测试轮次。")} action={projectId ? <NewRunLink runId={runId} projectId={projectId} /> : undefined} />;
+  return <Alert type="info" showIcon style={{ marginTop: 16, marginBottom: 16 }} message={t("Saved verdicts and reports preserve their original state", "已保存判定和报告保留原始状态")} description={t("Updating a finding does not rewrite an earlier quality decision or report. Independent gate reevaluation can record a new decision from existing facts; verifying a fix requires a new testing round.", "更新发现不会改写先前的质量判定或报告。独立门禁重评可根据已有事实记录新判定；验证修复需要新的测试轮次。")} action={projectId ? <NewRunLink runId={runId} projectId={projectId} /> : undefined} />;
 }
