@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 from network_guard import guard
-from stack import compose_command, read_env, render_nginx, validate
+from stack import compose_command, ingress_tls_enabled, read_env, render_nginx, validate
 from start import verify_daemon
 
 
@@ -45,9 +45,44 @@ def check_http(values: dict[str, str]) -> None:
     require(capability.get("worker", {}).get("available") is True, "Worker heartbeat unavailable")
 
 
+def check_tls_runtime(role: str, values: dict[str, str], platform: dict[str, str], mounts: list[dict], inspect) -> None:
+    credentials = {
+        "/run/hypertest-tls/server.crt": Path(values["HYPERTEST_TLS_CERT_FILE"]).resolve(),
+        "/run/hypertest-tls/server.key": Path(values["HYPERTEST_TLS_KEY_FILE"]).resolve(),
+    }
+    if role == "nginx":
+        for destination, source in credentials.items():
+            matching = [mount for mount in mounts if mount["Destination"] == destination]
+            require(len(matching) == 1 and matching[0]["Type"] == "bind" and matching[0].get("RW") is False
+                    and Path(matching[0]["Source"]).resolve() == source,
+                    "nginx TLS leaf credentials are not mounted from the checked files read-only")
+    else:
+        for mount in mounts:
+            source = Path(mount["Source"]).resolve()
+            require(not mount["Destination"].startswith("/run/hypertest-tls")
+                    and not any(source == path or source in path.parents for path in credentials.values()),
+                    f"{role} has a TLS credential mount")
+    environment = dict(item.split("=", 1) for item in inspect(".Config.Env") or [] if "=" in item)
+    if role in {"api", "worker"}:
+        require(environment.get("HYPERTEST_CONNECTOR_OPERATOR_KEY") == platform["HYPERTEST_CONNECTOR_OPERATOR_KEY"],
+                f"{role} Operator key differs from protected platform env")
+        require(environment.get("HYPERTEST_CONNECTOR_ALLOW_INSECURE_LOOPBACK", "false").lower() in {"false", "0"},
+                f"{role} enables insecure Connector authorization")
+    else:
+        require(not environment.get("HYPERTEST_CONNECTOR_OPERATOR_KEY"), f"{role} unexpectedly has the Operator key")
+    if role == "api":
+        require(environment.get("FORWARDED_ALLOW_IPS", "127.0.0.1") == platform.get("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+                "API trusted proxy peers differ from protected platform env")
+        command = inspect(".Config.Cmd") or []
+        require(not any(item == "--no-proxy-headers" or item.startswith("--forwarded-allow-ips") for item in command),
+                "API command overrides the checked Uvicorn proxy environment")
+
+
 def check(env: Path, bridge_service: str) -> dict:
     values = read_env(env)
     validate(values, live=True)
+    tls = ingress_tls_enabled(values)
+    platform = read_env(Path(values["HYPERTEST_PLATFORM_ENV_FILE"])) if tls else {}
     require(Path(values["HYPERTEST_NGINX_CONFIG"]).read_text() == render_nginx(values),
             "nginx configuration differs from the protected ingress policy")
     verify_daemon()
@@ -67,6 +102,8 @@ def check(env: Path, bridge_service: str) -> dict:
             identities[role].append(inspect(".Image"))
             require(inspect(".HostConfig.RestartPolicy")["Name"] == "no", f"{role} bypasses guarded startup")
             mounts = inspect(".Mounts")
+            if tls:
+                check_tls_runtime(role, values, platform, mounts, inspect)
             if role != "postgres":
                 require(inspect(".Config.User").split(":")[0] not in {"", "0", "root"}, f"{role} is root")
                 require(inspect(".HostConfig.ReadonlyRootfs"), f"{role} root filesystem is writable")
@@ -96,9 +133,11 @@ def check(env: Path, bridge_service: str) -> dict:
     require(output(["systemctl", "is-active", bridge_service]) == "active", "Bridge service inactive")
     checks.extend(["loopback API/Web and nginx health: HTTP 200", "protected nginx ingress policy matches",
                    "Worker confirmed Bridge and Docker", "Bridge systemd: active"])
+    if tls:
+        checks.append("TLS leaf credentials mounted only by nginx read-only; Operator and API proxy environments checked")
     return {"ready": True, "checks": checks, "images": identities, "network": network,
             "external_vpn_boundary_verified": False, "existing_application_data_verified": False,
-            "real_testing_cycle_verified": False}
+            "real_testing_cycle_verified": False, "connector_tls_e2e_verified": False}
 
 
 def main() -> None:

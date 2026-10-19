@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     runtime_control_timeout_seconds: float = 20.0
     harness_max_seconds: int = Field(default=3600, ge=1, le=7200)
     gitlab_policy_file: str | None = None
+    connector_operator_key: str = ""
+    connector_operator_identity: str = "local-operator"
+    connector_request_timeout_seconds: float = 20.0
+    connector_allow_insecure_loopback: bool = False
 
 
 @lru_cache

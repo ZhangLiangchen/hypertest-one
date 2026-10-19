@@ -52,6 +52,46 @@ def bridge_client() -> BridgeClient:
                                    settings.bridge_management_key_file)
 
 
+async def run_client(db: AsyncSession, run_id: UUID):
+    """Placement is immutable. A local node never falls back to the host Bridge."""
+    from hypertest.domain.connector import HarnessNode
+    from hypertest.domain.harness_selection import RunHarnessSelection
+    selection = await db.get(RunHarnessSelection, run_id)
+    if selection is None:
+        return bridge_client(), get_settings().bridge_host_id, None
+    node = await db.get(HarnessNode, selection.node_id)
+    if node is None:
+        raise ConflictError("the original local Harness node is unavailable")
+    run = await db.get(TestRun, run_id)
+    from hypertest.connector.client import RemoteBridgeClient
+    return (RemoteBridgeClient(node.id, async_sessionmaker(db.bind, expire_on_commit=False),
+                               project_id=run.project_id), node.node_key, selection)
+
+
+async def local_workspace(db: AsyncSession, client, selection, binding, state, source, *, create=False, job=None):
+    """Server source copy and device workspace are verified independently."""
+    from hypertest.application.source_transfer import accepted_transfer
+    run = await db.get(TestRun, binding.test_run_id)
+    transfer = await accepted_transfer(db, selection.source_bundle_transfer_id,
+        project_id=run.project_id, node_id=selection.node_id,
+        origin=source.repository_url, commit_sha=source.commit_sha)
+    payload = {"project_id": str(run.project_id), "node_id": str(selection.node_id),
+        "transfer_id": str(transfer.id), "workspace_id": binding.workspace_id,
+        "run_id": str(run.id), "commit_sha": source.commit_sha, "origin": source.repository_url,
+        "bundle_sha256": transfer.bundle_sha256, "root_tree": transfer.root_tree,
+        "create": create}
+    if create:
+        if job is None:
+            raise ConflictError("workspace creation requires a current job claim")
+        payload["context"] = (await execution_context(db, binding.id, binding.binding_epoch,
+                                                       job.id, job.lease_token)).to_dict()
+    else:
+        payload["context"] = replace(management_context(binding, state), binding_epoch=binding.binding_epoch).to_dict()
+        await db.commit()
+    await client.request("install_workspace", payload, management=not create)
+    await verify_workspace(state.source_workspace, binding.workspace_id, source.commit_sha, source.repository_url)
+
+
 def management_context(binding, state: RunHarnessState) -> ExecutionContext:
     if not state.last_job_id or not state.last_call_epoch:
         raise ConflictError("binding has no recorded native call to reconcile")
@@ -144,9 +184,10 @@ async def advance_persistent_run(db: AsyncSession, job: DurableJob) -> dict:
     settings = get_settings()
     if job.payload.get("execution_profile") != PROFILE or job.payload.get("backend", "docker") != "docker":
         raise ConflictError("persistent Harness requires its negotiated profile and trusted Docker Runner")
-    client = bridge_client()
+    client, host_id, selection = await run_client(db, job.test_run_id)
+    await db.commit()
     capabilities = await client.capabilities()
-    if capabilities.get("profile") != PROFILE or capabilities.get("host_id") != settings.bridge_host_id:
+    if capabilities.get("profile") != PROFILE or capabilities.get("host_id") != host_id:
         raise ConflictError("host Bridge does not support this binding's negotiated profile")
     run = await db.get(TestRun, job.test_run_id)
     source = await db.get(SourceSnapshot, run.source_snapshot_id)
@@ -156,7 +197,13 @@ async def advance_persistent_run(db: AsyncSession, job: DurableJob) -> dict:
     if binding is None:
         await db.commit()
         workspace = job.payload.get("workspace")
-        if job.payload.get("prepare_workspace"):
+        if selection is not None:
+            from hypertest.application.source_transfer import accepted_transfer
+            transfer = await accepted_transfer(db, selection.source_bundle_transfer_id,
+                project_id=run.project_id, node_id=selection.node_id,
+                origin=source.repository_url, commit_sha=source.commit_sha)
+            workspace = transfer.server_workspace
+        elif job.payload.get("prepare_workspace"):
             from hypertest.application.workspaces import prepare_workspace
             workspace = (await prepare_workspace(db, run.id))["workspace"]
         if not workspace:
@@ -165,23 +212,32 @@ async def advance_persistent_run(db: AsyncSession, job: DurableJob) -> dict:
         await db.commit()
         await verify_workspace(workspace, workspace_id, source.commit_sha, source.repository_url, create=True)
         binding = await create_run_binding(db, run.id, job_id=job.id, lease_token=job.lease_token,
-            logical_worker_id=uuid7(), harness_host_id=settings.bridge_host_id, workspace_id=workspace_id)
+            logical_worker_id=uuid7(), harness_host_id=host_id, workspace_id=workspace_id)
+        if selection is not None:
+            from hypertest.domain.connector import RunHarnessPlacement
+            db.add(RunHarnessPlacement(binding_id=binding.id, test_run_id=run.id,
+                mode="LOCAL_CONNECTOR", node_id=selection.node_id,
+                source_transfer_kind="SOURCE_BUNDLE", source_bundle_transfer_id=selection.source_bundle_transfer_id))
         db.binding_id, db.binding_epoch = binding.id, binding.binding_epoch
         state = RunHarnessState(binding_id=binding.id, first_job_id=job.id, source_workspace=workspace,
             max_steps=job.payload.get("max_steps", 12), timeout_seconds=job.payload.get("timeout_seconds", 300),
             harness_budget_seconds=settings.harness_max_seconds)
         db.add(state)
         await db.commit()
+        if selection is not None:
+            await local_workspace(db, client, selection, binding, state, source, create=True, job=job)
     else:
         db.binding_id, db.binding_epoch = binding.id, binding.binding_epoch
         await assert_binding_claim(db, binding.id, binding.binding_epoch, job_id=job.id,
-            lease_token=job.lease_token, harness_host_id=settings.bridge_host_id,
+            lease_token=job.lease_token, harness_host_id=host_id,
             allowed_statuses=(BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT))
         state = await db.get(RunHarnessState, binding.id)
         if state is None:
             raise ConflictError("persistent binding checkpoint is unavailable")
         await db.commit()
         await verify_workspace(state.source_workspace, binding.workspace_id, source.commit_sha, source.repository_url)
+        if selection is not None:
+            await local_workspace(db, client, selection, binding, state, source)
         if state.last_call_id:
             restored = await client.restore_session(replace(management_context(binding, state),
                                                            binding_epoch=binding.binding_epoch))
@@ -340,7 +396,8 @@ async def cleanup_bound_call(db: AsyncSession, job: DurableJob) -> dict:
     terminal = binding.status in {BindingStatus.CLOSED, BindingStatus.FAILED, BindingStatus.CANCELLED}
     await db.commit()
     try:
-        client = bridge_client()
+        client, _, _ = await run_client(db, binding.test_run_id)
+        await db.commit()
         result = await (client.close(context, call_id, terminal=True) if terminal else client.interrupt(context, call_id))
         return {"bridge": "stopped" if result.get("stopped") else "outcome_unknown"}
     except (BridgeError, OSError, ValueError):
@@ -351,8 +408,9 @@ async def recover_binding(db: AsyncSession, binding_id: UUID, *, expected_epoch:
                           expected_row_version: int) -> dict:
     """Explicit operator recovery verifies/fences the original host state before epoch+1."""
     binding = await lock_binding(db, binding_id)
+    client, host_id, selection = await run_client(db, binding.test_run_id)
     if (binding.status is not BindingStatus.RECOVERY_REQUIRED or binding.binding_epoch != expected_epoch
-            or binding.row_version != expected_row_version or binding.harness_host_id != get_settings().bridge_host_id):
+            or binding.row_version != expected_row_version or binding.harness_host_id != host_id):
         raise ConflictError("binding no longer matches this recovery request")
     if await db.scalar(select(DurableJob.id).where(DurableJob.test_run_id == binding.test_run_id,
                                                  DurableJob.status.in_(ACTIVE_JOB_STATUSES)).limit(1)):
@@ -368,7 +426,6 @@ async def recover_binding(db: AsyncSession, binding_id: UUID, *, expected_epoch:
     old_context = management_context(binding, state)
     native_id, workspace_id, host_id, call_id = agent.provider_session_id, binding.workspace_id, binding.harness_host_id, state.last_call_id
     await db.commit()
-    client = bridge_client()
     stopped = await client.interrupt(old_context, call_id)
     if not stopped.get("stopped"):
         raise ConflictError("old native call cannot be confirmed stopped")
@@ -391,7 +448,14 @@ async def recover_binding(db: AsyncSession, binding_id: UUID, *, expected_epoch:
                 "report_id": str(report.id)}
     try:
         await verify_workspace(state.source_workspace, workspace_id, source.commit_sha, source.repository_url)
-    except (RuntimeError, OSError, ValueError):
+        if selection is not None:
+            await local_workspace(db, client, selection, binding, state, source)
+    except (RuntimeError, OSError, ValueError) as exc:
+        if selection is not None and isinstance(exc, (BridgeError, ConflictError)):
+            if not isinstance(exc, BridgeError) or exc.code not in {"WORKSPACE_UNAVAILABLE", "WORKSPACE_INTEGRITY_REJECTED"}:
+                # A disconnected/unavailable device is not proof that its original
+                # workspace was destroyed. Keep explicit recovery retryable.
+                raise
         binding = await lock_binding(db, binding_id)
         if binding.binding_epoch == expected_epoch and binding.row_version == expected_row_version:
             await terminate_run_binding(db, binding_id, status=BindingStatus.FAILED,

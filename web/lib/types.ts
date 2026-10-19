@@ -74,6 +74,9 @@ export type ProjectCreate = {
 };
 
 export type RunCreate = {
+  harness_mode?: "SERVER_HOST" | "LOCAL_CONNECTOR";
+  harness_node_id?: string;
+  source_bundle_transfer_id?: string;
   repository_url: string;
   commit_sha: string;
   branch?: string;
@@ -517,6 +520,7 @@ export type GitLabIssueOperation = {
   updated_at: string;
 };
 export type RunHarness = {
+  selection?: { mode: "LOCAL_CONNECTOR"; node_id: string; display_name: string | null; online: boolean } | null;
   binding: RunBinding | null;
   state: { max_steps: number; timeout_seconds: number; harness_budget_seconds: number; active_mission_id: string | null; active_attempt_id: string | null } | null;
   reports: RunReport[];

@@ -51,6 +51,7 @@ class IssueOperationRead(BaseModel):
 
 
 class RunHarnessRead(BaseModel):
+    selection: dict | None = None
     binding: BindingRead | None
     state: HarnessStateRead | None
     reports: list[ReportRead]

@@ -2,13 +2,17 @@
 
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
-**Version:** v0.4
+**Version:** v0.5
 **Status:** Draft  
 **Owner:** HyperTest
 **Accepted target decision:** [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
-**Implementation boundary:** 已实现 v1alpha2 持续会话 profile、Host Bridge 与九个领域工具；旧 v1alpha1 保留原语义，2026-10-19 正式容器化及 Codex 正反链路已验收，各 Provider / 外部集成仍分别登记。
+**Dual-mode implementation decision:** [ADR-015 — Dual-mode Harness and Local Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)；Connector 契约及 `0015`—`0018` 已实现，隔离回归通过，核心真实端到端验收通过，扩展故障矩阵待逐设备验收，生产未部署；现有 TMP wire / profile / Host Bridge 版本保持。
+**Implementation boundary:** 已实现 v1alpha2 持续会话 profile、Host Bridge、九个领域工具及独立 Connector 传输；旧 v1alpha1 保留原语义，2026-10-19 正式容器化及 Codex 正反链路已验收，各 Provider / 外部集成仍分别登记。
 
 已包含 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)，正式切换与恢复历史见[部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。后续 PR #10 已部署源码 `828225d`，兼容 Host Bridge 保留 `95e92c5`，schema 仍为0014；当前访问配置只在[运维材料](../SERVER_OPERATIONS.md)维护。[ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)的关闭后治理属于平台操作者接口，不扩展已关闭 Agent 的工具权限，也不改 TMP wire/profile 版本。真实 GitLab 提单及其他 Provider 仍须独立验收。
+
+
+本分支已实现 ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复，并新增 `0015_connector_nodes` → `0016_source_transfer` → `0017_issue_executor` → `0018_harness_selection`。隔离回归已通过；真实私有 Git 通过本机已有 glab / Git helper 获取，并经 Connector / HTTPS 在隔离平台独立接受。真实本地 Codex → 远端 Docker Runner → Evidence / Gate → 报告正反链已通过，私有 Git 经 HTTPS 接受，断线后原 Execution 先收尾并在同会话 / workspace 显式恢复，GitLab 测试 测试 Issue 及负责人已独立核验。扩展真实设备故障矩阵仍按总验收记录区分未执行项，不能由核心链路成功推定所有场景通过。生产未部署 ADR-015；最终版本、节点 / Run / operation 身份和结果由 [ADR-015 总验收](../ADR015_ACCEPTANCE.md) 汇总，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
 
 ---
 
@@ -22,13 +26,15 @@ TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context
 
 目标工作方式为：一个 SUT 对应一个 Project，一个 feat / MR 的固定完整 SHA 的一次测试轮次对应一个 TestRun；同一 TestRun 绑定一个逻辑任务 Worker 和一个持续主 Harness 会话，Harness 自驱串行完成分析、设计、实现、申请正式执行、诊断和报告。不同 TestRun 可以并发；不向同一 Run 派发多个任务 Worker 或并行阶段。输入仍由不可变 SourceSnapshot / PolicySnapshot 固定，不能仅按 SHA 去重而禁止显式复测。
 
-平台服务及任务 Worker 容器化，Agent Harness 与最小 Host Harness Bridge 留在宿主机。容器 Worker 通过受控接口托管会话；Provider 登录、原生会话及其运行工作目录由宿主集成管理，不能因容器重建而丢失会话身份。部署边界见 ADR-013，绑定、租约、生命周期和持久化约束以领域模型为准。
+平台服务及任务 Worker 容器化。ADR-013 已实现的 `SERVER_HOST` 模式由服务器宿主 Host Harness Bridge 托管 Harness；ADR-015 已在本分支实现 `LOCAL_CONNECTOR` 模式，由用户设备的常驻 Connector 主动连接平台并托管本地 Harness。两种模式均保留一个 Run 的主会话、原生认证与受控工作区，不能因 Worker 容器重建而丢失会话身份。模式和节点在 Run 首次绑定时固定；本地模式不绑定浏览器标签页生命周期，不因离线改派服务器。部署边界见 ADR-013 / ADR-015，绑定、租约、生命周期和持久化约束以领域模型为准。
 
 当前 `hypertest.tmp/v1alpha1` 兼容路径仍由 Web 提交 DurableJob、独立 Worker 调用 bounded Run test cycle controller，按 deterministic Planner 的 Canonical State gap 逐个启动 Mission；每次新 Attempt 创建会话，人工等待按 §29 恢复原会话。`max_steps` 限制当前平台工作单元；Job SUCCEEDED 不等于测试 PASS，Job payload 不是 Canonical State。本分支的持续会话使用 §6.1 独立协商的新 profile，不重解释旧 controller 或冻结的 v1alpha1 历史。
 
 周期先以所选 Runner 的只读 fingerprint 预检实际 daemon / 可信镜像或显式 local 启用条件，成功后才进行 Git / Agent；前后重新验证归属，预检 I/O 不持 Run / Job 行锁。失败不创建正式 Execution / Evidence，预检成功也不等于测试通过。独立 Gate-only 操作不要求 Runner。
 
 `ADVANCE_RUN` 可在同一持久请求内先准备固定源 checkout（`prepare_workspace: true`），或接收已有 workspace；二者互斥。源准备是进入 Mission 之前的平台步骤，不消耗 max_steps、不产生 Agent Intelligence。Git I/O 不持有 Run / Job 行锁；准备后重新验证归属与 lease，失败或失联时不得开始 Agent。该扩展不改变 TestMission schema、Mission identity 或 Canonical 状态所有权。
+
+ADR-015 的本地源码传输另遵守 §22.3：批准的本地采集器取得固定完整 SHA，经平台验收后形成不可变输入；不要求服务器复用或取得本地 Git 凭据，也不接受本地路径作为服务器 Runner 的源码引用。该能力经新的 SourceAcquisitionRequest / Transfer / UploadGrant 接口实现，不由旧 prepare_workspace 参数或 ADR-013 部署状态推定。
 
 TMP 定义的是：
 
@@ -61,6 +67,7 @@ ExecutionRequest
 EvidenceReference
 RunWorkflowContract / ReportSubmission（目标 profile）
 HarnessBridgeRequest / HarnessBridgeEvent（目标宿主传输）
+HarnessConnectorEnvelope / SourceBundleReceipt（ADR-015 已实现独立远程传输）
 ```
 
 ---
@@ -121,6 +128,10 @@ ADR-013 的持续会话 profile 为 **`run-persistent-harness/v1`**，只在显�
 目标 `RunWorkflowContract` 引用固定 Project、TestRun、SourceSnapshot、PolicySnapshot、MR / feat 来源及完整 SHA，声明串行阶段、验收规则、允许工具与运行预算。该 Contract 是受控任务上下文，不新建 Canonical 事实链，也不把源输入保存在聊天历史中代替数据库。
 
 稳定运行身份引用领域模型的 `RunExecutionBinding` / `run_execution_bindings`：`logical_worker_id`、`primary_agent_session_id`、`harness_host_id`、`workspace_id` 和单调递增的 `binding_epoch`。这些 Operational State 已由本分支 `0013_run_bindings` 实现；关系、唯一性和不可变约束以领域模型为准。原生 Provider session ID 仅在首次创建事件前允许未绑定，之后不可被新 session 替换。`logical_worker_id` 表示专属于该 Run 的逻辑 Worker 身份，不能与某次领取的 `Job.worker_id`、租约 token、容器 / PID 混用；进程可在显式 fencing 后替换，逻辑绑定、主 AgentSession 与原生 Provider session 保持。一个物理 Worker 实例同一时刻只推进一个 Run，完成后可服务其他任务。
+
+ADR-015 的 `RunHarnessPlacement` 在该绑定旁冻结 `SERVER_HOST / LOCAL_CONNECTOR`、节点与源码传输策略；不会重解释或回填 `0013` 已有字段。新 Run admission 必须同时校验节点归属、项目授权、在线可用性、能力和选定模式；后续阶段、重新连接与显式恢复继续使用该 placement。新模式的 Operational 记录及不变约束以领域模型 §23.9 为准。
+
+新创建请求的幂等输入比较包含冻结的 mode/node、来源信任策略及源码 transfer 策略；同 key 同输入返回原请求，任一异值冲突。Placement 仍是 Operational 归属，不进入 SourceSnapshot fingerprint/Gate hash；不为旧缺 mode 的 Job payload 回填字段、改变旧 Schema 或扩展既有 TMP 工具业务参数。
 
 正常阶段转换或 `WAITING_INPUT` 不增加 binding_epoch。阶段完成只结束相应 Mission / Attempt；不得关闭主 Session、删除 Run 工作目录或建立新的 Provider 会话。新阶段按相同 Session 继续；失败后显式 Mission Retry 追加 Attempt，但仍引用该 Run 的主 Session。`WAITING_INPUT` 保留绑定、会话和工作目录，释放实时租约和计算资源；恢复需要原主 Session 和精确原生引用。其缺失必须显式进入失败 / 恢复决策，不能换 Provider 或新建会话冒充续接。Run 结束 / 取消后的受控 close 与清理遵守保留策略，不能删除 Canonical、问答或审计历史。
 
@@ -598,6 +609,92 @@ Bridge 按已授权 deadline / lease watchdog 停止失联调用；interrupt 结
 
 本分支执行 grant 不超过当前 Job lease 和 120 秒传输上限，Worker 在长工具 / Runner I/O 期间独立续约；Bridge 到期中断且不自动重放。`get_call` 提供持久的 `created_at`、`finished_at`、`elapsed_seconds` 与 `stopped`，仅确认进程停止后固定耗时，供 Run 总预算对账；它不提供计费 token 或 reasoning 内容。
 
+### 22.2 ADR-015 双模式与 Connector 传输契约（本分支已实现，独立验收中）
+
+`SERVER_HOST` 继续使用 §22.1 的限权 UDS Bridge；`LOCAL_CONNECTOR` 使用用户设备常驻进程主动发起的 WSS 双向连接。Web / bootstrap API 已提供 harness_mode、node_id 与 source_bundle_transfer_id；首选服务器模式保持旧 payload 兼容，本地选择由 RunHarnessSelection 在绑定前冻结，首绑定形成 Placement。设备配对 / 轮换 / 撤销与项目能力端点已实现，独立真实验收与生产部署状态另行登记。Web 承担节点选择、配对、撤销及任务提交，页面刷新、关闭或退出不作为 Connector 的连接或任务生命周期。WSS 沿用部署的 VPN / 入口访问边界、验证服务端证书；不要求用户设备开放入站端口，不把 UDS 接口直接代理到公网。
+
+新远程传输独立协商 **`hypertest.harness-connector/v1alpha1`**，不替换 `hypertest.harness-bridge/v1alpha1`，不改变 `hypertest.tmp/v1alpha2`、`run-persistent-harness/v1` 或既有九个领域工具的业务 Schema。双方协商传输版本、TMP/profile、Provider 能力、消息与队列上限、事件保留窗口、心跳、短期授权及源码/Artifact 传输能力；缺少必需能力明确拒绝。其逻辑操作复用 §22.1 的 capability、创建/恢复原句柄、start/resume、查询、续授权、工具请求/响应、中断、显式恢复和关闭语义，不提供任意命令、SSH、文件路径或通用远程 Shell。
+
+设备配对产生独立、可撤销且限用户/项目范围的设备授权；平台登记稳定 `node_id`、所有者、允许的 Project、能力与设备注册状态，连接在线状态另行记录。当前单 Operator 部署仍须明确可信操作者和允许项目，不能由设备配对推定已有多租户安全。设备身份不等于 Run 执行授权，也不等于源码来源采集或问题单写入权限。心跳只证明连接近期可达，不证明有效 Job claim、Provider 正在工作或执行成功。
+
+远程 envelope 至少绑定 transport version、message/request ID、node、owner/project scope 和 deadline；Run 任务消息另绑定 TestRun/Binding、`binding_epoch`、主 AgentSession/native session、workspace、`call_id` 与幂等键；执行消息另绑定当前 Job/claim、Mission/Attempt（若适用）及短期 dispatch grant，工具消息另有稳定 `tool_call_id`，问题单委派另有平台 `operation_id`。注册/握手使用设备 scope；源码准入发生在 Run 绑定之前时以明确的 Project/源码输入 scope 授权，不伪造尚不存在的 Binding。所有消息由接收端验证身份、目标、有效期和 scope；平台在每次提交和外部操作准入时重新验证当前数据库 owner/claim/epoch。不能只凭通道已认证或消息已 ACK 接受迟到结果。
+
+设备仅取得绑定特定任务/调用的短期执行 grant，及明确指向历史调用的窄查询/清理 grant；平台的全局管理签名密钥、Job lease 原始秘密和数据库权限不下发设备或 Agent。取消/撤销后的查询、中断、关闭可用独立清理权限，但不能借清理消息创建会话、resume、新发工具或提交 Canonical。原生会话 ID、第三方认证和授权材料不进入模型上下文、活动流或报告。
+
+首版平台与 Connector 只交换白名单类型化请求 / 响应、规范化活动及结构化结果，不持久化 Provider 私有原始事件、stdout / stderr 或 reasoning。通过原 get_call(cursor) 有界读取 Bridge 持久调用账本；单次最多 256 events、最多一个 pending typed tool，事件 sequence 必须连续，cursor gap 明确拒绝。响应经白名单投影和数据库事务保存后才视为接收；ConnectorRequest 在发送前提交 SENT，重连不重发 SENT，未知结果只查询原 call / operation。补读事件不重跑 Provider turn、Runner 或 Issue POST，不承诺无界 push log 或网络 exactly-once。
+
+**首版设备身份与 mailbox。** 操作者经独立 operator key 配对；平台生成高熵随机 bearer token，设备以 Authorization: Bearer 使用，明文仅留节点私有文件；平台持久化 SHA-256 token_hash / key_version 引用。key_version 不是公钥，WSS / HTTPS 使用 TLS 校验平台身份和已认证设备 scope。轮换保持 node_id，撤销旧 grant 并保留其 hash / 审计；旧已知凭据仅可获得匹配历史对象的窄查询 / 清理通道，不能恢复执行。项目权限由独立 NodeProjectCapability 的 harness / source_acquisition / issue_executor 分别授权。
+
+WSS 请求 envelope 固定 type、transport、request_id、node_id、operation、authority、payload、input_sha256、expires_at，以及 issue_create 的 create_once；Run / Project / Binding / Session / workspace / claim / epoch 等在对应 payload / context 内固定。PostgreSQL ConnectorRequest 记录 QUEUED → SENT → SUCCEEDED / FAILED / UNKNOWN，发送前持久消费，断线不重投原 SENT。单消息最多 4,000,000 bytes，每节点最多 256 个 QUEUED / SENT；hello / hello_ack 验证现有 TMP v1alpha2、profile 与 host_id / node_key，心跳间隔 5 秒、失联观察窗口 20 秒，均不授予新工作。
+
+| 操作面 | 实际 allowlist 与响应边界 |
+|---|---|
+| 执行 | create_session、execute、resume、get_call、renew、respond_tool，及 install_workspace(create=true)；必须当前 DispatchGrant / claim / epoch |
+| 管理 | capabilities、get_call、restore_session、interrupt、recover、close、issue_query，以及 install_workspace(create=false)；只针对原身份，不启动 Provider 工作 |
+| 来源 / 问题单集成 | prepare_source、issue_create、issue_query；协议解析兼容 source_prepare 名称，不具备已注册能力时明确拒绝；issue_create 按 operation_id 只消费一次创建权限 |
+| 会话响应 | 仅 session_id / provider_session_id / binding_epoch / closed / recovery_required / active_call_id |
+| 调用响应 | 仅 call_id / status / stopped / timestamps / elapsed_seconds / binding_epoch / provider_session_id / error_code / cursor / events / pending_tools；事件与九个 typed tools 各自再验 Schema |
+| 简单 ACK | renew 仅 expires_at；respond_tool 仅 accepted=true；interrupt / close 仅 accepted / stopped / closed 三个布尔值 |
+| 来源 / 安装响应 | prepare_source 仅 SourceTransferRead 精确字段并匹配原请求；安装仅 workspace_id / installed=true，不能把任意本机路径当服务器可执行路径 |
+| 问题单响应 | 仅 operation_id / delegation_sha256 / status / issue；issue 限 IID / project / description / HTTPS URL / 精确 assignee，须匹配原 correlation 与授权 |
+
+未知字段和非法结果在入库前拒绝，不把普通设备文字当可信外部结果。install_workspace(create=true) 匹配 Run / Binding / Session / workspace / 已接受 transfer、当前 Job claim / epoch 与执行 grant，发送及返回后重新 fencing。create=false 仅限原身份的只读核验；目录丢失或内容改变返回确定错误，禁止自动重建，网络或授权未知不构成永久丢失的证明。
+
+<a id="223-本地授权复用与固定源码artifact-传输adr-015-目标"></a>
+
+### 22.3 本地授权复用与固定源码/Artifact 传输（ADR-015 已实现）
+
+本地 Harness 可使用本机实际可用的 Provider CLI/SDK 登录；Connector 的受控源码采集与问题单适配器可分别复用本机 Git credential helper、SSH agent、CLI 或集成认证。浏览器登录不自动代表存在 CLI/API 权限，各 capability 必须实际探测并按项目授权。Provider 自身认证留在其本地运行时，Git/问题单凭据由相应适配器使用，不转发平台、不放入 AgentContext、模型工具、Artifact 或日志；配对也不导入这些第三方 token。
+
+源码传输分为受控采集、平台验收和只读分发三个步骤：
+
+1. 平台先固定批准的 repository origin、可选 ref 与完整 commit SHA、对象格式及采集策略。与 Agent 隔离的本地 source-acquisition adapter 使用本地 Git 权限从批准 origin 获取该 SHA，并生成无凭据的 Git 对象闭包包与 tracked tree manifest；不能把当前工作目录、可变分支 tip 或 Agent 自报 checkout 视作固定输入。
+2. 来源可信性必须有可验证路径。项目可显式授权已配对节点的受控 source-acquisition adapter 为来源采集者：采集器提交设备认证的 receipt，固定 Project/不可变源码输入请求、node、批准 origin/ref、完整 commit/tree、bundle digest、授权策略/版本引用和采集结果；设备登录本身不授予此角色。首版平台在 TLS 连接上验证随机 bearer 的设备哈希身份与 receipt 所属 grant、授权、scope 和固定输入；receipt 不使用非对称设备签名。平台独立验证 Git commit → tree → blob 对象链、相对路径、文件模式与内容 hash，再接受源码。receipt 的来源保证依赖被明确授权的采集适配器及其主机，不是对不可信电脑的密码学来源证明；Harness 不能自签或替换它。平台也可直接核验批准 origin/commit 作为另一可信来源路径。origin 字符串、设备声称、Agent 输出或包 SHA-256 均不能单独证明来源真实性；包 hash 只证明传输完整性。没有可信采集授权或独立来源核验路径时 fail closed，不冻结/复用相应 SourceSnapshot。
+3. 平台在 SourceSnapshot 冻结前接受包及 manifest/receipt 关联，保存不可变、内容寻址源码供 Runner 使用；Runner 从平台受控存储取包并独立校验固定源与实际执行树，不依赖用户设备路径或 Agent 自报 hash。本地会话工作副本也从已接受身份核验，不能带入其他 commit 或 dirty 修改。SourceSnapshot 字段、hash 和历史不因传输方式改变而重写。
+
+包只包含固定 commit 所需 tracked Git 对象和声明文件，不上传完整认证 `.git` 目录、credential/config、dirty/untracked 文件或无关 `.env`。若敏感内容本就被该 commit 跟踪，拒绝传输并要求新的合规输入/commit；不能静默过滤 tracked 文件后仍声称是原 tree。批准 origin/receipt 只使用去凭据的规范引用，不携带 URL 内认证、SSH 私钥、访问 token 或本地任意绝对路径。
+
+首版拒绝未支持的 submodule、LFS 及外部下载依赖，直到存在显式固定对象与独立验证契约；不能静默跟随远端、遗失文件或以指针代替完整执行源码。
+
+大包和 Artifact 通过独立 HTTPS 上传/下载，WSS 只传控制和受控引用。平台签发有限期、限方向、限对象与限大小的 transfer grant，绑定 owner/Project、source input 或 Run/Binding scope、`bundle_id`/Artifact ID、预期 digest、长度/上限与 expiry；设备授权、传输授权和执行授权分别撤销、校验，过期 URL 不能继续读写。下载端校验 hash，上传验收检查实际大小、路径遍历、绝对路径、符号链接逃逸、文件类型、对象数量和解压缩资源上限，拒绝压缩炸弹与超额内容。已开始的大文件 I/O 也不能越过撤销/过期后验收；不在数据库聚合行锁中传输或校验包。
+
+生成测试仍通过现有 typed Proposal 的 `code` 提交，Verifier 接受后生成 immutable TestImplementation Artifact，Runner 按已有规则验证和执行；传输内容引用不自行扩展工具业务 Schema。Connector 上传成功不是 Canonical acceptance，也不让本地工作文件成为正式 Implementation/Evidence。可信 Runner 仍默认运行在平台受信执行环境，本地 Harness 不因持有源码或认证获得 Runner 身份。
+
+**首版实现的源码包与资源边界（2026-10-19）。** `hypertest.source-bundle/v1alpha1` 使用无压缩 JSON，原始 Git commit / tree / blob 对象以 Base64 编码；拒绝额外字段、重复对象、无关对象及父历史。manifest 列出完整 tracked tree 的 path / mode / Git OID / SHA-256；接收端重算每个对象的 Git Hash 并从目标 commit 独立遍历完整 root tree，不能以 manifest 替代对象链。
+
+| 限制 | 当前实现 |
+|---|---|
+| 单个对象原始 payload | 最多 24 MiB（25,165,824 bytes） |
+| 所有对象原始 payload 合计 | 最多 32 MiB（33,554,432 bytes），包含 commit / tree / blob |
+| HTTPS 接收的完整 JSON 包 | 最多 48 MiB（50,331,648 bytes），并精确匹配 grant 中的长度和 SHA-256 |
+| 对象 / 文件 / tree 深度 | 最多 50,000 个对象、25,000 个文件、100 层 tree；展开后的 tree 访问也有界 |
+| 当前支持的 tracked file mode | `100644`、`100755`；首版 Runner 不支持 symlink，故接收端连安全 symlink 也明确拒绝；submodule / LFS 同样拒绝 |
+| 上传授权与传输 | grant 最长 120 秒；流式接收同样受剩余时限限制，完成 I/O 后重新核对设备 / Project source-acquisition scope / policy |
+| 暂存空间 | 每个受控 store 最多预留 192 MiB，跨 API 进程使用文件锁；崩溃遗留 `sources/staging/source-*` 在 600 秒后清理 |
+| 本地缓存 | 2 GiB 准入配额；保留已接受包供原 workspace 恢复，达到配额时拒绝新采集，不自动删除活跃或结果未知的 Run |
+
+24 MiB 单对象上限用于容纳固定 tree 中合法跟踪的二进制对象；它不放宽 32 MiB 总 payload、48 MiB JSON 包或秘密拒绝规则。源码适配器只在独立受管目录读取固定 Git 对象，失败后移除 fetch 的裸仓库；物化不运行 hooks、smudge filter 或仓库脚本。越界输入必须失败，不通过删除文件、LFS 下载或修改原 commit 绕过上限。实测统计与独立验收范围见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+
+### 22.4 本地问题单执行的受控委派（ADR-015 已实现，真实创建待验收）
+
+`request_gitlab_issue`/`get_issue` 业务 Schema 及 §30.1 的 Finding/Evidence/策略规则保持。服务器集成继续可用；新本地 executor 是 Connector 的单独 capability，由本地可信适配器执行平台已批准的类型化 create/read 操作，凭据不交给 Harness。两种 executor 共享平台 operation 账本和去重范围，不因换后端、重连或更换幂等键给同一 Finding 再建 Issue。
+
+平台先完成项目白名单、调用者、责任人、已接受 Finding/可信 Evidence、Run/SHA 与策略校验，并持久化不可变创建意图；再向固定 executor mode/node 发委派。委派至少固定 `operation_id`、Run/Binding/epoch、Finding、输入摘要、目标 Project/负责人、允许动作、授权快照引用和 expiry；本地校验精确目标和有效权限，持久登记该操作后才发外部请求。同 operation/输入的消息重投返回既有账本状态，异输入冲突。设备配对、Agent 生成 draft、人工补充回答及消息送达都不替代该授权，不能扩大为任意问题单 API、URL、项目或通用外部工具。
+
+已登记意图的结果未知时保持 `UNKNOWN`，只允许同一 `operation_id` 的 correlation 查询/核对；即使重连、ACK 丢失或本地执行器重启也不得自动再次 POST。实际 Issue 引用须由受控适配器从目标平台响应/查询核验，并由 HyperTest 校验其项目、关联标识、输入摘要和引用范围后入账；Agent 自报 URL 不算核验。收到迟到结果只可对账原操作，不恢复过期执行权限、不推进已取消 Run；已发生外部副作用保留审计，不假定可回滚。
+
+### 22.5 连接丢失、恢复与离线撤销（ADR-015 已实现，完整矩阵验收中）
+
+连接在线、执行授权、Binding 状态和 Provider 调用状态分别判断：短暂 WSS 重连可重建认证通道、补送有界事件及查询原调用，不能单凭 reconnect 自动 start/resume。仍有效的 grant 也必须按原 `call_id` 查询并复核；无法确定原调用是否启动或停止时保持不确定状态，不新建会话或重复 execute。离线不把任务改派服务器，也不替换原节点/Provider。
+
+Connector 有独立于网络与 Provider 的本地 watchdog，以本地单调时钟限制授权存活；执行 grant 的到期时间不得晚于当前 Job lease 和协商的传输授权上限。续授权依赖平台当前 claim/epoch，不以心跳自续。到期或可达时获知撤销后，停止接受新 Provider/工具/Issue 工作并尽力 interrupt 原调用，区分“已请求中断”与“确认 stopped”。平台不因暂时无法联系设备而断言进程已停止；授权失效或原调用无法确认时进入领域模型的受控失联/恢复处理，保留原调用、预算预留与未知操作记录。Connector 通道/dispatch grant、服务器 Worker Job lease、Runner 执行授权相互独立；设备断线不等于服务器 Worker 失联，不自动使仍有有效平台治理的 Execution 失败。已被可信 Runner 接受的 Execution 可独立完成并按原 Execution/授权规则记账，不因本地离线另发一次 Runner 请求；服务器 Job 自身失联才应用既有 Job/Attempt/Execution 规则。
+
+恢复先以窄查询/管理授权对账同一 node、Binding、原生 Session、workspace、固定源码、原 `call_id`、工具与 Issue operations；确认旧 owner/call 已 fenced/stopped 并核对耗时后，才按领域模型显式恢复规则取得新 epoch/Job claim 和新执行 grant。原会话/工作区缺失或来源校验失败时明确失败并保留历史，新 Provider/节点/会话只能开始关联新 Run。事件补送、原结果核对与新工作授权分开，旧 epoch 事件不得提交 Canonical。
+
+若仍有服务器有效 owner/lease 治理的 Runner Execution，先撤销 Harness dispatch 并拒绝所有新的 Harness/typed tool 工作，保留原 Binding 可提交状态、epoch 与 Job claim，仅由原 owner 按原 Execution 完成执行与收集，或执行有审计的受控取消；收尾后才转 `RECOVERY_REQUIRED` 并推进需要更换 epoch/new claim 的 Harness 恢复。无有效 Runner 时可直接进入受控恢复。不能抢先改变 Binding 状态/epoch 或撤销有效 claim 使原 Runner 的正常提交变成迟到结果，也不放宽 `RECOVERY_REQUIRED` 的既有提交准入；不能以本地恢复绕过每 Run 单活跃 Job 或创建替代 Execution 冒充对账。
+
+`WAITING_INPUT` 保留已有持久问题、原 Session/节点/workspace，不能由 reconnect 代替有效回答消费和恢复准入；连接丢失不是虚构人工问题的理由。CLOSED/FAILED/CANCELLED 仍为不可重开的终态，ADR-014 的独立 Gate 仍不调用 Connector/Harness。离线 cancel/设备撤销先在平台持久生效，拒绝新 dispatch、工具提交与源码/Artifact 验收；远端中断/清理可标记待执行。设备回连后只获精确的查询/清理权限，不补发失效工作，清理完成与任务取消分别审计。
+
 ---
 
 ## 23. TMP 与 MCP 分工
@@ -786,6 +883,8 @@ Harness 通过 `hypertest.request_gitlab_issue` 提交 Issue draft、当前 Run 
 
 外部操作以稳定 correlation / idempotency key 去重，保存 draft 摘要、Run / Finding / Evidence 关联、授权来源、请求状态及实际 GitLab project / issue IID / URL；同一逻辑缺陷的重复调用应返回既有 Issue 或明确更新请求，不重复创建。超时或连接中断产生 outcome unknown 时，必须先依据 correlation 对账；不能假定失败后自动重提。审计记录平台实际确认的外部结果，Issue 本身不成为可信 Evidence 或质量 Verdict。本分支已实现固定项目 / 责任人策略、`0014` 操作账本及仅 GET 的未知结果对账；未配置或未授权时返回 `DECISION_REQUIRED`。现有验证使用注入 HTTP transport，真实 GitLab 提单仍待明确授权、配置及验收。
 
+ADR-015 保留上述平台治理和服务器 executor，已实现 §22.4 的本地受控 executor；不改变现有工具参数、不把本地权限暴露给模型，也不由 `0014` 已实现推定本地执行/真实外部验收完成。mode/node 选择和委派记录遵守领域模型 §23.9；已登记 operation 的 executor、目标和摘要不可因重连或后端切换改变。
+
 ---
 
 ## 31. Retry
@@ -804,6 +903,8 @@ Worker 租约过期或进程中断时，平台保留失联 Attempt 并标记 FAI
 周期因 `MISSION_REJECTED` / `MISSION_FAILED` 受控停止时，FAILED Job result 保留 stop reason、已持久步骤、相关 Mission ID 和已解析 workspace；独立 EXECUTE_MISSION 拒绝还保留 Attempt ID。它只索引已有历史，不接受模型自报为执行事实，也不重新打开终态 Mission。FAILED Mission 必须明确报告失败，不能作为 `MISSION_IN_PROGRESS` 返回。通用异常可没有部分 result；取消或租约失效不接受迟到 handler 结果。用户显式 retry 仍生成关联新 Job，不覆盖旧 Job / Attempt / Proposal。
 
 目标 profile 中需要先对账旧 Bridge call、确认停止并提高 binding_epoch，才可由替代 PID / 容器继续该 Run；保留 logical_worker_id、主 Session、宿主路由、固定输入及历史。如果原生 Session / 工作目录不可恢复，必须明确报告并由 Operator 选择恢复原环境或创建关联新 Run；不得在原 Run 中静默新建 Provider Session。预算由 Run 总预算、阶段 / Attempt 限额、Bridge call deadline 和允许重试次数共同约束，等待人工输入不消耗活跃 lease；恢复不能重置已消耗步骤 / 费用。达到预算或外部结果不明时可观察停止，不构造自动重试循环。
+
+ADR-015 的本地连接中断按 §22.5 区分通道恢复和执行恢复，不能直接套用“服务器 Worker 租约过期”改变仍有效的 Runner Execution。dispatch/call 失效后的恢复保留固定 mode/node；超时的执行、工具写入及 Issue 创建先对账，不以消息重传代替显式执行授权。
 
 本分支的实际预算为首次绑定时冻结的 `max_steps`、Runner 单次 timeout 与 Run 总 `harness_budget_seconds`（默认 3600，范围 1–7200 秒）。总预算按原生调用活跃墙钟时间计量，包含工具等待，不包含已停止后的人工等待；不是计费 token、金额或账号额度硬限制。每次 start 预留剩余预算；只有 Bridge 确认 `stopped` 并返回可信 `elapsed_seconds` 后，才按向上取整秒数结算并释放未用预留。未知调用保留全部预留，显式恢复须先取得停止与耗时证明；问答、新 Job、配置变化和 epoch 递增都不重置累计使用量。预算用尽不再启动新 turn。
 
@@ -829,6 +930,8 @@ Operational Job 的输入比较允许对新增缺省项作内存规范化：旧 
 ## 33. Cancellation
 
 HyperTest 可以 cancel mission；Adapter 对 Provider interrupt 为 best-effort。目标 profile 取消单个阶段不自动新建会话或越过该阶段；是否可继续其他工作由依赖 / 策略 guard 明确决定。取消整个 Run 时先持久化终态 Binding / 取消状态并撤销执行 call / 工具权限，随后使用 §22.1 的窄管理授权中断主会话并对账 / 清理其受控 Runner / GitLab pending 操作；不因取消自行增加 binding_epoch，epoch 仅在显式受控恢复中递增。已完成的外部副作用不能假定可回滚，需保留引用和审计；迟到结果不得推进已取消 Run。关闭主会话、清理工作区与证据保留各有边界，不能用删 Session 代替取消。
+
+本地节点离线时，平台取消与设备撤销先持久生效，远端清理按 §22.5 留下待完成状态；不能等待连接恢复才撤权，也不能声称无法确认的本地进程已经停止。重连仅授予精确历史调用的查询/清理权限，不能重新派发原工作或重开终态。
 
 Canonical State 必须保证：
 
@@ -866,7 +969,7 @@ UNKNOWN
 
 同一 Major 优先 additive change；禁止无版本重命名 required field、改变字段语义或删除 enum value。
 
-文档 v0.4、兼容 wire `hypertest.tmp/v1alpha1`、本分支持续会话 wire `hypertest.tmp/v1alpha2`、profile `run-persistent-harness/v1` 与宿主 transport `hypertest.harness-bridge/v1alpha1` 是不同版本轴。持续会话生命周期、能力要求和工具 envelope 只在新版本 / profile 明确协商后适用；旧 Run 仍按其冻结版本执行，不通过调整 Adapter 默认值重解释历史。
+文档 v0.5、兼容 wire `hypertest.tmp/v1alpha1`、已实现持续会话 wire `hypertest.tmp/v1alpha2`、profile `run-persistent-harness/v1`、宿主 transport `hypertest.harness-bridge/v1alpha1` 与 ADR-015 已实现的独立远程 transport `hypertest.harness-connector/v1alpha1` 是不同版本轴。本次实现使用独立 Connector transport，不升级既有 wire/profile，也不据此宣称已部署生产或通过全部真实验收。持续会话生命周期、能力要求和工具 envelope 只在新版本 / profile 明确协商后适用；旧 Run 仍按其冻结版本执行，不通过调整 Adapter 默认值重解释历史。
 
 ---
 
@@ -895,6 +998,8 @@ Planner / Scheduler 在 Run 初次 admission 时基于 Capability 选择逻辑 W
 
 v1alpha1 兼容路径使用默认 Codex Harness，并提供 §29 的持久等待、Web 回答与明确原生 thread 的 Codex resume 控制路径。本分支 Bridge 另对实际 Codex CLI 版本、功能开关及精确 resume 参数做能力探测，并协商 transport / wire / profile / 固定九工具。它明确关闭原生 shell、filesystem、多 Agent 及外部通用工具；不能根据上述目标示例的 `true` 推断已开放。跨 Harness 选择和其他 Provider 的 resume 仍待独立实现与真实验收，Codex 的已验收范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。
 
+ADR-015 节点协商已要求声明 `SERVER_HOST / LOCAL_CONNECTOR`、支持的 Connector 版本、可恢复调用/事件 cursor、受控源码采集/传输及问题单 executor 能力与授权 scope。能力声明不是权限授予，Git/问题单登录就绪不表示可以访问任意项目。源码采集、传输和问题单操作属于 Connector 的受控适配器，不因部署本地而打开 Harness 原生 shell/filesystem 或外部通用工具。
+
 ---
 
 ## 37. Agent Selection
@@ -912,6 +1017,8 @@ TMP 明确区分 Agent Identity、User Identity、HyperTest Service Identity、R
 目标 Agent 对 HyperTest MCP 的访问权限由受控工具 Token 控制，至少绑定 mission_id / attempt_id（若适用）、test_run_id、project_id、agent_session_id、logical_worker_id、binding_epoch、allowed_tools、allowed_resources、expiration。Token 为可撤销、限范围的授权，容器 Worker 和 Bridge 另以服务身份认证；不得把原始 Job lease、宿主登录或 GitLab 管理凭据交给 Agent。
 
 本分支采用分层授权落实上述范围：Agent 的 relay 仅持有可撤销、单 call 的随机 capability；Bridge 以独立执行 / 管理签名、固定绑定上下文、epoch、call 和短期 grant 约束传输，Worker 每次工具读取、写入及响应交付再核验当前数据库 claim、阶段、资源和策略。relay token 不自含所有领域权限，也不能越过 Worker 准入；不将其描述为独立通用 Mission Token 服务。首版只开放九个受控 MCP 工具，明确声明 `native_shell=false`、`native_filesystem=false`；原生 shell、外部 MCP、浏览器及其他通用工具不在当前能力内。v1alpha1 的最终结果路径保留原有边界。
+
+ADR-015 的设备配对、源码来源采集、HTTPS transfer、dispatch 执行和问题单委派是独立 scope：用户本机拥有第三方凭据不等于平台或模型获授全部权限。节点只能使用批准 Project 的受控适配器；所有授权可撤销且不得携带第三方凭据内容，平台保留全局管理密钥。新模式不得放宽上述 Agent 能力；具体远程安全/恢复和来源验证契约见 §22.2–22.5。
 
 Agent Session 不拥有项目全局管理员权限。
 

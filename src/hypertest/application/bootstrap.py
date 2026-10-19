@@ -18,6 +18,7 @@ from hypertest.application.services import (
 )
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
+from hypertest.domain.harness_selection import RunHarnessSelection
 from hypertest.domain.models import (
     AuditEvent,
     OutboxEvent,
@@ -42,6 +43,12 @@ async def _existing_request(
     ))
     if existing is None:
         return None
+    selected = await session.get(RunHarnessSelection, existing.id)
+    expected = (payload.harness_mode, payload.harness_node_id, payload.source_bundle_transfer_id)
+    actual = ((selected.mode, selected.node_id, selected.source_bundle_transfer_id)
+              if selected else ("SERVER_HOST", None, None))
+    if actual != expected:
+        raise ConflictError("idempotency key is already bound to a different Harness selection")
     snapshot = await session.get(SourceSnapshot, existing.source_snapshot_id)
     policy = await session.get(PolicySnapshot, existing.policy_snapshot_id)
     request = payload.environment.model_dump(mode="json", exclude_none=True) if payload.environment else None
@@ -77,6 +84,12 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     if existing is not None:
         await session.commit()
         return existing
+    transfer = None
+    if payload.harness_mode == "LOCAL_CONNECTOR":
+        from hypertest.application.source_transfer import accepted_transfer
+        transfer = await accepted_transfer(session, payload.source_bundle_transfer_id,
+            project_id=project_id, node_id=payload.harness_node_id,
+            origin=source.repository_url, commit_sha=source.commit_sha)
     environment_definition = None
     if payload.environment is not None:
         if await session.scalar(select(Project.id).where(Project.id == project_id)) is None:
@@ -102,6 +115,23 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     if existing is not None:
         await session.commit()
         return existing
+    if transfer is not None:
+        # Freeze-time authorization, after all external environment I/O. Row
+        # locks serialize concurrent node/capability revocation with acceptance.
+        from hypertest.connector.security import require_capability
+        from hypertest.domain.connector import HarnessNode, NodeProjectCapability
+        await session.scalar(select(HarnessNode).where(HarnessNode.id == payload.harness_node_id)
+                             .with_for_update().execution_options(populate_existing=True))
+        await session.scalars(select(NodeProjectCapability).where(
+            NodeProjectCapability.node_id == payload.harness_node_id,
+            NodeProjectCapability.project_id == project_id,
+            NodeProjectCapability.capability.in_(["harness", "source_acquisition"]))
+            .order_by(NodeProjectCapability.id).with_for_update()
+            .execution_options(populate_existing=True))
+        await require_capability(session, payload.harness_node_id, project_id, "harness")
+        transfer = await accepted_transfer(session, payload.source_bundle_transfer_id,
+            project_id=project_id, node_id=payload.harness_node_id,
+            origin=source.repository_url, commit_sha=source.commit_sha)
     fingerprint = source_fingerprint(project.id, source, environment_definition=environment_definition)
     root = Path(get_settings().artifact_root).resolve()
     inputs = root / "inputs"
@@ -168,6 +198,11 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     )
     session.add(run)
     await session.flush()
+    if transfer is not None:
+        from hypertest.application.source_transfer import link_snapshot
+        await link_snapshot(session, transfer, snapshot.id)
+        session.add(RunHarnessSelection(test_run_id=run.id, mode="LOCAL_CONNECTOR",
+            node_id=payload.harness_node_id, source_bundle_transfer_id=transfer.id))
     session.add(
         AuditEvent(
             project_id=project.id,

@@ -7,6 +7,8 @@ import ipaddress
 import json
 import os
 import re
+import ssl
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -68,6 +70,7 @@ def validate(values: dict[str, str], *, live: bool) -> None:
         raise ValueError("host ports must be distinct")
     if values.get("HYPERTEST_PUBLIC_INGRESS", "enabled") not in ("enabled", "disabled"):
         raise ValueError("HYPERTEST_PUBLIC_INGRESS must be enabled or disabled")
+    tls_enabled = ingress_tls_enabled(values)
     address = ipaddress.ip_address(values.get("HYPERTEST_PUBLIC_IP", ""))
     if address.version != 4 or address.is_unspecified or address.is_multicast or address.is_loopback:
         raise ValueError("public listener requires the host's specific IPv4 address")
@@ -80,6 +83,8 @@ def validate(values: dict[str, str], *, live: bool) -> None:
             or peer.network_address.is_loopback or peer.network_address.is_link_local
             or str(peer.network_address) == "255.255.255.255"):
         raise ValueError("the authorized VPN allowlist requires one explicit IPv4 /32")
+    if tls_enabled:
+        validate_tls(values, live=live)
     if live:
         subprocess.run(["docker", "volume", "inspect", values["HYPERTEST_POSTGRES_VOLUME"]], check=True, stdout=subprocess.DEVNULL)
         platform = read_env(Path(values["HYPERTEST_PLATFORM_ENV_FILE"]))
@@ -90,6 +95,8 @@ def validate(values: dict[str, str], *, live: bool) -> None:
             raise ValueError("production API requires queued execution")
         if platform.get("HYPERTEST_HARNESS_MODE") != "bridge":
             raise ValueError("production platform requires the host Bridge")
+        if tls_enabled:
+            validate_connector_platform(platform)
         for key in ("HYPERTEST_BRIDGE_EXECUTION_KEY_FILE", "HYPERTEST_BRIDGE_MANAGEMENT_KEY_FILE"):
             path = Path(values[key])
             if path.stat().st_mode & 0o007:
@@ -106,10 +113,131 @@ def compose_command(env_file: Path, *args: str) -> list[str]:
     # operator's deployment overlay disappear during a subsequent systemd start.
     if env_file.exists() and read_env(env_file).get("HYPERTEST_GITLAB_POLICY_DIR"):
         command.extend(["-f", str(REPO / "ops/container/compose.gitlab.yml")])
+    if env_file.exists() and ingress_tls_enabled(read_env(env_file)):
+        command.extend(["-f", str(REPO / "ops/container/compose.tls.yml")])
     return [*command, *args]
 
 
+def ingress_tls_enabled(values: dict[str, str]) -> bool:
+    mode = values.get("HYPERTEST_INGRESS_TLS", "disabled")
+    if mode not in {"enabled", "disabled"}:
+        raise ValueError("HYPERTEST_INGRESS_TLS must be enabled or disabled")
+    return mode == "enabled"
+
+
+def validate_tls(values: dict[str, str], *, live: bool) -> None:
+    if values.get("HYPERTEST_PUBLIC_INGRESS", "enabled") != "enabled":
+        raise ValueError("TLS upgrades only the existing public ingress; isolated loopback remains HTTP")
+    name = values.get("HYPERTEST_TLS_SERVER_NAME", values["HYPERTEST_PUBLIC_IP"])
+    if (not name or name != name.lower() or len(name) > 253
+            or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*", name)):
+        raise ValueError("TLS server name requires a canonical IPv4 address or lowercase DNS name")
+    try:
+        address = ipaddress.ip_address(name)
+    except ValueError:
+        pass
+    else:
+        if str(address) != values["HYPERTEST_PUBLIC_IP"]:
+            raise ValueError("TLS IP identity must match the existing public listener")
+    for key in ("HYPERTEST_TLS_CERT_FILE", "HYPERTEST_TLS_KEY_FILE"):
+        raw = values.get(key, "")
+        path = Path(raw)
+        if not raw or not path.is_absolute() or raw != str(path) or ".." in path.parts:
+            raise ValueError(f"{key} must be a normalized absolute file path")
+        if live and (not path.is_file() or path.is_symlink()):
+            raise ValueError(f"{key} must be an existing regular file")
+    if values["HYPERTEST_TLS_CERT_FILE"] == values["HYPERTEST_TLS_KEY_FILE"]:
+        raise ValueError("TLS leaf certificate and key must be separate files")
+    if live:
+        cert = Path(values["HYPERTEST_TLS_CERT_FILE"]).stat()
+        cert_mode = stat.S_IMODE(cert.st_mode)
+        if not ((cert.st_uid == 101 and cert_mode & stat.S_IRUSR)
+                or (cert.st_gid == 101 and cert_mode & stat.S_IRGRP)
+                or cert_mode & stat.S_IROTH):
+            raise ValueError("TLS certificate must be readable by nginx UID/GID 101")
+        details = Path(values["HYPERTEST_TLS_KEY_FILE"]).stat()
+        mode = stat.S_IMODE(details.st_mode)
+        readable = ((details.st_uid == 101 and mode & stat.S_IRUSR)
+                    or (details.st_gid == 101 and mode & stat.S_IRGRP))
+        if mode & 0o027 or not readable:
+            raise ValueError("TLS key must be readable by nginx UID/GID 101 and not group-writable or world-accessible")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(values["HYPERTEST_TLS_CERT_FILE"], values["HYPERTEST_TLS_KEY_FILE"])
+
+
+def validate_connector_platform(platform: dict[str, str]) -> None:
+    operator_key = platform.get("HYPERTEST_CONNECTOR_OPERATOR_KEY", "")
+    if not 32 <= len(operator_key) <= 512:
+        raise ValueError("TLS Connector requires a 32 to 512 character Operator key in protected platform.env")
+    if platform.get("HYPERTEST_CONNECTOR_ALLOW_INSECURE_LOOPBACK", "false").lower() not in {"false", "0"}:
+        raise ValueError("production Connector cannot enable insecure loopback authorization")
+    # Uvicorn consumes this standard environment variable. A host-network nginx
+    # reaches the loopback-published API through its existing Docker gateway.
+    # The operator observes that exact peer; never infer or broaden its subnet.
+    peers = platform.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",")
+    if not 1 <= len(peers) <= 2 or len(set(peers)) != len(peers) or "127.0.0.1" not in peers:
+        raise ValueError("FORWARDED_ALLOW_IPS requires loopback and at most one observed exact IPv4 proxy peer")
+    for peer in peers:
+        try:
+            address = ipaddress.ip_address(peer)
+        except ValueError:
+            raise ValueError("FORWARDED_ALLOW_IPS requires exact IPv4 peers, never wildcards, whitespace or networks") from None
+        if address.version != 4 or address.is_unspecified or address.is_multicast or address.is_link_local:
+            raise ValueError("FORWARDED_ALLOW_IPS requires exact IPv4 peers")
+
+
 def render_nginx(values: dict[str, str]) -> str:
+    # Preserve accepted HTTP configuration byte-for-byte unless TLS is explicit.
+    rendered = _render_nginx_http(values)
+    if not ingress_tls_enabled(values):
+        return rendered
+    ip, port = values["HYPERTEST_PUBLIC_IP"], values["HYPERTEST_INGRESS_PORT"]
+    name = values.get("HYPERTEST_TLS_SERVER_NAME", ip)
+    prefix, separator, public = rendered.partition(f"listen {ip}:{port} default_server;")
+    if not separator:
+        raise ValueError("TLS requires the existing protected public ingress listener")
+    public = public.replace(f"server_name {ip};", f"server_name {name};", 1)
+    public = public.replace(f'if ($host != "{ip}")', f'if ($host != "{name}")', 1)
+    public = public.replace("        location /api/v1/ {", _connector_locations(values) + "        location /api/v1/ {", 1)
+    prefix = prefix.replace(f'"http://{ip}:{port}" 0;', f'"https://{name}:{port}" 0;')
+    prefix = prefix.replace("    map $request_method", "    map $http_upgrade $hypertest_connection_upgrade { default upgrade; '' close; }\n    map $request_method", 1)
+    tls = f"""listen {ip}:{port} ssl default_server;
+        ssl_certificate /run/hypertest-tls/server.crt;
+        ssl_certificate_key /run/hypertest-tls/server.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        error_page 497 =308 https://{name}:{port}$request_uri;"""
+    return prefix + tls + public
+
+
+def _connector_locations(values: dict[str, str]) -> str:
+    forwarding = f"""            proxy_pass http://127.0.0.1:{values['HYPERTEST_API_PORT']};
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Host $http_host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Forwarded "";
+"""
+    return f"""
+        location = /api/v1/harness-connectors/ws {{
+{forwarding}            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $hypertest_connection_upgrade;
+            proxy_read_timeout 150s;
+            proxy_send_timeout 150s;
+            proxy_buffering off;
+        }}
+        location ^~ /api/v1/source-transfers/ {{
+{forwarding}            client_max_body_size 50m;
+            client_body_timeout 150s;
+            proxy_read_timeout 150s;
+            proxy_send_timeout 150s;
+            proxy_request_buffering off;
+        }}
+"""
+
+
+def _render_nginx_http(values: dict[str, str]) -> str:
     ip = values["HYPERTEST_PUBLIC_IP"]
     ingress = values["HYPERTEST_INGRESS_PORT"]
     api = values["HYPERTEST_API_PORT"]

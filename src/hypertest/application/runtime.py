@@ -395,6 +395,9 @@ async def _execute_mission(
     test_run = await session.get(TestRun, mission.test_run_id)
     if test_run is None:
         raise MissionRuntimeError("test run not found")
+    from hypertest.domain.harness_selection import RunHarnessSelection
+    if await session.get(RunHarnessSelection, test_run.id):
+        raise MissionRuntimeError("local Harness missions require their original persistent device session")
     if mission.mission_type not in {
         MissionType.ANALYZE_REQUIREMENTS,
         MissionType.ANALYZE_RISKS,

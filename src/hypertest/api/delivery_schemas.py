@@ -25,6 +25,18 @@ class RunBootstrap(BaseModel):
     policy: dict[str, Any] = Field(default_factory=dict)
     environment: EnvironmentRequest | None = None
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
+    harness_mode: Literal["SERVER_HOST", "LOCAL_CONNECTOR"] = "SERVER_HOST"
+    harness_node_id: UUID | None = None
+    source_bundle_transfer_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def harness_selection(self):
+        if self.harness_mode == "LOCAL_CONNECTOR":
+            if not self.harness_node_id or not self.source_bundle_transfer_id:
+                raise ValueError("local Harness requires an authorized node and accepted source transfer")
+        elif self.harness_node_id or self.source_bundle_transfer_id:
+            raise ValueError("server Harness cannot receive local node or source transfer options")
+        return self
 
     @field_validator("repository_url")
     @classmethod

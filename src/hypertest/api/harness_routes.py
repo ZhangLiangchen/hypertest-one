@@ -1,6 +1,7 @@
 """Read-only session/report views and queued trusted-worker recovery."""
 import hashlib
 import re
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -46,10 +47,20 @@ def _issue_url(value: str | None) -> str | None:
     return None
 
 
-@router.get("/test-runs/{run_id}/harness", response_model=RunHarnessRead)
+@router.get("/test-runs/{run_id}/harness", response_model=RunHarnessRead, response_model_exclude_unset=True)
 async def read_run_harness(run_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
         await get_test_run(db, run_id)
+        from hypertest.domain.connector import HarnessNode
+        from hypertest.domain.harness_selection import RunHarnessSelection
+        choice = await db.get(RunHarnessSelection, run_id)
+        selection = None
+        if choice:
+            node = await db.get(HarnessNode, choice.node_id)
+            online = bool(node and node.registration_status == "ACTIVE" and node.presence == "ONLINE"
+                and node.last_seen_at and datetime.now(UTC) - node.last_seen_at < timedelta(seconds=15))
+            selection = {"mode": choice.mode, "node_id": str(choice.node_id),
+                "display_name": node.display_name if node else None, "online": online}
         binding = await get_run_binding(db, run_id)
         state = await db.get(RunHarnessState, binding.id) if binding else None
         reports = list(await db.scalars(select(RunReport).where(RunReport.test_run_id == run_id)
@@ -59,7 +70,8 @@ async def read_run_harness(run_id: UUID, db: AsyncSession = Depends(get_db)):
         issues = [{"id": item.id, "finding_id": item.finding_id, "status": item.status,
                    "issue_iid": item.issue_iid, "issue_url": _issue_url(item.issue_url),
                    "created_at": item.created_at, "updated_at": item.updated_at} for item in operations]
-        return {"binding": binding, "state": state, "reports": [_report_read(item) for item in reports], "issues": issues}
+        return {**({"selection": selection} if selection else {}), "binding": binding,
+                "state": state, "reports": [_report_read(item) for item in reports], "issues": issues}
     except RuntimeError as exc:
         raise _http_error(exc) from exc
 

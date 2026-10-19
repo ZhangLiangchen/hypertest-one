@@ -189,6 +189,13 @@ async def submit_job(
     from hypertest.domain.bindings import BindingStatus
 
     binding = await get_run_binding(session, run_id, lock=True)
+    from hypertest.domain.harness_selection import RunHarnessSelection
+    selection = await session.get(RunHarnessSelection, run_id)
+    if selection is not None and job_type is JobType.EVALUATE_GATE and binding is None:
+        raise ConflictError("local Harness governance requires a closed reported binding")
+    if selection is not None and (job_type is not JobType.EVALUATE_GATE):
+        if job_type is not JobType.ADVANCE_RUN or payload.get("execution_profile") != "run-persistent-harness/v1":
+            raise ConflictError("local Harness runs require their original persistent profile")
     if binding is not None:
         if job_type is JobType.EVALUATE_GATE:
             from hypertest.application.gate_governance import assert_closed_gate_binding
@@ -254,15 +261,33 @@ async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: flo
 
     from hypertest.config import get_settings
     from hypertest.domain.bindings import BindingStatus, RunExecutionBinding
+    from hypertest.domain.connector import HarnessNode, RunHarnessPlacement
     from hypertest.domain.harness import RunReport
+    from hypertest.domain.harness_selection import RunHarnessSelection
 
+    # Platform Workers may resume a fixed local Connector placement. Host
+    # affinity still fences server bindings to their configured UDS host.
+    local_placement = exists(select(RunHarnessPlacement.id).join(
+        HarnessNode, HarnessNode.id == RunHarnessPlacement.node_id,
+    ).join(RunHarnessSelection,
+        RunHarnessSelection.test_run_id == RunHarnessPlacement.test_run_id,
+    ).where(
+        RunHarnessPlacement.binding_id == RunExecutionBinding.id,
+        RunHarnessPlacement.test_run_id == TestRun.id,
+        RunHarnessPlacement.mode == "LOCAL_CONNECTOR",
+        RunHarnessSelection.mode == "LOCAL_CONNECTOR",
+        RunHarnessPlacement.node_id == RunHarnessSelection.node_id,
+        RunHarnessPlacement.source_bundle_transfer_id == RunHarnessSelection.source_bundle_transfer_id,
+        HarnessNode.node_kind == "LOCAL_CONNECTOR",
+        HarnessNode.node_key == RunExecutionBinding.harness_host_id,
+    ))
     run = await session.scalar(select(TestRun).join(
         DurableJob, DurableJob.test_run_id == TestRun.id,
     ).outerjoin(RunExecutionBinding, RunExecutionBinding.test_run_id == TestRun.id)
         .where(DurableJob.status == JobStatus.QUEUED,
                or_(RunExecutionBinding.id.is_(None),
-                   (RunExecutionBinding.harness_host_id == get_settings().bridge_host_id)
-                   & RunExecutionBinding.status.in_([BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT]),
+                   and_(RunExecutionBinding.status.in_([BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT]),
+                        or_(RunExecutionBinding.harness_host_id == get_settings().bridge_host_id, local_placement)),
                    and_(DurableJob.job_type == JobType.EVALUATE_GATE,
                         RunExecutionBinding.status == BindingStatus.CLOSED,
                         exists(select(RunReport.id).where(RunReport.binding_id == RunExecutionBinding.id,

@@ -1,14 +1,16 @@
 # HyperTest Technical Architecture
 
-**Document Status:** Accepted Architecture / Implemented; Production Cutover Verified (2026-10-19)
+**Document Status:** Accepted Architecture; ADR-013 Production History Retained; ADR-015 Implemented / Isolated Regressions Verified / Core Independent E2E Verified / Extended Recovery Matrix Pending / Production Not Deployed (2026-10-19)
 
-**Version:** v0.4
+**Version:** v0.5
 
-**Parent Document:** HyperTest Whitepaper v1.1
+**Parent Document:** HyperTest Whitepaper v1.2
 
 **Architecture Role:** Autonomous Testing Control Plane
 
 v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成已有实现，新增 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 生产容器切换及真实正反链路已验收：该次源码入口为 `f415fd0`，运行构建来源为 `95e92c5`；PR #10 后已更新至 `828225d` API/Worker/Web，兼容 Bridge 保留 `95e92c5`、schema0014。现有数据和 OAuth 保留，访问策略以运维材料的最新决定为准。完整结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)；真实 GitLab 提单、其他 Provider 及后续 Web 改进不由该结果推定完成。标注“当前 v0.3”的段落记录当时的兼容路径，不描述当前生产拓扑；部署现状以[服务器运维文档](../SERVER_OPERATIONS.md)与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
+
+v0.5 由 [ADR-015：双模式 Harness 与本地 Connector](ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 定义目标：保留服务器 `SERVER_HOST` 模式，增加用户电脑上的 `LOCAL_CONNECTOR` 模式，复用本地实际可用的认证，并通过受控传输与服务器平台协作。本分支已实现 ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复，并新增 `0015_connector_nodes` → `0016_source_transfer` → `0017_issue_executor` → `0018_harness_selection`。隔离回归已通过；真实私有 Git 通过本机已有 glab / Git helper 获取，并经 Connector / HTTPS 在隔离平台独立接受。真实本地 Codex → 远端 Docker Runner → Evidence / Gate → 报告正反链已通过，私有 Git 经 HTTPS 接受，断线后原 Execution 先收尾并在同会话 / workspace 显式恢复，GitLab 测试 测试 Issue 及负责人已独立核验。扩展真实设备故障矩阵仍按总验收记录区分未执行项，不能由核心链路成功推定所有场景通过。生产未部署 ADR-015；最终版本、节点 / Run / operation 身份和结果由 [ADR-015 总验收](../ADR015_ACCEPTANCE.md) 汇总，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。现有生产仍保持 ADR-013 基线；现有 `hypertest.tmp/v1alpha2` / `run-persistent-harness/v1` 与 UDS Bridge `hypertest.harness-bridge/v1alpha1` 保持原语义。
 
 ---
 
@@ -96,16 +98,19 @@ pytest、JUnit、Playwright、k6、Frigate、Hypersonic 等负责具体测试逻
 
 ## 5. 核心服务划分
 
-v0.4 保留“模块化单体 + 独立 Task Worker”的服务边界。Task Worker 指平台任务托管组件，Harness 指实际执行智能工作的 Provider CLI / SDK；两者不是同一个进程。部署边界为：
+v0.5 保留“模块化单体 + 独立 Task Worker”的服务边界。Task Worker 指服务器上的平台任务托管组件，Harness 指实际执行智能工作的 Provider CLI / SDK；两者不是同一个进程。目标部署边界为：
 
 ```text
 容器：nginx / hypertest-web / hypertest-api / hypertest-task-worker / postgres
-宿主机：Host Harness Bridge / Provider CLI 或 SDK / Provider 原生会话与认证
+SERVER_HOST：服务器 Host Harness Bridge / Provider CLI 或 SDK / 原生会话与认证
+LOCAL_CONNECTOR：用户电脑受管 Connector / Provider CLI 或 SDK / 原生会话与认证
 按需容器：可信 Runner 的隔离测试执行容器
 持久存储：PostgreSQL volume / Canonical Artifacts / 每 Run 的受控 Workspace
 ```
 
 Agent Gateway、Planner、Verifier、Gate 与 Runner Controller 首先是平台模块，不要求分别部署服务。未来确有需要的中间件同样容器化；PostgreSQL 队列、本地持久 Artifact Store 已足够作为起点，不把 Redis、Kafka 或 MinIO 设为首版依赖。完整物理拓扑见 §38。
+
+两种 Harness 模式共享服务器侧 Worker、Canonical 数据库、Verifier、Gate 与可信 Runner。Connector 不是平台 Worker，也不是可信 Runner；它不连接数据库、不接受任意远程 shell，不把用户电脑上的探索执行升级为正式 Evidence。
 
 ---
 
@@ -116,6 +121,8 @@ Agent Gateway、Planner、Verifier、Gate 与 Runner Controller 首先是平台�
 主要页面：Project Overview、Requirement Explorer、Risk Matrix、Test Case Explorer、Coverage Dashboard、Test Run、Mission Activity、Evidence Viewer、Finding Center、Quality Verdict、Agent Activity。
 
 Agent Chat 可以存在，但只能是辅助界面，不能成为产品主界面。
+
+ADR-015 本分支工作台在提交测试任务时明确呈现 Harness 模式、节点、Provider 与可用性。现有默认继续为 `SERVER_HOST`；用户可为本次输入显式选择本地节点；持久默认偏好属于后续 UX，离线节点不得触发自动回退。首次绑定后，模式、节点、主 Session 与 Workspace 固定；更换模式、节点、Provider 或丢失主会话需要新 Run。设备连接状态与测试阶段、人工等待、正式 Verdict 分开展示，重连不显示为任务已恢复。Web / API 已实现明确模式、节点、配对 / 撤销、源码接收和恢复入口；真实浏览器交互与生产启用仍按独立验收登记。
 
 当前 MVP 的 TestRun Workbench 提供 Requirements、Risks、Test Cases、Missions、Automation、Executions、Evidence、Findings、Verdicts。用户通过表单创建 Project / 输入快照 / Run，规划和执行 Mission，启动 Runner、查看证据、管理 Finding、评估 Gate。计数、Risk identification coverage 和 Risk test coverage 来自 Canonical State；每个被评估 Risk 显示 Complete / Gap 以及 required / covered / missing dimensions。没有分母时显示未知，设计覆盖不代表执行或发布验收完成。
 
@@ -179,7 +186,19 @@ RunExecutionBinding  # Operational State，非质量事实链
 
 Web bootstrap 物化 PRD 与配置为输入 Artifact。Runtime 在创建 AgentSession / Attempt 前读取并校验这些原始 UTF-8 内容和快照 Hash；配置为空也必须保留其空内容 Artifact，缺失或损坏时停止，不能静默省略。已有 direct API 的 hash-only Snapshot（无 PRD Artifact URI）不因此强制补造配置文件；其配置仍为可选上下文，但一旦存在物化文件必须校验。此兼容范围不更改不可变输入或 Hash，具体规则见领域模型 §9。
 
-Repository origin 的身份不得包含 HTTP(S) userinfo 或可解析 URL 的 password（包括空密码），认证由宿主 Git 管理。创建 Project / SourceSnapshot / Run 的输入 Schema 拒绝这些形式，不重写原 URL；无密码 SSH username、scp 形式及本地 origin 保持兼容。Runtime 在注入 Snapshot 上下文前重复校验，历史含凭据 Snapshot 在 AgentSession / Attempt 创建前阻断且不改写历史。此守卫不扫描路径、query 或任意文本中的秘密，也不证明仓库可达。
+Repository origin 的身份不得包含 HTTP(S) userinfo 或可解析 URL 的 password（包括空密码），认证由所选 Harness 节点的受控 Git 集成管理。创建 Project / SourceSnapshot / Run 的输入 Schema 拒绝这些形式，不重写原 URL；无密码 SSH username、scp 形式及本地 origin 保持兼容。Runtime 在注入 Snapshot 上下文前重复校验，历史含凭据 Snapshot 在 AgentSession / Attempt 创建前阻断且不改写历史。此守卫不扫描路径、query 或任意文本中的秘密，也不证明仓库可达。现有本地 origin 兼容不意味着可将用户电脑路径交给服务器解析；跨机器源码必须经过下述接收流程。
+
+### 10.1 本地授权与源码接收（ADR-015 已实现，生产未部署）
+
+仅将 CLI 放到用户电脑不能替代服务器源码准备。`LOCAL_CONNECTOR` 中，本地受控 Git 集成依据已批准的 credential-free origin 和完整 SHA 准备独立 pinned checkout，复用 Git credential helper / SSH agent 等实际可用授权；不重置用户 checkout，不上传 dirty / untracked 内容、Git 配置、认证目录或无关 `.env`。上传包只含该固定提交验证所需的 tracked Git 对象及 manifest，避免把无关历史或工作副本一并打包。发现目标 tree 中含秘密时拒绝传输并报告受控原因，不能静默删文件后继续声称仍测试原 SHA。
+
+首版拒绝未支持的 submodule / LFS 与未固定外部下载依赖，待显式对象固定和校验协议后再支持。首版拒绝所有 symlink；未来支持安全链接需另有显式能力。打包和物化均拒绝路径穿越、绝对路径、特殊设备和大小/展开越限，不运行仓库 hooks 或脚本，不通过链接读取本机目录。
+
+源码通过有界 HTTPS 上传进入服务器隔离接收区，WSS 仅传控制消息与内容引用；首版使用精确整包与幂等接受确认，不提供分块续传。测试代码继续通过 typed ImplementationProposal 的 code 接受并生成平台 Artifact，不因该源码通道推定已有通用本地 Artifact 上传 / 下载能力。平台独立校验包与 manifest 的传输 SHA-256，并重新计算 Git commit / tree / blob 哈希、路径与文件 mode，检查目标 SHA、完整性和安全解包；包摘要不能替代 Git 身份校验。远端 origin 绑定也不能仅信任 Agent、普通 manifest 或本地 `.git/config`，必须选定并校验可信来源路径。
+
+项目可以显式授予配对设备中与 Agent 隔离的受控 source-acquisition adapter 来源采集角色。该适配器使用本地 Git 凭据，从批准 origin 获取精确 SHA，并生成设备认证的 acquisition receipt，固定项目、源请求、origin/ref、commit/tree、包摘要、节点与授权策略。平台独立验证 receipt 的设备身份、角色、scope 与输入一致性，再校验 Git 对象链；来源真实性来自对受控采集器的显式信任，不能由哈希或设备配对本身推导。该路径允许私有 Git 凭据继续仅留本机，无须服务器再向同一 Git 服务授权。其他可选路径是平台独立读取 origin，或使用已有可信 origin/commit 约束。未配置任何充分可信来源路径时拒绝接收；receipt 的验真不把 Connector 变成可信 Runner。
+
+验收前的上传记录只属于 Operational staging；平台验收通过后，才允许将受验证源内容固定到不可变 SourceSnapshot 的来源引用。既有 Snapshot 不原地补写或改 SHA；重传相同内容可以复用已验证包，改变输入创建新 Snapshot / Run。服务器 Runner 从平台受控存储物化源码，正式执行前再次校验固定 origin、commit 与 tracked 内容。生成测试继续走 Proposal → Verifier → immutable Artifact，不把本地 Workspace 差异直接当作正式实现或 Evidence。持久化和历史语义以领域模型为准，传输 manifest 与引用契约以 TMP 为准。
 
 原则：
 
@@ -307,7 +326,7 @@ v0.4 中 Harness 通过受控 `request_mission` 提出阶段意图，Planner 验
 
 Agent Gateway 是 HyperTest 与外部 Agent Harness 的 Anti-Corruption Layer，防止 Codex / Claude / OpenCode 的 Provider-specific Session、Event、CLI/API Model 渗入 HyperTest Domain。
 
-v0.4 的 Gateway 位于平台 Task Worker 一侧，通过 Host Harness Bridge 访问宿主 Provider Adapter。Bridge 与 CLI / SDK 留在宿主机，由 systemd 管理；它只负责受控会话生命周期、Provider 调用、取消和事件投影，不拥有 Canonical 数据写权，不负责规划模型思考。
+Gateway 位于服务器 Task Worker 一侧，按已固定的 Harness 模式选择传输。`SERVER_HOST` 延续 v0.4：通过服务器上的受限 UDS Host Harness Bridge 访问宿主 Provider Adapter，Bridge 与 CLI / SDK 由宿主管理。`LOCAL_CONNECTOR` 的本分支实现路径由用户电脑上的受管 Connector 主动建立 WSS，平台经该连接调用本地 Adapter。两条路径只承载受控会话生命周期、Provider 调用、取消和事件投影，不拥有 Canonical 数据写权，不负责规划模型思考。
 
 统一接口概念：
 
@@ -335,7 +354,29 @@ restore_session 使用已持久化的 Gateway handle、真实 Provider thread �
 
 允许面限于结构化 create / restore / resume / interrupt / close、受控事件与结果、健康/能力查询。请求绑定显式 Provider、既有会话/工作区身份、有界 timeout 和幂等身份；不提供任意 shell、可执行路径、host mount、Provider 认证导出或通用宿主 RPC。Bridge 管理完整受控进程组、取消和失联清理，不能仅结束 Worker HTTP 请求便假定宿主 CLI 已退出。
 
-多宿主机时再增加节点登记、认证和加密传输、会话路由及受控 Artifact 传输；原生会话默认具有宿主亲和性，不能因负载均衡而迁移到任意节点。该扩展不等于已实现跨节点 resume。
+ADR-015 已在本分支实现下面的本地节点传输；现有 UDS Bridge 继续独立工作，不因新增模式而原地改变其 wire 语义。原生会话具有节点亲和性，不能因负载均衡而迁移到任意节点。
+
+### 16.2 Local Agent Connector 边界（v0.5 已实现，生产未部署）
+
+Connector 是用户电脑上的受管后台进程，独立于浏览器页面存活，并主动向受保护的平台入口建立 WSS 双向连接；用户电脑不开放公网入站端口。控制连接承载版本/能力协商、心跳、结构化调用、事件、工具请求与对账，源码和 Artifact 使用独立 HTTPS 通道。服务器只在有效设备身份、Run 绑定、当前 epoch / claim 与 scope 内路由调用；不增加 Kafka、Redis 或通用远程命令平台。
+
+已实现独立协商的 `hypertest.harness-connector/v1alpha1` 传输，复用 AgentHarness 生命周期与现有 TMP 工具语义。节点必须声明支持的 TMP/profile、Provider、会话恢复、源码传输和问题单适配能力；不支持就拒绝所需操作，不能隐式降级或把声明当作真实验收。UDS Bridge 与 Connector 版本各自协商；现有 `hypertest.tmp/v1alpha2` 及 `run-persistent-harness/v1` 不因网络位置变化而升级或重解释。字段、消息和调用 ledger 规则由 TMP 与领域模型拥有。
+
+首次设备配对是独立的 HyperTest 授权，必须绑定明确操作者与设备，可到期、撤销和轮换，不能拿第三方 token 充当设备身份。首版平台生成高熵随机设备 bearer token，节点在受保护的私有文件保存明文，平台只保存 SHA-256 哈希与 `key_version` 代次引用；`key_version` 不是公钥或非对称签名。Project 级能力由独立 `NodeProjectCapability` 关系授权，设备身份与第三方凭据分开保护；撤销后平台立即阻止新调用，设备侧执行权限在有界 TTL 内由本地 watchdog 失效。当前单 Operator 环境不能因 Connector 配对就宣称已有多租户隔离。
+
+本地 Harness 只复用本机 Provider CLI / SDK 实际可用的原生登录。Connector 隔离的源码采集适配器复用 Git credential helper / SSH agent，问题单适配器复用其实际可用的 CLI / API 集成授权；Harness 不直接继承这些外部集成权限。浏览器登录不保证这些进程可以使用；不能复用时明确缺少能力，由用户在本机补足。本地模式创建或恢复专属测试 Session，不接管用户任意已有聊天或桌面 Agent 窗口。复用不扩大原有权限，也不导出模型、Git 或问题单 token、cookie、完整原生配置到服务器、镜像、Agent Context、源码包或日志。任务 scope 和 Provider sandbox / approval 继续约束本地 Harness；现有 `native_shell=false` / `native_filesystem=false` 及外部通用工具禁用不因本地部署而改变。
+
+首版使用 PostgreSQL `ConnectorRequest` durable mailbox 在 API / Worker 间路由，不引入新消息中间件；消息先提交 SENT 再发送，连接重建不重发 SENT，UNKNOWN 通过原 call / operation 查询对账。`RunHarnessSelection` 在 bootstrap 时冻结本地节点与已接受 SourceBundle，首绑定再原子形成 `RunHarnessPlacement`。`SourceAcquisitionRequest`、`SourceUploadGrant`、`SourceTransferSnapshot` 分别固定源输入、限定 HTTPS 接收和 append-only Snapshot 关联；设备 / Project 授权、dispatch 与 issue executor 各自持久化，具体字段和约束归领域模型所有。设备 receipt 的身份来自 TLS 上认证的设备 scope 与 grant 归属，首版不使用非对称设备签名。
+
+### 16.3 断线、撤销与恢复（v0.5 已实现，完整真实矩阵验收中）
+
+连接 ONLINE / OFFLINE 等状态属于 Operational 传输状态，不等于 Binding、Mission、Execution、Finding 或 Verdict 的生命周期。页面关闭不影响后台 Connector；电脑休眠、退出或网络中断会使本地 Harness 路径不可用，平台不得改派服务器 Harness 或另一节点。短暂重连只恢复通道并查询原 call / operation 的状态，不自动 resume Provider、不重放未确认工具请求。
+
+执行授权必须有有界 TTL，Connector 的单调时钟 watchdog 在授权无法续期时停止接收新工作并中断其受控进程组；平台撤销 epoch / claim 后拒绝旧调用提交，即使电脑仍离线。不能把 socket 关闭当作本地进程已停止的证明，未完成清理需保持可观察状态并在重连时完成受限管理清理。
+
+达到失联/租约阈值后进入领域模型规定的 `RECOVERY_REQUIRED` 恢复流程。显式恢复必须先证明旧 owner 已失效，并以限范围管理授权核对原节点、原生 Session、Workspace、pinned source、最近 call 与未决外部操作，再在事务中按领域模型取得新 epoch / 新 claim。恢复只接续原身份；会话或工作区丢失时停止当前 Run，替代身份使用新 Run。网络重连本身不增加 epoch，不重置累计预算，也不重开 CLOSED / FAILED / CANCELLED 或覆盖 WAITING_INPUT。
+
+服务器可信 Runner 已接受的 Execution 可按原 ExecutionSpec 和独立有效授权继续采集同一执行的事实；Connector 掉线不启动第二个 Execution，后续 Agent 诊断等待恢复。必须先完成/收集该 Execution 或受控取消，再进行需要更换 epoch / Job claim 的 Harness 恢复，不能提前换代误拒有效 Runner 结果，也不能绕过单活跃 Job；服务器 Job 自身失联仍按既有 Execution 中断规则治理。离线取消先在平台持久撤销执行权限并处理等待问题/待执行意图，再由 TTL watchdog 和重连管理清理终止本地资源；未知问题单结果只对账。已接受历史事实保持，取消和晚到结果按原所属调用审计，不能恢复旧 owner。
 
 ---
 
@@ -394,7 +435,7 @@ Agent Context 不应该等于整个数据库 Dump。Context Compiler 根据 Miss
 
 ## 20. Workspace
 
-v0.4 每个 TestRun 绑定一个隔离、持续的受控 Workspace，供该 Run 的逻辑 Worker 和宿主主 Session 在完整周期中使用：
+每个 TestRun 绑定一个隔离、持续的受控 Agent Workspace，供所选 Harness 节点的主 Session 在完整周期中使用；平台 Worker 通过受控引用治理它：
 
 ```text
 /workspace
@@ -413,6 +454,8 @@ Workspace 是 Agent 的操作世界；数据库是 HyperTest 的 Canonical World
 Workspace 需要区分固定源码、可写的生成/临时目录和已接受 Artifact；保护 Snapshot 中的 tracked source，不因持续会话而允许改写被测应用版本。阶段间保留所需上下文和生成内容，整个 Run 结束、取消或明确失效后才按保留策略清理，不能在每个 Mission 完成时删除。等待人工回答期间仍保留原目录；恢复时验证归属、固定源码与受控路径，禁止重用其他 Run 的工作区。
 
 单宿主机中，Worker 和宿主 Bridge 通过专用持久目录共享必要 Workspace，并保持可验证的绝对路径映射、UID/GID 和读写权限；它不包含 Provider OAuth、API key 或完整原生配置目录。Provider 认证与原生会话目录仅由宿主服务访问，既不挂给平台容器，也不进入 Runner。API 与 Task Worker 的 Canonical Artifact Store 暂时必须使用同一持久根目录和相同绝对路径，保留已有 URI；后续改成对象存储必须先做显式 URI/读取兼容迁移。
+
+在 `LOCAL_CONNECTOR` 实现路径中，Agent Workspace 与原生 Session 留在用户电脑，服务器没有相同绝对路径或共享文件系统假设。跨边界只传经校验的来源内容和 Artifact 引用；本机路径不能作为服务器可读 URI。节点内路径解析、归属和安全目录检查由 Connector 执行，服务器独立校验接收内容，Runner 使用另一份平台受控副本。Connector 与服务器的清理各限于明确归属资源，不能触及 Operator checkout、其他 Run、认证目录或符号链接目标。
 
 以下为当前 v0.3 Workspace 实现记录；该旧路径按 Mission 创建/结束 Agent 副本，不满足持续 Run Workspace 目标。本分支 persistent profile 另以稳定 Binding 保留并核验原副本，不修改旧生命周期历史：
 
@@ -442,7 +485,11 @@ Proposal Tools 目标语义：`propose_requirement`、`propose_risk`、`propose_
 
 Execution Tool：`request_execution`。
 
-Interaction / completion tools（本分支）：`ask_user`、`evaluate_gate`、`submit_report`、`request_gitlab_issue`、`get_issue`；其中 `evaluate_gate` 实现目标 `request_gate` 语义。关键产品歧义和需要用户决策的分支通过 `ask_user` 进入持久 WAITING_INPUT；回答后继续原会话。对开发的缺陷协作通过受控 GitLab 集成：只允许已配置的 Project、责任人映射与提单策略，必须关联已接受 Finding / 可信 Evidence、精确 SHA 和 Run；先执行去重/幂等校验，外部写入结果与 Issue 引用进入审计。GitLab 凭据仅由可信集成持有，不传给 Agent。Issue 创建不自动确认 Finding、不替代修复验证或改变 Gate 结论，未知外部结果先查询/核对，不自动重复提单。该受控集成已有实现及注入 HTTP transport 的数据库回归，尚未向真实 GitLab 提单验收。九工具名称、分页与权限映射见 TMP §25.2。
+Interaction / completion tools（本分支）：`ask_user`、`evaluate_gate`、`submit_report`、`request_gitlab_issue`、`get_issue`；其中 `evaluate_gate` 实现目标 `request_gate` 语义。关键产品歧义和需要用户决策的分支通过 `ask_user` 进入持久 WAITING_INPUT；回答后继续原会话。对开发的缺陷协作通过受控 GitLab 集成：只允许已配置的 Project、责任人映射与提单策略，必须关联已接受 Finding / 可信 Evidence、精确 SHA 和 Run；先执行去重/幂等校验，外部写入结果与 Issue 引用进入审计。GitLab 凭据仅由可信集成持有，不传给 Agent。Issue 创建不自动确认 Finding、不替代修复验证或改变 Gate 结论，未知外部结果先查询/核对，不自动重复提单。该受控集成保留服务器实现及注入 HTTP transport 的数据库回归；ADR-015 本地 glab 路径已真实创建并独立核验测试 测试 Issue，详见总验收记录。九工具名称、分页与权限映射见 TMP §25.2。
+
+ADR-015 已实现同一平台治理下的服务器集成或本地受控问题单适配器执行已批准操作；本地 glab 的真实创建 / 指派 / 引用已按 [ADR-015 总验收](../ADR015_ACCEPTANCE.md) 核验，其余执行器不能由此推定通过。平台先记录不可变操作意图，固定 `op_id`、执行节点/后端、目标项目、责任人、Finding / Evidence 和清理后的 draft，再授予窄执行权限；本地适配器持有本地凭据并调用外部 API，不能让 Agent 自选 MCP 直接绕过平台提单。本地浏览器 cookie、问题单 token 不进入 Agent 或服务器。平台核验实际 Issue 身份、项目、URL 与操作关联后才保存正式引用，可以直接受信查询，也可以核验被单独授权的本地集成适配器回传的认证 receipt；无需为了核对本地操作再复制私有平台凭据。Agent 文字或普通 Connector 自报成功不足以完成该核验。
+
+操作跨重连、epoch、Job 和服务器/本地后端共享原有去重身份，不因改换执行路径创建第二张单。`UNKNOWN` 只允许查询与对账，禁止重复 POST 或切换后端重试创建；无法通过受控查询核验则保持未知并请求人工处理。授权范围改变、重派负责人等外部写操作必须另有明确受控意图，不能借恢复扩大权限。现有 GitLab 工具名与当前服务器实现保留；通用问题单平台仍需独立适配；当前本地 GitLab / glab 适配器已有版本契约和隔离回归，真实创建与对账仍须按实际操作记录独立验收。
 
 Agent 默认只能：
 
@@ -641,11 +688,13 @@ Trace 应贯穿 TestRun → Mission → AgentSession → Execution → Evidence�
 
 Agent 默认不能看到非 Mission 必需的 Secret；Secret 按 Mission / Execution 注入。
 
-v0.4 的容器化本身不构成 Agent 安全沙箱。宿主 Harness 必须使用专用服务身份、Provider sandbox / approval、限定工具和受控目录；平台容器资源限额不会约束宿主 CLI 或 Docker 创建的子容器。Task Worker、Harness 和 Runner 分别设置并发与 CPU/内存/超时预算，独立保留取消与清理能力。Provider OAuth 和密钥只保存在宿主认证目录，现有认证不得通过复制到镜像或共享 `.codex` / `.claude` 来迁移。
+容器化与设备配对本身均不构成 Agent 安全沙箱。服务器 Harness 使用专用服务身份；本地 Connector 使用用户明确授权的本机身份与专用任务目录，两者都必须配置 Provider sandbox / approval、限定工具和目录。平台容器资源限额不会约束远端或本地 CLI。Task Worker、Harness 和 Runner 分别设置并发与 CPU/内存/超时预算，独立保留取消与清理能力。Provider OAuth 和密钥只保存在实际 Harness 节点的认证目录，现有认证不得通过复制到镜像或共享 `.codex` / `.claude` 来迁移。能力声明、有效配对和内容哈希分别证明不同属性，均不能替代来源证明、权限校验或可信 Runner Evidence。
 
 ---
 
-## 38. 单宿主机目标部署（v0.4）
+## 38. 服务器基线与双模式目标部署
+
+下图保留 ADR-013 已实现的 `SERVER_HOST` 单宿主机拓扑。ADR-015 的本地扩展见 §38.4，不改变服务器平台与可信 Runner 的位置：
 
 ```text
 Linux Host
@@ -697,11 +746,31 @@ Linux Host
 
 Finding 继续通过审计状态机由操作者处置；重评理由、durable Job、返回的新或复用 Verdict 形成可追溯治理记录。质量算法与可信事实规则保持不变，旧 FINAL 和报告保留，不能以重开会话或新 Run 通过更新旧事实。具体字段、准入、锁序及历史规则以领域模型 §19/§23.8 为准，平台与 Agent 权限分离以 TMP §38.1 为准。
 
+### 38.4 双模式 Harness 拓扑（ADR-015 本分支已实现，生产未部署）
+
+```mermaid
+flowchart TB
+    Web[HyperTest Web：显式选择模式与节点] --> CP[服务器 Control Plane / Task Worker]
+    CP --> DB[(PostgreSQL / Audit / Outbox)]
+    CP --> UDS[SERVER_HOST：受限 UDS Bridge]
+    UDS --> ServerHarness[服务器 Harness / 原生会话与认证]
+    Connector[LOCAL_CONNECTOR：用户电脑受管后台进程] -->|主动 WSS：控制 / 事件 / 对账| CP
+    Connector --> LocalHarness[本机 Harness / 原生会话与认证]
+    Connector --> LocalGit[本地 Git / 受控问题单适配器]
+    Connector -->|HTTPS：经校验的源码与 Artifact| Intake[服务器隔离接收区 / Artifact Store]
+    CP --> Intake
+    CP --> Runner[服务器可信 Runner]
+    Runner --> Intake
+    CP --> Gate[Verifier / Gate / Canonical State]
+```
+
+本地连接通过既有 VPN / 白名单允许路径到达平台的受保护 WSS/HTTPS 入口，不开放用户电脑入站、不引入 SSH 隧道，也不扩大公网访问。上线前单独验证 TLS、设备认证、撤销、消息大小/速率/TTL 和连接容量；必须保留数据库隔离、SSH 密钥与密码恢复登录以及现行 VPN / 入口白名单。平台内部可使用受控连接网关路由到持有原 Run 绑定的 Worker，不用任意可用 Worker 重新接管会话。设备不在线时，服务器模式的其他 Run、只读查看和 ADR-014 独立治理仍按各自权限运行。
+
 ## 39. 并发与多节点演进
 
 扩容单元是独立 TestRun。每个 SUT Project 可以有多个 feat / MR SHA 的 Run，同一 SHA 的显式复测也独立记录；各 Run 分别使用一个逻辑 Worker、一个持续主 Session 和隔离 Workspace。首版在同一宿主机增加 Task Worker 实例，受 Harness Provider/账号配额、CPU/内存和 Runner 容量共同限制。
 
-未来多节点时，为每个执行节点登记 Harness 能力、可信 Runner 能力、容量和 Workspace/Session 亲和性。调度先选定绑定宿主，后续执行与人工恢复路由到原宿主；原会话或工作区不可达时进入可观察阻断，不向另一台机器静默创建新 Session。跨节点认证、受控传输、Artifact 可达性与取消 fencing 必须先实现，再宣称具备跨节点恢复能力。
+ADR-015 将 Harness 节点登记、认证、受控传输、容量和 Workspace/Session 亲和性定义为 v0.5 本地 Connector 实现；它不使用户设备自动成为可信 Runner 节点。调度按用户已选模式/节点建立首次绑定，后续执行与人工恢复路由回原节点；原会话或工作区不可达时进入可观察阻断，不向另一台机器静默创建新 Session。更换模式、节点或 Provider 须新 Run。这些能力已通过隔离实现回归；本次真实本地 Codex 正反周期和同会话断线恢复已按 ADR-015 单独记录，不从既有宿主恢复结果或源码接收结果推定通过。
 
 Kubernetes 可以在有需求时承载平台或 Runner，而宿主 Harness 仍通过受控 Bridge 托管。本文替代原先“一次 TestRun 派生 N Agent Jobs、Agent Workspace 独立短期容器”的目标；不把 Run 内多 Worker / 多主 Session 作为未来扩容前提。若未来改变串行持续会话模型，需要新的 ADR 和领域/协议版本。
 
@@ -726,6 +795,21 @@ v0.3 历史兼容路径已有 CodexAdapter、Python/pytest、DockerRunner、受�
 
 v0.4 验收至少覆盖：同一 Project 的两个独立 Run 并发；单 Run 全周期只有一个逻辑 Worker 绑定和一个真实原生 Session；跨多个 Mission 的上下文保持；人工等待释放运行资源后原会话恢复；物理 Worker 显式恢复时拒绝旧 epoch/lease；会话/Workspace 丢失不静默替换；可信执行、Evidence 验证与 Gate 判定；Issue 幂等与取消；迁移前后数据/Artifacts/认证/SSH/VPN 保全。fake Harness 或文档检查只能验证契约，不能代替真实 Provider、生产拓扑和多任务验收。
 
+### 40.1 ADR-015 已实现范围与独立验收
+
+本分支已实现 ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复，并新增 `0015_connector_nodes` → `0016_source_transfer` → `0017_issue_executor` → `0018_harness_selection`。隔离回归已通过；真实私有 Git 通过本机已有 glab / Git helper 获取，并经 Connector / HTTPS 在隔离平台独立接受。真实本地 Codex → 远端 Docker Runner → Evidence / Gate → 报告正反链已通过，私有 Git 经 HTTPS 接受，断线后原 Execution 先收尾并在同会话 / workspace 显式恢复，GitLab 测试 测试 Issue 及负责人已独立核验。扩展真实设备故障矩阵仍按总验收记录区分未执行项，不能由核心链路成功推定所有场景通过。生产未部署 ADR-015；最终版本、节点 / Run / operation 身份和结果由 [ADR-015 总验收](../ADR015_ACCEPTANCE.md) 汇总，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+
+| 已实现能力 | 独立验收要求；未标通过的项目仍待核实 |
+|---|---|
+| 两种模式并存 | 保留服务器 UDS Run；本机真实 Harness 完成同一 Canonical / Runner / Gate 链；Web 明确选择且离线不自动回退 |
+| 本地授权复用 | 本机现有 CLI / Git / 问题单认证实际可用；设备单独配对/撤销；服务器、镜像、上下文和上传包未取得第三方凭据 |
+| 源码接收 | 私有 origin 的批准 SHA 可由本地准备并被平台独立核验；错误 commit/tree/blob、伪造 origin、危险路径、秘密和不完整包均拒绝；Runner 再验且不改旧 Snapshot |
+| 问题单操作 | 批准项目/责任人和事实引用后真实创建，平台核验引用；断线/超时 UNKNOWN 只查询对账，跨后端不重复创建 |
+| 断线与恢复 | 浏览器关闭、电脑休眠、网络闪断、TTL 到期、离线取消/撤销、旧 epoch 迟到结果、原节点恢复、会话/Workspace 丢失、WAITING_INPUT 与终态不被重开 |
+| 执行信任与兼容 | 断线前已接受的 Runner 执行只产生一份所属事实；本地探索不成 Evidence；旧 TMP/UDS/数据库历史、认证、Artifact、SSH 与 VPN 边界保全 |
+
+验收应记录两端版本、真实节点/Run/Session/call/operation 身份及受控结果。文档、mock、能力声明和哈希传输测试不足以证明本地认证、私有源归属、真实提单或跨机器恢复。ADR-015 已新增 `0015`—`0018` additive migration，并仍需各自真实集成记录，不能把 `0014` 或 ADR-013 的既有证据标为新能力已完成。
+
 ---
 
 ## 41. Architecture Decision Principles
@@ -744,6 +828,7 @@ v0.4 验收至少覆盖：同一 Project 的两个独立 Run 并发；单 Run �
 - **ADR-012** [受控 Python 与隔离 ASGI 环境](ADR-012_CONTROLLED_API_ENVIRONMENTS.md)：SourceSnapshot 固定实际镜像/依赖/launcher，可信 Runner 管理同容器 loopback HTTP 服务生命周期与证据，legacy NULL 保持旧身份。
 - **ADR-014** [报告后 Finding 处置与独立 Gate 治理](ADR-014_POST_SESSION_GATE_REASSESSMENT.md)：正常 CLOSED 报告完成后允许无外部运行时的显式平台重评，保留终态身份、事实与结论历史。
 - **ADR-013** [平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)：平台服务/Task Worker 容器化，Harness/Bridge 留宿主；一 SUT 一 Project，一 feat/MR 精确 SHA 的测试轮次一 TestRun，一逻辑 Worker 与一持续主 Session 串行完成完整周期，Run 间并发。领域模型拥有绑定/唯一性/恢复规则，TMP 拥有持续会话 profile/工具契约，本文拥有服务/部署边界；该目标不等于已实施迁移。
+- **ADR-015** [双模式 Harness 与本地 Connector](ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)：保留服务器 UDS Harness，新增已实现的用户电脑主动 WSS 连接、HTTPS 源码传输与本地受控集成；认证留所选节点，平台独立验证源码和问题单引用，断线只恢复原身份且不得自动换绑。它扩展 ADR-013 的部署位置，不改变单 Run 单主会话、可信 Runner 或质量治理边界；本分支已实现，核心独立验收通过，扩展故障矩阵待逐设备验收，生产未部署。
 
 ---
 
@@ -754,7 +839,8 @@ Project（SUT）
   ↓
 TestRun（feat/MR 的精确 SHA + 冻结输入/Policy + 一次测试轮次）
   ↓
-单一逻辑 Task Worker 绑定 + 宿主上的单一持续 Harness Session
+服务器单一逻辑 Task Worker 绑定 + 已选节点上的单一持续 Harness Session
+  │      SERVER_HOST（服务器 UDS）或 LOCAL_CONNECTOR（本机主动 WSS，本分支已实现）
   │
   ├─ Harness 自驱串行分析 / 设计 / 实现 / 诊断 / 报告
   │      ↕ typed domain tools / Mission admission / WAITING_INPUT

@@ -204,10 +204,11 @@ class DockerRunner:
         name, staging = f"hypertest-runner-{token}", f"hypertest-stage-{token}"
         source_volume, output_volume = f"hypertest-source-{token}", f"hypertest-results-{token}"
 
-        async def docker(*args: str, required: bool = True) -> ProcessResult:
-            result = await run_process(["docker", *args], cwd=source, timeout=30)
+        async def docker(*args: str, required: bool = True, timeout: int = 30) -> ProcessResult:
+            result = await run_process(["docker", *args], cwd=source, timeout=timeout)
             if required and result.exit_code != 0:
-                raise RuntimeError(f"runner container operation failed ({args[0]})")
+                reason = " timed out" if result.timed_out else ""
+                raise RuntimeError(f"runner container operation failed ({args[0]}{reason})")
             return result
 
         async def collect_file(filename: str, limit: int) -> bytes | None:
@@ -258,7 +259,11 @@ class DockerRunner:
                 identity["image_id"],
                 "true",
             )
-            await docker("cp", str(source) + "/.", staging + ":/repo")
+            # Remote daemons stream this archive over the authenticated API.
+            # Reserve bounded transfer time separately from test execution.
+            source_bytes = sum(path.stat().st_size for path in source.rglob("*") if path.is_file())
+            copy_timeout = min(360, max(120, 30 + (source_bytes + 131071) // 131072))
+            await docker("cp", str(source) + "/.", staging + ":/repo", timeout=copy_timeout)
             await docker("rm", "-f", staging)
             command = [
                 "create",
