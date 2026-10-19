@@ -66,6 +66,7 @@ from hypertest.domain.models import (
     VerdictFinding,
     utcnow,
 )
+from hypertest.runner.source import implementation_content
 
 router = APIRouter()
 
@@ -235,6 +236,40 @@ async def read_implementations(run_id: UUID, db: AsyncSession = Depends(get_db))
             )
             for item in items
         ]
+    except RuntimeError as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/test-runs/{run_id}/implementations/{implementation_id}/content")
+async def read_implementation_content(
+    run_id: UUID, implementation_id: UUID, db: AsyncSession = Depends(get_db),
+):
+    """Read accepted generated source, never a checkout or Provider workspace."""
+    try:
+        run = await get_test_run(db, run_id)
+        item = await db.scalar(select(TestImplementation).where(
+            TestImplementation.id == implementation_id,
+            TestImplementation.project_id == run.project_id,
+            TestImplementation.source_snapshot_id == run.source_snapshot_id,
+        ))
+        if item is None:
+            raise HTTPException(status_code=404, detail="implementation not found in this run")
+        if not item.artifact_uri:
+            raise HTTPException(status_code=409, detail="implementation source belongs to the pinned repository")
+        try:
+            # Share the Runner's content-address, root/symlink and SHA checks.
+            # source_sha256 fixes every byte; unlike Evidence, Implementation
+            # has no separately persisted size field to compare or reconstruct.
+            content = implementation_content(item)
+            content.decode("utf-8")
+        except (RuntimeError, OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409, detail="implementation artifact unavailable or checksum mismatch",
+            ) from exc
+        return Response(content, media_type="text/plain", headers={
+            "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
+            "X-Content-SHA256": item.source_sha256,
+        })
     except RuntimeError as exc:
         raise _http_error(exc) from exc
 

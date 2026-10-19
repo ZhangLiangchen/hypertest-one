@@ -1,6 +1,39 @@
 # Web 工作台操作指南 / Web workbench guide
 
-## 当前等待输入功能的状态
+## 结果复核与修复后复测 / Result review and retest
+
+本轮实现与隔离真实验收见[结果复核与新轮次验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。
+生产基线及是否已部署以[服务器操作交付](SERVER_OPERATIONS.md)为准。
+
+- 点击需求、风险或测试用例标题，查看完整说明、前置条件和预期结果，并沿关联按钮追溯。
+  在自动化实现中点击文件名，读取平台已接受的测试源码；服务端会核验 Run 的项目与快照
+  归属、Artifact 路径和 SHA。已有仓库测试只显示其固定提交及文件信息。
+- 概览的“阅读已保存报告”及完成任务的报告入口可直达报告。报告汇总已接受记录；
+  正式质量结论仍以 FINAL Verdict 及可信 Evidence 为准。
+- CLOSED / FAILED / CANCELLED 会话不能重开。使用“基于本次运行创建新轮次”，进入
+  同一 Project 的草稿，选择“核对沿用的输入”；原 SHA、PRD、上下文、环境请求及完整
+  Policy 被预填。检查原 SHA，选择需要验证的修复提交和服务入口，再按五步流程确认。
+  保留原 SHA 也可以显式创建独立复测轮次。新轮次使用新请求身份、Binding 与原生会话；
+  原运行、失败、报告和 Verdict 保留。
+- 策略默认“沿用完整原策略”，包括表单未提供的字段；选择“重新配置并替换策略”才
+  改用 Web 表单规则。环境只沿用请求，创建时重新核验实际镜像；归档或未绑定环境需
+  显式新建并选择当前受控环境，不会静默升级。
+- 读取旧输入失败时不替换草稿；已有草稿需要明确选择替换。关闭和语言切换保留同页
+  草稿，刷新页面不承诺恢复未提交内容。保存输入的前导U+FEFF、换行和空配置保留。
+- RECOVERY_REQUIRED 先核验原会话；恢复后通过原失败任务显式重试。源码准备阶段尚无
+  Binding 的失败同样从原任务创建关联重试，不另建周期绕过历史。未知提交结果仍按原
+  请求标识核对。已关闭会话引导结果和新轮次，不显示“恢复后重试”。
+- Finding 后续处置不会改写旧 FINAL 或报告。当前持续会话关闭后不提供独立 Gate 重评估；
+  需验证修复时创建新轮次。此治理契约的后续扩展不在本轮默许放行。
+
+Open a requirement, risk, case or implementation to review the accepted testing asset and its links.
+Use **Read saved report** from Overview or a completed task. After a session ends, choose
+**New round from this run**, review the saved inputs, select the repaired SHA and service, then
+confirm a new round. The full original policy is retained unless you explicitly replace it;
+current trusted images are resolved again. Old runs and decisions remain in history. Input-load
+failure preserves the current draft, and retrying failed work keeps its original task lineage.
+
+## 历史等待输入功能的交付记录
 
 WAITING_INPUT 问题持久化、Web 回答及同一后台任务恢复已在本地和服务器通过真实模型 / Docker 验收，数据库迁移为 `0009_mission_inputs`。其 345 后端 / 31 Web 回归及检查、同 Job / Attempt / 原生 thread 恢复身份见[问答验收](WAITING_INPUT_ACCEPTANCE.md)。PR #6 已合并，服务器同步为 `a48bc96`；原真实执行身份仍为 `8e01ac5`，不改写成合并版本重新运行。见[合并部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr6-deployment-2026-10-18.md)。以下既有文件导入、测试链及 VPN/SSH 记录保留各自身份。
 
@@ -24,7 +57,7 @@ Choose **中文** or **English** in the upper-right corner. The browser remember
 
 1. **创建项目**：填写项目名称、唯一标识及默认分支。仓库地址可预填后续运行。项目名会建议一个可编辑的标识；标识已存在时可以直接打开原项目。
 2. **创建测试运行 → 源码**：填写仓库的 origin 源地址。GitHub HTTPS 来源可输入分支/标签并选择“解析并固定提交”，也可手工填写完整 40/64 位提交 SHA。解析不创建 Run，也不修改仓库；同名分支/标签需明确 `refs/heads/...` 或 `refs/tags/...`。修改源地址或参考版本后必须重新解析。正式测试始终使用固定 SHA，分支后续移动不会改变已有输入。
-3. **需求**：粘贴 PRD，或导入 UTF-8 `.md` / `.txt` 文件并编辑正文。导入限 8 MiB，需求限 2,000,000 字符，配置限 100,000 字符；最终序列化请求须不超过 10 MiB。配置可使用纯文本或 JSON，留空保存 `{}`。 本轮修复要求：只做一次 fatal UTF-8 解码，空文件、纯空白、仅 BOM、非法 UTF-8、NUL 或超限内容拒绝导入并保留原 PRD；有效内容保留原有空白和换行。带 BOM 且有正文的有效 UTF-8 可导入，BOM 按 UTF-8 解码处理，不把仅 BOM 当作需求。本地9文件/15项实际浏览器检查已通过，详见下方证据；生产链独立登记。
+3. **需求**：粘贴 PRD，或导入 UTF-8 `.md` / `.txt` 文件并编辑正文。导入限 8 MiB，需求限 2,000,000 字符，配置限 100,000 字符；最终序列化请求须不超过 10 MiB。配置可使用纯文本或 JSON，留空按空文本原样保存。 本轮修复要求：只做一次 fatal UTF-8 解码，空文件、纯空白、仅 BOM、非法 UTF-8、NUL 或超限内容拒绝导入并保留原 PRD；有效内容保留原有空白和换行。带 BOM 且有正文的有效 UTF-8 可导入，BOM 按 UTF-8 解码处理，不把仅 BOM 当作需求。本地9文件/15项实际浏览器检查已通过，详见下方证据；生产链独立登记。
 4. **执行环境**：选择预置 Python/pytest 或隔离 ASGI API 环境。API模式填写应用入口（如 `examples.api_sut.app:app`）、health path和启动时限。目录检查仅表示API主机镜像可用，服务会在Runner执行时实际启动和探测。不可用时保留草稿并重试目录，不自动换环境。
 5. **策略**：选择全局和按风险类别的设计维度，以及阻止发布的缺陷级别。功能维度与阻断级缺陷的底线规则由平台保留。
 6. **确认**：检查源码 SHA、PRD 原文和策略。创建后形成不可变输入；新的需求或代码版本应创建新 Run。关闭向导会在当前页面保留草稿和步骤；离开页面或刷新不提供草稿恢复。

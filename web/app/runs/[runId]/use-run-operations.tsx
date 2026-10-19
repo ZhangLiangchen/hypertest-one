@@ -22,6 +22,8 @@ import { useRunJobs } from "./use-run-jobs";
 import { AttemptHistory } from "./attempt-history";
 import { RunOverview } from "./run-overview";
 import { useRunInputRequests } from "./use-run-input-requests";
+import { RunNextAction, VerdictHistoryNotice } from "./run-next-action";
+import type { CanonicalSelection } from "./canonical-details";
 
 import type { Evidence, ExecutionCreate, Finding, Mission, MissionProposal, TestExecution, TestImplementation, Verdict } from "@/lib/types";
 
@@ -97,7 +99,7 @@ function supportsManagedCheckout(repository: string | undefined): boolean {
   } catch { return false; }
 }
 
-export function useRunOperations(runId: string, onNavigate: (section: string) => void, sourceId?: string) {
+export function useRunOperations(runId: string, onNavigate: (section: string) => void, sourceId?: string, projectId?: string, onSelectCanonical?: (selection: CanonicalSelection) => void) {
   const { t, label, locale, formatDate, verdictReason } = useI18n();
   const client = useQueryClient();
   const [notifications, contextHolder] = message.useMessage();
@@ -156,7 +158,6 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
   const persistentRun = !!harness.data?.binding || capabilities.data?.execution_profile === "run-persistent-harness/v1";
   const manualMissionControl = !!capabilities.data && !capabilities.error && !!harness.data && !harness.error && !persistentRun;
-  const sessionNeedsAttention = harness.data?.binding && ["RECOVERY_REQUIRED", "CLOSED", "FAILED", "CANCELLED"].includes(harness.data.binding.status);
   const implementations = useQuery({ queryKey: ["implementations", runId], queryFn: () => getImplementations(runId), refetchInterval: 5_000 });
   const executions = useQuery({ queryKey: ["executions", runId], queryFn: () => getExecutions(runId), refetchInterval: 5_000 });
   const evidence = useQuery({ queryKey: ["evidence", runId], queryFn: () => getEvidence(runId), refetchInterval: 5_000 });
@@ -170,7 +171,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
 
   async function refresh() {
     await Promise.all([
-      ...["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts", "input-requests", "jobs"].map((key) => client.invalidateQueries({ queryKey: [key, runId] })),
+      ...["run", "requirements", "risks", "test-cases", "coverage", "missions", "implementations", "executions", "evidence", "findings", "verdicts", "input-requests", "jobs", "harness"].map((key) => client.invalidateQueries({ queryKey: [key, runId] })),
       ...["mission", "attempts", "proposals"].map((key) => client.invalidateQueries({ queryKey: [key] })),
     ]);
   }
@@ -244,7 +245,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   );
 
   const implementationColumns = [
-    { title: t("Implementation", "自动化实现"), key: "implementation", render: (_: unknown, item: TestImplementation) => <Space direction="vertical" size={1}><Typography.Text strong>{item.file_path}</Typography.Text><span className="entity-key">{item.symbol}</span></Space> },
+    { title: t("Implementation", "自动化实现"), key: "implementation", render: (_: unknown, item: TestImplementation) => <Space direction="vertical" size={1}><Button type="link" style={{ padding: 0, height: "auto", whiteSpace: "normal", textAlign: "start" }} onClick={() => onSelectCanonical?.({ kind: "implementation", id: item.id })}>{item.file_path}</Button><span className="entity-key">{item.symbol}</span></Space> },
     { title: t("Framework", "框架"), dataIndex: "framework" },
     { title: t("Validation", "验证状态"), dataIndex: "validation_status", render: (value: string) => <Badge value={value} /> },
     { title: t("Test cases", "测试用例"), key: "test-cases", render: (_: unknown, item: TestImplementation) => <Keys values={item.test_case_keys || item.testcase_keys} /> },
@@ -304,7 +305,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   }
 
   const actions = <Space wrap>
-    {inputRequests.pending.length ? <Button type="primary" onClick={() => inputRequests.open(inputRequests.pending[0].id)}>{t("Answer question", "回答问题")}</Button> : sessionNeedsAttention ? <Button type="primary" onClick={() => onNavigate("harness")}>{t("Review session", "检查会话")}</Button> : <Button aria-label={t("Run test cycle", "运行完整测试周期")} type="primary" disabled={inputRequests.busy || harness.isLoading || !!harness.error || source.isLoading || !source.data || !!source.error || unreadableEnvironment || !capabilities.data?.agent_providers.includes("codex") || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || missionExecution.isPending || execution.isPending || tasks.busy} loading={cycle.isPending} onClick={() => openExecutionDialog("cycle")}>{t("Run test cycle", "运行完整测试周期")}</Button>}
+    <RunNextAction runId={runId} projectId={projectId} binding={harness.data?.binding} jobs={tasks.rows} questionId={inputRequests.pending[0]?.id} ready={!harness.isLoading && !!harness.data && !harness.error && !tasks.jobs.isLoading && !tasks.jobs.error} startDisabled={inputRequests.busy || source.isLoading || !source.data || !!source.error || unreadableEnvironment || !capabilities.data?.agent_providers.includes("codex") || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || missionExecution.isPending || execution.isPending || tasks.busy} starting={cycle.isPending} answer={inputRequests.open} reviewSession={() => onNavigate("harness")} reviewTask={tasks.openTask} start={() => openExecutionDialog("cycle")} />
   </Space>;
   const secondaryActions = manualMissionControl ? <Space wrap>
     <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !source.data || !!source.error || unreadableEnvironment || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
@@ -433,7 +434,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     </Drawer>
 
     <Drawer title={findingSelection?.key || t("Finding", "发现")} open={!!findingSelection} width={760} onClose={() => setFindingSelection(null)} extra={<Button loading={findings.isFetching} onClick={async () => { const result = await findings.refetch(); const current = result.data?.find((item) => item.id === findingSelection?.id); if (current) setFindingSelection(current); }}>{t("Refresh finding", "刷新发现")}</Button>}>
-      {findingSelection && <><Space wrap><Badge value={findingSelection.status} /><Badge value={findingSelection.severity} /><Tag>{label(findingSelection.classification)}</Tag></Space><Typography.Title level={3}>{findingSelection.title}</Typography.Title><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{findingSelection.description}</Typography.Paragraph><Typography.Title level={5}>{t("Root cause", "根因")}</Typography.Title><Typography.Paragraph>{findingSelection.root_cause || t("Not diagnosed yet.", "尚未诊断。")}</Typography.Paragraph><Typography.Title level={5}>{t("Test cases", "测试用例")}</Typography.Title><Keys values={findingSelection.test_case_keys || findingSelection.testcase_keys} /><Typography.Title level={5}>{t("Supporting evidence", "支持证据")}</Typography.Title><Space wrap>{findingSelection.evidence_keys?.map((key) => { const item = evidence.data?.find((entry) => entry.key === key); return item ? <Button key={key} onClick={() => setEvidenceSelection(item)}>{key}</Button> : <Tag key={key}>{key}</Tag>; })}</Space><Typography.Title level={5}>{t("Resolution", "解决方式")}</Typography.Title><Typography.Paragraph>{findingSelection.resolution ? label(findingSelection.resolution) : t("Unresolved", "尚未解决")}</Typography.Paragraph><FindingLifecycle key={`${findingSelection.id}:${findingSelection.row_version}`} finding={findingSelection} onUpdated={(result) => { setFindingSelection(result); notifications.success(t("Finding lifecycle updated.", "发现生命周期已更新。")); void refresh(); }} /></>}
+      {findingSelection && <><Space wrap><Badge value={findingSelection.status} /><Badge value={findingSelection.severity} /><Tag>{label(findingSelection.classification)}</Tag></Space><Typography.Title level={3}>{findingSelection.title}</Typography.Title><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{findingSelection.description}</Typography.Paragraph><Typography.Title level={5}>{t("Root cause", "根因")}</Typography.Title><Typography.Paragraph>{findingSelection.root_cause || t("Not diagnosed yet.", "尚未诊断。")}</Typography.Paragraph><Typography.Title level={5}>{t("Test cases", "测试用例")}</Typography.Title><Keys values={findingSelection.test_case_keys || findingSelection.testcase_keys} /><Typography.Title level={5}>{t("Supporting evidence", "支持证据")}</Typography.Title><Space wrap>{findingSelection.evidence_keys?.map((key) => { const item = evidence.data?.find((entry) => entry.key === key); return item ? <Button key={key} onClick={() => setEvidenceSelection(item)}>{key}</Button> : <Tag key={key}>{key}</Tag>; })}</Space><Typography.Title level={5}>{t("Resolution", "解决方式")}</Typography.Title><Typography.Paragraph>{findingSelection.resolution ? label(findingSelection.resolution) : t("Unresolved", "尚未解决")}</Typography.Paragraph>{latestVerdict && <VerdictHistoryNotice runId={runId} projectId={projectId} />}<FindingLifecycle key={`${findingSelection.id}:${findingSelection.row_version}`} finding={findingSelection} onUpdated={(result) => { setFindingSelection(result); notifications.success(t("Finding lifecycle updated.", "发现生命周期已更新。")); void refresh(); }} /></>}
     </Drawer>
 
     <Drawer title={verdictSelection ? `${verdictSelection.key} · ${t("Decision", "质量判定")} #${verdictSelection.sequence_no}` : t("Quality verdict", "质量判定")} open={!!verdictSelection} width={820} onClose={() => setVerdictSelection(null)}>
@@ -446,6 +447,6 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     </Drawer>
   </>;
 
-  const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} /></>;
-  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, manualMissionControl, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
+  const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} harness={harness} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} /></>;
+  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, implementations, openTask: tasks.openTask, manualMissionControl, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }

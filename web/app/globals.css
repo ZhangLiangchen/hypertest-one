@@ -307,3 +307,9 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
   .activity-record-meta { flex-direction: column; }
   .activity-pagination .ant-btn { max-width: 100%; height: auto; min-height: 32px; white-space: normal; }
 }
+@media (max-width: 640px) {
+  .copy-run-notice { flex-wrap: wrap; }
+  .copy-run-notice .ant-alert-content { flex-basis: calc(100% - 40px); min-width: 0; }
+  .copy-run-notice .ant-alert-action { width: 100%; margin-inline-start: 0; padding-inline-start: 32px; }
+  .copy-run-notice a { overflow-wrap: anywhere; }
+}

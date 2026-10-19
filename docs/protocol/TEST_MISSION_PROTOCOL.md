@@ -6,9 +6,9 @@
 **Status:** Draft  
 **Owner:** HyperTest
 **Accepted target decision:** [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
-**Implementation boundary:** 本分支已实现 v1alpha2 持续会话 profile、Host Bridge 与九个领域工具；旧 v1alpha1 保留原语义，生产迁移和各 Provider / 外部集成的真实验收分别登记。
+**Implementation boundary:** 已实现 v1alpha2 持续会话 profile、Host Bridge 与九个领域工具；旧 v1alpha1 保留原语义，2026-10-19 正式容器化及 Codex 正反链路已验收，各 Provider / 外部集成仍分别登记。
 
-本分支包含 `0013_run_bindings` / `0014_harness_operations`。本地真实 Codex / Docker 成功链形成 `RELEASE_READY`，失败诊断经 Web 显式恢复后完成负向报告；Mission / Run 两类问答均在原 Job / Session / epoch 下消费回答并完成成功报告。证据与未完成项见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`；受控 GitLab 实现已做注入 transport 回归，尚未做真实提单或其他 Provider 验收。
+已包含 `0013_run_bindings` / `0014_harness_operations`；本地真实实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`。正式真实正向链经两次问答及 Web 显式恢复形成 `RELEASE_READY` 报告，负向完整形成产品缺陷诊断与 `RELEASE_BLOCKED` 报告；原数据、Codex OAuth、`45.76.149.233/32` 白名单和 SSH 隧道保留，精确版本与恢复边界见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。受控 GitLab 实现已做注入 transport 回归，真实提单、其他 Provider 及后续 Web 改进仍须独立验收；该状态更新不改变 TMP wire contract 或旧 Run 语义。
 
 ---
 

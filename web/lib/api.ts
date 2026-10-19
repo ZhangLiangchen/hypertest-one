@@ -31,6 +31,9 @@ export function errorText(error: unknown, locale: Locale): string {
     "ASGI application module must be tracked in the pinned source": "ASGI 应用模块必须是固定源码中已跟踪的文件。请核对应用对象路径与提交 SHA。",
     "controlled environments require the Docker runner": "固定受控环境必须通过 Docker Runner 执行，不能改用本机进程。",
     "report artifact unavailable or checksum mismatch": "报告文件不可用或完整性校验失败。请检查服务端产物存储后重试，不能将未校验内容当作已保存报告。",
+    "implementation artifact unavailable or checksum mismatch": "测试源码文件不可用或完整性校验失败。请检查服务端产物存储后重试。",
+    "implementation source belongs to the pinned repository": "此实现引用固定仓库内的已有测试，没有平台保存的生成源码文件。请在固定提交中查看对应文件。",
+    "implementation not found in this run": "此实现不属于当前运行的项目与固定源码快照。请刷新正式测试产物后重试。",
     "binding recovery state changed; refresh before trying again": "会话恢复状态已变化。请刷新当前状态后再操作，避免重复接管。",
     "persistent or queued missions are controlled by their background task; use task controls": "此运行的阶段由后台任务统一控制。请在后台任务中操作，或检查持续会话状态。",
     "persistent missions are controlled by their background task; use task controls": "此运行使用持续会话。请通过后台任务继续，避免单独启动新的阶段会话。",
@@ -123,6 +126,11 @@ export const getMissionProposals = (missionId: string) => api<MissionProposal[]>
 export const retryMission = (missionId: string) => api<Mission>(`/missions/${missionId}/retry`, { method: "POST" });
 export const cancelMission = (missionId: string) => api<Mission>(`/missions/${missionId}/cancel`, { method: "POST" });
 export const getImplementations = (runId: string) => api<TestImplementation[]>(`/test-runs/${runId}/implementations`);
+export const getImplementationContent = async (runId: string, implementationId: string) => {
+  const response = await fetch(`${API_PREFIX}/test-runs/${runId}/implementations/${implementationId}/content`);
+  if (!response.ok) throw await responseError(response, "The saved test source is unavailable or failed integrity verification.");
+  return response.text();
+};
 export const getExecutions = (runId: string) => api<TestExecution[]>(`/test-runs/${runId}/executions`);
 export const getExecution = (executionId: string) => api<ExecutionDetail>(`/executions/${executionId}`);
 export const getEvidence = (runId: string) => api<Evidence[]>(`/test-runs/${runId}/evidence`);
@@ -141,12 +149,12 @@ export const getPolicySnapshot = (snapshotId: string) => api<PolicySnapshot>(`/p
 export const getPrdContent = async (snapshotId: string) => {
   const response = await fetch(`${API_PREFIX}/source-snapshots/${snapshotId}/prd`);
   if (!response.ok) throw await responseError(response, "The saved requirements are unavailable or failed integrity verification.");
-  return response.text();
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer());
 };
 export const getConfigurationContent = async (snapshotId: string) => {
   const response = await fetch(`${API_PREFIX}/source-snapshots/${snapshotId}/configuration`);
   if (!response.ok) throw await responseError(response, "The saved configuration is unavailable or failed integrity verification.");
-  return response.text();
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer());
 };
 export const getVerdicts = (runId: string) => api<Verdict[]>(`/test-runs/${runId}/verdicts`);
 export const getJobs = (runId: string) => api<BackgroundJob[]>(`/test-runs/${runId}/jobs`);

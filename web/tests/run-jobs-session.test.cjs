@@ -12,7 +12,8 @@ function renderTasks(status, locale = "en", freshStatus = status) {
   const api = { getRunHarness: async () => ({ ...harness, binding: freshStatus ? { status: freshStatus } : null }), retryJob: async () => { throw new Error("retry POST must not be reached"); } };
   const hooks = { useQuery: ({ queryKey }) => ({ data: queryKey[0] === "jobs" ? [job] : queryKey[0] === "harness" ? harness : undefined }), useMutation: (options) => { mutations.push(options); return { reset() {} }; }, useQueryClient: () => ({ getQueryData() {}, setQueryData() {} }) };
   const i18n = load("lib/i18n.tsx", { require });
-  const { useRunJobs } = load("app/runs/[runId]/use-run-jobs.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@tanstack/react-query" ? hooks : name === "@/lib/api" ? api : name === "@/lib/uuid" ? {} : name === "./job-activity" ? { JobActivityPanel: () => null } : require(name) });
+  const followUp = load("app/runs/[runId]/run-next-action.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
+  const { useRunJobs } = load("app/runs/[runId]/use-run-jobs.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@tanstack/react-query" ? hooks : name === "@/lib/api" ? api : name === "@/lib/uuid" ? {} : name === "./job-activity" ? { JobActivityPanel: () => null } : name === "./run-next-action" ? followUp : require(name) });
   function Tasks() { return useRunJobs(id(3), () => {}, () => {}).taskTab.children; }
   return { html: renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(Tasks))), mutations, job };
 }
@@ -21,8 +22,8 @@ test("historical failed tasks in ended sessions direct both languages to a new r
   for (const status of ["CLOSED", "FAILED", "CANCELLED"]) for (const locale of ["en", "zh"]) {
     const { html } = renderTasks(status, locale);
     assert.equal(html.includes(locale === "en" ? "Retry as new task" : "新建重试任务"), false);
-    assert.equal(html.includes(locale === "en" ? "Start a new run from the project" : "回到项目创建新的运行"), true);
-    assert.equal(html.includes(`/projects/${id(2)}`), true);
+    assert.equal(html.includes(locale === "en" ? "New round from this run" : "基于本次运行创建新轮次"), true);
+    assert.equal(html.includes(`/projects/${id(2)}?fromRun=${id(3)}`), true);
   }
 });
 

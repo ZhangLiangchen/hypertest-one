@@ -2,12 +2,12 @@
 
 import { ArrowLeftOutlined, ArrowRightOutlined, BranchesOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Descriptions, Empty, Form, Input, Radio, Space, Spin, Steps, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, Popconfirm, Radio, Space, Spin, Steps, Table, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { createRun, errorText, getExecutionEnvironments, getProject, getProjectRuns, resolveSource } from "@/lib/api";
+import { createRun, errorText, getConfigurationContent, getExecutionEnvironments, getPolicySnapshot, getPrdContent, getProject, getProjectRuns, getRun, getSourceSnapshot, resolveSource } from "@/lib/api";
 import { ClientModal as Modal } from "@/app/client-modal";
 import { EnvironmentFields, EnvironmentRequestSummary } from "@/app/execution-environment";
 import { buildEnvironmentRequest, canUseEnvironment, defaultEnvironmentValues, environmentInputIssue, runInputSignature, selectedEnvironmentProfile } from "@/lib/execution-environment";
@@ -16,6 +16,8 @@ import { useI18n } from "@/lib/i18n";
 import { decodePrdBytes, MAX_PRD_CHARACTERS } from "@/lib/prd-import";
 import type { PrdDecodeError } from "@/lib/prd-import";
 import { createUuid } from "@/lib/uuid";
+import { loadRunDraft, RunDraftError } from "@/lib/run-draft";
+import type { CopiedRunDraft } from "@/lib/run-draft";
 import type { RunCreate, SourceResolution } from "@/lib/types";
 import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
 import type { PolicyFormValues } from "./policy-fields";
@@ -28,6 +30,7 @@ type RunFormValues = PolicyFormValues & EnvironmentFormValues & {
   branch?: string;
   prd_text: string;
   configuration_text: string;
+  policy_mode: "edit" | "reuse";
 };
 
 type SourceLookup = { repository_url: string; revision: string; generation: number };
@@ -46,14 +49,14 @@ const MAX_CONFIGURATION_CHARACTERS = 100_000;
 const MAX_PRD_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 10 * 1024 * 1024;
 
-function buildRunInput(values: RunFormValues): Omit<RunCreate, "idempotency_key"> {
+function buildRunInput(values: RunFormValues, copied: CopiedRunDraft | null): Omit<RunCreate, "idempotency_key"> {
   return {
     repository_url: values.repository_url.trim(),
     commit_sha: values.commit_sha.trim().toLowerCase(),
     branch: values.branch?.trim() || undefined,
     prd_text: values.prd_text,
-    configuration_text: values.configuration_text || "{}",
-    policy: compileFormPolicy(values),
+    configuration_text: values.configuration_text,
+    policy: values.policy_mode === "reuse" && copied ? copied.policy.compiled_policy : compileFormPolicy(values),
     environment: buildEnvironmentRequest(values),
   };
 }
@@ -62,12 +65,14 @@ export default function ProjectPage() {
   const { t, label, locale, formatDate } = useI18n();
   const params = useParams<{ projectId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromRun = searchParams.get("fromRun");
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<RunFormValues>({
-    repository_url: "", source_mode: "revision", revision: "main", commit_sha: "", branch: "main", prd_text: "", configuration_text: "{}",
+    repository_url: "", source_mode: "revision", revision: "main", commit_sha: "", branch: "main", prd_text: "", configuration_text: "{}", policy_mode: "edit",
     ...defaultPolicyValues(),
     ...defaultEnvironmentValues(),
   });
@@ -75,6 +80,7 @@ export default function ProjectPage() {
   const [importError, setImportError] = useState<ImportError | null>(null);
   const [importedFileName, setImportedFileName] = useState("");
   const [requestTooLarge, setRequestTooLarge] = useState(false);
+  const [copied, setCopied] = useState<CopiedRunDraft | null>(null);
   const [resolvedSource, setResolvedSource] = useState<SourceResolution | null>(null);
   const [sourceLookupError, setSourceLookupError] = useState<unknown>(null);
   const lookupGeneration = useRef(0);
@@ -85,6 +91,15 @@ export default function ProjectPage() {
   const sourceMode = Form.useWatch("source_mode", { form, preserve: true }) || "revision";
   const repositoryOrigin = Form.useWatch("repository_url", { form, preserve: true }) || "";
   const environmentProfile = Form.useWatch("environment_profile_id", { form, preserve: true }) || "python-pytest-v1";
+  const policyMode = Form.useWatch("policy_mode", { form, preserve: true }) || "edit";
+  const previousInputs = useQuery({
+    queryKey: ["copy-run-inputs", params.projectId, fromRun],
+    queryFn: () => loadRunDraft(params.projectId, fromRun!, {
+      run: getRun, source: getSourceSnapshot, policy: getPolicySnapshot,
+      prd: getPrdContent, configuration: getConfigurationContent,
+    }),
+    enabled: Boolean(fromRun), retry: false,
+  });
   const environments = useQuery({ queryKey: ["execution-environments"], queryFn: getExecutionEnvironments, enabled: createOpen, retry: false });
   const environmentAvailable = canUseEnvironment(environments.data, environmentProfile, environments.isError);
   const sourceResolver = useMutation({
@@ -150,12 +165,14 @@ export default function ProjectPage() {
         branch: project.data?.default_branch || "main",
         prd_text: "",
         configuration_text: "{}",
+        policy_mode: "edit",
         ...defaultPolicyValues(),
         ...defaultEnvironmentValues(),
       };
       form.resetFields();
       form.setFieldsValue(initialValues);
       setDraft(initialValues);
+      setCopied(null);
       creation.reset();
       requestIdentity.current = null;
       lookupGeneration.current += 1;
@@ -172,6 +189,35 @@ export default function ProjectPage() {
     setCreateOpen(true);
   };
 
+  const copyPreviousInputs = () => {
+    const previous = previousInputs.data;
+    if (!previous) return;
+    const initialValues: RunFormValues = {
+      repository_url: previous.source.repository_url, source_mode: "sha",
+      revision: previous.source.branch || project.data?.default_branch || "main",
+      commit_sha: previous.source.commit_sha, branch: previous.source.branch || "",
+      prd_text: previous.prd, configuration_text: previous.configuration,
+      ...defaultPolicyValues(), ...previous.environment, policy_mode: "reuse",
+    };
+    form.resetFields();
+    form.setFieldsValue(initialValues);
+    setDraft(initialValues);
+    setCopied(previous);
+    setHasDraft(true);
+    draftProjectId.current = params.projectId;
+    requestIdentity.current = null;
+    lookupGeneration.current += 1;
+    setResolvedSource(null);
+    setSourceLookupError(null);
+    sourceResolver.reset();
+    creation.reset();
+    setImportedFileName("");
+    setImportError(null);
+    setRequestTooLarge(false);
+    setStep(0);
+    setCreateOpen(true);
+  };
+
   const submitStep = () => {
     const values = form.getFieldsValue(true) as RunFormValues;
     setDraft(values);
@@ -183,7 +229,7 @@ export default function ProjectPage() {
       setStep(step + 1);
       return;
     }
-    const input = buildRunInput(values);
+    const input = buildRunInput(values, copied);
     // Reference labels do not change the canonical SourceSnapshot identity.
     const signature = runInputSignature(params.projectId, input);
     // Retry identical inputs with the same key. Edited inputs must never reopen an older run.
@@ -251,6 +297,11 @@ export default function ProjectPage() {
   }
 
   const createLabel = hasDraft && draftProjectId.current === params.projectId ? t("Continue draft", "继续创建草稿") : t("Create test run", "创建测试运行");
+  const copyError = previousInputs.error instanceof RunDraftError
+    ? previousInputs.error.code === "project" ? t("This run belongs to a different project. Open its project to create the next round.", "此运行属于其他项目，请在原项目中创建新轮次。")
+      : previousInputs.error.code === "environment" ? t("The previous run uses an unbound or archived environment. Create a fresh draft and explicitly configure a supported environment.", "原运行没有绑定受控环境，或使用已归档环境。请新建草稿并明确配置当前支持的执行环境。")
+      : t("The previous run or its snapshots could not be verified. Your current draft is preserved.", "无法核验原运行及其快照，当前草稿已保留。")
+    : errorText(previousInputs.error, locale);
 
   return (
     <main>
@@ -269,6 +320,17 @@ export default function ProjectPage() {
       </div>
 
       {project.error ? <Alert type="warning" showIcon message={t("Project refresh failed", "项目刷新失败")} description={t("Previously loaded project details and your draft remain available. Retry to get the latest state.", "已加载的项目资料和草稿仍会保留，请重试获取最新状态。")} action={<Button onClick={() => void project.refetch()} loading={project.isFetching}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 20 }} /> : null}
+
+      {fromRun ? <Alert
+        className="copy-run-notice"
+        type={previousInputs.isError ? "error" : "info"} showIcon
+        message={t("Create a new round from saved inputs", "沿用已保存输入创建新轮次")}
+        description={previousInputs.isPending ? t("Loading and verifying the saved inputs…", "正在读取并核验已保存输入…") : previousInputs.isError ? copyError : <>{t("Requirements, context and the full policy can be reused. Review the pinned SHA, choose a repaired version if needed, and confirm the environment. The previous run and results remain in history.", "可沿用需求、上下文和完整策略。请核对固定 SHA，需要时选择修复版本，并确认执行环境；原运行和结果保留在历史中。")}{previousInputs.data ? <><br /><Link href={`/runs/${previousInputs.data.run.id}`}>{previousInputs.data.run.key}</Link></> : null}</>}
+        action={previousInputs.isError ? <Button onClick={() => void previousInputs.refetch()} loading={previousInputs.isFetching}>{t("Retry loading inputs", "重试读取输入")}</Button>
+          : hasDraft ? <Popconfirm title={t("Replace the current draft with the saved inputs?", "用已保存输入替换当前草稿？")} description={t("Only the draft on this page will be replaced.", "只会替换当前页面的草稿。")} onConfirm={copyPreviousInputs} okText={t("Replace draft", "替换草稿")} cancelText={t("Keep draft", "保留草稿")}><Button disabled={!previousInputs.data || previousInputs.isFetching}>{t("Use saved inputs", "沿用已保存输入")}</Button></Popconfirm>
+            : <Button onClick={copyPreviousInputs} disabled={!previousInputs.data || previousInputs.isFetching}>{t("Review copied inputs", "核对沿用的输入")}</Button>}
+        style={{ marginBottom: 20 }}
+      /> : null}
 
       <Space wrap style={{ display: "flex", justifyContent: "space-between", marginBottom: 18 }}>
         <div>
@@ -320,6 +382,7 @@ export default function ProjectPage() {
           items={[{ title: t("Source", "源码") }, { title: t("Requirements", "需求") }, { title: t("Environment", "执行环境") }, { title: t("Policy", "策略") }, { title: t("Review", "确认") }]}
           style={{ margin: "24px 0" }}
         />
+        {copied ? <Alert type="info" showIcon message={t("New round with copied inputs", "使用原输入的新轮次")} description={<>{t("Original run: ", "原运行：")}<Link href={`/runs/${copied.run.id}`}>{copied.run.key}</Link>{t(". The original SHA is prefilled. Keep it for an explicit retest, or choose the repaired SHA in Source. Current trusted images are resolved again when you create the run.", "。已预填原 SHA；可保留以显式复测，或在源码步骤选择修复 SHA。创建时将重新核验当前可信镜像。")}</>} style={{ marginBottom: 20 }} /> : null}
         {creation.isError ? (
           <Alert type="error" showIcon message={t("Test run could not be created", "测试运行创建失败")} description={errorText(creation.error, locale)} style={{ marginBottom: 20 }} />
         ) : null}
@@ -448,13 +511,16 @@ export default function ProjectPage() {
               <Form.Item
                 name="configuration_text"
                 label={t("Testing context (optional)", "测试上下文（可选）")}
-                extra={t("Original text or JSON, up to 100,000 characters, saved unchanged. It does not install dependencies or configure services; choose the controlled environment in the next step. Leave empty to use {}.", "原始文字或 JSON，最多 100,000 个字符，原样保存。此文字不会安装依赖或配置服务；受控执行环境请在下一步选择。留空使用 {}。")}
+                extra={t("Original text or JSON, up to 100,000 characters, saved unchanged. It does not install dependencies or configure services; choose the controlled environment in the next step. Blank context is saved as empty text.", "原始文字或 JSON，最多 100,000 个字符，原样保存。此文字不会安装依赖或配置服务；受控执行环境请在下一步选择。留空按空文本保存。")}
                 rules={[{ max: MAX_CONFIGURATION_CHARACTERS, message: t("Configuration must contain at most 100,000 characters.", "测试配置最多 100,000 个字符。") }]}
               >
                 <Input.TextArea rows={4} showCount maxLength={MAX_CONFIGURATION_CHARACTERS} placeholder="{}" style={{ fontFamily: "monospace" }} />
               </Form.Item>
             </>
-          ) : step === 2 ? <EnvironmentFields catalog={environments.data} loading={environments.isPending} failed={environments.isError} refreshing={environments.isFetching} refresh={() => void environments.refetch()} /> : step === 3 ? <PolicyFields /> : (
+          ) : step === 2 ? <EnvironmentFields catalog={environments.data} loading={environments.isPending} failed={environments.isError} refreshing={environments.isFetching} refresh={() => void environments.refetch()} /> : step === 3 ? <>
+            {copied ? <Form.Item name="policy_mode" label={t("Policy for this round", "本轮使用的策略")}><Radio.Group options={[{ value: "reuse", label: t("Keep the full original policy", "沿用完整原策略") }, { value: "edit", label: t("Replace with a new Web policy", "重新配置并替换策略") }]} /></Form.Item> : null}
+            {copied && policyMode === "reuse" ? <><Typography.Paragraph>{t("Every original policy field is preserved, including rules outside this form. Select replacement only if you intend to configure a different policy.", "保留原策略的全部字段，包括此表单未覆盖的规则。需要修改策略时，请明确选择重新配置。")}</Typography.Paragraph><pre className="artifact-content">{JSON.stringify(copied.policy.compiled_policy, null, 2)}</pre></> : <PolicyFields />}
+          </> : (
             <Space direction="vertical" size={18} style={{ width: "100%", marginBottom: 24 }}>
               <Alert
                 type="info"
@@ -467,7 +533,7 @@ export default function ProjectPage() {
                 <Descriptions.Item label={t("Repository origin", "仓库源地址")}><span style={{ overflowWrap: "anywhere" }}>{draft.repository_url}</span></Descriptions.Item>
                 <Descriptions.Item label={t("Commit", "提交")}><Typography.Text code copyable style={{ overflowWrap: "anywhere", wordBreak: "break-all" }}>{draft.commit_sha}</Typography.Text></Descriptions.Item>
                 <Descriptions.Item label={t("Reference label", "参考版本标签")}>{draft.branch?.trim() || t("Not specified", "未指定")}</Descriptions.Item>
-                <Descriptions.Item label={t("Policy", "策略")}><PolicyReview values={draft} /></Descriptions.Item>
+                <Descriptions.Item label={t("Policy", "策略")}>{copied && draft.policy_mode === "reuse" ? <><Typography.Text>{t("Full original policy preserved", "沿用完整原策略")}</Typography.Text><pre className="artifact-content">{JSON.stringify(copied.policy.compiled_policy, null, 2)}</pre></> : <PolicyReview values={draft} />}</Descriptions.Item>
                 <Descriptions.Item label={t("Execution environment", "执行环境")}><EnvironmentRequestSummary request={buildEnvironmentRequest(draft)} profile={selectedEnvironmentProfile(environments.data, draft.environment_profile_id)} /></Descriptions.Item>
               </Descriptions>
               <div style={{ width: "100%" }}>
@@ -477,7 +543,7 @@ export default function ProjectPage() {
               </div>
               <details style={{ width: "100%" }}>
                 <summary style={{ cursor: "pointer" }}>{t("Original testing context", "原始测试上下文")}</summary>
-                <pre className="artifact-content" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 180, overflowY: "auto" }}>{draft.configuration_text || "{}"}</pre>
+                <pre className="artifact-content" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 180, overflowY: "auto" }}>{draft.configuration_text}</pre>
               </details>
             </Space>
           )}

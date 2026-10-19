@@ -2,13 +2,13 @@
 
 **版本：v1.1**
 
-**部署与工作流决策：ADR-013 Accepted，本分支已实现，生产迁移待验收**
+**部署与工作流决策：ADR-013 Accepted，已实现并完成生产容器化验收（2026-10-19）**
 
 **定位：Agent-native Autonomous Testing Platform**
 
 **架构角色：Autonomous Testing Control Plane**
 
-[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义本文的部署与工作流目标。本分支已实现持久 Run Binding、宿主 Bridge、九个领域工具和受控 GitLab 集成，并提供 additive migrations `0013_run_bindings` / `0014_harness_operations`。本地真实 Codex / Docker 成功链形成 `RELEASE_READY`；失败诊断链经 Web 显式恢复后提交负向报告；Mission / Run 两类问答在原 Job、原 Session、原 epoch 下消费回答并完成成功报告。具体证据与剩余条件见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`；未据此宣称生产迁移、真实 GitLab 提单或其他 Provider 验收完成。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。
+[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义本文的部署与工作流目标。已实现持久 Run Binding、宿主 Bridge、九个领域工具和受控 GitLab 集成，并提供 additive migrations `0013_run_bindings` / `0014_harness_operations`。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 正式容器切换与真实 Web / Codex / Docker 正反链路已验收；生产源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`。现有数据、Codex OAuth、`45.76.149.233/32` 白名单和 SSH 隧道均保留，具体身份、恢复经过及限制见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。真实 GitLab 提单、其他 Provider 和本轮后续 Web 改进仍须分别验收。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。
 
 ---
 
@@ -544,7 +544,7 @@ Report / Verdict
 
 MVP 建议只支持一个 Agent Harness（Codex）、API / Backend Functional Test、pytest、Docker / existing SIT，以及基础 Requirement / Risk / Case / Finding / Evidence / Verdict 模型。
 
-现有 MVP 能力与 ADR-013 目标须分别验收：本分支已提供容器部署材料、宿主 Bridge、整个 Run 的持续会话、运行中领域工具与受控 GitLab 集成；生产容器迁移、数据与访问边界保全仍需部署验收，GitLab 实际提单仍需授权配置与真实服务证据。Claude Code / DeepSeek 等适配器也需各自的真实运行证据，不能由 Codex 结果代替。
+现有 MVP 能力与 ADR-013 目标须分别验收：容器部署、宿主 Bridge、整个 Run 的持续会话与运行中领域工具已有实现；生产迁移、数据 / 认证 / 访问边界保全及真实正反链路已完成[独立验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。受控 GitLab 集成已有回归，实际提单仍需授权配置与真实服务证据。Claude Code / DeepSeek 等适配器也需各自的真实运行证据，不能由 Codex 结果代替。
 
 第一阶段不做复杂多 Agent Blackboard、自研 LLM Agent Loop、复杂 Workflow DSL、跨公司通用测试 Ontology、完全无人值守 Release。
 
