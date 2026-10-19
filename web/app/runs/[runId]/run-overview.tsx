@@ -4,25 +4,27 @@ import { ArrowRightOutlined, CheckCircleOutlined, ClockCircleOutlined, Exclamati
 import { Alert, Button, Empty, Skeleton, Space, Tag } from "antd";
 import { useI18n } from "@/lib/i18n";
 import { latestRunVerdict } from "@/lib/run-summary";
-import type { BackgroundJob, Evidence, Finding, TestExecution, Verdict } from "@/lib/types";
+import type { BackgroundJob, Evidence, Finding, RunHarness, TestExecution, Verdict } from "@/lib/types";
 
 type Dataset<T> = { data: T[] | undefined; isLoading: boolean; error: unknown; refetch: () => unknown };
 
-export function RunOverview({ verdicts, executions, evidence, findings, jobs, navigate, openVerdict, openEvidence, openExecution, openFinding, openTask }: {
+export function RunOverview({ verdicts, executions, evidence, findings, jobs, harness, navigate, openVerdict, openEvidence, openExecution, openFinding, openTask }: {
   verdicts: Dataset<Verdict>; executions: Dataset<TestExecution>; evidence: Dataset<Evidence>;
   findings: Dataset<Finding>; jobs: Dataset<BackgroundJob>;
+  harness?: { data: RunHarness | undefined; isLoading: boolean; error: unknown; refetch: () => unknown };
   navigate: (section: string) => void; openVerdict: (item: Verdict) => void;
   openEvidence: (item: Evidence) => void; openExecution: (item: TestExecution) => void;
   openFinding: (item: Finding) => void; openTask: (id: string) => void;
 }) {
   const { t, label, locale, formatDate, verdictReason } = useI18n();
   const latest = latestRunVerdict(verdicts.data);
+  const reports = harness?.data?.reports;
   const task = [...(jobs.data || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const failedExecution = [...(executions.data || [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).find((item) => item.purpose === "OFFICIAL" && (item.outcome === "FAIL" || ["ERROR", "TIMED_OUT"].includes(item.status)));
   const openFindings = findings.data?.filter((item) => ["NEW", "TRIAGED", "CONFIRMED", "REOPENED"].includes(item.status)) || [];
   const recentEvidence = [...(evidence.data || [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 3);
   const tone = !latest || latest.status !== "FINAL" ? "pending" : ["RELEASE_READY", "PASS"].includes(latest.decision) ? "success" : ["RELEASE_BLOCKED", "FAIL"].includes(latest.decision) ? "danger" : "warning";
-  const errors = [verdicts, executions, evidence, findings, jobs].filter((query) => query.error);
+  const errors = [verdicts, executions, evidence, findings, jobs, ...(harness ? [harness] : [])].filter((query) => query.error);
   return <div className="run-overview">
     {!!errors.length && <Alert type="warning" showIcon message={t("Some overview data is unavailable", "部分概览数据暂不可用")} description={t("Recorded results stay visible. Refresh before making a decision.", "已加载记录会保留，请刷新后再作判断。")} action={<Button onClick={() => errors.forEach((query) => { void query.refetch(); })}>{t("Retry", "重试")}</Button>} />}
     <div className="overview-top-grid">
@@ -33,6 +35,7 @@ export function RunOverview({ verdicts, executions, evidence, findings, jobs, na
           {latest && <Tag>{label(latest.status)}</Tag>}
           <p className="decision-reason">{latest ? verdictReason(latest.reason) : t("After official execution, the quality gate checks coverage, trusted evidence and findings to record a decision.", "正式执行后，质量门禁将核对覆盖情况、可信证据和问题发现，并记录结论。")}</p>
           <div className="panel-bottom"><span>{latest ? formatDate(latest.created_at) : t("Task completion does not mean tests passed.", "任务完成不代表测试通过。")}</span><Button onClick={() => latest ? openVerdict(latest) : navigate("verdicts")}>{t("View rationale", "查看判定依据")} <ArrowRightOutlined aria-hidden /></Button></div>
+          {harness && <div style={{ marginTop: 16 }}><Button onClick={() => navigate("harness")}>{reports?.length ? t(`Read saved report (${reports.length})`, `阅读已保存报告（${reports.length}）`) : harness.error ? t("Check report availability", "检查报告是否可用") : harness.isLoading ? t("Checking reports", "正在检查报告") : t("Session & report status", "会话与报告状态")}</Button><p className="table-footnote">{reports?.length ? t("The report summarizes accepted records; the verdict above remains the quality decision.", "报告汇总已接受记录；质量结论仍以上方判定为准。") : t("A saved report appears here after the agent submits it. A quality verdict may be recorded before the report is ready.", "智能体提交报告后，可从此处查看。质量判定可能先于报告生成。")}</p></div>}
         </>}
       </section>
       <section className="task-panel">

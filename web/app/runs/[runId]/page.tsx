@@ -29,6 +29,8 @@ import type { Mission, Requirement, Risk, TestCase } from "@/lib/types";
 import { useRunOperations } from "./use-run-operations";
 import { RunInputs } from "./run-inputs";
 import { RunHarness } from "./run-harness";
+import { CanonicalDetailsDrawer } from "./canonical-details";
+import type { CanonicalSelection } from "./canonical-details";
 
 function statusColor(status: string) {
   if (["COMPLETED", "ACCEPTED", "ACTIVE", "OPEN"].includes(status)) return "green";
@@ -55,6 +57,7 @@ export default function RunPage() {
   const tabRoot = useRef<HTMLDivElement>(null);
   const { t, label, locale } = useI18n();
   const [activeTab, setActiveTab] = useState("overview");
+  const [canonicalSelection, setCanonicalSelection] = useState<CanonicalSelection | null>(null);
   useEffect(() => {
     try { setActiveTab(sessionStorage.getItem(`hypertest.run-tab.${params.runId}`) || "overview"); }
     catch { /* Tab selection still survives polling and language changes without storage. */ }
@@ -72,7 +75,7 @@ export default function RunPage() {
     queryFn: () => getRun(params.runId),
     refetchInterval: 5_000,
   });
-  const operations = useRunOperations(params.runId, selectTab, run.data?.source_snapshot_id);
+  const operations = useRunOperations(params.runId, selectTab, run.data?.source_snapshot_id, run.data?.project_id, setCanonicalSelection);
   const requirements = useQuery({
     queryKey: ["requirements", params.runId],
     queryFn: () => getRequirements(params.runId),
@@ -137,7 +140,7 @@ export default function RunPage() {
       dataIndex: "title",
       render: (_: unknown, row: Requirement) => (
         <Space direction="vertical" size={1}>
-          <Typography.Text strong>{row.title}</Typography.Text>
+          <Button type="link" style={{ padding: 0, height: "auto", whiteSpace: "normal", textAlign: "start" }} onClick={() => setCanonicalSelection({ kind: "requirement", id: row.id })}>{row.title}</Button>
           <span className="entity-key">{row.key}</span>
         </Space>
       ),
@@ -159,7 +162,7 @@ export default function RunPage() {
       dataIndex: "title",
       render: (_: unknown, row: Risk) => (
         <Space direction="vertical" size={1}>
-          <Typography.Text strong>{row.title}</Typography.Text>
+          <Button type="link" style={{ padding: 0, height: "auto", whiteSpace: "normal", textAlign: "start" }} onClick={() => setCanonicalSelection({ kind: "risk", id: row.id })}>{row.title}</Button>
           <span className="entity-key">{row.key}</span>
         </Space>
       ),
@@ -208,7 +211,7 @@ export default function RunPage() {
       dataIndex: "title",
       render: (_: unknown, row: TestCase) => (
         <Space direction="vertical" size={1}>
-          <Typography.Text strong>{row.title}</Typography.Text>
+          <Button type="link" style={{ padding: 0, height: "auto", whiteSpace: "normal", textAlign: "start" }} onClick={() => setCanonicalSelection({ kind: "testCase", id: row.id })}>{row.title}</Button>
           <span className="entity-key">{row.key}</span>
         </Space>
       ),
@@ -304,7 +307,7 @@ export default function RunPage() {
           items={[
             {key: "overview", label: t("Overview", "运行概览"), children: <>{operations.overview}{operations.summary}</>},
             ...operations.tabs.filter((tab) => tab.key !== "automation"),
-            { key: "harness", label: t("Session & reports", "持续会话与报告"), children: <RunHarness runId={params.runId} refreshRun={operations.refresh} selectTab={selectTab} /> },
+            { key: "harness", label: t("Session & reports", "持续会话与报告"), children: <RunHarness runId={params.runId} projectId={run.data.project_id} refreshRun={operations.refresh} selectTab={selectTab} openTask={operations.openTask} /> },
             {
               key: "requirements",
               label: `${t("Requirements", "需求")} (${requirements.data ? requirementData.length : "—"})`,
@@ -380,6 +383,7 @@ export default function RunPage() {
         />
       </div>
       {operations.dialogs}
+      <CanonicalDetailsDrawer runId={params.runId} selection={canonicalSelection} requirements={requirementData} risks={riskData} testCases={testCaseData} implementations={operations.implementations.data || []} onSelect={setCanonicalSelection} onClose={() => setCanonicalSelection(null)} />
     </main>
   );
 }

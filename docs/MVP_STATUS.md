@@ -2,7 +2,11 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: ADR-013 containerization and persistent Harness
+## Current increment: result review and a new testing round
+
+The Web now opens complete accepted requirement/risk/case details and linked assets, reads generated test source through a Run-scoped integrity-checked API, and exposes saved reports beside the quality verdict. Ended sessions lead to a reviewed new round; recovery and pre-binding source-preparation failures lead to the recorded task retry. A new round can reuse exact PRD/context text, every original policy field and environment requests, while selecting a repaired SHA and resolving current image identity again. Existing drafts and all old runs/results remain intact. No migration or quality-rule change is introduced; head stays0014. Implementation, actual local Web/Codex/Docker acceptance, checks and remaining gaps are recorded in [result-review acceptance](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md). Production remains the f415/95e deployed baseline below until this increment is merged and deployed.
+
+## Deployed baseline: ADR-013 containerization and persistent Harness
 
 Implemented migrations `0013_run_bindings` / `0014_harness_operations`, a native Codex session per Run, fenced host Bridge calls, deterministic domain-tool admission, trusted Docker execution, both question scopes, explicit same-session recovery, reports and controlled GitLab operations. API, Worker, Web, nginx and PostgreSQL have a production Compose; Provider authentication and native sessions remain on the host. The bilingual Web includes session/report/recovery views and prevents retries against a closed binding.
 

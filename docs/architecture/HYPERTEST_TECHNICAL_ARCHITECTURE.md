@@ -1,6 +1,6 @@
 # HyperTest Technical Architecture
 
-**Document Status:** Accepted Target Architecture / Implementation Pending
+**Document Status:** Accepted Architecture / Implemented; Production Cutover Verified (2026-10-19)
 
 **Version:** v0.4
 
@@ -8,7 +8,7 @@
 
 **Architecture Role:** Autonomous Testing Control Plane
 
-v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。本分支已实现 Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成，新增 `0013_run_bindings` / `0014_harness_operations`；本地真实成功、失败诊断和两类问答证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`，生产迁移、真实 GitLab 提单和其他 Provider 验收未因此完成。标注“当前 v0.3”的段落记录既有兼容路径；部署现状以 [服务器运维文档](../SERVER_OPERATIONS.md) 与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
+v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成已有实现，新增 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 生产容器切换及真实正反链路已验收：源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`，原数据、Codex OAuth、VPN 白名单及 SSH 隧道保留。完整结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)；真实 GitLab 提单、其他 Provider 及后续 Web 改进不由该结果推定完成。标注“当前 v0.3”的段落记录当时的兼容路径，不描述当前生产拓扑；部署现状以[服务器运维文档](../SERVER_OPERATIONS.md)与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
 
 ---
 
@@ -701,20 +701,20 @@ Kubernetes 可以在有需求时承载平台或 Runner，而宿主 Harness 仍�
 
 ## 40. 实现状态与验收边界
 
-当前 v0.3 已有 CodexAdapter、Python/pytest、DockerRunner、受控 ASGI profile，以及 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding / Verdict 闭环。其目标仍是验证 Testing Semantic Chain，而非仅验证 Agent 能生成测试。
+v0.3 历史兼容路径已有 CodexAdapter、Python/pytest、DockerRunner、受控 ASGI profile，以及 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding / Verdict 闭环。v0.4 保留其 Canonical 事实与历史语义，新增持续会话边界；目标仍是验证 Testing Semantic Chain，而非仅验证 Agent 能生成测试。
 
-以下区分生产基线、本分支实现与仍需独立验收的边界：
+以下区分历史兼容路径、当前实现与仍需独立验收的边界：
 
-| 领域 | 生产基线 / 历史兼容路径 | 本分支实现与验收边界 |
+| 领域 | v0.3 历史兼容路径（非当前生产拓扑） | 当前实现与验收边界 |
 |---|---|---|
-| 平台部署 | `0a2af9c` / `0012`，宿主 Nginx 与 systemd Web/API/Worker + Docker PostgreSQL | 已提供生产 Compose 与 Bridge systemd 材料；生产迁移、数据 / 认证 / SSH / VPN 保全另行验收 |
-| Harness 调用 | Worker 直接运行 Codex CLI | 已实现宿主 Bridge + 受限 UDS，认证与原生会话留宿主；本地真实 Codex 已运行 |
-| 调度与会话 | PostgreSQL Job；逐 Mission 创建/关闭 Session；bounded controller 推进 | `0013` / `0014` 支撑稳定 Binding、主 Session 与运行账本；本地真实成功链及失败诊断后 Web 显式恢复已完成报告 |
+| 平台部署 | `0a2af9c` / `0012`，宿主 Nginx 与 systemd Web/API/Worker + Docker PostgreSQL | 正式五容器 Compose + 宿主 Bridge 已切换；源码 `f415fd0` / 运行构建 `95e92c5` / schema `0014`，数据 / OAuth / SSH / VPN 保全已验收 |
+| Harness 调用 | Worker 直接运行 Codex CLI | 已实现宿主 Bridge + 受限 UDS，认证与原生会话留宿主；本地及正式容器 Worker 的真实 Codex 链路已运行 |
+| 调度与会话 | PostgreSQL Job；逐 Mission 创建/关闭 Session；bounded controller 推进 | `0013` / `0014` 支撑稳定 Binding、主 Session 与运行账本；正式正向经 Web 显式恢复后完成报告，负向在运行补丁下完整完成 |
 | 人工交互 | 阶段内持久 WAITING_INPUT、Web 回答和原 Attempt/Session resume | Mission / Run 两类问答已实现并真实消费回答，原 Job / Session / epoch 保持，最终形成 `RELEASE_READY` 报告 |
 | 运行工具 | Mission Context + 结构化最终结果，无完整域工具 | 已实现 v1alpha2 profile 九工具、分页读取、准入 / 验证、正式执行与 Gate、报告及 Run 总活跃时间预算 |
 | Provider / 协作 | 默认 Codex；无完整多 Harness 协商和 GitLab 提单集成 | Codex 能力探测已实现；受控 GitLab 配置、去重与未知结果对账已有回归，真实提单与其他 Provider 尚待验收 |
 
-各项真实证据和未完成条件见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。
+本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)；正式正反链、恢复、配对备份与访问边界见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。宿主实际重启、真实 GitLab 提单和其他 Provider 尚未据此验收，后续 Web 改进须单独记录结果。
 
 v0.4 验收至少覆盖：同一 Project 的两个独立 Run 并发；单 Run 全周期只有一个逻辑 Worker 绑定和一个真实原生 Session；跨多个 Mission 的上下文保持；人工等待释放运行资源后原会话恢复；物理 Worker 显式恢复时拒绝旧 epoch/lease；会话/Workspace 丢失不静默替换；可信执行、Evidence 验证与 Gate 判定；Issue 幂等与取消；迁移前后数据/Artifacts/认证/SSH/VPN 保全。fake Harness 或文档检查只能验证契约，不能代替真实 Provider、生产拓扑和多任务验收。
 

@@ -150,12 +150,17 @@ export type MissionExecution = {
 export type TestImplementation = {
   id: string;
   key: string;
+  project_id?: string;
+  source_snapshot_id?: string;
+  repository_url?: string;
   file_path: string;
   symbol: string;
   framework: string;
   language: string;
   commit_sha: string;
   validation_status: string;
+  artifact_uri?: string | null;
+  source_sha256?: string | null;
   test_case_keys?: string[];
   testcase_keys?: string[];
   created_at: string;

@@ -1,6 +1,6 @@
 # HyperTest Domain Model & State Machine Specification
 
-**Document Status:** Normative / Accepted v0.4; Branch Implementation, Production Migration Pending
+**Document Status:** Normative / Accepted v0.4; Implemented, Production Migration Verified (2026-10-19)
 
 **Version:** v0.4 Target
 **Parent Documents:**
@@ -24,7 +24,7 @@
 
 v0.4 已接受设计为：一个稳定 SUT 对应一个 Project；一个 feat / MR 的完整 SHA 及固定测试输入对应一次用户可见 TestRun。每个 Run 只有一个逻辑 TaskWorker 绑定及一个持久主 AgentSession，串行推进多个 typed Mission / Attempt。平台 Worker 和 Control Plane 容器化；只有 Provider Harness、其认证 / 原生会话运行时及窄 Host Bridge 保留在宿主。不同 Run 可以并发，同一 Run 不引入多个平台 Worker 同时协作。
 
-**本分支已实现这些运行归属与受控工具边界，生产迁移仍待验收。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地真实 Codex / Docker 成功链、失败诊断经 Web 显式恢复后的负向报告，以及两类问答在原 Job / Session / epoch 下恢复并形成成功报告，见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产仍为 `0a2af9c` / `0012`；未据此宣称生产迁移、真实 GitLab 提单或其他 Provider 验收完成。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
+**这些运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。当前生产源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`；原数据、Codex OAuth、VPN 白名单和 SSH 隧道保留，精确正反链路、显式恢复及保全结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。真实 GitLab 提单、其他 Provider 及后续 Web 改进仍须独立验收。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
 
 Canonical Chain、不可变快照、Proposal / Verifier、trusted Runner、deterministic Gate、Audit / Outbox 及已有历史保护在两者中均有效。目标迁移不得把历史上一个 Run 的多条 AgentSession 合并成一条，不得改写原 Attempt / Execution 的 `durable_job_id`。
 
@@ -1096,7 +1096,7 @@ v0.4 目标的活动和执行结果回调还必须匹配当前 RunExecutionBindi
 
 `RunExecutionBinding` 是一个 TestRun 的持久执行归属，表名为 `run_execution_bindings`。它不是 Canonical Test Fact，不取代 TestRun、DurableJob、AgentSession 或 WorkerHeartbeat，也不表示一个新测试任务。首次 Provider 调用前，平台原子建立同一 Run 的绑定和主 AgentSession 记录；主 Session 的原生引用允许在首次真实 Provider 回应前暂为 NULL，但不得伪造。
 
-以下字段与约束由本分支 `0013_run_bindings` 实现；生产 schema 仍须通过独立迁移验收：
+以下字段与约束由 `0013_run_bindings` 实现；生产已完成至 `0014_harness_operations` 的[独立迁移与保全验收](../ADR013_PRODUCTION_DEPLOYMENT.md)，旧历史不回填：
 
 | 字段 | 目标语义 |
 |---|---|

@@ -1,10 +1,40 @@
 # HyperTest One 第一阶段验收
 
-## 当前增量：受控依赖与服务型 API 环境
+## 本轮功能验收：结果复核与修复后复测
 
-新增不可变 Source 环境绑定、预制完整依赖锁和单 ASGI 服务真实 HTTP 测试，Web提供五步双语选择与只读执行身份；迁移0011兼容旧NULL/FINAL hash，0012仅扩 API-v2 profile CHECK。首轮真实模型暴露仓库 conftest 收集依赖问题，旧 ERROR/BLOCKED 历史保留；新 API-v2 隔离仓库 pytest 配置/conftest，旧 profile 原身份保持。**474后端/55Web、18独立真实Docker、Ruff/typecheck/build、独立恢复19/19已通过**（默认pytest的18项opt-inDocker均已另行实际执行）。新的真实Web/Codex/Docker双链已验收：91PASS→RELEASE_READY；30PASS/22FAIL→产品缺陷诊断→RELEASE_BLOCKED，各28/28独立检查，结果见[本轮环境验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)；服务器a48bc96/schema0009未改动。
+本轮以白皮书§20/§22/§25为范围，补齐可操作的测试产物详情、报告入口、结束/恢复
+状态及同Project的新轮次复测。实际模型和Docker、输入与历史保全、检查及未覆盖项
+见[本轮验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。本轮代码不等同于已部署版本；
+生产仍为下方记录的f415/95e/0014。
 
-## 前轮本地已验收：辅助活动与等待诊断
+## 当前已部署基线：ADR-013 容器栈与持续会话（2026-10-19）
+
+PR #9 已合并并完成正式容器切换；当前生产源码入口为 `f415fd0`，API / Worker / Bridge
+运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`。原 PostgreSQL 卷、
+Canonical 数据与产物、Codex OAuth、`45.76.149.233/32` 白名单及 SSH 隧道均已保全。
+完整身份、配对备份 / 隔离恢复、就绪与限制见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)。
+
+| 已实际验收项目 | 正式结果 |
+|---|---|
+| PRD 文件 → 固定仓库 SHA → 同一主会话 → Docker → Evidence → Verdict / 报告 | 正向 49 PASS、5 份可信证据、FINAL `RELEASE_READY`、报告已接受；41 项独立检查通过 |
+| 持久问答及显式恢复 | Mission / Run 两次问题均通过 Web 回答；原生 Session / Workspace 身份不变，显式恢复 epoch 1→2，旧失败 Job 与唯一正式 Execution 保留 |
+| 真实产品失败与诊断 | 补丁后完整负向 14 PASS / 8 FAIL / 0 ERROR / 0 SKIP，诊断 Finding 关联可信证据，FINAL `RELEASE_BLOCKED`、报告已接受；43 项独立检查通过 |
+| 服务与访问 | 五容器 healthy、15 分钟 31 次健康采样、无重启 / OOM；VPN 与 SSH 可用，操作者独立移动网络确认非白名单无法访问 |
+| 自动检查 | 运行补丁 CI：645 后端通过 / 18 opt-in Docker 跳过 / 3 既有警告；61 Web 通过，Ruff、迁移、typecheck、build 与 audit0 通过 |
+
+正向的唯一 49 项正式执行发生在初始 `2ceff17`；显式恢复、第二次问答、Gate 与报告
+发生在 `95e92c5`。负向全周期在 `95e92c5` 下完成，未将旧 Execution 重跑或改写。
+
+这些结果只对应上述正式版本；本轮后续 Web 改进仍在实施，须另做检查和真实端到端
+验收，不能复用旧成功记录预写完成。真实 GitLab 提单、其他 Provider、宿主实际重启、
+任意外部 SIT / 多服务环境及多人权限未据此验收。以下各轮记录保留当时的版本、数量
+与缺口，历史中的“本轮 / 当前 / 仍未实现”应按各节时间理解。
+
+## 历史增量：受控依赖与服务型 API 环境（ADR-013 切换前）
+
+新增不可变 Source 环境绑定、预制完整依赖锁和单 ASGI 服务真实 HTTP 测试，Web提供五步双语选择与只读执行身份；迁移0011兼容旧NULL/FINAL hash，0012仅扩 API-v2 profile CHECK。首轮真实模型暴露仓库 conftest 收集依赖问题，旧 ERROR/BLOCKED 历史保留；新 API-v2 隔离仓库 pytest 配置/conftest，旧 profile 原身份保持。**474后端/55Web、18独立真实Docker、Ruff/typecheck/build、独立恢复19/19已通过**（默认pytest的18项opt-inDocker均已另行实际执行）。新的真实Web/Codex/Docker双链已验收：91PASS→RELEASE_READY；30PASS/22FAIL→产品缺陷诊断→RELEASE_BLOCKED，各28/28独立检查，结果见[当时环境验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)；该次本地验收时服务器a48bc96/schema0009未改动，后续部署见顶部当前基线。
+
+## 历史本地验收：辅助活动与等待诊断（ADR-013 切换前）
 
 本轮补齐白皮书 §22 的辅助 Agent Activity：独立有界 Operational 记录、Provider 信号与本 Job 心跳分开、当前领取隔离、双语只读时间线和等待诊断。迁移为 `0010_mission_activity`；**384 后端 / 41 Web tests、Ruff、typecheck、build、audit0、独立备份恢复均通过**。新真实 Web/Codex/Docker Run 经等待、API/Worker 重启和原会话回答恢复，完成 **2Req / 5Risk / 8Case / 1Impl / 1Exec / 4Evidence / FINAL RELEASE_READY，JUnit8PASS**。42 条安全活动、claim 隔离及旧31表1132行/128旧产物保全已独立实核。见[本轮活动验收](MISSION_ACTIVITY_ACCEPTANCE.md)。服务器保持已合并部署的 `a48bc96` / schema0009；本轮未部署，不改既有数据、VPN 白名单或 SSH 隧道。受控依赖/服务型 API、第二 Harness 与多人权限等边界仍未泛化验收，不据该增量宣称整个第一阶段完成。
 

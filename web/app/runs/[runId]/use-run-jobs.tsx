@@ -10,6 +10,7 @@ import { useI18n } from "@/lib/i18n";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
 import { JobActivityPanel } from "./job-activity";
+import { NewRunLink } from "./run-next-action";
 
 const activeStatuses: JobStatus[] = ["QUEUED", "RUNNING", "WAITING_INPUT", "CANCEL_REQUESTED"];
 const retryableStatuses: JobStatus[] = ["FAILED", "INTERRUPTED", "CANCELLED"];
@@ -87,7 +88,21 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     if (operation === "EXECUTE_TESTS") delete options.idempotency_key;
     const request = { operation, payload: options, ...(missionId ? { mission_id: missionId } : {}) };
     const pending = pendingKey(`${operation}:${missionId || "run"}`, request);
-    const job = await confirmSubmission(() => createJob(runId, {
+    let recorded: BackgroundJob | undefined;
+    if (operation === "ADVANCE_RUN") {
+      // Keep an uncertain submission recoverable by its original key, while a
+      // fresh request must not bypass the retry relationship after recovery.
+      const [currentJobs, currentHarness] = await Promise.all([getJobs(runId), getRunHarness(runId)]);
+      client.setQueryData(["harness", runId], currentHarness);
+      recorded = currentJobs.find((job) => job.idempotency_key === pending.key);
+      if (!recorded) {
+        if (currentHarness.binding && currentHarness.binding.status !== "ACTIVE") throw new Error(t("Review the original session before continuing. Ended sessions require a new testing round.", "继续前请检查原会话。已结束的会话需要创建新测试轮次。"));
+        const latest = [...currentJobs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        if (latest && retryableStatuses.includes(latest.status)
+          && (currentHarness.binding || latest.job_type === "ADVANCE_RUN")) throw new Error(t("Retry the recorded task explicitly so its recovery history stays linked. Do not start a separate cycle.", "请显式重试已记录任务，以保留恢复关联。请勿另建测试周期绕过重试历史。"));
+      }
+    }
+    const job = recorded || await confirmSubmission(() => createJob(runId, {
       ...request,
       payload: operation === "EXECUTE_TESTS" ? { ...options, idempotency_key: `${pending.key}:execution` } : options,
       idempotency_key: pending.key,
@@ -166,7 +181,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
       <Button size="small" onClick={() => { setSelectedId(job.id); cancellation.reset(); retry.reset(); }}>{t("Details", "详情")}</Button>
       {job.status === "WAITING_INPUT" && <Button size="small" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>}
       {activeStatuses.includes(job.status) && job.status !== "CANCEL_REQUESTED" && <Popconfirm title={t("Cancel this background task?", "确认取消此后台任务？")} description={t("The worker stops at a safe boundary. Accepted canonical testing state remains available.", "Worker 会在安全边界停止，已接受的正式测试状态仍会保留。")} onConfirm={() => cancellation.mutate(job)}><Button size="small" danger loading={cancellation.isPending && cancellation.variables?.id === job.id}>{t("Cancel task", "取消任务")}</Button></Popconfirm>}
-      {retryableStatuses.includes(job.status) && (sessionEnded ? <Typography.Text type="secondary">{t("This session has ended. Start a new run from the project.", "此会话已结束，请回到项目创建新的运行。")} <a href={`/projects/${job.project_id}`}>{t("Open project", "打开项目")}</a></Typography.Text> : sessionBlocked ? <Button size="small" onClick={() => viewResult("harness")}>{bindingStatus === "RECOVERY_REQUIRED" ? t("Recover session first", "请先恢复会话") : t("Review session", "查看会话")}</Button> : cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission || !harness.data || !!harness.error} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{!harness.data || harness.error ? t("Checking session state", "正在检查会话状态") : unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
+      {retryableStatuses.includes(job.status) && (sessionEnded ? <Space wrap><Typography.Text type="secondary">{t("This session has ended. Its history is retained.", "此会话已结束，历史记录会保留。")}</Typography.Text><NewRunLink runId={runId} projectId={job.project_id} /></Space> : sessionBlocked ? <Button size="small" onClick={() => viewResult("harness")}>{bindingStatus === "RECOVERY_REQUIRED" ? t("Recover session first", "请先恢复会话") : t("Review session", "查看会话")}</Button> : cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission || !harness.data || !!harness.error} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{!harness.data || harness.error ? t("Checking session state", "正在检查会话状态") : unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
     </Space>;
   }
 
@@ -213,6 +228,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
           <Button onClick={() => viewResult("evidence")}>{t("View evidence", "查看证据")}</Button>
           <Button onClick={() => viewResult("findings")}>{t("View findings", "查看发现")}</Button>
           <Button onClick={() => viewResult("verdicts")}>{t("View quality verdicts", "查看质量判定")}</Button>
+          {current.status === "SUCCEEDED" && current.job_type === "ADVANCE_RUN" && <Button onClick={() => viewResult("harness")}>{harness.data?.reports.length ? t("Read saved report", "阅读已保存报告") : t("Check report status", "检查报告状态")}</Button>}
         </Space>
         {current.status === "QUEUED" && <Alert type="info" showIcon message={t("Waiting for an available worker", "等待可用 Worker")} description={t("The task is saved. Keep the worker service running; this browser does not execute the task.", "任务已保存。请保持 Worker 服务运行，任务由 Worker 执行。")} style={{ marginBottom: 20 }} />}
         {current.status === "INTERRUPTED" && <Alert type="warning" showIcon message={t("Worker execution was interrupted", "Worker 执行已中断")} description={t("Review the recorded missions, executions and evidence. Retry creates a new task and preserves this task's history; completed canonical state remains available.", "请检查已记录的智能体任务、执行和证据。重试会创建新任务并保留原历史，已完成的正式状态仍会保留。")} style={{ marginBottom: 20 }} />}

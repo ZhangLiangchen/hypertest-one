@@ -3,18 +3,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Descriptions, Drawer, Empty, Skeleton, Space, Tag, Typography } from "antd";
 import { useState } from "react";
-import { errorText, getRunHarness, getRunReportContent, recoverRunBinding } from "@/lib/api";
+import { errorText, getJobs, getRunHarness, getRunReportContent, recoverRunBinding } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { RunBinding } from "@/lib/types";
+import { NewRunLink } from "./run-next-action";
 
-export function RunHarness({ runId, refreshRun, selectTab }: { runId: string; refreshRun: () => Promise<unknown>; selectTab: (key: string) => void }) {
+export function RunHarness({ runId, projectId, refreshRun, selectTab, openTask }: { runId: string; projectId?: string; refreshRun: () => Promise<unknown>; selectTab: (key: string) => void; openTask?: (id: string) => void }) {
   const { t, label, locale, formatDate } = useI18n();
   const client = useQueryClient();
   const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
+  const jobs = useQuery({ queryKey: ["jobs", runId], queryFn: () => getJobs(runId), refetchInterval: 1_500 });
   const [reportId, setReportId] = useState<string | null>(null);
   const report = harness.data?.reports.find((item) => item.id === reportId);
   const content = useQuery({ queryKey: ["run-report", reportId], queryFn: () => getRunReportContent(reportId!), enabled: !!reportId, retry: false });
   const binding = harness.data?.binding;
+  const latestJob = [...(jobs.data || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const activeJob = jobs.data?.find((job) => ["QUEUED", "RUNNING", "WAITING_INPUT", "CANCEL_REQUESTED"].includes(job.status));
+  const retryJob = binding?.status === "ACTIVE" && !activeJob && latestJob && ["FAILED", "INTERRUPTED", "CANCELLED"].includes(latestJob.status) ? latestJob : null;
+  const terminal = binding && ["CLOSED", "FAILED", "CANCELLED"].includes(binding.status);
   const recovery = useMutation({
     mutationFn: (current: RunBinding) => recoverRunBinding(current),
     onSettled: async () => {
@@ -29,12 +35,14 @@ export function RunHarness({ runId, refreshRun, selectTab }: { runId: string; re
     <div className="section-heading"><h2>{t("Persistent testing session", "持续测试会话")}</h2><Button onClick={() => void harness.refetch()} loading={harness.isFetching}>{t("Refresh", "刷新")}</Button></div>
     <Typography.Paragraph className="muted">{t("A bound session retains the same testing context across stages and questions. Formal execution evidence and the quality verdict remain in their own records.", "已绑定会话会在阶段切换和人工问答之间保留同一测试上下文。正式执行证据与质量判定仍以各自记录为准。")}</Typography.Paragraph>
     {harness.error && <Alert type="warning" showIcon message={t("Session details could not be refreshed", "会话详情暂时无法刷新")} description={errorText(harness.error, locale)} />}
+    {jobs.error && <Alert type="warning" showIcon style={{ marginTop: 16 }} message={t("Task status could not be checked", "暂无法核对任务状态")} description={t("Refresh the recorded tasks before recovering or retrying this session.", "恢复或重试此会话前，请先刷新已记录任务的状态。") } action={<Button onClick={() => void jobs.refetch()}>{t("Refresh tasks", "刷新任务")}</Button>} />}
     {harness.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : !binding ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("This run has no persistent session binding. Any existing stage history and testing results remain available in their sections.", "此运行尚无持续会话绑定。已有阶段历史与测试结果仍可在相应栏目中查看。")} /> : <>
       <Space wrap><Tag color={color}>{binding.status === "ACTIVE" ? t("Session available", "会话可继续") : label(binding.status)}</Tag><Typography.Text type="secondary">{t("Updated", "更新于")} {formatDate(binding.updated_at)}</Typography.Text></Space>
       {binding.status === "WAITING_INPUT" && <Alert type="info" showIcon style={{ marginTop: 16 }} message={t("The session is waiting for your answer", "会话正在等待你的回答")} description={t("Answer the recorded question to continue the same task and session.", "回答已记录的问题，即可继续同一任务与会话。") } action={<Button onClick={() => selectTab("input-requests")}>{t("Questions & answers", "问题与回答")}</Button>} />}
-      {binding.status === "RECOVERY_REQUIRED" && <Alert type="warning" showIcon style={{ marginTop: 16 }} message={t("Verify the original session before continuing", "继续前需核验原会话")} description={<><p>{t("Recovery checks that the old call has stopped and the original session and workspace are intact. It does not replay an interrupted test. After successful recovery, retry the recorded task explicitly.", "恢复会核验旧调用已停止、原会话与工作区仍完整，不会重放中断的测试。恢复成功后，请在后台任务中显式重试原任务。")}</p><Button loading={recovery.isPending} disabled={!!harness.error} onClick={() => recovery.mutate(binding)}>{t("Verify & recover session", "核验并恢复会话")}</Button></>} />}
+      {binding.status === "RECOVERY_REQUIRED" && <Alert type="warning" showIcon style={{ marginTop: 16 }} message={t("Verify the original session before continuing", "继续前需核验原会话")} description={<><p>{t("Recovery checks that the old call has stopped and the original session and workspace are intact. It does not replay an interrupted test. After successful recovery, retry the recorded task explicitly. If a report was already accepted, recovery may only confirm the completed session is closed.", "恢复会核验旧调用已停止、原会话与工作区仍完整，不会重放中断的测试。恢复成功后，请显式重试原任务。若报告已被接受，恢复可能只确认已完成会话的关闭状态。")}</p>{activeJob && <p>{t("Wait for the active task to stop before recovering this session.", "请等待当前任务停止，再恢复此会话。")}</p>}<Button loading={recovery.isPending} disabled={!!harness.error || jobs.isLoading || !!jobs.error || !!activeJob} onClick={() => recovery.mutate(binding)}>{t("Verify & recover session", "核验并恢复会话")}</Button></>} />}
       {recovery.error && <Alert type="error" showIcon style={{ marginTop: 16 }} message={t("Session recovery was not confirmed", "尚未确认会话恢复成功")} description={errorText(recovery.error, locale)} />}
-      {recovery.isSuccess && binding.status !== "RECOVERY_REQUIRED" && <Alert type="info" showIcon style={{ marginTop: 16 }} message={t("Session verified; inspect the task before retrying", "原会话已核验，请检查任务后重试")} action={<Button onClick={() => selectTab("tasks")}>{t("Background tasks", "后台任务")}</Button>} />}
+      {retryJob && <Alert type="info" showIcon style={{ marginTop: 16 }} message={t("The original session can continue through the recorded task", "原会话可通过已记录任务继续")} description={<>{t("Review this task and explicitly create its retry. The failed record and completed testing facts remain in history.", "请检查此任务并显式创建关联重试。失败记录与已完成的测试事实会保留在历史中。") }<p className="entity-key">{retryJob.key}</p></>} action={<Button onClick={() => openTask ? openTask(retryJob.id) : selectTab("tasks")}>{t("Review & retry original task", "检查并重试原任务")}</Button>} />}
+      {terminal && <Alert type={binding.status === "CLOSED" ? "info" : "warning"} showIcon style={{ marginTop: 16 }} message={t("This testing session has ended", "本次测试会话已结束")} description={t("This session cannot be reopened. Its tasks, accepted results, reports and quality decisions remain available. To retest or verify a fix, review the inputs in a new testing round.", "此会话不能重新打开。任务、已接受的结果、报告与质量判定均保留。需要复测或验证修复时，请在新测试轮次中审阅输入。") } action={projectId ? <NewRunLink runId={runId} projectId={projectId} /> : undefined} />}
       <details style={{ marginTop: 16 }}><summary>{t("Session identity & limits", "会话身份与限制")}</summary><Descriptions size="small" column={1} style={{ marginTop: 12 }} items={[
         { key: "binding", label: t("Binding", "绑定标识"), children: <Typography.Text code copyable>{binding.id}</Typography.Text> },
         { key: "session", label: t("Primary session", "主会话标识"), children: <Typography.Text code copyable>{binding.primary_agent_session_id}</Typography.Text> },
