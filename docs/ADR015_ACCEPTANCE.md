@@ -1,6 +1,6 @@
-# ADR-015 实现与真实验收记录
+# ADR-015 实现与隔离真实验收记录
 
-日期：2026-10-19（Asia/Singapore）。依据 [ADR-015](architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)。
+隔离验收日期：2026-10-19（Asia/Singapore）。后续生产部署与线上验收另见 [ADR-015 生产部署记录](ADR015_PRODUCTION_DEPLOYMENT.md)。本文保留隔离环境的原始结果与失败历史。依据 [ADR-015](architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)。
 
 本公开记录保留公共 fixture 的身份、结果和摘要。私有仓库、GitLab 目标、负责人及外部 Issue 的原始身份已脱敏；完整原始记录另存本机受保护的私有保全目录，不随公开仓库发布。
 
@@ -8,7 +8,7 @@
 
 本分支实现保留 `SERVER_HOST`，新增 `LOCAL_CONNECTOR`。本次独立环境使用真实 PostgreSQL、启用证书与主机名验证的本地 HTTPS API / Worker、独立进程的本机 Connector 与原生 Codex，以及通过既有严格 SSH 公钥入口连接的**远端服务器 Docker Runner**。控制平面运行于本机隔离环境；这不是生产平台切换，也不是用本机 Agent 自报结果代替 Runner。
 
-生产服务、数据、Provider / OAuth 配置、Artifact、SSH 登录与 VPN 白名单没有修改。生产 `ops/check-remote.sh` 巡检健康，当前部署仍为 `9a4871ce336bfff9a1b87c7bd7b5b41e89f06110`；本分支尚未提交、推送或部署。Web 已增加双模式、设备操作和固定源码接收入口；真实周期通过相同 API 提交，界面单独做可见表单检查。
+本次隔离验收期间没有修改生产服务、数据、Provider / OAuth 配置、Artifact、SSH 登录或 VPN 白名单。当时生产 `ops/check-remote.sh` 巡检健康，业务为 `9a4871ce336bfff9a1b87c7bd7b5b41e89f06110`，尚未执行 ADR-015 生产切换；后续发布不改写此时点。Web 已增加双模式、设备操作和固定源码接收入口；真实周期通过相同 API 提交，界面单独做可见表单检查。
 
 ## 已实现内容
 
@@ -75,7 +75,7 @@ UNKNOWN、超时、丢失响应及本地账本重启 / 丢失的“只查询、�
 - Web：104 tests passed，typecheck 与 production build 通过；双模式表单经真实浏览器可见检查，Impeccable detector 在全部变更前端文件上返回 0 findings。该检查未通过浏览器授予额外权限。
 - 源码与关键授权范围、撤权 race、不可变选择、UNKNOWN 提单对账、服务器 Harness 兼容均有独立回归。Ruff、diff 与文档链接 / 锚点检查通过。独立复核发现的问题已修复并补回归，无剩余必修阻断。
 
-真实长断线、TTL 到期、Runner drain 和原会话恢复已有上述实际记录；全部操作系统休眠、`WAITING_INPUT` 离线、设备撤销 / 离线取消、原会话丢失的真实设备组合矩阵尚未逐一执行。现有单元 / 集成覆盖与真实验收范围分别陈述。生产部署还需依操作指南配置既有受保护入口的 WSS Upgrade / 源码大小与超时，并执行备份、迁移和新运行时验证；本次没有进行生产切换。
+真实长断线、TTL 到期、Runner drain 和原会话恢复已有上述实际记录；全部操作系统休眠、`WAITING_INPUT` 离线、设备撤销 / 离线取消、原会话丢失的真实设备组合矩阵尚未逐一执行。现有单元 / 集成覆盖与真实验收范围分别陈述。本次隔离验收没有进行生产切换。后续生产已另行配置既有受保护入口的 WSS Upgrade / 源码大小与超时，并完成备份、迁移及内部就绪；严格外部 TLS 确认与线上核心周期的实际范围见[生产记录](ADR015_PRODUCTION_DEPLOYMENT.md)。
 
 ## 可复现记录与保留
 
@@ -89,6 +89,8 @@ PYTHONPATH=src python scripts/adr015_live_cycle.py \
   --private-origin 'https://gitlab.example.invalid/approved/private-repository.git' \
   --private-sha '<approved full commit SHA>'
 ```
+
+此例使用隔离驱动 `adr015_live_cycle.py`；连接已部署平台的线上驱动、短 Connector runtime 路径与前置校验见[生产记录](ADR015_PRODUCTION_DEPLOYMENT.md#线上驱动与本地路径)。两者参数不可混用。
 
 `--broken --gitlab-test-issue --gitlab-config <本机私有配置文件>` 会触发真实外部写入，仅在另获明确测试目标 / 负责人授权时使用，不能为重跑验收而重复创建已存在 Issue。配置须为本机 `0600` 普通 JSON 文件，仅固定获准目标（不包含 token）：
 
@@ -106,4 +108,4 @@ PYTHONPATH=src python scripts/adr015_live_cycle.py \
 
 本机原始证据、设备 token / Operator 文件和 Provider journal 保存在受保护的本地私有目录，不能提交、作为报告附件或整体上传。公开仓库仅保留经过脱敏的记录以及公共 fixture 的身份与摘要。停止进程前核对这些目录的 PID 与命令，禁止依据陈旧 PID 盲目终止进程；清理仅限本次隔离环境，不删除生产 Artifact / 数据或用户原生认证。
 
-验收结束后已撤销三个隔离测试节点的设备授权，按 PID / 命令身份核对后停止本次 API、Worker、Connector 和 Web dev 进程；仅停止本次 `hypertest-adr015-pg` 容器，保留其可丢弃验收数据库与本机私有证据。临时 `web/node_modules` 链接已移除。生产服务和本机既有 Codex / Git / glab 登录均未变更。
+验收结束后已撤销三个隔离测试节点的设备授权，按 PID / 命令身份核对后停止本次 API、Worker、Connector 和 Web dev 进程；仅停止本次 `hypertest-adr015-pg` 容器，保留其可丢弃验收数据库与本机私有证据。临时 `web/node_modules` 链接已移除。在该次隔离清理时点，生产服务和本机既有 Codex / Git / glab 登录均未变更；这不描述后续生产 Connector 的生命周期。

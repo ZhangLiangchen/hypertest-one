@@ -1,0 +1,242 @@
+{
+  "schema": "hypertest.adr015.production-acceptance/v1",
+  "status": "PASSED",
+  "production_deployed": true,
+  "online_core_e2e_verified": true,
+  "observed_at": "2026-10-19T13:22:10.006002+00:00",
+  "runtime": {
+    "source_commit": "63bd6cc6710d2937d189acc90acaa15502d73a24",
+    "schema_revision": "0018_harness_selection",
+    "application_images": {
+      "api": "sha256:198327c0c0bcc3d2a91d3b3796f1c15fc9908a4a48205a5498a09cbe8f847886",
+      "worker": "sha256:d53031eb69f77a57174a8d19af0d08777dedfd3f4c8f3223c4aaba453049cfa8",
+      "web": "sha256:6b10ea21d3d3d9128cc77d0cff14d7d4e9de27d45e0f5af6819a4d705171e795"
+    },
+    "postgres_image": "sha256:327daa8fae7178d61f93142f146b098467b345e10997b9eb79f63bd58e5c8f3c",
+    "nginx_image": "sha256:8f59ff5046a70e421d35ed7d1e862a963215c9689b36cb8f64a6c42f9cf2955d",
+    "operations_manifest_sha256": "61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d",
+    "operations_original_source_commit": "3195a08826e3c52a34f14fe37ad403d88a18a408",
+    "original_bridge_commit": "95e92c584897ff18bc1a0006823891ca45a619be",
+    "nonroot_migration_heads_verified": true,
+    "package_versions_unchanged": true
+  },
+  "release_pull_requests": [
+    "https://github.com/ZhangLiangchen/hypertest-one/pull/14",
+    "https://github.com/ZhangLiangchen/hypertest-one/pull/15"
+  ],
+  "ci": {
+    "merged_runtime_workflow": "https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39254763655",
+    "backend_passed": 917,
+    "backend_skipped": 19,
+    "web_test_typecheck_build_passed": true,
+    "local_online_driver_tests_passed": 12
+  },
+  "cutover": {
+    "ready_at": "2026-10-19T13:01:10.760991+00:00",
+    "same_maintenance_lock_through_admission": true,
+    "paired_cold_backup_and_isolated_restore_passed": true,
+    "production_restore_drop_or_downgrade": false,
+    "original_business_tables_exact_before_admission": 38,
+    "version_table_forward_0014_to_0018_in_attempt": 2,
+    "final_attempt_started_from_retained_0018": true,
+    "default_service_user_migration_head_verified": true,
+    "historical_attempts_retained": 3
+  },
+  "initialization_history": {
+    "first_image_unreadable_migrations_rehearsal_failed_before_production_upgrade": true,
+    "second_attempt_systemd_execution_telemetry_guard_software_rollback_kept_0018": true,
+    "final_attempt_static_and_loaded_unit_configuration_verified": true,
+    "local_long_socket_path_failure_preceded_source_run_and_job_creation": true,
+    "same_project_and_node_runtime_relocated_before_first_source_write": true,
+    "same_ca_and_leaf_key_strict_certificate_extensions_verified": true
+  },
+  "tls": {
+    "served_leaf_matches_strict_certificate": true,
+    "api_health_http_status": 200,
+    "web_http_status": 200,
+    "html_received": true,
+    "server_capabilities_http_status": 200,
+    "existing_server_harness_ready": true,
+    "docker_runner_available": true,
+    "old_http_redirect_status": 308,
+    "old_http_redirects_to_same_https_endpoint": true,
+    "certificate_and_hostname_verified": true,
+    "non_whitelisted_server_source_https_status": 403,
+    "original_listener_ip_port_and_vpn_source_preserved": true,
+    "global_system_trust_changed": false,
+    "ca_signing_key_uploaded": false,
+    "nginx_leaf_read_only_only": true
+  },
+  "online": {
+    "fixture_origin": "https://github.com/ZhangLiangchen/hypertest-one",
+    "commit_sha": "63bd6cc6710d2937d189acc90acaa15502d73a24",
+    "project_id": "01a15446-623d-713e-bf32-a8280a6fa5b5",
+    "node_id": "01a15446-6878-7426-a6a2-3b6406bf4033",
+    "run_id": "01a15449-f81e-7af1-9903-e898359b7855",
+    "job_id": "01a15449-ff0e-7bcc-90e0-95f465b1e25c",
+    "job_status": "SUCCEEDED",
+    "source_status": "ACCEPTED",
+    "bundle_sha256": "c723f60a08921f9eea19582dba49c34b35d65b6a0cce7eb09c2ab965fad62eea",
+    "binding": {
+      "id": "01a1544a-0515-7d64-a51e-cf692ce19e4a",
+      "status": "CLOSED",
+      "binding_epoch": 1,
+      "primary_agent_session_id": "01a1544a-0511-7e2b-8c90-8e02021c4833"
+    },
+    "selection": {
+      "mode": "LOCAL_CONNECTOR",
+      "node_id": "01a15446-6878-7426-a6a2-3b6406bf4033"
+    },
+    "executions": [
+      {
+        "id": "01a1544c-d660-7422-ab1d-a66986749b2d",
+        "key": "EX-01A1544CD65C724EBFE94CF92F706829",
+        "status": "COMPLETED",
+        "outcome": "PASS",
+        "runner_backend": "docker",
+        "source_commit": "63bd6cc6710d2937d189acc90acaa15502d73a24",
+        "execution_spec_sha256": "767ff82c5036eb0ab9dfe3d2598a90c285302453271c0935c6c030d10e5b3111"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "01a1544c-e631-7a14-9dcb-ebc9a17be214",
+        "key": "EV-01A1544CE6307B668A3D00AF59DDC65B",
+        "execution_id": "01a1544c-d660-7422-ab1d-a66986749b2d",
+        "trust_level": "RUNNER",
+        "status": "VERIFIED",
+        "sha256": "9e29900863b6bee88144d3c1e5dd8188e4f6686787356ce78a75c5c21f5ba027"
+      },
+      {
+        "id": "01a1544c-e629-75bb-b5e4-7b79f9438d6a",
+        "key": "EV-01A1544CE6287593A223D7C2AF3DCBFB",
+        "execution_id": "01a1544c-d660-7422-ab1d-a66986749b2d",
+        "trust_level": "RUNNER",
+        "status": "VERIFIED",
+        "sha256": "f236036b107303edb8be61234db15ddc9125c172498e743e7151a824b069b75c"
+      },
+      {
+        "id": "01a1544c-e621-715b-bdd4-ddcb3dcc5b5a",
+        "key": "EV-01A1544CE62171F0A716E17AA1460DAC",
+        "execution_id": "01a1544c-d660-7422-ab1d-a66986749b2d",
+        "trust_level": "RUNNER",
+        "status": "VERIFIED",
+        "sha256": "e1d1c8b9e0578c60f86c9ffea0346a7764c4ca34c5dc7fe4eb6274bc9374209e"
+      },
+      {
+        "id": "01a1544c-e61a-7808-ab0e-08e31a4a80ca",
+        "key": "EV-01A1544CE61A7F91A9972BEA2E4C0B87",
+        "execution_id": "01a1544c-d660-7422-ab1d-a66986749b2d",
+        "trust_level": "RUNNER",
+        "status": "VERIFIED",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "id": "01a1544c-e612-74ee-a44b-951d9b9c58e8",
+        "key": "EV-01A1544CE6107B5CAEBA4B1B4A9473F2",
+        "execution_id": "01a1544c-d660-7422-ab1d-a66986749b2d",
+        "trust_level": "RUNNER",
+        "status": "VERIFIED",
+        "sha256": "f1fa8aa6c913d7838115177f4553facf8d0112fd053d4cb919177824b64ce256"
+      }
+    ],
+    "reports": [
+      {
+        "id": "01a1544d-9a40-7329-9ed8-c602c6b00506",
+        "content_sha256": "6806077434bc752adae2d6c4ef23cb554bf9a8b4120fb2a2d31e9b38cdcbde8d",
+        "verdict_key": "VER-01A1544D5D717483B8DE39F52D19AD67",
+        "verdict_decision": "RELEASE_READY"
+      }
+    ],
+    "verdicts": [
+      {
+        "id": "01a1544d-5d72-7be2-8614-5fde1f11373e",
+        "key": "VER-01A1544D5D717483B8DE39F52D19AD67",
+        "scope": "TEST_RUN",
+        "status": "FINAL",
+        "decision": "RELEASE_READY",
+        "evidence_manifest_sha256": "2d09651eb4c9a33eb148eb9890dd096cce4068b0d91310bfa37ed227beb3b3eb"
+      }
+    ],
+    "report_content_verified": true,
+    "issue_operation_count": 0,
+    "acceptance_status": "PASSED",
+    "unique_formal_execution_count": 1
+  },
+  "private_source_only": {
+    "status": "PASSED",
+    "bundle_bytes": 44271128,
+    "file_count": 1431,
+    "object_count": 1737,
+    "raw_object_payload_bytes": 32840412,
+    "source_only_run_count": 0,
+    "issue_operation_count": 0
+  },
+  "post_acceptance_preservation": {
+    "deployed_release_matches": true,
+    "schema_0018": true,
+    "all_original_business_rows_preserved": true,
+    "original_table_count": 38,
+    "original_file_counts": {
+      "artifacts": 66,
+      "workspaces": 2909,
+      "bridge_state": 13
+    },
+    "artifacts_original_files_preserved": true,
+    "workspaces_original_files_preserved": true,
+    "bridge_state_original_files_preserved": true,
+    "bridge_root_unchanged": true,
+    "sshd_effective_unchanged": true,
+    "sshd_global_unchanged": true,
+    "ssh_dropins_unchanged": true,
+    "backup_timer_unchanged": true,
+    "oauth_status_unchanged": true,
+    "oauth_metadata_unchanged": true,
+    "native_session_files_unchanged": true,
+    "ufw_status_sha256_unchanged": true,
+    "ufw_added_sha256_unchanged": true,
+    "protected_public_policy_sha256_unchanged": true,
+    "installed_bridge_source_hashes_unchanged": true,
+    "units_stable_configuration_unchanged": true,
+    "postgres_identity_and_volume_unchanged": true,
+    "postgres_not_restarted": true,
+    "nginx_policy_matches_protected_configuration": true,
+    "network_guard_protected": true,
+    "network_identity_unchanged": true,
+    "all_five_containers_healthy": true,
+    "original_package_versions_unchanged": true,
+    "no_active_or_uncertain_work": true,
+    "all_constraints_validated": true,
+    "docker_user_rules_unchanged": true,
+    "docker_daemon_policy_valid": true,
+    "all_other_original_protected_configuration_hashes_unchanged": true,
+    "status": "PASSED",
+    "failed_checks": [],
+    "original_business_row_count": 2719,
+    "original_native_session_file_count": 28
+  },
+  "observation": {
+    "ready_to_final_snapshot_seconds": 1259,
+    "resource_sample_count": 80,
+    "resource_sample_first_at": "2026-10-19T13:08:44.887901+00:00",
+    "resource_sample_last_at": "2026-10-19T13:18:42.901089+00:00",
+    "sampled_oom_or_restart_seen": false,
+    "all_five_post_source_containers_healthy_no_oom_no_restarts": true
+  },
+  "scope_limits": {
+    "production_disconnect_fault_injection_performed": false,
+    "production_issue_write_performed": false,
+    "private_sut_business_run_performed": false,
+    "extended_real_device_recovery_matrix_complete": false,
+    "isolated_recovery_and_issue_acceptance_retained": "../ADR015_ACCEPTANCE.md",
+    "latest_followup_changes_scope": "documentation and local acceptance driver only; server runtime remains the recorded merged commit"
+  },
+  "final_dispatch_reconciliation": {
+    "connector_queued_sent_unknown": 0,
+    "source_incomplete": 0,
+    "issue_pending_unknown": 0,
+    "jobs_active": 0,
+    "connector_success": 347,
+    "accepted_sources": 2
+  }
+}

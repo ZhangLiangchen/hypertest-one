@@ -6,13 +6,13 @@
 **Status:** Draft  
 **Owner:** HyperTest
 **Accepted target decision:** [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
-**Dual-mode implementation decision:** [ADR-015 — Dual-mode Harness and Local Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)；Connector 契约及 `0015`—`0018` 已实现，隔离回归通过，核心真实端到端验收通过，扩展故障矩阵待逐设备验收，生产未部署；现有 TMP wire / profile / Host Bridge 版本保持。
+**Dual-mode implementation decision:** [ADR-015 — Dual-mode Harness and Local Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)；Connector 契约及 `0015`—`0018` 已实现，隔离回归通过，核心隔离真实端到端验收通过，已部署生产，线上核心周期已通过，扩展故障矩阵继续逐设备登记；现有 TMP wire / profile / Host Bridge 版本保持。
 **Implementation boundary:** 已实现 v1alpha2 持续会话 profile、Host Bridge、九个领域工具及独立 Connector 传输；旧 v1alpha1 保留原语义，2026-10-19 正式容器化及 Codex 正反链路已验收，各 Provider / 外部集成仍分别登记。
 
-已包含 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)，正式切换与恢复历史见[部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。后续 PR #10 已部署源码 `828225d`，兼容 Host Bridge 保留 `95e92c5`，schema 仍为0014；当前访问配置只在[运维材料](../SERVER_OPERATIONS.md)维护。[ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)的关闭后治理属于平台操作者接口，不扩展已关闭 Agent 的工具权限，也不改 TMP wire/profile 版本。真实 GitLab 提单及其他 Provider 仍须独立验收。
+已包含 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)，正式切换与恢复历史见[部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，兼容 Host Bridge 保留 `95e92c5`，当时 schema 为0014；ADR-015 当前 schema 已升至0018，发布与线上待验范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)；当前访问配置只在[运维材料](../SERVER_OPERATIONS.md)维护。[ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)的关闭后治理属于平台操作者接口，不扩展已关闭 Agent 的工具权限，也不改 TMP wire/profile 版本。受控 GitLab 真实创建已有 ADR-015 独立隔离验收；其他 Provider 与未执行扩展场景继续单独登记。
 
 
-本分支已实现 ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复，并新增 `0015_connector_nodes` → `0016_source_transfer` → `0017_issue_executor` → `0018_harness_selection`。隔离回归已通过；真实私有 Git 通过本机已有 glab / Git helper 获取，并经 Connector / HTTPS 在隔离平台独立接受。真实本地 Codex → 远端 Docker Runner → Evidence / Gate → 报告正反链已通过，私有 Git 经 HTTPS 接受，断线后原 Execution 先收尾并在同会话 / workspace 显式恢复，GitLab 测试 测试 Issue 及负责人已独立核验。扩展真实设备故障矩阵仍按总验收记录区分未执行项，不能由核心链路成功推定所有场景通过。生产未部署 ADR-015；最终版本、节点 / Run / operation 身份和结果由 [ADR-015 总验收](../ADR015_ACCEPTANCE.md) 汇总，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复已实现，`0015_connector_nodes` → `0018_harness_selection` 已部署生产。核心隔离真实验收已通过，包括本地 Codex → 远端可信 Docker Runner → Evidence / Gate → 报告正反链、私有 Git 经 HTTPS 接受、原会话断线恢复及获准测试 Issue 的创建 / 负责人核验。这些隔离结果不冒称生产结果。生产切换已完成原数据、文件、认证、SSH / VPN 与服务器 Bridge 保全；严格外部 TLS、线上本地 Connector 核心周期和生产私有源码 source-only 接受补验已通过，后者未启动私有业务 Run 或问题单操作，扩展真实设备故障矩阵继续分别登记。当前发布与实际验收范围见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
 
 ---
 
@@ -609,7 +609,7 @@ Bridge 按已授权 deadline / lease watchdog 停止失联调用；interrupt 结
 
 本分支执行 grant 不超过当前 Job lease 和 120 秒传输上限，Worker 在长工具 / Runner I/O 期间独立续约；Bridge 到期中断且不自动重放。`get_call` 提供持久的 `created_at`、`finished_at`、`elapsed_seconds` 与 `stopped`，仅确认进程停止后固定耗时，供 Run 总预算对账；它不提供计费 token 或 reasoning 内容。
 
-### 22.2 ADR-015 双模式与 Connector 传输契约（本分支已实现，独立验收中）
+### 22.2 ADR-015 双模式与 Connector 传输契约（已部署生产，线上核心验收通过）
 
 `SERVER_HOST` 继续使用 §22.1 的限权 UDS Bridge；`LOCAL_CONNECTOR` 使用用户设备常驻进程主动发起的 WSS 双向连接。Web / bootstrap API 已提供 harness_mode、node_id 与 source_bundle_transfer_id；首选服务器模式保持旧 payload 兼容，本地选择由 RunHarnessSelection 在绑定前冻结，首绑定形成 Placement。设备配对 / 轮换 / 撤销与项目能力端点已实现，独立真实验收与生产部署状态另行登记。Web 承担节点选择、配对、撤销及任务提交，页面刷新、关闭或退出不作为 Connector 的连接或任务生命周期。WSS 沿用部署的 VPN / 入口访问边界、验证服务端证书；不要求用户设备开放入站端口，不把 UDS 接口直接代理到公网。
 
@@ -675,7 +675,7 @@ WSS 请求 envelope 固定 type、transport、request_id、node_id、operation�
 
 24 MiB 单对象上限用于容纳固定 tree 中合法跟踪的二进制对象；它不放宽 32 MiB 总 payload、48 MiB JSON 包或秘密拒绝规则。源码适配器只在独立受管目录读取固定 Git 对象，失败后移除 fetch 的裸仓库；物化不运行 hooks、smudge filter 或仓库脚本。越界输入必须失败，不通过删除文件、LFS 下载或修改原 commit 绕过上限。实测统计与独立验收范围见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
 
-### 22.4 本地问题单执行的受控委派（ADR-015 已实现，真实创建待验收）
+### 22.4 本地问题单执行的受控委派（ADR-015 已实现，真实创建已独立核验）
 
 `request_gitlab_issue`/`get_issue` 业务 Schema 及 §30.1 的 Finding/Evidence/策略规则保持。服务器集成继续可用；新本地 executor 是 Connector 的单独 capability，由本地可信适配器执行平台已批准的类型化 create/read 操作，凭据不交给 Harness。两种 executor 共享平台 operation 账本和去重范围，不因换后端、重连或更换幂等键给同一 Finding 再建 Issue。
 
@@ -877,11 +877,11 @@ Web 展示问题原文并提交自由回答。回答长度上限 12000 字符，
 
 对于 production mutation、database delete、external side effect、secret access 等危险操作，Mission 可声明审批策略。Adapter 尽量映射 Provider Approval / Sandbox 能力；Provider 不支持时由 HyperTest Tool Layer 拦截。预先配置的授权策略可以允许受控外部操作；问题或回答不能绕过固定权限和平台验证。
 
-### 30.1 GitLab 缺陷协作（本分支实现，真实提单待验收）
+### 30.1 GitLab 缺陷协作（服务器兼容保留，本地真实创建已独立核验）
 
 Harness 通过 `hypertest.request_gitlab_issue` 提交 Issue draft、当前 Run / SHA、已接受 Finding 及可信 Evidence 引用和可选责任人建议。平台检查预先配置的 GitLab Project 白名单、提单 / 通知策略、责任人映射、调用者权限和关联范围；未配置或超出规则时请求人工决策，不把 GitLab token、任意项目 URL 或直接外部写权限暴露给 Agent。关键决策可通过 §29 暂停询问；若前一 Mission 已完成，使用 §29.1 的 Run scope 问题，不重开原 Mission / Attempt。非阻塞提单可返回操作句柄供同会话继续查询。
 
-外部操作以稳定 correlation / idempotency key 去重，保存 draft 摘要、Run / Finding / Evidence 关联、授权来源、请求状态及实际 GitLab project / issue IID / URL；同一逻辑缺陷的重复调用应返回既有 Issue 或明确更新请求，不重复创建。超时或连接中断产生 outcome unknown 时，必须先依据 correlation 对账；不能假定失败后自动重提。审计记录平台实际确认的外部结果，Issue 本身不成为可信 Evidence 或质量 Verdict。本分支已实现固定项目 / 责任人策略、`0014` 操作账本及仅 GET 的未知结果对账；未配置或未授权时返回 `DECISION_REQUIRED`。现有验证使用注入 HTTP transport，真实 GitLab 提单仍待明确授权、配置及验收。
+外部操作以稳定 correlation / idempotency key 去重，保存 draft 摘要、Run / Finding / Evidence 关联、授权来源、请求状态及实际 GitLab project / issue IID / URL；同一逻辑缺陷的重复调用应返回既有 Issue 或明确更新请求，不重复创建。超时或连接中断产生 outcome unknown 时，必须先依据 correlation 对账；不能假定失败后自动重提。审计记录平台实际确认的外部结果，Issue 本身不成为可信 Evidence 或质量 Verdict。本分支已实现固定项目 / 责任人策略、`0014` 操作账本及仅 GET 的未知结果对账；未配置或未授权时返回 `DECISION_REQUIRED`。服务器兼容回归使用注入 HTTP transport；ADR-015 本地受控 glab 已在明确批准的隔离验收中完成一次真实创建、负责人及引用核验，见[总验收记录](../ADR015_ACCEPTANCE.md)。本次生产部署没有新增外部问题单写入，UNKNOWN 的真实外部故障注入矩阵仍未全覆盖。
 
 ADR-015 保留上述平台治理和服务器 executor，已实现 §22.4 的本地受控 executor；不改变现有工具参数、不把本地权限暴露给模型，也不由 `0014` 已实现推定本地执行/真实外部验收完成。mode/node 选择和委派记录遵守领域模型 §23.9；已登记 operation 的 executor、目标和摘要不可因重连或后端切换改变。
 
@@ -969,7 +969,7 @@ UNKNOWN
 
 同一 Major 优先 additive change；禁止无版本重命名 required field、改变字段语义或删除 enum value。
 
-文档 v0.5、兼容 wire `hypertest.tmp/v1alpha1`、已实现持续会话 wire `hypertest.tmp/v1alpha2`、profile `run-persistent-harness/v1`、宿主 transport `hypertest.harness-bridge/v1alpha1` 与 ADR-015 已实现的独立远程 transport `hypertest.harness-connector/v1alpha1` 是不同版本轴。本次实现使用独立 Connector transport，不升级既有 wire/profile，也不据此宣称已部署生产或通过全部真实验收。持续会话生命周期、能力要求和工具 envelope 只在新版本 / profile 明确协商后适用；旧 Run 仍按其冻结版本执行，不通过调整 Adapter 默认值重解释历史。
+文档 v0.5、兼容 wire `hypertest.tmp/v1alpha1`、已实现持续会话 wire `hypertest.tmp/v1alpha2`、profile `run-persistent-harness/v1`、宿主 transport `hypertest.harness-bridge/v1alpha1` 与 ADR-015 已实现的独立远程 transport `hypertest.harness-connector/v1alpha1` 是不同版本轴。本次实现使用独立 Connector transport，不升级既有 wire/profile。生产已部署的事实另由[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)证明；协议版本本身不证明上线或全部真实验收，线上核心周期已通过，扩展矩阵继续按实际范围登记。持续会话生命周期、能力要求和工具 envelope 只在新版本 / profile 明确协商后适用；旧 Run 仍按其冻结版本执行，不通过调整 Adapter 默认值重解释历史。
 
 ---
 

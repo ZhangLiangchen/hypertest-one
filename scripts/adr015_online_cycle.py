@@ -32,6 +32,7 @@ FIXTURE_ORIGIN = "https://github.com/ZhangLiangchen/hypertest-one"
 FIXTURE_PRD = "examples/api_sut/PRD.md"
 PROFILE = "run-persistent-harness/v1"
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+MAX_UNIX_SOCKET_PATH_BYTES = 103  # macOS sockaddr_un.sun_path includes the trailing NUL.
 
 
 class AcceptanceError(RuntimeError):
@@ -104,6 +105,17 @@ def connector_environment(root: Path) -> dict[str, str]:
     return env
 
 
+def connector_state_path(state: Path, override: Path | None) -> Path:
+    runtime = (override or state / "node").expanduser().absolute()
+    if runtime.exists() or runtime.is_symlink() or runtime.resolve() != runtime:
+        raise AcceptanceError("CONNECTOR_STATE_DIRECTORY_MUST_BE_NEW_AND_CANONICAL")
+    if state.is_relative_to(runtime):
+        raise AcceptanceError("CONNECTOR_STATE_DIRECTORY_MUST_NOT_CONTAIN_EVIDENCE_DIRECTORY")
+    if any(len(os.fsencode(runtime / name)) > MAX_UNIX_SOCKET_PATH_BYTES for name in ("control.sock", "relay.sock")):
+        raise AcceptanceError("CONNECTOR_SOCKET_PATH_TOO_LONG_USE_CONNECTOR_STATE_DIR")
+    return runtime
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--api-url", required=True, type=https_api)
@@ -111,6 +123,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--commit-sha", required=True, type=full_sha,
         help="published complete SHA of the public HyperTest Sum API fixture")
     result.add_argument("--state-dir", required=True, type=Path, help="new private directory; never reused")
+    result.add_argument("--connector-state-dir", type=Path,
+        help="new canonical short runtime directory when the evidence path exceeds the macOS Unix socket limit")
     result.add_argument("--ca-file", type=Path, help="private CA, with certificate and hostname verification enabled")
     result.add_argument("--python", type=Path, default=Path(sys.executable), help="current worktree virtualenv interpreter")
     result.add_argument("--codex-binary", default="codex")
@@ -235,6 +249,7 @@ def main(argv=None) -> int:
             raise AcceptanceError("OPERATOR_KEY_INVALID")
         if state.exists() or state.resolve() != state:
             raise AcceptanceError("STATE_DIRECTORY_MUST_BE_NEW_AND_CANONICAL")
+        runtime = connector_state_path(state, args.connector_state_dir)
         if not args.python.is_file() or not os.access(args.python, os.X_OK) or not shutil.which(args.codex_binary):
             raise AcceptanceError("LOCAL_PYTHON_OR_CODEX_UNAVAILABLE")
         ca_file = args.ca_file.expanduser().resolve() if args.ca_file else None
@@ -274,7 +289,7 @@ def main(argv=None) -> int:
                 "capability": capability, "policy_version": "online-v1",
                 "constraints": {"allowed_origins": [FIXTURE_ORIGIN]} if capability == "source_acquisition" else {}})
         config = {"api_url": args.api_url, "node_id": node["id"], "node_key": node["node_key"],
-            "state_dir": str(state / "node"), "device_token_file": str(token_path), "codex_binary": args.codex_binary,
+            "state_dir": str(runtime), "device_token_file": str(token_path), "codex_binary": args.codex_binary,
             "source": {"allowed_origins": [FIXTURE_ORIGIN]}}
         if ca_file:
             config["ca_file"] = str(ca_file)
