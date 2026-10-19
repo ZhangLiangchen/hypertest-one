@@ -138,7 +138,8 @@ async def test_each_git_stage_is_captured_and_staging_is_removed(preparation, mo
 
 
 @pytest.mark.parametrize("raised,category", [
-    (FileNotFoundError(errno.ENOENT, SECRET, SECRET), "git_unavailable"),
+    (FileNotFoundError(errno.ENOENT, SECRET, "git"), "git_unavailable"),
+    (FileNotFoundError(errno.ENOENT, SECRET, SECRET), "storage"),
     (PermissionError(errno.EACCES, SECRET, SECRET), "storage"),
     (OSError(errno.EIO, SECRET, SECRET), "storage"),
     (OSError(errno.EAGAIN, SECRET, SECRET), "unknown"),
@@ -218,6 +219,49 @@ async def test_existing_checkout_validation_failure_is_distinct_and_never_replac
     assert failure.value.diagnostic["retryable"] is False
     assert retained.read_text() == "retained"
     assert SECRET not in str(failure.value)
+
+
+async def test_broken_checkout_symlink_reports_storage_and_preserves_link(preparation, monkeypatch):
+    session, snapshot, tmp_path = preparation
+    existing = tmp_path / ".hypertest-checkouts" / str(snapshot.id) / "repo"
+    existing.parent.mkdir(parents=True)
+    missing = tmp_path / SECRET
+    existing.symlink_to(missing)
+    monkeypatch.setattr(workspaces, "validate_checkout", runner_source.validate_checkout)
+
+    # This exercises an actual subprocess cwd ENOENT with Git available.
+    with pytest.raises(SourcePreparationError) as stopped:
+        await workspaces.prepare_workspace(session, uuid4())
+    assert stopped.value.diagnostic["stage"] == "validate_checkout"
+    assert stopped.value.diagnostic["category"] == "storage"
+    assert stopped.value.diagnostic["retryable"] is True
+    assert SECRET not in str(stopped.value) + json.dumps(stopped.value.diagnostic)
+    assert existing.is_symlink() and existing.readlink() == missing
+    assert not missing.exists()
+
+
+@pytest.mark.parametrize("stage", ["git_init", "validate_checkout"])
+async def test_actual_missing_git_spawn_is_distinct_from_missing_workspace(preparation, monkeypatch, stage):
+    session, snapshot, tmp_path = preparation
+    existing = tmp_path / ".hypertest-checkouts" / str(snapshot.id) / "repo"
+    if stage == "validate_checkout":
+        existing.mkdir(parents=True)
+        (existing / "operator-history").write_text("preserve")
+    monkeypatch.setattr(workspaces, "validate_checkout", runner_source.validate_checkout)
+    # The fixture's successful which() simulates Git disappearing between the
+    # initial availability check and the real executable launch.
+    monkeypatch.setenv("PATH", str(tmp_path / SECRET))
+
+    with pytest.raises(SourcePreparationError) as stopped:
+        await workspaces.prepare_workspace(session, uuid4())
+    assert stopped.value.diagnostic["stage"] == stage
+    assert stopped.value.diagnostic["category"] == "git_unavailable"
+    assert stopped.value.diagnostic["retryable"] is True
+    assert SECRET not in str(stopped.value) + json.dumps(stopped.value.diagnostic)
+    if stage == "validate_checkout":
+        assert (existing / "operator-history").read_text() == "preserve"
+    else:
+        assert list(existing.parent.iterdir()) == []
 
 
 @pytest.mark.parametrize("failure,category", [

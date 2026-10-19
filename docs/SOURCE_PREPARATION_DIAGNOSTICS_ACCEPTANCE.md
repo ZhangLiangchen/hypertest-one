@@ -1,6 +1,6 @@
 # 源码准备失败诊断与关联重试验收
 
-日期：2026-10-19（Asia/Singapore）。基于 PR #12 合并后的 `4d597d41a4dff74df3fcb7d9bf32b2d8aff91010`。本增量交付 PR，**未合并、未部署**；生产只读核对与本地功能验收分别记录。
+日期：2026-10-19（Asia/Singapore）。基于 PR #12 合并后的 `4d597d41a4dff74df3fcb7d9bf32b2d8aff91010`。本节记录增量 PR 合并前的功能验收与生产只读核对。后续合并、部署身份及上线验证另见本机交接目录 `hypertest-one-handoff/pr13-deploy-20261019`，不得将本节旧证据重标为新生产验收。
 
 ## 第一阶段缺口与本轮范围
 
@@ -74,3 +74,9 @@
 未请求会写Operational队列的capabilities/readiness，不将本次只读核对称作动态能力或新的生产模型链验收；未重复外部来源矩阵、配对备份或恢复。PR #12原备份manifest仍为 `40fb155ad4f3375e7b6065ecfa36cf1ae6265fa433adbd4407f33027fba414c6`。
 
 本地服务、PostgreSQL容器/卷/两个库、Artifact、Workspace与Bridge目录均独立创建。最终仅停止本轮拥有的临时服务和新PostgreSQL，所有新旧卷、验收/测试数据和原生会话文件保留；旧开发PG保持原停止状态，原OAuth、CLI与全局Git配置不变。临时密码/Bridge key仅在交付根的受保护目录，排除出可移交源码归档和SHA清单；不复制OAuth。停机与原环境比较另存交付记录。
+
+## PR #13 合并前独立审查补充
+
+独立审查发现一项 P2：已有检出符号链接指向不存在目录时，subprocess 的 cwd ENOENT 被误判为 Git 缺失。现仅固定 executable filename `git` 的 FileNotFoundError 归类为 Git 不可用；其他 ENOENT 归类存储，且安全异常不保留工作目录路径。真实缺失 cwd、Git 在预检后消失的初始化/校验启动三条进程路径均有回归，原目录/链接保留。
+
+修复后在原专用 PostgreSQL 容器中新建独立库，从空库升级0014并冻结源码运行受控 Docker 全套：**812 passed、0 skipped、3既有warnings，143.03秒**；输入逐文件摘要前后相同。Web 独立复核重新执行 **104/104**，源码未改。该补充不重标上文 d39800d 的真实模型周期。

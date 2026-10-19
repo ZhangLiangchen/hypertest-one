@@ -77,7 +77,10 @@ async def git(source: Path, *args: str, output_limit: int = 8 * 1024 * 1024) -> 
         result = await run_process(["git", "-C", str(source), *args], cwd=source, timeout=30,
                                    output_limit=output_limit)
     except OSError as exc:
-        raise OSError(exc.errno, "repository validation Git operation could not start") from None
+        # Preserve only the fixed executable identity, never a cwd or other
+        # operator path, so preparation can distinguish missing Git from storage.
+        executable = "git" if exc.filename == "git" else None
+        raise OSError(exc.errno, "repository validation Git operation could not start", executable) from None
     except ValueError:
         raise SourceValidationError("repository validation Git input is invalid") from None
     if result.exit_code != 0 or result.timed_out:

@@ -183,7 +183,9 @@ def git_failure(stage: str, result: ProcessResult) -> SourcePreparationError:
 
 
 def filesystem_failure(stage: str, error: OSError, *, spawning_git: bool = False) -> SourcePreparationError:
-    if spawning_git and isinstance(error, FileNotFoundError):
+    # subprocess also raises ENOENT when cwd vanished or a checkout symlink
+    # has no target. Only the fixed executable name proves Git was missing.
+    if spawning_git and isinstance(error, FileNotFoundError) and error.filename == "git":
         category = "git_unavailable"
     elif error.errno in {errno.EACCES, errno.EPERM, errno.ENOSPC, errno.EDQUOT,
                          errno.EROFS, errno.ENOENT, errno.ENOTDIR, errno.EIO, errno.ELOOP}:
