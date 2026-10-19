@@ -1,12 +1,15 @@
 # Web 工作台操作指南 / Web workbench guide
 
-当前生产应用基线为合并后的 `828225d`，Host Bridge 构建为 `95e92c5`，数据库为
-`0014_harness_operations`。本分支新增 ADR-014 的 CLOSED 后治理流程，**应用功能尚未部署，
-本地真实正反链路与 CLOSED 治理已验收**；结果登记在[会话关闭后 Gate 验收](POST_SESSION_GATE_ACCEPTANCE.md)。
-下方操作区分当前已部署能力与本分支新增入口；具体真实计数和验收限制以记录为准。
+当前生产应用为 `63bd6cc`，原 Host Bridge 为 `95e92c5`，数据库为
+`0018_harness_selection`。ADR-014 的 CLOSED 后治理与 ADR-015 双模式均已包含在发布中；
+各自隔离验收仍独立保留。严格外部 TLS 已核验，线上本地 Connector 核心周期已通过。
+当前发布和限制见[生产部署记录](ADR015_PRODUCTION_DEPLOYMENT.md)，历史治理结果见
+[会话关闭后 Gate 验收](POST_SESSION_GATE_ACCEPTANCE.md)。
 
-Production runs application baseline `828225d`, Host Bridge `95e92c5` and schema `0014`.
-ADR-014 is implemented on this branch but is not deployed; real local success, diagnosis and CLOSED governance flows have passed.
+Production uses application `63bd6cc`, the retained Host Bridge `95e92c5` and schema0018.
+ADR-014 and ADR-015 are included in the deployed application. Strict external TLS is verified;
+the online local-Connector core E2E is verified. Separate historical acceptance remains linked
+from [the current production record](ADR015_PRODUCTION_DEPLOYMENT.md).
 
 ## 结果复核与修复后复测 / Result review and retest
 
@@ -43,7 +46,7 @@ failure preserves the current draft, and retrying failed work keeps its original
 
 ## 会话关闭后的发现处置与门禁重评 / Post-session disposition and Gate reassessment
 
-此入口是本分支新增功能，尚未部署；[ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)
+此入口已包含在当前生产应用中；[ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)
 和领域模型 §23.8 定义规则，真实验收进度以[专门记录](POST_SESSION_GATE_ACCEPTANCE.md)为准。
 
 1. 在“发现”中打开条目，先查看诊断、关联测试用例与可信 Evidence。选择合法下一状态，

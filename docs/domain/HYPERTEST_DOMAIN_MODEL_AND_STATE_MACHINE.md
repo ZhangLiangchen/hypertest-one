@@ -1,6 +1,6 @@
 # HyperTest Domain Model & State Machine Specification
 
-**Document Status:** Normative / Accepted v0.5; ADR-013 Production History Retained; ADR-015 Implemented / Isolated Regressions Verified / Core Independent E2E Verified / Extended Recovery Matrix Pending / Production Not Deployed (2026-10-19)
+**Document Status:** Normative / Accepted v0.5; ADR-013 Production History Retained; ADR-015 Production Deployed / Online Core E2E Verified / Extended Recovery Matrix Pending (2026-10-19)
 
 **Version:** v0.5
 **Parent Documents:**
@@ -25,9 +25,9 @@
 
 v0.4 已接受设计为：一个稳定 SUT 对应一个 Project；一个 feat / MR 的完整 SHA 及固定测试输入对应一次用户可见 TestRun。每个 Run 只有一个逻辑 TaskWorker 绑定及一个持久主 AgentSession，串行推进多个 typed Mission / Attempt。平台 Worker 和 Control Plane 容器化；ADR-013 已实现的 SERVER_HOST 模式将 Provider Harness、其认证 / 原生会话运行时及窄 Host Bridge 留在服务器宿主。不同 Run 可以并发，同一 Run 不引入多个平台 Worker 同时协作。
 
-[ADR-015](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 已实现 LOCAL_CONNECTOR 模式：用户电脑的 Connector 主动建立 WSS 连接，托管原生 Harness 与受控集成，固定源码经 HTTPS 交付，Implementation 继续通过 typed Proposal 接受至 Artifact store；通用 Artifact HTTPS 通道不属于首版实现。SERVER_HOST 的现有 Unix domain socket Bridge 继续保留。首次绑定前明确选择模式和稳定节点，同一 Run 固定原节点、主 Session 与 workspace，不因离线自动切换。§9.1、§18.1 与 §23.9 定义新增约束，已由 `0015`—`0018` 和相关服务实现；隔离回归通过，私有 Git / HTTPS、真实正反周期、同会话断线恢复与 GitLab 测试 Issue / 负责人均已独立核验；扩展真实设备故障矩阵尚未全覆盖，生产未部署。本次实现不改写旧 ADR-013 生产基线和历史 hash；最终结果见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)。
+[ADR-015](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 已实现 LOCAL_CONNECTOR 模式：用户电脑的 Connector 主动建立 WSS 连接，托管原生 Harness 与受控集成，固定源码经 HTTPS 交付，Implementation 继续通过 typed Proposal 接受至 Artifact store；通用 Artifact HTTPS 通道不属于首版实现。SERVER_HOST 的现有 Unix domain socket Bridge 继续保留。首次绑定前明确选择模式和稳定节点，同一 Run 固定原节点、主 Session 与 workspace，不因离线自动切换。§9.1、§18.1 与 §23.9 定义新增约束，已由 `0015`—`0018` 和相关服务实现；隔离回归通过，私有 Git / HTTPS、真实正反周期、同会话断线恢复与 GitLab 测试 Issue / 负责人均已独立核验；扩展真实设备故障矩阵尚未全覆盖。生产已部署，严格外部 TLS、线上核心周期及私有源码 source-only 接受补验已通过；私有补验没有业务 Run 或问题单操作，见[生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。本次实现不改写旧 ADR-013 生产基线和历史 hash；最终结果见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)。
 
-**ADR-013 的服务器运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收；该验收不覆盖 ADR-015 的本地 Connector 目标。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。ADR-013 正式切换与恢复的历史结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。后续 PR #10 已部署源码 `828225d`，API/Worker/Web 同源更新，兼容 Host Bridge 保留 `95e92c5`，数据库仍为 `0014_harness_operations`；当前运维边界见[服务器操作](../SERVER_OPERATIONS.md)。会话关闭后的平台治理准入由 [ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 与 §23.8 规定，其实现和真实验收另行登记。真实 GitLab 提单、其他 Provider 及后续 Web 改进仍须独立验收。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
+**ADR-013 的服务器运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收；该验收不覆盖 ADR-015 的本地 Connector 目标。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。ADR-013 正式切换与恢复的历史结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，API/Worker/Web 同源更新，兼容 Host Bridge 保留 `95e92c5`，当时数据库为 `0014_harness_operations`；ADR-015 当前生产已升至 `0018_harness_selection`，发布与线上待验范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，当前运维边界见[服务器操作](../SERVER_OPERATIONS.md)。会话关闭后的平台治理准入由 [ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 与 §23.8 规定，其实现和真实验收另行登记。受控 GitLab 真实创建已由 ADR-015 隔离记录独立验收；其他 Provider、未完成扩展矩阵及后续 Web 改进继续单独登记。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
 
 Canonical Chain、不可变快照、Proposal / Verifier、trusted Runner、deterministic Gate、Audit / Outbox 及已有历史保护在两者中均有效。目标迁移不得把历史上一个 Run 的多条 AgentSession 合并成一条，不得改写原 Attempt / Execution 的 `durable_job_id`。
 
@@ -258,7 +258,7 @@ bootstrap 同幂等键重试先比较原始 PRD/configuration、规范化 repo/c
 
 `0012_api_environment_v2` 仅扩展受控 profile CHECK，增加 `python-api-v2`，不修改已有行、环境绑定或指纹。当前 Web 目录为 pytest-v1/API-v2；API-v1 历史请求与幂等重放仍受支持。API-v2 的新 launcher 明确禁用仓库 pytest 配置和 conftest，生成的 HTTP 测试须自包含。API-v1 与 pytest-v1 保留原 launcher/lock/镜像身份；不得把旧绑定重新解释成 v2。改变此执行语义、依赖或 launcher 必须另建 profile 版本与新 Snapshot，已有 FINAL 历史不得回填。
 
-### 9.1 ADR-015 源码传输与不可变接收（已实现，独立真实验收中）
+### 9.1 ADR-015 源码传输与不可变接收（已部署，线上核心验收通过）
 
 LOCAL_CONNECTOR 的平台与 Harness 不共享本地绝对路径。受控源码准备以已批准的 Project / origin、完整 Commit SHA 和不可变 bootstrap 请求为输入，使用该节点已有 Git credential helper / SSH agent / CLI 授权取回准确 Git 对象。源码接受必须在新的 SourceSnapshot 冻结前完成；不得先创建可执行 Snapshot，再用迟到包替换其来源。准备失败只形成受控 Operational 失败，不创建正式 Execution / Evidence / Finding，也不改写现有 Snapshot。SERVER_HOST 仍可使用既有受控 pinned checkout；若采用传输包，同样受本节约束。
 
@@ -777,7 +777,7 @@ Resolution：FIXED、DUPLICATE、WONT_FIX、RISK_ACCEPTED、NOT_REPRODUCIBLE、E
 
 Web 人工处置必须携带预期 row_version 和非空 reason；既有 API 的可选预期版本语义保持兼容。处置按当前状态机提交 before/after、操作者、时间及配对 Audit/Outbox；会话 CLOSED 不使这些人工治理失效。处置不自动产生 Verdict，也不能修改原执行与可信证据。Web 可读取同 Finding/Run 的有限生命周期审计投影（状态、resolution、row_version、reason），不透传任意审计 metadata；截断的近期列表必须明确说明，不能冒称完整历史。
 
-### 18.1 v0.4 受控 GitLab Issue 集成（本分支实现，真实提单待验收）
+### 18.1 v0.4 受控 GitLab Issue 集成（服务器兼容保留，本地真实创建已独立核验）
 
 `external_issue_ref` 本身只是可选关联字段，不能单独证明 GitLab 创建 Issue 或指派成功。本分支已实现受控集成，Agent 可提交 typed Issue Request，引用同一授权范围内已接受 Finding、固定 Run / SourceSnapshot、已校验 Evidence 及负责人建议。HyperTest 按项目预配置的 integration、操作授权与负责人映射验证请求，不能把 Agent 给出的任意项目、用户或 URL 当作已批准目标。
 
@@ -1221,9 +1221,9 @@ typed Proposal 工具不直接接受 Canonical Lifecycle；Verifier 对每个显
 
 Gate 仍根据固定 Policy 和可信事实决定；Finding 关闭或风险处置不能豁免失败的正式执行。只复用最新相同语义结论，否则追加新 sequence，旧 FINAL/links/报告原样保留。每个独立请求均保存理由与返回 Verdict 的配对审计/Outbox，即使复用原结论。报告读模型可从 immutable envelope 投影 nullable verdict_key/verdict_decision；未知或不合法引用保持未知，不回填报告。Web 应区分报告原结论与最新 FINAL，不重新调用 Agent 更新历史报告。
 
-### 23.9 ADR-015 双模式 Harness 与本地 Connector（v0.5 已实现，生产未部署）
+### 23.9 ADR-015 双模式 Harness 与本地 Connector（v0.5 已部署，线上核心验收通过）
 
-本节 Operational 模型和准入已由 `0015_connector_nodes`、`0016_source_transfer`、`0017_issue_executor`、`0018_harness_selection` additive migrations 实现，隔离约束 / 服务回归已通过；核心真实端到端验收通过，扩展故障矩阵待逐设备验收，生产未部署。`0013_run_bindings` / `0014_harness_operations` 及其已有生产验收仍表示 ADR-013，不改写历史表迁移、旧 Run / Snapshot / FINAL 或 hash。SERVER_HOST 保留现有 UDS Bridge；LOCAL_CONNECTOR 由用户节点主动发起经设备认证的 WSS 连接，使用独立协商的 `hypertest.harness-connector/v1alpha1`，Artifact 使用有范围 / 时限的 HTTPS 传输。现有 TMP `hypertest.tmp/v1alpha2` / `run-persistent-harness/v1` 的领域工具语义不变，已有客户端未协商时不能声称支持 Connector。
+本节 Operational 模型和准入已由 `0015_connector_nodes`、`0016_source_transfer`、`0017_issue_executor`、`0018_harness_selection` additive migrations 实现，隔离约束 / 服务回归已通过；核心隔离真实端到端验收通过，生产已部署，线上核心周期已通过，扩展故障矩阵继续逐设备登记。见[生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。`0013_run_bindings` / `0014_harness_operations` 及其已有生产验收仍表示 ADR-013，不改写历史表迁移、旧 Run / Snapshot / FINAL 或 hash。SERVER_HOST 保留现有 UDS Bridge；LOCAL_CONNECTOR 由用户节点主动发起经设备认证的 WSS 连接，使用独立协商的 `hypertest.harness-connector/v1alpha1`，Artifact 使用有范围 / 时限的 HTTPS 传输。现有 TMP `hypertest.tmp/v1alpha2` / `run-persistent-harness/v1` 的领域工具语义不变，已有客户端未协商时不能声称支持 Connector。
 
 **模式、节点与授权。** 首次源码准备 / Run 绑定前，操作者明确选择 SERVER_HOST 或 LOCAL_CONNECTOR 及稳定节点，并把选择记入不可变请求。初次绑定原子创建唯一 RunHarnessPlacement；一个 Run 只有一个逻辑 Worker、主 AgentSession、原生 Session、workspace 和 Harness 节点。模式、节点、source transfer 路径 / 关联创建后不可改绑，重连、Job retry、负载均衡和凭据缺失均不能静默降级到另一节点或服务器模式。不可恢复时保留历史并终止该绑定，替代会话须显式新建 TestRun。
 
@@ -1305,9 +1305,9 @@ outbox_events
 
 `0010_mission_activity` 交付时在 `0009_mission_inputs` 之上增加独立的有界活动表，不回填或重写历史行。`0009` 保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系，并增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。已有归属或人工输入历史时禁止降级丢失关系；活动裁剪不构成这些历史的删除许可。
 
-当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。`0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；生产已完成 ADR-013 切换，当前 schema 为 `0014_harness_operations`。ADR-014 不增加迁移；功能实现和部署分别记录。
+当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。`0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；ADR-013 历史切换时 schema 为 `0014_harness_operations`；ADR-014 不增加迁移。当前 ADR-015 生产为 `0018_harness_selection`，发布与验收见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。
 
-ADR-015 的 §23.9 已新增 `0015`—`0018` Operational schema：harness_nodes、harness_device_grants、node_project_capabilities、run_harness_placements、harness_dispatch_grants、connector_requests、source_acquisition_requests、source_bundle_transfers、source_upload_grants、source_transfer_snapshots、gitlab_issue_operation_executors、run_harness_selections。独立隔离数据库已迁移并回归，生产 schema 未据此升级；`0013` / `0014` 历史迁移和既有 Canonical hash 保留。
+ADR-015 的 §23.9 已新增 `0015`—`0018` Operational schema：harness_nodes、harness_device_grants、node_project_capabilities、run_harness_placements、harness_dispatch_grants、connector_requests、source_acquisition_requests、source_bundle_transfers、source_upload_grants、source_transfer_snapshots、gitlab_issue_operation_executors、run_harness_selections。隔离迁移 / 回归与正式生产向前升级已分别记录，当前生产 head 为 `0018_harness_selection`；`0013` / `0014` 历史迁移和既有 Canonical hash 保留。
 
 ---
 
@@ -1904,7 +1904,7 @@ v0.4 新增运行归属不变量（本分支实现，验收范围见 §1.1）：
 14. 只有原 Binding / 原生 Session / workspace 的显式 fenced recovery 能接续所有权；旧 epoch / token 不能提交，不可恢复时明确失败，替代会话属于新 Run。
 15. Harness 通过 typed Proposal / Request 自驱；正式事实仍来自可信 Runner，质量决策仍来自 deterministic Gate。报告、GitLab Issue、Binding / Session / Worker 状态不代替 Verdict。
 
-v0.5 / ADR-015 新增不变量（已实现并经过隔离回归，独立真实验收中）：
+v0.5 / ADR-015 新增不变量（已部署生产、隔离核心验收通过，线上核心已验，扩展矩阵按记录继续验收）：
 
 16. SERVER_HOST / LOCAL_CONNECTOR 在首绑定前显式选择，模式、节点、主 Session / workspace 不因离线或后端切换重绑；本地凭据与设备配对授权分别治理。
 17. 源码在 Snapshot 冻结前经过可信来源采集与平台独立 Git 对象链校验；包 Hash 或 Agent 自报不证明 origin / commit 来源，Runner 再独立校验正式输入。

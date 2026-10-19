@@ -22,6 +22,40 @@ SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用�
 访问异常时再针对故障检查。`bash ops/check-remote.sh` 保持按原 SSH 别名和严格
 公钥方式执行平台检查，不创建业务测试任务，也不检查备用隧道。
 
+## ADR-015 当前生产发布（2026-10-19）
+
+生产切换已于 **2026-10-19 13:01:10 UTC** 完成：业务源码
+`63bd6cc6710d2937d189acc90acaa15502d73a24`，数据库
+`0018_harness_selection`，固定运维 manifest
+`61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d`。
+API / Worker / Web 已切换，原 `95e92c5` 宿主 Bridge、PostgreSQL 容器 / 数据卷 / 镜像、
+原生认证与会话、历史数据和访问规则保留。原 38 业务表 row hash、文件、认证 metadata、
+SSH / UFW / Docker 守卫、PG identity 和备份 timer 已在公共 admission 前核验。
+版本表另行确认由0014向前升至0018，不能称39表 hash 全部未变。
+
+现有受保护监听的配置升级为 HTTPS / WSS，来源地址、端口与唯一 VPN 白名单保持。
+回环 nginx 继续仅通过 **HTTP** 提供 health；API / Web / PostgreSQL 仍只绑定回环。
+`HYPERTEST_INGRESS_TLS=enabled` 使 `stack.compose_command` 自动加载同一 TLS overlay，
+start、backup、readiness 不得漏载；仅 nginx 只读挂载 leaf cert/key。
+`FORWARDED_ALLOW_IPS` 限于回环和实测单个 proxy peer，Operator key 留在保护的
+platform.env，CA 私钥留本机。实际值仅在私有配置，不复制到公开文档。
+**严格外部 TLS、线上本地 Connector 核心周期与私有源码 source-only 接受补验已通过**，不能用内部 readiness
+代替外部证书校验或正式 Runner / Evidence / Gate 验收，也不能关闭证书校验绕过失败。
+
+常规状态检查使用当前固定运维包：
+
+```bash
+ssh hypertest-one
+cd /opt/hypertest/ops-current
+python3 ops/container/stack.py --env /etc/hypertest/container/compose.env status
+```
+
+业务恢复前检查同一维护锁、WAITING_INPUT、open Binding 与未知调用 / 外部操作。
+有活动或未知结果时，先关闭 API / nginx admission，保留 Worker、Bridge、原会话和
+Runner 收尾；不得直接整栈重启、重投消息或换会话消除未知状态。应用回退不自动降级
+schema，也不恢复覆盖生产库。此次两次安全回退、最终切换、已通过的线上核心周期与扩展验收边界见
+[ADR-015 生产部署记录](ADR015_PRODUCTION_DEPLOYMENT.md)。
+
 业务与运维版本分别登记：`container-current` 指向业务源码发布，平台镜像和
 `bridge-current` 各自记录构建身份；`ops-current` 可指向
 `/opt/hypertest/ops-releases/<manifest-digest>` 中固定的运维源码包。它包含运行所需
@@ -32,7 +66,9 @@ SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用�
 业务升级前必须核对固定运维 Compose 与新镜像/协议兼容；改变运维代码或 Compose
 时生成并验收新的运维包，不能让旧 `ops-current` 静默遗漏发布所需配置。
 
-本轮已实际安装 sshd drop-in，并将 health-only nginx 与新版巡检/备份成对切换。
+## 访问与巡检修复登记（历史，ADR-015 切换前）
+
+该轮已实际安装 sshd drop-in，并将 health-only nginx 与新版巡检/备份成对切换。
 业务源码入口仍为 `828225d1c1d698f820aebb265ad962e3ab6c2151`，Bridge 仍为
 `95e92c584897ff18bc1a0006823891ca45a619be`，五个运行 image ID 均保留；本轮仅发布
 运维修复，未部署 Finding / Gate 新业务功能。当前运维源码 manifest digest 是

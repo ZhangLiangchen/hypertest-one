@@ -1,6 +1,6 @@
 # ADR-015：双模式 Harness 与本地 Connector
 
-**Status:** Accepted / Implemented；Isolated Regressions Verified；Core Independent E2E Verified；Extended Recovery Matrix Pending；Production Not Deployed（2026-10-19）。设备 / 项目授权、WSS mailbox、源码 HTTPS 接受、本地 GitLab 适配器、Web / API 双模式与显式恢复已有实现及 `0015`—`0018` additive migrations；私有 Git 本地采集和 HTTPS 平台接受已取得独立结果。真实正反周期、私有 Git / HTTPS 交付、同会话断线恢复及已指派的 GitLab 测试 Issue 已独立通过；扩展故障矩阵未逐设备执行，未由此宣称生产可用。最终证据汇总见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码预验与资源边界见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+**Status:** Accepted / Implemented；Production Deployed；Online Core E2E Verified；Extended Recovery Matrix Pending（2026-10-19）。双模式与 `0015`—`0018` additive migrations 已部署生产，服务器 Harness 与历史数据 / 认证 / 访问边界保全。核心隔离真实正反周期、私有 Git / HTTPS、原会话恢复和获准测试 Issue 已独立通过；严格外部 TLS、线上本地 Connector 核心周期和私有源码 source-only 接受补验已通过，后者未创建私有业务 Run 或问题单操作。发布与保全见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
 
 **Date:** 2026-10-19（Asia/Singapore）
 
@@ -161,13 +161,13 @@ Connector 版本、TMP wire/profile、Provider 能力、来源采集 / 问题单
 
 | 已实现记录 / 边界 | 落地与验收状态 |
 |---|---|
-| Node / DeviceGrant / NodeProjectCapability | `0015`；operator 独立配对、bearer hash 身份、节点稳定轮换与项目分权；隔离撤权 / scope 回归通过，生产未部署 |
+| Node / DeviceGrant / NodeProjectCapability | `0015`；operator 独立配对、bearer hash 身份、节点稳定轮换与项目分权；隔离撤权 / scope 回归通过，已部署生产；线上核心周期已通过 |
 | DispatchGrant / ConnectorRequest | `0015`，`0018` 补安装准入；PostgreSQL durable mailbox、操作 / 响应白名单、120 秒授权、generation / epoch / claim fencing；SENT 不重发 |
 | SourceAcquisitionRequest / SourceBundleTransfer / SourceUploadGrant / SourceTransferSnapshot | `0016`；固定输入、HTTPS 长度 / 摘要 / 时限授权、独立对象链验证、只读受控源与 append-only Snapshot 关联；私有 Git glab helper 与隔离平台 HTTPS 接受已取得真实结果 |
-| GitLabIssueOperationExecutor | `0017`；固定 executor / delegation 与一次创建身份、本地持久 operation journal、UNKNOWN 只读对账；隔离回归通过，真实创建 / 负责人 / 引用已通过，测试 Issue #131；外部 UNKNOWN 故障注入矩阵未全覆盖 |
+| GitLabIssueOperationExecutor | `0017`；固定 executor / delegation 与一次创建身份、本地持久 operation journal、UNKNOWN 只读对账；隔离回归通过，真实创建 / 负责人 / 引用已通过，已批准的测试 Issue；外部 UNKNOWN 故障注入矩阵未全覆盖 |
 | RunHarnessSelection / Placement | `0018`；Web / API 在 bootstrap 冻结 mode / node / accepted source；首 Binding 与 Placement 原子一致，不能因显式 null / Job retry / 离线回退服务器 |
 | 原 workspace 安装与恢复 | 初装 create=true 需要当前 claim / epoch 与执行 grant；create=false 是原身份的只读管理验证，不能重建丢失目录；单 owner / Runner 先收尾 / 显式恢复隔离回归已覆盖，完整真实矩阵验收中 |
 
 Source / Issue receipt 的认证来自 TLS 上设备 bearer 身份、固定授权 scope 与平台二次核对，不是非对称设备签名。包 Hash 不证明 origin，设备身份也不替代项目来源角色。未知消息结果通过原 call / operation 管理查询解释，不以新的执行副作用补齐。
 
-核心真实独立验收已通过：本地 Codex → Proposal / Verifier → 远端 Docker Runner → Evidence / Gate → 正反报告、私有源码经 HTTPS 接受、TTL 到期 / Runner drain / 同会话显式恢复、GitLab 创建 / 指派 / 引用。服务器 UDS 兼容和 UNKNOWN 对账已有回归；剩余逐设备真实矩阵包括其他网络闪断 / 操作系统休眠 / 离线取消 / WAITING_INPUT / 原会话丢失及外部 UNKNOWN 故障注入。结果分别写入总验收记录，未完成项保持待验收；不能由文档、mock、源码包 Hash 或旧 ADR-013 证据推定已通过。生产部署另行执行数据 / OAuth / Artifact / SSH / VPN 保全验证。
+核心真实独立验收已通过：本地 Codex → Proposal / Verifier → 远端 Docker Runner → Evidence / Gate → 正反报告、私有源码经 HTTPS 接受、TTL 到期 / Runner drain / 同会话显式恢复、GitLab 创建 / 指派 / 引用。服务器 UDS 兼容和 UNKNOWN 对账已有回归；剩余逐设备真实矩阵包括其他网络闪断 / 操作系统休眠 / 离线取消 / WAITING_INPUT / 原会话丢失及外部 UNKNOWN 故障注入。结果分别写入总验收记录，未完成项保持待验收；不能由文档、mock、源码包 Hash 或旧 ADR-013 证据推定已通过。生产已完成数据 / OAuth / Artifact / SSH / VPN 保全验证；严格外部 TLS 已确认，线上核心周期已通过，见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import subprocess
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -26,13 +27,40 @@ def test_dry_run_cannot_contact_platform_create_state_or_expose_operator_key(tmp
     monkeypatch.setattr(driver.API, "request", forbidden)
     monkeypatch.setattr(driver.shutil, "which", lambda _: "/fixture/codex")
     assert driver.main(["--api-url", "https://operator-ingress.example.invalid/api/v1",
-        "--operator-key-file", str(key), "--commit-sha", commit, "--state-dir", str(state), "--dry-run"]) == 0
+        "--operator-key-file", str(key), "--commit-sha", commit, "--state-dir", str(state),
+        "--connector-state-dir", "/private/tmp/ht15-test-" + uuid4().hex, "--dry-run"]) == 0
     output = capsys.readouterr().out
     result = json.loads(output)
     assert result["acceptance_status"] == "LOCAL_VALIDATION_PASSED_NO_NETWORK"
     assert "operator-ingress" not in output and key.read_text() not in output
     assert result["commit_sha"] == commit and result["prd_sha256"]
     assert not state.exists()
+
+
+def test_long_default_socket_path_is_rejected_before_platform_access(tmp_path, monkeypatch, capsys):
+    key = tmp_path / "operator.key"
+    key.write_text("private-key-not-for-output")
+    key.chmod(0o600)
+    state = tmp_path / ("evidence-directory-" + "x" * 90)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("socket preflight must run before any platform request")
+
+    monkeypatch.setattr(driver.API, "request", forbidden)
+    assert driver.main(["--api-url", "https://example.invalid/api/v1", "--operator-key-file", str(key),
+        "--commit-sha", "a" * 40, "--state-dir", str(state)]) == 1
+    assert "CONNECTOR_SOCKET_PATH_TOO_LONG_USE_CONNECTOR_STATE_DIR" in capsys.readouterr().err
+    assert not state.exists()
+
+
+def test_explicit_runtime_directory_must_not_reuse_existing_or_symlink_path(tmp_path):
+    state = tmp_path / "new-evidence"
+    with pytest.raises(driver.AcceptanceError, match="NEW_AND_CANONICAL"):
+        driver.connector_state_path(state, tmp_path)
+    symlink = tmp_path / "dangling"
+    symlink.symlink_to(tmp_path / "absent")
+    with pytest.raises(driver.AcceptanceError, match="NEW_AND_CANONICAL"):
+        driver.connector_state_path(state, symlink)
 
 
 @pytest.mark.parametrize("value", ["http://example.invalid/api/v1", "https://user:secret@example.invalid/api/v1",

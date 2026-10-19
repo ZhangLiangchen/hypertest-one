@@ -2,7 +2,11 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: actionable source-preparation diagnostics
+## Current increment: dual-mode Harness in production
+
+ADR-015 is deployed at application **`63bd6cc`** / schema **`0018_harness_selection`**, retaining the existing server Host Bridge and adding the local Connector mode. Local Provider, Git and controlled Issue credentials stay on the selected node; accepted source and typed proposals cross bounded authenticated channels, while trusted Runners still produce formal facts. Production cutover and historical data / authentication / access preservation passed. **Strict external TLS verification passed; the online local-Connector core E2E passed.** Existing isolated positive, negative, recovery and authorized Issue evidence remain separate; extended device-failure cases are not all accepted. See [production deployment](ADR015_PRODUCTION_DEPLOYMENT.md) and [isolated acceptance](ADR015_ACCEPTANCE.md).
+
+## Historical PR #13 increment: actionable source-preparation diagnostics
 
 Source preparation records bounded platform-owned stages, categories and next-step suggestions in the failed Job. The bilingual Web shows them beside the original task's existing retry controls; legacy failures without saved diagnostics remain explicitly unknown. Git output, commands, URLs, paths and credentials are excluded. Fixing external Git/network/storage conditions permits an explicit linked retry with the same frozen input; changing source input requires a reviewed new round. Existing session recovery and terminal-binding rules remain intact.
 
@@ -22,7 +26,7 @@ The bilingual Web connects disposition history → explicit reason → durable t
 
 ## Current deployed baseline and access
 
-Read-only verified on 2026-10-19: production application source is merged main **`4d597d4`**, with PR #12 Web, PR #11 API/Worker, Host Harness Bridge **`95e92c5`** and schema **`0014_harness_operations`**. The original data, artifacts, native sessions, protected access configuration and Codex OAuth match the PR #12 delivery. Source-preparation diagnostics in this branch are not deployed. [The new acceptance record](SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md) distinguishes this read-only verification from local model/Web testing and earlier historical releases.
+Production cutover completed on 2026-10-19 at 13:01:10 UTC: application **`63bd6cc6710d2937d189acc90acaa15502d73a24`**, Host Harness Bridge **`95e92c5`**, schema **`0018_harness_selection`**, and fixed operations manifest **`61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d`**. Original business row hashes, artifacts, workspaces, native sessions, authentication metadata, PostgreSQL identity and protected access configuration were verified before public admission. Source-preparation diagnostics and ADR-015 are included in this application release; the earlier read-only PR #12 baseline and local model/Web results remain historical. Strict external TLS verification passed; online Connector E2E passed in [the production record](ADR015_PRODUCTION_DEPLOYMENT.md).
 
 The only supported Web access path is the configured allowlisted jump-host egress. Addresses and CIDRs stay in protected operator configuration. SSH remains for administration and manual recovery with forwarding disabled; no Web tunnel is retained. Routine deployments verify access-rule preservation and internal readiness; first activation or a changed access boundary requires additional connectivity checks. Earlier delivery sections below retain their then-current access facts and do not define the current policy.
 
@@ -172,7 +176,7 @@ npm run typecheck
 npm run build
 ```
 
-PostgreSQL integration tests exercise the canonical Planner chain, configurable dimensional coverage, Mission lifecycle events, durable queue behavior, and the delivery layers. Dedicated regressions verify immutable input snapshots and Mission contracts alongside immutable execution input, immutable Evidence content, append-only FINAL Verdicts with controlled revocation, and active Finding fingerprint uniqueness while preserving resolved history. The current migration head is `0014_harness_operations`; ADR-014 adds no migration. The earlier `0010_mission_activity` and `0009_mission_inputs` check counts retain their original migration identity.
+PostgreSQL integration tests exercise the canonical Planner chain, configurable dimensional coverage, Mission lifecycle events, durable queue behavior, and the delivery layers. Dedicated regressions verify immutable input snapshots and Mission contracts alongside immutable execution input, immutable Evidence content, append-only FINAL Verdicts with controlled revocation, and active Finding fingerprint uniqueness while preserving resolved history. The current migration head is `0018_harness_selection`; ADR-015 adds0015–0018, while ADR-014 adds no migration. The earlier `0010_mission_activity` and `0009_mission_inputs` check counts retain their original migration identity.
 
 The bounded controller is tested against real PostgreSQL and real pytest execution, including continuation after a step limit. Queue checks cover idempotency, concurrent claims, durable cancellation, interruption/retry, and rejection of stale lease commits. `scripts/dev.sh --check` verifies migrations and API/Worker imports; normal invocation starts the installed host API, independent Worker, and Node.js 22 Web, with configurable development ports and cleanup of its own processes.
 

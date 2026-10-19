@@ -1,6 +1,6 @@
 # ADR-015 源码采集与传输验收记录
 
-日期：2026-10-19，Asia/Singapore。私有目标身份与内容摘要已脱敏，完整原始记录在本机私有目录保全。对应 [ADR-015](architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 与 [TMP §22.3](protocol/TEST_MISSION_PROTOCOL.md#223-本地授权复用与固定源码artifact-传输adr-015-目标)。
+隔离源码预验日期：2026-10-19，Asia/Singapore。后续正式生产接收与线上周期见[生产部署记录](ADR015_PRODUCTION_DEPLOYMENT.md)，不复用本文探针结果替代生产核验。私有目标身份与内容摘要已脱敏，完整原始记录在本机私有目录保全。对应 [ADR-015](architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 与 [TMP §22.3](protocol/TEST_MISSION_PROTOCOL.md#223-本地授权复用与固定源码artifact-传输adr-015-目标)。
 
 已通过真实私有 Git 授权复用与固定对象包的本地独立校验；源码相关 26 项自动化测试通过。本文记录本地源码采集预验、独立接收器测试与资源边界，不将本地 `ACQUIRED` 当成平台 `ACCEPTED`、正式 Execution 或 Evidence。真实 Connector → HTTPS → 平台接受由完整链路验收另行记录，不复用本文探针产物绕过该链路。
 
@@ -60,3 +60,5 @@ python -m pytest tests/test_source_transfer_api.py tests/test_source_transfer_bu
 精确资源上限见 TMP §22.3。源码包使用无压缩 JSON / Base64 原始 Git 对象；首版只支持 `100644` / `100755`，拒绝所有 symlink、submodule 与 LFS。物化不运行 hooks、smudge filter 或仓库脚本。恢复时必须验证原 workspace，缺失返回 `WORKSPACE_UNAVAILABLE`，固定内容 / 身份改变返回 `WORKSPACE_INTEGRITY_REJECTED`；暂时性 Git 进程或连接错误保持可观察恢复状态。
 
 本记录没有修改 live 数据库、已完成 Run、Canonical Snapshot、正式 Evidence 或 Verdict，也不声称私有 Java 项目已经在当前 Python Runner 上完成正式测试。
+
+后续生产 source-only 接受补验已通过，可公开的包字节 / 对象 payload / 文件数 / 对象数与0业务 Run、0问题单操作见[生产记录](ADR015_PRODUCTION_DEPLOYMENT.md)。这项独立生产结果不改写上述隔离预验，也不证明私有项目业务已经经过正式测试；私有来源、内容指纹和项目 / Transfer 身份继续只作本机保全。
