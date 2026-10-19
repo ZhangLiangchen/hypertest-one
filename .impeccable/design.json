@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-17T18:23:02.896209+00:00",
+  "generatedAt": "2026-10-19T08:15:04.191567Z",
   "title": "Design System: HyperTest One",
   "extensions": {
     "colorMeta": {
@@ -46,46 +46,18 @@
           "oklch(95% 0.18087 265.64)"
         ]
       },
-      "nav-indicator": {
-        "role": "secondary",
-        "displayName": "Nav Indicator",
-        "tonalRamp": [
-          "oklch(15% 0.13389 211.53)",
-          "oklch(26% 0.13389 211.53)",
-          "oklch(38% 0.13389 211.53)",
-          "oklch(49% 0.13389 211.53)",
-          "oklch(61% 0.13389 211.53)",
-          "oklch(72% 0.13389 211.53)",
-          "oklch(84% 0.13389 211.53)",
-          "oklch(95% 0.13389 211.53)"
-        ]
-      },
-      "shell": {
-        "role": "primary",
-        "displayName": "Shell",
-        "tonalRamp": [
-          "oklch(15% 0.03982 265.75)",
-          "oklch(26% 0.03982 265.75)",
-          "oklch(38% 0.03982 265.75)",
-          "oklch(49% 0.03982 265.75)",
-          "oklch(61% 0.03982 265.75)",
-          "oklch(72% 0.03982 265.75)",
-          "oklch(84% 0.03982 265.75)",
-          "oklch(95% 0.03982 265.75)"
-        ]
-      },
       "canvas": {
         "role": "neutral",
         "displayName": "Canvas",
         "tonalRamp": [
-          "oklch(15% 0.00740 260.73)",
-          "oklch(26% 0.00740 260.73)",
-          "oklch(38% 0.00740 260.73)",
-          "oklch(49% 0.00740 260.73)",
-          "oklch(61% 0.00740 260.73)",
-          "oklch(72% 0.00740 260.73)",
-          "oklch(84% 0.00740 260.73)",
-          "oklch(95% 0.00740 260.73)"
+          "oklch(15% 0.00741 260.73)",
+          "oklch(26% 0.00741 260.73)",
+          "oklch(38% 0.00741 260.73)",
+          "oklch(49% 0.00741 260.73)",
+          "oklch(61% 0.00741 260.73)",
+          "oklch(72% 0.00741 260.73)",
+          "oklch(84% 0.00741 260.73)",
+          "oklch(95% 0.00741 260.73)"
         ]
       },
       "surface": {
@@ -100,6 +72,34 @@
           "oklch(72% 0.00000 89.88)",
           "oklch(84% 0.00000 89.88)",
           "oklch(95% 0.00000 89.88)"
+        ]
+      },
+      "shell": {
+        "role": "neutral",
+        "displayName": "Shell",
+        "tonalRamp": [
+          "oklch(15% 0.00860 264.52)",
+          "oklch(26% 0.00860 264.52)",
+          "oklch(38% 0.00860 264.52)",
+          "oklch(49% 0.00860 264.52)",
+          "oklch(61% 0.00860 264.52)",
+          "oklch(72% 0.00860 264.52)",
+          "oklch(84% 0.00860 264.52)",
+          "oklch(95% 0.00860 264.52)"
+        ]
+      },
+      "glass": {
+        "role": "neutral",
+        "displayName": "Glass",
+        "tonalRamp": [
+          "oklch(15% 0.00621 255.47)",
+          "oklch(26% 0.00621 255.47)",
+          "oklch(38% 0.00621 255.47)",
+          "oklch(49% 0.00621 255.47)",
+          "oklch(61% 0.00621 255.47)",
+          "oklch(72% 0.00621 255.47)",
+          "oklch(84% 0.00621 255.47)",
+          "oklch(95% 0.00621 255.47)"
         ]
       },
       "ink": {
@@ -134,14 +134,14 @@
         "role": "neutral",
         "displayName": "Line",
         "tonalRamp": [
-          "oklch(15% 0.02025 257.47)",
-          "oklch(26% 0.02025 257.47)",
-          "oklch(38% 0.02025 257.47)",
-          "oklch(49% 0.02025 257.47)",
-          "oklch(61% 0.02025 257.47)",
-          "oklch(72% 0.02025 257.47)",
-          "oklch(84% 0.02025 257.47)",
-          "oklch(95% 0.02025 257.47)"
+          "oklch(15% 0.01557 257.20)",
+          "oklch(26% 0.01557 257.20)",
+          "oklch(38% 0.01557 257.20)",
+          "oklch(49% 0.01557 257.20)",
+          "oklch(61% 0.01557 257.20)",
+          "oklch(72% 0.01557 257.20)",
+          "oklch(84% 0.01557 257.20)",
+          "oklch(95% 0.01557 257.20)"
         ]
       },
       "control-border": {
@@ -172,32 +172,32 @@
           "oklch(95% 0.03966 256.41)"
         ]
       },
-      "selected": {
+      "navigation-selected": {
         "role": "primary",
-        "displayName": "Selected",
+        "displayName": "Navigation Selected",
         "tonalRamp": [
-          "oklch(15% 0.02154 265.76)",
-          "oklch(26% 0.02154 265.76)",
-          "oklch(38% 0.02154 265.76)",
-          "oklch(49% 0.02154 265.76)",
-          "oklch(61% 0.02154 265.76)",
-          "oklch(72% 0.02154 265.76)",
-          "oklch(84% 0.02154 265.76)",
-          "oklch(95% 0.02154 265.76)"
+          "oklch(15% 0.02202 263.19)",
+          "oklch(26% 0.02202 263.19)",
+          "oklch(38% 0.02202 263.19)",
+          "oklch(49% 0.02202 263.19)",
+          "oklch(61% 0.02202 263.19)",
+          "oklch(72% 0.02202 263.19)",
+          "oklch(84% 0.02202 263.19)",
+          "oklch(95% 0.02202 263.19)"
         ]
       },
       "tab-selected": {
         "role": "primary",
         "displayName": "Tab Selected",
         "tonalRamp": [
-          "oklch(15% 0.03174 266.17)",
-          "oklch(26% 0.03174 266.17)",
-          "oklch(38% 0.03174 266.17)",
-          "oklch(49% 0.03174 266.17)",
-          "oklch(61% 0.03174 266.17)",
-          "oklch(72% 0.03174 266.17)",
-          "oklch(84% 0.03174 266.17)",
-          "oklch(95% 0.03174 266.17)"
+          "oklch(15% 0.02543 261.15)",
+          "oklch(26% 0.02543 261.15)",
+          "oklch(38% 0.02543 261.15)",
+          "oklch(49% 0.02543 261.15)",
+          "oklch(61% 0.02543 261.15)",
+          "oklch(72% 0.02543 261.15)",
+          "oklch(84% 0.02543 261.15)",
+          "oklch(95% 0.02543 261.15)"
         ]
       },
       "trail": {
@@ -212,20 +212,6 @@
           "oklch(72% 0.01199 259.82)",
           "oklch(84% 0.01199 259.82)",
           "oklch(95% 0.01199 259.82)"
-        ]
-      },
-      "focus": {
-        "role": "primary",
-        "displayName": "Focus",
-        "tonalRamp": [
-          "oklch(15% 0.21521 262.88)",
-          "oklch(26% 0.21521 262.88)",
-          "oklch(38% 0.21521 262.88)",
-          "oklch(49% 0.21521 262.88)",
-          "oklch(61% 0.21521 262.88)",
-          "oklch(72% 0.21521 262.88)",
-          "oklch(84% 0.21521 262.88)",
-          "oklch(95% 0.21521 262.88)"
         ]
       },
       "info": {
@@ -456,33 +442,65 @@
         "role": "neutral",
         "displayName": "Table Header",
         "tonalRamp": [
-          "oklch(15% 0.00909 258.34)",
-          "oklch(26% 0.00909 258.34)",
-          "oklch(38% 0.00909 258.34)",
-          "oklch(49% 0.00909 258.34)",
-          "oklch(61% 0.00909 258.34)",
-          "oklch(72% 0.00909 258.34)",
-          "oklch(84% 0.00909 258.34)",
-          "oklch(95% 0.00909 258.34)"
+          "oklch(15% 0.00453 258.32)",
+          "oklch(26% 0.00453 258.32)",
+          "oklch(38% 0.00453 258.32)",
+          "oklch(49% 0.00453 258.32)",
+          "oklch(61% 0.00453 258.32)",
+          "oklch(72% 0.00453 258.32)",
+          "oklch(84% 0.00453 258.32)",
+          "oklch(95% 0.00453 258.32)"
+        ]
+      },
+      "table-hover": {
+        "role": "neutral",
+        "displayName": "Table Hover",
+        "tonalRamp": [
+          "oklch(15% 0.01150 264.51)",
+          "oklch(26% 0.01150 264.51)",
+          "oklch(38% 0.01150 264.51)",
+          "oklch(49% 0.01150 264.51)",
+          "oklch(61% 0.01150 264.51)",
+          "oklch(72% 0.01150 264.51)",
+          "oklch(84% 0.01150 264.51)",
+          "oklch(95% 0.01150 264.51)"
+        ]
+      },
+      "contrast-muted": {
+        "role": "neutral",
+        "displayName": "Contrast Muted",
+        "tonalRamp": [
+          "oklch(15% 0.04613 258.31)",
+          "oklch(26% 0.04613 258.31)",
+          "oklch(38% 0.04613 258.31)",
+          "oklch(49% 0.04613 258.31)",
+          "oklch(61% 0.04613 258.31)",
+          "oklch(72% 0.04613 258.31)",
+          "oklch(84% 0.04613 258.31)",
+          "oklch(95% 0.04613 258.31)"
         ]
       }
     },
     "typographyMeta": {
       "headline": {
         "displayName": "Headline",
-        "purpose": "Page heading; smaller on mobile."
+        "purpose": "Page titles; mobile size is 25px."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "Quality decision heading."
+        "purpose": "Formal quality decision; mobile size is 23px."
+      },
+      "overlay-title": {
+        "displayName": "Overlay Title",
+        "purpose": "Modal and drawer headings."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Base Ant Design content and controls."
+        "purpose": "Base reading and control text."
       },
       "reading": {
         "displayName": "Reading",
-        "purpose": "Decision reasons and task descriptions."
+        "purpose": "Decision reasons and task descriptions; readable measure up to 72ch."
       },
       "label": {
         "displayName": "Label",
@@ -499,36 +517,61 @@
     },
     "shadows": [
       {
-        "name": "button-rest",
+        "name": "navigation-glass",
+        "value": "0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%)",
+        "purpose": "Header and run-section index only; inner light and soft downward depth."
+      },
+      {
+        "name": "primary-rest",
+        "value": "0 3px 8px rgb(37 99 235 / 16%)",
+        "purpose": "Resting primary action."
+      },
+      {
+        "name": "primary-hover",
+        "value": "0 5px 14px rgb(37 99 235 / 22%)",
+        "purpose": "Enabled primary action hover."
+      },
+      {
+        "name": "navigation-hover",
+        "value": "0 2px 7px rgb(34 58 98 / 7%)",
+        "purpose": "Header navigation hover."
+      },
+      {
+        "name": "section-selected",
+        "value": "inset 0 1px 0 rgb(255 255 255 / 90%), 0 2px 5px rgb(34 58 98 / 5%)",
+        "purpose": "Selected run tab."
+      },
+      {
+        "name": "default-rest",
         "value": "none",
-        "purpose": "Primary and default buttons explicitly remove shadows."
-      },
-      {
-        "name": "input-focus",
-        "value": "0 0 0 2px rgba(5,122,255,0.06)",
-        "purpose": "Focus treatment resolved from installed Ant Design primary theme."
-      },
-      {
-        "name": "current-global-link",
-        "value": "inset 0 -2px #22d3ee",
-        "purpose": "Current top-level navigation underline, not ambient elevation."
+        "purpose": "Default buttons and opaque work surfaces do not receive an added ambient shadow."
       }
     ],
     "motion": [
       {
-        "name": "section-selection",
-        "value": "background-color 160ms ease-out",
-        "purpose": "Authored run-tab selected surface transition; none under reduced motion."
+        "name": "ease-standard",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Shared authored control and navigation easing."
       },
       {
-        "name": "library-state-transition",
-        "value": "0.2s",
-        "purpose": "Installed Ant Design mid-duration for control states; provider motion token follows matchMedia."
+        "name": "control-feedback",
+        "value": "180ms",
+        "purpose": "Color, fill, border, shadow and small press response; never backdrop blur."
+      },
+      {
+        "name": "primary-press",
+        "value": "scale(.98)",
+        "purpose": "Enabled primary press; removed under reduced motion."
       },
       {
         "name": "run-tab-pane",
         "value": "false",
-        "purpose": "Run Tabs animated prop explicitly disables pane animation."
+        "purpose": "Run Tabs animated prop disables pane animation."
+      },
+      {
+        "name": "provider-motion",
+        "value": "motion: !reducedMotion; reducedMotion initially true",
+        "purpose": "Mount the Ant motion wrapper from the first render; follow matchMedia changes without remounting pages or losing drafts."
       }
     ],
     "breakpoints": [
@@ -548,6 +591,30 @@
         "name": "mobile",
         "value": "max-width: 640px"
       }
+    ],
+    "materials": [
+      {
+        "name": "navigation-glass",
+        "value": "blur(24px) saturate(130%)",
+        "purpose": "Static backdrop filter on header and run-section navigation only; no nested glass."
+      },
+      {
+        "name": "navigation-fallback",
+        "value": "solid shell; backdrop-filter: none",
+        "purpose": "Base material without filter support; also used under reduced transparency or increased contrast."
+      },
+      {
+        "name": "forced-colors",
+        "value": "Canvas / CanvasText / Highlight",
+        "purpose": "Remove backdrop filtering and shadows; preserve current-navigation outlines."
+      }
+    ],
+    "focus": [
+      {
+        "name": "authored-focus",
+        "value": "3px solid var(--ht-accent), offset 3px",
+        "purpose": "Visible keyboard focus; Ant colorPrimaryBorder shares the same accent."
+      }
     ]
   },
   "components": [
@@ -555,82 +622,85 @@
       "name": "Primary action",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The complete testing cycle is the principal action. Hover and active colors are resolved from the installed Ant theme.",
-      "html": "<button class=\"ds-button\">Run test cycle</button>",
-      "css": ".ds-button{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;font-weight:500;border-radius:6px;height:36px;padding:4px 15px;cursor:pointer;background:var(--ht-accent,#2563eb);color:var(--ht-surface,#ffffff);border:1px solid transparent;box-shadow:none;transition:background-color .2s,border-color .2s,color .2s}.ds-button:hover{background:#1d4ed8}.ds-button:active{background:#1e40af}.ds-button:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px;}.ds-button:disabled{cursor:not-allowed;color:rgba(0,0,0,.25);background:rgba(0,0,0,.04);border-color:var(--ht-line,#d8e1ee)}@media(prefers-reduced-motion:reduce){.ds-button{transition:none}}"
+      "description": "Capsule primary action with a small blue shadow, quiet hover lift and press feedback.",
+      "html": "<button class=\"ds-primary\">Run test cycle</button>",
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;font-weight:600;height:38px;padding:0 18px;border:1px solid transparent;border-radius:999px;background:var(--ht-accent,#2563eb);color:var(--ht-surface,#ffffff);box-shadow:0 3px 8px rgb(37 99 235 / 16%);cursor:pointer;transition:color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),transform 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-primary:not(:disabled):hover{background:#1d4ed8;box-shadow:0 5px 14px rgb(37 99 235 / 22%)}.ds-primary:not(:disabled):active{background:#1e40af;transform:scale(.98)}.ds-primary:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}.ds-primary:disabled{color:rgba(0,0,0,.25);background:rgba(0,0,0,.04);border-color:var(--ht-line,#dce3ed);box-shadow:none;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}.ds-primary:active{transform:none}}"
     },
     {
       "name": "Default action",
       "kind": "button",
       "refersTo": "button-default",
-      "description": "Secondary actions remain white and bordered, without a resting shadow.",
+      "description": "Opaque secondary action with standard control corners and no resting shadow.",
       "html": "<button class=\"ds-default\">View rationale</button>",
-      "css": ".ds-default{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;font-weight:500;border-radius:6px;height:36px;padding:4px 15px;cursor:pointer;background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338);border:1px solid #8190a5;box-shadow:none;transition:border-color .2s,color .2s}.ds-default:hover{color:#1d4ed8;border-color:#1d4ed8}.ds-default:active{color:#1e40af;border-color:#1e40af}.ds-default:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-default{transition:none}}"
+      "css": ".ds-default{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;font-weight:500;height:38px;padding:0 15px;border:1px solid #8190a5;border-radius:var(--ht-radius-control,10px);background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338);box-shadow:none;cursor:pointer;transition:color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),border-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-default:hover{color:#1d4ed8;border-color:#1d4ed8}.ds-default:active{color:#1e40af;border-color:#1e40af}.ds-default:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@media(prefers-reduced-motion:reduce){.ds-default{transition:none}}"
     },
     {
       "name": "Search field",
       "kind": "input",
       "refersTo": "input",
-      "description": "A labeled, readable white control with the existing theme border and focus response.",
-      "html": "<label class=\"ds-label\" for=\"ds-search\">Search projects</label><input id=\"ds-search\" class=\"ds-input\" placeholder=\"Search name, key or repository\" />",
-      "css": ".ds-label{display:block;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;color:var(--ht-ink,#172338);margin-bottom:8px}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;height:36px;padding:4px 11px;border:1px solid #8190a5;border-radius:6px;background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338);caret-color:var(--ht-accent,#2563eb)}.ds-input::placeholder{color:#5f6f85}.ds-input:hover{border-color:#1d4ed8}.ds-input:focus{border-color:var(--ht-accent,#2563eb);box-shadow:0 0 0 2px rgba(5,122,255,.06)}.ds-input:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px;}"
+      "description": "Opaque labeled field with readable placeholder text and visible focus.",
+      "html": "<label class=\"ds-label\" for=\"ds-search\">Search projects</label><input class=\"ds-input\" id=\"ds-search\" placeholder=\"Search name, key or repository\" />",
+      "css": ".ds-label{display:block;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;color:var(--ht-ink,#172338);margin-bottom:8px}.ds-input{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:14px;height:38px;padding:0 11px;border:1px solid #8190a5;border-radius:var(--ht-radius-control,10px);background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338);caret-color:var(--ht-accent,#2563eb);font-variant-numeric:tabular-nums}.ds-input::placeholder{color:#5f6f85}.ds-input:hover{border-color:#1d4ed8}.ds-input:focus{border-color:var(--ht-accent,#2563eb)}.ds-input:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}"
     },
     {
-      "name": "Global navigation",
+      "name": "Floating global navigation",
       "kind": "nav",
       "refersTo": "navigation",
-      "description": "Navy shell; the current project index is identified by text and an inset underline.",
+      "description": "A single light frosted navigation surface with a solid fallback and capsule current link.",
       "html": "<nav class=\"ds-nav\" aria-label=\"Main navigation\"><a class=\"ds-brand\" href=\"#projects\">HyperTest One</a><a class=\"ds-current\" href=\"#projects\" aria-current=\"page\">Projects</a></nav>",
-      "css": ".ds-nav{display:flex;align-items:center;gap:44px;height:64px;padding:0 36px;background:var(--ht-shell,#0f172a);font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:#fff}.ds-nav a{color:#f1f5fc;text-decoration:none}.ds-nav .ds-brand{font-size:17px;font-weight:650;letter-spacing:-.025em;color:#fff}.ds-brand:hover{color:#d8edff}.ds-current{padding:22px 0;font-size:13px;box-shadow:inset 0 -2px #22d3ee}.ds-nav a:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px;}@media(max-width:640px){.ds-nav{height:60px;padding:0 16px;gap:14px}.ds-nav .ds-brand{font-size:15px}.ds-current{display:none}}"
+      "css": ".ds-nav{display:flex;align-items:center;gap:36px;height:68px;padding:0 22px;border-radius:22px;background:var(--ht-shell,#f6f9ff);box-shadow:var(--ht-glass-shadow,0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:var(--ht-ink,#172338)}.ds-nav a{text-decoration:none}.ds-brand{color:var(--ht-ink,#172338);font-size:17px;font-weight:650;letter-spacing:-.025em}.ds-brand:hover{color:var(--ht-accent,#2563eb)}.ds-current{padding:8px 16px;border-radius:999px;font-size:13px;font-weight:600;background:#e4ecfb;color:#1e40af;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-current:hover{background:rgb(255 255 255 / 85%);box-shadow:0 2px 7px rgb(34 58 98 / 7%)}.ds-nav a:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.ds-nav{background:var(--ht-glass,rgb(248 251 255 / 82%));-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%);}}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-nav{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-nav{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-current{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:640px){.ds-nav{height:60px;padding:0 12px;gap:10px;border-radius:18px}.ds-brand{font-size:15px}.ds-current{display:none}}@media(prefers-reduced-motion:reduce){.ds-current{transition:none}}"
     },
     {
       "name": "Semantic evidence tag",
       "kind": "chip",
       "refersTo": "tag-success",
-      "description": "Verification status uses readable ink and a written label; it is not a run verdict.",
+      "description": "A written evidence status in a compact opaque tag; verification does not supply a run verdict.",
       "html": "<span class=\"ds-tag\">Verified</span>",
-      "css": ".ds-tag{display:inline-block;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:12px;line-height:20px;padding:0 7px;border:1px solid #b9d8c3;border-radius:4px;color:#20613d;background:#edf7ef;white-space:normal;overflow-wrap:anywhere}"
+      "css": ".ds-tag{display:inline-block;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:12px;line-height:20px;padding:0 7px;border:1px solid #b9d8c3;border-radius:6px;color:#20613d;background:#edf7ef;white-space:normal;overflow-wrap:anywhere}"
     },
     {
       "name": "Decision panel",
       "kind": "card",
       "refersTo": "panel",
-      "description": "White bordered work panel with a clear heading, reading text and a supporting metadata line.",
+      "description": "Opaque formal-decision surface, with the reason and trust boundary in the same reading path.",
       "html": "<section class=\"ds-panel\"><h2 class=\"ds-heading\">Quality verdict</h2><h3 class=\"ds-decision\">Awaiting a quality verdict</h3><p class=\"ds-reason\">Official execution, trusted evidence and findings support the recorded decision.</p><span class=\"ds-note\">Task completion does not mean tests passed.</span></section>",
-      "css": ".ds-panel{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;padding:22px 24px;border:1px solid var(--ht-line,#d8e1ee);border-radius:10px;background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338)}.ds-heading{font-size:14px;font-weight:600;margin:0 0 16px}.ds-decision{font-size:25px;font-weight:600;line-height:1.4;letter-spacing:-.025em;color:#526177;margin:4px 0 10px}.ds-reason{font-size:13px;line-height:1.8;max-width:72ch;overflow-wrap:anywhere;margin:8px 0 20px}.ds-note{font-size:11px;color:var(--ht-muted,#526177)}@media(max-width:1199px){.ds-panel{padding:20px}}@media(max-width:640px){.ds-decision{font-size:23px}}"
+      "css": ".ds-panel{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;padding:24px;border:1px solid var(--ht-line,#dce3ed);border-radius:var(--ht-radius-surface,16px);background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338)}.ds-heading{font-size:14px;font-weight:600;margin:0 0 16px}.ds-decision{font-size:25px;font-weight:600;line-height:1.4;letter-spacing:-.025em;color:#526177;margin:4px 0 10px}.ds-reason{font-size:13px;line-height:1.8;max-width:72ch;overflow-wrap:anywhere;margin:8px 0 20px}.ds-note{font-size:11px;color:var(--ht-muted,#526177)}@media(max-width:1199px){.ds-panel{padding:20px}}@media(max-width:640px){.ds-decision{font-size:23px}}"
     },
     {
       "name": "Evidence trail",
       "kind": "custom",
       "refersTo": "evidence-trail",
-      "description": "Four section shortcuts form a connected strip; unavailable counts use a dash.",
+      "description": "Connected opaque shortcuts retain loaded counts or a dash for unavailable data.",
       "html": "<nav class=\"ds-trail\" aria-label=\"Trace the testing decision\"><button class=\"ds-trail-button\">Executions<span class=\"ds-count\">—</span></button><button class=\"ds-trail-button\">Findings<span class=\"ds-count\">—</span></button><button class=\"ds-trail-button\">Evidence<span class=\"ds-count\">—</span></button><button class=\"ds-trail-button\">Verdicts<span class=\"ds-count\">—</span></button></nav>",
-      "css": ".ds-trail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--ht-line,#d8e1ee);border-radius:8px;background:#edf2fa;overflow:hidden}.ds-trail-button{display:flex;align-items:center;gap:10px;height:50px;padding:0 16px;border:0;border-radius:0;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:12px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer}.ds-trail-button+.ds-trail-button{border-left:1px solid #d1ddeb}.ds-trail-button:hover{background:rgba(0,0,0,.04)}.ds-trail-button:active{background:rgba(0,0,0,.15)}.ds-trail-button:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}.ds-count{margin-left:auto;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}@media(max-width:640px){.ds-trail{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-trail-button{height:48px}.ds-trail-button:nth-child(3){border-left:0;border-top:1px solid #d1ddeb}.ds-trail-button:nth-child(4){border-top:1px solid #d1ddeb}}"
+      "css": ".ds-trail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:4px;border:1px solid var(--ht-line,#dce3ed);border-radius:var(--ht-radius-surface,16px);background:#edf2fa;overflow:hidden}.ds-trail-button{display:flex;align-items:center;gap:10px;height:50px;padding:0 16px;border:0;border-radius:11px;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;font-size:12px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer}.ds-trail-button+.ds-trail-button{border-left:1px solid #d1ddeb}.ds-trail-button:hover{background:rgba(0,0,0,.04)}.ds-trail-button:active{background:rgba(0,0,0,.15)}.ds-trail-button:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}.ds-count{margin-left:auto;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}@media(max-width:640px){.ds-trail{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-trail-button{height:48px}.ds-trail-button:nth-child(3){border-left:0;border-top:1px solid #d1ddeb}.ds-trail-button:nth-child(4){border-top:1px solid #d1ddeb}}"
     },
     {
       "name": "Run section navigation",
       "kind": "nav",
       "refersTo": "run-section-selected",
-      "description": "Run sections pair darker selected/active text with the tinted surface; authored focus and Ant Design colorPrimaryBorder share the strong accent outline.",
+      "description": "One frosted index changes from vertical to horizontal while its selected section stays readable.",
       "html": "<div class=\"ds-sections\" role=\"tablist\" aria-label=\"Run sections\"><button class=\"ds-section\" role=\"tab\" aria-selected=\"true\">Overview</button><button class=\"ds-section\" role=\"tab\" aria-selected=\"false\">Executions</button><button class=\"ds-section\" role=\"tab\" aria-selected=\"false\">Evidence</button></div>",
-      "css": ".ds-sections{display:flex;flex-direction:column;width:160px;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-section{margin:2px 0;padding:11px 14px;text-align:left;border:0;border-radius:6px;font-family:inherit;font-size:14px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer;transition:background-color 160ms ease-out}.ds-section[aria-selected=\"true\"]{background:#dfe9ff;color:#1e40af}.ds-section:hover{color:#1d4ed8}.ds-section:active{color:#1e40af}.ds-sections .ds-section:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@media(max-width:991px){.ds-sections{width:100%;flex-direction:row;overflow-x:auto}.ds-section{margin:0 4px 12px 0;padding:10px 14px;white-space:nowrap}}@media(prefers-reduced-motion:reduce){.ds-section{transition:none}}"
+      "css": ".ds-sections{display:flex;flex-direction:column;width:180px;padding:8px;border-radius:18px;background:var(--ht-shell,#f6f9ff);box-shadow:var(--ht-glass-shadow,0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-section{margin:2px 0;padding:11px 14px;text-align:left;border:0;border-radius:12px;font-family:inherit;font-size:14px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-section[aria-selected=\"true\"]{background:#e0eafb;color:#1e40af;box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%),0 2px 5px rgb(34 58 98 / 5%)}.ds-section:hover{color:#1d4ed8;background:rgb(255 255 255 / 85%)}.ds-section:active{color:#1e40af}.ds-section:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.ds-sections{background:var(--ht-glass,rgb(248 251 255 / 82%));-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%);}}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-sections{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-sections{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-section[aria-selected=\"true\"]{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:991px){.ds-sections{width:auto;flex-direction:row;overflow-x:auto}.ds-section{margin:0 4px 0 0;padding:10px 14px;white-space:nowrap}}@media(prefers-reduced-motion:reduce){.ds-section{transition:none}}"
+    },
+    {
+      "name": "Opaque modal surface",
+      "kind": "custom",
+      "refersTo": "modal",
+      "description": "Solid reading and form material with overlay corners and readable help.",
+      "html": "<section class=\"ds-modal\" role=\"dialog\" aria-labelledby=\"ds-modal-title\"><h2 id=\"ds-modal-title\">Create project</h2><p class=\"ds-help\">A project keeps requirements, risks, test runs and evidence together.</p></section>",
+      "css": ".ds-modal{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;padding:28px;border-radius:20px;background:var(--ht-surface,#ffffff);color:var(--ht-ink,#172338)}.ds-modal h2{font-size:18px;letter-spacing:-.02em;margin:0 24px 20px 0}.ds-help{font-size:14px;line-height:1.8;color:var(--ht-muted,#526177)}@media(max-width:640px){.ds-modal{padding:24px 20px}}"
     }
   ],
   "narrative": {
-    "northStar": "The Testing Reference Index",
-    "overview": "HyperTest One uses a deep navy navigation shell, electric blue actions, cool neutral fields and white work surfaces to make testing records easy to locate and read. The modern technical character comes from precise contrast and a restrained cyan navigation indicator. The reference-index structure remains grounded in consistent identifiers, aligned lists and selected sections. Selected run sections pair darker blue text with pale blue surfaces, and keyboard focus retains a strong accent outline through both authored CSS and the component-library theme.\n\nDaily operation determines the density. Actions have clear hierarchy, supporting metadata stays quiet, and a decision remains close to its reason and evidence. System fonts are a deliberate reading choice for this operating workspace; there is no separate display face or promotional type treatment.",
+    "northStar": "The Floating Testing Reference Index",
+    "overview": "HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Frosted navigation gains definition from an inner light and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.\n\nThe material direction adapts Apple's [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented.\n\nDaily operation determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.",
     "keyCharacteristics": [
-      "Navy shell, electric blue actions and flat white work surfaces.",
-      "Compact, readable Chinese and English typography.",
-      "Traceable identifiers and adjacent evidence links.",
-      "Explicit unknown, pending, error and recorded-result states."
+      "Floating light navigation with a single frosted material per navigation surface.",
+      "Opaque records, forms, decisions and evidence on a pale cool canvas.",
+      "Related rounded geometry, capsule primary actions and quiet control feedback.",
+      "Readable Chinese and English, stable drafts and explicit unknown or recorded-result states."
     ],
     "rules": [
-      {
-        "name": "The Signal Cyan Rule",
-        "body": "Reserve bright cyan for the current global navigation indicator; retain green, red and amber for their established semantic states.",
-        "section": "colors"
-      },
       {
         "name": "The State Has Words Rule",
         "body": "Color reinforces a written status and, where present, an icon. An accent color or completed workflow never supplies a quality verdict.",
@@ -640,20 +710,29 @@
         "name": "The Action Hierarchy Rule",
         "body": "Keep the complete testing cycle as the principal run action; group secondary planning, execution, gate and input actions in the existing More actions disclosure.",
         "section": "layout"
+      },
+      {
+        "name": "The Navigation Material Rule",
+        "body": "Apply backdrop filtering only to the shared header and run-section navigation. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within a glass surface use fills rather than a second glass layer.",
+        "section": "elevation"
       }
     ],
     "dos": [
-      "Do use the navy shell, electric blue actions, white surfaces and existing spacing roles for new operating pages.",
+      "Do use the pale cool canvas, floating light navigation, blue actions and opaque reading surfaces for new operating pages.",
       "Do keep decisions, reasons, record identity and evidence reachable in one reading path.",
       "Do preserve bilingual drafts, selected run sections, loaded results and immutable history during updates.",
-      "Do pair state color with readable labels and preserve visible keyboard focus.",
+      "Do give readable help the muted description token and reserve a separate line for textarea counters.",
+      "Do pair state color with readable labels, preserve visible keyboard focus and keep short project status labels intact.",
+      "Do retain solid navigation fallbacks and the stable reduced-motion provider structure.",
       "Do distinguish unknown, unavailable, zero, task completion and formal quality decisions."
     ],
     "donts": [
+      "Don't stack glass on glass or apply backdrop filtering to decisions, evidence, tables, forms or reading surfaces.",
+      "Don't animate blur or add decorative entrance sequences to routine testing work.",
       "Don't infer release readiness from task success, coverage counts or an Agent report.",
       "Don't let dense tables or long identifiers create whole-page horizontal overflow.",
       "Don't replace explicit semantic tag overrides with lower-specificity preset styling.",
-      "Don't add decorative textures, neon body text or promotional display typography to this operating workspace.",
+      "Don't add noisy imagery, neon body text or promotional display typography to this operating workspace.",
       "Don't ship synthetic acceptance records in product routes or present frontend fixture checks as a real testing cycle."
     ]
   }

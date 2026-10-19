@@ -12,17 +12,15 @@ The user delegates navigation, visual direction and ordinary interactions, expli
 
 ## Direction contract
 
-THESIS: A traceable testing workspace: put the quality decision, its reason and its evidence within one reading path; replace the equal-weight metric-card opening with actionable results.
+User-pinned direction: Apple Liquid Glass. Code-led Operate UI; no concept selection needed. Scope includes shared shell, projects, project runs, run tabs, forms and detail overlays. Follow Apple WWDC25 Meet Liquid Glass and Get to know the new design system.
 
-OWN-WORLD: Preserve the reference-index reading structure with navy navigation, cold white work surfaces, blue-gray neutrals, compact system typography and readable technical identifiers. Electric blue marks action and selection; a cyan navigation indicator adds a small technical accent. State colors retain their conventional meaning. Daytime office work and extended reading favor a light canvas. Palette revised on 2026-10-18 at the user’s request for a more modern, technological feel; the original form seed remains historical.
-
-STORY: Locate a project, open a pinned run, see what is happening and why, then follow execution → evidence → verdict without treating an Agent claim as a fact.
-
-FIRST VIEWPORT: A 64px navy header; a compact contextual heading with primary cycle action; a left section index on desktop and a horizontally scrollable tab strip on mobile. Overview pairs a wide decision panel with task progress, followed by failure reasons and evidence. Secondary coverage counts use a compact strip. Signature interaction: an evidence trail of buttons moves directly to executions, findings, evidence and verdicts, preserving run identity. Selection transitions underline and surface color in 160ms; reduced motion disables transitions.
-
-FORM: Reference-index grammar, grounded candidate 7; seed:b282ce3d6b3efbd7. Seven considered source systems: engineering journal, transit wayfinding, standards diagrams, inspection checklist, technical drawing annotation, timetable, botanical reference index. The six catalog challengers were declined for audience identification and task clarity: variable type specimen (keep disciplined hierarchy), ticket wallet (keep immutable history visibility), record sleeve (keep consistent identifiers), lexicon (keep controlled line lengths), monochrome marketing (keep claim-to-proof adjacency), streaming wall (keep selected-state clarity). Their decorative forms do not enter this working screen. The user delegates the final selection.
-
+THESIS: A quiet testing workspace with a floating glass control plane above stable, legible testing records. Navigation gains depth; formal evidence remains clear.
+OWN-WORLD: Daytime QA work calls for pale cool canvas, white content, deep graphite text and one blue action accent. A single frosted navigation plane has a fine inner highlight, soft downward shadow and concentric corners. Content uses restrained 16px rounding and no live blur.
+STORY: Find a project, inspect its fixed run and next action, then follow execution, evidence and the formal verdict. Existing semantics and bilingual workflows remain authoritative.
+FIRST VIEWPORT: Inset 68px glass header with brand, project navigation, guide and language controls. Clear title and primary action above a compact workflow introduction and a white project table. On runs, a glass section index sits beside solid decision/task panels; mobile turns it into a horizontal strip.
+FORM: The user pinned Liquid Glass; existing navigation and data model retained. Signature interaction is a small light/elevation response on navigation/control hover and press, and a softly changing selected tab. No animation of blur or decorative entrance sequences. Reduce motion removes authored transitions; reduced transparency, higher contrast, forced colors and unsupported filters use solid materials.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
 
 ## Constraints and open decisions
 

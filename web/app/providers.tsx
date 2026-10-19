@@ -12,7 +12,9 @@ import type { Locale } from "@/lib/i18n";
 
 function LocalizedProviders({ children }: { children: React.ReactNode }) {
   const { locale } = useI18n();
-  const [reducedMotion, setReducedMotion] = useState(false);
+  // Ant adds a motion provider when motion first becomes false. Mount it up
+  // front so a preference change never remounts pages and discards their drafts.
+  const [reducedMotion, setReducedMotion] = useState(true);
   useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReducedMotion(preference.matches);
@@ -37,15 +39,15 @@ function LocalizedProviders({ children }: { children: React.ReactNode }) {
       colorInfo: "#0e7490", colorInfoText: "#0e7490", colorInfoBg: "#e7f6fb", colorInfoBorder: "#8cc6d8",
       colorSuccess: "#22734c",
       colorWarning: "#94620b", colorError: "#b53f40", colorText: "#172338",
-      colorTextSecondary: "#526177", colorTextPlaceholder: "#5f6f85", colorBorder: "#8190a5", colorBgLayout: "#f3f6fb",
-      borderRadius: 6, fontSize: 14, controlHeight: 36,
+      colorTextSecondary: "#526177", colorTextDescription: "#526177", colorTextPlaceholder: "#5f6f85", colorBorder: "#8190a5", colorBgLayout: "#f2f5fa",
+      borderRadius: 10, borderRadiusLG: 16, fontSize: 14, controlHeight: 38,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
     },
     components: {
-      Button: { primaryShadow: "none", defaultShadow: "none", fontWeight: 500 },
-      Table: { headerBg: "#f1f5fb", headerColor: "#526177", cellPaddingBlock: 16 },
+      Button: { primaryShadow: "0 3px 8px rgb(37 99 235 / 16%)", defaultShadow: "none", fontWeight: 500 },
+      Table: { headerBg: "#f7f9fc", headerColor: "#526177", rowHoverBg: "#f3f7ff", cellPaddingBlock: 20 },
       Tabs: { titleFontSize: 14, horizontalItemGutter: 26, itemSelectedColor: "#1e40af", itemHoverColor: "#1d4ed8", itemActiveColor: "#1e40af" },
-      Modal: { borderRadiusLG: 12 }, Drawer: { paddingLG: 24 },
+      Modal: { borderRadiusLG: 20 }, Drawer: { paddingLG: 24 },
     },
   }}>
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
