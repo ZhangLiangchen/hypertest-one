@@ -373,16 +373,31 @@ async def advance_persistent_run(db: AsyncSession, job: DurableJob) -> dict:
                 raise ConflictError(f"native turn stopped without an accepted report or question: {current.get('error_code') or current['status']}")
             await asyncio.sleep(0.2)
     finally:
-        renewal.cancel()
-        await asyncio.gather(renewal, return_exceptions=True)
-        if activity is not None:
-            await activity.close()
-        # Idempotent and generation-targeted, including cancellation/lease loss.
-        with contextlib.suppress(BridgeError, OSError):
-            await client.interrupt(context, call_id)
-        await db.rollback()
-        with contextlib.suppress(BridgeError, OSError, JobLeaseLost):
-            await account_call(db, binding_id, call_id, await client.get_call(context, call_id, management=True))
+        async def finish_native_call() -> None:
+            renewal.cancel()
+            await asyncio.gather(renewal, return_exceptions=True)
+            if activity is not None:
+                await activity.close()
+            # Idempotent and generation-targeted, including cancellation/lease loss.
+            with contextlib.suppress(BridgeError, OSError):
+                await client.interrupt(context, call_id)
+            await db.rollback()
+            with contextlib.suppress(BridgeError, OSError, JobLeaseLost):
+                await account_call(db, binding_id, call_id, await client.get_call(context, call_id, management=True))
+
+        # A tool can lose its claim before the heartbeat observes cancellation.
+        # A later handler.cancel() must not cut this finally block short while
+        # it awaits renewal/telemetry shutdown and skip the native interrupt.
+        cleanup = asyncio.create_task(finish_native_call())
+        cancelled = False
+        while not cleanup.done():
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                cancelled = True
+        cleanup.result()
+        if cancelled:
+            raise asyncio.CancelledError
 
 
 async def cleanup_bound_call(db: AsyncSession, job: DurableJob) -> dict:
