@@ -49,6 +49,11 @@ class JobDispatchError(RuntimeError):
 
 async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]:
     payload = dict(job.payload)
+    from hypertest.domain.harness_selection import RunHarnessSelection
+    if (await session.get(RunHarnessSelection, job.test_run_id) is not None
+            and job.job_type is JobType.ADVANCE_RUN
+            and payload.get("execution_profile") != "run-persistent-harness/v1"):
+        raise JobDispatchError("LOCAL_PROFILE_REQUIRED", "Local Harness cannot fall back to server execution", {})
     if job.job_type is JobType.ADVANCE_RUN:
         if payload.get("execution_profile") == "run-persistent-harness/v1":
             from hypertest.application.persistent import advance_persistent_run

@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.application.services import ConflictError, get_test_run
+from hypertest.domain.harness_selection import RunHarnessSelection
 from hypertest.domain.jobs import ACTIVE_JOB_STATUSES, DurableJob
 from hypertest.domain.models import TestRun
 
@@ -14,6 +15,8 @@ async def guard_manual_mission_mutation(session: AsyncSession, run_id: UUID) -> 
     from hypertest.domain.bindings import RunExecutionBinding
 
     await get_test_run(session, run_id)
+    if await session.get(RunHarnessSelection, run_id):
+        raise ConflictError("local Harness missions are controlled by their background task; use task controls")
     await session.scalar(select(TestRun.id).where(TestRun.id == run_id).with_for_update())
     binding = await session.scalar(select(RunExecutionBinding.id).where(
         RunExecutionBinding.test_run_id == run_id,
@@ -30,6 +33,8 @@ async def guard_synchronous_operation(session: AsyncSession, run_id: UUID) -> No
     if get_settings().execution_mode == "queued":
         raise ConflictError("submit a durable task; this API does not execute host operations")
     await get_test_run(session, run_id)
+    if await session.get(RunHarnessSelection, run_id):
+        raise ConflictError("local Harness runs require a durable task through their original device")
     await session.scalar(select(TestRun.id).where(TestRun.id == run_id).with_for_update())
     if await session.scalar(select(RunExecutionBinding.id).where(RunExecutionBinding.test_run_id == run_id)):
         raise ConflictError("persistent missions are controlled by their background task; use task controls")

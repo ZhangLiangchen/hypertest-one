@@ -21,8 +21,12 @@ import type { CopiedRunDraft } from "@/lib/run-draft";
 import type { RunCreate, SourceResolution } from "@/lib/types";
 import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
 import type { PolicyFormValues } from "./policy-fields";
+import { HarnessFields } from "./harness-fields";
 
 type RunFormValues = PolicyFormValues & EnvironmentFormValues & {
+  harness_mode?: "SERVER_HOST" | "LOCAL_CONNECTOR";
+  harness_node_id?: string;
+  source_bundle_transfer_id?: string;
   repository_url: string;
   source_mode: "revision" | "sha";
   revision: string;
@@ -51,6 +55,8 @@ const MAX_REQUEST_BYTES = 10 * 1024 * 1024;
 
 function buildRunInput(values: RunFormValues, copied: CopiedRunDraft | null): Omit<RunCreate, "idempotency_key"> {
   return {
+    ...(values.harness_mode === "LOCAL_CONNECTOR" ? { harness_mode: values.harness_mode,
+      harness_node_id: values.harness_node_id, source_bundle_transfer_id: values.source_bundle_transfer_id } : {}),
     repository_url: values.repository_url.trim(),
     commit_sha: values.commit_sha.trim().toLowerCase(),
     branch: values.branch?.trim() || undefined,
@@ -89,6 +95,7 @@ export default function ProjectPage() {
   const requestIdentity = useRef<{ signature: string; key: string } | null>(null);
   const [form] = Form.useForm<RunFormValues>();
   const sourceMode = Form.useWatch("source_mode", { form, preserve: true }) || "revision";
+  const localHarness = Form.useWatch("harness_mode", { form, preserve: true }) === "LOCAL_CONNECTOR";
   const repositoryOrigin = Form.useWatch("repository_url", { form, preserve: true }) || "";
   const environmentProfile = Form.useWatch("environment_profile_id", { form, preserve: true }) || "python-pytest-v1";
   const policyMode = Form.useWatch("policy_mode", { form, preserve: true }) || "edit";
@@ -416,21 +423,22 @@ export default function ProjectPage() {
         >
           {step === 0 ? (
             <>
+              <HarnessFields form={form} projectId={params.projectId} />
               <Typography.Paragraph className="muted">
                 {t("Choose the repository origin and exact version to test. Resolve a branch or tag to a fixed commit, or enter the full SHA yourself.", "填写仓库源地址及需要测试的版本。可以将分支或标签解析为固定提交，也可以手工输入完整 SHA。")}
               </Typography.Paragraph>
-              <Alert
+              {!localHarness && <Alert
                 type="info"
                 showIcon
                 message={t("Origin address and checkout folder are different", "仓库源地址与检出目录不同")}
                 description={<>{t("Use the origin address reported by ", "请填写以下命令输出的 origin 地址：")}<Typography.Text code copyable>git remote get-url origin</Typography.Text>{t(". Do not enter an arbitrary checkout directory here. A local Git source path is supported only when it is the origin value itself. Choose an existing Worker checkout directory after run creation; a browser-computer path does not upload source to the server.", "。此处不能用任意 Git 检出目录替代源地址。本地 Git 源路径只有与 origin 输出本身一致时才有效。已有 Worker 检出目录将在创建运行后选择；填写浏览器电脑上的路径不会把源码上传到服务器。")}</>}
                 style={{ marginBottom: 20 }}
-              />
+              />}
               <Form.Item
                 name="repository_url"
                 label={t("Repository origin", "仓库源地址（origin）")}
                 normalize={(value: string) => value.trim()}
-                extra={t("GitHub HTTPS sources without embedded credentials support reference resolution and managed checkout. Other Git origins use a manual SHA and a matching checkout on the Worker host.", "不含内嵌凭据的 GitHub HTTPS 源支持版本解析及托管检出。其他 Git 源需手工输入 SHA，并在 Worker 主机提供匹配的检出。")}
+                extra={localHarness ? t("Use the credential-free origin accessible to the selected device. Enter the full SHA, then authorize and receive the pinned source.", "填写所选设备可访问的不含凭据的仓库地址。输入完整 SHA 后，点击授权并接收源码。") : t("GitHub HTTPS sources without embedded credentials support reference resolution and managed checkout. Other Git origins use a manual SHA and a matching checkout on the Worker host.", "不含内嵌凭据的 GitHub HTTPS 源支持版本解析及托管检出。其他 Git 源需手工输入 SHA，并在 Worker 主机提供匹配的检出。")}
                 rules={[
                   { required: true, whitespace: true, message: t("Enter the repository's origin address.", "请输入仓库的 origin 源地址。") },
                   { max: 2048, message: t("Use at most 2,048 characters.", "最多输入 2,048 个字符。") },

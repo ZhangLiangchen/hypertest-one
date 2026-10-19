@@ -559,6 +559,14 @@ class OutboxEvent(Base):
 # Register the remaining canonical chain on the shared declarative metadata.
 from hypertest.domain.activity import MissionActivityEvent  # noqa: E402, F401
 from hypertest.domain.bindings import RunExecutionBinding  # noqa: E402, F401
+from hypertest.domain.connector import (  # noqa: E402, F401
+    ConnectorRequest,
+    HarnessDeviceGrant,
+    HarnessDispatchGrant,
+    HarnessNode,
+    NodeProjectCapability,
+    RunHarnessPlacement,
+)
 from hypertest.domain.delivery import (  # noqa: E402, F401
     Evidence,
     ExecutionEvidence,
@@ -582,6 +590,14 @@ from hypertest.domain.harness import (  # noqa: E402, F401
     RuntimeControlRequest,
     RunToolCall,
 )
+from hypertest.domain.harness_selection import RunHarnessSelection  # noqa: E402, F401
 from hypertest.domain.inputs import MissionInputRequest  # noqa: E402, F401
+from hypertest.domain.issue_executor import GitLabIssueOperationExecutor  # noqa: E402, F401
 from hypertest.domain.jobs import DurableJob  # noqa: E402, F401
 from hypertest.domain.run_inputs import RunInputRequest  # noqa: E402, F401
+from hypertest.domain.source_transfer import (  # noqa: E402, F401
+    SourceAcquisitionRequest,
+    SourceBundleTransfer,
+    SourceTransferSnapshot,
+    SourceUploadGrant,
+)

@@ -23,6 +23,9 @@ async def _guard_operation_owner(session: AsyncSession, run_id: UUID) -> None:
     # Recheck admission after planning, under the same aggregate lock used by
     # the next reservation, so it cannot launch work belonging to a queued job.
     await session.scalar(select(TestRun.id).where(TestRun.id == run_id).with_for_update())
+    from hypertest.domain.harness_selection import RunHarnessSelection
+    if await session.get(RunHarnessSelection, run_id):
+        raise ConflictError("local Harness runs cannot use the server compatibility controller")
     active = await session.scalar(select(DurableJob.id).where(
         DurableJob.test_run_id == run_id, DurableJob.status.in_(ACTIVE_JOB_STATUSES),
     ))

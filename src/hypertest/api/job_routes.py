@@ -32,9 +32,11 @@ async def get_job_activity(job_id: UUID, limit: int = Query(default=30, ge=1, le
 async def post_job(run_id: UUID, payload: JobCreate, db: AsyncSession = Depends(get_db)):
     try:
         from hypertest.config import get_settings
+        from hypertest.domain.harness_selection import RunHarnessSelection
         from hypertest.domain.jobs import JobType
         options = dict(payload.payload)
-        if (get_settings().harness_mode == "bridge" and payload.operation is JobType.ADVANCE_RUN
+        local_selection = await db.get(RunHarnessSelection, run_id)
+        if ((get_settings().harness_mode == "bridge" or local_selection is not None) and payload.operation is JobType.ADVANCE_RUN
                 and "execution_profile" not in options):
             old = await db.scalar(select(DurableJob).where(DurableJob.test_run_id == run_id,
                 DurableJob.idempotency_key == payload.idempotency_key))
