@@ -66,3 +66,19 @@
 本轮完成生产构建（包含类型检查），23 项 Web 测试通过。重新查看五种屏幕宽度及加载、空数据、错误、长文本、运行中、通过和阻止发布状态的截图，无整页横向溢出。16 组实际渲染颜色检查全部通过：主按钮 5.17:1、悬停 6.70:1、按下 8.72:1、选中页签 7.16:1、焦点相对画布 4.77:1、控件边框相对白底 3.25:1；状态标签继续满足小字号文本要求。另查看红色盲和绿色盲模拟截图，状态仍由文字及图标表达。
 
 本轮截图与检查脚本位于 `.impeccable/review/palette/`：`capture.cjs`、`contrast.cjs`、`extra.cjs`，最终对比度与色觉模拟结果为 `final-results.txt`。只读真实 API 检查正常展示已有 4 个项目，未提交数据。设计规则同步到 `DESIGN.md`、`.impeccable/design.json` 和当前 surface brief。本轮复评范围仅为配色与相关交互状态，处置为 `ship`，无待修正项；记录为 `.impeccable/review/palette/review.md`。
+
+## 2026-10-19 Liquid Glass 改造
+
+本轮根据用户指定的 Apple Liquid Glass 方向，参考 [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) 与 [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/)，对项目工作台、项目运行列表、运行工作台、创建表单和详情抽屉进行 Web 适配。
+
+玻璃材质仅用于悬浮顶部导航和运行页签索引：浅色半透明背景、24px 背景模糊、轻微高光和向下阴影。表格、判定、日志、证据和表单保留实底。统一面板、控件与弹层的圆角、间距与操作反馈；主操作使用蓝色胶囊按钮。中英文、正式判定选择、历史记录和 API 契约沿用现有逻辑。
+
+同时修正英文 Archived 标签断行、字数统计与表单说明重叠、辅助文案对比度不足。可读说明统一使用 `#526177`，相对白底的计算对比度为 6.30:1。组件库的 motion token 初始关闭，再根据系统偏好启用，避免首次切换减少动态效果时插入新的 Provider 边界、重新挂载页面并清空草稿。减少透明度、提高对比度、强制颜色和不支持背景滤镜时提供实底；没有对模糊做动画。
+
+验证：86 项 Web 自动测试通过，Next.js 生产构建及类型检查通过。浏览器 18 项交互与材质检查通过，包括搜索和筛选重置、项目草稿与 PRD 步骤保留、语言切换、动态减少动效、弹窗关闭、证据快捷导航及焦点、手机抽屉、减少透明度、高对比和强制颜色。检查覆盖 360、390、820、1280、1440px；首轮三类页面 15 项、修正后 13 项布局测量均无整页横向溢出，最终截图批次无页面运行异常。Impeccable 机械检查一次，结果为空。
+
+验收使用隔离的合成 API 响应，截图明确标注 Synthetic preview；写请求全部本地拦截。本地 API 未启动，没有创建真实项目或任务、触发 Harness/Runner、连接或更新生产服务器。本轮验证范围是前端布局和交互，不构成真实测试周期或生产部署验收。
+
+本地证据在 `.impeccable/review/liquid-glass/`：`setup.cjs`、`capture.cjs`、`interactions.cjs`、`layout-results.txt`、`capture-results.txt`、`interaction-results.txt`、`contrast.json`、`unit-results.txt`、`build-results.txt` 和同名桌面/手机截图。设计规则同步至 `DESIGN.md` 和 `.impeccable/design.json`。
+
+独立设计评审提出辅助文案对比度、计数与说明间距、英文状态文本、设计系统同步四项修正。同名视图复拍后，逐项复评均为 resolved，处置为 `ship`；该结论仅覆盖这四项修正。记录为 `finish-review.md` 与 `verdict-pass.md`。临时浏览器和本地预览服务已关闭，截图仍可直接查看。

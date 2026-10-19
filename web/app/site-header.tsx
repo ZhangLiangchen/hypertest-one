@@ -22,6 +22,7 @@ export function SiteHeader() {
       <Button className="guide-button" type="text" icon={<QuestionCircleOutlined aria-hidden />} onClick={() => setGuideOpen(true)} aria-label={t("Workflow guide", "使用指南")}><span>{t("Guide", "使用指南")}</span></Button>
       <Select
         className="locale-select"
+        id="interface-language"
         aria-label={t("Interface language", "界面语言")}
         value={locale}
         onChange={setLocale}
