@@ -28,6 +28,7 @@ from hypertest.application.jobs import (
     record_worker_heartbeat,
     recover_expired_jobs,
 )
+from hypertest.application.source_diagnostics import SourcePreparationError, safe_source_diagnostic
 from hypertest.common.ids import uuid7
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal, engine
@@ -170,6 +171,15 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
     except JobDispatchError as exc:
         result = exc.result
         error_code, error_message = exc.error_code, str(exc)[:2048]
+        logger.warning("Job %s stopped (%s)", job.key, error_code)
+    except SourcePreparationError as exc:
+        # Source failures are operational observations, never model output or
+        # testing Evidence. Persist only the platform's bounded projection.
+        diagnostic = safe_source_diagnostic(exc.diagnostic)
+        result = {"reason": "SOURCE_PREPARATION_FAILED"}
+        if diagnostic is not None:
+            result["source_preparation_diagnostic"] = diagnostic
+        error_code, error_message = "SOURCE_PREPARATION_FAILED", str(exc)
         logger.warning("Job %s stopped (%s)", job.key, error_code)
     except Exception as exc:
         error_code, error_message = type(exc).__name__.upper()[:64], str(exc)[:2048]

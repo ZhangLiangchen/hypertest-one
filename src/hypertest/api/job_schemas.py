@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hypertest.api.schemas import ORMModel
+from hypertest.application.source_diagnostics import safe_source_diagnostic
 from hypertest.domain.activity import ActivityKind, ActivitySource
 from hypertest.domain.jobs import JobStatus, JobType
 
@@ -47,6 +48,18 @@ class JobRead(ORMModel):
     started_at: datetime | None
     finished_at: datetime | None
     cancel_requested_at: datetime | None
+
+    @field_validator("result")
+    @classmethod
+    def project_source_diagnostic(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        # Re-project on read without rewriting immutable historical Job rows.
+        if value is None or "source_preparation_diagnostic" not in value:
+            return value
+        projected = dict(value)
+        diagnostic = safe_source_diagnostic(projected.pop("source_preparation_diagnostic"))
+        if diagnostic is not None:
+            projected["source_preparation_diagnostic"] = diagnostic
+        return projected
 
 
 class ActivityAttemptRead(BaseModel):

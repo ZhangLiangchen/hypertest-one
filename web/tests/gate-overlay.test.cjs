@@ -23,6 +23,7 @@ function controller(locale) {
     "@/lib/api": {}, "@/app/client-modal": { ClientModal: () => null },
     "@/app/execution-environment": {}, "@/lib/execution-environment": {},
     "@/lib/run-summary": load("lib/run-summary.ts", { require }),
+    "@/lib/source-preparation": load("lib/source-preparation.ts", { require }),
     "./use-run-jobs": { useRunJobs: () => tasks },
     "./use-run-input-requests": { useRunInputRequests: () => ({ requests: { data: [] }, pending: [], busy: false, missionPanel() {} }) },
     "./attempt-history": {}, "./finding-history": {}, "./run-overview": { RunOverview: () => null },

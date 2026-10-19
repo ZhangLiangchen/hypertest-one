@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { cancelJob, createJob, errorText, getJob, getJobs, getMission, getRunHarness, retryJob, retryMission } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { hasSourcePreparationFailure, sourcePreparationCopy, sourcePreparationDiagnostic, sourcePreparationSummary } from "@/lib/source-preparation";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
 import { JobActivityPanel } from "./job-activity";
@@ -154,6 +155,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
   });
   const retry = useMutation({
     mutationFn: async (job: BackgroundJob) => {
+      if (sourcePreparationDiagnostic(job)?.retryable === false) throw new Error(t("This source needs operator review or corrected input in a new round. The fixed input and failed task remain in history.", "此源码需要操作者检查，或创建新轮次修正输入。固定输入和失败任务将保留在历史中。"));
       const current = await getRunHarness(runId);
       client.setQueryData(["harness", runId], current);
       const closedGate = job.job_type === "EVALUATE_GATE" && current.binding?.status === "CLOSED" && !!current.reports.length;
@@ -186,11 +188,12 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     const closedGate = job.job_type === "EVALUATE_GATE" && bindingStatus === "CLOSED" && !!harness.data?.reports.length;
     const sessionEnded = !!bindingStatus && ["CLOSED", "FAILED", "CANCELLED"].includes(bindingStatus) && !closedGate;
     const sessionBlocked = !!bindingStatus && (job.job_type === "EVALUATE_GATE" ? !closedGate : bindingStatus !== "ACTIVE");
+    const sourceNeedsReview = sourcePreparationDiagnostic(job)?.retryable === false;
     return <Space wrap>
       <Button size="small" onClick={() => { setSelectedId(job.id); cancellation.reset(); retry.reset(); }}>{t("Details", "详情")}</Button>
       {job.status === "WAITING_INPUT" && <Button size="small" onClick={() => viewResult("input-requests")}>{t("Answer question", "回答问题")}</Button>}
       {activeStatuses.includes(job.status) && job.status !== "CANCEL_REQUESTED" && <Popconfirm title={t("Cancel this background task?", "确认取消此后台任务？")} description={t("The worker stops at a safe boundary. Accepted canonical testing state remains available.", "Worker 会在安全边界停止，已接受的正式测试状态仍会保留。")} onConfirm={() => cancellation.mutate(job)}><Button size="small" danger loading={cancellation.isPending && cancellation.variables?.id === job.id}>{t("Cancel task", "取消任务")}</Button></Popconfirm>}
-      {retryableStatuses.includes(job.status) && (sessionEnded ? <Space wrap><Typography.Text type="secondary">{t("This session has ended. Its history is retained.", "此会话已结束，历史记录会保留。")}</Typography.Text><NewRunLink runId={runId} projectId={job.project_id} /></Space> : sessionBlocked ? <Button size="small" onClick={() => viewResult("harness")}>{bindingStatus === "RECOVERY_REQUIRED" ? t("Recover session first", "请先恢复会话") : t("Review session", "查看会话")}</Button> : cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission || !harness.data || !!harness.error} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{!harness.data || harness.error ? t("Checking session state", "正在检查会话状态") : unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
+      {retryableStatuses.includes(job.status) && (sessionEnded ? <Space wrap><Typography.Text type="secondary">{t("This session has ended. Its history is retained.", "此会话已结束，历史记录会保留。")}</Typography.Text><NewRunLink runId={runId} projectId={job.project_id} /></Space> : sourceNeedsReview ? <NewRunLink runId={runId} projectId={job.project_id} /> : sessionBlocked ? <Button size="small" onClick={() => viewResult("harness")}>{bindingStatus === "RECOVERY_REQUIRED" ? t("Recover session first", "请先恢复会话") : t("Review session", "查看会话")}</Button> : cancelledMission ? <Typography.Text type="secondary">{t("Mission cancelled. Plan a new mission.", "测试任务已取消，请规划新任务。")}</Typography.Text> : <Button size="small" disabled={active.length > 0 || unknownMission || !harness.data || !!harness.error} loading={retry.isPending && retry.variables?.id === job.id} onClick={() => retry.mutate(job)}>{!harness.data || harness.error ? t("Checking session state", "正在检查会话状态") : unknownMission ? t("Checking mission state", "正在检查任务状态") : t("Retry as new task", "新建重试任务")}</Button>)}
     </Space>;
   }
 
@@ -215,7 +218,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
       <Typography.Paragraph className="muted">{active.every((job) => job.status === "WAITING_INPUT") ? t("Testing is paused until you answer the recorded question. This task keeps its place and does not occupy a worker while waiting.", "测试已暂停，等待你回答已记录的问题。此任务会保留运行位置，等待时不占用 Worker。") : t("Work continues on the worker. You can leave this page and return to the same tasks.", "Worker 会继续处理。离开页面后，返回仍可查看同一任务。")}</Typography.Paragraph>
       <Table rowKey="id" size="small" columns={columns} dataSource={active} pagination={false} scroll={{ x: 750 }} />
     </Card>}
-    {rows[0] && ["FAILED", "INTERRUPTED"].includes(rows[0].status) && <Alert type={rows[0].status === "INTERRUPTED" ? "warning" : "error"} showIcon message={rows[0].status === "INTERRUPTED" ? t("A background task needs recovery", "后台任务需要恢复") : t("The latest background task failed", "最新后台任务失败")} description={rows[0].error_message || t("Review the task details and recorded canonical state before retrying.", "请先查看任务详情及已记录的正式状态，再决定是否重试。")} action={<Button onClick={() => setSelectedId(rows[0].id)}>{t("Review task", "查看任务")}</Button>} style={{ marginBottom: 20 }} />}
+    {rows[0] && ["FAILED", "INTERRUPTED"].includes(rows[0].status) && <Alert type={rows[0].status === "INTERRUPTED" ? "warning" : "error"} showIcon message={rows[0].status === "INTERRUPTED" ? t("A background task needs recovery", "后台任务需要恢复") : t("The latest background task failed", "最新后台任务失败")} description={sourcePreparationSummary(rows[0], locale) || rows[0].error_message || t("Review the task details and recorded canonical state before retrying.", "请先查看任务详情及已记录的正式状态，再决定是否重试。")} action={<Button onClick={() => setSelectedId(rows[0].id)}>{t("Review task", "查看任务")}</Button>} style={{ marginBottom: 20 }} />}
   </>;
 
   function viewResult(section: string, key?: string) {
@@ -223,6 +226,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
     onViewResult(section, key);
   }
   const steps = Array.isArray(current?.result?.steps) ? current.result.steps.filter((step): step is { action: string; key: string; status: string } => !!step && typeof step === "object" && typeof (step as Record<string, unknown>).action === "string" && typeof (step as Record<string, unknown>).key === "string" && typeof (step as Record<string, unknown>).status === "string") : [];
+  const preparation = current ? sourcePreparationCopy(current, locale) : null;
   const dialog = <>
     {contextHolder}
     <Drawer title={current ? `${label(current.job_type)} · ${current.key}` : t("Background task", "后台任务")} open={!!selectedId} width={850} onClose={() => setSelectedId(null)}>
@@ -242,7 +246,17 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         {current.status === "QUEUED" && <Alert type="info" showIcon message={t("Waiting for an available worker", "等待可用 Worker")} description={t("The task is saved. Keep the worker service running; this browser does not execute the task.", "任务已保存。请保持 Worker 服务运行，任务由 Worker 执行。")} style={{ marginBottom: 20 }} />}
         {current.status === "INTERRUPTED" && <Alert type="warning" showIcon message={t("Worker execution was interrupted", "Worker 执行已中断")} description={t("Review the recorded missions, executions and evidence. Retry creates a new task and preserves this task's history; completed canonical state remains available.", "请检查已记录的智能体任务、执行和证据。重试会创建新任务并保留原历史，已完成的正式状态仍会保留。")} style={{ marginBottom: 20 }} />}
         {current.status === "CANCEL_REQUESTED" && <Alert type="info" showIcon message={t("Waiting for the worker to acknowledge cancellation", "等待 Worker 确认取消")} description={t("The recorded status changes to CANCELLED after the worker stops at a safe boundary.", "Worker 在安全边界停止后，状态会更新为“已取消”（CANCELLED）。")} style={{ marginBottom: 20 }} />}
-        {current.error_message && <Alert type="error" showIcon message={current.error_code || t("Task error", "任务错误")} description={<span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{current.error_message}</span>} style={{ marginBottom: 20 }} />}
+        {preparation ? <Alert type="error" showIcon message={t("Source preparation failed", "源码准备失败")} description={<>
+          <Typography.Paragraph>{preparation.summary}</Typography.Paragraph>
+          <Descriptions column={1} size="small" styles={{ label: { color: "var(--ht-muted)" } }} items={[
+            { key: "stage", label: t("Failed stage", "失败阶段"), children: preparation.stage },
+            { key: "category", label: t("Error category", "错误分类"), children: preparation.category },
+            ...(preparation.diagnostic?.exit_code !== null && preparation.diagnostic?.exit_code !== undefined ? [{ key: "exit", label: t("Git exit code", "Git 退出码"), children: preparation.diagnostic.exit_code }] : []),
+          ]} />
+          <Typography.Paragraph style={{ marginTop: 12 }}>{preparation.action}</Typography.Paragraph>
+          <Typography.Paragraph className="muted" style={{ marginBottom: 0 }}>{t("Use the actions above for this recorded task. An explicit retry creates a linked task and preserves the failed record; session recovery rules still apply. Fixed input changes require a new round.", "请使用上方此任务的操作。显式重试将创建关联新任务并保留失败记录，仍需遵守原会话恢复规则。修改固定输入需要创建新轮次。")}</Typography.Paragraph>
+          {preparation.diagnostic?.output_truncated && <Typography.Paragraph className="muted" style={{ marginTop: 12, marginBottom: 0 }}>{t("Git output reached the diagnostic capture limit. The category is based on the captured portion and may not identify the full cause.", "Git 输出达到诊断采集上限。分类依据已采集部分，可能无法反映完整原因。")}</Typography.Paragraph>}
+        </>} style={{ marginBottom: 20 }} /> : current.error_message && !hasSourcePreparationFailure(current) && <Alert type="error" showIcon message={current.error_code || t("Task error", "任务错误")} description={<span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{current.error_message}</span>} style={{ marginBottom: 20 }} />}
         {current.job_type === "EVALUATE_GATE" && <Alert type="info" showIcon message={t("Independent quality-gate task", "独立质量门禁任务")} description={t("This task reads canonical state and verifies existing evidence. It does not start or resume an agent session, rerun tests or rewrite the original report.", "此任务读取正式状态并校验已有证据，不会启动或恢复智能体会话、重跑测试或改写原报告。")} style={{ marginBottom: 20 }} />}
         {current.job_type === "EVALUATE_GATE" && typeof current.payload?.reason === "string" && <><Typography.Title level={5}>{t("Reason for reevaluation", "重评原因")}</Typography.Title><Typography.Paragraph style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{current.payload.reason}</Typography.Paragraph></>}
         {!!selectedId && <JobActivityPanel key={current.id} job={current} taskStale={selected.isError} onResults={() => viewResult("verdicts")} />}

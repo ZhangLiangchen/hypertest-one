@@ -1016,6 +1016,10 @@ SUCCEEDED 表示调度请求成功返回，不表示质量结论为 PASS；应�
 
 受控 `MISSION_REJECTED` / `MISSION_FAILED` 使 Job 进入 FAILED，允许同时保存 result 中的 stop reason、已持久步骤、关联 Mission ID 与已解析 workspace；独立 EXECUTE_MISSION 拒绝还保存对应 Attempt ID。FAILED Mission 不得误报为运行中或隐式重放。result 是对既有持久历史的运行索引，不能成为 Requirement / Execution / Evidence / Verdict 的替代事实。通用异常不保证存在部分 result；恢复阶段若已有暂停时提交的 checkpoint，则保留其已完成 steps、workspace 和 input reference，并记录停止原因。CANCELLED / INTERRUPTED 不保存迟到 handler 的结果，但不丢弃此前已经持久化的 checkpoint。终态 result 与原失败历史仍受不可变保护。
 
+源码准备失败使用受控 `SOURCE_PREPARATION_FAILED`，可在同一 FAILED Job 的 result 保存 `source_preparation_diagnostic`，版本为 `hypertest.source-preparation-diagnostic/v1`。只允许固定阶段/分类、平台说明与操作建议、是否可重试、nullable 有界退出码、超时和输出截断标记；四个 Git 准备命令（init、remote add、fetch、checkout）及准备路径中的四个校验命令每流最多采集16KiB，后者不读取未使用的来源文件列表。仅用受限 stderr 在内存分类，不保存或回显原文、命令、URL、路径、认证信息或 Provider 内容。Git 校验进程失败按观察到的超时/认证/存储等类别处理，只有成功读取后证明的内容不匹配才归为 checkout_integrity；路径解析中的循环链接安全报告为存储问题。其他 Runner/Agent 调用保留默认 checkout 校验与来源文件列表每流8MiB上限，不进入诊断对象。分类是观察到的错误线索，不证明仓库存在性、认证状态或最终根因。API 对此对象按版本和枚举重新投影固定文字，未知/无效对象不展示，不修改历史行；旧失败未记录诊断时明确表示原因未知，不能追认 PR #10 的底层原因。
+
+此诊断属于 Operational State，不创建 Finding、Execution、Evidence 或 Verdict，不加入 Gate hash，不改变 Snapshot、Job 类型或 TMP Agent wire/profile。准备在绑定/主会话建立前失败时保留无绑定状态，操作者修复外部 Git/网络/存储条件后通过原 Job 的显式 retry 创建新 Job，保留相同输入和 `retry_of_job_id`。修改仓库或 SHA 必须在新轮次审阅输入，不能改写原 Snapshot；已有绑定仍按原恢复/终态准入。取消、租约过期或旧 claim 的迟到诊断不能覆盖已提交终态。无新增迁移，旧历史不回填。
+
 v0.3 Worker 使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取 QUEUED Job，记录 worker_id、lease_token、heartbeat_at、lease_expires_at。使用数据库时钟验证租约；每个受控 Canonical commit 在 flush 前后检查 Run → Job 锁、状态和 token。租约失效或取消后的旧 Worker 不得提交 Canonical 状态。
 
 v0.4 目标继续使用数据库队列，但领取时还必须验证 §23.4 的稳定逻辑所有者、Harness 节点亲和及 binding_epoch。`DurableJob.worker_id` / WorkerHeartbeat 标识当前实际进程，是可随显式恢复改变的运行占用记录；它们不能充当 Run 的稳定 `logical_worker_id`，也不能因 WAITING_INPUT 清空而解除 Run 绑定。未绑定的其他 Worker 即使空闲，也不得领取该 Run 的恢复工作或同时启动第二个主 Session。绑定前的首次调度可以从可用执行节点中选择，绑定后的继续执行必须回到同一逻辑所有者。
