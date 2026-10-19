@@ -248,7 +248,7 @@ export function useRunJobs(runId: string, useWorkspace: (workspace: string) => v
         {current.status === "CANCEL_REQUESTED" && <Alert type="info" showIcon message={t("Waiting for the worker to acknowledge cancellation", "等待 Worker 确认取消")} description={t("The recorded status changes to CANCELLED after the worker stops at a safe boundary.", "Worker 在安全边界停止后，状态会更新为“已取消”（CANCELLED）。")} style={{ marginBottom: 20 }} />}
         {preparation ? <Alert type="error" showIcon message={t("Source preparation failed", "源码准备失败")} description={<>
           <Typography.Paragraph>{preparation.summary}</Typography.Paragraph>
-          <Descriptions column={1} size="small" items={[
+          <Descriptions column={1} size="small" styles={{ label: { color: "var(--ht-muted)" } }} items={[
             { key: "stage", label: t("Failed stage", "失败阶段"), children: preparation.stage },
             { key: "category", label: t("Error category", "错误分类"), children: preparation.category },
             ...(preparation.diagnostic?.exit_code !== null && preparation.diagnostic?.exit_code !== undefined ? [{ key: "exit", label: t("Git exit code", "Git 退出码"), children: preparation.diagnostic.exit_code }] : []),

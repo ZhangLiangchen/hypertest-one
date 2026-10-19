@@ -2,7 +2,15 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: post-session Finding governance and Gate reassessment
+## Current increment: actionable source-preparation diagnostics
+
+Source preparation records bounded platform-owned stages, categories and next-step suggestions in the failed Job. The bilingual Web shows them beside the original task's existing retry controls; legacy failures without saved diagnostics remain explicitly unknown. Git output, commands, URLs, paths and credentials are excluded. Fixing external Git/network/storage conditions permits an explicit linked retry with the same frozen input; changing source input requires a reviewed new round. Existing session recovery and terminal-binding rules remain intact.
+
+Local real 390px Web creation/import/start/failure/retry completed one Codex session and an OFFICIAL Docker execution: **37/37 PASS**, verified Evidence, FINAL RELEASE_READY and an accepted report. The original FAILED Job and fixed inputs remained unchanged. **808 backend checks including 18 real Docker checks**, **104 Web tests**, Ruff, Alembic head0014, typecheck and production build passed. No migration, merge or production deployment is included. Exact runtime/frontend identities and limitations are in [source-preparation acceptance](SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md).
+
+## Historical PR #11 implementation freeze: post-session Finding governance and Gate reassessment
+
+The deployment-pending wording and test counts below describe the PR #11 development freeze. PR #11 was subsequently merged/deployed; the fresh current-production verification is recorded below and in the new acceptance record.
 
 [ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) is implemented on this branch. After a binding and its original primary session both close with an accepted same-Run/binding report, an operator can record Finding dispositions and explicitly queue an independent `EVALUATE_GATE` task. The task requires `finalize: true` and a trimmed, nonblank reason of at most 2,000 characters without NUL. The reason is retained in the Job and paired Audit/Outbox, without entering the Gate fact hash or overriding policy. Active, waiting, recovery-required, failed, cancelled and unreported closed sessions cannot use this exception; unbound legacy Runs keep their existing Gate contract.
 
@@ -14,7 +22,7 @@ The bilingual Web connects disposition history → explicit reason → durable t
 
 ## Current deployed baseline and access
 
-Production application source is merged main **`828225d`**, Host Harness Bridge build is **`95e92c5`**, and schema is **`0014_harness_operations`**. PR #10's result details, accepted test-source review, saved report access and reviewed new testing rounds are deployed. The original native sessions, data, artifacts and Codex OAuth remain persistent. [Result-review acceptance](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md) retains the local execution identities; [server operations](SERVER_OPERATIONS.md) owns current deployment details. The current increment above is not yet deployed.
+Read-only verified on 2026-10-19: production application source is merged main **`4d597d4`**, with PR #12 Web, PR #11 API/Worker, Host Harness Bridge **`95e92c5`** and schema **`0014_harness_operations`**. The original data, artifacts, native sessions, protected access configuration and Codex OAuth match the PR #12 delivery. Source-preparation diagnostics in this branch are not deployed. [The new acceptance record](SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md) distinguishes this read-only verification from local model/Web testing and earlier historical releases.
 
 The only supported Web access path is the configured allowlisted jump-host egress. Addresses and CIDRs stay in protected operator configuration. SSH remains for administration and manual recovery with forwarding disabled; no Web tunnel is retained. Routine deployments verify access-rule preservation and internal readiness; first activation or a changed access boundary requires additional connectivity checks. Earlier delivery sections below retain their then-current access facts and do not define the current policy.
 

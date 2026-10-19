@@ -1,6 +1,14 @@
 # HyperTest One 第一阶段验收
 
-## 本轮状态：CLOSED 后 Finding 处置与独立 Gate（ADR-014）
+## 本轮状态：源码准备失败诊断与关联重试
+
+2026-10-19 从已合并 PR #12 的 `4d597d4` 开发。生产只读核对符合交接，访问限制、旧业务数据和文件摘要保持；本轮没有合并或部署。新诊断属于 Operational State，不生成测试事实或改写固定输入。
+
+本地独立数据库和目录中，真实 390×844 Web 完成项目创建、PRD 文件导入、运行创建与启动，实际 Git fetch 失败后显示双语阶段/分类/操作建议；只修复本轮 Worker 的代理配置，再从原失败 Job 点击关联重试。真实 Codex → OFFICIAL Docker → VERIFIED Evidence → FINAL RELEASE_READY → 报告通过，**JUnit 37/37 PASS**；旧 FAILED Job 整行摘要和固定 Source/Policy 保留。最终 **808 项后端（含18项真实Docker）/104项Web、Ruff、Alembic head0014、typecheck/build** 通过，无迁移。具体输入、运行/Job/报告身份、前端后续局部对比度修正及未触发范围见[完整验收](SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md)。
+
+## 历史 PR #11 开发冻结：CLOSED 后 Finding 处置与独立 Gate（ADR-014）
+
+以下“尚未部署”等描述保留该次开发冻结身份；PR #11 和后续 PR #12 已分别合并部署，当前生产基线以本轮只读核对及上方新记录为准。
 
 [ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 已实现，**本地真实 Web / Codex / Docker 正反链与关闭后治理均已通过，应用功能尚未部署**。
 [完整验收](POST_SESSION_GATE_ACCEPTANCE.md) 区分实际模型、PostgreSQL边界回归与生产访问配置，不据此宣布全部白皮书目标完成。
@@ -26,7 +34,7 @@ previous decisions and the report's original reference. Gate-only work does not 
 rerun tests. Existing official failures still block release; verify repaired code in a new round.
 [完整双语操作指南](WEB_PRODUCT_WORKFLOW.md#会话关闭后的发现处置与门禁重评--post-session-disposition-and-gate-reassessment)。
 
-## 当前生产基线与访问策略
+## PR #11 开发冻结时的生产基线与现行访问策略
 
 生产应用已部署合并后的 **`828225d`**，Host Bridge 构建仍为 **`95e92c5`**，数据库为
 **`0014_harness_operations`**。这是 PR #10 后的业务基线，不是本分支 ADR-014 的部署声明。
