@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import re
 import shutil
@@ -46,15 +47,39 @@ def _repo_identity(value: str) -> str:
     if value.startswith("git@") and ":" in value:
         hostname, path = value[4:].split(":", 1)
         return f"{hostname.lower()}/{path}"
-    parsed = urlsplit(value)
-    if parsed.hostname:
-        return f"{parsed.hostname.lower()}/{parsed.path.lstrip('/')}"
-    return str(Path(value).resolve())
+    try:
+        parsed = urlsplit(value)
+        if parsed.hostname:
+            return f"{parsed.hostname.lower()}/{parsed.path.lstrip('/')}"
+    except ValueError:
+        raise SourceValidationError("repository origin is not a valid source identity") from None
+    try:
+        return str(Path(value).resolve())
+    except RuntimeError:
+        # Python 3.12 includes the raw path in symlink-loop RuntimeErrors.
+        # Preserve a filesystem failure without exposing repository metadata.
+        raise OSError(errno.ELOOP, "repository origin path cannot be resolved") from None
+    except ValueError:
+        raise SourceValidationError("repository origin is not a valid source identity") from None
+    except OSError as exc:
+        raise OSError(exc.errno, "repository origin path is unavailable") from None
+
+
+def _decode_git(value: bytes) -> str:
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError:
+        raise SourceValidationError("repository validation returned unsupported text encoding") from None
 
 
 async def git(source: Path, *args: str, output_limit: int = 8 * 1024 * 1024) -> bytes:
-    result = await run_process(["git", "-C", str(source), *args], cwd=source, timeout=30,
-                               output_limit=output_limit)
+    try:
+        result = await run_process(["git", "-C", str(source), *args], cwd=source, timeout=30,
+                                   output_limit=output_limit)
+    except OSError as exc:
+        raise OSError(exc.errno, "repository validation Git operation could not start") from None
+    except ValueError:
+        raise SourceValidationError("repository validation Git input is invalid") from None
     if result.exit_code != 0 or result.timed_out:
         raise SourceGitError(result)
     return result.stdout
@@ -62,20 +87,20 @@ async def git(source: Path, *args: str, output_limit: int = 8 * 1024 * 1024) -> 
 
 async def validate_checkout(source: Path, commit: str, repository_url: str, *,
                             include_files: bool = True, output_limit: int = 8 * 1024 * 1024) -> list[str]:
-    if (await git(source, "rev-parse", "--show-toplevel", output_limit=output_limit)).decode().strip() != str(source):
+    if _decode_git(await git(source, "rev-parse", "--show-toplevel", output_limit=output_limit)).strip() != str(source):
         raise SourceValidationError("workspace must be the repository root")
     if not re.fullmatch(r"[a-fA-F0-9]{40}|[a-fA-F0-9]{64}", commit):
         raise SourceValidationError("official source snapshot requires a full Git commit SHA")
-    if (await git(source, "rev-parse", "HEAD", output_limit=output_limit)).decode().strip() != commit.lower():
+    if _decode_git(await git(source, "rev-parse", "HEAD", output_limit=output_limit)).strip() != commit.lower():
         raise SourceValidationError("workspace HEAD differs from the canonical source snapshot")
     if (await git(source, "status", "--porcelain", "--untracked-files=no", output_limit=output_limit)).strip():
         raise SourceValidationError("tracked repository content must match the source snapshot")
-    remote = (await git(source, "remote", "get-url", "origin", output_limit=output_limit)).decode().strip()
+    remote = _decode_git(await git(source, "remote", "get-url", "origin", output_limit=output_limit)).strip()
     if _repo_identity(remote) != _repo_identity(repository_url):
         raise SourceValidationError("workspace origin differs from the canonical repository")
     if not include_files:
         return []
-    return [item.decode() for item in (await git(source, "ls-files", "-z", output_limit=output_limit)).split(b"\0") if item]
+    return [_decode_git(item) for item in (await git(source, "ls-files", "-z", output_limit=output_limit)).split(b"\0") if item]
 
 
 def copy_tracked_source(source: Path, target: Path, files: list[str]) -> None:

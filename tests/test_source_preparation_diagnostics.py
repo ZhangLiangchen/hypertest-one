@@ -323,6 +323,105 @@ async def test_unrelated_runtime_errors_are_not_disguised_as_source_diagnostics(
     assert not isinstance(failure.value, SourcePreparationError)
 
 
+async def test_loop_in_local_origin_metadata_is_a_safe_storage_failure(preparation, monkeypatch):
+    session, snapshot, tmp_path = preparation
+    existing = tmp_path / ".hypertest-checkouts" / str(snapshot.id) / "repo"
+    existing.mkdir(parents=True)
+    loop = tmp_path / SECRET
+    loop.symlink_to(loop)
+
+    async def process(command, **options):
+        assert options["output_limit"] == GIT_OUTPUT_LIMIT
+        arguments = command[3:]
+        if arguments == ["rev-parse", "--show-toplevel"]:
+            return ProcessResult(str(existing).encode(), b"", 0)
+        if arguments == ["rev-parse", "HEAD"]:
+            return ProcessResult(COMMIT.encode(), b"", 0)
+        if arguments[0] == "status":
+            return ProcessResult(b"", b"", 0)
+        assert arguments == ["remote", "get-url", "origin"]
+        return ProcessResult(str(loop).encode(), b"", 0)
+
+    monkeypatch.setattr(workspaces, "validate_checkout", runner_source.validate_checkout)
+    monkeypatch.setattr(runner_source, "run_process", process)
+    with pytest.raises(SourcePreparationError) as stopped:
+        await workspaces.prepare_workspace(session, uuid4())
+    assert stopped.value.diagnostic["stage"] == "validate_checkout"
+    assert stopped.value.diagnostic["category"] == "storage"
+    assert stopped.value.diagnostic["retryable"] is True
+    assert SECRET not in str(stopped.value) + json.dumps(stopped.value.diagnostic)
+    assert loop.is_symlink() and loop.readlink() == loop
+
+
+@pytest.mark.parametrize("origin", [
+    f"https://user:{SECRET}@github.com\uff0fexample/repo".encode(),
+    f"https://[{SECRET}".encode(),
+    f"local\0{SECRET}".encode(),
+    b"\xff" + SECRET.encode(),
+])
+async def test_malformed_origin_metadata_never_reaches_free_text_errors(preparation, monkeypatch, origin):
+    session, snapshot, tmp_path = preparation
+    existing = tmp_path / ".hypertest-checkouts" / str(snapshot.id) / "repo"
+    existing.mkdir(parents=True)
+
+    async def process(command, **_options):
+        arguments = command[3:]
+        if arguments == ["rev-parse", "--show-toplevel"]:
+            return ProcessResult(str(existing).encode(), b"", 0)
+        if arguments == ["rev-parse", "HEAD"]:
+            return ProcessResult(COMMIT.encode(), b"", 0)
+        if arguments[0] == "status":
+            return ProcessResult(b"", b"", 0)
+        assert arguments == ["remote", "get-url", "origin"]
+        return ProcessResult(origin, b"", 0)
+
+    monkeypatch.setattr(workspaces, "validate_checkout", runner_source.validate_checkout)
+    monkeypatch.setattr(runner_source, "run_process", process)
+    with pytest.raises(SourcePreparationError) as stopped:
+        await workspaces.prepare_workspace(session, uuid4())
+    assert stopped.value.diagnostic["stage"] == "validate_checkout"
+    assert stopped.value.diagnostic["category"] == "checkout_integrity"
+    assert SECRET not in str(stopped.value) + json.dumps(stopped.value.diagnostic)
+
+
+@pytest.mark.parametrize("arguments,output", [
+    (["rev-parse", "--show-toplevel"], b"\xff"),
+    (["rev-parse", "HEAD"], b"\xff"),
+    (["ls-files", "-z"], b"safe.py\0\xff"),
+])
+async def test_invalid_utf8_validation_metadata_has_safe_base_error(monkeypatch, tmp_path, arguments, output):
+    async def process(command, **_options):
+        current = command[3:]
+        if current == arguments:
+            return ProcessResult(output + SECRET.encode(), b"", 0)
+        if current == ["rev-parse", "--show-toplevel"]:
+            return ProcessResult(str(tmp_path).encode(), b"", 0)
+        if current == ["rev-parse", "HEAD"]:
+            return ProcessResult(COMMIT.encode(), b"", 0)
+        if current[0] == "status":
+            return ProcessResult(b"", b"", 0)
+        assert current == ["remote", "get-url", "origin"]
+        return ProcessResult(REPOSITORY.encode(), b"", 0)
+
+    monkeypatch.setattr(runner_source, "run_process", process)
+    with pytest.raises(SourceValidationError, match="unsupported text encoding") as stopped:
+        await runner_source.validate_checkout(tmp_path, COMMIT, REPOSITORY)
+    assert SECRET not in str(stopped.value)
+
+
+@pytest.mark.parametrize("error", [
+    OSError(errno.EACCES, SECRET, SECRET), ValueError(SECRET),
+])
+async def test_validation_git_spawn_errors_have_fixed_safe_text(monkeypatch, tmp_path, error):
+    async def process(*_args, **_options):
+        raise error
+
+    monkeypatch.setattr(runner_source, "run_process", process)
+    with pytest.raises((OSError, SourceValidationError)) as stopped:
+        await runner_source.git(tmp_path, "rev-parse", "HEAD")
+    assert SECRET not in str(stopped.value)
+
+
 async def test_validation_git_timeout_has_safe_typed_error(monkeypatch, tmp_path):
     async def process(*_args, **options):
         assert options["output_limit"] == GIT_OUTPUT_LIMIT
