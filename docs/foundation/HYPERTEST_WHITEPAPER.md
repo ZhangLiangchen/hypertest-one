@@ -8,7 +8,7 @@
 
 **架构角色：Autonomous Testing Control Plane**
 
-[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义本文的部署与工作流目标。已实现持久 Run Binding、宿主 Bridge、九个领域工具和受控 GitLab 集成，并提供 additive migrations `0013_run_bindings` / `0014_harness_operations`。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 正式容器切换与真实 Web / Codex / Docker 正反链路已验收；生产源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`。现有数据、Codex OAuth、`45.76.149.233/32` 白名单和 SSH 隧道均保留，具体身份、恢复经过及限制见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。真实 GitLab 提单、其他 Provider 和本轮后续 Web 改进仍须分别验收。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。
+[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义部署组件与任务执行边界。[ADR-014：会话关闭后的独立质量重评](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)将报告完成后的 Finding 处置与平台 Gate 治理区分于 Agent 工作。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。实现与真实集成结果见[第一阶段验收](../FIRST_PHASE_ACCEPTANCE.md)，不由设计目标推定全部完成。
 
 ---
 
@@ -405,6 +405,8 @@ Agent 可以完成初步 Root Cause Analysis，但正式 Finding 必须绑定 Ev
 
 Verdict 是 Testing Semantic Chain 的终点。Verdict 不应由 Agent 一句话决定，而应由 Policy + Coverage + Execution + Evidence + Finding 共同形成。
 
+测试报告完成、Agent 会话关闭后，测试事实与质量治理仍可持续：操作者可以审计处置 Finding，并明确请求 HyperTest 根据固定策略和已有可信事实独立重评。重评不重开 Agent、不产生新的执行事实；新结论追加历史，旧报告保留生成时引用的结论。关闭 Finding 不等于修复通过，失败正式执行仍阻止发布；验证修复须在新轮次取得可信事实。具体准入与幂等规则见 ADR-014 及领域模型。
+
 ---
 
 ## 19. BUGate 与 HyperTest 的关系
@@ -493,7 +495,7 @@ Artifacts:      shared persistent platform store; object storage when required
 Middleware:     containerized when justified by an actual dependency
 ```
 
-已有数据库卷、Artifact、工作区、原生认证与 SSH / VPN 边界需要在迁移中保全；容器删除不代表数据删除。各类常驻服务、宿主 Harness 和正式 Runner 分别配置容量与资源预算。现有开发 Compose 不是该生产目标的完整实现。
+已有数据库卷、Artifact、工作区、原生认证与受控访问边界需要在迁移中保全；容器删除不代表数据删除。各类常驻服务、宿主 Harness 和正式 Runner 分别配置容量与资源预算。现有开发 Compose 不是该生产目标的完整实现。
 
 ---
 

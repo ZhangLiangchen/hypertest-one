@@ -1,8 +1,16 @@
 # Web 工作台操作指南 / Web workbench guide
 
+当前生产应用基线为合并后的 `828225d`，Host Bridge 构建为 `95e92c5`，数据库为
+`0014_harness_operations`。本分支新增 ADR-014 的 CLOSED 后治理流程，**应用功能尚未部署，
+本地真实正反链路与 CLOSED 治理已验收**；结果登记在[会话关闭后 Gate 验收](POST_SESSION_GATE_ACCEPTANCE.md)。
+下方操作区分当前已部署能力与本分支新增入口；具体真实计数和验收限制以记录为准。
+
+Production runs application baseline `828225d`, Host Bridge `95e92c5` and schema `0014`.
+ADR-014 is implemented on this branch but is not deployed; real local success, diagnosis and CLOSED governance flows have passed.
+
 ## 结果复核与修复后复测 / Result review and retest
 
-本轮实现与隔离真实验收见[结果复核与新轮次验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。
+PR #10 的实现与隔离真实验收见[结果复核与新轮次验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。
 生产基线及是否已部署以[服务器操作交付](SERVER_OPERATIONS.md)为准。
 
 - 点击需求、风险或测试用例标题，查看完整说明、前置条件和预期结果，并沿关联按钮追溯。
@@ -22,9 +30,9 @@
   草稿，刷新页面不承诺恢复未提交内容。保存输入的前导U+FEFF、换行和空配置保留。
 - RECOVERY_REQUIRED 先核验原会话；恢复后通过原失败任务显式重试。源码准备阶段尚无
   Binding 的失败同样从原任务创建关联重试，不另建周期绕过历史。未知提交结果仍按原
-  请求标识核对。已关闭会话引导结果和新轮次，不显示“恢复后重试”。
-- Finding 后续处置不会改写旧 FINAL 或报告。当前持续会话关闭后不提供独立 Gate 重评估；
-  需验证修复时创建新轮次。此治理契约的后续扩展不在本轮默许放行。
+  请求标识核对。已关闭会话中的原执行任务不能恢复；独立 Gate 任务采用下节的治理与关联重试入口。
+- Finding 后续处置不会改写旧 FINAL 或报告。本分支按 ADR-014 提供 CLOSED 后独立 Gate 重评，
+  仅使用已有正式事实，不恢复模型会话；验证代码修复仍需创建新轮次。
 
 Open a requirement, risk, case or implementation to review the accepted testing asset and its links.
 Use **Read saved report** from Overview or a completed task. After a session ends, choose
@@ -33,13 +41,60 @@ confirm a new round. The full original policy is retained unless you explicitly 
 current trusted images are resolved again. Old runs and decisions remain in history. Input-load
 failure preserves the current draft, and retrying failed work keeps its original task lineage.
 
+## 会话关闭后的发现处置与门禁重评 / Post-session disposition and Gate reassessment
+
+此入口是本分支新增功能，尚未部署；[ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)
+和领域模型 §23.8 定义规则，真实验收进度以[专门记录](POST_SESSION_GATE_ACCEPTANCE.md)为准。
+
+1. 在“发现”中打开条目，先查看诊断、关联测试用例与可信 Evidence。选择合法下一状态，
+   填写必需的处置原因；进入 RESOLVED 还需选择解决方式。平台检查原 `row_version`，
+   并发冲突时刷新发现、核对状态后再决定，不会覆盖另一操作者的更新。
+2. 在同一抽屉查看“处置历史”：状态、解决方式、版本、时间和原因分别保留。
+   当前显示最近 50 条事件；更早记录或过长原因会明确提示截断。历史刷新失败会保留
+   已加载内容与当前处置草稿，不阻止继续核对发现。
+3. 仅当 Binding 与原主 AgentSession 均为 CLOSED、同 Run/Binding 已接受报告且没有
+   冲突中的活动工作时，使用概览、“发现”或“质量判定”中的“重新评估质量门禁”。
+   对话框说明此操作不会启动或恢复智能体、Bridge、Runner、Git 或新的正式执行。
+4. 填写非空“重评原因”，最长 2,000 字符，不能含 NUL；首尾空白去除后保存。
+   原因进入后台任务与 Audit/Outbox，不参与质量事实 hash，也不能覆盖策略。
+   关闭对话框或切换中英文保留同页草稿，刷新或离开页面不承诺保存未提交内容。
+5. 选择“提交重评任务”，查看已持久化 Job 的原因、状态及结果，用“打开已记录判定”
+   进入对应 Verdict。刷新或关闭页面不取消任务。提交结果不确定时按原幂等请求身份核对；
+   任务失败后使用“检查并重试门禁任务”，追加保留原 payload/reason 的关联重试。
+6. 概览显示最高序号的 FINAL / TEST_RUN 判定。正式状态变化会追加新 sequence；连续
+   相同状态复用最新匹配判定，每次请求仍保留独立原因、任务和结果审计。即使决策文字
+   仍为 RELEASE_BLOCKED，也可能因处置状态变化产生新判定。
+7. “持续会话与报告”展示原报告引用的 Verdict；其与最新正式结论不同时显示历史差异。
+   原报告内容、SHA、旧 FINAL 和关联证据保持完整，不会为重评重新调用模型生成报告。
+
+**关闭发现不代表代码已经修复。** 解决方式仅记录处理决定；已有正式 FAIL 不因 CLOSED、
+FIXED 或 RISK_ACCEPTED 而变为 PASS，重评仍会阻止发布。验证修复需选择“基于本次运行创建
+新轮次”，核对原输入、明确修复 SHA 后执行新的完整周期。ACTIVE、WAITING_INPUT、
+RECOVERY_REQUIRED、FAILED、CANCELLED，以及没有报告的 CLOSED 不适用此独立 Gate 例外。
+
+Open **Findings**, inspect the evidence, record a permitted disposition and its reason, then review
+**Disposition history**. For a reported CLOSED binding and its original CLOSED session, select
+**Reevaluate quality gate**, enter a nonblank reason of up to 2,000 characters, and choose
+**Save reevaluation task**. Inspect the durable task and open its recorded Verdict. Failed work uses
+**Review & retry gate task** with linked history; uncertain submissions retain their request identity.
+The same-page draft survives dismissal and language switching. History refresh errors retain loaded
+records and the form. Reassessment uses fixed policy and verified existing facts, calls no Agent or
+Runner, and keeps the session closed. The latest FINAL is the current formal decision; the original
+report retains its own Verdict and marks later decisions separately. Closing a Finding does not
+waive an official failure or prove a fix. Verify repaired code in a new reviewed testing round.
+
+API: `POST /api/v1/test-runs/{id}/jobs`，
+`{operation:"EVALUATE_GATE", idempotency_key, payload:{finalize:true, reason}}`；
+`GET /api/v1/findings/{id}/history?limit=50`（上限 100，返回 `events` 与 `truncated`）。
+没有 Binding 的旧运行继续使用其原有 Gate 兼容契约；已绑定运行不能用同步端点绕过准入。
+
 ## 历史等待输入功能的交付记录
 
 WAITING_INPUT 问题持久化、Web 回答及同一后台任务恢复已在本地和服务器通过真实模型 / Docker 验收，数据库迁移为 `0009_mission_inputs`。其 345 后端 / 31 Web 回归及检查、同 Job / Attempt / 原生 thread 恢复身份见[问答验收](WAITING_INPUT_ACCEPTANCE.md)。PR #6 已合并，服务器同步为 `a48bc96`；原真实执行身份仍为 `8e01ac5`，不改写成合并版本重新运行。见[合并部署记录](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/server-pr6-deployment-2026-10-18.md)。以下既有文件导入、测试链及 VPN/SSH 记录保留各自身份。
 
-## 两阶段版本与验收状态
+## 历史文件导入两阶段版本与验收状态
 
-阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212` 已部署，VPN公网 `http://155.138.206.106:8080` 的45.76.149.233/32双层白名单已激活，SSH隧道保留。本地9实际PRD文件/15UI检查、20前端回归及生产HTTP Project/Run/Job创建、导入编辑稿原文/hash均有实际证据。
+历史阶段1 `73dff989b87fa7349d9b36bd8416ece948a82212` 当时已部署，VPN 公网 `http://155.138.206.106:8080` 当时已激活精确来源的双层白名单，并保留 SSH 隧道。本地9实际PRD文件/15UI检查、20前端回归及生产HTTP Project/Run/Job创建、导入编辑稿原文/hash均有实际证据。
 
 生产首轮Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` 为BLOCKED：10Req/6Risk/8Case中2Case错误要求测试Runner内部功能，实际模型如实返回PARTIAL/6实现提案；平台拒绝并保留6条未接受Proposal，Canonical Implementation/Execution/Evidence/Verdict均0，不能称完整通过。
 
@@ -64,6 +119,7 @@ Choose **中文** or **English** in the upper-right corner. The browser remember
 7. **运行测试周期**：GitHub HTTPS 来源可选择“自动准备固定源码并运行”，一次持久任务完成检出、Agent Mission、Docker 执行及 Gate。其他来源选择 Worker 主机上的匹配 Git 检出；其 HEAD 和 `git remote get-url origin` 必须与本次输入一致。Worker 独立处理任务，关闭浏览器不会取消工作。环境绑定由创建时固定；受控profile仅Docker执行，正式执行不联网安装依赖。
 8. **查看结果**：后台任务显示状态、错误、周期步骤和重试历史。被拒绝的 Mission 也保留已完成步骤与关联身份；展开尝试记录可查看 Agent 摘要、未决事项和完整原始结果，不能将其当作正式事实。检出失败会在操作窗口显示错误与任务入口。通过任务详情可直达阶段、执行、证据、发现或质量判定。页面自动刷新数据，暂时读取失败会保留已加载内容和页签。
 9. **查看判定依据**：在“最新质量判定”中打开详情，再沿关联查看证据和问题发现。证据详情展示实际内容、采集来源与 SHA-256；失败运行可查看诊断结果。确认或解决 Finding 属于受控操作，需要填写原因，不能用“任务完成”代替质量结论。
+10. **报告后处置与重评（本分支）**：按上节记录 Finding 处置，再显式提交带原因的独立 Gate Job；查看新旧判定与原报告差异。该入口不重新执行测试。
 
 **仓库源地址与检出目录不同。** 创建 Run 时的 repository 应等于已有检出的 `git remote get-url origin`；不能将任意 checkout 目录冒充 origin。本地 Git 路径只有本身就是 origin 值时才适用。运行时填写的 workspace 则是 Worker 主机上干净且匹配固定提交的检出目录。浏览器本机路径不会上传源码。自动检出仅支持 URL 中不包含凭据的 GitHub HTTPS 仓库；私有仓库授权需预先配置在 Worker 主机。
 
@@ -85,9 +141,9 @@ ASGI服务只在Runner隔离容器内启动，固定 `127.0.0.1:8765`。Runner�
 
 The environment step selects an approved profile and freezes its actual image/dependency/launcher identity with the SourceSnapshot. For ASGI, enter only a Python module/attribute, local readiness path and bounded startup time. The platform starts the service; tests use the injected `HYPERTEST_BASE_URL` for real HTTP. That URL is container-local. Inspect execution identity, service evidence and the final Verdict. An unavailable image preserves the form draft and fails closed; neither the Web nor an Agent installs packages or silently replaces a bound environment.
 
-[规范与验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)区分自动化、真实模型和部署身份；本轮不改变服务器访问边界。
+[规范与验收](CONTROLLED_ENVIRONMENT_ACCEPTANCE.md)区分自动化、真实模型和部署身份；该历史环境增量未改变当时的服务器访问边界。
 
-## 文件导入与 HTTP 创建的本轮验收
+## 历史文件导入与 HTTP 创建验收
 
 原生 Chrome 已真实复现：已有需求草稿导入 `empty.txt` 后被空内容覆盖，进入下一步才出现 required 错误。[缺陷截图](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-empty-bug-2026-10-17.png)。这更新了此前“扩展禁止本地文件访问，只检查 chooser”的历史限制。修复后用真实系统选择器完成9文件/15检查全部通过，没有注入File/Input或修改Chrome文件访问权限。
 
@@ -151,22 +207,25 @@ API reference: `GET /api/v1/test-runs/{run_id}/input-requests`, `GET /api/v1/inp
 | 智能体已接收 / CONSUMED | 回答已用于恢复过程，不代表已产生正式测试事实 |
 | 已取消 / CANCELLED | 问题历史保留，不能再提交回答或据此重开任务 |
 
-## VPN 白名单入口与 SSH 备选
+## 白名单 Web 入口 / Allowlisted Web access
 
-用户已选择公网来源白名单加 SSH 备选，并已连接 VPN；现有 SSH 实际 TCP peer 已确认是 `45.76.149.233`。阶段1已启用入口为 `http://155.138.206.106:8080`；允许/拒绝HTTP与后续版本状态以[最新交付登记](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md)为准，不能从配置存在推断公网已可用。浏览器实际出口由服务端peer日志和真实HTTP请求确认。
+Web 唯一路径是经已配置跳板出口访问受限入口。先连接获准网络，再打开运维交付中的
+Web 地址；出口地址、CIDR 和连接资料只放在受保护配置中，不写入产品指南。
+实际服务监听、nginx 来源限制及宿主 / Docker 入口规则见[服务器运维](SERVER_OPERATIONS.md)。
+API、Web 后端和 PostgreSQL 不提供绕过入口的公网访问。
 
-阶段1仅在 `155.138.206.106:8080` 增加 nginx IPv4 监听，UFW 来源 `/32` 与 nginx peer allow/deny-all 同时限制为 `45.76.149.233`。不信任客户端伪造的 XFF/X-Real-IP；API8000、Web后端3000及PG5432保持 `127.0.0.1`。原 `127.0.0.1:8080` nginx/SSH 隧道不变。共享该 VPN 出口的客户端共享网络许可，此处没有引入应用登录或 RBAC。
+SSH 仅用于管理与人工恢复，已禁用转发；不再提供 Web SSH 隧道或本机回环备用入口。
+管理别名、密钥认证、主机校验及密码恢复访问按运维文档保留。共享获准出口仍属于网络许可，
+不等同于应用登录、个人身份或 RBAC。
 
-激活后须分别验证真实允许出口的 HTTP 页面/API/静态资源与创建操作、另一外部出口的拒绝（含伪造转发头）、Host/Origin限制、SSH/隧道保留及旧数据保全。尚未登记这些结果时，不称白名单交付完成；不以端口连接成功或单次 timeout 代替 HTTP/来源验收。
+常规发布检查现有白名单规则仍生效，并执行服务内部就绪检查；无需每轮重新请求用户连接
+VPN、使用手机或逐条探测外部网络。首次开放、监听或访问边界变更时，再专项验证允许与
+拒绝来源、Host/Origin 和转发头约束。前述及其他历史验收记录中的 SSH 隧道描述仅代表历史策略，
+不是当前访问操作。
 
-## SSH 隧道访问
-
-
-SSH备选通过 [http://127.0.0.1:8080](http://127.0.0.1:8080) 访问；该隧道随后保留为备选，后端和数据库继续回环绑定。需要重新建立隧道时，在本机终端执行并保持连接：
-
-```bash
-ssh -p 22 -N -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:8080:127.0.0.1:8080 root@155.138.206.106
-```
-
-The public endpoint policy allows only the confirmed VPN source IP at nginx and UFW. Stage 1 activation and HTTP acceptance are recorded; subsequent release and model results remain tied to their exact identities in the latest delivery record. The original SSH tunnel stays available as a fallback. API, Web backend and PostgreSQL remain loopback-bound.
+The only Web path uses the configured allowlisted jump-host egress. Connect to the approved network
+and use the Web address from the protected operator handoff. SSH remains for administration and
+manual recovery, with forwarding disabled; no Web tunnel or loopback fallback is supported.
+Routine deployments verify the access rules and internal readiness. Separate allowed/denied-source
+connectivity checks are required for initial activation or changes to the access boundary, rather
+than every ordinary release. Shared-egress permission does not provide individual login or RBAC.

@@ -21,6 +21,15 @@ fi
 case "$deployment_mode" in
     container-v1)
         readlink -f /opt/hypertest/container-current
+        operations_root=/opt/hypertest/container-current
+        if [ -e /opt/hypertest/ops-current ] || [ -L /opt/hypertest/ops-current ]; then
+            operations_root=/opt/hypertest/ops-current
+            if [ ! -d "$operations_root" ] || [ ! -f "$operations_root/ops/container/readiness.py" ]; then
+                printf 'Configured HyperTest operations release is incomplete.\n' >&2
+                exit 1
+            fi
+            readlink -f "$operations_root"
+        fi
         for service in hypertest-container-stack hypertest-harness-bridge; do
             systemctl is-active --quiet "$service"
             printf '%s: active\n' "$service"
@@ -32,7 +41,7 @@ case "$deployment_mode" in
                 exit 1
             fi
         done
-        python3 /opt/hypertest/container-current/ops/container/readiness.py \
+        python3 "$operations_root/ops/container/readiness.py" \
             --env /etc/hypertest/container/compose.env
         printf 'Remote container platform health checks passed.\n'
         exit 0

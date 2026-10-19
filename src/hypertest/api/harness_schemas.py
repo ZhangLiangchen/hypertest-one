@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hypertest.api.schemas import ORMModel
 from hypertest.domain.bindings import BindingStatus
+from hypertest.domain.enums import VerdictDecision
 
 
 class BindingRead(ORMModel):
@@ -35,6 +36,8 @@ class ReportRead(ORMModel):
     durable_job_id: UUID
     content_sha256: str
     created_at: datetime
+    verdict_key: str | None = None
+    verdict_decision: VerdictDecision | None = None
 
 
 class IssueOperationRead(BaseModel):

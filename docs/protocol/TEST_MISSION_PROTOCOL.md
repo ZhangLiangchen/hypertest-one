@@ -8,7 +8,7 @@
 **Accepted target decision:** [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
 **Implementation boundary:** 已实现 v1alpha2 持续会话 profile、Host Bridge 与九个领域工具；旧 v1alpha1 保留原语义，2026-10-19 正式容器化及 Codex 正反链路已验收，各 Provider / 外部集成仍分别登记。
 
-已包含 `0013_run_bindings` / `0014_harness_operations`；本地真实实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。生产源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`。正式真实正向链经两次问答及 Web 显式恢复形成 `RELEASE_READY` 报告，负向完整形成产品缺陷诊断与 `RELEASE_BLOCKED` 报告；原数据、Codex OAuth、`45.76.149.233/32` 白名单和 SSH 隧道保留，精确版本与恢复边界见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。受控 GitLab 实现已做注入 transport 回归，真实提单、其他 Provider 及后续 Web 改进仍须独立验收；该状态更新不改变 TMP wire contract 或旧 Run 语义。
+已包含 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)，正式切换与恢复历史见[部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。后续 PR #10 已部署源码 `828225d`，兼容 Host Bridge 保留 `95e92c5`，schema 仍为0014；当前访问配置只在[运维材料](../SERVER_OPERATIONS.md)维护。[ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)的关闭后治理属于平台操作者接口，不扩展已关闭 Agent 的工具权限，也不改 TMP wire/profile 版本。真实 GitLab 提单及其他 Provider 仍须独立验收。
 
 ---
 
@@ -916,6 +916,12 @@ TMP 明确区分 Agent Identity、User Identity、HyperTest Service Identity、R
 Agent Session 不拥有项目全局管理员权限。
 
 ---
+
+### 38.1 会话关闭后的平台操作者请求
+
+ADR-014 的独立 Gate 不是 Agent `evaluate_gate` 工具调用。Agent 的工具仍要求运行中 Binding/epoch/Job claim；CLOSED Session 不能取得新工具 token、resume 或提交报告。可信平台只在领域模型 §23.8 的 CLOSED 主 Session/Binding、已接受报告、排他 Job 和有效 lease 条件下处理用户显式 EVALUATE_GATE/finalize=true，并保存必填 reason。
+
+该操作不创建 Agent turn、Runner 请求或 Evidence，不改变主会话状态、预算、报告 envelope 或旧 Verdict。请求理由和任务关联属于 Operational 审计，不加入 TMP AgentContext 或 Gate Canonical hash。失败/取消/显式重试只影响对应 Gate Job。报告接口新增的 nullable 原 verdict 引用仅投影既有 envelope；旧报告内容及 SHA 不变。
 
 ## 39. Audit
 

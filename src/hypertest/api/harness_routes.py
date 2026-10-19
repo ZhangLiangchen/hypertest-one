@@ -14,10 +14,23 @@ from hypertest.application.bindings import get_run_binding
 from hypertest.application.services import ConflictError, NotFoundError, get_test_run
 from hypertest.db.session import get_db
 from hypertest.domain.bindings import BindingStatus, RunExecutionBinding
+from hypertest.domain.enums import VerdictDecision
 from hypertest.domain.harness import GitLabIssueOperation, RunHarnessState, RunReport
 from hypertest.runner.artifacts import artifact_root
 
 router = APIRouter()
+
+
+def _report_read(item: RunReport) -> ReportRead:
+    """Expose only the report's original decision reference, never its full envelope."""
+    key, decision = item.envelope.get("verdict_key"), item.envelope.get("verdict_decision")
+    if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9:_-]{1,64}", key):
+        key = None
+    try:
+        decision = VerdictDecision(decision)
+    except (ValueError, TypeError):
+        decision = None
+    return ReportRead.model_validate(item).model_copy(update={"verdict_key": key, "verdict_decision": decision})
 
 
 def _issue_url(value: str | None) -> str | None:
@@ -46,7 +59,7 @@ async def read_run_harness(run_id: UUID, db: AsyncSession = Depends(get_db)):
         issues = [{"id": item.id, "finding_id": item.finding_id, "status": item.status,
                    "issue_iid": item.issue_iid, "issue_url": _issue_url(item.issue_url),
                    "created_at": item.created_at, "updated_at": item.updated_at} for item in operations]
-        return {"binding": binding, "state": state, "reports": reports, "issues": issues}
+        return {"binding": binding, "state": state, "reports": [_report_read(item) for item in reports], "issues": issues}
     except RuntimeError as exc:
         raise _http_error(exc) from exc
 
@@ -55,8 +68,8 @@ async def read_run_harness(run_id: UUID, db: AsyncSession = Depends(get_db)):
 async def read_reports(run_id: UUID, db: AsyncSession = Depends(get_db)):
     try:
         await get_test_run(db, run_id)
-        return list(await db.scalars(select(RunReport).where(RunReport.test_run_id == run_id)
-                                    .order_by(RunReport.created_at.desc(), RunReport.id.desc())))
+        return [_report_read(item) for item in await db.scalars(select(RunReport).where(RunReport.test_run_id == run_id)
+                                    .order_by(RunReport.created_at.desc(), RunReport.id.desc()))]
     except RuntimeError as exc:
         raise _http_error(exc) from exc
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify local topology and capabilities without starting a testing Run.
 
-Capability requests use the real Worker operational queue. External VPN allow/
-deny probes and application-data preservation are separate acceptance evidence.
+Capability requests use the real Worker operational queue. Routine releases check
+the configured ingress policy without repeating external connectivity acceptance.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 from network_guard import guard
-from stack import compose_command, read_env, validate
+from stack import compose_command, read_env, render_nginx, validate
 from start import verify_daemon
 
 
@@ -28,13 +28,31 @@ def require(condition: bool, label: str) -> None:
         raise ValueError(label)
 
 
+def check_http(values: dict[str, str]) -> None:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    for role in ("API", "WEB", "INGRESS"):
+        suffix = "/" if role == "WEB" else "/api/v1/health"
+        with opener.open(f"http://127.0.0.1:{values['HYPERTEST_' + role + '_PORT']}{suffix}", timeout=10) as response:
+            require(response.status == 200, f"{role} HTTP failed")
+            if role != "WEB":
+                require(json.load(response).get("status") == "ok", f"{role} health response failed")
+    # The production loopback nginx listener intentionally serves health only.
+    api = f"http://127.0.0.1:{values['HYPERTEST_API_PORT']}"
+    with opener.open(api + "/api/v1/capabilities", timeout=30) as response:
+        capability = json.load(response)
+    require(capability.get("harness_bridge") == "READY", "Worker did not confirm Bridge capability")
+    require("docker" in capability.get("runner_backends", []), "Worker did not confirm Docker Runner")
+    require(capability.get("worker", {}).get("available") is True, "Worker heartbeat unavailable")
+
+
 def check(env: Path, bridge_service: str) -> dict:
     values = read_env(env)
     validate(values, live=True)
+    require(Path(values["HYPERTEST_NGINX_CONFIG"]).read_text() == render_nginx(values),
+            "nginx configuration differs from the protected ingress policy")
     verify_daemon()
     network = guard(values)
     require(bool(re.fullmatch(r"hypertest-[a-zA-Z0-9_.-]{1,100}", bridge_service)), "invalid Bridge unit")
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     checks, identities = [], {}
     for role in ("api", "worker", "web", "postgres", "nginx"):
         containers = output(compose_command(env, "ps", "-q", role)).splitlines()
@@ -58,6 +76,10 @@ def check(env: Path, bridge_service: str) -> dict:
                 require(bool(ports) and all(item["HostIp"] == "127.0.0.1" for entries in ports.values() for item in entries), f"{role} published beyond loopback")
             if role == "nginx":
                 require(inspect(".HostConfig.NetworkMode") == "host" and not inspect(".HostConfig.PortBindings"), "nginx unexpectedly uses Docker port publishing")
+                configs = [mount for mount in mounts if mount["Destination"] == "/etc/nginx/nginx.conf"]
+                require(len(configs) == 1 and configs[0]["Type"] == "bind" and configs[0].get("RW") is False
+                        and Path(configs[0]["Source"]).resolve() == Path(values["HYPERTEST_NGINX_CONFIG"]).resolve(),
+                        "nginx is not mounting the checked protected configuration read-only")
             if role in {"api", "web"}:
                 paths = " ".join(item["Source"] + " " + item["Destination"] for item in mounts)
                 require(not any(token in paths for token in ("docker.sock", ".codex", ".claude", "bridge-execution", "bridge-management", "hypertest-gitlab")), f"{role} has a privileged mount")
@@ -70,18 +92,10 @@ def check(env: Path, bridge_service: str) -> dict:
                 volumes = [mount["Name"] for mount in mounts if mount["Type"] == "volume"]
                 require(volumes == [values["HYPERTEST_POSTGRES_VOLUME"]], "PostgreSQL volume identity mismatch")
         checks.append(f"{role}: {len(containers)} healthy; identity, runtime permissions and mounts checked")
-    for role in ("API", "WEB", "INGRESS"):
-        suffix = "/api/v1/health" if role == "API" else "/"
-        with opener.open(f"http://127.0.0.1:{values['HYPERTEST_' + role + '_PORT']}{suffix}", timeout=10) as response:
-            require(response.status == 200, f"{role} HTTP failed")
-    ingress = f"http://127.0.0.1:{values['HYPERTEST_INGRESS_PORT']}"
-    with opener.open(ingress + "/api/v1/capabilities", timeout=30) as response:
-        capability = json.load(response)
-    require(capability.get("harness_bridge") == "READY", "Worker did not confirm Bridge capability")
-    require("docker" in capability.get("runner_backends", []), "Worker did not confirm Docker Runner")
-    require(capability.get("worker", {}).get("available") is True, "Worker heartbeat unavailable")
+    check_http(values)
     require(output(["systemctl", "is-active", bridge_service]) == "active", "Bridge service inactive")
-    checks.extend(["loopback API/Web/nginx: HTTP 200", "Worker confirmed Bridge and Docker", "Bridge systemd: active"])
+    checks.extend(["loopback API/Web and nginx health: HTTP 200", "protected nginx ingress policy matches",
+                   "Worker confirmed Bridge and Docker", "Bridge systemd: active"])
     return {"ready": True, "checks": checks, "images": identities, "network": network,
             "external_vpn_boundary_verified": False, "existing_application_data_verified": False,
             "real_testing_cycle_verified": False}

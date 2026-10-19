@@ -8,13 +8,14 @@ import type { BackgroundJob, Evidence, Finding, RunHarness, TestExecution, Verdi
 
 type Dataset<T> = { data: T[] | undefined; isLoading: boolean; error: unknown; refetch: () => unknown };
 
-export function RunOverview({ verdicts, executions, evidence, findings, jobs, harness, navigate, openVerdict, openEvidence, openExecution, openFinding, openTask }: {
+export function RunOverview({ verdicts, executions, evidence, findings, jobs, harness, navigate, openVerdict, openEvidence, openExecution, openFinding, openTask, reevaluateGate, reevaluationDisabled, reevaluationRetry }: {
   verdicts: Dataset<Verdict>; executions: Dataset<TestExecution>; evidence: Dataset<Evidence>;
   findings: Dataset<Finding>; jobs: Dataset<BackgroundJob>;
   harness?: { data: RunHarness | undefined; isLoading: boolean; error: unknown; refetch: () => unknown };
   navigate: (section: string) => void; openVerdict: (item: Verdict) => void;
   openEvidence: (item: Evidence) => void; openExecution: (item: TestExecution) => void;
   openFinding: (item: Finding) => void; openTask: (id: string) => void;
+  reevaluateGate?: () => void; reevaluationDisabled?: boolean; reevaluationRetry?: boolean;
 }) {
   const { t, label, locale, formatDate, verdictReason } = useI18n();
   const latest = latestRunVerdict(verdicts.data);
@@ -34,7 +35,7 @@ export function RunOverview({ verdicts, executions, evidence, findings, jobs, ha
           <div className="decision-title">{tone === "success" ? <CheckCircleOutlined aria-hidden /> : tone === "danger" || tone === "warning" ? <ExclamationCircleOutlined aria-hidden /> : <ClockCircleOutlined aria-hidden />}<h3>{latest ? label(latest.decision) : verdicts.error ? t("Verdict unavailable", "暂无法读取判定") : t("Awaiting a quality verdict", "等待质量判定")}</h3></div>
           {latest && <Tag>{label(latest.status)}</Tag>}
           <p className="decision-reason">{latest ? verdictReason(latest.reason) : t("After official execution, the quality gate checks coverage, trusted evidence and findings to record a decision.", "正式执行后，质量门禁将核对覆盖情况、可信证据和问题发现，并记录结论。")}</p>
-          <div className="panel-bottom"><span>{latest ? formatDate(latest.created_at) : t("Task completion does not mean tests passed.", "任务完成不代表测试通过。")}</span><Button onClick={() => latest ? openVerdict(latest) : navigate("verdicts")}>{t("View rationale", "查看判定依据")} <ArrowRightOutlined aria-hidden /></Button></div>
+          <div className="panel-bottom"><span>{latest ? formatDate(latest.created_at) : t("Task completion does not mean tests passed.", "任务完成不代表测试通过。")}</span><Space wrap><Button onClick={() => latest ? openVerdict(latest) : navigate("verdicts")}>{t("View rationale", "查看判定依据")} <ArrowRightOutlined aria-hidden /></Button>{reevaluateGate && <Button disabled={reevaluationDisabled} onClick={reevaluateGate}>{reevaluationRetry ? t("Review & retry gate task", "检查并重试门禁任务") : t("Reevaluate quality gate", "重新评估质量门禁")}</Button>}</Space></div>
           {harness && <div style={{ marginTop: 16 }}><Button onClick={() => navigate("harness")}>{reports?.length ? t(`Read saved report (${reports.length})`, `阅读已保存报告（${reports.length}）`) : harness.error ? t("Check report availability", "检查报告是否可用") : harness.isLoading ? t("Checking reports", "正在检查报告") : t("Session & report status", "会话与报告状态")}</Button><p className="table-footnote">{reports?.length ? t("The report summarizes accepted records; the verdict above remains the quality decision.", "报告汇总已接受记录；质量结论仍以上方判定为准。") : t("A saved report appears here after the agent submits it. A quality verdict may be recorded before the report is ready.", "智能体提交报告后，可从此处查看。质量判定可能先于报告生成。")}</p></div>}
         </>}
       </section>

@@ -24,6 +24,7 @@ from hypertest.domain.enums import (
     MissionAttemptStatus,
     MissionStatus,
     TestRunStatus,
+    VerdictDecision,
 )
 from hypertest.domain.jobs import (
     ACTIVE_JOB_STATUSES,
@@ -64,18 +65,30 @@ class FencedAsyncSession(AsyncSession):
                 RunExecutionBinding.id, RunExecutionBinding.binding_epoch, RunExecutionBinding.status,
             ).where(RunExecutionBinding.test_run_id == self.test_run_id).with_for_update())).one_or_none()
             expected_id = getattr(self, "binding_id", None)
+            closed_gate_only = getattr(self, "closed_gate_only", False)
+            allowed_binding_statuses = ({BindingStatus.CLOSED} if closed_gate_only else {
+                BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT})
             if expected_id is not None and (binding is None or binding[0] != expected_id
-                    or binding[1] != self.binding_epoch or binding[2] not in {
-                        BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT}):
+                    or binding[1] != self.binding_epoch or binding[2] not in allowed_binding_statuses):
                 await self.rollback()
                 raise JobLeaseLost("persistent run binding was revoked or recovered by another owner")
             row = (await self.execute(select(
                 DurableJob.status, DurableJob.lease_token, DurableJob.lease_expires_at,
+                DurableJob.job_type, DurableJob.payload, DurableJob.test_run_id,
             ).where(DurableJob.id == self.job_id).with_for_update())).one_or_none()
             now = await self.scalar(select(func.clock_timestamp()))
-        if row is None or row[0] is not JobStatus.RUNNING or row[1] != self.lease_token or row[2] is None or row[2] <= now:
+        if (row is None or row[0] is not JobStatus.RUNNING or row[1] != self.lease_token
+                or row[2] is None or row[2] <= now or row[5] != self.test_run_id):
             await self.rollback()
             raise JobLeaseLost("job lease expired, was cancelled, or belongs to another worker")
+        if closed_gate_only:
+            from hypertest.application.gate_governance import assert_closed_gate_binding
+
+            if row[3] is not JobType.EVALUATE_GATE or binding is None or expected_id is None:
+                await self.rollback()
+                raise JobLeaseLost("closed binding authorization is limited to Gate-only work")
+            await assert_closed_gate_binding(self, await self.get(RunExecutionBinding, binding[0]),
+                finalize=row[4].get("finalize", True), reason=row[4].get("reason"))
 
     async def commit(self) -> None:
         await self._check_lease()
@@ -92,6 +105,21 @@ async def _event(session: AsyncSession, job: DurableJob, action: str) -> None:
     payload = {"job_id": str(job.id), "job_type": job.job_type.value,
                "status": job.status.value, "test_run_id": str(job.test_run_id),
                "error_code": job.error_code}
+    if job.job_type is JobType.EVALUATE_GATE and job.payload.get("reason"):
+        # Operator intent is audit metadata, never a Gate fact or decision input.
+        payload["request_reason"] = job.payload["reason"]
+    if job.job_type is JobType.EVALUATE_GATE and job.status is JobStatus.SUCCEEDED:
+        result = job.result or {}
+        try:
+            verdict_id = str(UUID(result["verdict_id"]))
+            key, sequence = result["verdict_key"], result["sequence_no"]
+            decision = VerdictDecision(result["decision"]).value
+            if not isinstance(key, str) or not 1 <= len(key) <= 64 or type(sequence) is not int or sequence < 1:
+                raise ValueError("unsupported Gate result reference")
+        except (KeyError, ValueError, TypeError):
+            pass
+        else:
+            payload.update(verdict_id=verdict_id, verdict_key=key, decision=decision, sequence_no=sequence)
     session.add_all([
         AuditEvent(project_id=job.project_id, test_run_id=job.test_run_id,
                    actor_type="SYSTEM", actor_ref=job.worker_id, action=action,
@@ -162,9 +190,13 @@ async def submit_job(
 
     binding = await get_run_binding(session, run_id, lock=True)
     if binding is not None:
-        if job_type is not JobType.ADVANCE_RUN or payload.get("execution_profile") != "run-persistent-harness/v1":
+        if job_type is JobType.EVALUATE_GATE:
+            from hypertest.application.gate_governance import assert_closed_gate_binding
+
+            await assert_closed_gate_binding(session, binding, finalize=payload["finalize"], reason=payload["reason"])
+        elif job_type is not JobType.ADVANCE_RUN or payload.get("execution_profile") != "run-persistent-harness/v1":
             raise ConflictError("persistent runs must continue through their original Harness profile")
-        if binding.status is not BindingStatus.ACTIVE:
+        elif binding.status is not BindingStatus.ACTIVE:
             raise ConflictError("run binding requires explicit recovery or a new testing round")
     if (job_type is JobType.EXECUTE_MISSION) != (mission_id is not None):
         raise ConflictError("EXECUTE_MISSION requires exactly one mission reference")
@@ -218,10 +250,11 @@ async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: flo
         raise ValueError("worker identity and positive lease duration required")
     # Lock the aggregate before the queue row. Audit inserts reference TestRun,
     # so a Job-first claim can deadlock with Run-first cancellation via FK locks.
-    from sqlalchemy import or_
+    from sqlalchemy import and_, exists, or_
 
     from hypertest.config import get_settings
     from hypertest.domain.bindings import BindingStatus, RunExecutionBinding
+    from hypertest.domain.harness import RunReport
 
     run = await session.scalar(select(TestRun).join(
         DurableJob, DurableJob.test_run_id == TestRun.id,
@@ -229,7 +262,15 @@ async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: flo
         .where(DurableJob.status == JobStatus.QUEUED,
                or_(RunExecutionBinding.id.is_(None),
                    (RunExecutionBinding.harness_host_id == get_settings().bridge_host_id)
-                   & RunExecutionBinding.status.in_([BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT])))
+                   & RunExecutionBinding.status.in_([BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT]),
+                   and_(DurableJob.job_type == JobType.EVALUATE_GATE,
+                        RunExecutionBinding.status == BindingStatus.CLOSED,
+                        exists(select(RunReport.id).where(RunReport.binding_id == RunExecutionBinding.id,
+                            RunReport.test_run_id == TestRun.id)),
+                        exists(select(AgentSessionRecord.id).where(
+                            AgentSessionRecord.id == RunExecutionBinding.primary_agent_session_id,
+                            AgentSessionRecord.test_run_id == TestRun.id,
+                            AgentSessionRecord.status == AgentSessionStatus.CLOSED)))))
         .order_by(DurableJob.created_at, DurableJob.id)
         .with_for_update(of=TestRun, skip_locked=True).limit(1))
     if run is None:
@@ -286,6 +327,10 @@ async def _lock_job(session: AsyncSession, job_id: UUID) -> DurableJob:
 
 
 async def _recover_work(session: AsyncSession, job: DurableJob, *, cancelled: bool, error_code: str, message: str) -> None:
+    if job.job_type is JobType.EVALUATE_GATE:
+        # Gate governance owns no executable work. Its failure must not alter the
+        # reported cycle's Run lifecycle, Session, questions or formal facts.
+        return
     now = await _now(session)
     from hypertest.application.bindings import (
         get_run_binding,
@@ -486,6 +531,9 @@ async def recover_expired_jobs(session: AsyncSession) -> list[DurableJob]:
 
 
 async def cleanup_job_resources(session: AsyncSession, job: DurableJob, *, on_worker: bool = False) -> dict[str, Any]:
+    if job.job_type is JobType.EVALUATE_GATE:
+        # A Gate-only operation owns no Provider, Runner or workspace resources.
+        return {"external_resources": "not_applicable"}
     from hypertest.config import get_settings
 
     if get_settings().execution_mode == "queued" and not on_worker:

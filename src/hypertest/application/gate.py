@@ -370,16 +370,17 @@ async def evaluate_gate(
         select(Verdict)
         .where(
             Verdict.test_run_id == run.id,
-            Verdict.policy_snapshot_id == policy_snapshot.id,
-            Verdict.state_snapshot_hash == state_hash,
-            Verdict.decision == decision,
-            Verdict.evidence_manifest_sha256 == manifest_hash,
             Verdict.status == verdict_status,
             Verdict.scope == VerdictScope.TEST_RUN,
         )
         .order_by(Verdict.sequence_no.desc())
+        .limit(1)
     )
-    if existing is not None:
+    # Reuse only the latest decision for this scope. Returning to a prior semantic
+    # state is a new evaluation, not permission to rewind current_verdict history.
+    if (existing is not None and existing.policy_snapshot_id == policy_snapshot.id
+            and existing.state_snapshot_hash == state_hash and existing.decision == decision
+            and existing.evidence_manifest_sha256 == manifest_hash):
         if finalize and run.current_verdict_id != existing.id:
             run.current_verdict_id = existing.id
             run.row_version += 1

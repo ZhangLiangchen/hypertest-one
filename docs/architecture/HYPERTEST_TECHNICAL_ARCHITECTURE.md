@@ -8,7 +8,7 @@
 
 **Architecture Role:** Autonomous Testing Control Plane
 
-v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成已有实现，新增 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 生产容器切换及真实正反链路已验收：源码入口为 `f415fd0`，API / Worker / Bridge 运行构建来源为 `95e92c5`，数据库为 `0014_harness_operations`，原数据、Codex OAuth、VPN 白名单及 SSH 隧道保留。完整结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)；真实 GitLab 提单、其他 Provider 及后续 Web 改进不由该结果推定完成。标注“当前 v0.3”的段落记录当时的兼容路径，不描述当前生产拓扑；部署现状以[服务器运维文档](../SERVER_OPERATIONS.md)与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
+v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成已有实现，新增 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 生产容器切换及真实正反链路已验收：该次源码入口为 `f415fd0`，运行构建来源为 `95e92c5`；PR #10 后已更新至 `828225d` API/Worker/Web，兼容 Bridge 保留 `95e92c5`、schema0014。现有数据和 OAuth 保留，访问策略以运维材料的最新决定为准。完整结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)；真实 GitLab 提单、其他 Provider 及后续 Web 改进不由该结果推定完成。标注“当前 v0.3”的段落记录当时的兼容路径，不描述当前生产拓扑；部署现状以[服务器运维文档](../SERVER_OPERATIONS.md)与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
 
 ---
 
@@ -668,7 +668,7 @@ Linux Host
 
 所有平台服务和平台 Task Worker 容器化。一个 Run 只绑定一个逻辑 Task Worker 和一个持续主 Session；上图的 A/B 是两个独立任务，不是同一 Run 的多个执行分支。物理容器可回收或经显式恢复替换，但不得改变绑定、原生会话、Workspace 和宿主身份。Agent Gateway / Runner Controller 可先作为 Worker 内模块；只有存在明确需求才拆成独立服务。
 
-数据库不暴露公网；API、Web 和内部服务仅在私有网络或受控回环入口通信。Nginx 保留现有 VPN 来源白名单与 SSH 备用路径。Docker 发布端口与宿主防火墙的处理路径必须专项核验，不能仅凭原 UFW 规则推断容器入口仍受限制；保留拒绝非白名单来源的实际探测证据。已有密码登录和 `ssh hypertest-one` 密钥别名继续保留，自动运维按 [Remote operations](../../AGENTS.md#remote-operations) 使用统一密钥连接。
+数据库不暴露公网；API、Web 和内部服务仅在私有网络或受控回环入口通信。用户 Web 仅通过受保护部署配置声明的单一跳板出口白名单进入；SSH 只保留运维登录，禁用 TCP/StreamLocal/Tunnel 转发。nginx 回环入口仅提供 GET/HEAD 健康检查，其余 Web/API 请求拒绝，内部组件仍使用受控直连。首次启用、访问策略变化或故障时核验 Docker/宿主防火墙路径并保留允许/拒绝证据；常规部署检查白名单与内部 readiness，不重复要求用户进行完整外部连接矩阵。已有密码登录和 `ssh hypertest-one` 密钥别名继续保留，自动运维按 [Remote operations](../../AGENTS.md#remote-operations) 使用统一密钥连接。
 
 ### 38.1 生产配置与调用边界
 
@@ -689,6 +689,12 @@ Linux Host
 
 ---
 
+### 38.3 报告后的平台治理 Worker
+
+[ADR-014](ADR-014_POST_SESSION_GATE_REASSESSMENT.md)允许已正常 CLOSED 且有已接受报告的 Run 提交独立 Gate Job。Worker 使用专用 CLOSED-only fence 验证原 Binding/epoch、primary Session、操作和有效租约，不取得 Harness 执行授权。无需 Bridge、Provider、Git、Runner 或能力探测；即使取消、失败和租约过期，也不执行这些组件的资源清理。
+
+Finding 继续通过审计状态机由操作者处置；重评理由、durable Job、返回的新或复用 Verdict 形成可追溯治理记录。质量算法与可信事实规则保持不变，旧 FINAL 和报告保留，不能以重开会话或新 Run 通过更新旧事实。具体字段、准入、锁序及历史规则以领域模型 §19/§23.8 为准，平台与 Agent 权限分离以 TMP §38.1 为准。
+
 ## 39. 并发与多节点演进
 
 扩容单元是独立 TestRun。每个 SUT Project 可以有多个 feat / MR SHA 的 Run，同一 SHA 的显式复测也独立记录；各 Run 分别使用一个逻辑 Worker、一个持续主 Session 和隔离 Workspace。首版在同一宿主机增加 Task Worker 实例，受 Harness Provider/账号配额、CPU/内存和 Runner 容量共同限制。
@@ -707,7 +713,7 @@ v0.3 历史兼容路径已有 CodexAdapter、Python/pytest、DockerRunner、受�
 
 | 领域 | v0.3 历史兼容路径（非当前生产拓扑） | 当前实现与验收边界 |
 |---|---|---|
-| 平台部署 | `0a2af9c` / `0012`，宿主 Nginx 与 systemd Web/API/Worker + Docker PostgreSQL | 正式五容器 Compose + 宿主 Bridge 已切换；源码 `f415fd0` / 运行构建 `95e92c5` / schema `0014`，数据 / OAuth / SSH / VPN 保全已验收 |
+| 平台部署 | `0a2af9c` / `0012`，宿主 Nginx 与 systemd Web/API/Worker + Docker PostgreSQL | 正式五容器 Compose + 宿主 Bridge 已切换；当前业务 `828225d`、宿主 Bridge `95e92c5`、schema `0014`。原 ADR-013 验收保留其 `f415fd0` / `95e92c5` 历史身份。运维版本、白名单 Web 与仅管理 SSH 的现行边界见 §38 及服务器操作记录 |
 | Harness 调用 | Worker 直接运行 Codex CLI | 已实现宿主 Bridge + 受限 UDS，认证与原生会话留宿主；本地及正式容器 Worker 的真实 Codex 链路已运行 |
 | 调度与会话 | PostgreSQL Job；逐 Mission 创建/关闭 Session；bounded controller 推进 | `0013` / `0014` 支撑稳定 Binding、主 Session 与运行账本；正式正向经 Web 显式恢复后完成报告，负向在运行补丁下完整完成 |
 | 人工交互 | 阶段内持久 WAITING_INPUT、Web 回答和原 Attempt/Session resume | Mission / Run 两类问答已实现并真实消费回答，原 Job / Session / epoch 保持，最终形成 `RELEASE_READY` 报告 |
@@ -734,6 +740,7 @@ v0.4 验收至少覆盖：同一 Project 的两个独立 Run 并发；单 Run �
 - **ADR-010** MVP 的生成测试是 checksum-addressed Artifact，应用 SourceSnapshot 保持不变；正式结果由 Runner 独立采集，Gate 基于最新正式事实形成不可改写的质量决策。
 - **ADR-011** 用户触发的长任务使用 PostgreSQL DurableJob 与独立 Worker；租约 fencing 约束 Canonical commit，失联工作显式中断并人工重试，不宣称外部 exactly-once，也不引入 Redis / Kafka 前提。
 - **ADR-012** [受控 Python 与隔离 ASGI 环境](ADR-012_CONTROLLED_API_ENVIRONMENTS.md)：SourceSnapshot 固定实际镜像/依赖/launcher，可信 Runner 管理同容器 loopback HTTP 服务生命周期与证据，legacy NULL 保持旧身份。
+- **ADR-014** [报告后 Finding 处置与独立 Gate 治理](ADR-014_POST_SESSION_GATE_REASSESSMENT.md)：正常 CLOSED 报告完成后允许无外部运行时的显式平台重评，保留终态身份、事实与结论历史。
 - **ADR-013** [平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)：平台服务/Task Worker 容器化，Harness/Bridge 留宿主；一 SUT 一 Project，一 feat/MR 精确 SHA 的测试轮次一 TestRun，一逻辑 Worker 与一持续主 Session 串行完成完整周期，Run 间并发。领域模型拥有绑定/唯一性/恢复规则，TMP 拥有持续会话 profile/工具契约，本文拥有服务/部署边界；该目标不等于已实施迁移。
 
 ---

@@ -20,6 +20,7 @@ import { useI18n } from "@/lib/i18n";
 import { latestRunVerdict } from "@/lib/run-summary";
 import { useRunJobs } from "./use-run-jobs";
 import { AttemptHistory } from "./attempt-history";
+import { FindingHistory } from "./finding-history";
 import { RunOverview } from "./run-overview";
 import { useRunInputRequests } from "./use-run-input-requests";
 import { RunNextAction, VerdictHistoryNotice } from "./run-next-action";
@@ -78,7 +79,8 @@ function FindingLifecycle({ finding, onUpdated }: { finding: Finding; onUpdated:
   });
   if (!allowed[finding.status]?.length) return null;
   return <>
-    <Typography.Title level={4}>{t("Update finding", "更新发现")}</Typography.Title>
+    <Typography.Title level={4}>{t("Record finding disposition", "记录发现处置")}</Typography.Title>
+    <Typography.Paragraph className="muted">{t("Disposition records the handling decision. It does not alter this run’s pinned code, execution facts or previous verdicts. Verify an actual fix in a new testing round.", "处置记录用于保存处理决定，不会改变本次运行固定的代码、执行事实或先前判定。实际修复需在新的测试轮次中验证。")}</Typography.Paragraph>
     <Form name={`finding-${finding.id}`} form={form} layout="vertical" initialValues={{ status: allowed[finding.status][0] }} disabled={transition.isPending} onFinish={(values) => transition.mutate(values)}>
       <Form.Item name="status" label={t("Next status", "下一状态")} rules={[{ required: true, message: t("Choose a next status.", "请选择下一状态。") }]}><Select options={allowed[finding.status].map((value) => ({ value, label: label(value) }))} /></Form.Item>
       {status === "RESOLVED" && <Form.Item name="resolution" label={t("Resolution", "解决方式")} rules={[{ required: true, message: t("Choose how this finding was resolved.", "请选择此发现的解决方式。") }]}><Select options={["FIXED", "DUPLICATE", "WONT_FIX", "RISK_ACCEPTED", "NOT_REPRODUCIBLE", "ENVIRONMENT_FIXED", "TEST_FIXED"].map((value) => ({ value, label: label(value) }))} /></Form.Item>}
@@ -111,6 +113,9 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const [evidenceSelection, setEvidenceSelection] = useState<Evidence | null>(null);
   const [findingSelection, setFindingSelection] = useState<Finding | null>(null);
   const [verdictSelection, setVerdictSelection] = useState<Verdict | null>(null);
+  const [gateDialog, setGateDialog] = useState(false);
+  const [updatedFindingId, setUpdatedFindingId] = useState<string | null>(null);
+  const [gateForm] = Form.useForm<{ reason: string }>();
   const [preparationJobId, setPreparationJobId] = useState<string | null>(null);
   const [missionForm] = Form.useForm<{ workspace: string }>();
   const [executionForm] = Form.useForm<ExecutionFormValues>();
@@ -201,7 +206,8 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     onSettled: refresh,
   });
   const gate = useMutation({
-    mutationFn: () => tasks.submit("EVALUATE_GATE", { finalize: true }),
+    mutationFn: (values: { reason: string }) => tasks.submit("EVALUATE_GATE", { finalize: true, reason: values.reason.trim() }),
+    onSuccess: () => { setGateDialog(false); setFindingSelection(null); gateForm.resetFields(); },
     onSettled: refresh,
   });
   const cycle = useMutation({
@@ -282,17 +288,29 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     { title: t("Issued", "签发时间"), dataIndex: "created_at", render: (value: string) => <Timestamp value={value} /> },
   ];
 
+  const latestVerdict = latestRunVerdict(verdicts.data);
+  const closedGateAvailable = harness.data?.binding?.status === "CLOSED" && !!harness.data.reports.length;
+  const gateAvailable = !harness.isLoading && !!harness.data && !harness.error && (manualMissionControl || closedGateAvailable);
+  const latestTask = tasks.rows[0];
+  const failedGate = latestTask?.job_type === "EVALUATE_GATE" && ["FAILED", "INTERRUPTED", "CANCELLED"].includes(latestTask.status) ? latestTask : null;
+  function openGateReview() {
+    if (failedGate) { setFindingSelection(null); tasks.openTask(failedGate.id); return; }
+    gate.reset(); setGateDialog(true);
+  }
+  const gateAction = <Button disabled={tasks.busy || gate.isPending || !gateAvailable} loading={gate.isPending} onClick={openGateReview}>{failedGate ? t("Review & retry gate task", "检查并重试门禁任务") : t("Reevaluate quality gate", "重新评估质量门禁")}</Button>;
+  const gateReviewPanel = gateAvailable ? <Alert className="gate-review-notice" type="info" showIcon style={{ marginBottom: 20 }} message={t("Review finding dispositions against the saved testing facts", "结合已保存的测试事实重评发现处置")}
+    description={<>{t("Record the finding disposition, then reevaluate the fixed policy against current canonical state and verified evidence. This starts no agent session or test execution. Recorded test failures still block release; verifying a code fix requires a new testing round.", "记录发现处置后，可使用固定策略、当前正式状态和已验证证据重新评估。此操作不会启动智能体会话或测试执行。已记录的测试失败仍会阻止发布；验证代码修复需要新的测试轮次。")}{latestVerdict && <p style={{ marginBottom: 0 }}>{t("Last formal evaluation", "最近正式评估")} · #{latestVerdict.sequence_no} · {formatDate(latestVerdict.finalized_at || latestVerdict.created_at)}</p>}</>}
+    action={gateAction} /> : null;
   const tabs: NonNullable<TabsProps["items"]> = [
     tasks.taskTab,
     inputRequests.tab,
     { key: "automation", label: `${t("Automation", "自动化实现")} (${implementations.data?.length ?? "—"})`, children: <Pane loading={implementations.isLoading} error={implementations.error} empty={!implementations.data?.length} retry={() => void implementations.refetch()} description={t("No accepted implementations yet. Plan an IMPLEMENT_TESTS mission after test design coverage is complete.", "暂无已接受的自动化实现。测试设计覆盖完成后，可规划实现测试任务（IMPLEMENT_TESTS）。")}><Table rowKey="id" columns={implementationColumns} dataSource={implementations.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
     { key: "executions", label: `${t("Executions", "执行")} (${executions.data?.length ?? "—"})`, children: <Pane loading={executions.isLoading} error={executions.error} empty={!executions.data?.length} retry={() => void executions.refetch()} description={t("No runner executions yet. Implement the test cases, then select Execute tests.", "暂无 Runner 执行。完成用例实现后，选择“执行测试”。")}><Table rowKey="id" columns={executionColumns} dataSource={executions.data} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} /></Pane> },
     { key: "evidence", label: `${t("Evidence", "证据")} (${evidence.data?.length ?? "—"})`, children: <Pane loading={evidence.isLoading} error={evidence.error} empty={!evidence.data?.length} retry={() => void evidence.refetch()} description={t("Evidence appears here when the trusted runner collects execution metadata, logs and test reports.", "可信 Runner 收集执行元数据、日志与测试报告后，证据将显示在这里。")}><Table rowKey="id" columns={evidenceColumns} dataSource={evidence.data} pagination={{ pageSize: 10 }} scroll={{ x: 800 }} /></Pane> },
-    { key: "findings", label: `${t("Findings", "发现")} (${findings.data?.length ?? "—"})`, children: <Pane loading={findings.isLoading} error={findings.error} empty={!findings.data?.length} retry={() => void findings.refetch()} description={t("No findings recorded. Failed executions can produce a DIAGNOSE_FAILURE mission with evidence-backed proposals.", "暂无发现。失败执行可触发失败诊断任务（DIAGNOSE_FAILURE），生成有证据支持的提议。")}><Table rowKey="id" columns={findingColumns} dataSource={findings.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane> },
-    { key: "verdicts", label: `${t("Verdicts", "质量判定")} (${verdicts.data?.length ?? "—"})`, children: <Pane loading={verdicts.isLoading} error={verdicts.error} empty={!verdicts.data?.length} retry={() => void verdicts.refetch()} description={t("No quality decisions yet. Evaluate the quality gate to record a verdict from canonical state and verified execution evidence.", "暂无质量判定。评估质量门禁后，平台会依据正式状态和已验证的执行证据记录判定。")}><Table rowKey="id" columns={verdictColumns} dataSource={verdicts.data} pagination={{ pageSize: 10 }} scroll={{ x: 750 }} /></Pane> },
+    { key: "findings", label: `${t("Findings", "发现")} (${findings.data?.length ?? "—"})`, children: <>{gateReviewPanel}<Pane loading={findings.isLoading} error={findings.error} empty={!findings.data?.length} retry={() => void findings.refetch()} description={t("No findings recorded. Failed executions can produce a DIAGNOSE_FAILURE mission with evidence-backed proposals.", "暂无发现。失败执行可触发失败诊断任务（DIAGNOSE_FAILURE），生成有证据支持的提议。")}><Table rowKey="id" columns={findingColumns} dataSource={findings.data} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} /></Pane></> },
+    { key: "verdicts", label: `${t("Verdicts", "质量判定")} (${verdicts.data?.length ?? "—"})`, children: <>{gateReviewPanel}<Pane loading={verdicts.isLoading} error={verdicts.error} empty={!verdicts.data?.length} retry={() => void verdicts.refetch()} description={t("No quality decisions yet. Evaluate the quality gate to record a verdict from canonical state and verified execution evidence.", "暂无质量判定。评估质量门禁后，平台会依据正式状态和已验证的执行证据记录判定。")}><Table rowKey="id" columns={verdictColumns} dataSource={verdicts.data} pagination={{ pageSize: 10 }} scroll={{ x: 750 }} /></Pane></> },
   ];
 
-  const latestVerdict = latestRunVerdict(verdicts.data);
   const activeExecutions = executions.data?.filter((item) => ["QUEUED", "PROVISIONING", "RUNNING", "COLLECTING"].includes(item.status)).length || 0;
 
   function openExecutionDialog(mode: "execution" | "cycle") {
@@ -307,11 +325,11 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   const actions = <Space wrap>
     <RunNextAction runId={runId} projectId={projectId} binding={harness.data?.binding} jobs={tasks.rows} questionId={inputRequests.pending[0]?.id} ready={!harness.isLoading && !!harness.data && !harness.error && !tasks.jobs.isLoading && !tasks.jobs.error} startDisabled={inputRequests.busy || source.isLoading || !source.data || !!source.error || unreadableEnvironment || !capabilities.data?.agent_providers.includes("codex") || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || missionExecution.isPending || execution.isPending || tasks.busy} starting={cycle.isPending} answer={inputRequests.open} reviewSession={() => onNavigate("harness")} reviewTask={tasks.openTask} start={() => openExecutionDialog("cycle")} />
   </Space>;
-  const secondaryActions = manualMissionControl ? <Space wrap>
-    <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !source.data || !!source.error || unreadableEnvironment || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
+  const secondaryActions = manualMissionControl || gateAvailable ? <Space wrap>
+    {manualMissionControl && <Button aria-label={t("Execute tests", "执行测试")} disabled={!implementations.data?.length || !source.data || !!source.error || unreadableEnvironment || !(capabilities.data?.runner_backends || []).some((value) => !hasPinnedEnvironment || value === "docker") || execution.isPending || tasks.busy} loading={execution.isPending} onClick={() => {
       openExecutionDialog("execution");
-    }}>{t("Execute tests", "执行测试")}</Button>
-    <Button aria-label={t("Evaluate quality gate", "评估质量门禁")} disabled={tasks.busy} loading={gate.isPending} onClick={() => gate.mutate()}>{t("Evaluate quality gate", "评估质量门禁")}</Button>
+    }}>{t("Execute tests", "执行测试")}</Button>}
+    {gateAvailable && gateAction}
   </Space> : null;
 
   const summary = <>
@@ -335,6 +353,15 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     {contextHolder}
     {tasks.dialog}
     {inputRequests.dialog}
+    <Modal forceRender title={t("Reevaluate quality gate", "重新评估质量门禁")} open={gateDialog} okText={t("Save reevaluation task", "提交重评任务")} cancelText={t("Cancel", "取消")} confirmLoading={gate.isPending} okButtonProps={{ disabled: tasks.busy || !gateAvailable }} maskClosable={!gate.isPending} closable={!gate.isPending} cancelButtonProps={{ disabled: gate.isPending }} onCancel={() => { if (!gate.isPending) setGateDialog(false); }} onOk={() => gateForm.submit()}>
+      <Typography.Paragraph>{t("HyperTest will evaluate this run's fixed policy using its current canonical state and verified execution evidence. The worker processes a saved task; the closed session stays closed and no agent or Runner is started.", "HyperTest 将使用本次运行固定的策略、当前正式状态和已验证的执行证据进行评估。Worker 会处理已保存的后台任务；已关闭会话保持关闭，不会启动智能体或 Runner。")}</Typography.Paragraph>
+      {latestVerdict && <Typography.Paragraph>{t("Current formal decision", "当前正式判定")} · #{latestVerdict.sequence_no} · <Badge value={latestVerdict.decision} /></Typography.Paragraph>}
+      <Alert type="warning" showIcon message={t("A disposition does not prove the code was fixed", "处置记录不能证明代码已修复")} description={t("Resolving or closing a finding does not change recorded test results. Changed state creates an additional final verdict; unchanged state reuses the latest matching verdict. Earlier verdicts and the original report remain intact. Verify a fix in a new testing round.", "解决或关闭发现不会改变已记录的测试结果。状态变化会追加正式判定；状态未变时复用最新匹配的判定。先前判定与原报告均保持完整。验证修复请创建新的测试轮次。")} style={{ marginBottom: 16 }} />
+      <Form name="reevaluate-gate" form={gateForm} layout="vertical" disabled={gate.isPending} onFinish={(values) => gate.mutate(values)}>
+        <Form.Item name="reason" label={t("Reason for reevaluation", "重评原因")} rules={[{ required: true, whitespace: true, message: t("Record why this run should be reevaluated.", "请记录此次重评的原因。") }, { max: 2000, message: t("Use no more than 2000 characters.", "请勿超过 2000 个字符。") }, { validator: async (_, value) => { if (typeof value === "string" && value.includes("\0")) throw new Error(t("The reason contains an unsupported character.", "原因中包含不支持的字符。")); } }]} extra={t("Saved with the task and audit history. This reason does not override policy or execution facts.", "原因会保存在任务与审计历史中，不会覆盖策略或执行事实。") }><Input.TextArea rows={3} maxLength={2000} showCount placeholder={t("Which finding dispositions or changed records should be considered?", "请说明此次需考虑的发现处置或记录变化。")} /></Form.Item>
+      </Form>
+      {gate.error && <Alert type="error" showIcon message={t("Reevaluation task was not confirmed", "尚未确认重评任务已保存")} description={errorText(gate.error, locale)} />}
+    </Modal>
     <Modal forceRender title={mission?.status === "FAILED" ? t("Retry mission", "重试任务") : t("Execute mission", "执行任务")} open={missionDialog} okText={mission?.status === "FAILED" ? t("Retry and execute", "重试并执行") : t("Execute mission", "执行任务")} okButtonProps={{ "aria-label": mission?.status === "FAILED" ? t("Retry and execute", "重试并执行") : t("Execute mission", "执行任务"), disabled: tasks.busy }} confirmLoading={missionExecution.isPending} cancelText={missionExecution.isPending ? t("View progress", "查看进度") : t("Cancel", "取消")} maskClosable={!missionExecution.isPending} onCancel={() => setMissionDialog(false)} onOk={() => missionForm.submit()}>
       <Typography.Paragraph><strong>{mission ? label(mission.mission_type) : ""}</strong> — {mission?.objective}</Typography.Paragraph>
       <Alert type="info" showIcon message={t("Codex must be installed and authenticated on the HyperTest host.", "HyperTest 主机必须已安装并认证 Codex。")} description={t("The agent submits proposals. HyperTest verifies them before updating canonical testing state.", "智能体提交提议，由 HyperTest 验证后更新正式测试状态。")} style={{ marginBottom: 20 }} />
@@ -433,8 +460,8 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
       </>}
     </Drawer>
 
-    <Drawer title={findingSelection?.key || t("Finding", "发现")} open={!!findingSelection} width={760} onClose={() => setFindingSelection(null)} extra={<Button loading={findings.isFetching} onClick={async () => { const result = await findings.refetch(); const current = result.data?.find((item) => item.id === findingSelection?.id); if (current) setFindingSelection(current); }}>{t("Refresh finding", "刷新发现")}</Button>}>
-      {findingSelection && <><Space wrap><Badge value={findingSelection.status} /><Badge value={findingSelection.severity} /><Tag>{label(findingSelection.classification)}</Tag></Space><Typography.Title level={3}>{findingSelection.title}</Typography.Title><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{findingSelection.description}</Typography.Paragraph><Typography.Title level={5}>{t("Root cause", "根因")}</Typography.Title><Typography.Paragraph>{findingSelection.root_cause || t("Not diagnosed yet.", "尚未诊断。")}</Typography.Paragraph><Typography.Title level={5}>{t("Test cases", "测试用例")}</Typography.Title><Keys values={findingSelection.test_case_keys || findingSelection.testcase_keys} /><Typography.Title level={5}>{t("Supporting evidence", "支持证据")}</Typography.Title><Space wrap>{findingSelection.evidence_keys?.map((key) => { const item = evidence.data?.find((entry) => entry.key === key); return item ? <Button key={key} onClick={() => setEvidenceSelection(item)}>{key}</Button> : <Tag key={key}>{key}</Tag>; })}</Space><Typography.Title level={5}>{t("Resolution", "解决方式")}</Typography.Title><Typography.Paragraph>{findingSelection.resolution ? label(findingSelection.resolution) : t("Unresolved", "尚未解决")}</Typography.Paragraph>{latestVerdict && <VerdictHistoryNotice runId={runId} projectId={projectId} />}<FindingLifecycle key={`${findingSelection.id}:${findingSelection.row_version}`} finding={findingSelection} onUpdated={(result) => { setFindingSelection(result); notifications.success(t("Finding lifecycle updated.", "发现生命周期已更新。")); void refresh(); }} /></>}
+    <Drawer title={findingSelection?.key || t("Finding", "发现")} open={!!findingSelection && !gateDialog} width={760} onClose={() => setFindingSelection(null)} extra={<Button loading={findings.isFetching} onClick={async () => { const result = await findings.refetch(); const current = result.data?.find((item) => item.id === findingSelection?.id); if (current) setFindingSelection(current); }}>{t("Refresh finding", "刷新发现")}</Button>}>
+      {findingSelection && <><Space wrap><Badge value={findingSelection.status} /><Badge value={findingSelection.severity} /><Tag>{label(findingSelection.classification)}</Tag></Space><Typography.Title level={3}>{findingSelection.title}</Typography.Title><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{findingSelection.description}</Typography.Paragraph><Typography.Title level={5}>{t("Root cause", "根因")}</Typography.Title><Typography.Paragraph>{findingSelection.root_cause || t("Not diagnosed yet.", "尚未诊断。")}</Typography.Paragraph><Typography.Title level={5}>{t("Test cases", "测试用例")}</Typography.Title><Keys values={findingSelection.test_case_keys || findingSelection.testcase_keys} /><Typography.Title level={5}>{t("Supporting evidence", "支持证据")}</Typography.Title><Space wrap>{findingSelection.evidence_keys?.map((key) => { const item = evidence.data?.find((entry) => entry.key === key); return item ? <Button key={key} onClick={() => setEvidenceSelection(item)}>{key}</Button> : <Tag key={key}>{key}</Tag>; })}</Space><Typography.Title level={5}>{t("Resolution", "解决方式")}</Typography.Title><Typography.Paragraph>{findingSelection.resolution ? label(findingSelection.resolution) : t("Unresolved", "尚未解决")}</Typography.Paragraph>{latestVerdict && <VerdictHistoryNotice runId={runId} projectId={projectId} />}{gateAvailable && <Space wrap style={{ marginBottom: 20 }}>{gateAction}<Button onClick={() => { setFindingSelection(null); onNavigate("verdicts"); }}>{t("View verdict history", "查看判定历史")}</Button></Space>}{updatedFindingId === findingSelection.id && <Alert type="success" showIcon message={t("Finding disposition saved", "发现处置已保存")} description={t("The quality verdict has not been reevaluated by this update. Use Reevaluate quality gate to submit a separate, traceable task.", "此次更新不会自动重评质量判定。请使用“重新评估质量门禁”提交独立、可追踪的后台任务。")} style={{ marginBottom: 20 }} />}<FindingLifecycle key={`${findingSelection.id}:${findingSelection.row_version}`} finding={findingSelection} onUpdated={(result) => { setFindingSelection(result); setUpdatedFindingId(result.id); notifications.success(t("Finding lifecycle updated.", "发现生命周期已更新。")); void client.invalidateQueries({ queryKey: ["finding-history", result.id] }); void refresh(); }} /><FindingHistory findingId={findingSelection.id} /></>}
     </Drawer>
 
     <Drawer title={verdictSelection ? `${verdictSelection.key} · ${t("Decision", "质量判定")} #${verdictSelection.sequence_no}` : t("Quality verdict", "质量判定")} open={!!verdictSelection} width={820} onClose={() => setVerdictSelection(null)}>
@@ -447,6 +474,6 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     </Drawer>
   </>;
 
-  const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} harness={harness} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} /></>;
+  const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} harness={harness} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} reevaluateGate={gateAvailable ? openGateReview : undefined} reevaluationDisabled={tasks.busy || gate.isPending} reevaluationRetry={!!failedGate} /></>;
   return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, implementations, openTask: tasks.openTask, manualMissionControl, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }
