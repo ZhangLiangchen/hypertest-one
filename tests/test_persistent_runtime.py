@@ -396,6 +396,66 @@ async def test_cancel_while_tool_waits_does_not_deliver_late_result(runtime_cont
         await asyncio.gather(running, return_exceptions=True)
 
 
+async def test_cancel_during_native_cleanup_still_interrupts_without_late_result(runtime_context, monkeypatch):
+    """Heartbeat cancellation may arrive after the tool already lost its lease."""
+    context, bridge = runtime_context, runtime_context["bridge"]
+    bridge.program = [("get_state", {})]
+    entered, release, renewing = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    cleanup_entered, cleanup_release = asyncio.Event(), asyncio.Event()
+    dispatch = HarnessTools.dispatch
+    native_task = None
+    from hypertest.worker import heartbeat_job
+
+    async def heartbeat_at_cleanup(*args, **kwargs):
+        status = await heartbeat_job(*args, **kwargs)
+        if status is JobStatus.CANCEL_REQUESTED:
+            # The test delivers the same handler.cancel() at a fixed cleanup
+            # barrier, avoiding a timing-dependent monitor/dispatcher race.
+            await asyncio.Event().wait()
+        return status
+
+    async def waiting_dispatch(self, name, arguments):
+        nonlocal native_task
+        native_task = asyncio.current_task()
+        entered.set()
+        await release.wait()
+        return await dispatch(self, name, arguments)
+
+    async def renewing_call(*args):
+        renewing.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleanup_entered.set()
+            # The heartbeat observes CANCEL_REQUESTED while finally is awaiting
+            # renewal shutdown. It must not skip the original call's interrupt.
+            await cleanup_release.wait()
+
+    monkeypatch.setattr(HarnessTools, "dispatch", waiting_dispatch)
+    monkeypatch.setattr(bridge, "renew", renewing_call)
+    monkeypatch.setattr("hypertest.worker.heartbeat_job", heartbeat_at_cleanup)
+    running = asyncio.create_task(run_claimed_job(context["job"]))
+    try:
+        await asyncio.wait_for(entered.wait(), 5)
+        await asyncio.wait_for(renewing.wait(), 5)
+        async with AsyncSessionLocal() as session:
+            await cancel_job(session, context["job"].id)
+        release.set()
+        await asyncio.wait_for(cleanup_entered.wait(), 5)
+        native_task.cancel()
+        cleanup_release.set()
+        finished = await asyncio.wait_for(running, 5)
+        assert finished.status is JobStatus.CANCELLED
+        assert bridge.interrupted and not bridge.results and not bridge.closed
+        assert all(item[1] == bridge.started[0][2] for item in bridge.interrupted)
+    finally:
+        release.set()
+        cleanup_release.set()
+        if not running.done():
+            running.cancel()
+        await asyncio.gather(running, return_exceptions=True)
+
+
 async def test_question_checkpoint_crash_recovers_as_run_input_without_reopening_failed_attempt(runtime_context, monkeypatch):
     context, bridge = runtime_context, runtime_context["bridge"]
     bridge.program = [

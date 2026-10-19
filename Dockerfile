@@ -13,7 +13,10 @@ COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY ops/container/healthcheck.py /app/healthcheck.py
+# Release archives may be extracted with a private umask. Migrations must
+# remain readable by the non-root service identity used for upgrades.
 RUN pip install --no-cache-dir . \
+    && chmod -R a+rX /app/alembic \
     && mkdir -p /workspace && chown 999:999 /workspace
 USER 999:999
 
