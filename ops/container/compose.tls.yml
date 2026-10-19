@@ -1,0 +1,16 @@
+# Optional TLS termination on the existing protected nginx IP:port only.
+# stack.compose_command includes this overlay only when INGRESS_TLS=enabled.
+# Leaf credentials belong solely to nginx; CA signing keys never reach the server.
+services:
+  nginx:
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_TLS_CERT_FILE:?existing TLS leaf certificate file required}
+        target: /run/hypertest-tls/server.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_TLS_KEY_FILE:?existing TLS leaf private key file required}
+        target: /run/hypertest-tls/server.key
+        read_only: true
+        bind: {create_host_path: false}
