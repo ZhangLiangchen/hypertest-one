@@ -47,7 +47,7 @@ test("retry guidance opens the exact latest failed task rather than creating a c
 test("overview exposes saved reports while retaining the canonical final verdict as the decision", () => {
   const i18n = load("lib/i18n.tsx", { require });
   const summary = load("lib/run-summary.ts", { require });
-  const { RunOverview } = load("app/runs/[runId]/run-overview.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/run-summary" ? summary : require(name) });
+  const { RunOverview } = load("app/runs/[runId]/run-overview.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/run-summary" ? summary : name === "@/lib/source-preparation" ? load("lib/source-preparation.ts", { require }) : require(name) });
   const dataset = (data) => ({ data, isLoading: false, error: null, refetch() {} });
   for (const locale of ["en", "zh"]) {
     const element = React.createElement(RunOverview, {
@@ -71,7 +71,7 @@ function taskController(currentBinding, recordedJobs, createdJob, reports = []) 
   const followUp = load("app/runs/[runId]/run-next-action.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
   const hooks = { useQuery: ({ queryKey }) => ({ data: queryKey[0] === "jobs" ? [] : queryKey[0] === "harness" ? { binding: { status: "ACTIVE" }, reports: [] } : undefined }), useMutation: () => ({ reset() {} }), useQueryClient: () => ({ getQueryData() {}, setQueryData(key, value) { cache.set(JSON.stringify(key), value); } }) };
   const api = { getJobs: async () => recordedJobs, getRunHarness: async () => ({ binding: currentBinding, reports }), createJob: async (runId, request) => { requests.push({ runId, request }); posts++; if (createdJob) return createdJob; throw new Error("unexpected new job"); } };
-  const { useRunJobs } = load("app/runs/[runId]/use-run-jobs.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@tanstack/react-query" ? hooks : name === "@/lib/api" ? api : name === "@/lib/uuid" ? { createUuid: () => "fixed" } : name === "./run-next-action" ? followUp : name === "./job-activity" ? { JobActivityPanel: () => null } : name === "antd" ? { ...require(name), message: { useMessage: () => [{ success() {} }, null] } } : require(name) });
+  const { useRunJobs } = load("app/runs/[runId]/use-run-jobs.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/source-preparation" ? load("lib/source-preparation.ts", { require }) : name === "@tanstack/react-query" ? hooks : name === "@/lib/api" ? api : name === "@/lib/uuid" ? { createUuid: () => "fixed" } : name === "./run-next-action" ? followUp : name === "./job-activity" ? { JobActivityPanel: () => null } : name === "antd" ? { ...require(name), message: { useMessage: () => [{ success() {} }, null] } } : require(name) });
   function Capture() { controller = useRunJobs(id(1), () => {}, () => {}); return null; }
   renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(Capture)));
   return { controller, posts: () => posts, cache, requests };

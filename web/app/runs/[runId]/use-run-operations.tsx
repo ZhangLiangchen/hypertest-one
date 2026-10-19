@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { latestRunVerdict } from "@/lib/run-summary";
+import { sourcePreparationSummary } from "@/lib/source-preparation";
 import { useRunJobs } from "./use-run-jobs";
 import { AttemptHistory } from "./attempt-history";
 import { FindingHistory } from "./finding-history";
@@ -226,7 +227,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   });
   const preparingCheckout = tasks.active.find((job) => job.job_type === "PREPARE_WORKSPACE");
   const preparationJob = tasks.rows.find((job) => job.id === preparationJobId);
-  const preparationFeedback = preparationJob && ["FAILED", "INTERRUPTED", "CANCELLED"].includes(preparationJob.status) ? <Alert type="error" showIcon message={t("Source checkout was not prepared", "源码目录未能准备完成")} description={preparationJob.error_message || t("Review the recorded checkout task before retrying.", "请检查已记录的检出任务后再重试。")} action={<Button onClick={() => { setMissionDialog(false); setExecutionDialog(null); tasks.openTask(preparationJob.id); }}>{t("View checkout task", "查看检出任务")}</Button>} style={{ marginBottom: 16 }} /> : null;
+  const preparationFeedback = preparationJob && ["FAILED", "INTERRUPTED", "CANCELLED"].includes(preparationJob.status) ? <Alert type="error" showIcon message={t("Source checkout was not prepared", "源码目录未能准备完成")} description={sourcePreparationSummary(preparationJob, locale) || preparationJob.error_message || t("Review the recorded checkout task before retrying.", "请检查已记录的检出任务后再重试。")} action={<Button onClick={() => { setMissionDialog(false); setExecutionDialog(null); tasks.openTask(preparationJob.id); }}>{t("View checkout task", "查看检出任务")}</Button>} style={{ marginBottom: 16 }} /> : null;
 
 
   function openMissionExecution(item: Mission) {

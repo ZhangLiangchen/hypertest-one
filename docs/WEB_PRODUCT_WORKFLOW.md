@@ -171,6 +171,14 @@ Invalid PRD imports preserve the current draft and filename. Native Chrome/macOS
 
 ## 任务活动与等待诊断 / Task activity and waiting
 
+### 源码准备失败 / Source preparation failure
+
+自动准备固定源码失败时，打开原后台任务详情查看“源码准备诊断”：失败阶段、错误分类、平台说明和下一步建议。分类区分 Git 认证、仓库不可用或无权限、网络/代理、证书、固定提交不可用、存储、超时、Git 缺失、输入不支持、检出校验及未知错误。它是受控运行诊断，不是缺陷、测试结果或最终根因证明；Web 不展示原始 Git stderr、命令、认证 URL 或 Provider 内容。旧任务没有记录时会说明无法确定原因。
+
+修复 Worker 的现有 Git 凭据/代理、网络、证书信任或存储条件后，从该失败任务的“检查并重试”显式创建关联新 Job；原输入和失败记录保留。不要关闭证书校验或把凭据填进仓库 URL。若需要换仓库/SHA，使用“从本次新建一轮”审阅输入并创建新轮次；原快照不可修改。已有会话要求恢复或已终结时，遵循原恢复/新轮次入口，不能用源码重试绕过绑定。
+
+Open the failed task to inspect its source preparation stage, category, explanation and suggested next step. These are bounded platform observations; raw Git output, commands, credentials and Provider text are excluded. Repair the configured Worker environment, then explicitly retry the original task to create a linked Job with the same frozen input. Use **New round from this run** to review a different repository or SHA. Existing session recovery rules still apply. Historical failures without a recorded diagnostic remain unknown.
+
 在后台任务详情中查看辅助活动区。它展示已知的当前阶段 / Mission / Attempt、最近 Provider 信号、本 Job 的 Worker 心跳和最近成功刷新；活动类型提供中文和英文，不展示模型原文、命令或推理。
 
 - **Worker 心跳**说明负责本任务的 Worker 仍在续租，不等于模型有新进展。其他 Worker 的在线状态不能替代本 Job 的心跳。

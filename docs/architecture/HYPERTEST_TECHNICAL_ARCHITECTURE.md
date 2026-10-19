@@ -418,6 +418,8 @@ Workspace 需要区分固定源码、可写的生成/临时目录和已接受 Ar
 
 当前 Web 可通过同一 `ADVANCE_RUN` 的自动准备选项，或独立 prepare-workspace 操作，为 GitHub HTTPS 源准备/复用 managed pinned checkout，使用既有 Git proxy/auth，不重置 Operator checkout；其他 Host 使用明确的既有 workspace。准备阶段不得跨 Git 网络或文件 I/O 持有 Run / Job 行锁，进入后续领域工作前重新验证归属。
 
+源码准备诊断由平台 Workspace 服务生成，Worker 在有效 Job lease 下保存固定阶段与分类及有界运行标记，Web 显示受控双语说明和原 Job 的关联重试入口。四个 Git 准备命令（init、remote add、fetch、checkout）及准备路径的四个校验命令每流最多采集16KiB，后者跳过未使用的来源文件列表；stderr 只在内存有界分类。校验进程失败保留可修复环境的诊断，只有已证明的内容不匹配才记为检出完整性问题；循环链接只报告受控存储错误。其他 Runner/Agent 的默认 checkout 校验继续使用既有每流8MiB的有界来源列表读取，不把原始输出、命令或认证 URL 写入持久错误详情。Provider 活动边界保持独立。未识别错误和历史未记录原因必须明确未知。改变冻结输入使用新轮次，已有 Binding 按原恢复规则处理；详细持久化和历史语义见领域模型 §23.1。
+
 创建 Run 前，Web 可通过只读 `/sources/resolve` 将 credential-free GitHub HTTPS 的分支或标签解析为固定完整 SHA；同名分支/标签必须明确 ref namespace。解析不创建 Canonical Snapshot、不改写 checkout，仍在 bootstrap 时固定 SHA，Runner 继续独立验证匹配的 origin、commit 与 tracked 内容。其他来源保留手工完整 SHA 与匹配 Worker checkout 路径，不能把任意检出目录当作 repository origin。
 
 当前 Runtime 在临时 tracked-source 副本中运行 Agent，固定 SourceSnapshot / PolicySnapshot 并注入 PRD 与规范化 Mission；Canonical Artifact 和业务状态不放入 Vendor Session。IMPLEMENT_TESTS 的生成源码作为 Proposal `code` 返回，经 Verifier 校验后进入内容寻址 Artifact Store，不直接修改用户 checkout 或应用 Commit。

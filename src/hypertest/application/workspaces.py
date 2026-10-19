@@ -3,6 +3,7 @@
 import os
 import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -11,10 +12,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.application.services import ConflictError, get_test_run
+from hypertest.application.source_diagnostics import (
+    GIT_OUTPUT_LIMIT,
+    SourcePreparationError,
+    filesystem_failure,
+    git_failure,
+)
 from hypertest.config import get_settings
 from hypertest.domain.models import SourceSnapshot
 from hypertest.runner.backends import run_process
-from hypertest.runner.source import validate_checkout
+from hypertest.runner.source import SourceGitError, SourceValidationError, validate_checkout
 
 
 def github_repository_url(repository_url: str) -> str:
@@ -92,49 +99,89 @@ async def prepare_workspace(session: AsyncSession, run_id: UUID) -> dict[str, st
     run = await get_test_run(session, run_id)
     snapshot = await session.get(SourceSnapshot, run.source_snapshot_id)
     assert snapshot is not None
-    github_repository_url(snapshot.repository_url)
-    if not re.fullmatch(r"[a-fA-F0-9]{40}|[a-fA-F0-9]{64}", snapshot.commit_sha):
-        raise ValueError("automatic checkout requires a full pinned commit SHA")
-    root = Path(get_settings().workspace_root).resolve()
-    parent = root / ".hypertest-checkouts" / str(snapshot.id)
-    parent.mkdir(parents=True, exist_ok=True)
-    if not parent.resolve().is_relative_to(root):
-        raise ConflictError("managed checkout directory must remain inside the workspace root")
-    destination = parent / "repo"
-    if destination.exists():
-        await validate_checkout(destination.resolve(), snapshot.commit_sha, snapshot.repository_url)
-        return {
-            "workspace": str(destination),
-            "repository_url": snapshot.repository_url,
-            "commit_sha": snapshot.commit_sha,
-        }
-    staging = Path(tempfile.mkdtemp(prefix="checkout-", dir=parent))
-    environment = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    stage = "validate_input"
+    staging = None
+
+    def resolve_workspace_path(path: Path) -> Path:
+        try:
+            return path.resolve()
+        except RuntimeError:
+            # Python 3.12 reports symlink loops as RuntimeError with the full
+            # path. Only this filesystem operation is translated, not arbitrary
+            # RuntimeErrors from preparation or validation implementations.
+            raise SourcePreparationError(stage=stage, category="storage") from None
+
+    async def verify_checkout(path: Path) -> None:
+        await validate_checkout(path, snapshot.commit_sha, snapshot.repository_url,
+                                include_files=False, output_limit=GIT_OUTPUT_LIMIT)
+
     try:
+        try:
+            github_repository_url(snapshot.repository_url)
+        except ValueError:
+            raise SourcePreparationError(stage=stage, category="invalid_source") from None
+        if not re.fullmatch(r"[a-fA-F0-9]{40}|[a-fA-F0-9]{64}", snapshot.commit_sha):
+            raise SourcePreparationError(stage=stage, category="invalid_source")
+        if not shutil.which("git"):
+            raise SourcePreparationError(stage=stage, category="git_unavailable")
+        stage = "create_workspace"
+        root = resolve_workspace_path(Path(get_settings().workspace_root))
+        parent = root / ".hypertest-checkouts" / str(snapshot.id)
+        if not resolve_workspace_path(parent).is_relative_to(root):
+            raise SourcePreparationError(stage=stage, category="checkout_integrity")
+        parent.mkdir(parents=True, exist_ok=True)
+        destination = parent / "repo"
+        if destination.exists() or destination.is_symlink():
+            stage = "validate_checkout"
+            await verify_checkout(resolve_workspace_path(destination))
+            return {
+                "workspace": str(destination),
+                "repository_url": snapshot.repository_url,
+                "commit_sha": snapshot.commit_sha,
+            }
+        staging = Path(tempfile.mkdtemp(prefix="checkout-", dir=parent))
+        environment = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
         commands = [
-            ["git", "init", str(staging)],
-            ["git", "-C", str(staging), "remote", "add", "origin", snapshot.repository_url],
-            ["git", "-C", str(staging), "fetch", "--depth=1", "origin", snapshot.commit_sha],
-            ["git", "-C", str(staging), "checkout", "--detach", snapshot.commit_sha],
+            ("git_init", ["git", "init", str(staging)]),
+            ("configure_remote", ["git", "-C", str(staging), "remote", "add", "origin", snapshot.repository_url]),
+            ("fetch_commit", ["git", "-C", str(staging), "fetch", "--depth=1", "origin", snapshot.commit_sha]),
+            ("checkout_commit", ["git", "-C", str(staging), "checkout", "--detach", snapshot.commit_sha]),
         ]
-        for command in commands:
-            result = await run_process(command, cwd=parent, timeout=120, env=environment)
+        for stage, command in commands:
+            try:
+                result = await run_process(command, cwd=parent, timeout=120, env=environment,
+                                           output_limit=GIT_OUTPUT_LIMIT)
+            except OSError as exc:
+                raise filesystem_failure(stage, exc, spawning_git=True) from None
             if result.exit_code != 0 or result.timed_out:
-                raise ConflictError(
-                    "cannot prepare pinned source using configured Git access; verify repository access, commit SHA and network availability"
-                )
-        await validate_checkout(staging, snapshot.commit_sha, snapshot.repository_url)
+                raise git_failure(stage, result)
+        stage = "validate_checkout"
+        await verify_checkout(staging)
+        stage = "publish_workspace"
         try:
             staging.rename(destination)
         except OSError:
             if not destination.exists():
                 raise
-            await validate_checkout(
-                destination.resolve(), snapshot.commit_sha, snapshot.repository_url
-            )
+            stage = "validate_checkout"
+            await verify_checkout(resolve_workspace_path(destination))
+    except SourceGitError as exc:
+        raise git_failure(stage, exc.result) from None
+    except SourceValidationError:
+        raise SourcePreparationError(stage=stage, category="checkout_integrity") from None
+    except OSError as exc:
+        raise filesystem_failure(stage, exc, spawning_git=stage == "validate_checkout") from None
     finally:
-        if staging.exists():
-            shutil.rmtree(staging)
+        # Cleanup must not replace a preparation failure or cancellation with
+        # an unsafe filesystem exception containing operator paths.
+        failed = sys.exception() is not None
+        if staging is not None:
+            try:
+                if staging.exists():
+                    shutil.rmtree(staging)
+            except OSError as exc:
+                if not failed:
+                    raise filesystem_failure("publish_workspace", exc) from None
     return {
         "workspace": str(destination),
         "repository_url": snapshot.repository_url,
