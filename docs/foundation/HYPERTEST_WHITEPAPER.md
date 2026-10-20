@@ -1,8 +1,8 @@
 # HyperTest 白皮书
 
-**版本：v1.2**
+**版本：v1.3**
 
-**部署与工作流决策：ADR-013 生产基线与历史验收保留；ADR-015 已部署生产 / 线上核心端到端验收通过 / 扩展故障矩阵待逐设备验收（2026-10-19）**
+**部署与工作流决策：ADR-013 / ADR-015 生产状态与历史验收保留；ADR-016 已实现 / 隔离当前 Agent 核心周期验收通过 / 尚未生产部署（2026-10-20，Asia/Singapore）**
 
 **定位：Agent-native Autonomous Testing Platform**
 
@@ -11,6 +11,8 @@
 [ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义部署组件与任务执行边界。[ADR-014：会话关闭后的独立质量重评](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)将报告完成后的 Finding 处置与平台 Gate 治理区分于 Agent 工作。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。实现与真实集成结果见[第一阶段验收](../FIRST_PHASE_ACCEPTANCE.md)，不由设计目标推定全部完成。
 
 [ADR-015：双模式 Harness 与本地 Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)扩展部署选择：保留服务器 Harness，增加用户电脑主动连接的本地 Harness，复用本地实际可用的模型、Git 与问题单授权。它不移动控制平面、Canonical State 或可信 Runner，也不改变单任务单主会话原则。ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复已实现，`0015_connector_nodes` → `0018_harness_selection` 已部署生产。核心隔离真实验收已通过，包括本地 Codex → 远端可信 Docker Runner → Evidence / Gate → 报告正反链、私有 Git 经 HTTPS 接受、原会话断线恢复及获准测试 Issue 的创建 / 负责人核验。这些隔离结果不冒称生产结果。生产切换已完成原数据、文件、认证、SSH / VPN 与服务器 Bridge 保全；严格外部 TLS、线上本地 Connector 核心周期和生产私有源码 source-only 接受补验已通过，后者未启动私有业务 Run 或问题单操作，扩展真实设备故障矩阵继续分别登记。当前发布与实际验收范围见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+
+[ADR-016：交互式 Agent MCP 接入](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)接受云端 / 本地 Agent 执行选择：云端由平台托管 Harness，本地交互式执行时，当前 Agent 可经可信宿主证明与显式绑定成为任务执行者，通过 MCP 获取 Mission、推理 / 实现、提交 Proposal 并获取可信 Runner 事实。HyperTest 是其外接测试平台，不另启第二个 Agent 代执行。原有 Harness 接入模式与 Canonical / Runner / Gate 边界保留。安装包、执行绑定、独立集成授权、新 typed HTTPS API 及原 Job Worker 工具收件箱已在本分支实现，新增 `0019` / `0020` additive migration；当前真实 Codex Agent 的隔离正向完整周期已独立通过，见 [ADR-016 验收](../ADR016_ACCEPTANCE.md)。尚未生产部署，也不由该结果推定所有宿主、外部集成或恢复矩阵通过。
 
 ---
 
@@ -76,6 +78,10 @@ HyperTest 的核心链路为：
 - Harness 可选服务器 `SERVER_HOST` 或用户电脑 `LOCAL_CONNECTOR`。现有默认保留服务器模式；用户显式选择模式和节点，可保存本地偏好。首次绑定后模式、节点、Provider、主会话与工作区固定，离线不自动回退；更换这些身份或主会话丢失需要新测试轮次。
 - 同一任务不由多个平台 Worker 同时协作；多个不同任务可并发，包括同一个 SUT 的不同 feat / MR SHA。并发上限由平台、Harness 和 Runner 的实际容量共同约束。
 - 关键决策通过持久人工问题交给操作者，回答后恢复原会话。缺陷可按已配置的 GitLab 项目、责任人和提单策略形成 Issue，并关联测试任务、Finding 与正式 Evidence。
+
+ADR-016 的产品 `execution_mode=CLOUD|LOCAL` 表示 Agent / Harness 的执行位置；正式 Runner 的位置与信任独立，首版仍为平台可信 Runner。`CLOUD` 对应 `SERVER_HOST + PLATFORM_MANAGED`；`LOCAL` 对应 `LOCAL_CONNECTOR`，既保留 ADR-015 的 `PLATFORM_MANAGED` 本机专属会话，也增加 `INTERACTIVE_MCP` 当前 Agent 直接执行。新的 execution driver 属 Operational 选择，不是第三种 Harness mode；组合明确固定，旧请求缺新字段时保持原平台托管行为，不改写历史。
+
+当前本地 Agent 可以显式成为该 Run 主 Session，但普通提交 / 查询不会自动绑定聊天。须验证真实 native 身份、节点、受控工作区、固定源码与宿主生命周期，并保持一任务一逻辑 Worker / 主 Session / 节点 / Workspace 和唯一 owner；无这些宿主能力时只能提交 / 读取或选择云端执行。
 
 Task Worker 的稳定身份与操作系统进程、容器 ID、一次 Job 租约不同。等待人工输入可以释放运行资源，但保留任务绑定、原生会话和工作区；进程替换必须显式恢复同一绑定并隔离旧执行者。原会话丢失时停止并保留历史，不能另开会话冒充续接。
 
@@ -296,7 +302,7 @@ HyperTest 定义统一 `AgentHarness` 抽象，目标适配 Codex CLI、Claude C
 
 服务器模式延续平台任务 Worker 容器通过受限 UDS Host Harness Bridge 调用服务器宿主适配器。ADR-015 的本地模式由用户电脑上的受管 Connector 主动建立 WSS，平台通过该连接调度本机 Harness；源码与 Artifact 经独立 HTTPS 传输，不假设两端共享路径。Connector 独立于浏览器页面存活，无需用户电脑开放公网入站端口，平台继续沿用受控 VPN / 白名单访问边界。
 
-Bridge / Connector 托管原生会话、进程、事件和中断，不持有数据库写权限，不代替 Verifier、Runner 或 Gate，也不提供通用远程 shell。原生认证与会话目录留在实际 Harness 节点。CLI / SDK 已登录认证、Git helper / SSH agent 或本地问题单适配器只有在本机进程实际可用时才可复用，浏览器登录不保证能使用。本地模式创建或恢复专属测试会话，不接管用户任意已有聊天。首次设备配对仍是独立、可到期/撤销/轮换的 HyperTest 授权。首版采用随机设备 bearer token：明文保存在节点受保护文件，平台只存哈希和凭据代次引用；项目的 Harness、source-acquisition 与 issue-executor 能力分别授权。它不要求把模型、Git、问题单 token 或 cookie 再复制到服务器、镜像或 Agent Context，也不扩大原有权限。
+ADR-015 的 Bridge / Connector 托管原生会话、进程、事件和中断，不持有数据库写权限，不代替 Verifier、Runner 或 Gate，也不提供通用远程 shell。原生认证与会话目录留在实际 Harness 节点。CLI / SDK 已登录认证、Git helper / SSH agent 或本地问题单适配器只有在本机进程实际可用时才可复用，浏览器登录不保证能使用。原 `PLATFORM_MANAGED` 路径创建 / 恢复专属会话，不接管任意已有聊天；ADR-016 另允许经可信宿主验证和显式绑定的当前本地 Agent 执行，不自动占用用户聊天。首次设备配对仍是独立、可到期/撤销/轮换的 HyperTest 授权。首版采用随机设备 bearer token：明文保存在节点受保护文件，平台只存哈希和凭据代次引用；项目的 Harness、source-acquisition 与 issue-executor 能力分别授权。它不要求把模型、Git、问题单 token 或 cookie 再复制到服务器、镜像或 Agent Context，也不扩大原有权限。
 
 ---
 
@@ -345,17 +351,33 @@ Canonical State
 
 ---
 
-## 14. HyperTest MCP
+## 14. 运行中领域 MCP 与交互式入口
 
-HyperTest 应对 Agent 提供领域 MCP Server。读取工具包括 `get_requirement`、`get_risk`、`get_test_case`、`get_execution`、`get_evidence`、`get_coverage`；写工具采用 Proposal 语义，包括 `propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`、`request_execution`。
+HyperTest 对受控任务主 Harness 提供运行中领域 MCP。读取工具包括 `get_requirement`、`get_risk`、`get_test_case`、`get_execution`、`get_evidence`、`get_coverage`；写工具采用 Proposal 语义，包括 `propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`、`request_execution`。这些是任务内受绑定与执行授权约束的能力，不等于向用户交互式聊天开放同样权限。
 
 持续会话目标还包括申请 / 完成有类型 Mission、提问、读取正式执行结果、请求 Gate、提交报告和请求 GitLab Issue。工具由平台验证并审计，按既定项目 / 责任人 / 权限策略执行外部操作；未知外部结果需要核对，不能盲目重复提单。本分支以九个固定工具实现这些能力：读取语义映射到分页 `get_state`，Proposal batch 经 `complete_mission` 提交，Gate 请求使用 `evaluate_gate`；完整名称和契约映射见 TMP §25.2。上述细粒度名称保留为领域语义，不代表另有同名端点。
 
 ADR-015 的本地问题单操作仍由平台治理：先批准具体项目、责任人、Finding / Evidence 和操作意图，再委托持有本地凭据的受控适配器执行，平台核验真实问题单引用并审计。Agent 不能借已有 MCP 登录绕过这一流程。操作 ID 与执行方固定，超时或断线后的未知结果只查询对账，不重复创建，也不切换服务器/本地后端另开同一问题单。提单不自动确认 Finding 或改变 Verdict；其他问题单平台须单独适配与验收。
 
-Agent 默认只能：
+任务主 Harness 默认只能：
 
 > **Read Facts, Propose Changes.**
+
+### 14.1 交互式 Agent 接入（ADR-016 已实现，隔离真实核心验收通过 / 未部署）
+
+安装包由 MCP Server、客户端配置与 Skill 组成。首版“当前本地 Agent → stdio MCP → 受限本地 Connector → 新 typed HTTPS API”承担平台通信；不假设现有 Node WSS / UDS Bridge 已能代理这些新接口。原“平台 Worker → Connector WSS → 受管 Harness”继续服务 `PLATFORM_MANAGED`，而 `LOCAL + INTERACTIVE_MCP` 就由当前 Agent 执行智能工作，不经 Connector 另启模型或 Provider。
+
+首版提供七个提交 / 读取工具：`hypertest_submit_task` / `hypertest_get_submission`、`hypertest_get_progress`、`hypertest_list_evidence` / `hypertest_read_evidence`、`hypertest_list_reports` / `hypertest_read_report`，以及 `hypertest_bind_execution` / `hypertest_get_execution` 的显式绑定与幂等查询。绑定后的本地 Agent 可在有效 Run / Mission / Attempt / epoch / claim 范围内复用九个 TMP 领域工具，完成分析、设计、实现、正式执行请求、诊断、受控协作和报告。未绑定客户端不能取得这些写能力；查询不会自动 bind / resume，人工回答、独立取消 / 恢复和设备授权仍沿用各自操作者入口。
+
+提交使用已批准 Project、完整 SHA、PRD / configuration、Policy、环境、execution mode / driver 和节点；本地模式还引用已接受源码与既有节点能力。插件不自动采集 Git、上传 dirty 文件、配对设备或新增来源信任；MCP 安装和执行权限也不授予任意本地问题单操作。交互门面已在同一事务中提交回执、固定 Run/bootstrap 输入与选择、初始 `ADVANCE_RUN` Job 和审计，再确认受理；原有两个 POST 不因此获得原子能力。`LOCAL + INTERACTIVE_MCP` 的初始 Job 须等待显式绑定才获得执行准入，平台 coordinator 维护租约、领域编排和验证，不调第二个 Harness。
+
+九个领域工具的请求先进入原 Run 的 typed tool inbox。API 只鉴权、校验并入账 / 查询，原 Job Worker 持唯一 claim 消费请求、执行领域服务和 Docker Runner，不另建业务调度循环。客户端先持久运输 key；响应丢失、排队或执行中只查询原请求，不自动 POST。运输成功返回原 TMP 业务结果，不能把业务拒绝变成接受；HTTP / MCP 断开不取消 Worker 已接受的正式执行。
+
+请求以跨重连稳定的 `submission_key` 和输入摘要对账，不以单次 JSON-RPC ID 识别测试轮次。响应丢失时显示 UNKNOWN 并查询原 key；UNKNOWN 不是 Run 新状态，NOT_FOUND 也不能证明未创建，插件不自动再次 POST、换 key 或新建 Run。执行绑定也必须幂等、可查询，不以丢失回复为由接管另一个 owner。当前聊天可显式成为 primary Session，但须由可信宿主适配器证明真实身份，不能采信模型传入 chat ID；保留 `UNIQUE(provider, provider_session_id)`，首版一个真实执行会话只绑定一个 Run，可提交 / 读取其他 Run。新的执行 Run 需真实新上下文，不伪造 ID 或由 Connector 悄悄另启会话，也不上传原聊天或思维链。
+
+新的 `InteractiveIntegrationGrant` 按项目分别授予提交 / 读取及显式 `run:execute` 权限，凭据留在 Connector 私有文件，与设备 token、节点能力、Bridge 管理权限和 operator 全局 key 分开。实际执行另需限定 Run / Binding / Session / epoch / Job claim / Mission / Attempt 的短期能力，不因项目有执行权就能任意写状态。平台仍以 Verifier 接受 Proposal、以可信 Runner 采集 Evidence、以 Gate 判定；本地 shell 测试不是正式事实，MCP 不扩大个人 shell / filesystem / 其他 MCP 权限。读取继续验证范围、归属、固定版本、hash 与分页，不读任意路径或 Provider 对话，报告保留历史结论。
+
+短期能力固定其原 `device_grant_id`；即使同 node 取得轮换后的新设备凭据，旧短期能力也不能继续发起工作。当前宿主适配仅支持受控 Codex Desktop stdio 上下文，核验真实 native 身份、原生 metadata、Codex 进程、kernel 观察的 stdio peer 与固定源码；daemon 固定首个可信 peer PID 和出生时间。替换 stdio 进程须在原可信 native 上下文显式重启 daemon、按原身份对账后显式继续，不能自动创建新 Session、Job 或 grant。不具备这些能力的通用 MCP 宿主只支持提交 / 读取或 CLOUD；不上传聊天或思维链。安装与限制见[客户端说明](../INTERACTIVE_MCP_CLIENT.md)。
 
 ---
 
@@ -445,6 +467,8 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 
 用户在 SUT 的 Project 中为一个 feat / MR 的完整 SHA 提交 PRD、配置、策略与测试环境，平台创建 TestRun。以下步骤在同一个主 Harness 会话内自驱、串行推进：
 
+ADR-016 允许选择云端受管 Harness 或本地当前 Agent 执行该周期。当前 Agent 经显式绑定成为本地主会话后，下面的推理 / 实现步骤由它完成，平台维护 Mission、准入、可信执行与决策；不会另启替身模型，也不由插件重建通用 Agent Loop。
+
 1. **Snapshot / Binding**：显式选择 Harness 模式和节点，准备并验证固定源码，冻结输入和实际执行环境，建立唯一任务 Worker 绑定与主 AgentSession。
 2. **Requirement Analysis**：Harness 申请 `ANALYZE_REQUIREMENTS` Mission，形成 Proposal；HyperTest 验证后保存 Requirement。
 3. **Risk Analysis**：读取已接受需求，申请 `ANALYZE_RISKS`，形成 Requirement → Risk。
@@ -477,6 +501,8 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 
 其中 ADR-013 的服务器持续会话路径已在本分支实现，并取得真实成功、失败诊断及两类问答证据，范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)；ADR-015 的本地 Harness、跨网络传输与显式恢复已有独立实现和隔离回归，核心隔离真实周期 / 恢复已按 ADR-015 单独登记，生产已部署，线上核心周期已通过。v0.3 的历史路径仍由平台 bounded controller 逐步选择 Mission 并收取阶段最终结果；它不被描述为持续会话验收，也不被新 profile 改写。
 
+ADR-016 中，云端执行不依赖聊天在线；当前本地 Agent / 宿主关闭则智能工作停止，Connector 不得替身继续，已经有效授权并持久接受的 Runner 请求可按有效原归属完成。平台保留状态、预算和事实，聊天退出本身不是业务取消。重连先查 submission、执行绑定和未知操作；只有原身份及租约 / scope 仍有效时，才可经显式继续准入推进。更换 stdio 进程需在原 native 上下文显式重启 transport daemon；这不会自动新建 native Session、Job、执行 grant 或重放工具。超期按 ADR-015 对账与 fencing 后显式恢复，原 native Session 不可恢复需关联新 Run，不自动换节点或另启模型。撤权只隔离本 Run 平台能力，不承诺终止用户整个聊天或个人原生工具。
+
 ---
 
 ## 22. Web 产品形态
@@ -486,6 +512,8 @@ HyperTest 的核心 UI 不应该是聊天框，而应该呈现 Requirements、Ri
 用户感受到的是“测试平台正在工作”，而不是“我正在和 AI 聊天”。
 
 双模式工作台还应清楚说明所选设备与 Provider、连接状态、源码接收进度、问题单未知结果和显式恢复入口。节点在线不等于测试通过，重连不等于恢复执行；本地未在线时允许查看已有状态，但不能隐藏地改用服务器认证。本分支 Web / API 已提供模式 / 节点选择、设备配对 / 撤销、源码接收及恢复入口；真实浏览器与完整周期验收仍单独记录，不据此宣称生产已交付。
+
+ADR-016 的 Web 执行步骤应提供“云端执行 / 本地执行”选择，并明确本地是否由当前 Agent 经 MCP 执行；不能把“本地”仅作为提交入口、实际再起另一个 Agent。平台应显示待绑定、原执行身份、租约与恢复状态，正式测试 Runner 的位置独立说明。MCP / typed API 与执行路径已有实现，新 Web 的 execution mode / driver 展示仍需独立交付和验收，不能由旧 ADR-015 的模式 / 节点界面推定已完成。
 
 ---
 
@@ -511,6 +539,8 @@ Middleware:     containerized when justified by an actual dependency
 已有数据库卷、Artifact、工作区、原生认证与受控访问边界需要在迁移中保全；容器删除不代表数据删除。各类常驻服务、宿主 Harness 和正式 Runner 分别配置容量与资源预算。现有开发 Compose 不是该生产目标的完整实现。
 
 本地 Connector 不要求新增消息中间件；服务器 Worker、PostgreSQL、Verifier、Gate 与 Runner 继续承担原有职责。现有 TMP/profile 和服务器 UDS Bridge 不改变语义，本地传输以独立版本协商；两种模式都需保留数据、认证、SSH 与现行 VPN / 白名单边界。
+
+ADR-016 已实现 stdio MCP → 常驻 Connector → 新 typed HTTPS API，以及当前本地 Agent 的可信绑定与短期执行授权。`CLOUD / LOCAL` 表示 Agent 执行位置，`PLATFORM_MANAGED / INTERACTIVE_MCP` 表示会话驱动；它们不改变 Runner 信任。API 将严格类型请求写入 PostgreSQL 运输 inbox，由原 Job Worker 执行九个 TMP 工具与可信 Runner；不新增数据库、消息中间件、独立业务调度队列或通用 Agent Loop，本地交互执行不使用上面的 WSS 派生另一主会话。此实现尚未生产部署。
 
 ---
 
@@ -566,6 +596,10 @@ MVP 建议只支持一个 Agent Harness（Codex）、API / Backend Functional Te
 现有 MVP 能力与 ADR-013 目标须分别验收：容器部署、宿主 Bridge、整个 Run 的持续会话与运行中领域工具已有实现；生产迁移、数据 / 认证 / 访问边界保全及真实正反链路已完成[独立验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。受控 GitLab 集成已有回归，实际提单仍需授权配置与真实服务证据。Claude Code / DeepSeek 等适配器也需各自的真实运行证据，不能由 Codex 结果代替。
 
 ADR-015 双模式已实现并部署生产，其隔离验收与本次生产记录独立于上述 ADR-013 历史。隔离核心链已核验本机授权复用、私有源码与来源 receipt、可信 Runner、获准问题单创建及原会话恢复；UNKNOWN 去重和服务器 UDS 兼容另有回归。严格外部 TLS 已确认，线上本地 Connector 核心周期已通过，扩展休眠 / 离线取消 / WAITING_INPUT / 原会话丢失及外部 UNKNOWN 故障矩阵未逐项完成。文档、mock 和能力声明不能代替这些证据。见[生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。
+
+ADR-016 的安装包、typed API、执行绑定 / 短期能力、原子提交门面和原 Worker 工具 inbox 已实现。当前真实 Codex Agent 经官方 MCP SDK 通路完成四个 Mission 的 Proposal、四份 Implementation、真实 Docker live HTTP 27 / 27 和五份 VERIFIED Runner Evidence，形成 `RELEASE_READY` 与已接受报告，Job / Binding 正常收口；证据和两页报告均经 MCP 读取并核验摘要与字节数。没有另启模型，详见[隔离验收记录](../ADR016_ACCEPTANCE.md)及[机器可读观察](../evidence/adr016-20261020.json)。
+
+同一 Run / native / workspace 的过期恢复保留历史并递增 epoch，恢复实现的最终版本另经独立集成回归验证，具体版本与时序边界以验收记录为准。stdio / daemon 重启与原 key 查询发生在 Runner 完成后，查回同一 Execution，不能据此宣称当前 Agent 的运行中断线已经实测。该能力尚未生产部署；其他宿主、私有 Git / 问题单写入、扩展真实设备故障及新 Web 展示仍独立验收。来源 / 问题单权限和正式 Runner 信任保持原边界，无宿主能力时拒绝冒称本地执行，ADR-015 历史验收不替代这些新结果。
 
 第一阶段不做复杂多 Agent Blackboard、自研 LLM Agent Loop、复杂 Workflow DSL、跨公司通用测试 Ontology、完全无人值守 Release。
 
@@ -705,6 +739,7 @@ HyperTest One 的产品 slogan：
 - **Harness 自驱任务内串行工作；平台管理任务间并发、状态、证据与决策。**
 - **Harness 可在服务器或已配对本机运行；认证留节点，模式与会话不因断线静默替换。**
 - **源码来源与内容、外部问题单结果均须受控核验；本地授权不赋予 Canonical 写权或 Runner 信任。**
+- **本地交互式 Agent 可显式成为任务执行者；MCP 连接平台，Verifier / Runner / Gate 仍拥有状态、事实与决策。**
 - **通用 Agent 越强，HyperTest 应该越强，而不是受到威胁。**
 
 ---

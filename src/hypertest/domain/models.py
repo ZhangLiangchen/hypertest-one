@@ -592,6 +592,16 @@ from hypertest.domain.harness import (  # noqa: E402, F401
 )
 from hypertest.domain.harness_selection import RunHarnessSelection  # noqa: E402, F401
 from hypertest.domain.inputs import MissionInputRequest  # noqa: E402, F401
+from hypertest.domain.interactive import (  # noqa: E402, F401
+    InteractiveActorIdentity,
+    InteractiveClientRegistration,
+    InteractiveExecutionBinding,
+    InteractiveExecutionGrant,
+    InteractiveIntegrationGrant,
+    InteractiveSubmissionReceipt,
+    InteractiveToolRequest,
+    RunExecutionSelection,
+)
 from hypertest.domain.issue_executor import GitLabIssueOperationExecutor  # noqa: E402, F401
 from hypertest.domain.jobs import DurableJob  # noqa: E402, F401
 from hypertest.domain.run_inputs import RunInputRequest  # noqa: E402, F401

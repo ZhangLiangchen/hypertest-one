@@ -29,11 +29,13 @@ deployed release, SSH access, service management, and paired backup/recovery ste
 
 The current product targets **one trusted operator** in a controlled development/test environment. Application login, tenant isolation, RBAC, and hardened public deployment are future work.
 
-The production baseline was read-only verified on 2026-10-19 at merged main **`4d597d4`** (PR #12 Web, PR #11 API/Worker), with Host Harness Bridge build **`95e92c5`** and database **`0014_harness_operations`**. Its containers, restricted access and existing data/session/artifact hashes match the PR #12 delivery. Existing data and Codex OAuth remain persistent. Historical acceptance records retain their own source and deployment identities; [source-diagnostic acceptance](docs/SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md) records this fresh verification separately.
+The historical production baseline was read-only verified on 2026-10-19 at merged main **`4d597d4`** (PR #12 Web, PR #11 API/Worker), with Host Harness Bridge build **`95e92c5`** and database **`0014_harness_operations`**. Its containers, restricted access and existing data/session/artifact hashes matched that delivery. The later ADR-015 release and schema `0018` are recorded in [ADR-015 production deployment](docs/ADR015_PRODUCTION_DEPLOYMENT.md); those records retain their own source identities and acceptance limits.
 
 [ADR-014: post-session Gate reassessment](docs/architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) is deployed through PR #11: after a reported session closes, record Finding dispositions and explicitly submit a reasoned independent Gate task using existing facts. Its original local positive/negative and governance results remain in [post-session Gate acceptance](docs/POST_SESSION_GATE_ACCEPTANCE.md).
 
-**This branch adds actionable source-preparation diagnostics and is not deployed.** Failed tasks show a bounded stage/category and bilingual recovery guidance; Git output, commands, URLs and credentials are excluded. An explicit retry links a new Job to the original failure with identical frozen input. Changing the repository or SHA requires a reviewed new round. A real 390px Web failure/retry completed Codex → trusted Docker → verified evidence → report with **37/37 tests passing and RELEASE_READY**. Automated checks passed **808 backend tests including 18 real Docker checks**, **104 Web tests**, Ruff, typecheck and production build. No migration is added; head remains `0014`. Exact source identities and limits are in [the acceptance record](docs/SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md).
+The historical source-preparation diagnostics delivery added a bounded stage/category and bilingual recovery guidance; Git output, commands, URLs and credentials are excluded. An explicit retry links a new Job to the original failure with identical frozen input. Changing the repository or SHA requires a reviewed new round. That acceptance completed a real 390px Web failure/retry through Codex → trusted Docker → verified evidence → report with **37/37 tests passing and RELEASE_READY**. Its automated results and then-current schema `0014` belong to [the source-diagnostic acceptance record](docs/SOURCE_PREPARATION_DIAGNOSTICS_ACCEPTANCE.md).
+
+ADR-016 adds a [current-Agent MCP plugin](docs/INTERACTIVE_MCP_CLIENT.md): submit a task, explicitly bind the actual local Agent, use the existing typed testing tools, and read progress, evidence and reports. The cloud Harness and Connector-managed local Harness remain available. Local execution describes where the Agent works; official test facts still come from the trusted platform Runner. The [real current-Agent acceptance](docs/ADR016_ACCEPTANCE.md) records 27 passing HTTP tests, verified evidence/report reads and 967 passing regression tests. This implementation has not been deployed to production.
 
 The production Web entry accepts only the configured jump-host egress allowlist. Connection details live in protected operator configuration; this README does not publish the jump-host address. SSH is for administration and manual recovery, with forwarding disabled; there is no supported Web tunnel. Routine releases inspect the access rules and internal readiness without repeating connectivity probes from each external network. Initial activation or an access-boundary change requires separate access validation. See [the access guide](docs/WEB_PRODUCT_WORKFLOW.md#白名单-web-入口--allowlisted-web-access).
 
@@ -119,7 +121,7 @@ Start PostgreSQL and install backend dependencies:
 docker compose up -d postgres
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -e '.[dev,interactive]'
 cp .env.example .env
 alembic upgrade head
 ```

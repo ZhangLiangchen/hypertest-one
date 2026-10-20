@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     connector_operator_identity: str = "local-operator"
     connector_request_timeout_seconds: float = 20.0
     connector_allow_insecure_loopback: bool = False
+    interactive_grant_ttl_seconds: int = Field(default=120, ge=10, le=120)
+    interactive_bind_grace_seconds: int = Field(default=120, ge=10, le=300)
 
 
 @lru_cache

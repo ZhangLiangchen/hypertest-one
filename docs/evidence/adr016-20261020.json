@@ -1,0 +1,359 @@
+{
+  "schema_version": "hypertest.adr016-acceptance/v1",
+  "date": "2026-10-20",
+  "environment": "isolated-local-https-api-worker-postgresql-docker",
+  "production_deployed": false,
+  "implementation_git_base": "cc84398ad81c26bd484ebaae46e6f61713d912ad",
+  "implementation_state": "uncommitted ADR016 implementation on codex/adr016-interactive-mcp; not the SUT commit",
+  "mcp_wire": "official Python SDK ClientSession -> stdio MCP server -> private UDS daemon -> HTTPS API -> original Job Worker",
+  "agent_execution": "actual current Codex Desktop native session; no new Provider/model process",
+  "source": {
+    "id": "01a157ac-af64-738f-9da6-c7be6a22d76c",
+    "status": "ACCEPTED",
+    "origin": "https://github.com/ZhangLiangchen/hypertest-one",
+    "commit_sha": "cc84398ad81c26bd484ebaae46e6f61713d912ad",
+    "root_tree": "077b7bfd1bf4982f3d6e3299ed32addcdbcb95ba",
+    "object_format": "sha1",
+    "bundle_sha256": "712e24b78d686d6a651f9772af1bd10f600f3c625277af9f4470e30c3d4b9f19",
+    "bundle_size": "7900054"
+  },
+  "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+  "project_id": "01a157aa-ce09-7ee2-9e58-ba887591153d",
+  "selection": {
+    "execution_mode": "LOCAL",
+    "execution_driver": "INTERACTIVE_MCP",
+    "harness_mode": "LOCAL_CONNECTOR",
+    "harness_node_id": "01a157aa-ce14-7b99-979b-711f864cbcd6",
+    "source_bundle_transfer_id": "01a157ac-af64-738f-9da6-c7be6a22d76c"
+  },
+  "counts": {
+    "requirements": 2,
+    "risks": 3,
+    "test_cases": 4,
+    "implementations": 4,
+    "executions": 1,
+    "evidence": 5,
+    "findings": 0
+  },
+  "junit": {
+    "tests": 27,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "gate": {
+    "status": "FINAL",
+    "decision": "RELEASE_READY",
+    "verdict_id": "01a157ca-2245-70e8-9b11-1cbddfa4e5f4",
+    "verdict_key": "VER-01A157CA224573199F5357EFF9C6E465"
+  },
+  "final_progress": {
+    "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+    "project_id": "01a157aa-ce09-7ee2-9e58-ba887591153d",
+    "status": "COMPLETED",
+    "repository_url": "https://github.com/ZhangLiangchen/hypertest-one",
+    "commit_sha": "cc84398ad81c26bd484ebaae46e6f61713d912ad",
+    "source_snapshot_id": "01a157bb-b02c-7a94-a31c-1480ff616a5c",
+    "job": {
+      "id": "01a157c6-e7e3-7283-834e-44ac55cc0590",
+      "status": "SUCCEEDED",
+      "error_code": null
+    },
+    "binding_status": "CLOSED",
+    "workspace_id": "3709f17904bf42b2bc92af84159efd17",
+    "execution_mode": "LOCAL",
+    "execution_driver": "INTERACTIVE_MCP",
+    "harness_mode": "LOCAL_CONNECTOR",
+    "harness_node_id": "01a157aa-ce14-7b99-979b-711f864cbcd6",
+    "source_bundle_transfer_id": "01a157ac-af64-738f-9da6-c7be6a22d76c",
+    "verdict": {
+      "id": "01a157ca-2245-70e8-9b11-1cbddfa4e5f4",
+      "decision": "RELEASE_READY",
+      "status": "FINAL"
+    },
+    "quality_decided": true
+  },
+  "final_binding": {
+    "id": "01a157bd-5db7-7400-84e1-72685465ebda",
+    "execution_id": "01a157bd-5db7-7400-84e1-72685465ebda",
+    "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+    "binding_id": "01a157bd-5db3-7e38-84a2-49870600c291",
+    "agent_session_id": "01a157bd-5db2-7912-ba1f-63e964c98963",
+    "binding_epoch": 3,
+    "binding_row_version": 7,
+    "status": "CLOSED",
+    "job_status": "SUCCEEDED",
+    "execute_ready": false,
+    "grant_expires_at": "2026-10-20T05:32:26.471171+00:00",
+    "attach_key": "attach:d71aee5a56fe4098a5bee2d5381a3b9f"
+  },
+  "sessions": [
+    {
+      "id": "01a157bd-5db2-7912-ba1f-63e964c98963",
+      "provider": "codex",
+      "harness": "codex",
+      "workspace_id": "3709f17904bf42b2bc92af84159efd17",
+      "status": "CLOSED",
+      "native_session_sha256": "0516de1859ea5e5bd11598e43de706eb2dd2d3f97de0e708bceccf2eb0a7d04e"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "01a157bb-b040-75a0-b208-53408fdb44c8",
+      "status": "FAILED",
+      "retry_of_job_id": null,
+      "error_code": "CONFLICTERROR"
+    },
+    {
+      "id": "01a157c3-9fda-7f57-854c-4ff1e47baa66",
+      "status": "FAILED",
+      "retry_of_job_id": "01a157bb-b040-75a0-b208-53408fdb44c8",
+      "error_code": "CONFLICTERROR"
+    },
+    {
+      "id": "01a157c6-e7e3-7283-834e-44ac55cc0590",
+      "status": "SUCCEEDED",
+      "retry_of_job_id": "01a157c3-9fda-7f57-854c-4ff1e47baa66",
+      "error_code": null
+    }
+  ],
+  "executions": [
+    {
+      "id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+      "key": "EX-01A157C957C57A55A8F6C3DFD82A586E",
+      "durable_job_id": "01a157c6-e7e3-7283-834e-44ac55cc0590",
+      "status": "COMPLETED",
+      "outcome": "PASS",
+      "purpose": "OFFICIAL",
+      "runner_backend": "docker",
+      "source_commit": "cc84398ad81c26bd484ebaae46e6f61713d912ad",
+      "exit_code": "0"
+    }
+  ],
+  "inbox": [
+    {
+      "tool_name": "complete_mission",
+      "status": "SUCCEEDED",
+      "count": "4"
+    },
+    {
+      "tool_name": "evaluate_gate",
+      "status": "SUCCEEDED",
+      "count": "1"
+    },
+    {
+      "tool_name": "get_state",
+      "status": "SUCCEEDED",
+      "count": "2"
+    },
+    {
+      "tool_name": "request_execution",
+      "status": "SUCCEEDED",
+      "count": "1"
+    },
+    {
+      "tool_name": "request_mission",
+      "status": "SUCCEEDED",
+      "count": "4"
+    },
+    {
+      "tool_name": "submit_report",
+      "status": "SUCCEEDED",
+      "count": "1"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "01a157c9-5e14-7e3c-b3cf-2a8881c0d405",
+      "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+      "execution_id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+      "key": "EV-01A157C95E1370A78483EC557A4E81F7",
+      "sha256": "bb6e7bb6cc9c5476cb968a6fbb040666b6acd1c912443cf8f05dd490de5a2b12",
+      "size_bytes": 180,
+      "media_type": "text/plain",
+      "evidence_type": "STDOUT",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1",
+      "created_at": "2026-10-20T05:29:37.044063+00:00"
+    },
+    {
+      "id": "01a157c9-5e16-70ee-8d10-0c7086271826",
+      "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+      "execution_id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+      "key": "EV-01A157C95E1673E2A8AB8C2A0C89096E",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "media_type": "text/plain",
+      "evidence_type": "STDERR",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1",
+      "created_at": "2026-10-20T05:29:37.046556+00:00"
+    },
+    {
+      "id": "01a157c9-5e18-7789-9896-29855a505df8",
+      "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+      "execution_id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+      "key": "EV-01A157C95E187EB6A523DDF596C39BD7",
+      "sha256": "89448b3ba77f065413f345123508d4078d389714c7d2233b8bb8d37fc8a42092",
+      "size_bytes": 3028,
+      "media_type": "application/xml",
+      "evidence_type": "JUNIT",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1",
+      "created_at": "2026-10-20T05:29:37.048293+00:00"
+    },
+    {
+      "id": "01a157c9-5e19-76e8-90c8-f164fcfd53ac",
+      "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+      "execution_id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+      "key": "EV-01A157C95E197452A0EAA8DF33B66914",
+      "sha256": "5ef215838cfd1ca178374a746fa5f7ef814c0adfd4db9c524bcb68bf12f81fd8",
+      "size_bytes": 341,
+      "media_type": "text/plain",
+      "evidence_type": "LOG",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1",
+      "created_at": "2026-10-20T05:29:37.049867+00:00"
+    },
+    {
+      "id": "01a157c9-5e1b-7ceb-8e81-c4e12a2a6344",
+      "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+      "execution_id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+      "key": "EV-01A157C95E1B748594AD1F9ADB28E09E",
+      "sha256": "754bd0dabd5760f54b0e3aa740d0fcac38708c0d2099ecca3be2d30dd5393152",
+      "size_bytes": 6650,
+      "media_type": "application/json",
+      "evidence_type": "EXECUTION_METADATA",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1",
+      "created_at": "2026-10-20T05:29:37.051539+00:00"
+    }
+  ],
+  "all_evidence_read_size_and_sha256_verified": true,
+  "report": {
+    "id": "01a157ca-c5ac-7bc7-8a68-7df88de32aaa",
+    "run_id": "01a157bb-b031-7bf2-9449-59fe02566051",
+    "sha256": "c20d1c06fd002b278f8a31e119254637d4d0f4f19ceb72eb18183def1f0aa84d",
+    "schema_version": "hypertest.report/run-summary/v1",
+    "verdict_key": "VER-01A157CA224573199F5357EFF9C6E465",
+    "created_at": "2026-10-20T05:31:09.105167+00:00"
+  },
+  "report_cursor_pages": 2,
+  "report_read_size_and_sha256_verified": true,
+  "recovery": {
+    "same_run_native_main_session_workspace": true,
+    "epochs_observed": [
+      1,
+      2,
+      3
+    ],
+    "probes": [
+      "10-second short grant expires and stops new work",
+      "bind grace expires before first continuation",
+      "explicit operator recovery creates linked retry Job; same original attachment"
+    ],
+    "final_worker_recovery_refactor_verified_by": "isolated integration tests; current Agent recoveries preceded Worker-only control refactor"
+  },
+  "transport_restart": {
+    "daemon_and_stdio_restarted": true,
+    "requeried_original_request_key": "adr016-trusted-runner-1",
+    "same_execution_id": "01a157c9-57c6-751c-9472-b3ecc4027847",
+    "formal_execution_count": 1,
+    "timing": "Runner had completed before transport process restart; no claim of current-Agent in-flight cancellation"
+  },
+  "raw_mcp_response_sha256": {
+    "mcp-output-2/response-0005.json": "2bb85bd692d261cae0747bbf59ec3e0022cbe38c50733b714d968d998d36c6c7",
+    "mcp-output-2/response-0004.json": "a5e66c718636f679658179bf1df8c353483bd749e693ba554d7aaba6edcecf54",
+    "mcp-output-2/response-0003.json": "2abbdabbf540cb389b2e4f3a26ce12f1101c608c42689876943f9130f3637a84",
+    "mcp-output-2/response-0002.json": "0ae9496a82a983d8e1b78df33ee352382b7b95a1843eb116df61de5a25edccdc",
+    "mcp-output-2/response-0001.json": "d2592c85d9f90791f91dab09d20c48d5ef5a725e6eca843e3610148222d903c0",
+    "mcp-output-2/response-0007.json": "b80632cc63ef06dc178fb088578cbb1b4f99022c52033c3d53a3d744ea29b215",
+    "mcp-output-2/response-0006.json": "90effb4e6db89bdf5b716a5e229657a5f0ed430948e1600d3790ebd675082d0d",
+    "mcp-output-3/response-0005.json": "d67b814c243d823aa81d752314753bda9b2ee89ca2b707fcc4478212c53349e4",
+    "mcp-output-3/response-0013.json": "577847ab9cd0da43b2701caf3b47602b25b3ecf6a2f4b1994b90fb3f624af0a8",
+    "mcp-output-3/response-0009.json": "a784c1527da880f05f4dc4525a332bf9df9c804172ad5ace0bf6e69e838e0c94",
+    "mcp-output-3/response-0008.json": "3aa634c48578b878a99997f0e2361dcf4affee62b25b84b871c6d804b3566047",
+    "mcp-output-3/response-0012.json": "19fa914e569ee12280cfc9374a048295b30097ee519f2d87901b669e2737997f",
+    "mcp-output-3/response-0004.json": "28c2a3a15cf49619e867552871211000f932b08848a02c0da5ebfc96b51f9dc0",
+    "mcp-output-3/response-0003.json": "84ece389363013ebd9b57b9dd185e43896ca501909a126b8c03e6b469da487e7",
+    "mcp-output-3/response-0015.json": "bce5ca7fb0f04c374e004e7244a77e60a6c33cc9574ab88e369ae7288ecbd99a",
+    "mcp-output-3/response-0014.json": "7ae41575d979624d324313acab074fcd3435a3e9f72b095e598757e04ef29fb5",
+    "mcp-output-3/response-0002.json": "d72e6a1c33c3b6637be912eb9b59e49f5e09e599c0360ce0170b1ecd3c59f52d",
+    "mcp-output-3/response-0017.json": "c53fdebefb991ef24ca1e5ce7bfbb15d8228cc848e6ed3717a15e7d1a63e3bd1",
+    "mcp-output-3/response-0001.json": "10ee7ea8db627f036c116dbf457c94be2f47926787ff3005215cc6bce66614b1",
+    "mcp-output-3/response-0016.json": "88e11031f23a7cf16e087552e828c6ac1e27b91626342b8aa1148c87a4cc1fe3",
+    "mcp-output-3/response-0011.json": "2f0b7bf68dac1dfa3673ac68f1e3a20ae32c0eff403aead6942a03fb12ab38e3",
+    "mcp-output-3/response-0007.json": "e8fd98482dad0b250f96e688a8e3cf23299abd48383ba340d09a2f20d1d25132",
+    "mcp-output-3/response-0006.json": "ace63419716fcb0e86d9c72177c3a2e45f04c8aede83622bc212e3b260bdbb73",
+    "mcp-output-3/response-0010.json": "2431df28547035231deebf98f0bdfd20d88e20e2768780c4f908c197cb927a50",
+    "mcp-output-4/response-0005.json": "d06b9e5bf2cc0573e130aa0824652c4d828da9d920671fdc60468c36d183bd72",
+    "mcp-output-4/response-0013.json": "139b2312bf12358113c7d8782e9799c78ce2633ba51fa1cbe10e44474d1e4be4",
+    "mcp-output-4/response-0009.json": "777d73033d30b48f17ef0668a445d319392e6d61ec5e7d1f71ee8ed03dcefaac",
+    "mcp-output-4/response-0008.json": "b113d492b31f44094a637cf3c3a67bf67cd97bfd62d2b88a3f84b1741e9e8739",
+    "mcp-output-4/response-0012.json": "65c7af2eeb7986f25502c3208900235d2ad71b776c64071e186c59f34aefab9e",
+    "mcp-output-4/response-0004.json": "c0c8d085598e17f548acbc0575a64d66076b80396830bfc9183a329f60681f92",
+    "mcp-output-4/response-0003.json": "ad039e2782cdfef3abac2dbb88461b0c234a7ecda604eda5040783715ec51cc4",
+    "mcp-output-4/response-0015.json": "c64acac2ccc73528d716df56d3520377e79744feb5f0ed6f175e7310dcc3278c",
+    "mcp-output-4/response-0014.json": "352d7755a4054a42dd25f9b944253a9912619058a8a1f919aa895ae31ddd78e4",
+    "mcp-output-4/response-0002.json": "c53fdebefb991ef24ca1e5ce7bfbb15d8228cc848e6ed3717a15e7d1a63e3bd1",
+    "mcp-output-4/response-0018.json": "61ebf7c4ab6e45f245467fd6d921e936c3ad4b13ced2635cc5c3620a558457cc",
+    "mcp-output-4/response-0017.json": "f32c32417cfce2986ffd5dc90e3aae33d047cee7cca1a2495eb4eaa3fa163fc5",
+    "mcp-output-4/response-0001.json": "f13493080aa247967b0bb13285e6d1304981ff5a476e3578ef5cf76b9fedfed6",
+    "mcp-output-4/response-0016.json": "e3c9fc9a4d8a05ceaa9b2d57f76c89bc594a54c81f2654c7a3186caa734c8237",
+    "mcp-output-4/response-0011.json": "5184f0575ee9e6b5fa984da79797b44bd0dfd15dd243df2399856961586b1a54",
+    "mcp-output-4/response-0007.json": "ee9babbf1f8aa2b7391b7865ce4595fe150e42842013bca282fd31123d83095b",
+    "mcp-output-4/response-0006.json": "69f8c9b91bc08b1b03ad0bc12907ab4844478811e9617df9cb04ef54a158f34d",
+    "mcp-output-4/response-0010.json": "3f566aa8bfa7e793bc48225ecde708baac411f31a86837590c7b811f63fba7ef",
+    "mcp-output-4/response-0019.json": "c64acac2ccc73528d716df56d3520377e79744feb5f0ed6f175e7310dcc3278c",
+    "mcp-output-4/response-0020.json": "352d7755a4054a42dd25f9b944253a9912619058a8a1f919aa895ae31ddd78e4"
+  },
+  "limits": [
+    "isolated acceptance, not deployed production",
+    "controlled Codex Desktop stdio host only; generic shared MCP LOCAL binding fails closed",
+    "MCP tool discovery not hot-injected into already-open chat; transparent official-SDK console used by actual current Agent",
+    "no GitLab issue write or private repository claim in this acceptance; inherited ADR015 paths covered by regression",
+    "no new Web execution_mode/driver selector UI delivered in this change"
+  ],
+  "verification": {
+    "full_suite": {
+      "passed": 967,
+      "skipped": 18,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 3,
+      "seconds": 162.01,
+      "junit_sha256": "8bdeae0f07d4bb218e1d885c85362997a077aa50c699f408700961e163f941a8",
+      "fresh_schema_upgrade": "0001 -> 0020_interactive_tool_inbox",
+      "interactive_real_docker_scenarios": 2,
+      "legacy_skips": "18 existing opt-in controlled Runner smoke scenarios were not enabled; no interactive test skipped"
+    },
+    "ruff": "passed src tests alembic scripts/interactive_mcp_console.py",
+    "diff_check": "passed",
+    "wheel": {
+      "sha256": "5a7b0b9b1333dc19055c07a9a2b0b17d708d0fed0fd5a1f84a10730354539e4c",
+      "entries": 124,
+      "source_files_matched": 120,
+      "private_state_included": false,
+      "clean_virtualenv_install": true,
+      "entrypoint_help_and_config_export": true
+    },
+    "runtime_manifest": "adr016-runtime-sha256.json"
+  },
+  "post_freeze_checks": {
+    "api_worker_restarted_at_final_code": true,
+    "mcp_original_completed_progress_and_report_readable": true,
+    "worker_recovery_closed_attachment_http_status": 409,
+    "original_closed_binding_unchanged": true,
+    "original_recovery_key_query_http_status": 409
+  }
+}

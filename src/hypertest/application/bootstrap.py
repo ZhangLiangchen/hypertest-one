@@ -1,6 +1,9 @@
 """Create a reproducible run from the Web's input form in one transaction."""
 
 import hashlib
+import os
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
@@ -63,7 +66,87 @@ async def _existing_request(
     return existing
 
 
-async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBootstrap) -> TestRun:
+@dataclass(frozen=True)
+class PreparedBootstrapInputs:
+    input_digest: str
+    environment_definition: dict | None
+    prd_artifact_uri: str
+    configuration_artifact_uri: str
+
+
+def _preparation_digest(payload: RunBootstrap) -> str:
+    return canonical_json_sha256({
+        "repository_url": payload.repository_url.strip(), "commit_sha": payload.commit_sha.lower(),
+        "prd_text": payload.prd_text, "configuration_text": payload.configuration_text,
+        "environment": payload.environment.model_dump(mode="json", exclude_none=True) if payload.environment else None,
+        "effective_policy_hash": compile_policy({"gate_version": "mvp/v1", **payload.policy}).effective_policy_hash,
+    })
+
+
+def _materialize_input(content: bytes) -> str:
+    """Publish immutable inputs atomically, before any aggregate row lock."""
+    root = Path(get_settings().artifact_root).resolve()
+    inputs = root / "inputs"
+    inputs.mkdir(parents=True, exist_ok=True)
+    if not inputs.resolve().is_relative_to(root):
+        raise ValueError("input store must remain under the configured artifact root")
+    digest = hashlib.sha256(content).hexdigest()
+    target = inputs / f"{digest}.txt"
+    if target.is_symlink():
+        raise ValueError("input artifact must be a regular file")
+    if not target.exists():
+        with tempfile.NamedTemporaryFile(dir=inputs, prefix=".input-", delete=False) as output:
+            temporary = Path(output.name)
+            os.fchmod(output.fileno(), 0o644)
+            output.write(content)
+        try:
+            try:
+                os.link(temporary, target)
+            except FileExistsError:
+                pass
+        finally:
+            temporary.unlink(missing_ok=True)
+    if target.is_symlink() or not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        raise ValueError("existing input artifact failed integrity verification")
+    return str(target)
+
+
+async def prepare_bootstrap_inputs(
+    session: AsyncSession, project_id: UUID, payload: RunBootstrap,
+) -> PreparedBootstrapInputs:
+    """External I/O phase. Call before starting the atomic submission transaction.
+
+    Queued environment resolution uses its existing durable control request and
+    may commit this session. Never invoke this with staged receipt/domain writes.
+    """
+    if session.new or session.dirty or session.deleted:
+        raise ValueError("bootstrap preparation requires a session without pending domain writes")
+    if await session.scalar(select(Project.id).where(Project.id == project_id)) is None:
+        raise NotFoundError("project not found")
+    environment_definition = None
+    if payload.environment is not None:
+        await session.commit()
+        try:
+            if get_settings().execution_mode == "queued":
+                from hypertest.application.runtime_control import request_control
+
+                result = await request_control(session, "RESOLVE_ENVIRONMENT", payload.environment.model_dump(mode="json"))
+                environment_definition = result["binding"]
+            else:
+                environment_definition = await resolve_environment(payload.environment)
+        except (OSError, RuntimeError, ValueError, KeyError) as exc:
+            raise ConflictError("controlled environment unavailable; build the configured profile on this host") from exc
+    return PreparedBootstrapInputs(
+        input_digest=_preparation_digest(payload), environment_definition=environment_definition,
+        prd_artifact_uri=_materialize_input(payload.prd_text.encode("utf-8")),
+        configuration_artifact_uri=_materialize_input(payload.configuration_text.encode("utf-8")),
+    )
+
+
+async def bootstrap_run(
+    session: AsyncSession, project_id: UUID, payload: RunBootstrap, *,
+    commit: bool = True, prepared: PreparedBootstrapInputs | None = None,
+) -> TestRun:
     policy_content = {"gate_version": "mvp/v1", **payload.policy}
     compiled_policy = compile_policy(policy_content)
     if not payload.prd_text.strip():
@@ -82,7 +165,8 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     )
     existing = await _existing_request(session, project_id, payload, source, compiled_policy.effective_policy_hash)
     if existing is not None:
-        await session.commit()
+        if commit:
+            await session.commit()
         return existing
     transfer = None
     if payload.harness_mode == "LOCAL_CONNECTOR":
@@ -90,22 +174,13 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
         transfer = await accepted_transfer(session, payload.source_bundle_transfer_id,
             project_id=project_id, node_id=payload.harness_node_id,
             origin=source.repository_url, commit_sha=source.commit_sha)
-    environment_definition = None
-    if payload.environment is not None:
-        if await session.scalar(select(Project.id).where(Project.id == project_id)) is None:
-            raise NotFoundError("project not found")
-        # Docker inspection can block. No project/aggregate locks span that I/O.
-        await session.commit()
-        try:
-            if get_settings().execution_mode == "queued":
-                from hypertest.application.runtime_control import request_control
-
-                result = await request_control(session, "RESOLVE_ENVIRONMENT", payload.environment.model_dump(mode="json"))
-                environment_definition = result["binding"]
-            else:
-                environment_definition = await resolve_environment(payload.environment)
-        except (OSError, RuntimeError, ValueError, KeyError) as exc:
-            raise ConflictError("controlled environment unavailable; build the configured profile on this host") from exc
+    if prepared is None:
+        if not commit:
+            raise ValueError("atomic bootstrap requires pre-materialized inputs outside its transaction")
+        prepared = await prepare_bootstrap_inputs(session, project_id, payload)
+    if prepared.input_digest != _preparation_digest(payload):
+        raise ConflictError("prepared inputs do not match the requested immutable bootstrap inputs")
+    environment_definition = prepared.environment_definition
     project = await session.scalar(select(Project).where(Project.id == project_id).with_for_update())
     if project is None:
         raise NotFoundError("project not found")
@@ -113,7 +188,8 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
     # frozen a different actual image; never replace its first accepted binding.
     existing = await _existing_request(session, project_id, payload, source, compiled_policy.effective_policy_hash)
     if existing is not None:
-        await session.commit()
+        if commit:
+            await session.commit()
         return existing
     if transfer is not None:
         # Freeze-time authorization, after all external environment I/O. Row
@@ -133,30 +209,7 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
             project_id=project_id, node_id=payload.harness_node_id,
             origin=source.repository_url, commit_sha=source.commit_sha)
     fingerprint = source_fingerprint(project.id, source, environment_definition=environment_definition)
-    root = Path(get_settings().artifact_root).resolve()
-    inputs = root / "inputs"
-    inputs.mkdir(parents=True, exist_ok=True)
-    if not inputs.resolve().is_relative_to(root):
-        raise ValueError("input store must remain under the configured artifact root")
-    artifact = inputs / f"{digest}.txt"
-    if artifact.is_symlink():
-        raise ValueError("input artifact must be a regular file")
-    if artifact.exists():
-        if hashlib.sha256(artifact.read_bytes()).hexdigest() != digest:
-            raise ValueError("existing PRD artifact failed integrity verification")
-    else:
-        with artifact.open("xb") as output:
-            output.write(prd)
-    configuration_artifact = inputs / f"{configuration_digest}.txt"
-    if configuration_artifact.is_symlink():
-        raise ValueError("configuration artifact must be a regular file")
-    if configuration_artifact.exists():
-        if hashlib.sha256(configuration_artifact.read_bytes()).hexdigest() != configuration_digest:
-            raise ValueError("configuration artifact failed integrity verification")
-    else:
-        with configuration_artifact.open("xb") as output:
-            output.write(configuration)
-    source.prd_artifact_uri = str(artifact)
+    source.prd_artifact_uri = prepared.prd_artifact_uri
     snapshot = await session.scalar(
         select(SourceSnapshot).where(
             SourceSnapshot.project_id == project.id,
@@ -227,10 +280,13 @@ async def bootstrap_run(session: AsyncSession, project_id: UUID, payload: RunBoo
             payload={"test_run_id": str(run.id), "source_snapshot_id": str(snapshot.id)},
         )
     )
-    try:
-        await session.commit()
-    except Exception:
-        await session.rollback()
-        raise
-    await session.refresh(run)
+    if commit:
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        await session.refresh(run)
+    else:
+        await session.flush()
     return run

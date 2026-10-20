@@ -16,12 +16,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+interactive = [
+  "mcp>=1.28,<2",
+  "httpx>=0.28,<1.0",
+  "jsonschema>=4.20,<5",
+]
 dev = [
   "pytest>=8.3,<9.0",
   "pytest-asyncio>=0.24,<1.0",
   "httpx>=0.28,<1.0",
   "ruff>=0.8,<1.0",
 ]
+
+[project.scripts]
+hypertest-interactive = "hypertest.interactive_client.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
