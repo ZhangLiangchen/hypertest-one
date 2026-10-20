@@ -253,6 +253,28 @@ unit drop-in，再以原运维代码受控启动并核对就绪。原业务源�
 systemd API/Worker/Web/nginx 与生产端口不能并行争抢；原 PostgreSQL 容器也不能和
 Compose 同时挂载同一个 PGDATA。只停止明确核验的旧服务/容器，保留它们以供回退。
 
+### 独立 Web image 更新的窄例外
+
+仅当变更不涉及 API / Worker、schema、Bridge、依赖、挂载、存储、ops 或访问策略，
+且现有 API 与新 Web 兼容时，可以登记独立 Web 发布。MCP 安装 CLI 的独立发行不等于
+更新生产 API / Worker。记录准确的 Web 源 SHA / image，保留三个 current 入口和固定 ops。
+
+该范围可以沿用已有、已验证的配对备份和隔离恢复记录，不为 Web image 停止后端。
+必须明确没有新冷备、没有关闭 API admission；历史备份不能冒称当前恢复点。
+执行前在同一维护锁内复核无活动 / 未知工作、守卫和 restart policy 有效，并采集新基线。
+确认候选 image ID / revision 后，只原子更新 `HYPERTEST_WEB_IMAGE`，通过固定 ops 的
+`compose_command` 执行 `up -d --no-deps --no-build --pull never web`，保留原 overlays。
+不可调用 `start.start` 或 `start.py`：其实现会先停止整栈。
+
+Web healthy 后可对原 nginx 执行 `nginx -t` / reload 以刷新上游；不重建 nginx。
+逐项核验 API / Worker / PostgreSQL / nginx 容器身份、启动 / 重启计数、完整挂载、
+历史行 / 文件、授权与访问规则未变；Mounts 按唯一 Destination 比较完整字典。
+节点只按已批准的连接观测规则比较，其余配置严格相同。失败只恢复原 Web image 并
+检查健康 / 守卫，不恢复生产数据库。涉及本段范围以外的变更仍遵循常规配对备份流程。
+[2026-10-20 MCP Web 发布](MCP_INSTALLATION_DELIVERY_20261020.md)记录了一次实际采用。
+
+### 常规切换顺序
+
 顺序：
 
 1. 固定 Git SHA / 镜像 / Bridge package 版本与配置。核查源工作区 clean、测试/迁移

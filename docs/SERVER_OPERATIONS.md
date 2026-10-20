@@ -22,7 +22,22 @@ SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用�
 访问异常时再针对故障检查。`bash ops/check-remote.sh` 保持按原 SSH 别名和严格
 公钥方式执行平台检查，不创建业务测试任务，也不检查备用隧道。
 
-## ADR-016 当前生产发布（2026-10-20）
+## MCP 安装发行与独立 Web 发布（2026-10-20）
+
+`mcp-v0.1.0` 已正式发行，来源为 PR #19 合并提交
+`980f27ab2341f1d62b2ee4896a321a240555548b`；同源 Web 于08:29:06 UTC上线，
+新镜像为 `sha256:07ad4852ac16a270bf8ed832c495eaff3ed9936006bed8f9d85547be34a9705b`。
+“创建测试运行 → 我的电脑”提供项目专属安装 Prompt、管理密钥获取说明和配对指引。
+密钥由管理员私下交付，不通过 Prompt 或普通用户 API 获取。
+
+本次只替换 Web image，附带原 nginx 配置检查 / reload；API / Worker 仍为下节
+`c7cd43a`，schema0020、PostgreSQL、Bridge、固定 ops 和三个 current 入口未变。
+35项保全与10项就绪检查通过，线上 Chrome 和正式 wheel 的生产 MCP 只读连接已验证。
+本次采用明确登记的 Web-only 例外：沿用此前已验证配对备份 / 隔离恢复，没有新冷备，
+没有关闭后端 admission，回退只恢复 Web image。详细身份、首次回退、验收和权限边界见
+[MCP安装交付记录](MCP_INSTALLATION_DELIVERY_20261020.md)。
+
+## ADR-016 当前 API / Worker 核心发布（2026-10-20）
 
 生产切换于 **2026-10-20 06:34:11.197055 UTC** 完成：PR #17 合并发布
 `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库从0018向前升至

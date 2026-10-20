@@ -1,8 +1,14 @@
 # Interactive Agent MCP client
 
-The current release is deployed and its controlled current-Agent cycle is
-verified; release identity, acceptance scope and recovery evidence are recorded
-in [ADR-016 production deployment](ADR016_PRODUCTION_DEPLOYMENT.md).
+The ADR-016 API/Worker core is deployed at
+`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`, and its controlled current-Agent cycle
+is verified; acceptance scope and recovery evidence are recorded in
+[ADR-016 production deployment](ADR016_PRODUCTION_DEPLOYMENT.md). The MCP client
+distribution below has its own source identity. Web onboarding from
+`980f27ab2341f1d62b2ee4896a321a240555548b` was deployed on
+**2026-10-20 at 08:29:06 UTC**. The [installation delivery record](MCP_INSTALLATION_DELIVERY_20261020.md)
+records 35 preservation checks and health 10/10, with the existing API/Worker,
+database, schema, Bridge, authorization and SSH/VPN access retained.
 
 ## Install and pair from “My computer”
 
@@ -14,15 +20,32 @@ installs the verified wheel, runs local setup, and adds the generated paths-only
 MCP entry to its own supported host configuration while preserving existing entries.
 Reload/restart the host if it requires that to discover new tools.
 
-This change supplies release tooling and setup guidance. **The planned first
-public distribution tag is `mcp-v0.1.0`; adding the workflow or displaying an
-installation prompt does not publish that release.** Until an operator actually
-publishes its assets, use the fixed-commit development installation below rather
-than an invented release URL, a moving `main`, or an unrelated PyPI package. The
-[release page](https://github.com/ZhangLiangchen/hypertest-one/releases) is where
-operators publish the versioned wheel, `release-manifest.json`, `SHA256SUMS` and
-`INSTALL.md`. Select a concrete tag and full source commit; verify the wheel's
-exact SHA-256 and size from that approved build before installing it.
+Production Chrome verification checked the Chinese three-step guide, successful
+copy feedback, the exact Project/API/host values in the prompt preview, and inline
+missing-key guidance with input focus. The published wheel listed all 18 tools
+and completed a Project-scoped `NOT_FOUND` read through the official MCP SDK,
+stdio, private daemon and strict production HTTPS. These installation checks
+created no Run, device pairing, grant, source transfer or Issue; the earlier
+current-Agent testing cycle retains its separate acceptance identity.
+
+The first public distribution, [**`mcp-v0.1.0`**](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/mcp-v0.1.0),
+is published from the merged source commit
+**`980f27ab2341f1d62b2ee4896a321a240555548b`** (PR #19). It contains four assets:
+the versioned wheel, `release-manifest.json`, `SHA256SUMS` and `INSTALL.md`.
+All four assets were downloaded anonymously over HTTPS and their checksums
+verified; the wheel bytes also match the local build from the exact same commit.
+
+| Distribution identity | Verified value |
+|---|---|
+| Wheel | `hypertest_one-0.1.0-py3-none-any.whl` |
+| Size | 341,961 bytes |
+| SHA-256 | `a44b16c7394b41bdf104e9c5458b29567b9a9f1764044e62bc14f7b105eb796a` |
+| PR #19 / merged-main CI | 989 backend tests passed, 21 skipped; 124 Web tests passed |
+
+Use the release's [installation instructions](https://github.com/ZhangLiangchen/hypertest-one/releases/download/mcp-v0.1.0/INSTALL.md)
+and verify the exact wheel SHA-256 and size before installing. Do not substitute
+a moving `main` or an unrelated PyPI package. Future candidate builds and release
+publication retain the separate maintainer checks at the end of this guide.
 
 The device-management key is the existing **global single-Operator credential**
 `HYPERTEST_CONNECTOR_OPERATOR_KEY`, configured by the deployment administrator in
