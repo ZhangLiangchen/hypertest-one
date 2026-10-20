@@ -87,17 +87,47 @@ async def stop(config: ClientConfig):
 
 def main():
     parser = argparse.ArgumentParser(description="HyperTest current-Agent MCP access")
-    parser.add_argument("command", choices=["daemon", "stdio", "stop", "print-client-config"])
-    parser.add_argument("--config", required=True, type=Path)
-    parser.add_argument("--autostart", action="store_true")
+    commands = parser.add_subparsers(dest="command", required=True)
+    for command in ("daemon", "stdio", "stop", "print-client-config", "doctor"):
+        child = commands.add_parser(command)
+        child.add_argument("--config", required=True, type=Path)
+        if command == "stdio":
+            child.add_argument("--autostart", action="store_true")
+        if command == "print-client-config":
+            child.add_argument("--format", choices=["json", "codex"], default="json")
+    installer = commands.add_parser("setup", help="Explicit operator-authorized MCP installation")
+    installer.add_argument("--api-url", required=True)
+    installer.add_argument("--project-id", required=True)
+    installer.add_argument("--directory", required=True, type=Path)
+    installer.add_argument("--operator-key-file", type=Path)
+    installer.add_argument("--ca-file", type=Path)
+    installer.add_argument("--name", default="My computer")
+    installer.add_argument("--host", choices=["generic", "codex-desktop"], default="generic")
     args = parser.parse_args()
     try:
+        if args.command in {"setup", "doctor"}:
+            from hypertest.interactive_client.setup import doctor, setup
+
+            result = (setup(api_url=args.api_url, project_id=args.project_id,
+                            directory=args.directory, operator_key_file=args.operator_key_file,
+                            ca_file=args.ca_file, name=args.name, host=args.host)
+                      if args.command == "setup" else doctor(args.config))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return
+        if args.config.is_symlink():
+            raise ClientError("PRIVATE_FILE_REQUIRED")
         config_path = args.config.expanduser().resolve(strict=True)
         if args.command == "print-client-config":
             # Only installation paths enter the client config, never credentials.
-            print(json.dumps({"mcpServers": {"hypertest": {"command": sys.executable,
-                  "args": ["-m", "hypertest.interactive_client", "stdio", "--config",
-                           str(config_path), "--autostart"]}}}, indent=2))
+            arguments = ["-m", "hypertest.interactive_client", "stdio", "--config",
+                         str(config_path), "--autostart"]
+            if args.format == "codex":
+                print("[mcp_servers.hypertest]\ncommand = " + json.dumps(sys.executable, ensure_ascii=False)
+                      + "\nargs = " + json.dumps(arguments, ensure_ascii=False)
+                      + "\nstartup_timeout_sec = 20\ntool_timeout_sec = 120")
+            else:
+                print(json.dumps({"mcpServers": {"hypertest": {"command": sys.executable,
+                      "args": arguments}}}, indent=2))
             return
         config = ClientConfig.load(config_path, validate_credentials=args.command == "daemon")
         if args.command == "stop":
@@ -108,6 +138,11 @@ def main():
     except (ClientError, OSError, ValueError) as exc:
         code = exc.code if isinstance(exc, ClientError) else "INTERACTIVE_CLIENT_UNAVAILABLE"
         print(code, file=sys.stderr)
+        if code.startswith("SETUP_UNKNOWN_"):
+            print("The original POST may have succeeded. Keep this directory and setup.json. "
+                  "Ask the platform administrator to reconcile its original node_key and client_instance_id. "
+                  "Do not create a replacement identity or retry one-time credential issuance automatically.",
+                  file=sys.stderr)
         raise SystemExit(1) from None
 
 

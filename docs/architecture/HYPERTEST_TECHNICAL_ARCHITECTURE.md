@@ -550,6 +550,8 @@ Agent 默认只能：
 
 `InteractiveIntegrationGrant` 按项目区分 `task:submit`、`run:read`、`evidence:read`、`report:read` 和显式 `run:execute`。集成凭据留在 Connector 私有文件，不进入模型、工具参数、配置 / Skill 正文或日志，不复用 NodeDeviceToken、NodeProjectCapability、Bridge management 或 operator 全局 key。`run:execute` 只允许申请执行绑定；实际工作还须获得限定 Run / Binding / epoch / 主 Session / Job claim / Mission / Attempt 的短期能力，平台逐次核验租约、范围、策略与预算。它不授予任意本地 Git / Issue / MCP 权限，也不直接提交 Canonical 或改变 Verdict。
 
+MCP 发行与独立安装准备在运行期工具面之外：构建器从 clean 固定 Git commit 导出源码，校验 tag 与 package version，产生 wheel / manifest / SHA256SUMS / 安装说明；发布和实际可下载状态单独确认。Web 只复制含非秘密平台 / Project / 固定发行引用的安装 prompt。本地 `setup` 从 owned `0600` key 文件或真实终端隐藏输入读取管理员授权，复用既有配对、Project Harness 与 scoped integration 注册 API，并仅输出公共身份和配置路径；管理 key 不写入 daemon / MCP 配置。该便利入口不增加 MCP 工具、匿名取 key API、身份 schema、源码信任或 issue 权限，不改变两种受管模式。
+
 短期能力固定精确 `device_grant_id`，逐次准入、inbox 消费与领域提交均复核原设备 grant、集成 grant、Project / 节点能力及 adapter 白名单。同 node 的新设备凭据不能重新授权旧短期能力。Runner 仅在原请求已经过有效授权并提交不可变 Execution 后，才可按原有效 Job / Binding / epoch 收集事实；撤权前的源码检查或单纯进入 handler 不足以获得该例外。
 
 绑定须由可信宿主适配器提供真实 native Session、节点、受控 Workspace / 固定源码与宿主生命周期，并证明当前 Agent 身份和唯一 owner；模型自报 chat ID 不算证明。保留领域模型的 `UNIQUE(provider, provider_session_id)`：首版一个真实 native 执行会话只绑定一个 Run，可以提交 / 读取其他 Run，但新的执行 Run 需要宿主 / 用户创建真实新上下文，不伪造复合 ID，也不由 Connector 悄悄 spawn。普通查询不绑定、接管或迁移会话；宿主不支持持久身份与生命周期核验时，只提供提交 / 读取或 `CLOUD`，明确拒绝本地交互执行。当前聊天可以显式成为 primary Session，但不上传原聊天、Provider transcript 或思维链。领域写入仍是 Proposal / Request，经 Verifier / Runner / Gate 形成正式状态，本地 shell 结果不成 Evidence。

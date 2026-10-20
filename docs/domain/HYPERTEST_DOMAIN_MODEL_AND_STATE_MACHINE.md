@@ -1297,6 +1297,8 @@ CLOUD + INTERACTIVE_MCP 等未定义组合拒绝准入。新请求在 Run 创建
 
 actor / client installation 的受控持久身份映射已由独立身份目录及复合 FK 实现，不能接受模型自行提供的字符串代替注册身份。`InteractiveClientSession` 是本地交互连接 / 有界观察概念，不是新建的 SQL 会话表、任务所有权或原生续接证明。这些均为 Operational 授权关系，不增加 Canonical 实体。
 
+独立本地安装准备 CLI 在明确 Operator 授权下复用既有 Node / HarnessDeviceGrant、NodeProjectCapability 与 InteractiveActorIdentity / ClientRegistration / IntegrationGrant 的创建接口，不新增身份表、状态或凭据获取权限。安装实例的非秘密身份与已完成步骤保留于本机私有配置 / 准备记录；重启不轮换已有设备或覆写 grant，未确认结果不得以新身份自动重做。管理 key 只从 owned `0600` 文件或终端隐藏输入读取，不作为 MCP 参数或持久客户端凭据。安装完成不等于源码已接受、Run 已创建、原生会话已绑定或具备短执行授权；发行 tag / wheel hash 和 doctor 状态也不是 Canonical Testing State。
+
 | Operational 记录 | 固定字段、关系与不可变约束 | 生命周期 / 权限边界 |
 |---|---|---|
 | `InteractiveActorIdentity` | 独立 `id`、唯一 actor_ref、registered_by、状态 / 审计时间及单调 row_version；注册身份固定 | 受控注册为 ACTIVE，仅可 REVOKED，历史不删除、不以重新激活绕过撤销 |

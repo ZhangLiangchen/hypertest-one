@@ -369,6 +369,8 @@ ADR-015 的本地问题单操作仍由平台治理：先批准具体项目、责
 
 安装包由 MCP Server、客户端配置与 Skill 组成。首版“当前本地 Agent → stdio MCP → 受限本地 Connector → 新 typed HTTPS API”承担平台通信；不假设现有 Node WSS / UDS Bridge 已能代理这些新接口。原“平台 Worker → Connector WSS → 受管 Harness”继续服务 `PLATFORM_MANAGED`，而 `LOCAL + INTERACTIVE_MCP` 就由当前 Agent 执行智能工作，不经 Connector 另启模型或 Provider。
 
+产品的“创建测试运行 → 我的电脑”提供固定版本 MCP 的安装 prompt、设备管理密钥来源与配对指引；发行资产以明确 tag / commit / wheel 摘要识别，未实际发布不得显示为可下载发行。独立本地准备 CLI 可在操作者明确提供 owned 私有文件或终端隐藏输入中的全局 Operator key 后，调用既有配对 / 项目能力 / 交互注册 API；该流程不是 MCP 工具，不向模型分发管理 key，不自动授予源码或提单权限。通用 stdio 宿主在支持的 macOS/Linux 上可提交 / 读取或请求云端执行，当前 Agent 本地执行仍受单独宿主适配与显式绑定限制。
+
 首版提供七个提交 / 读取工具：`hypertest_submit_task` / `hypertest_get_submission`、`hypertest_get_progress`、`hypertest_list_evidence` / `hypertest_read_evidence`、`hypertest_list_reports` / `hypertest_read_report`，以及 `hypertest_bind_execution` / `hypertest_get_execution` 的显式绑定与幂等查询。绑定后的本地 Agent 可在有效 Run / Mission / Attempt / epoch / claim 范围内复用九个 TMP 领域工具，完成分析、设计、实现、正式执行请求、诊断、受控协作和报告。未绑定客户端不能取得这些写能力；查询不会自动 bind / resume，人工回答、独立取消 / 恢复和设备授权仍沿用各自操作者入口。
 
 提交使用已批准 Project、完整 SHA、PRD / configuration、Policy、环境、execution mode / driver 和节点；本地模式还引用已接受源码与既有节点能力。插件不自动采集 Git、上传 dirty 文件、配对设备或新增来源信任；MCP 安装和执行权限也不授予任意本地问题单操作。交互门面已在同一事务中提交回执、固定 Run/bootstrap 输入与选择、初始 `ADVANCE_RUN` Job 和审计，再确认受理；原有两个 POST 不因此获得原子能力。`LOCAL + INTERACTIVE_MCP` 的初始 Job 须等待显式绑定才获得执行准入，平台 coordinator 维护租约、领域编排和验证，不调第二个 Harness。

@@ -749,6 +749,8 @@ HyperTest 是当前交互式 Agent 的外接测试平台；本地执行时，承
 
 首版不新增任意外部写入、业务 cancel、恢复、设备配对、source upload 或人工回答工具；这些仍走既有受控入口。执行态的 `ask_user`、Gate 和 Issue 属于原 TMP 流程；Issue 使用现有 request/get 及项目/责任人/事实授权策略。
 
+独立安装准备 CLI 不属于本 MCP profile：它仅在操作者从 owned `0600` 文件或真实终端隐藏输入明确提供既有 Operator 授权后，调用现有设备配对、项目 Harness capability 与交互注册 HTTP 管理接口，保存限权私有凭据；不新增 MCP 管理工具或从模型自报身份授予权限。安装 prompt / 客户端片段只含平台、Project、固定发行 / 摘要及文件路径，不含 key 或 token；安装与 doctor 查询不产生 Run、执行绑定、短期执行 grant、源码接受或 Issue 操作。
+
 ### 23.3 固定任务输入、执行位置与原子回执
 
 产品 **`execution_mode=CLOUD|LOCAL` 指 Agent/Harness 在哪里承担任务，不表示正式 Runner 在哪里执行**。`execution_driver=PLATFORM_MANAGED|INTERACTIVE_MCP` 是 Operational 驱动方式，不是第三种 Harness mode。CLOUD 对应 `SERVER_HOST + PLATFORM_MANAGED`；LOCAL 对应 `LOCAL_CONNECTOR`，可选择 ADR-015 既有平台托管 driver，或本 ADR 的当前 Agent `INTERACTIVE_MCP` driver。模式、driver、稳定 node、来源信任/transfer 策略在新请求中显式规范化并冻结；旧无新字段请求只按其原 SERVER_HOST/LOCAL_CONNECTOR 行为映射，不重写历史 payload。省略产品选择只可按版本化兼容缺省解释为 CLOUD / SERVER_HOST / PLATFORM_MANAGED，不因本地离线隐式回退。
