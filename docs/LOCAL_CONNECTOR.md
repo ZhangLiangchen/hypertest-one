@@ -64,6 +64,10 @@ location /api/v1/source-transfers/ {
 
 也可使用 Web 项目页的本地 Harness 配对与授权表单。管理 key 由操作者输入，不打入前端 bundle。下面给出等价 API 操作。
 
+“创建测试运行 → 我的电脑”中的 MCP 安装指引面向当前交互 Agent；它与本指南的受管 Connector 是两种驱动，安装 MCP 不会启动本节的 WSS daemon。交互客户端可通过独立本地 `setup` 命令，在明确的 Operator 授权下复用本节的配对、项目 Harness 能力和交互注册 API；具体命令、发行状态与宿主限制见 [MCP 安装与配对](INTERACTIVE_MCP_CLIENT.md#install-and-pair-from-my-computer)。源码与问题单权限仍须分别批准，不因完成安装而扩权。
+
+页面的“设备管理密钥”就是部署管理员配置于受保护 `platform.env` 的 `HYPERTEST_CONNECTOR_OPERATOR_KEY`，不是 Git / GitLab / Agent 的登录 token。普通用户向管理员申请配对或受控使用该密钥；平台没有匿名读取或自动发放此全局密钥的接口。管理员将它存入本机 owned `0600` 文件交给本地准备命令，或在真实终端的隐藏输入中提供；不要复制到给 Agent 的 prompt、MCP 配置、命令参数或截图中。现有 key 不因安装流程而轮换，已有设备、授权、VPN 白名单与服务器 Harness 保留。
+
 以下 shell 变量只含入口和路径，UUID、域名、项目 ID 均为占位值：
 
 ```bash

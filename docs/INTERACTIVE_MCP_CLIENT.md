@@ -4,9 +4,85 @@ The current release is deployed and its controlled current-Agent cycle is
 verified; release identity, acceptance scope and recovery evidence are recorded
 in [ADR-016 production deployment](ADR016_PRODUCTION_DEPLOYMENT.md).
 
+## Install and pair from “My computer”
+
+In **Create test run → My computer**, copy the MCP installation prompt for this
+Project and give it to the Agent that will use HyperTest. The prompt contains
+the HTTPS platform address, Project ID, fixed release identity and setup steps;
+it must not contain a device-management, device or integration secret. The Agent
+installs the verified wheel, runs local setup, and adds the generated paths-only
+MCP entry to its own supported host configuration while preserving existing entries.
+Reload/restart the host if it requires that to discover new tools.
+
+This change supplies release tooling and setup guidance. **The planned first
+public distribution tag is `mcp-v0.1.0`; adding the workflow or displaying an
+installation prompt does not publish that release.** Until an operator actually
+publishes its assets, use the fixed-commit development installation below rather
+than an invented release URL, a moving `main`, or an unrelated PyPI package. The
+[release page](https://github.com/ZhangLiangchen/hypertest-one/releases) is where
+operators publish the versioned wheel, `release-manifest.json`, `SHA256SUMS` and
+`INSTALL.md`. Select a concrete tag and full source commit; verify the wheel's
+exact SHA-256 and size from that approved build before installing it.
+
+The device-management key is the existing **global single-Operator credential**
+`HYPERTEST_CONNECTOR_OPERATOR_KEY`, configured by the deployment administrator in
+the protected `platform.env`. Ask that administrator for authorized access via
+an owned `0600` secret file or enter it at the setup command's interactive hidden
+prompt. There is no public “get management key” API, and being logged into an
+Agent, Git or GitLab does not grant it. Do not paste it into Agent chat or a shell
+command. The Web form keeps an explicitly entered key only in that view's memory.
+See the [deployment configuration](../ops/container/CONNECTOR_TLS.md#配置归属).
+
+After installing the approved wheel, run this command locally, replacing the
+nonsecret placeholders and using absolute private paths:
+
+```sh
+python -m hypertest.interactive_client setup \
+  --api-url https://hypertest.example.com/api/v1 \
+  --project-id 00000000-0000-0000-0000-000000000001 \
+  --directory /absolute/private/hypertest-project \
+  --operator-key-file /absolute/private/operator.key \
+  --name 'My computer' --host generic
+python -m hypertest.interactive_client doctor \
+  --config /absolute/private/hypertest-project/client.json
+```
+
+Omit `--operator-key-file` only for a real interactive terminal: setup then reads
+the key through a hidden prompt and fails if no terminal is available. Use
+`--ca-file /absolute/path/to/approved-ca.pem` for a private CA; preserve hostname
+and certificate checks and the existing VPN/allowlist access. `--host generic`
+supports submission/read and CLOUD through stdio on macOS/Linux. Select
+`--host codex-desktop` only for the controlled native adapter; setup does not prove
+that the currently configured host can bind this chat for LOCAL execution.
+Windows and arbitrary native Agent execution adapters are not currently supported.
+
+`setup` is a separate local preparation command, **not an MCP tool**. Under the
+explicit operator authorization it pairs a new device, registers a stable
+installation and a scoped Project integration; selecting the controlled host
+also approves that Project's Harness adapter policy using the existing APIs. It writes narrow credentials to
+owned private files, emits public IDs and configuration paths, and does not put
+the Operator key in the runtime config or MCP snippet. Source acquisition,
+approved repository origins, issue-executor rights, fixed source transfers,
+Run binding and short execution grants remain separate. Installation does not
+start another Agent or replace the existing server or Connector-managed modes.
+Check setup failures before retrying; never rotate/revoke an existing device or
+discard a private journal to make an uncertain registration appear successful.
+Each preparation POST is marked uncertain in a durable private setup record
+before transmission. If a response or one-time credential is lost, setup refuses
+to replay that step and reports administrator reconciliation required; it does
+not manufacture a new node, installation or registration.
+
+The doctor validates local configuration and platform profile connectivity;
+successful checks mean the configured capabilities are available, not that a
+test Run has executed. Pairing and installation alone do not make a device's
+managed WSS Connector online, upload source, or produce trusted Runner Evidence.
+
+## Fixed-source development installation
+
 ADR-016 implementation provides a local stdio MCP server, a separate private
 Connector daemon, a durable intent journal, and a trusted host adapter. It does
-not start a Provider, model or substitute Agent. Install with Python 3.12+:
+not start a Provider, model or substitute Agent. For development, first check
+out and review an explicit full commit, then install with Python 3.12+:
 
 ```sh
 uv pip install -e '.[interactive]'
@@ -60,11 +136,13 @@ An example private config, with credential **paths** rather than values:
 ```
 
 Integration authorization, device identity, Project Harness capability,
-source-acquisition and issue-executor permissions are independent. The plugin
-does not create or expand them. LOCAL requires already accepted fixed source;
+source-acquisition and issue-executor permissions are independent. Runtime MCP
+tools do not create or expand them; the separate operator-authorized setup CLI
+only performs its explicitly requested preparation. LOCAL requires already accepted fixed source;
 it does not upload a dirty checkout or fetch another branch on its own.
 
-Prepare the existing Project, [pair its device](LOCAL_CONNECTOR.md#3-配对并保存设备凭据)
+For manual preparation instead of setup, prepare the existing Project,
+[pair its device](LOCAL_CONNECTOR.md#3-配对并保存设备凭据)
 and obtain an [ACCEPTED source transfer](LOCAL_CONNECTOR.md#61-固定源码请求) through
 the ADR-015 preparation flow. Keep its approved origin, full commit SHA, node ID
 and transfer ID. This MCP plugin has no source-upload or device-pairing tool.
@@ -303,3 +381,43 @@ original binding and `new_job_id`. Query the original execution attachment until
 the coordinator is ready, then explicitly continue to obtain a fresh private
 short execution grant. Recovery status, daemon restart and ordinary queries do
 not themselves grant execution authority.
+
+## Build and publish a distribution (maintainers)
+
+The release workflow is separate from application deployment and does not change
+production data, Operator/device grants, VPN rules or either managed Harness.
+Before publication, select the reviewed full source commit and package version.
+The tag must exactly equal `mcp-v` plus `pyproject.toml`'s version; do not reuse a
+published tag for different source or leave a new tag claiming the old package version.
+
+From a clean checkout, a local candidate build can use a fixed commit before its
+tag exists. Put output outside the repository so it stays clean:
+
+```sh
+python -m pip install build==1.2.2.post1 hatchling==1.27.0
+python scripts/build-interactive-release.py \
+  --tag mcp-v0.1.0 --ref <reviewed-full-commit> \
+  --output /absolute/outside/repository/mcp-v0.1.0
+```
+
+The builder exports that committed tree with `git archive`, requires its package
+version to match, builds with the commit timestamp, verifies wheel metadata and
+bundled MCP/Skill assets, and emits:
+
+| Asset | Contract |
+|---|---|
+| `hypertest_one-<version>-py3-none-any.whl` | Fixed-source installable Python package including the `interactive` extra metadata and CLI/assets. |
+| `release-manifest.json` | `hypertest.interactive-release/v1`, intended tag/version, full source commit, tag-verification status, HTTPS download URLs, profile/host limits, wheel filename/size/SHA-256. |
+| `INSTALL.md` | Exact release commands with the built wheel's literal SHA-256 and size, plus authorization and host boundaries. |
+| `SHA256SUMS` | SHA-256 of the wheel, manifest and installation instructions. |
+
+A planned-tag manifest is a candidate build, not a published release. On an
+explicitly authorized `mcp-v*` tag push,
+[the release workflow](../.github/workflows/release-interactive.yml) requires the
+tag at the exact source commit, builds its assets, installs the wheel and its
+interactive dependencies in a fresh venv, and imports the CLI/resources from
+outside the repository. It checks `setup`/`doctor` help and the executable entry
+point before creating a GitHub release. Existing releases are not overwritten.
+Record the actual release URL and wheel digest after publication; only then mark
+that distribution available in installation guidance. No PyPI publication or
+universal Agent/operating-system support is implied by these assets.
