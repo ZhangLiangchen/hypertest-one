@@ -1,0 +1,580 @@
+{
+  "schema_version": "hypertest.adr016-production-acceptance/v1",
+  "date": "2026-10-20",
+  "timezone": "Asia/Singapore",
+  "status": "PRODUCTION_DEPLOYED_CURRENT_AGENT_CYCLE_VERIFIED",
+  "production_deployed": true,
+  "release": {
+    "commit": "c7cd43ad6346d8ce6c85564f7838afbb017f2da4",
+    "pull_request": "https://github.com/ZhangLiangchen/hypertest-one/pull/17",
+    "archive_sha256": "3475166416f97af9899e71b8484337fa1ea3299afc86bf85f9b2a6dd6afec9eb",
+    "application_images": {
+      "web": "sha256:6b10ea21d3d3d9128cc77d0cff14d7d4e9de27d45e0f5af6819a4d705171e795",
+      "api": "sha256:8cfc764b1ccacc97ff3faf2b23b61b937bfdf0b1f29afda3349b3dd954d25a33",
+      "worker": "sha256:7796433173907d7b4d3aa62f55a24dedc49af8ac91f959b3b1999a13a1c47f60"
+    },
+    "client_package": {
+      "source_commit": "c7cd43ad6346d8ce6c85564f7838afbb017f2da4",
+      "wheel_sha256": "1b29046baf92ca22fe61974f97523c36e2d2539f98e59ed8a7b000dc3b53191d",
+      "archive_entries": 124,
+      "no_private_state": true
+    },
+    "ci": {
+      "passed": 967,
+      "skipped": 21,
+      "warnings": 3,
+      "failed": 0,
+      "errors": 0,
+      "basis": "Root-confirmed CI outcome for the published release; distinct from the production SUT tests.",
+      "pr_ci_url": "https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39378793945",
+      "main_ci_url": "https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39379126421"
+    }
+  },
+  "protocols": {
+    "interactive_profile": "hypertest.interactive-mcp/v1alpha1",
+    "tmp_wire": "hypertest.tmp/v1alpha2",
+    "persistent_profile": "run-persistent-harness/v1",
+    "mcp_standard_version": "Negotiated by the official MCP SDK."
+  },
+  "agent_execution": {
+    "executor": "The same current Codex Desktop Agent in the authorizing conversation.",
+    "client": "Official MCP ClientSession through a transparent stdio console.",
+    "bound_tool_route": [
+      "stdio MCP",
+      "private UDS transport daemon",
+      "certificate-verified HTTPS",
+      "authenticated API typed inbox",
+      "original DurableJob Worker"
+    ],
+    "artifact_read_route": "Bounded authenticated MCP reads through HTTPS artifact projections.",
+    "agent_authored_proposals_and_tests": true,
+    "console_generated_proposals": false,
+    "replacement_agent_or_second_model_launched": false,
+    "global_codex_settings_changed": false,
+    "tool_catalog_hot_reload_claimed": false,
+    "native_identity_disclosed": false,
+    "interactive_daemon_stopped_after_report_and_binding_closed": true,
+    "original_managed_connector_kept_active": true
+  },
+  "source": {
+    "repository_url": "https://github.com/ZhangLiangchen/hypertest-one",
+    "commit_sha": "cc84398ad81c26bd484ebaae46e6f61713d912ad",
+    "root_tree": "077b7bfd1bf4982f3d6e3299ed32addcdbcb95ba",
+    "bundle_sha256": "712e24b78d686d6a651f9772af1bd10f600f3c625277af9f4470e30c3d4b9f19",
+    "bundle_size_bytes": 7900054,
+    "transfer_id": "01a15807-6d25-7e9b-928f-6c8ccee735d7",
+    "source_snapshot_id": "01a15808-b2f0-77b7-a82a-509e06e39c74",
+    "public_fixture": "Sum HTTP API under examples/api_sut, with its pinned PRD.",
+    "source_acquisition": "Approved local source adapter fetched the exact public commit; HTTPS transfer independently accepted by the platform.",
+    "dirty_checkout_uploaded": false,
+    "private_business_sut_used": false
+  },
+  "selection": {
+    "execution_mode": "LOCAL",
+    "harness_mode": "LOCAL_CONNECTOR",
+    "execution_driver": "INTERACTIVE_MCP",
+    "runner_placement": "Platform trusted Worker; LOCAL denotes the Agent location."
+  },
+  "identities": {
+    "project_id": "01a15807-6162-7759-a0cf-614d34f977af",
+    "node_id": "01a15807-638d-7683-b47b-713296447332",
+    "run_id": "01a15808-b307-7531-b038-04e4f2b7ffdf",
+    "receipt_id": "01a15808-b37e-71a5-99d9-0294c6fa2505",
+    "initial_job_id": "01a15808-b36a-7e36-9adb-b1166daaf327",
+    "execution_id": "01a1580b-3889-7fb0-90a3-cc0446293a81",
+    "binding_id": "01a1580b-386b-70c3-a195-7d2d086fedf1",
+    "agent_session_id": "01a1580b-3861-71b7-8ca7-a5f7a0e74882"
+  },
+  "submission": {
+    "status": "ACCEPTED",
+    "original_receipt_run_and_initial_job_reused_on_lookup": true
+  },
+  "counts": {
+    "requirements": 2,
+    "risks": 3,
+    "test_cases": 4,
+    "implementations": 4,
+    "executions": 1,
+    "evidence": 5,
+    "findings": 0
+  },
+  "missions": {
+    "accepted_stages": [
+      {
+        "type": "ANALYZE_REQUIREMENTS",
+        "mission_id": "01a1580b-ee51-772a-8e7e-923498fb425d",
+        "attempt_id": "01a1580b-ef5c-7c31-94f3-e488c4d5db1d",
+        "accepted_keys": [
+          "REQ-01A1580D24EA7A3B9AD443B61ADB4CF7",
+          "REQ-01A1580D250374E0A153128A031E31F5"
+        ]
+      },
+      {
+        "type": "ANALYZE_RISKS",
+        "mission_id": "01a1580d-2d0b-7dc9-87f5-6553713a6825",
+        "attempt_id": "01a1580d-2dbf-7fb0-8c3b-914417990bc9",
+        "accepted_keys": [
+          "RISK-01A1580E43D77056A1D32E7DF07DF7C4",
+          "RISK-01A1580E43FA75A990161AB98CCFEFDE",
+          "RISK-01A1580E440879719EAB129E71E43378"
+        ]
+      },
+      {
+        "type": "DESIGN_TESTS",
+        "mission_id": "01a1580e-4bb6-7e12-b3c2-03f604327615",
+        "attempt_id": "01a1580e-4c74-7eed-8268-7cd33fb813c9",
+        "accepted_keys": [
+          "TC-01A1580EF94E7D7E9742A80AE82B616C",
+          "TC-01A1580EF96D701295E0973F9ACD0980",
+          "TC-01A1580EF9837AA4A644801EAFD85F2C",
+          "TC-01A1580EF99479E4A84853503D39D44C"
+        ]
+      },
+      {
+        "type": "IMPLEMENT_TESTS",
+        "mission_id": "01a1580f-0172-7edd-8c00-7df5907df7cb",
+        "attempt_id": "01a15817-5996-7e9b-a532-506d40405032",
+        "accepted_keys": [
+          "IMPL-01A15817C25E7A3D8887E82ECFCDA738",
+          "IMPL-01A15817C27A7FF69B7EA8776AB683CF",
+          "IMPL-01A15817C2907354B75ACCE6BA6B05D3",
+          "IMPL-01A15817C2A87452910E2DAB909C91A1"
+        ]
+      }
+    ],
+    "rejected_history_retained": [
+      {
+        "status": "REJECTED",
+        "reason_category": "STALE_ATTEMPT_AFTER_EXPLICIT_RECOVERY",
+        "mcp_response_index": 21
+      },
+      {
+        "status": "REJECTED",
+        "reason_category": "IMPLEMENTATION_COVERAGE_GAP",
+        "mcp_response_index": 22
+      }
+    ],
+    "implementation_replanned_with_new_attempt": true,
+    "original_implementation_attempt_id": "01a1580f-0255-716e-8bad-a621ff82dd7d",
+    "successful_implementation_attempt_id": "01a15817-5996-7e9b-a532-506d40405032",
+    "rejections_not_rewritten_as_success": true
+  },
+  "formal_execution": {
+    "id": "01a15817-cbbb-7756-be32-f52eced2a574",
+    "key": "EX-01A15817CBB678EC947C8F8944D8FB08",
+    "backend": "docker",
+    "purpose": "OFFICIAL",
+    "status": "COMPLETED",
+    "outcome": "PASS",
+    "exit_code": 0,
+    "runner_image_id": "sha256:f5acafb0f6e435bb37f7a3b9a75c4445818848deb15daaf004cd31f91c7c8d4a",
+    "started_at": "2026-10-20T06:55:16.919186+00:00",
+    "finished_at": "2026-10-20T06:55:23.480280+00:00",
+    "junit": {
+      "tests": 33,
+      "passed": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "facts_from_trusted_runner_not_agent_self_report": true
+  },
+  "evidence": [
+    {
+      "id": "01a15817-e5a3-7ce3-8ae2-b9ffe2f2183e",
+      "key": "EV-01A15817E5A07DB68A8D35D06FEA5613",
+      "execution_id": "01a15817-cbbb-7756-be32-f52eced2a574",
+      "evidence_type": "STDOUT",
+      "sha256": "5cad7821bf7613f0b0416c2f286ef5b16c37b3c32a264909bb4e7e0e5bc5d567",
+      "size_bytes": 180,
+      "media_type": "text/plain",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1"
+    },
+    {
+      "id": "01a15817-e5bb-7437-9b03-1bac1ac7319a",
+      "key": "EV-01A15817E5BA76A7B7EBAE1CE9880CB9",
+      "execution_id": "01a15817-cbbb-7756-be32-f52eced2a574",
+      "evidence_type": "STDERR",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "media_type": "text/plain",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1"
+    },
+    {
+      "id": "01a15817-e5ca-72cd-809f-bf0929b9003f",
+      "key": "EV-01A15817E5C971F0AC62CB41D9B3C950",
+      "execution_id": "01a15817-cbbb-7756-be32-f52eced2a574",
+      "evidence_type": "JUNIT",
+      "sha256": "3faa0ea34e2e9377b98e1ef291e254fb064692ba5523a2c1e94d35b57bb091c6",
+      "size_bytes": 3909,
+      "media_type": "application/xml",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1"
+    },
+    {
+      "id": "01a15817-e5da-74eb-b1c9-6e57abab7ed6",
+      "key": "EV-01A15817E5DA71D9A8420D890F6A7B0F",
+      "execution_id": "01a15817-cbbb-7756-be32-f52eced2a574",
+      "evidence_type": "LOG",
+      "sha256": "5ef215838cfd1ca178374a746fa5f7ef814c0adfd4db9c524bcb68bf12f81fd8",
+      "size_bytes": 341,
+      "media_type": "text/plain",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1"
+    },
+    {
+      "id": "01a15817-e5eb-7c8c-9f66-9a0c4e2f9183",
+      "key": "EV-01A15817E5EA7413A50711F2BCEED02F",
+      "execution_id": "01a15817-cbbb-7756-be32-f52eced2a574",
+      "evidence_type": "EXECUTION_METADATA",
+      "sha256": "ba9a1b8397643448148c5293e177465f276a207381f60b924426afd59e5c8d88",
+      "size_bytes": 6710,
+      "media_type": "application/json",
+      "trust_level": "RUNNER",
+      "status": "VERIFIED",
+      "source": "RUNNER",
+      "collector": "hypertest.runner/v1"
+    }
+  ],
+  "all_evidence_read_size_and_sha256_verified_through_mcp": true,
+  "gate": {
+    "id": "01a15818-38d2-7665-a789-bd2c7bd12ee9",
+    "key": "VER-01A1581838D07072911B9A65E25BC9D8",
+    "status": "FINAL",
+    "decision": "RELEASE_READY",
+    "scope": "The fixed public Sum HTTP API TestRun; not a blanket verdict on all HyperTest functionality."
+  },
+  "report": {
+    "id": "01a15818-baae-71e4-993a-ec8690e3e151",
+    "schema_version": "hypertest.report/run-summary/v1",
+    "status": "ACCEPTED",
+    "sha256": "dec45325a819db8c7dab0fa606a61888c5b01c05bc44ebf33071e1b8eb9d19e7",
+    "bytes": 1077,
+    "cursor_pages": 2,
+    "fixed_object_identity_and_version_verified": true,
+    "full_content_size_and_sha256_verified": true
+  },
+  "final_lifecycle": {
+    "run_status": "COMPLETED",
+    "job_id": "01a15816-41a4-764b-b2e5-e60e7a9fe4f0",
+    "job_status": "SUCCEEDED",
+    "binding_status": "CLOSED",
+    "binding_epoch": 3,
+    "quality_decision": "RELEASE_READY"
+  },
+  "explicit_operator_recovery": {
+    "count": 2,
+    "binding_epochs": [
+      1,
+      2,
+      3
+    ],
+    "same_run": true,
+    "same_agent_session": true,
+    "same_native_identity": true,
+    "same_workspace": true,
+    "short_execution_grant_ttl_seconds": 120,
+    "reason": "Execution authorization expired; the first recovered claim also expired before explicit continuation.",
+    "prior_jobs_retained": [
+      {
+        "job_id": "01a15808-b36a-7e36-9adb-b1166daaf327",
+        "binding_epoch": 1,
+        "status": "FAILED"
+      },
+      {
+        "job_id": "01a15812-00c3-7330-9dd8-9107e0aa04da",
+        "binding_epoch": 2,
+        "status": "FAILED"
+      }
+    ],
+    "successful_retry_job_id": "01a15816-41a4-764b-b2e5-e60e7a9fe4f0",
+    "expiry_did_not_auto_resume_or_spawn_another_agent": true
+  },
+  "known_outcomes": {
+    "current_run_mcp_unknown_outcomes_observed": 0,
+    "local_journal": {
+      "read_only_check": true,
+      "state_counts": {
+        "ACKED": 23,
+        "REJECTED": 2
+      },
+      "unresolved": 0,
+      "pending_sent_unknown": 0,
+      "payloads_or_credentials_disclosed": false
+    },
+    "transport_acknowledgment_distinct_from_business_acceptance": true
+  },
+  "cutover": {
+    "schema_from": "0018_harness_selection",
+    "schema_to": "0020_interactive_tool_inbox",
+    "ready_at": "2026-10-20T06:34:11.197055+00:00",
+    "single_maintenance_lock": true,
+    "production_database_restored_over": false,
+    "database_dropped_or_downgraded": false,
+    "first_attempt": {
+      "status": "FAILED_BEFORE_ADMISSION",
+      "error_type": "RuntimeError",
+      "configuration_switched": false,
+      "admission_attempted": false,
+      "old_software_restored": true,
+      "retained_schema": "0018_harness_selection",
+      "production_database_restore_or_downgrade": false,
+      "private_failure_record_retained": true,
+      "reason_summary": "A pre-admission validation raised RuntimeError; detailed failure and rollback evidence is retained privately."
+    },
+    "second_attempt": {
+      "status": "DEPLOYED",
+      "fixed_ops_unchanged": true,
+      "postgres_unchanged": true,
+      "historical_full_row_tables_exact_before_admission": 49,
+      "old_node_stable_configurations_exact_before_admission": 1,
+      "normalized_node_connection_observation_fields": [
+        "presence",
+        "last_seen_at",
+        "connection_generation",
+        "row_version"
+      ]
+    }
+  },
+  "preservation": {
+    "passed": true,
+    "checks_passed": 39,
+    "checks": {
+      "release_and_schema": true,
+      "successful_forward_cutover": true,
+      "single_lock_no_production_restore_or_downgrade": true,
+      "cutover_pg_and_ops_checks": true,
+      "node_cutover_normalization_exact_scope": true,
+      "read_only_row_evidence": true,
+      "only_defined_operational_table_exclusions": true,
+      "row_and_snapshot_table_inventory": true,
+      "row_evidence_matches_snapshot_aggregates": true,
+      "additive_table_set": true,
+      "version_table_is_not_old_history": true,
+      "old_full_row_multisets_preserved": true,
+      "node_anchor_matches_row_inventory": true,
+      "old_node_stable_configurations_and_monotonic_observations": true,
+      "historical_directory_groups": true,
+      "old_artifact_workspace_bridge_files": true,
+      "old_native_session_files": true,
+      "server_auth_metadata_and_login_status": true,
+      "credential_contents_not_collected": true,
+      "fixed_ops_runtime_and_bridge_sources": true,
+      "historical_migration_bytes": true,
+      "unchanged_container_contracts": true,
+      "protected_platform_bridge_tls_nginx_ssh_configuration": true,
+      "non_compose_configuration_hashes": true,
+      "three_application_image_lines_from_reviewed_cutover": true,
+      "postgres_identity_image_volume_starttime": true,
+      "nginx_image_unchanged": true,
+      "current_application_containers_healthy": true,
+      "container_and_proxy_permissions_preserved": true,
+      "unit_stable_configuration": true,
+      "backup_timer_active_calendar_cutover_basis": true,
+      "ufw_docker_vpn_ssh_access_policy": true,
+      "protected_rendered_ingress_and_daemon_guard": true,
+      "core_services_and_legacy_service_states": true,
+      "platform_package_versions_preserved": true,
+      "fixed_build_bases_preserved": true,
+      "snapshot_active_counts_zero": true,
+      "validated_constraints_and_own_worker_heartbeat": true,
+      "health_and_health_only_loopback_ingress": true
+    },
+    "counts": {
+      "historical_full_row_tables": 49,
+      "historical_full_rows_preserved": 3698,
+      "new_operational_tables": 8,
+      "old_node_configurations_preserved": 1,
+      "new_nodes": 1,
+      "changed_old_node_connection_observations": 3,
+      "historical_files_preserved": 7429,
+      "appended_files": 1230
+    },
+    "private_paths_policy_values_row_digests_disclosed": false,
+    "stable_configuration_distinguished_from_transient_connection_observations": true,
+    "proof_bases": {
+      "row_multisets_and_final_protected_configuration": "independent_read_only_snapshots",
+      "compose_only_three_image_lines_tls_leaf_and_bridge_key_metadata": "successful_reviewed_cutover_before_admission",
+      "backup_timer_calendar": "successful_reviewed_cutover_before_admission",
+      "comprehensive_unknown_work_and_formal_runner_evidence_gate_report": "separate_acceptance_evidence"
+    },
+    "existing_local_managed_configuration_and_device_token_metadata_unchanged": true,
+    "first_mount_order_verifier_failure_retained": true,
+    "verifier_sha256": "a9dca2757270528ae41d9f38d27a07e636be0f433497e9abd9605f3556df32ff"
+  },
+  "health_observation": {
+    "samples": 60,
+    "first_at": "2026-10-20T06:38:21.260628+00:00",
+    "last_at": "2026-10-20T06:53:09.634205+00:00",
+    "elapsed_seconds": 888.374,
+    "all_samples_healthy": true,
+    "no_restarts_during_observation": true,
+    "scope": "Bounded post-cutover observation interval; the final business-cycle facts are recorded separately."
+  },
+  "final_readiness": {
+    "checked_at": "2026-10-20T06:58:17+00:00",
+    "ready": true,
+    "scope_limited_flags": {
+      "real_testing_cycle_verified": false,
+      "existing_application_data_verified": false,
+      "connector_tls_e2e_verified": false
+    },
+    "interpretation": "These flags mean not assessed by the readiness command. Separate MCP, Runner and preservation evidence establishes the completed cycle and preservation; readiness alone does not certify them."
+  },
+  "comprehensive_database_corroboration": {
+    "status": "VERIFIED_WITH_RETAINED_INACTIVE_HISTORY",
+    "collected_at": "2026-10-20T07:14:21.45234+00:00",
+    "read_only_repeatable_read": true,
+    "scoped_run_checks_passed": true,
+    "scoped_run_checks": {
+      "readonly_consistent_database_observation": true,
+      "schema_0020": true,
+      "run_completed": true,
+      "frozen_local_interactive_selection": true,
+      "accepted_source_identity_and_snapshot": true,
+      "one_accepted_atomic_submission_root": true,
+      "one_closed_worker_session_attachment": true,
+      "one_original_native_identity": true,
+      "explicit_recoveries_one_through_three": true,
+      "one_complete_job_retry_chain_successful_leaf": true,
+      "mission_attempts_keep_primary_owner": true,
+      "typed_inbox_exact_grant_device_job_and_original_digests": true,
+      "stale_complete_and_runner_gap_rejections_recorded": true,
+      "one_formal_docker_execution_pass": true,
+      "runner_evidence_verified_with_both_link_directions": true,
+      "current_final_release_ready_verdict": true,
+      "accepted_report_references_canonical_results": true,
+      "both_prior_managed_mode_configuration_retained": true
+    },
+    "strict_global_all_nonterminal_counts_zero": false,
+    "strict_check_result_preserved": true,
+    "global_pending_counts": {
+      "jobs": 0,
+      "controls": 0,
+      "open_bindings": 0,
+      "tools": 0,
+      "issues": 0,
+      "executions": 0,
+      "missions": 1,
+      "attempts": 0,
+      "connector_requests": 0,
+      "source_transfers": 0,
+      "interactive_inbox": 0,
+      "mission_inputs": 0,
+      "run_inputs": 0
+    },
+    "retained_inactive_history": {
+      "mission_count": 1,
+      "mission_status": "RETRYING",
+      "parent_run_status": "BLOCKED",
+      "belongs_to_current_run": false,
+      "full_original_row_digest_present_in_predeployment_baseline": true,
+      "all_related_pending_jobs_attempts_bindings_executions_zero": true,
+      "business_state_modified_for_acceptance": false
+    },
+    "current_run_missions": {
+      "completed": 4,
+      "accepted_attempts": 4,
+      "failed_attempts_preserved": 1
+    },
+    "ownership": {
+      "one_binding_attachment_and_primary_session": true,
+      "one_matching_original_native_identity": true,
+      "platform_primary_session_closed": true
+    },
+    "job_recovery": {
+      "count": 3,
+      "root_count": 1,
+      "chain_count": 3,
+      "max_recovery_depth": 2,
+      "leaf_count": 1,
+      "successful_leaf_count": 1,
+      "records": [
+        {
+          "id": "01a15808-b36a-7e36-9adb-b1166daaf327",
+          "retry_of_job_id": null,
+          "job_type": "ADVANCE_RUN",
+          "status": "FAILED",
+          "attempts": 1
+        },
+        {
+          "id": "01a15812-00c3-7330-9dd8-9107e0aa04da",
+          "retry_of_job_id": "01a15808-b36a-7e36-9adb-b1166daaf327",
+          "job_type": "ADVANCE_RUN",
+          "status": "FAILED",
+          "attempts": 1
+        },
+        {
+          "id": "01a15816-41a4-764b-b2e5-e60e7a9fe4f0",
+          "retry_of_job_id": "01a15812-00c3-7330-9dd8-9107e0aa04da",
+          "job_type": "ADVANCE_RUN",
+          "status": "SUCCEEDED",
+          "attempts": 1
+        }
+      ]
+    },
+    "recovery_audit_and_outbox": {
+      "count": 2,
+      "epochs": [
+        2,
+        3
+      ],
+      "jobs_belong_to_run": true,
+      "matching_outbox_count": 2,
+      "control_statuses": [
+        {
+          "status": "SUCCEEDED",
+          "count": 2
+        }
+      ]
+    },
+    "operational_and_unknown_work_counts_zero": true,
+    "managed_runtime": {
+      "platform_queued": true,
+      "server_host_bridge_configured": true,
+      "existing_server_bridge_active": true,
+      "availability_scope": "preserved_configuration_registration_and_service_state",
+      "new_managed_run_dispatched_by_this_script": false
+    },
+    "managed_registration": {
+      "existing_managed_local_nodes": 1,
+      "online_managed_local_nodes": 1,
+      "legacy_local_selections": 2,
+      "server_host_placements": 0,
+      "managed_execution_selections": 0
+    },
+    "proof_limits": {
+      "junit_33_parametrized_tests": "separate_MCP_content_hash_verified_Runner_artifact",
+      "native_bridge_call_ledgers": "separate_readonly_host_snapshot_and_preservation_evidence",
+      "managed_modes": "configuration_registration_and_service_state_not_new_managed_E2E",
+      "artifact_bytes": "separate_MCP_SHA256_and_size_verified_reads"
+    },
+    "read_only_query_script_sha256": "0c1e57c8ec36447565ba6fddf2183ed72f042e7711d331693947cd0b891925a0",
+    "prior_read_only_sql_failure_retained": true,
+    "private_row_digests_native_identity_tokens_paths_output": false
+  },
+  "scope_limits": [
+    "No new server-host or connector-managed testing-cycle acceptance is claimed.",
+    "No new Issue-write acceptance is claimed.",
+    "No private business SUT or private-Git acceptance is claimed.",
+    "No global Codex settings update, current-chat tool-catalog hot reload, or second model is claimed.",
+    "No in-flight Runner disconnect or full device-failure matrix acceptance is claimed."
+  ],
+  "publication": {
+    "sanitized": true,
+    "private_platform_addresses_endpoints_paths_omitted": true,
+    "native_session_plaintext_omitted": true,
+    "tokens_cursors_policy_digests_omitted": true,
+    "raw_private_records_retained_by_operator": true
+  }
+}

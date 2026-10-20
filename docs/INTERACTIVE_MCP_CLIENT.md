@@ -1,5 +1,9 @@
 # Interactive Agent MCP client
 
+The current release is deployed and its controlled current-Agent cycle is
+verified; release identity, acceptance scope and recovery evidence are recorded
+in [ADR-016 production deployment](ADR016_PRODUCTION_DEPLOYMENT.md).
+
 ADR-016 implementation provides a local stdio MCP server, a separate private
 Connector daemon, a durable intent journal, and a trusted host adapter. It does
 not start a Provider, model or substitute Agent. Install with Python 3.12+:

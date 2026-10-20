@@ -2,7 +2,11 @@
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: dual-mode Harness in production
+## Current increment: current-Agent MCP execution in production
+
+ADR-016 is deployed from PR #17 at **`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`** / schema **`0020_interactive_tool_inbox`**. PR and main CI passed with 967 tests passed and 21 skipped. The actual current Codex Desktop Agent used the official MCP SDK console to reason and submit proposals, without another model; the platform's trusted Docker Runner completed 33 real HTTP tests, followed by five hash-verified Evidence reads, FINAL `RELEASE_READY` and a hash-verified two-page report. Two explicit Worker recoveries retained the original Run/native/workspace and advanced epochs 1 → 2 → 3. Final independent historical preservation passed 39 checks. The original server and Connector-managed local Harness paths remain, with no new full-cycle claim for those modes, issue writes or private-SUT business acceptance. See [ADR-016 production deployment](ADR016_PRODUCTION_DEPLOYMENT.md); the earlier [27-test isolated cycle](ADR016_ACCEPTANCE.md) retains its own identities and limits.
+
+## Historical ADR-015 increment: dual-mode Harness (2026-10-19)
 
 ADR-015 is deployed at application **`63bd6cc`** / schema **`0018_harness_selection`**, retaining the existing server Host Bridge and adding the local Connector mode. Local Provider, Git and controlled Issue credentials stay on the selected node; accepted source and typed proposals cross bounded authenticated channels, while trusted Runners still produce formal facts. Production cutover and historical data / authentication / access preservation passed. **Strict external TLS verification passed; the online local-Connector core E2E passed.** Existing isolated positive, negative, recovery and authorized Issue evidence remain separate; extended device-failure cases are not all accepted. See [production deployment](ADR015_PRODUCTION_DEPLOYMENT.md) and [isolated acceptance](ADR015_ACCEPTANCE.md).
 
@@ -14,7 +18,7 @@ Local real 390px Web creation/import/start/failure/retry completed one Codex ses
 
 ## Historical PR #11 implementation freeze: post-session Finding governance and Gate reassessment
 
-The deployment-pending wording and test counts below describe the PR #11 development freeze. PR #11 was subsequently merged/deployed; the fresh current-production verification is recorded below and in the new acceptance record.
+The deployment-pending wording and test counts below describe the PR #11 development freeze. PR #11 was subsequently merged/deployed; its subsequent production verification is recorded below and in its acceptance record.
 
 [ADR-014](architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) is implemented on this branch. After a binding and its original primary session both close with an accepted same-Run/binding report, an operator can record Finding dispositions and explicitly queue an independent `EVALUATE_GATE` task. The task requires `finalize: true` and a trimmed, nonblank reason of at most 2,000 characters without NUL. The reason is retained in the Job and paired Audit/Outbox, without entering the Gate fact hash or overriding policy. Active, waiting, recovery-required, failed, cancelled and unreported closed sessions cannot use this exception; unbound legacy Runs keep their existing Gate contract.
 
@@ -26,7 +30,7 @@ The bilingual Web connects disposition history → explicit reason → durable t
 
 ## Current deployed baseline and access
 
-Production cutover completed on 2026-10-19 at 13:01:10 UTC: application **`63bd6cc6710d2937d189acc90acaa15502d73a24`**, Host Harness Bridge **`95e92c5`**, schema **`0018_harness_selection`**, and fixed operations manifest **`61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d`**. Original business row hashes, artifacts, workspaces, native sessions, authentication metadata, PostgreSQL identity and protected access configuration were verified before public admission. Source-preparation diagnostics and ADR-015 are included in this application release; the earlier read-only PR #12 baseline and local model/Web results remain historical. Strict external TLS verification passed; online Connector E2E passed in [the production record](ADR015_PRODUCTION_DEPLOYMENT.md).
+Production cutover completed on 2026-10-20 at 06:34:11.197055 UTC: application **`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`**, Host Harness Bridge **`95e92c5`**, schema **`0020_interactive_tool_inbox`**, and fixed operations manifest **`61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d`**. The original database container/image/volume/start identity, authentication, sessions, files and access configuration remain. Independent final preservation retained 3,698 full historical rows across 49 tables plus the original node's stable configuration, and all 7,429 old files. The production current-Agent cycle used certificate-verified HTTPS; detailed cutover, recovery, content-verification and preservation boundaries are in [the ADR-016 production record](ADR016_PRODUCTION_DEPLOYMENT.md). The earlier ADR-015 `63bd6cc` / schema0018 deployment remains [historical evidence](ADR015_PRODUCTION_DEPLOYMENT.md).
 
 The only supported Web access path is the configured allowlisted jump-host egress. Addresses and CIDRs stay in protected operator configuration. SSH remains for administration and manual recovery with forwarding disabled; no Web tunnel is retained. Routine deployments verify access-rule preservation and internal readiness; first activation or a changed access boundary requires additional connectivity checks. Earlier delivery sections below retain their then-current access facts and do not define the current policy.
 
@@ -176,7 +180,7 @@ npm run typecheck
 npm run build
 ```
 
-PostgreSQL integration tests exercise the canonical Planner chain, configurable dimensional coverage, Mission lifecycle events, durable queue behavior, and the delivery layers. Dedicated regressions verify immutable input snapshots and Mission contracts alongside immutable execution input, immutable Evidence content, append-only FINAL Verdicts with controlled revocation, and active Finding fingerprint uniqueness while preserving resolved history. The current migration head is `0018_harness_selection`; ADR-015 adds0015–0018, while ADR-014 adds no migration. The earlier `0010_mission_activity` and `0009_mission_inputs` check counts retain their original migration identity.
+PostgreSQL integration tests exercise the canonical Planner chain, configurable dimensional coverage, Mission lifecycle events, durable queue behavior, and the delivery layers. Dedicated regressions verify immutable input snapshots and Mission contracts alongside immutable execution input, immutable Evidence content, append-only FINAL Verdicts with controlled revocation, and active Finding fingerprint uniqueness while preserving resolved history. The current migration head is `0020_interactive_tool_inbox`; ADR-016 adds0019–0020, ADR-015 adds0015–0018, and ADR-014 adds no migration. The earlier `0010_mission_activity` and `0009_mission_inputs` check counts retain their original migration identity.
 
 The bounded controller is tested against real PostgreSQL and real pytest execution, including continuation after a step limit. Queue checks cover idempotency, concurrent claims, durable cancellation, interruption/retry, and rejection of stale lease commits. `scripts/dev.sh --check` verifies migrations and API/Worker imports; normal invocation starts the installed host API, independent Worker, and Node.js 22 Web, with configurable development ports and cleanup of its own processes.
 
