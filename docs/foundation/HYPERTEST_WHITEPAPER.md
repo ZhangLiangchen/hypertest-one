@@ -1,20 +1,38 @@
 # HyperTest 白皮书
 
-**版本：v1.3**
-
-**部署与工作流决策：ADR-013 / ADR-015 生产状态与历史验收保留；ADR-016 已实现 / 隔离当前 Agent 核心周期验收通过 / 已部署生产，线上当前 Agent 核心周期已通过（2026-10-20，Asia/Singapore）**
-
+**版本：v1.4**
+**产品职责修订：2026-10-20，依据项目负责人明确的功能分层**
 **定位：Agent-native Autonomous Testing Platform**
-
 **架构角色：Autonomous Testing Control Plane**
 
-[ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义部署组件与任务执行边界。[ADR-014：会话关闭后的独立质量重评](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)将报告完成后的 Finding 处置与平台 Gate 治理区分于 Agent 工作。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。实现与真实集成结果见[第一阶段验收](../FIRST_PHASE_ACCEPTANCE.md)，不由设计目标推定全部完成。
+> **HyperTest One 管理测试项目、下发测试任务、记录测试结论。**
+> **Agent 执行测试分析、测试设计、测试实现，并调用被测对象已有的测试框架执行测试。**
 
-[ADR-015：双模式 Harness 与本地 Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)扩展部署选择：保留服务器 Harness，增加用户电脑主动连接的本地 Harness，复用本地实际可用的模型、Git 与问题单授权。它不移动控制平面、Canonical State 或可信 Runner，也不改变单任务单主会话原则。ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复已实现，`0015_connector_nodes` → `0018_harness_selection` 已部署生产。核心隔离真实验收已通过，包括本地 Codex → 远端可信 Docker Runner → Evidence / Gate → 报告正反链、私有 Git 经 HTTPS 接受、原会话断线恢复及获准测试 Issue 的创建 / 负责人核验。这些隔离结果不冒称生产结果。生产切换已完成原数据、文件、认证、SSH / VPN 与服务器 Bridge 保全；严格外部 TLS、线上本地 Connector 核心周期和生产私有源码 source-only 接受补验已通过，后者未启动私有业务 Run 或问题单操作，扩展真实设备故障矩阵继续分别登记。该次发布与实际验收范围见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+HyperTest 持久管理计划、用例、执行记录、证据、缺陷与结论，把分散在不同 Agent
+会话中的质量保障工作串联起来。测试框架、测试环境与既有 CI 属于被测项目的工具链；
+HyperTest 不承担测试执行框架或通用执行引擎的产品职责。
 
-[ADR-016：交互式 Agent MCP 接入](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)接受云端 / 本地 Agent 执行选择：云端由平台托管 Harness，本地交互式执行时，当前 Agent 可经可信宿主证明与显式绑定成为任务执行者，通过 MCP 获取 Mission、推理 / 实现、提交 Proposal 并获取可信 Runner 事实。HyperTest 是其外接测试平台，不另启第二个 Agent 代执行。原有 Harness 接入模式与 Canonical / Runner / Gate 边界保留。安装包、执行绑定、独立集成授权、新 typed HTTPS API 及原 Job Worker 工具收件箱已在本分支实现，新增 `0019` / `0020` additive migration；当前真实 Codex Agent 的隔离正向完整周期已独立通过，见 [ADR-016 验收](../ADR016_ACCEPTANCE.md)。已部署生产，线上当前 Agent 核心周期已通过，也不由该结果推定所有宿主、外部集成或恢复矩阵通过。
+### 本次修订与现有实现的边界
 
-生产发布为 PR #17 / `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库已向前升至 `0020_interactive_tool_inbox`；PR / main CI 为967 passed、21 skipped。同一真实当前 Codex Desktop Agent 经官方 MCP SDK console 完成生产核心周期：2 Requirements / 3 Risks / 4 Cases / 4 Implementations，唯一平台可信 Docker Execution 的33项 HTTP 测试通过，五份 VERIFIED Evidence 与两页报告内容均经 MCP 读取并核验 hash / 字节数，形成 FINAL `RELEASE_READY`。真实过期后的两次显式 Worker 恢复保留原 Run / native / workspace，epoch 1 → 2 → 3，旧 Job / Attempt 保留；最终历史保全另经39项只读检查通过。详细身份、时序与保全边界见[ADR-016 生产部署记录](../ADR016_PRODUCTION_DEPLOYMENT.md)及[生产机器证据](../evidence/adr016-production-20261020.json)。隔离验收的27项测试仍属其独立历史；本轮不宣称聊天原生工具目录热加载、运行中断线注入、两种原受管路径的新完整周期、私有 SUT 业务或新增问题单写入通过。
+本次只修正白皮书的产品方向和架构职责，并提供[新 Mac 开发交接 Prompt](../handoffs/MAC_NATIVE_TEST_FRAMEWORK_HANDOFF_20261020.md)。
+**原生测试框架接入、跨会话接续及新的执行结果契约尚未实现。**
+[技术架构](../architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)、[TMP](../protocol/TEST_MISSION_PROTOCOL.md)、
+[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)、`AGENTS.md`、代码及 schema
+仍包含旧 Runner / 单主会话约束。后续核心变更必须先用新的 ADR 明确替代范围，并在同一变更中
+同步这些规范、兼容和验收方案；不能只依据白皮书修改数据库约束、扩大权限或重解释旧协议。
+
+现有 ADR-013 / ADR-015 / ADR-016 及其生产结果继续作为历史事实保留：
+
+| 已记录实现 | 历史证据与实际边界 |
+| --- | --- |
+| 服务器与本地 Connector 两种受管 Harness | [ADR-013 生产记录](../ADR013_PRODUCTION_DEPLOYMENT.md)、[ADR-015 生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)；既有授权、数据、会话和访问边界需要保全 |
+| 当前 Agent 的 MCP 接入 | [ADR-016](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)及[生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)；本地 Agent 推进任务，正式测试仍走平台 Docker / pytest，属于待纠偏的实现 |
+| 已发布 MCP 与 Web 安装指引 | [安装交付记录](../MCP_INSTALLATION_DELIVERY_20261020.md)；固定发行 `mcp-v0.1.0`，PR #19 源码 `980f27a`，安装不等于任意 Agent 原生框架接入已完成 |
+| 最近已记录后端与验收 | API / Worker `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`、schema `0020_interactive_tool_inbox`；967 passed / 21 skipped，生产33项 HTTP 测试与五份 Evidence 属于该旧架构周期 |
+
+以上是交付记录中的版本快照，不是对当前服务器或新 Mac 的即时巡检。隔离27项周期、生产33项
+周期、MCP 安装验证及真实私有 SUT 验收各自独立，不相互替代。未来迁移保留原 Execution、
+Evidence、Verdict、报告和审计，不删除或回填历史来宣称符合新架构。
 
 ---
 
@@ -72,24 +90,24 @@ HyperTest 的核心链路为：
 
 这条 Testing Semantic Chain，是 HyperTest 的核心领域模型，也是其长期技术与产品壁垒。
 
-### 1.1 实际使用单位与执行方式
+### 1.1 实际使用单位与工作归属
 
-- 一个 SUT（被测系统）对应一个长期存在的 Project；同一系统的 feat / MR 在项目内组织，而非各建一个项目。Project 是系统身份，仓库 URL 不是唯一系统标识，长期仍可支持一个系统的多个仓库。
-- 一个 feat / MR 的确定完整 SHA 的一次完整测试活动对应一个 TestRun，即用户看到的测试任务。任务同时冻结需求原文、配置、执行环境和 Policy；MR 编号、分支名是关联与展示信息，不替代实际被测 SHA。
-- 一个任务绑定一个逻辑 Task Worker 和一个持续的主 Harness 会话。该会话串行、自驱地完成测试分析、风险分析、测试设计、代码实现、正式执行请求、失败诊断和报告；阶段切换不重新开会话。
-- Harness 可选服务器 `SERVER_HOST` 或用户电脑 `LOCAL_CONNECTOR`。现有默认保留服务器模式；用户显式选择模式和节点，可保存本地偏好。首次绑定后模式、节点、Provider、主会话与工作区固定，离线不自动回退；更换这些身份或主会话丢失需要新测试轮次。
-- 同一任务不由多个平台 Worker 同时协作；多个不同任务可并发，包括同一个 SUT 的不同 feat / MR SHA。并发上限由平台、Harness 和 Runner 的实际容量共同约束。
-- 关键决策通过持久人工问题交给操作者，回答后恢复原会话。缺陷可按已配置的 GitLab 项目、责任人和提单策略形成 Issue，并关联测试任务、Finding 与正式 Evidence。
+- 一个 SUT（被测系统）对应一个长期 Project；同一系统的 feat / MR 和测试轮次在项目内组织。Project 是系统身份，仓库 URL 不替代它。
+- 一个确定变更版本的一次测试活动对应一个 TestRun。需求、源码版本、测试范围、Policy 及实际执行环境应有明确、可追溯的版本身份；改变输入或显式复测保留新轮次，不覆盖旧结论。
+- HyperTest 管理测试计划、用例及覆盖关系，发布目标、范围、约束和验收要求，记录任务进度、执行出处与结论。Agent 完成分析、设计、实现、框架调用和失败诊断。
+- 测试代码优先留在被测项目自己的测试资产中，遵守该项目已有框架、fixtures、配置与启动方式。平台记录实现引用和版本，不把所有项目统一成平台指定的测试文件或语言。
+- 同一 Agent 会话可以连续完成任务，也可以由不同会话经过明确交接依次贡献。任务和测试资产的连续性由平台状态保障，原生聊天会话不再是产品层面的唯一连续性载体。
+- 接力必须关联原任务、输入、已接受产物、未决操作及贡献者，明确当前写入责任，隔离已失效授权。这个目标不意味着允许并发多写者，也不改变现有库中的单主会话约束；具体迁移需后续 ADR / 领域规范落实。
+- 关键歧义、权限与外部副作用通过明确授权和持久问答处理。缺陷可关联项目既有问题单流程，提单不自动成为缺陷确认或质量结论。
 
-ADR-016 的产品 `execution_mode=CLOUD|LOCAL` 表示 Agent / Harness 的执行位置；正式 Runner 的位置与信任独立，首版仍为平台可信 Runner。`CLOUD` 对应 `SERVER_HOST + PLATFORM_MANAGED`；`LOCAL` 对应 `LOCAL_CONNECTOR`，既保留 ADR-015 的 `PLATFORM_MANAGED` 本机专属会话，也增加 `INTERACTIVE_MCP` 当前 Agent 直接执行。新的 execution driver 属 Operational 选择，不是第三种 Harness mode；组合明确固定，旧请求缺新字段时保持原平台托管行为，不改写历史。
+“本地 / 云端”应清楚说明 Agent、项目测试框架及被测环境的实际位置。Agent 可在拥有项目工具链
+的 Mac 上调用原生测试入口，也可使用已授权的远端环境或既有 CI；HyperTest 的部署位置不决定
+测试必须在哪里运行。认证留在实际使用方，连通平台不扩大 Git、问题单或执行权限。
 
-当前本地 Agent 可以显式成为该 Run 主 Session，但普通提交 / 查询不会自动绑定聊天。须验证真实 native 身份、节点、受控工作区、固定源码与宿主生命周期，并保持一任务一逻辑 Worker / 主 Session / 节点 / Workspace 和唯一 owner；无这些宿主能力时只能提交 / 读取或选择云端执行。
-
-Task Worker 的稳定身份与操作系统进程、容器 ID、一次 Job 租约不同。等待人工输入可以释放运行资源，但保留任务绑定、原生会话和工作区；进程替换必须显式恢复同一绑定并隔离旧执行者。原会话丢失时停止并保留历史，不能另开会话冒充续接。
-
-人工问题既可以属于当前阶段，也可以发生在阶段之间或缺陷派单时。任务级提问不重开已完成的阶段；平台保留明确的问答归属，回答后继续同一主会话。具体持久化与暂停恢复规则由领域模型和 TMP 定义。
-
-相同测试输入的重复提交应幂等复用原请求；新 SHA 创建新测试任务。同一 SHA 需要改变需求、策略或环境、或显式重新测试时，保留新的测试轮次与旧结论，不以 `Project + SHA` 唯一约束阻止复测，也不改写旧快照。
+ADR-016 当前 `CLOUD / LOCAL` 只区分 Agent 的位置，测试仍走服务器 Runner；该旧含义及
+`harness_mode` / `execution_driver` 组合继续解释已有请求和历史，不能冒称已符合上述新目标。
+平台登记测试活动不应普遍要求上传全量源码或重建项目工作区；需要的版本、源码和产物验证范围
+由实际任务与后续证据契约确定。
 
 ---
 
@@ -179,27 +197,43 @@ HyperTest 同时具有三个层次的身份。
 
 > **AI 原生测试开发工作台。**
 
-用户提供 PRD、Git Repository、Branch / Commit 和 Test Environment，HyperTest 自动完成测试分析、风险识别、测试设计、测试用例、自动化实现、测试执行、失败诊断、问题发现和质量报告。
+用户关联 PRD、SUT 仓库版本和已有测试环境。HyperTest 管理项目、计划和用例，向 Agent 下发
+测试任务并记录结果；Agent 使用被测项目已有工具链完成从分析到测试执行的工程工作。
+平台让这些工作形成可查询、可交接、可追溯的质量活动。
 
 ### 4.2 面向产品市场：Agent-native Autonomous Testing Platform
 
-HyperTest 是 **Agent-native 自治测试平台**。它不绑定单一模型或单一 Agent，可接入 Codex、Claude Code、OpenCode、Pi 以及未来 Agent Harness。
+HyperTest 服务于 Codex、Claude Code、OpenCode、Pi 等可替换的通用 Agent。
+Agent 与测试框架能力的增长应直接增强平台，而不要求平台复制这些能力。
 
 ### 4.3 面向架构：Autonomous Testing Control Plane
 
-HyperTest 负责：Testing State、Testing Policy、Testing Knowledge、Testing Missions、Testing Evidence、Testing Governance、Testing Verdict。
+| 层次 | 职责 |
+| --- | --- |
+| HyperTest One | 管理测试项目、计划与用例；下发测试任务；保存执行记录、证据、缺陷和质量结论；维护权限、版本、历史、追溯及策略验收 |
+| Agent | 执行测试分析、测试设计、测试实现；调用 SUT 既有测试框架 / CI；分析失败，提交结果、证据及结论建议 |
+| 被测项目工具链 | 按项目原有测试语义运行断言，管理相应测试环境和依赖，产生原始日志、报告及其他执行产物 |
+| MCP / 集成通道 | 传递任务与状态、提交产物引用和证据；提供范围受限的通信，不接管 Agent 推理或复制测试框架 |
 
-Codex / Claude Code 负责：reason、search、read、edit、code、shell、debug、tool use。
+HyperTest 对正式状态和结论的校验职责，不等于必须亲自运行测试。
 
 ---
 
-## 5. HyperTest 不是什么
+## 5. 产品范围边界
 
-HyperTest 不应该成为另一个 Coding Agent，不重新实现 LLM Loop、Tool Calling Loop、Context Compaction、Shell Harness、Filesystem Harness 和 Generic Subagent Runtime。
+HyperTest 的投入集中在 Testing State、Testing Semantic Model、任务契约、证据治理和质量结论。
+Agent 提供已有的 LLM Loop、Tool Calling、Shell、Filesystem、Code Editing、Context Management
+及 Subagent 能力；SUT 已有框架 / CI 提供测试执行能力。
 
-HyperTest 也不应该只是 Codex Web UI。如果平台只是 Web → Prompt → Codex → Terminal Output，那么核心能力仍属于 Codex。
+平台不另建通用 Agent Loop、测试框架、通用测试执行引擎或项目环境管理体系，也不以增加
+Runner backend、语言运行镜像和 SUT 启动器矩阵作为产品扩张方向。将这些能力改名为适配层，
+不会改变其维护成本或职责归属。
 
-HyperTest 必须拥有自己的 Testing State 和 Testing Semantic Model。
+平台可以为真实项目需要接入现有报告格式和 CI 结果，但接入目标是保留执行出处、证据与追溯，
+不是重新实现测试发现、断言、fixtures、执行调度或 SUT 部署。既有自有 Runner 在迁移期间
+作为旧路径保留，兼容范围和退出步骤另行决策，不成为新产品架构的必经组件。
+
+Web 和 MCP 都是领域工作台入口；平台价值来自长期测试资产，不能只保存终端文本或聊天摘要。
 
 ---
 
@@ -207,114 +241,109 @@ HyperTest 必须拥有自己的 Testing State 和 Testing Semantic Model。
 
 ### 6.1 Agent 可以消失，Testing State 不能消失
 
-Codex Session 可以结束，Claude Code 可以被替换，模型可以升级，Agent Harness 可以代际变化，但 Requirement、Risk、Test Case、Execution、Evidence、Finding、Verdict 必须长期存在。
+会话可以结束，Agent 和模型可以替换；Project、计划、Requirement、Risk、TestCase、
+Implementation、Execution、Evidence、Finding、Verdict 及交接记录应长期存在。
+下一会话通过平台获得已完成工作、剩余风险、未决问题及证据缺口，不依赖转抄整段聊天。
 
-### 6.2 Agent 产生 Intelligence
+### 6.2 Agent 完成测试工程工作
 
-理解需求、推断风险、发现边界、设计测试、分析根因、编写自动化代码属于 **Agent Intelligence**。
+Agent 负责需求与风险分析、测试设计、代码实现、调用项目测试框架、观察结果和诊断失败。
+它根据任务契约自主选择工程动作，平台管理目标、授权和产物验收。
 
-### 6.3 Runner 产生 Facts
+### 6.3 项目工具链产生执行事实
 
-Exit Code、HTTP 响应、JUnit、Prometheus 指标、DB State、Trace、Screenshot、Log 属于 **Execution Facts**。
+测试框架、已有 CI 和真实测试环境产生 Exit Code、JUnit、HTTP 响应、指标、数据库状态、
+Trace、截图和日志。Agent 可通过授权通道提交这些原始产物及其引用；结果必须关联实际
+源码、测试实现、环境和执行出处。平台自有 Runner 不是事实进入系统的唯一合法来源。
 
-### 6.4 HyperTest 产生 Decision
+### 6.4 HyperTest 记录并治理质量结论
 
-HyperTest 基于 Policy + State + Agent Intelligence + Execution Facts 形成 PASS、FAIL、BLOCKED、RISK ACCEPTED、RETEST REQUIRED、RELEASE READY、RELEASE BLOCKED 等判断。
+HyperTest 基于固定 Policy、覆盖、已接受产物、执行证据和 Finding 校验并记录结论。
+Agent 摘要不自动成为事实；原始文件的 hash 证明完整性，身份认证或签名证明相应来源属性，
+它们各自都不能单独证明测试真实发生或产品行为正确。证据不足时明确记录缺口和不确定性。
 
-> **Agent produces intelligence.**  
-> **Runner produces facts.**  
-> **HyperTest produces decisions.**
+> **Agent performs testing work.**
+> **Project test tools produce execution results.**
+> **HyperTest connects testing state, evidence and conclusions.**
 
 ---
 
 ## 7. 总体架构
 
-```text
-┌────────────────────────────────────────────────────┐
-│                   HyperTest Web                    │
-│ Project / PRD / Repo / Runs / Cases / Findings    │
-└──────────────────────┬─────────────────────────────┘
-                       │
-                       ▼
-┌────────────────────────────────────────────────────┐
-│           HyperTest Autonomous Testing CP          │
-│ Test Knowledge Model                               │
-│ Test Planner                                       │
-│ Mission Compiler                                   │
-│ Policy / BUGate                                    │
-│ Verifier / Gate                                    │
-│ Coverage Engine                                    │
-│ State / History                                    │
-└─────────────┬──────────────────────────┬────────────┘
-              │                          │
-              ▼                          ▼
-       Agent Gateway                 Test Runner
-              │                          │
-   ┌──────────┼──────────┐               │
-   ▼          ▼          ▼               ▼
- Codex     Claude      Pi/...       pytest / k6
-                                   Playwright
-                                   Frigate
-                                   Docker/K8s
+```mermaid
+flowchart TB
+    UI[Web 工作台]
+    HT[HyperTest One<br/>项目 / 计划 / 用例 / 任务 / 证据 / 结论 / 历史]
+    A[可替换 Agent 会话<br/>分析 / 设计 / 实现 / 框架调用 / 诊断]
+    SUT[被测项目已有测试框架与 CI<br/>原生测试入口 / fixtures / 环境 / 报告]
+    UI --> HT
+    HT -->|MCP / API：任务、约束、已有状态| A
+    A -->|Proposal、执行记录、原始产物引用| HT
+    A -->|调用项目已有入口| SUT
+    SUT -->|执行结果、日志、报告| A
+    HT -->|经校验的质量状态与结论| UI
 ```
+
+测试执行留在 Agent 与项目工具链之间。HyperTest 的数据接入、校验和报告解析围绕真实项目
+需要建立；它不在这条链路中插入自有测试引擎。Agent 会话变化通过持久任务和可审计交接关联。
 
 ---
 
 ## 8. HyperTest 核心组件
 
-HyperTest 第一性架构可以归纳为六个组件：
+1. **Project / Test Asset Management**：管理 SUT 项目、计划、需求、风险、用例、实现引用及长期质量资产。
+2. **Task / Mission Management**：根据计划、策略和覆盖缺口发布任务，记录责任、输入、进度、人工问题和交接。
+3. **Mission Contract / Agent Access**：通过稳定、类型化 MCP / API 提供目标、上下文、约束和验收要求，接收 Agent 的结构化贡献。
+4. **Execution Record / Evidence Intake**：关联项目已有框架或 CI 的执行出处、版本、原始产物及其校验信息，维护证据链。
+5. **Verifier / Quality Governance**：校验 Proposal、权限、版本、完整性、覆盖和证据充分性，按策略记录质量结论。
+6. **History / Reporting**：保存 Finding、报告、Verdict 和历次贡献，供后续会话接力、审计与复测使用。
 
-1. **Test Knowledge Model**：描述 Requirement / Risk / TestCase / Execution / Evidence / Finding / Verdict 等测试世界对象。
-2. **Test Planner**：基于当前状态、Policy、Coverage Gap 和依赖验证可接受的测试动作，向 Harness 返回允许的范围、缺口与约束。
-3. **Mission Compiler**：把 Testing Intent 编译成 Agent 可执行的标准 TestMission。
-4. **Agent Gateway**：屏蔽 Codex / Claude Code / Pi / OpenCode 的差异，统一 AgentHarness。
-5. **Test Runner**：执行正式、可复现、可审计的测试并产出 Evidence。
-6. **Verifier / Gate**：验证 Agent Proposal 与执行事实，并形成阶段和发布 Verdict。
+计划编译、覆盖检查和策略计算属于控制平面能力。自有 Runner、通用 Shell 和框架执行调度
+不列入目标核心组件。以上组件是产品职责划分，不要求新增六个独立服务。
 
 ---
 
 ## 9. HyperTest 与 Codex / Claude Code 的关系
 
-HyperTest 与 Agent 不是简单 Prompt 调用，而是：
+HyperTest 向 Agent 提供测试任务、已有质量状态和验收标准；Agent 决定如何在项目工具链中
+完成分析、设计、实现、执行和诊断，并通过 MCP / API 提交结构化贡献及原始产物引用。
 
-```text
-                    HyperTest
-                        │
-        ┌───────────────┼────────────────┐
-        │               │                │
-     Mission          Context           Tools
-        │               │                │
-        └──────────────►Agent◄────────────┘
-                        │
-                 Events / Result
-                        │
-                        ▼
-                    HyperTest
-```
+平台掌握任务与测试资产的持久身份，不需要掌握 Provider 的推理循环或把某个 native session
+作为质量活动永久身份。一次会话可以完成完整任务，也可以在保存工作状态后交接给下一会话。
+交接需保留贡献者、输入、已接受结果、未决副作用和当前写入责任，不能冒用旧会话或重发未知操作。
 
-HyperTest 定义 Mission 和验收标准；Agent 决定如何推理与完成工作。
-
-ADR-013 的目标是在一个 TestRun 的持续原生会话内串行处理多个有类型的 Mission / Attempt。Harness 自驱思考和调用领域工具；平台执行范围、依赖、预算、权限与产物验收，不为每个阶段建立新会话，不接管 Provider 的推理循环。v0.3 的逐 Mission 最终结果调用和 bounded controller 保留为历史兼容基线；本分支的新 profile 已实现上述持续会话路径，旧 Run 不被回填或重解释。
+ADR-013 的单持续主会话和 ADR-016 的当前会话绑定属于现有实现约束。其历史继续保留；
+解除这些约束需要协议和领域迁移，不因本节目标描述而自动发生。
 
 ---
 
-## 10. Agent Harness Interface
+## 10. Agent 接入与 Harness 兼容
 
-HyperTest 定义统一 `AgentHarness` 抽象，目标适配 Codex CLI、Claude Code CLI、DeepSeek Harness 及其他 CLI / SDK。上层仅理解 `AgentSession`、`TestMission`、`AgentEvent`、`AgentResult`，Provider-specific 参数、事件与原生会话格式由 Adapter Normalize。当前已接入的 Codex 实现不能作为其他 Provider 已可运行的证明。
+目标接入围绕任务领取、上下文读取、Proposal、执行记录、证据及结论协作建立，不要求平台
+为每个 Provider 重做通用 Harness。MCP / API 是 Agent 与外接测试管理平台之间的通信接口。
+平台认证、项目授权和写入责任必须明确；连接 ID、模型自报会话名不能代替身份或权限。
 
-服务器模式延续平台任务 Worker 容器通过受限 UDS Host Harness Bridge 调用服务器宿主适配器。ADR-015 的本地模式由用户电脑上的受管 Connector 主动建立 WSS，平台通过该连接调度本机 Harness；源码与 Artifact 经独立 HTTPS 传输，不假设两端共享路径。Connector 独立于浏览器页面存活，无需用户电脑开放公网入站端口，平台继续沿用受控 VPN / 白名单访问边界。
+服务器 Harness 与本地 Connector 受管模式继续作为已实现的兼容路径保留。当前服务器 UDS
+Bridge、本地 WSS Connector 和交互式 stdio / HTTPS 各有既有协议与生命周期，不能混用或
+因新目标删除原会话、设备授权和历史。具体实际限制见 ADR-015 / ADR-016 和客户端说明。
 
-ADR-015 的 Bridge / Connector 托管原生会话、进程、事件和中断，不持有数据库写权限，不代替 Verifier、Runner 或 Gate，也不提供通用远程 shell。原生认证与会话目录留在实际 Harness 节点。CLI / SDK 已登录认证、Git helper / SSH agent 或本地问题单适配器只有在本机进程实际可用时才可复用，浏览器登录不保证能使用。原 `PLATFORM_MANAGED` 路径创建 / 恢复专属会话，不接管任意已有聊天；ADR-016 另允许经可信宿主验证和显式绑定的当前本地 Agent 执行，不自动占用用户聊天。首次设备配对仍是独立、可到期/撤销/轮换的 HyperTest 授权。首版采用随机设备 bearer token：明文保存在节点受保护文件，平台只存哈希和凭据代次引用；项目的 Harness、source-acquisition 与 issue-executor 能力分别授权。它不要求把模型、Git、问题单 token 或 cookie 再复制到服务器、镜像或 Agent Context，也不扩大原有权限。
+本机可用的 Git、模型和问题单授权留在使用它们的节点，不复制到平台镜像或任务上下文。
+设备配对、项目权限、来源采集和问题单操作分别授权；已有登录不意味着任何平台动作都获准。
+新的通用贡献与交接契约需要按真实框架场景设计，不从当前 Codex 适配推定所有 Agent 已支持。
 
 ---
 
 ## 11. Test Mission Protocol
 
-Test Mission Protocol 是 HyperTest 控制 Agent 的核心协议。Mission 至少包含 Mission ID、Mission Type、Objective、Target、Context References、Constraints、Acceptance Criteria、Expected Output Schema。
+TMP 表达 HyperTest 下发什么测试任务，以及 Agent 应提交哪些可验收结果。
+Mission 至少有任务身份、目标、范围、上下文引用、约束、验收标准和输出契约。
 
-用户提交的是完整测试任务；Mission M-203 等内部契约为同一持续会话中的测试工作划定目标、依赖、输出和权限。Mission 完成关闭该工作单元，主会话在任务结束时统一收尾。
+任务可以包含测试分析、设计、实现、调用已有框架执行和失败诊断。框架、现有测试入口及
+产物格式来自 SUT 的实际工具链；平台提供治理约束，不把某种语言或通用 Shell 命令固定为所有任务的语义。
 
-这是 HyperTest 从 Prompt Engineering 走向 **Protocol Engineering** 的关键一步。
+Mission / Attempt 记录一次工作及其验收，不等同于新建或永久绑定一个 Agent 原生会话。
+后续协议需明确领取、顺序交接、幂等回传和迟到结果处理。现有 TMP wire / profile 继续解释
+已有请求和历史，新契约必须独立版本化并与领域规范一起实现。
 
 ---
 
@@ -353,35 +382,41 @@ Canonical State
 
 ---
 
-## 14. 运行中领域 MCP 与交互式入口
+## 14. MCP 与任务协作入口
 
-HyperTest 对受控任务主 Harness 提供运行中领域 MCP。读取工具包括 `get_requirement`、`get_risk`、`get_test_case`、`get_execution`、`get_evidence`、`get_coverage`；写工具采用 Proposal 语义，包括 `propose_requirement`、`propose_risk`、`propose_test_case`、`propose_implementation`、`report_finding`、`request_execution`。这些是任务内受绑定与执行授权约束的能力，不等于向用户交互式聊天开放同样权限。
+MCP 的目标是让 Agent 读取项目、计划、用例和已有结论，接收测试任务，提交分析、设计、
+实现引用、执行记录及证据，查询进度和报告。Agent 使用自己已有的工程工具调用 SUT 测试框架；
+MCP 不需要成为通用远程 Shell 或测试启动器。
 
-持续会话目标还包括申请 / 完成有类型 Mission、提问、读取正式执行结果、请求 Gate、提交报告和请求 GitLab Issue。工具由平台验证并审计，按既定项目 / 责任人 / 权限策略执行外部操作；未知外部结果需要核对，不能盲目重复提单。本分支以九个固定工具实现这些能力：读取语义映射到分页 `get_state`，Proposal batch 经 `complete_mission` 提交，Gate 请求使用 `evaluate_gate`；完整名称和契约映射见 TMP §25.2。上述细粒度名称保留为领域语义，不代表另有同名端点。
+写入采用 Proposal / 验收语义，平台按身份、Project、任务范围、输入版本和当前写入责任
+校验并审计；读取按对象范围鉴权。具体工具名、字段和事务边界由后续 TMP / 领域规范确定，
+本节不把规划能力冒充为已发布工具。
 
-ADR-015 的本地问题单操作仍由平台治理：先批准具体项目、责任人、Finding / Evidence 和操作意图，再委托持有本地凭据的受控适配器执行，平台核验真实问题单引用并审计。Agent 不能借已有 MCP 登录绕过这一流程。操作 ID 与执行方固定，超时或断线后的未知结果只查询对账，不重复创建，也不切换服务器/本地后端另开同一问题单。提单不自动确认 Finding 或改变 Verdict；其他问题单平台须单独适配与验收。
+问题单操作关联批准的项目、Finding、Evidence 和操作意图，结果引用须可核验。超时或断线后
+先查询原操作，不能盲目重复创建；设备、Git 或已有 MCP 登录不自动授予提单权限。
 
-任务主 Harness 默认只能：
+> **Read shared testing state. Propose traceable contributions.**
 
-> **Read Facts, Propose Changes.**
+### 14.1 已发布交互 MCP 的实际边界与待迁移点
 
-### 14.1 交互式 Agent 接入（ADR-016 已实现，隔离与生产真实核心验收通过）
+[ADR-016](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md) 已实现
+stdio MCP → 私有 daemon → typed HTTPS API，提供九个交互入口，并在当前 Agent 显式绑定后
+复用九个 TMP 工具，共18个工具。旧 `request_execution` 经原 Job Worker 调用 Docker Runner；
+Implementation 仍绑定 Python / pytest，LOCAL 当前只改变 Agent 的位置。这些是实际限制，
+不是新的产品分层目标，不能用重命名接口来掩盖差异。
 
-安装包由 MCP Server、客户端配置与 Skill 组成。首版“当前本地 Agent → stdio MCP → 受限本地 Connector → 新 typed HTTPS API”承担平台通信；不假设现有 Node WSS / UDS Bridge 已能代理这些新接口。原“平台 Worker → Connector WSS → 受管 Harness”继续服务 `PLATFORM_MANAGED`，而 `LOCAL + INTERACTIVE_MCP` 就由当前 Agent 执行智能工作，不经 Connector 另启模型或 Provider。
+“创建测试运行 → 我的电脑”已提供项目专属安装 Prompt、设备管理密钥来源和配对指引。
+[正式发行与上线记录](../MCP_INSTALLATION_DELIVERY_20261020.md)包含固定 wheel、源码与校验身份。
+独立 `setup` / `doctor` 使用私有文件或隐藏终端输入；管理 key 不进入 Agent 聊天或 MCP 配置。
+安装不会隐式授予来源、问题单或执行权限。
 
-产品的“创建测试运行 → 我的电脑”提供固定版本 MCP 的安装 prompt、设备管理密钥来源与配对指引；发行资产以明确 tag / commit / wheel 摘要识别，未实际发布不得显示为可下载发行。独立本地准备 CLI 可在操作者明确提供 owned 私有文件或终端隐藏输入中的全局 Operator key 后，调用既有配对 / 项目能力 / 交互注册 API；该流程不是 MCP 工具，不向模型分发管理 key，不自动授予源码或提单权限。通用 stdio 宿主在支持的 macOS/Linux 上可提交 / 读取或请求云端执行，当前 Agent 本地执行仍受单独宿主适配与显式绑定限制。
+首版支持 macOS/Linux：通用 stdio 宿主可提交 / 读取及请求 CLOUD；当前-Agent 执行仍受控于
+Codex Desktop 的真实宿主证明和单 native / Run 绑定。这里没有宣称 Windows、任意 Agent 原生
+测试框架或跨会话接力已可用。旧短期执行 grant、设备绑定与 inbox 规则继续按现有规范执行。
 
-首版提供七个提交 / 读取工具：`hypertest_submit_task` / `hypertest_get_submission`、`hypertest_get_progress`、`hypertest_list_evidence` / `hypertest_read_evidence`、`hypertest_list_reports` / `hypertest_read_report`，以及 `hypertest_bind_execution` / `hypertest_get_execution` 的显式绑定与幂等查询。绑定后的本地 Agent 可在有效 Run / Mission / Attempt / epoch / claim 范围内复用九个 TMP 领域工具，完成分析、设计、实现、正式执行请求、诊断、受控协作和报告。未绑定客户端不能取得这些写能力；查询不会自动 bind / resume，人工回答、独立取消 / 恢复和设备授权仍沿用各自操作者入口。
-
-提交使用已批准 Project、完整 SHA、PRD / configuration、Policy、环境、execution mode / driver 和节点；本地模式还引用已接受源码与既有节点能力。插件不自动采集 Git、上传 dirty 文件、配对设备或新增来源信任；MCP 安装和执行权限也不授予任意本地问题单操作。交互门面已在同一事务中提交回执、固定 Run/bootstrap 输入与选择、初始 `ADVANCE_RUN` Job 和审计，再确认受理；原有两个 POST 不因此获得原子能力。`LOCAL + INTERACTIVE_MCP` 的初始 Job 须等待显式绑定才获得执行准入，平台 coordinator 维护租约、领域编排和验证，不调第二个 Harness。
-
-九个领域工具的请求先进入原 Run 的 typed tool inbox。API 只鉴权、校验并入账 / 查询，原 Job Worker 持唯一 claim 消费请求、执行领域服务和 Docker Runner，不另建业务调度循环。客户端先持久运输 key；响应丢失、排队或执行中只查询原请求，不自动 POST。运输成功返回原 TMP 业务结果，不能把业务拒绝变成接受；HTTP / MCP 断开不取消 Worker 已接受的正式执行。
-
-请求以跨重连稳定的 `submission_key` 和输入摘要对账，不以单次 JSON-RPC ID 识别测试轮次。响应丢失时显示 UNKNOWN 并查询原 key；UNKNOWN 不是 Run 新状态，NOT_FOUND 也不能证明未创建，插件不自动再次 POST、换 key 或新建 Run。执行绑定也必须幂等、可查询，不以丢失回复为由接管另一个 owner。当前聊天可显式成为 primary Session，但须由可信宿主适配器证明真实身份，不能采信模型传入 chat ID；保留 `UNIQUE(provider, provider_session_id)`，首版一个真实执行会话只绑定一个 Run，可提交 / 读取其他 Run。新的执行 Run 需真实新上下文，不伪造 ID 或由 Connector 悄悄另启会话，也不上传原聊天或思维链。
-
-新的 `InteractiveIntegrationGrant` 按项目分别授予提交 / 读取及显式 `run:execute` 权限，凭据留在 Connector 私有文件，与设备 token、节点能力、Bridge 管理权限和 operator 全局 key 分开。实际执行另需限定 Run / Binding / Session / epoch / Job claim / Mission / Attempt 的短期能力，不因项目有执行权就能任意写状态。平台仍以 Verifier 接受 Proposal、以可信 Runner 采集 Evidence、以 Gate 判定；本地 shell 测试不是正式事实，MCP 不扩大个人 shell / filesystem / 其他 MCP 权限。读取继续验证范围、归属、固定版本、hash 与分页，不读任意路径或 Provider 对话，报告保留历史结论。
-
-短期能力固定其原 `device_grant_id`；即使同 node 取得轮换后的新设备凭据，旧短期能力也不能继续发起工作。当前宿主适配仅支持受控 Codex Desktop stdio 上下文，核验真实 native 身份、原生 metadata、Codex 进程、kernel 观察的 stdio peer 与固定源码；daemon 固定首个可信 peer PID 和出生时间。替换 stdio 进程须在原可信 native 上下文显式重启 daemon、按原身份对账后显式继续，不能自动创建新 Session、Job 或 grant。不具备这些能力的通用 MCP 宿主只支持提交 / 读取或 CLOUD；不上传聊天或思维链。安装与限制见[客户端说明](../INTERACTIVE_MCP_CLIENT.md)。
+可复用的运输经验包括稳定请求 key、提交前持久意图、有界响应和原请求查询对账。UNKNOWN
+结果保持待核对，不因为断线、NOT_FOUND 或换会话就自动再次 POST；新协作契约继续保留该原则。
+平台范围撤权不等同于终止用户整个聊天或任意原生工具，取消与框架实际停止必须分别核实。
 
 ---
 
@@ -420,9 +455,20 @@ Implementation
 
 ## 16. Evidence Model
 
-Evidence 是 HyperTest 与普通 AI Agent 最大的差异之一。Agent 自述不能成为正式证据。正式 Evidence 应来自可信执行通道，包括 Execution Metadata、Exit Code、JUnit、HTTP Request / Response、Logs、Metrics、Trace、Database State、Screenshot、Artifact、Git Diff、Environment Fingerprint 等。
+Evidence 使执行记录能够支撑质量结论。来源可以是 SUT 原生测试框架、已有 CI、真实测试环境
+及其授权采集通道，包括原始测试报告、Exit Code、HTTP 请求 / 响应、日志、指标、Trace、
+数据库状态、截图、测试代码与 Git Diff 等。
 
-Evidence 应至少具备 Source、Timestamp、Execution ID、Environment ID、Code Version、Artifact Hash，并最终形成 **Evidence Chain**。
+证据应关联任务、用例 / 实现、实际源码和测试版本、执行环境、时间、执行出处及产物摘要。
+接入形式可采用受保护上传或可验证的外部引用，依真实场景决定；平台不读取任意路径 / URL，
+也不因接收结果而取得项目凭据。字段、大小限制、来源准入和事务边界需在后续契约中明确。
+
+Agent 自述、聊天截图中的结论或单个 PASS 字符串不自动成为正式 Evidence。接收文件、
+验证 hash、验证来源和确认足以支持质量结论是不同的检查。Hash 只证明相应内容完整性，
+配对或签名也不单独证明真实执行；来源、版本或执行关联不足时明确记录缺口，按 Policy
+决定可采纳范围。校验证据不以平台再次运行同一测试作为唯一方法。
+
+现有 Runner 产生的 Evidence 保持原来源、校验状态和历史解释，不回填为新的外部来源。
 
 ---
 
@@ -469,181 +515,183 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 
 ## 20. 典型端到端工作流
 
-用户在 SUT 的 Project 中为一个 feat / MR 的完整 SHA 提交 PRD、配置、策略与测试环境，平台创建 TestRun。以下步骤在同一个主 Harness 会话内自驱、串行推进：
+以下是纠偏后的目标流程，具体原生框架接入和跨会话写入契约尚待实现：
 
-ADR-016 允许选择云端受管 Harness 或本地当前 Agent 执行该周期。当前 Agent 经显式绑定成为本地主会话后，下面的推理 / 实现步骤由它完成，平台维护 Mission、准入、可信执行与决策；不会另启替身模型，也不由插件重建通用 Agent Loop。
+1. **项目与计划**：用户关联 SUT、需求、确定代码版本及已有框架 / 环境；HyperTest 管理测试计划、范围、用例和验收要求，创建可追溯测试任务。
+2. **任务下发**：HyperTest 经 MCP / API 向获授权的 Agent 提供任务与已有状态。Agent 领取职责、核对实际仓库和工具链；不要求平台先复制仓库或启动自有 Runner。
+3. **测试分析与设计**：Agent 分析需求和风险，读取已有测试，提交计划 / 用例及覆盖关系；平台校验并记录版本与追溯。
+4. **测试实现**：Agent 在项目原生测试体系中新增、修订或复用测试；向平台关联实际测试代码、版本和入口，不强制生成平台专用 pytest 模块。
+5. **原生框架执行**：Agent 调用项目已有测试入口或已授权 CI。框架按项目配置执行，产生真实结果、日志和报告；平台不承担测试引擎、依赖安装或 SUT 启动器角色。
+6. **执行记录与证据接入**：Agent 提交实际版本、环境、执行出处、状态及原始产物 / 引用；平台校验身份、关联、完整性和来源，保留失败、未知与证据缺口。
+7. **失败诊断与协作**：Agent 分析失败、关联 Finding，必要时提问或按授权推进项目既有问题单流程。修复后的再执行保留新的执行事实，不覆盖旧失败。
+8. **结论记录**：Agent 提交分析和结论建议；HyperTest 结合已接受事实、覆盖和 Policy 校验并记录质量结论、报告和依据。
+9. **完成或交接**：会话结束前保存已接受产物、剩余任务及未知操作。后续获授权会话在明确交接后继续；平台保留所有贡献和结论历史。
 
-1. **Snapshot / Binding**：显式选择 Harness 模式和节点，准备并验证固定源码，冻结输入和实际执行环境，建立唯一任务 Worker 绑定与主 AgentSession。
-2. **Requirement Analysis**：Harness 申请 `ANALYZE_REQUIREMENTS` Mission，形成 Proposal；HyperTest 验证后保存 Requirement。
-3. **Risk Analysis**：读取已接受需求，申请 `ANALYZE_RISKS`，形成 Requirement → Risk。
-4. **Test Design**：根据覆盖缺口申请 `DESIGN_TESTS`，形成 Risk → TestCase。
-5. **Test Implementation**：申请 `IMPLEMENT_TESTS` 并提交测试代码 Proposal，经校验形成 TestCase → Implementation。
-6. **Official Execution**：Harness 请求可信 Runner 在冻结环境执行，等待并读取 Execution → Evidence；自行 shell 探索不能替代这一事实通道。
-7. **Failure Diagnosis / Collaboration**：需要时申请 `DIAGNOSE_FAILURE`，关联 Finding 和 Evidence，并按配置策略请求 GitLab Issue。任意阶段遇到关键歧义可提问，回答后恢复同一会话。
-8. **Verification / Verdict**：平台验证产物、覆盖和证据；Harness 请求评估，Gate 根据正式状态形成可追溯结论。
-9. **Report / Close**：Harness 提交引用输入、Evidence、Finding、Issue 与 Verdict 的报告，平台保存引用并收尾该任务的会话和绑定。报告文字不代替 Gate 结论。
+阶段可在一个会话内完成，也可顺序接力；不能通过换会话改变冻结输入、丢弃失败记录或重复外部副作用。
 
 ---
 
-## 21. HyperTest Runtime Loop
+## 21. HyperTest 的任务管理循环
 
 ```text
-创建冻结输入的 TestRun
-  → 建立一个 RunExecutionBinding 与一个主 AgentSession
-  → 原生 Harness 在同一会话中思考并串行调用领域工具
-  → 平台逐次验证范围、依赖、权限、租约和 Proposal
-  → 可信 Runner 执行并保存可校验事实
-  → 人工回答后恢复原会话，或按预算 / 取消 / 失联停止
-  → Gate 判定，保存报告与历史，关闭任务绑定
+管理项目、计划与用例
+  → 固定任务输入、范围和验收要求
+  → 向获授权 Agent 下发任务
+  → 接收分析、设计、实现与实际框架执行记录
+  → 校验并关联证据、覆盖、Finding 和结论
+  → 保存已完成工作、缺口、问答及交接状态
+  → 后续会话接续或新轮次复测
 ```
 
-复杂的 Think / Tool / Observe / Edit / Retry Agent Loop 交由 Codex / Claude Code 自身完成。HyperTest 不重复实现。
+这是任务状态与质量治理循环。Think / Tool / Observe / Edit / Retry 由 Agent 自身驱动；
+测试发现、fixtures、框架调度和断言由被测项目工具链承担。
 
-平台通过 PostgreSQL 持久队列和容器化任务 Worker 托管测试任务，浏览器页面关闭不终止后台工作；本地模式仍依赖本机 Connector 与 Harness 在线。Planner 对可接受动作提供确定性守卫；Provider 的循环、上下文压缩和工具选择由 Harness 负责。队列、连接和绑定属于 Operational State，不拥有 Canonical Testing State。Worker 或 Connector 失联保留 Attempt / Execution 历史，不自动重放外部执行。任务间可以并发，任务内保持单 Worker、单主会话、串行测试周期。
+平台任务下发、权限、幂等、问答、当前写入责任与审计属于 Operational State；被接受的领域
+产物、执行事实和结论属于持久测试资产。跨会话接力不放弃单次写入责任和迟到提交防护，
+但不应把原生会话不可恢复直接等同于整个质量活动必须丢弃或重新开始。
 
-本地断线或电脑休眠后，连接恢复只建立通道并对账，不自动恢复模型执行。授权 TTL 到期后本地 watchdog 停止新工作并中断受控调用；平台拒绝过期、撤权或旧 epoch 持有者的执行性提交。达到恢复阈值后须显式核对原节点、会话、工作区、固定源码和未决调用，隔离旧 owner，再接续原绑定；丢失身份需新 Run。平台可继续已接受且有独立有效授权的 Runner 执行，但不得因此启动第二次执行；先完成/收集该执行或受控取消，再进行需换 epoch / claim 的 Harness 恢复，不提前换代或绕过单活跃 Job。离线取消先撤权并保留待清理记录，重连不覆盖 WAITING_INPUT，也不重开终态。具体字段、事务和恢复授权由领域模型及 TMP 定义。
+断线后先对账已提交结果和未知副作用，再明确继续或交接；不因重连自动重跑测试、重新提单
+或改派另一 Agent。会话关闭不是测试取消，平台请求取消也不证明项目框架或 CI 已停止。
+实际停止、已完成结果和未决操作分别记录。改变需求、代码或测试环境后如何建立新轮次，
+继续依不可变输入和历史语义制定后续规范。
 
-其中 ADR-013 的服务器持续会话路径已在本分支实现，并取得真实成功、失败诊断及两类问答证据，范围见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)；ADR-015 的本地 Harness、跨网络传输与显式恢复已有独立实现和隔离回归，核心隔离真实周期 / 恢复已按 ADR-015 单独登记，生产已部署，线上核心周期已通过。v0.3 的历史路径仍由平台 bounded controller 逐步选择 Mission 并收取阶段最终结果；它不被描述为持续会话验收，也不被新 profile 改写。
-
-ADR-016 中，云端执行不依赖聊天在线；当前本地 Agent / 宿主关闭则智能工作停止，Connector 不得替身继续，已经有效授权并持久接受的 Runner 请求可按有效原归属完成。平台保留状态、预算和事实，聊天退出本身不是业务取消。重连先查 submission、执行绑定和未知操作；只有原身份及租约 / scope 仍有效时，才可经显式继续准入推进。更换 stdio 进程需在原 native 上下文显式重启 transport daemon；这不会自动新建 native Session、Job、执行 grant 或重放工具。超期按 ADR-015 对账与 fencing 后显式恢复，原 native Session 不可恢复需关联新 Run，不自动换节点或另启模型。撤权只隔离本 Run 平台能力，不承诺终止用户整个聊天或个人原生工具。
+现有 ADR-013～016 的 Job / lease / epoch / native 绑定和恢复约束尚未被本次修改替换。
+在实现新契约前，实际操作必须遵守旧准入并保留历史，不伪造会话来模拟目标接力。
 
 ---
 
 ## 22. Web 产品形态
 
-HyperTest 的核心 UI 不应该是聊天框，而应该呈现 Requirements、Risks、Test Cases、Automation、Execution、Coverage、Findings、Evidence、Verdict。Agent Activity 只是其中一个辅助面板。
+工作台围绕测试项目、计划、任务、用例、覆盖、执行记录、证据、Finding、质量结论与报告组织。
+用户应能看到：本轮测什么、谁在做、哪些用例已实现 / 执行、结果来自哪里、结论依据是什么，
+以及下一会话需要继续处理什么。Agent Activity 和聊天摘要是辅助信息。
 
-用户感受到的是“测试平台正在工作”，而不是“我正在和 AI 聊天”。
+任务位置展示应区分 Agent 所在位置、项目测试框架 / CI 的实际执行环境和 SUT 位置。
+“我的电脑”应能指导用户在已有工程环境的 Mac 上使用 MCP；平台不要求所有项目都迁移到
+统一 Runner 镜像。在线、已配对、命令结束、产物上传和质量通过是不同状态，必须分别表达。
 
-双模式工作台还应清楚说明所选设备与 Provider、连接状态、源码接收进度、问题单未知结果和显式恢复入口。节点在线不等于测试通过，重连不等于恢复执行；本地未在线时允许查看已有状态，但不能隐藏地改用服务器认证。本分支 Web / API 已提供模式 / 节点选择、设备配对 / 撤销、源码接收及恢复入口；真实浏览器与完整周期验收仍单独记录，不据此宣称生产已交付。
-
-ADR-016 的 Web 执行步骤应提供“云端执行 / 本地执行”选择，并明确本地是否由当前 Agent 经 MCP 执行；不能把“本地”仅作为提交入口、实际再起另一个 Agent。平台应显示待绑定、原执行身份、租约与恢复状态，正式测试 Runner 的位置独立说明。MCP / typed API 与执行路径已有实现，新 Web 的 execution mode / driver 展示仍需独立交付和验收，不能由旧 ADR-015 的模式 / 节点界面推定已完成。
-
----
-
-## 23. 推荐技术架构
-
-ADR-013 的已实现基线为 Docker Compose 管理平台常驻服务、服务器宿主托管 Harness。ADR-015 在同一服务器控制平面下增加本机 Harness 选项，具体版本与实际部署状态由交付记录维护：
-
-```text
-Ingress:        nginx container
-Frontend:       Next.js container
-Backend:        FastAPI container
-Task Worker:    HyperTest Worker container, one logical binding per task
-Database:       PostgreSQL container + persistent volume
-Queue:          PostgreSQL DurableJob + audit / transactional outbox
-SERVER_HOST:    server UDS Host Harness Bridge + provider CLI / SDK + native sessions
-LOCAL_CONNECTOR: user daemon + local CLI / SDK + native sessions (production deployed; online core E2E verified)
-Transport:      local-originated WSS control + HTTPS bounded source transfer (production deployed; online core E2E verified)
-Runner:         trusted controller + short-lived isolated Docker containers
-Artifacts:      shared persistent platform store; object storage when required
-Middleware:     containerized when justified by an actual dependency
-```
-
-已有数据库卷、Artifact、工作区、原生认证与受控访问边界需要在迁移中保全；容器删除不代表数据删除。各类常驻服务、宿主 Harness 和正式 Runner 分别配置容量与资源预算。现有开发 Compose 不是该生产目标的完整实现。
-
-本地 Connector 不要求新增消息中间件；服务器 Worker、PostgreSQL、Verifier、Gate 与 Runner 继续承担原有职责。现有 TMP/profile 和服务器 UDS Bridge 不改变语义，本地传输以独立版本协商；两种模式都需保留数据、认证、SSH 与现行 VPN / 白名单边界。
-
-ADR-016 已实现 stdio MCP → 常驻 Connector → 新 typed HTTPS API，以及当前本地 Agent 的可信绑定与短期执行授权。`CLOUD / LOCAL` 表示 Agent 执行位置，`PLATFORM_MANAGED / INTERACTIVE_MCP` 表示会话驱动；它们不改变 Runner 信任。API 将严格类型请求写入 PostgreSQL 运输 inbox，由原 Job Worker 执行九个 TMP 工具与可信 Runner；不新增数据库、消息中间件、独立业务调度队列或通用 Agent Loop，本地交互执行不使用上面的 WSS 派生另一主会话。此实现已部署生产，线上当前 Agent 核心周期已通过。
+现有页面已经提供服务器 / 本地 Connector 的受管入口和 MCP 安装指引；该表单仍创建受管
+Harness Run。原生框架执行记录、顺序跨会话交接和相应新状态展示没有因本次白皮书修改上线，
+需随后以真实项目验证，不能从现有控件推定完成。
 
 ---
 
-## 24. Workspace 模型
+## 23. 推荐技术架构与现有运行基线
 
-每个 TestRun 的主会话拥有独立、可恢复的托管工作副本，串行阶段共享任务上下文；正式 Runner 使用独立执行环境：
+目标控制平面继续使用现有 PostgreSQL 关系状态、审计及 transactional outbox，按实际需求
+保留任务 Worker、Web、API 和 Artifact Store。Worker 承担任务分发、领域校验与异步治理，
+不以重新实现测试执行引擎为职责。报告解析和集成优先服务首个真实 SUT 的现有产物。
 
-```text
-/workspace
-├── repo/
-├── prd/
-├── hypertest/
-│   ├── mission.json
-│   ├── requirements.json
-│   ├── risks.json
-│   └── cases.json
-├── artifacts/
-└── results/
-```
+Agent 运行在已经具备工程工具链和授权的本地或远端环境，通过 MCP / API 与平台通信。
+项目自行维护测试框架、依赖和测试环境；HyperTest 记录环境身份、可用前提和实际结果，
+不因此建立统一镜像构建 / SUT 部署服务。通信或产物存储有明确需求时再增加组件，
+不预先引入 Kafka、Graph DB、完整事件溯源或通用 Workflow DSL。
 
-主会话的工作副本在阶段完成和人工等待时保留，任务终止后按策略收尾；重启仅能恢复已记录的绑定、原生会话和工作区。所选 Harness 只访问任务受控副本及其自身授权目录，Canonical Artifact Store 由平台维护。运行目录、原始 Provider 对话和认证内容不成为 Canonical Testing State。
+以下是最近交付记录中的现有实现，仍需兼容和保全：
 
-本地模式不把用户目录挂到服务器。受控 Git 采集器从批准 origin 获取完整 SHA，只上传该提交验证所需的 tracked Git 对象和 manifest，不包含 dirty / untracked 文件、凭据或无关 `.env`；tracked 秘密应拒绝传输，不能删改后冒称原 SHA。平台独立重算 commit / tree / blob 哈希、路径与 mode，包 SHA-256 只证明传输完整性。项目可显式信任与 Agent 隔离的本地 source-acquisition adapter，并验证其设备认证 acquisition receipt；也可采用平台独立读取 origin 或既有可信 commit 约束。配对本身不授予来源采集角色；缺少可信来源路径时拒绝接收。这样私有 Git 授权可留本机，同时平台明确记录来源信任依据。
+| 组件 | 已记录基线 |
+| --- | --- |
+| 平台 | nginx / Next.js / FastAPI / Task Worker / PostgreSQL Compose 容器；持久数据库卷和 Artifact Store |
+| 服务器受管 Harness | UDS Host Harness Bridge、Provider CLI / SDK、原生会话和授权 |
+| 本地受管 Harness | WSS Connector、本机专属 Harness、受控源码传输和问题单适配 |
+| 当前 Agent MCP | stdio / 私有 daemon / scoped HTTPS / 原 Job typed inbox；受控 Codex Desktop 绑定 |
+| 旧正式执行 | 平台 DockerRunner / Python / pytest、固定受控 API profiles；它是待迁移的旧执行路径 |
 
-上传验收前只属于临时接收状态；平台验证后固定不可变 SourceSnapshot，服务器 Runner 再次验证并在独立环境执行。测试代码继续通过 Proposal / Verifier 进入 Artifact Store，本地探索不成为正式 Evidence。平台 Worker、Bridge / Connector 和 Runner 的部署生命周期与持久会话身份独立；ADR-015 的跨机器定位、源码传输与恢复实现已落地；私有 Git 的本地授权复用和 HTTPS 平台源码接受已取得独立结果，正式 Runner / 质量闭环与完整恢复矩阵仍单独验收。
-
----
-
-## 25. MVP 范围
-
-第一阶段目标是打通：
-
-```text
-PRD + Git
-↓
-Requirement
-↓
-Risk
-↓
-Case
-↓
-Test Code
-↓
-Execution
-↓
-Evidence
-↓
-Report / Verdict
-```
-
-MVP 建议只支持一个 Agent Harness（Codex）、API / Backend Functional Test、pytest、Docker / existing SIT，以及基础 Requirement / Risk / Case / Finding / Evidence / Verdict 模型。
-
-现有 MVP 能力与 ADR-013 目标须分别验收：容器部署、宿主 Bridge、整个 Run 的持续会话与运行中领域工具已有实现；生产迁移、数据 / 认证 / 访问边界保全及真实正反链路已完成[独立验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。受控 GitLab 集成已有回归，实际提单仍需授权配置与真实服务证据。Claude Code / DeepSeek 等适配器也需各自的真实运行证据，不能由 Codex 结果代替。
-
-ADR-015 双模式已实现并部署生产，其隔离验收与本次生产记录独立于上述 ADR-013 历史。隔离核心链已核验本机授权复用、私有源码与来源 receipt、可信 Runner、获准问题单创建及原会话恢复；UNKNOWN 去重和服务器 UDS 兼容另有回归。严格外部 TLS 已确认，线上本地 Connector 核心周期已通过，扩展休眠 / 离线取消 / WAITING_INPUT / 原会话丢失及外部 UNKNOWN 故障矩阵未逐项完成。文档、mock 和能力声明不能代替这些证据。见[生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。
-
-ADR-016 的安装包、typed API、执行绑定 / 短期能力、原子提交门面和原 Worker 工具 inbox 已实现。当前真实 Codex Agent 经官方 MCP SDK 通路完成四个 Mission 的 Proposal、四份 Implementation、真实 Docker live HTTP 27 / 27 和五份 VERIFIED Runner Evidence，形成 `RELEASE_READY` 与已接受报告，Job / Binding 正常收口；证据和两页报告均经 MCP 读取并核验摘要与字节数。没有另启模型，详见[隔离验收记录](../ADR016_ACCEPTANCE.md)及[机器可读观察](../evidence/adr016-20261020.json)。
-
-此前隔离验收中，同一 Run / native / workspace 的过期恢复保留历史并递增 epoch，恢复实现的最终版本另经独立集成回归验证，具体版本与时序边界以验收记录为准。该隔离周期的 stdio / daemon 重启与原 key 查询发生在 Runner 完成后，查回同一 Execution，不能据此宣称当前 Agent 的运行中断线已经实测。该能力已部署生产，线上当前 Agent 核心周期已通过，另见[独立生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)；其他宿主、私有 Git / 问题单写入、扩展真实设备故障及新 Web 展示仍独立验收。来源 / 问题单权限和正式 Runner 信任保持原边界，无宿主能力时拒绝冒称本地执行，ADR-015 历史验收不替代这些新结果。
-
-第一阶段不做复杂多 Agent Blackboard、自研 LLM Agent Loop、复杂 Workflow DSL、跨公司通用测试 Ontology、完全无人值守 Release。
+本次没有变更任何部署、schema 或权限。后续演进保留现有数据、授权、两种受管模式、
+TLS / SSH / VPN 边界和历史结果；不把旧容器化验证当作新原生框架流程的验收。
+精确镜像与访问状态由[服务器运维材料](../SERVER_OPERATIONS.md)及实际巡检维护。
 
 ---
 
-## 26. 第二阶段
+## 24. 源码、工作区与测试资产
 
-完成 ADR-015 已实现的服务器/本机 Harness 共存、本地认证复用、受控源码传输、问题单适配与断线恢复的独立真实验收及生产部署评审；再逐步增加 Claude Code Adapter、Multiple Harness Selection、Playwright、Performance Testing、Kubernetes Runner、Coverage Engine、Evidence Graph、Finding Classification、Historical Comparison、Regression Selection、Test Asset Reuse。
+工程工作区由执行测试工作的 Agent 与项目工具链管理。Agent 优先使用已有 SUT 仓库、
+测试框架、测试数据与运行入口；HyperTest 保存任务输入身份、测试实现关联、产物和交接信息。
+平台登记计划、用例或结论，不普遍要求全量源码上传、平台 checkout 或独占托管工作区。
+
+追溯仍需明确实际 SUT 版本、测试代码版本及必要变更。测试实现可来自已有仓库测试、Agent
+新编写的测试或其他项目资产，不以语言、`tests/*.py` 或 pytest symbol 定义所有实现。
+本地修改不能伪装成原提交；有必要的 diff / 产物摘要与版本关联应通过后续契约明确。
+现有不可变 Snapshot、Artifact 和历史字段不在本节原地改写。
+
+源码或产物确需传输时，先核对目的、范围、来源及权限，排除凭据和无关文件。
+Git 授权、Provider 凭据与项目秘密留在实际使用环境；文件 hash 只证明内容完整性，
+源码来源与结果可信度分别核验。现有 ADR-015 的源码接收路径保留原校验和授权语义，
+不再作为所有目标工作流的必经步骤。
+
+跨会话接力传递的是可追溯状态和工作成果，不复制整段 Provider 对话或认证目录。
+工作区变化、贡献者接力、重新执行与新测试轮次分别记录；不能混淆为同一未变化的执行事实。
+
+---
+
+## 25. 纠偏后的首个实战范围
+
+下一阶段在具有真实 SUT 测试框架的 Mac 上，从一个已有项目、一个明确变更版本和一条
+实际可运行的原生测试入口开始。先观察项目如何安装依赖、使用 fixtures、启动环境和输出报告，
+再决定 HyperTest 需要怎样的最小结果契约；不先建一个演示 Runner 来替代实战。
+
+首个闭环应证明：
+
+1. HyperTest 能管理该项目、计划和用例，并下发范围明确的测试任务。
+2. Agent 使用项目原生框架完成分析、设计、实现及真实测试调用，框架配置不被平台替换。
+3. 实际正向 / 失败结果、源码与测试版本、环境和原始产物能被关联、校验和记录。
+4. 平台的测试结论可追溯到用例与证据，缺证据不能被描述为通过。
+5. 保存交接状态后，后续会话能在明确授权和写入归属下读取并接续；此能力必须实际验证。
+
+既有 Python / pytest、Docker、27项隔离周期及33项生产 HTTP 周期保留其真实历史价值，
+证明的是旧路径，不替代真实私有 SUT、项目原生框架或跨会话接力验收。
+MCP 发行与安装验证也不证明这些目标已经完成。
+
+本轮只更新白皮书和交接材料。下一轮先记录新 ADR，同步技术架构、TMP、领域模型和
+Agent 指导中的冲突规则，再实现最小必要改动；具体框架、入口、报告和环境以新 Mac 实际盘点为准。
+
+---
+
+## 26. 后续演进
+
+根据首个真实 SUT 的需要完善计划 / 用例管理、任务下发、框架结果接入、证据关联、质量结论
+和顺序会话交接。先复用项目已有代码、报告和 CI，再抽象重复需求。
+
+后续价值集中在覆盖缺口、Finding 分类、历史比较、回归选择、测试资产复用及不同 Agent 的
+可追溯贡献。增加报告格式或集成须有真实场景；扩大 Runner backend、构建语言镜像矩阵、
+自研 SUT 启动器不作为默认路线。
 
 ---
 
 ## 27. 长期阶段
 
-长期目标是 **Autonomous Testing System**，逐渐支持需求变化检测、Impact Analysis、自动回归范围选择、自主实验、Failure Hypothesis、Dynamic Test Generation、Test Coverage Convergence、Agent Collaboration、Cross-version Learning、Cross-project Testing Knowledge、Continuous Quality Evaluation。
+长期积累需求变化、版本差异、覆盖、失败模式和测试历史，支持影响分析、回归范围选择、
+质量趋势、测试资产复用与跨项目知识。Agent 能力持续增强，平台通过稳定任务与质量资产承接它。
 
-Blackboard / Event-driven Collaboration / Specialized Testing Agents 仅是长期实验方向。ADR-013 的任务执行模型明确保持单 Worker、单主会话和任务内串行；改变为任务内多个平台 Worker 协作需要新的 ADR，不能把它作为当前目标的默认扩展方式。
-
----
-
-## 28. 为什么暂时不自研 Agent
-
-Codex / Claude Code 等 Agent Harness 已经提供 Model Interaction、Agent Loop、Tool Use、Shell、Filesystem、Code Editing、Context Management、Retry、Session、Subagent。
-
-HyperTest 如果重新实现这一层，会增加开发与长期维护成本，却没有形成测试领域核心竞争优势。
-
-正确策略是：
-
-> **复用最先进的通用 Agent，专注构建最先进的 Testing Runtime。**
-
-只有未来证明通用 Agent Loop 无法满足 Autonomous Testing 的特殊执行模型时，才开发 `HyperTest Native Harness`，并且它仍然只是 `AgentHarness` 的一个实现。
+多 Agent 并发协作、Blackboard 或复杂调度只在真实需求与冲突治理方案明确后另行决策。
+跨会话顺序接力本身不要求这些机制，也不要求引入通用 Agent Runtime 或测试执行平台。
 
 ---
 
-## 29. Agent Orchestration 的真正含义
+## 28. 复用 Agent 与项目工具链
 
-HyperTest 的 Agent Orchestration 不微管理 Agent reasoning。它真正编排的是 Testing Mission：Analyze Requirement、Analyze Risk、Design Tests、Implement Tests、Diagnose Failure、Investigate Finding 等。
+Codex / Claude Code 等 Agent 已提供推理、工具调用、代码编辑、上下文管理和工程执行能力；
+被测项目通常已有测试框架、依赖、fixtures、环境和 CI。HyperTest 复用两者，
+把投入集中在项目、任务、用例、证据、结论及长期质量状态。
 
-在 ADR-013 中，Harness 在同一持续会话中自驱申请和完成这些有类型的工作，平台对其输入、依赖、权限、输出、预算和事实负责。Mission / Attempt 保持审计边界，但不意味着换一个 Worker 或新开原生会话。平台不再把逐 Mission 重建会话的旧实现作为目标工作流。
+> **复用 Agent 完成测试工作，复用项目工具链执行测试，专注持久测试管理与质量治理。**
 
-> **HyperTest orchestrates testing work, not model reasoning.**
+维护测试执行引擎或自研通用 Harness 不构成当前目标。新增平台能力应先回答：
+它解决了哪一个真实项目中的测试管理或质量追溯问题，已有 Agent / 项目工具链为何不足。
+
+---
+
+## 29. Agent Orchestration 的含义
+
+HyperTest 下发和管理 Testing Mission：测试分析、测试设计、测试实现、框架执行、
+失败诊断与 Finding 调查。平台管理任务身份、范围、输入、责任、进度和验收；
+Agent 决定工程方法并调用已有工具完成工作。
+
+一个任务可以由同一会话持续推进，也可以经过明确交接顺序接力。质量状态由持久领域资产
+承载，不依赖某个 Provider 对话永久在线。既有单主会话实现仍按原规范运行，
+其迁移不能通过伪造会话、修改旧绑定或丢弃历史完成。
+
+> **HyperTest manages testing missions; Agents perform the testing work.**
 
 ---
 
@@ -707,65 +755,65 @@ Software Testing Domain
 
 业务化表达：
 
-> **把 PRD 和代码交给 HyperTest，自动完成从测试分析到可信质量结论的全过程。**
+> **用 HyperTest 管理测试任务，让 Agent 复用项目工具链完成测试，留下可追溯的质量结论。**
 
-HyperTest One 的产品 slogan：
+产品 slogan 保留：
 
 > **One Input. One Mission. One Complete Test Cycle.**
+
+完整测试周期描述质量工作的闭环，不要求全部工作发生在一个 Agent 会话中。
 
 ---
 
 ## 35. 对技术社区的介绍
 
-> HyperTest is an agent-native autonomous testing platform that turns general-purpose coding agents such as Codex and Claude Code into governed testing workers.
+> HyperTest One is an agent-native testing control plane that manages test projects and missions, connects evidence, and records quality conclusions. Agents perform the testing work using each project's existing test tools.
 
 中文：
 
-> HyperTest 是一个 Agent-native 自治测试平台，将 Codex、Claude Code 等通用 Coding Agent 转化为受测试策略、状态、证据和质量门禁约束的 Testing Worker。
+> HyperTest One 是面向 Agent 的测试控制平面，管理测试项目、下发测试任务、关联证据并记录质量结论；Agent 复用被测项目现有工具链完成测试工作。
 
 ---
 
 ## 36. 对企业客户的介绍
 
-> HyperTest 是从需求到质量结论的自治测试平台。输入 PRD、代码仓库和测试环境，平台自动完成需求分析、风险识别、测试设计、自动化实现、真实环境执行、失败诊断和质量评估，并保留完整的 Requirement → Case → Evidence → Finding 可追溯链路。
+> HyperTest One 将分散在 Agent 会话中的测试计划、用例、执行记录、缺陷与质量结论串联起来。平台管理项目与任务；Agent 完成分析、设计、实现并调用企业已有测试框架和 CI，平台保存可交接、可审计的质量状态与证据链。
 
 ---
 
 ## 37. 核心架构原则总结
 
-- **Agent 可以替换，Testing State 不可丢失。**
-- **Agent 可以推理，但不能自证。**
-- **正式测试事实必须由可信 Runner 产生。**
-- **Agent 提议，HyperTest 验证并提交。**
-- **BUGate 定义 Protocol，HyperTest 执行 Protocol。**
-- **HyperTest 编排 Testing Mission，而不是微管理 Agent reasoning。**
-- **一个 SUT 一个 Project；一个确定变更版本的测试任务绑定一个逻辑 Worker 和一个持续主会话。**
-- **Harness 自驱任务内串行工作；平台管理任务间并发、状态、证据与决策。**
-- **Harness 可在服务器或已配对本机运行；认证留节点，模式与会话不因断线静默替换。**
-- **源码来源与内容、外部问题单结果均须受控核验；本地授权不赋予 Canonical 写权或 Runner 信任。**
-- **本地交互式 Agent 可显式成为任务执行者；MCP 连接平台，Verifier / Runner / Gate 仍拥有状态、事实与决策。**
-- **通用 Agent 越强，HyperTest 应该越强，而不是受到威胁。**
+- **HyperTest One 管理测试项目、下发测试任务、记录测试结论。**
+- **Agent 执行测试分析、测试设计、测试实现，并调用被测对象已有测试框架执行测试。**
+- **测试框架、环境与既有 CI 属于项目工具链，平台不重复构建测试执行体系。**
+- **计划、用例、执行记录、证据、Finding 和 Verdict 独立于 Agent 会话长期存在。**
+- **Agent 提议，HyperTest 校验并记录；Agent 摘要不自动成为正式事实。**
+- **执行来源、版本、完整性和证据充分性分别核验，不以平台自有 Runner 为唯一事实通道。**
+- **任务下发与质量治理属于平台，工程动作与测试框架调用属于 Agent。**
+- **跨会话接力明确贡献、授权和当前写入责任，不推导并发多写者或重放未知副作用。**
+- **一个 SUT 一个 Project；输入变化、复测、执行记录和历史结论保持可追溯。**
+- **认证留在实际使用方，项目授权不扩大 Git、问题单或个人工程工具的权限。**
+- **原受管 Harness、Runner、Snapshot、协议及执行历史在明确迁移前保留原语义。**
+- **新产品边界与已实现能力分别说明，以真实 SUT 验收推动最小必要演进。**
 
 ---
 
 ## 38. 最终定义
 
-HyperTest 最终不是 Test Agent、Codex Wrapper 或 AI Chat + Test Platform。
+HyperTest One 是面向 Agent 时代的持久测试管理与质量治理控制平面。
 
-HyperTest 是：
+> **平台管理测试项目、下发任务、记录结论；Agent 完成测试工作，调用项目已有框架执行。**
 
-> **面向 Agent 时代的软件自治测试基础设施。**
+它把不同 Agent 会话中分散的测试分析、设计、实现、执行、诊断与结论关联为持续的质量活动，
+保留从需求、风险、用例到实现、执行证据、Finding 和 Verdict 的可追溯链路。
+平台价值来自这些状态、关系、证据和历史，而非测试执行框架的数量或自有 Runner 的能力。
 
-它位于通用智能 Agent 与真实软件质量体系之间。其核心职责不是创造另一个会写测试的 AI，而是建立一个能够让智能 Agent知道应该测试什么、为什么测试、做到什么程度，能够真实执行测试、留下可信证据、判断测试是否充分、沉淀长期测试知识并最终形成可靠质量结论的软件测试控制平面。
+> **HyperTest = Test Project & Mission Management + Test Assets + Evidence & Conclusion Governance**
 
-因此 HyperTest 的最终公式是：
+长期资产：
 
-> **HyperTest = Test Intelligence + Test Governance + Test Execution + Agent Orchestration**
+> **Testing State + Testing History + Testing Knowledge**
 
-它最重要的长期资产是：
+愿景：
 
-> **Testing State + Evidence Graph + Testing Knowledge**
-
-最终愿景：
-
-> **让软件测试从自动化执行，迈向由 Agent 驱动、由 Evidence 证明、由 Policy 治理的 Autonomous Testing。**
+> **让 Agent 在项目原生工具链中完成测试，让质量状态与结论跨越会话持续存在。**
