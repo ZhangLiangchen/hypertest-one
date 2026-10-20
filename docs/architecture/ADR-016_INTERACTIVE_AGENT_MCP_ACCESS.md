@@ -1,6 +1,8 @@
 # ADR-016：交互式 Agent MCP 接入与云端 / 本地任务执行
 
-**Status:** Accepted / Implemented / Isolated Current-Agent Core E2E Verified / Not Production Deployed（2026-10-20，Asia/Singapore）。本分支已实现 MCP 安装包、交互 API、受控宿主适配器与 `0019` / `0020` additive migration，并通过当前真实 Agent 的隔离核心闭环，见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。该结果不代表生产已部署或全部恢复矩阵通过，ADR-015 的生产状态与验收历史保持原记录。
+**Status:** Accepted / Implemented / Isolated Current-Agent Core E2E Verified / Production Deployed / Online Current-Agent Core E2E Verified（2026-10-20，Asia/Singapore）。本分支已实现 MCP 安装包、交互 API、受控宿主适配器与 `0019` / `0020` additive migration，并通过当前真实 Agent 的隔离核心闭环，见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。该隔离结果不替代独立生产验收；当前部署与线上核心结果见下段，全部恢复矩阵仍未逐项通过，ADR-015 的历史发布与验收记录保留。
+
+生产发布为 PR #17 / `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库已向前升至 `0020_interactive_tool_inbox`；PR / main CI 为967 passed、21 skipped。同一真实当前 Codex Desktop Agent 经官方 MCP SDK console 完成生产核心周期：2 Requirements / 3 Risks / 4 Cases / 4 Implementations，唯一平台可信 Docker Execution 的33项 HTTP 测试通过，五份 VERIFIED Evidence 与两页报告内容均经 MCP 读取并核验 hash / 字节数，形成 FINAL `RELEASE_READY`。真实过期后的两次显式 Worker 恢复保留原 Run / native / workspace，epoch 1 → 2 → 3，旧 Job / Attempt 保留；最终历史保全另经39项只读检查通过。详细身份、时序与保全边界见[ADR-016 生产部署记录](../ADR016_PRODUCTION_DEPLOYMENT.md)及[生产机器证据](../evidence/adr016-production-20261020.json)。隔离验收的27项测试仍属其独立历史；本轮不宣称聊天原生工具目录热加载、运行中断线注入、两种原受管路径的新完整周期、私有 SUT 业务或新增问题单写入通过。
 
 **Date:** 2026-10-20（Asia/Singapore）
 
@@ -156,7 +158,7 @@ MCP 请求级取消或断开不等于取消已接受 Run，也不回滚已提交
 
 代价是插件并非只包装七个 HTTP 端点：必须增加可靠提交与绑定、宿主能力检测、当前 Agent 生命周期适配，以及执行驱动的调度隔离。现有 `create_session / start_call / close` 行为不能直接套到用户已有聊天。普通 stdio MCP 本身不能证明宿主原生会话身份；未适配宿主不能承诺本地执行或无缝恢复。同一原生会话只执行一个 Run、正式 Runner 仍在平台、固定源码仍需传输，是首版明确限制。
 
-本分支已实现上述接入、授权、原子提交、执行绑定、原 Job 工具 inbox 与宿主适配，并取得当前真实 Agent 的隔离正向完整周期结果。代码回归、隔离真实周期与生产交付分别登记。ADR-015 的已部署运行时、生产数据、认证、VPN 白名单、服务器 Harness 及原验收结论不因本 ADR 改变，ADR-016 尚未生产部署。
+本分支已实现上述接入、授权、原子提交、执行绑定、原 Job 工具 inbox 与宿主适配，并取得当前真实 Agent 的隔离正向完整周期结果。代码回归、隔离真实周期与生产交付分别登记。ADR-015 的已部署运行时、生产数据、认证、VPN 白名单、服务器 Harness 及原验收结论不因本 ADR 改变，ADR-016 已部署生产，线上当前 Agent 核心周期已通过。
 
 ## Action items and acceptance
 
@@ -165,11 +167,12 @@ MCP 请求级取消或断开不等于取消已接受 Run，也不回滚已提交
 - [x] 实现受控 Codex Desktop stdio 宿主适配、原 Job Worker 九工具 inbox、精确设备 grant 与提交 / 消费 / 领域提交 fencing；隔离 API/runtime、数据库守卫、客户端与宿主回归已通过。
 - [x] 完成受控当前 Codex Desktop Agent 的隔离核心验收；真实 Agent 使用官方 MCP SDK 通路推理并提交四个 Mission 的 Proposal，未另启 Provider。闭环完成四份 Implementation、真实 Docker live HTTP 27 / 27、五份 VERIFIED Runner Evidence、`RELEASE_READY`、报告接受及 Job / Binding 正常收口。
 - [x] 所有五份 Evidence 经 MCP 读取并核验 hash / 字节数；报告经两页 cursor 读取并核验版本、hash / 字节数。Runner 完成后重启 stdio / daemon，原 key 查回同一 Execution，无第二执行。
+- [x] PR #17 合并、CI 和0018→0020生产切换完成；生产当前 Agent 完成33项真实 HTTP 测试、五份核验 Evidence、FINAL / RELEASE_READY 和已核验报告，两次原身份过期恢复及最终39项历史保全检查通过。
 - [ ] 验证提交 / 绑定响应丢失、重复 key、异输入冲突、重复绑定、跨项目 / 跨 Run 访问、撤权与旧 epoch 写入拒绝。
 - [ ] 验证 MCP 断连、Agent 关闭、Connector 独立存活、原调用 UNKNOWN、Runner 已发后断线、同身份显式恢复及不可恢复时关联新 Run；不重复执行或提单。
 - [ ] 回归 `SERVER_HOST` 云端和 ADR-015 `LOCAL_CONNECTOR / PLATFORM_MANAGED` 两条路径，保留数据、授权、访问边界和历史 hash；分别记录实现、隔离验收、上线与线上验收。
 
-具体身份、保留的过期 Job、epoch 1 → 2 → 3、结果摘要及验收限制见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)和[机器可读观察](../evidence/adr016-20261020.json)。当前 Agent 的传输重启发生在 Runner 完成后，不是运行中断线验收；最初的真实恢复在最终 Worker-only 源码校验重构之前完成，最终恢复路径由独立集成回归核验。该隔离结果不覆盖 ADR-016 私有 Git / GitLab 写入、通用共享 MCP 宿主或生产部署。新 Web 执行步骤的 CLOUD / LOCAL 与 driver 展示也须单独交付和验收，不能由 MCP / API 实现推定前端已完成。
+具体身份、保留的过期 Job、epoch 1 → 2 → 3、结果摘要及验收限制见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)和[机器可读观察](../evidence/adr016-20261020.json)。此前隔离验收的当前 Agent 传输重启发生在 Runner 完成后，不是运行中断线验收；最初的真实恢复在最终 Worker-only 源码校验重构之前完成，最终恢复路径由独立集成回归核验。该隔离结果不覆盖 ADR-016 私有 Git / GitLab 写入或通用共享 MCP 宿主；生产发布、当前 Agent 核心周期与最终历史保全使用[独立生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)，其中两次显式恢复经过最终 Worker 路线。新 Web 执行步骤的 CLOUD / LOCAL 与 driver 展示也须单独交付和验收，不能由 MCP / API 实现推定前端已完成。
 
 ## Specification ownership and references
 

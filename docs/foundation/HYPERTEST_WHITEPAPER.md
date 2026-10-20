@@ -2,7 +2,7 @@
 
 **版本：v1.3**
 
-**部署与工作流决策：ADR-013 / ADR-015 生产状态与历史验收保留；ADR-016 已实现 / 隔离当前 Agent 核心周期验收通过 / 尚未生产部署（2026-10-20，Asia/Singapore）**
+**部署与工作流决策：ADR-013 / ADR-015 生产状态与历史验收保留；ADR-016 已实现 / 隔离当前 Agent 核心周期验收通过 / 已部署生产，线上当前 Agent 核心周期已通过（2026-10-20，Asia/Singapore）**
 
 **定位：Agent-native Autonomous Testing Platform**
 
@@ -10,9 +10,11 @@
 
 [ADR-013：容器化平台与持续 Harness 会话](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)定义部署组件与任务执行边界。[ADR-014：会话关闭后的独立质量重评](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)将报告完成后的 Finding 处置与平台 Gate 治理区分于 Agent 工作。字段和生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，工具与消息以[TMP](../protocol/TEST_MISSION_PROTOCOL.md)为准。实现与真实集成结果见[第一阶段验收](../FIRST_PHASE_ACCEPTANCE.md)，不由设计目标推定全部完成。
 
-[ADR-015：双模式 Harness 与本地 Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)扩展部署选择：保留服务器 Harness，增加用户电脑主动连接的本地 Harness，复用本地实际可用的模型、Git 与问题单授权。它不移动控制平面、Canonical State 或可信 Runner，也不改变单任务单主会话原则。ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复已实现，`0015_connector_nodes` → `0018_harness_selection` 已部署生产。核心隔离真实验收已通过，包括本地 Codex → 远端可信 Docker Runner → Evidence / Gate → 报告正反链、私有 Git 经 HTTPS 接受、原会话断线恢复及获准测试 Issue 的创建 / 负责人核验。这些隔离结果不冒称生产结果。生产切换已完成原数据、文件、认证、SSH / VPN 与服务器 Bridge 保全；严格外部 TLS、线上本地 Connector 核心周期和生产私有源码 source-only 接受补验已通过，后者未启动私有业务 Run 或问题单操作，扩展真实设备故障矩阵继续分别登记。当前发布与实际验收范围见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
+[ADR-015：双模式 Harness 与本地 Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)扩展部署选择：保留服务器 Harness，增加用户电脑主动连接的本地 Harness，复用本地实际可用的模型、Git 与问题单授权。它不移动控制平面、Canonical State 或可信 Runner，也不改变单任务单主会话原则。ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复已实现，`0015_connector_nodes` → `0018_harness_selection` 已部署生产。核心隔离真实验收已通过，包括本地 Codex → 远端可信 Docker Runner → Evidence / Gate → 报告正反链、私有 Git 经 HTTPS 接受、原会话断线恢复及获准测试 Issue 的创建 / 负责人核验。这些隔离结果不冒称生产结果。生产切换已完成原数据、文件、认证、SSH / VPN 与服务器 Bridge 保全；严格外部 TLS、线上本地 Connector 核心周期和生产私有源码 source-only 接受补验已通过，后者未启动私有业务 Run 或问题单操作，扩展真实设备故障矩阵继续分别登记。该次发布与实际验收范围见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。
 
-[ADR-016：交互式 Agent MCP 接入](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)接受云端 / 本地 Agent 执行选择：云端由平台托管 Harness，本地交互式执行时，当前 Agent 可经可信宿主证明与显式绑定成为任务执行者，通过 MCP 获取 Mission、推理 / 实现、提交 Proposal 并获取可信 Runner 事实。HyperTest 是其外接测试平台，不另启第二个 Agent 代执行。原有 Harness 接入模式与 Canonical / Runner / Gate 边界保留。安装包、执行绑定、独立集成授权、新 typed HTTPS API 及原 Job Worker 工具收件箱已在本分支实现，新增 `0019` / `0020` additive migration；当前真实 Codex Agent 的隔离正向完整周期已独立通过，见 [ADR-016 验收](../ADR016_ACCEPTANCE.md)。尚未生产部署，也不由该结果推定所有宿主、外部集成或恢复矩阵通过。
+[ADR-016：交互式 Agent MCP 接入](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)接受云端 / 本地 Agent 执行选择：云端由平台托管 Harness，本地交互式执行时，当前 Agent 可经可信宿主证明与显式绑定成为任务执行者，通过 MCP 获取 Mission、推理 / 实现、提交 Proposal 并获取可信 Runner 事实。HyperTest 是其外接测试平台，不另启第二个 Agent 代执行。原有 Harness 接入模式与 Canonical / Runner / Gate 边界保留。安装包、执行绑定、独立集成授权、新 typed HTTPS API 及原 Job Worker 工具收件箱已在本分支实现，新增 `0019` / `0020` additive migration；当前真实 Codex Agent 的隔离正向完整周期已独立通过，见 [ADR-016 验收](../ADR016_ACCEPTANCE.md)。已部署生产，线上当前 Agent 核心周期已通过，也不由该结果推定所有宿主、外部集成或恢复矩阵通过。
+
+生产发布为 PR #17 / `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库已向前升至 `0020_interactive_tool_inbox`；PR / main CI 为967 passed、21 skipped。同一真实当前 Codex Desktop Agent 经官方 MCP SDK console 完成生产核心周期：2 Requirements / 3 Risks / 4 Cases / 4 Implementations，唯一平台可信 Docker Execution 的33项 HTTP 测试通过，五份 VERIFIED Evidence 与两页报告内容均经 MCP 读取并核验 hash / 字节数，形成 FINAL `RELEASE_READY`。真实过期后的两次显式 Worker 恢复保留原 Run / native / workspace，epoch 1 → 2 → 3，旧 Job / Attempt 保留；最终历史保全另经39项只读检查通过。详细身份、时序与保全边界见[ADR-016 生产部署记录](../ADR016_PRODUCTION_DEPLOYMENT.md)及[生产机器证据](../evidence/adr016-production-20261020.json)。隔离验收的27项测试仍属其独立历史；本轮不宣称聊天原生工具目录热加载、运行中断线注入、两种原受管路径的新完整周期、私有 SUT 业务或新增问题单写入通过。
 
 ---
 
@@ -363,7 +365,7 @@ ADR-015 的本地问题单操作仍由平台治理：先批准具体项目、责
 
 > **Read Facts, Propose Changes.**
 
-### 14.1 交互式 Agent 接入（ADR-016 已实现，隔离真实核心验收通过 / 未部署）
+### 14.1 交互式 Agent 接入（ADR-016 已实现，隔离与生产真实核心验收通过）
 
 安装包由 MCP Server、客户端配置与 Skill 组成。首版“当前本地 Agent → stdio MCP → 受限本地 Connector → 新 typed HTTPS API”承担平台通信；不假设现有 Node WSS / UDS Bridge 已能代理这些新接口。原“平台 Worker → Connector WSS → 受管 Harness”继续服务 `PLATFORM_MANAGED`，而 `LOCAL + INTERACTIVE_MCP` 就由当前 Agent 执行智能工作，不经 Connector 另启模型或 Provider。
 
@@ -540,7 +542,7 @@ Middleware:     containerized when justified by an actual dependency
 
 本地 Connector 不要求新增消息中间件；服务器 Worker、PostgreSQL、Verifier、Gate 与 Runner 继续承担原有职责。现有 TMP/profile 和服务器 UDS Bridge 不改变语义，本地传输以独立版本协商；两种模式都需保留数据、认证、SSH 与现行 VPN / 白名单边界。
 
-ADR-016 已实现 stdio MCP → 常驻 Connector → 新 typed HTTPS API，以及当前本地 Agent 的可信绑定与短期执行授权。`CLOUD / LOCAL` 表示 Agent 执行位置，`PLATFORM_MANAGED / INTERACTIVE_MCP` 表示会话驱动；它们不改变 Runner 信任。API 将严格类型请求写入 PostgreSQL 运输 inbox，由原 Job Worker 执行九个 TMP 工具与可信 Runner；不新增数据库、消息中间件、独立业务调度队列或通用 Agent Loop，本地交互执行不使用上面的 WSS 派生另一主会话。此实现尚未生产部署。
+ADR-016 已实现 stdio MCP → 常驻 Connector → 新 typed HTTPS API，以及当前本地 Agent 的可信绑定与短期执行授权。`CLOUD / LOCAL` 表示 Agent 执行位置，`PLATFORM_MANAGED / INTERACTIVE_MCP` 表示会话驱动；它们不改变 Runner 信任。API 将严格类型请求写入 PostgreSQL 运输 inbox，由原 Job Worker 执行九个 TMP 工具与可信 Runner；不新增数据库、消息中间件、独立业务调度队列或通用 Agent Loop，本地交互执行不使用上面的 WSS 派生另一主会话。此实现已部署生产，线上当前 Agent 核心周期已通过。
 
 ---
 
@@ -599,7 +601,7 @@ ADR-015 双模式已实现并部署生产，其隔离验收与本次生产记录
 
 ADR-016 的安装包、typed API、执行绑定 / 短期能力、原子提交门面和原 Worker 工具 inbox 已实现。当前真实 Codex Agent 经官方 MCP SDK 通路完成四个 Mission 的 Proposal、四份 Implementation、真实 Docker live HTTP 27 / 27 和五份 VERIFIED Runner Evidence，形成 `RELEASE_READY` 与已接受报告，Job / Binding 正常收口；证据和两页报告均经 MCP 读取并核验摘要与字节数。没有另启模型，详见[隔离验收记录](../ADR016_ACCEPTANCE.md)及[机器可读观察](../evidence/adr016-20261020.json)。
 
-同一 Run / native / workspace 的过期恢复保留历史并递增 epoch，恢复实现的最终版本另经独立集成回归验证，具体版本与时序边界以验收记录为准。stdio / daemon 重启与原 key 查询发生在 Runner 完成后，查回同一 Execution，不能据此宣称当前 Agent 的运行中断线已经实测。该能力尚未生产部署；其他宿主、私有 Git / 问题单写入、扩展真实设备故障及新 Web 展示仍独立验收。来源 / 问题单权限和正式 Runner 信任保持原边界，无宿主能力时拒绝冒称本地执行，ADR-015 历史验收不替代这些新结果。
+此前隔离验收中，同一 Run / native / workspace 的过期恢复保留历史并递增 epoch，恢复实现的最终版本另经独立集成回归验证，具体版本与时序边界以验收记录为准。该隔离周期的 stdio / daemon 重启与原 key 查询发生在 Runner 完成后，查回同一 Execution，不能据此宣称当前 Agent 的运行中断线已经实测。该能力已部署生产，线上当前 Agent 核心周期已通过，另见[独立生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)；其他宿主、私有 Git / 问题单写入、扩展真实设备故障及新 Web 展示仍独立验收。来源 / 问题单权限和正式 Runner 信任保持原边界，无宿主能力时拒绝冒称本地执行，ADR-015 历史验收不替代这些新结果。
 
 第一阶段不做复杂多 Agent Blackboard、自研 LLM Agent Loop、复杂 Workflow DSL、跨公司通用测试 Ontology、完全无人值守 Release。
 

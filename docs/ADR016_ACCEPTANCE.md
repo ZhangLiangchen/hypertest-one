@@ -1,8 +1,15 @@
-# ADR-016 implementation and acceptance — 2026-10-20
+# ADR-016 isolated implementation and acceptance snapshot — 2026-10-20
 
-ADR-016 is implemented in this working tree. A real current-Agent cycle completed
+This is the historical isolated acceptance snapshot. ADR-016 was subsequently
+merged as PR #17 and deployed from `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`.
+The separate [production record](ADR016_PRODUCTION_DEPLOYMENT.md) documents its
+33-test current-Agent cycle, explicit recovery and historical preservation.
+The 27-test results, source manifest, wheel and pre-deployment statements below
+retain their original snapshot identity.
+
+At this snapshot, ADR-016 was implemented in the working tree. A real current-Agent cycle completed
 against an isolated HTTPS platform with separate API and Worker processes,
-PostgreSQL and a real Docker Runner. This change has **not been deployed to
+PostgreSQL and a real Docker Runner. At that time this change had **not been deployed to
 production**. Existing production data, credentials, VPN allowlist and ADR-015
 managed Harness processes were not modified.
 

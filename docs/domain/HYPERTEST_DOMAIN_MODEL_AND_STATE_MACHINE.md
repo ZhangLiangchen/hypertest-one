@@ -1,6 +1,6 @@
 # HyperTest Domain Model & State Machine Specification
 
-**Document Status:** Normative / Accepted v0.6; ADR-016 Implemented / Isolated Tests Verified / Current-Agent E2E Verified / Not Production Deployed (2026-10-20, Asia/Singapore); ADR-013 Production History Retained; ADR-015 Production Deployed / Online Core E2E Verified / Extended Recovery Matrix Pending (2026-10-19)
+**Document Status:** Normative / Accepted v0.6; ADR-016 Implemented / Isolated Tests Verified / Current-Agent E2E Verified / Production Deployed / Online Current-Agent Core E2E Verified (2026-10-20, Asia/Singapore); ADR-013 Production History Retained; ADR-015 Production Deployed / Online Core E2E Verified / Extended Recovery Matrix Pending (2026-10-19)
 
 **Version:** v0.6
 **Parent Documents:**
@@ -28,9 +28,11 @@ v0.4 已接受设计为：一个稳定 SUT 对应一个 Project；一个 feat / 
 
 [ADR-015](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 已实现 LOCAL_CONNECTOR 模式：用户电脑的 Connector 主动建立 WSS 连接，托管原生 Harness 与受控集成，固定源码经 HTTPS 交付，Implementation 继续通过 typed Proposal 接受至 Artifact store；通用 Artifact HTTPS 通道不属于首版实现。SERVER_HOST 的现有 Unix domain socket Bridge 继续保留。首次绑定前明确选择模式和稳定节点，同一 Run 固定原节点、主 Session 与 workspace，不因离线自动切换。§9.1、§18.1 与 §23.9 定义新增约束，已由 `0015`—`0018` 和相关服务实现；隔离回归通过，私有 Git / HTTPS、真实正反周期、同会话断线恢复与 GitLab 测试 Issue / 负责人均已独立核验；扩展真实设备故障矩阵尚未全覆盖。生产已部署，严格外部 TLS、线上核心周期及私有源码 source-only 接受补验已通过；私有补验没有业务 Run 或问题单操作，见[生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。本次实现不改写旧 ADR-013 生产基线和历史 hash；最终结果见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)。
 
-[ADR-016](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md) 为 **Implemented / Isolated Tests Verified / Current-Agent E2E Verified / Not Production Deployed（2026-10-20，Asia/Singapore）**：当前本地 Agent 通过 stdio MCP → 常驻 Connector → 新的 scoped typed HTTPS API 使用外接测试平台。§23.10 的 CLOUD / LOCAL 执行选择、显式绑定当前真实本地 Agent 为唯一任务主会话、受控领域工具及提交 / 读取契约已由 `0019` / `0020`、交互服务与客户端实现；普通 MCP 连接不自动成为 AgentSession，LOCAL + INTERACTIVE_MCP 绑定后不另开影子 Harness。既有 SERVER_HOST / LOCAL_CONNECTOR 两种 HarnessMode 保留，正式 Runner 信任与 Agent 位置独立。原唯一绑定、会话、租约和恢复不变量继续有效。空库迁移、隔离回归、真实 Docker Runner 契约测试及当前真实 Agent 的完整周期均已验证：同一 native Session 经显式恢复保留原绑定，27 / 27 正式用例通过，5 份 VERIFIED Evidence 的 SHA-256 / size 读取、Gate FINAL / RELEASE_READY 与报告接受 / 分页读取均已核验，见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。本次实现尚未生产部署。
+[ADR-016](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md) 为 **Implemented / Isolated Tests Verified / Current-Agent E2E Verified / Production Deployed / Online Current-Agent Core E2E Verified（2026-10-20，Asia/Singapore）**：当前本地 Agent 通过 stdio MCP → 常驻 Connector → 新的 scoped typed HTTPS API 使用外接测试平台。§23.10 的 CLOUD / LOCAL 执行选择、显式绑定当前真实本地 Agent 为唯一任务主会话、受控领域工具及提交 / 读取契约已由 `0019` / `0020`、交互服务与客户端实现；普通 MCP 连接不自动成为 AgentSession，LOCAL + INTERACTIVE_MCP 绑定后不另开影子 Harness。既有 SERVER_HOST / LOCAL_CONNECTOR 两种 HarnessMode 保留，正式 Runner 信任与 Agent 位置独立。原唯一绑定、会话、租约和恢复不变量继续有效。空库迁移、隔离回归、真实 Docker Runner 契约测试及隔离当前 Agent 的完整周期均已验证：同一 native Session 经显式恢复保留原绑定，27 / 27 正式用例通过，5 份 VERIFIED Evidence 的 SHA-256 / size 读取、Gate FINAL / RELEASE_READY 与报告接受 / 分页读取均已核验，见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。本次实现已部署生产，线上当前 Agent 核心周期已通过。
 
-**ADR-013 的服务器运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收；该验收不覆盖 ADR-015 的本地 Connector 目标。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。ADR-013 正式切换与恢复的历史结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，API/Worker/Web 同源更新，兼容 Host Bridge 保留 `95e92c5`，当时数据库为 `0014_harness_operations`；ADR-015 当前生产已升至 `0018_harness_selection`，发布与线上待验范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，当前运维边界见[服务器操作](../SERVER_OPERATIONS.md)。会话关闭后的平台治理准入由 [ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 与 §23.8 规定，其实现和真实验收另行登记。受控 GitLab 真实创建已由 ADR-015 隔离记录独立验收；其他 Provider、未完成扩展矩阵及后续 Web 改进继续单独登记。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
+生产发布为 PR #17 / `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库已向前升至 `0020_interactive_tool_inbox`；PR / main CI 为967 passed、21 skipped。同一真实当前 Codex Desktop Agent 经官方 MCP SDK console 完成生产核心周期：2 Requirements / 3 Risks / 4 Cases / 4 Implementations，唯一平台可信 Docker Execution 的33项 HTTP 测试通过，五份 VERIFIED Evidence 与两页报告内容均经 MCP 读取并核验 hash / 字节数，形成 FINAL `RELEASE_READY`。真实过期后的两次显式 Worker 恢复保留原 Run / native / workspace，epoch 1 → 2 → 3，旧 Job / Attempt 保留；最终历史保全另经39项只读检查通过。详细身份、时序与保全边界见[ADR-016 生产部署记录](../ADR016_PRODUCTION_DEPLOYMENT.md)及[生产机器证据](../evidence/adr016-production-20261020.json)。隔离验收的27项测试仍属其独立历史；本轮不宣称聊天原生工具目录热加载、运行中断线注入、两种原受管路径的新完整周期、私有 SUT 业务或新增问题单写入通过。
+
+**ADR-013 的服务器运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收；该验收不覆盖 ADR-015 的本地 Connector 目标。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。ADR-013 正式切换与恢复的历史结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，API/Worker/Web 同源更新，兼容 Host Bridge 保留 `95e92c5`，当时数据库为 `0014_harness_operations`；ADR-015 当时生产已升至 `0018_harness_selection`，历史发布与验收范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)；当前 ADR-016 生产为 `0020_interactive_tool_inbox`，见[当前生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)，当前运维边界见[服务器操作](../SERVER_OPERATIONS.md)。会话关闭后的平台治理准入由 [ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 与 §23.8 规定，其实现和真实验收另行登记。受控 GitLab 真实创建已由 ADR-015 隔离记录独立验收；其他 Provider、未完成扩展矩阵及后续 Web 改进继续单独登记。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
 
 Canonical Chain、不可变快照、Proposal / Verifier、trusted Runner、deterministic Gate、Audit / Outbox 及已有历史保护在两者中均有效。目标迁移不得把历史上一个 Run 的多条 AgentSession 合并成一条，不得改写原 Attempt / Execution 的 `durable_job_id`。
 
@@ -1273,7 +1275,7 @@ SOURCE 的设备认证 receipt 是受控采集 adapter 的结果，必须覆盖 
 
 **事务与迁移。** admission / commit 仍遵守 Run → Binding → Job → SourceSnapshot 的既有相对锁序；节点 / 设备 / 集成授权应在该事务内按确定性次序核对当前状态，但不跨 WSS / HTTPS / Provider / Git / issue API I/O 持锁，返回后重新 fencing。节点配对 / 撤销、grant 颁发 / 失效、源码接受 / 拒绝、Issue 对账、恢复和清理均由 PostgreSQL 记录，并与相应状态变化同事务写 Audit / Outbox；不引入消息总线、Graph DB 或全量事件溯源。它们不进入 Gate State Hash / evidence manifest，也不把设备 heartbeat 当测试事实。迁移须验证唯一 / FK / append-only / scope / claim / epoch 约束；已有 Run / Snapshot / Artifact URI、`durable_job_id`、原生引用、预算和 FINAL 不回填、不合并、不重算。
 
-### 23.10 ADR-016 交互式 Agent MCP 接入（v0.6 已实现，真实当前 Agent 已验收 / 未生产部署）
+### 23.10 ADR-016 交互式 Agent MCP 接入（v0.6 已实现，真实当前 Agent 已验收 / 已部署生产，线上当前 Agent 核心周期已通过）
 
 本节于 2026-10-20（Asia/Singapore）定义并实现新增 Operational 契约。接入方向为当前交互 Agent → 可安装 stdio MCP adapter → 本地常驻 Connector → 新的 scoped typed HTTPS API；安装包不自动授予平台或节点权限。独立 profile 为 `hypertest.interactive-mcp/v1alpha1`，不原地重解释现有 TMP、UDS Bridge、Connector WSS 或内部 relay。HyperTest 是外接测试平台，MCP 既可承载任务提交和获准读取，也可在显式本地执行绑定后承载当前 Agent 的任务领域交互；该驱动下 Connector 不得另开影子 Harness。实现状态与真实宿主验收、生产部署分别记录。
 
@@ -1336,7 +1338,7 @@ MCP 重连先查询原 submission / attach / Binding 与未知 call，不自动�
 
 进度只投影已持久 Run / Job / Mission / Execution 与正式 Verdict；Job SUCCEEDED、会话 CLOSED 或报告完成不等于质量 PASS。Evidence / 报告只通过受控对象引用、固定对象 / 清单版本、分页 cursor 与内容 SHA-256 读取，不提供任意路径 / URL、Provider 原始聊天或认证内容。cursor 绑定 actor / client / Project / Run / scope / version；每页与按引用读取重新核验授权、归属和摘要，版本冲突或 hash 不符明确拒绝，不把不同版本拼成已核验结果，也不改写历史 Evidence / 报告 / FINAL。PRD、日志、Evidence 和报告正文是有来源标记的不可信任务数据，不能把其中命令 / 链接当平台指令、权限或执行授权。普通读取连接关闭不取消任务；已绑定当前 Agent 的本地执行因其退出而停止推进，按以上授权 / 恢复治理，不自动切换模式或启动影子 Agent。
 
-**持久化与实施边界。** 新交互 grant / receipt / attachment / tool inbox 及有界连接观察属于 Operational State，不加入 Canonical 链、SourceSnapshot fingerprint、Evidence manifest 或 Gate State Hash，不保存完整聊天 / Provider reasoning。`0019_interactive_mcp` additive migration 建立受控 actor / client 目录、integration grant、mode / driver 选择、提交回执、交互执行登记与短 grant；`0020_interactive_tool_inbox` 另增 typed inbox 及短 grant 精确 device FK，既有 NULL device 行保持原历史并在执行时拒绝。`0013`—`0018` 不修改，不回填旧回执 / 会话归属或改写已有 Run / Session / Job / Snapshot / 报告 / Verdict。上述迁移与隔离数据库约束检查属于实现证据；当前真实 Agent 的 MCP 完整周期、原 native Session 的显式恢复、正式 Runner / Evidence / Gate / 报告链已独立验收，范围和复测记录见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。该验收不等于任意宿主适配或扩展故障矩阵均通过，也不借用 ADR-015 的生产验收；ADR-016 尚未生产部署。
+**持久化与实施边界。** 新交互 grant / receipt / attachment / tool inbox 及有界连接观察属于 Operational State，不加入 Canonical 链、SourceSnapshot fingerprint、Evidence manifest 或 Gate State Hash，不保存完整聊天 / Provider reasoning。`0019_interactive_mcp` additive migration 建立受控 actor / client 目录、integration grant、mode / driver 选择、提交回执、交互执行登记与短 grant；`0020_interactive_tool_inbox` 另增 typed inbox 及短 grant 精确 device FK，既有 NULL device 行保持原历史并在执行时拒绝。`0013`—`0018` 不修改，不回填旧回执 / 会话归属或改写已有 Run / Session / Job / Snapshot / 报告 / Verdict。上述迁移与隔离数据库约束检查属于实现证据；此前隔离验收的 MCP 完整周期、原 native Session 的显式恢复、正式 Runner / Evidence / Gate / 报告链已独立核验，范围和复测记录见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。该验收不等于任意宿主适配或扩展故障矩阵均通过，也不借用 ADR-015 的生产验收；ADR-016 已部署生产，线上当前 Agent 核心周期已通过。
 
 ## 24. 核心数据库表
 
@@ -1381,11 +1383,11 @@ outbox_events
 
 `0010_mission_activity` 交付时在 `0009_mission_inputs` 之上增加独立的有界活动表，不回填或重写历史行。`0009` 保留 `0008_job_ownership` 引入的 Attempt / Execution 显式归属关系，并增加持久问题、回答历史、原任务等待预约及 AgentSession 等待状态。已有归属或人工输入历史时禁止降级丢失关系；活动裁剪不构成这些历史的删除许可。
 
-当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。`0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；ADR-013 历史切换时 schema 为 `0014_harness_operations`；ADR-014 不增加迁移。当前 ADR-015 生产为 `0018_harness_selection`，发布与验收见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。
+当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。`0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；ADR-013 历史切换时 schema 为 `0014_harness_operations`；ADR-014 不增加迁移。ADR-015 历史生产为 `0018_harness_selection`，发布与验收见[历史生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)；当前生产为 `0020_interactive_tool_inbox`，见[ADR-016 生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)。
 
-ADR-015 的 §23.9 已新增 `0015`—`0018` Operational schema：harness_nodes、harness_device_grants、node_project_capabilities、run_harness_placements、harness_dispatch_grants、connector_requests、source_acquisition_requests、source_bundle_transfers、source_upload_grants、source_transfer_snapshots、gitlab_issue_operation_executors、run_harness_selections。隔离迁移 / 回归与正式生产向前升级已分别记录，当前生产 head 为 `0018_harness_selection`；`0013` / `0014` 历史迁移和既有 Canonical hash 保留。
+ADR-015 的 §23.9 已新增 `0015`—`0018` Operational schema：harness_nodes、harness_device_grants、node_project_capabilities、run_harness_placements、harness_dispatch_grants、connector_requests、source_acquisition_requests、source_bundle_transfers、source_upload_grants、source_transfer_snapshots、gitlab_issue_operation_executors、run_harness_selections。隔离迁移 / 回归与正式生产向前升级已分别记录，该次历史生产 head 为 `0018_harness_selection`；`0013` / `0014` 历史迁移和既有 Canonical hash 保留。
 
-ADR-016 的 §23.10 已由 `0019_interactive_mcp` / `0020_interactive_tool_inbox` 增加 interactive_actor_identities、interactive_client_registrations、interactive_integration_grants、run_execution_selections、interactive_submission_receipts、interactive_execution_bindings、interactive_execution_grants、interactive_tool_requests 及相关 FK / 唯一 / scope / append-only / 当前 claim 保护。空库向前迁移、隔离约束回归与 [当前真实 Agent 完整周期](../ADR016_ACCEPTANCE.md) 已验证；本次实现尚未生产部署，不改变以上 ADR-015 生产 head 或其验收历史。
+ADR-016 的 §23.10 已由 `0019_interactive_mcp` / `0020_interactive_tool_inbox` 增加 interactive_actor_identities、interactive_client_registrations、interactive_integration_grants、run_execution_selections、interactive_submission_receipts、interactive_execution_bindings、interactive_execution_grants、interactive_tool_requests 及相关 FK / 唯一 / scope / append-only / 当前 claim 保护。空库向前迁移、隔离约束回归与 [当前真实 Agent 完整周期](../ADR016_ACCEPTANCE.md) 已验证；本次实现已部署生产，线上当前 Agent 核心周期已通过；生产 head 向前升至 `0020_interactive_tool_inbox`，以上 ADR-015 的历史发布身份与验收结论保留，见[当前生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)。
 
 ---
 
@@ -1868,7 +1870,7 @@ v0.4 的 Binding / Session 生命周期、唯一 / FK、epoch fencing 与 typed 
 
 v0.5 / ADR-015 已通过 `0015`—`0018` 增加 §23.9 的 Operational schema、版本协商与隔离约束验收；真实集成和生产部署继续分别登记。旧 SERVER_HOST Run 不补造节点配对、source receipt、Placement 或 issue executor；其现有授权 / 历史解释保留，不能借兼容缺省把它迁入 LOCAL_CONNECTOR。新增 scope / 关系也不改变既有 Snapshot / Policy / Mission / ExecutionSpec / FINAL 内容或 hash。
 
-v0.6 / ADR-016 通过 `0019` / `0020` 实现 §23.10 Operational 身份 / grant / receipt / interactive attachment / typed inbox、模式驱动选择、唯一键 / 同 Project FK / append-only 历史约束及原子提交 / 绑定门面。迁移与隔离测试验证提交 / attach 的持久身份、同键幂等、失答先查、原生会话唯一性、短执行授权 / fencing / 预算及读取完整性；真实当前 Agent 完整周期的独立验收见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)；生产部署尚未进行。`0013`—`0018` 保持原样，不回填历史，不改 TestRun / DurableJob / AgentSession / Binding / Verdict 状态枚举。
+v0.6 / ADR-016 通过 `0019` / `0020` 实现 §23.10 Operational 身份 / grant / receipt / interactive attachment / typed inbox、模式驱动选择、唯一键 / 同 Project FK / append-only 历史约束及原子提交 / 绑定门面。迁移与隔离测试验证提交 / attach 的持久身份、同键幂等、失答先查、原生会话唯一性、短执行授权 / fencing / 预算及读取完整性；此前隔离当前 Agent 完整周期的独立验收见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)；生产发布与线上当前 Agent 核心周期已通过，见[生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)。`0013`—`0018` 保持原样，不回填历史，不改 TestRun / DurableJob / AgentSession / Binding / Verdict 状态枚举。
 
 ---
 
@@ -1999,7 +2001,7 @@ v0.5 / ADR-015 新增不变量（已部署生产、隔离核心验收通过，�
 18. 问题单先持久化获准意图和唯一 executor，UNKNOWN 只查询对账，后端、节点或新 epoch 不绕过同 Finding 去重。
 19. 连接 presence、短执行 grant 与服务器 Job / Runner lease 分开；重连不恢复执行权，显式 fenced recovery 只续原绑定，已有有效 Runner 仍可按原 Execution 完成。
 
-v0.6 / ADR-016 新增不变量（Implemented / Isolated Tests Verified；真实当前 Agent 已验收 / 未生产部署，2026-10-20）：
+v0.6 / ADR-016 新增不变量（Implemented / Isolated Tests Verified；真实当前 Agent 已验收 / 已部署生产，线上当前 Agent 核心周期已通过，2026-10-20）：
 
 20. execution_mode=CLOUD / LOCAL 固定 Agent 位置，execution_driver 固定受管或当前 Agent 驱动；不新增 HarnessMode，不改变正式 Runner 信任。
 21. 普通 MCP 连接不自动成为主会话；LOCAL / INTERACTIVE_MCP 只经可信宿主核验显式登记当前原生 Agent 为既有唯一 Binding / Session 的执行者，不启动影子 Harness，同一真实 native 执行会话只绑定一个 Run。

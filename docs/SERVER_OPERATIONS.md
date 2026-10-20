@@ -22,7 +22,37 @@ SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用�
 访问异常时再针对故障检查。`bash ops/check-remote.sh` 保持按原 SSH 别名和严格
 公钥方式执行平台检查，不创建业务测试任务，也不检查备用隧道。
 
-## ADR-015 当前生产发布（2026-10-19）
+## ADR-016 当前生产发布（2026-10-20）
+
+生产切换于 **2026-10-20 06:34:11.197055 UTC** 完成：PR #17 合并发布
+`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库从0018向前升至
+`0020_interactive_tool_inbox`。PR / main CI 均为967 passed、21 skipped；
+精确 API / Worker 镜像、Web 原镜像源码 hash 复用证明、两次切换、冷备恢复演练和
+线上结果见[ADR-016 生产部署记录](ADR016_PRODUCTION_DEPLOYMENT.md)。
+
+固定运维 manifest 仍为 `61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d`，
+原 `95e92c5` Bridge、TLS / SSH / VPN 边界、授权与原生会话保留；原 PostgreSQL
+容器、镜像、数据卷、启动时间与重启计数未变，切换没有重启数据库。49张历史表的
+3,698条完整原始行、原1个节点的稳定配置及7,429个旧文件已通过最终保全核验。
+节点只允许4个连接观测字段受限变化，新增节点和本轮新文件单独计数。
+
+生产当前 Agent 经官方 MCP SDK console、stdio / 私有 daemon / 严格 HTTPS、API inbox
+和原 Job Worker 完成正式 Docker 33 / 33 HTTP 测试、五份核验 Evidence、FINAL
+`RELEASE_READY` 和两页内容 hash 核验报告。真实120秒执行 grant 过期后，两次显式
+Operator / Worker 恢复保留原 Run / native / workspace，epoch 1 → 2 → 3，旧 Job / Attempt
+保留。恢复前先对账原 submission / attachment / tool key；旧 epoch / Attempt 被拒绝，
+不能通过重启传输、轮询或再次 POST 自动取得执行权。
+
+60份健康采样无服务重启；06:58:17 UTC 的 `ops/check-remote.sh` 为10 / 10就绪。
+巡检脚本仅证明平台健康，正式周期结论另据 Runner / Evidence / Gate / 报告。
+原本地受管配置与设备 token metadata 未变，两种既有受管 Harness 路径继续保留；
+本轮没有为它们再做完整周期，也没有新增问题单、私有 SUT 业务执行或运行中断线注入。
+TLS leaf / key metadata 与 timer Calendar 的保全依据是已核验的入口前切换记录，
+最终快照独立核对其实际涵盖的受保护配置，不能冒称快照采集了缺失字段。
+
+下节保留 ADR-015 的独立发布、访问启用与线上验收历史。
+
+## ADR-015 生产发布（历史，2026-10-19）
 
 生产切换已于 **2026-10-19 13:01:10 UTC** 完成：业务源码
 `63bd6cc6710d2937d189acc90acaa15502d73a24`，数据库
