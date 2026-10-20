@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "hypertest": {
+      "command": "/absolute/path/to/python",
+      "args": ["-m", "hypertest.interactive_client", "stdio", "--config", "/absolute/path/to/private/config.json", "--autostart"]
+    }
+  }
+}

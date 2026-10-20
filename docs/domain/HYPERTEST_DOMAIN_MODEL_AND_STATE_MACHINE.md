@@ -1,15 +1,16 @@
 # HyperTest Domain Model & State Machine Specification
 
-**Document Status:** Normative / Accepted v0.5; ADR-013 Production History Retained; ADR-015 Production Deployed / Online Core E2E Verified / Extended Recovery Matrix Pending (2026-10-19)
+**Document Status:** Normative / Accepted v0.6; ADR-016 Implemented / Isolated Tests Verified / Current-Agent E2E Verified / Not Production Deployed (2026-10-20, Asia/Singapore); ADR-013 Production History Retained; ADR-015 Production Deployed / Online Core E2E Verified / Extended Recovery Matrix Pending (2026-10-19)
 
-**Version:** v0.5
+**Version:** v0.6
 **Parent Documents:**
 
-- HyperTest Whitepaper v1.2
-- HyperTest Technical Architecture v0.5
-- Test Mission Protocol Specification v0.5
+- HyperTest Whitepaper v1.3
+- HyperTest Technical Architecture v0.6
+- Test Mission Protocol Specification v0.6
 - [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
 - [ADR-015 — Dual-mode Harness and Local Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)
+- [ADR-016 — Interactive Agent MCP Access](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)
 
 **Applies To:** HyperTest Canonical Testing State and its Operational Ownership Boundaries
 
@@ -26,6 +27,8 @@
 v0.4 已接受设计为：一个稳定 SUT 对应一个 Project；一个 feat / MR 的完整 SHA 及固定测试输入对应一次用户可见 TestRun。每个 Run 只有一个逻辑 TaskWorker 绑定及一个持久主 AgentSession，串行推进多个 typed Mission / Attempt。平台 Worker 和 Control Plane 容器化；ADR-013 已实现的 SERVER_HOST 模式将 Provider Harness、其认证 / 原生会话运行时及窄 Host Bridge 留在服务器宿主。不同 Run 可以并发，同一 Run 不引入多个平台 Worker 同时协作。
 
 [ADR-015](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md) 已实现 LOCAL_CONNECTOR 模式：用户电脑的 Connector 主动建立 WSS 连接，托管原生 Harness 与受控集成，固定源码经 HTTPS 交付，Implementation 继续通过 typed Proposal 接受至 Artifact store；通用 Artifact HTTPS 通道不属于首版实现。SERVER_HOST 的现有 Unix domain socket Bridge 继续保留。首次绑定前明确选择模式和稳定节点，同一 Run 固定原节点、主 Session 与 workspace，不因离线自动切换。§9.1、§18.1 与 §23.9 定义新增约束，已由 `0015`—`0018` 和相关服务实现；隔离回归通过，私有 Git / HTTPS、真实正反周期、同会话断线恢复与 GitLab 测试 Issue / 负责人均已独立核验；扩展真实设备故障矩阵尚未全覆盖。生产已部署，严格外部 TLS、线上核心周期及私有源码 source-only 接受补验已通过；私有补验没有业务 Run 或问题单操作，见[生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。本次实现不改写旧 ADR-013 生产基线和历史 hash；最终结果见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)。
+
+[ADR-016](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md) 为 **Implemented / Isolated Tests Verified / Current-Agent E2E Verified / Not Production Deployed（2026-10-20，Asia/Singapore）**：当前本地 Agent 通过 stdio MCP → 常驻 Connector → 新的 scoped typed HTTPS API 使用外接测试平台。§23.10 的 CLOUD / LOCAL 执行选择、显式绑定当前真实本地 Agent 为唯一任务主会话、受控领域工具及提交 / 读取契约已由 `0019` / `0020`、交互服务与客户端实现；普通 MCP 连接不自动成为 AgentSession，LOCAL + INTERACTIVE_MCP 绑定后不另开影子 Harness。既有 SERVER_HOST / LOCAL_CONNECTOR 两种 HarnessMode 保留，正式 Runner 信任与 Agent 位置独立。原唯一绑定、会话、租约和恢复不变量继续有效。空库迁移、隔离回归、真实 Docker Runner 契约测试及当前真实 Agent 的完整周期均已验证：同一 native Session 经显式恢复保留原绑定，27 / 27 正式用例通过，5 份 VERIFIED Evidence 的 SHA-256 / size 读取、Gate FINAL / RELEASE_READY 与报告接受 / 分页读取均已核验，见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。本次实现尚未生产部署。
 
 **ADR-013 的服务器运行归属与受控工具边界已实现，2026-10-19 正式迁移与真实正反链路已验收；该验收不覆盖 ADR-015 的本地 Connector 目标。** `0013_run_bindings` 实现 RunExecutionBinding、RunInputRequest 及跨 scope 约束；`0014_harness_operations` 实现运行 checkpoint、工具 / 预算账本、报告、管理请求与受控 GitLab 操作记录。本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。ADR-013 正式切换与恢复的历史结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，API/Worker/Web 同源更新，兼容 Host Bridge 保留 `95e92c5`，当时数据库为 `0014_harness_operations`；ADR-015 当前生产已升至 `0018_harness_selection`，发布与线上待验范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，当前运维边界见[服务器操作](../SERVER_OPERATIONS.md)。会话关闭后的平台治理准入由 [ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md) 与 §23.8 规定，其实现和真实验收另行登记。受控 GitLab 真实创建已由 ADR-015 隔离记录独立验收；其他 Provider、未完成扩展矩阵及后续 Web 改进继续单独登记。本文标为“v0.3 已实现”的逐 Mission 会话、bounded controller 和 wire contract 保留当时的历史解释；新 profile 的版本与工具 schema 以 TMP 为准，现有 `hypertest.tmp/v1alpha1` 不被原地重解释。
 
@@ -58,6 +61,8 @@ AgentSession
 ```
 
 v0.4 另定义 Operational 支撑记录 `RunExecutionBinding`（§23.4），用于任务执行所有权；它不是 Canonical Test Fact，也不是新的用户可见测试任务实体。v0.5 的节点、配对、Placement、短执行 grant、源码传输与 Issue executor 目标记录见 §23.9，同样不扩展 Canonical Testing Semantic Chain。
+
+v0.6 / ADR-016 的受控 actor / client 身份、`RunExecutionSelection`、`InteractiveIntegrationGrant`、`InteractiveSubmissionReceipt`、`InteractiveExecutionBinding`、短执行 grant 与工具 inbox 见 §23.10，均为新增 Operational 支撑记录，不属于 Canonical Testing Semantic Chain；显式交互执行登记只引用既有唯一 RunExecutionBinding / AgentSession，普通 MCP 连接不能冒充原生主会话。
 
 ---
 
@@ -1009,6 +1014,8 @@ AgentSession 属于 Operational State，不是 Canonical Test Fact，不能直�
 
 **v0.4 目标：** 一个 RunExecutionBinding 固定一个主 AgentSession，跨该 Run 的串行 Mission / Attempt 复用，正常阶段完成不关闭。AgentSession 一对多 Attempt 不是多条同时运行的 Agent 执行线。只有 Run 受控结束、取消或主会话不可恢复时，才终结该主 Session 并按审计范围清理工作副本；单个 Mission 拒绝 / retry 或运行 Job 的终态不能直接套用 v0.3 的逐阶段 close / fail 行为。
 
+以上创建 / 关闭 Provider 和托管副本的进程语义适用于 PLATFORM_MANAGED。ADR-016 的 INTERACTIVE_MCP 由可信宿主证明并登记当前已存在的真实 native Session；平台只管理其本 Run 测试关联、执行授权和受控 workspace。其 AgentSession / Binding CLOSED 终结该测试关联，不声明用户整个聊天或原生进程已关闭，也不允许删除用户无关工作；原会话身份唯一性、历史与终态仍保持不变，详见 §23.10。
+
 持久会话是外部原生 thread / session 与受控工作副本的持续身份，不要求同一个 CLI PID 永久常驻。原生 `provider_session_id` 初次由 Provider 真实返回后固定；恢复必须引用该身份，同一主 Session 不能变更 Provider、覆盖已有原生引用或用新原生会话冒充恢复。原生认证 / 会话运行时保存在绑定的 Harness 节点；ADR-013 为服务器宿主，ADR-015 还可为用户本地节点。平台 Canonical 数据库状态及数据库 / 问题单集成凭证不进入 Vendor Session；受控集成可在所选节点复用授权，但其凭据与 Agent 隔离。
 
 ### 23.1 DurableJob 与 WorkerHeartbeat
@@ -1123,6 +1130,8 @@ v0.4 目标的活动和执行结果回调还必须匹配当前 RunExecutionBindi
 
 `RunExecutionBinding` 是一个 TestRun 的持久执行归属，表名为 `run_execution_bindings`。它不是 Canonical Test Fact，不取代 TestRun、DurableJob、AgentSession 或 WorkerHeartbeat，也不表示一个新测试任务。首次 Provider 调用前，平台原子建立同一 Run 的绑定和主 AgentSession 记录；主 Session 的原生引用允许在首次真实 Provider 回应前暂为 NULL，但不得伪造。
 
+这是受管 Provider 的初次建立路径。ADR-016 的初次 interactive attach 不调用 create / execute 启动 Provider，而是经独立 run:execute、设备 / 项目能力和可信宿主证明，在互斥事务中登记当前真实 native Session；其原生引用须在接受 attach 时已可验证，不能采用占位 NULL。该结构登记不依赖尚未领取的初始 Job claim，也不颁发任何领域执行权：先登记唯一 Binding / Session / Placement，再由平台 coordinator 按原规则领取初始 Job，最后以有效 claim / epoch 颁发短执行授权。由此不得形成“未 attach 不领取，而 attach 又要求已领取”的循环，也不能让未 attach 的 Job 启动影子 Harness。
+
 以下字段与约束由 `0013_run_bindings` 实现；生产已完成至 `0014_harness_operations` 的[独立迁移与保全验收](../ADR013_PRODUCTION_DEPLOYMENT.md)，旧历史不回填：
 
 | 字段 | 目标语义 |
@@ -1151,6 +1160,8 @@ v0.4 目标的活动和执行结果回调还必须匹配当前 RunExecutionBindi
 执行授权与管理 / 恢复授权必须分开。可信 HyperTest 服务身份可以持有窄 management capability，明确限定 Binding、primary / native Session、原 call_id 和要检查 / 清理的历史 generation。即使该调用原 Job claim 已撤销，也可查询 get_call、只读核验既有会话 / workspace，或 interrupt / close 该受控旧调用以完成取消、失联处理和资源回收。该权限不启动新的 Provider 工作，不 resume 推理、不建立替代会话、不提交 Canonical 结果，也不把旧 owner 恢复成有效执行者。
 
 管理操作必须显式匹配目标调用与历史 epoch；按旧 generation 清理不得影响新 epoch 的活动调用。若需要关闭整个主 Session / 删除其持久 workspace，还须满足 Run 终结或不可恢复失败的明确清理授权，不能仅因一个旧 Job 被取消而破坏仍可恢复的主会话。管理查询 / 清理的结果只用于受控恢复和审计；随后若要执行 Provider，仍必须重新通过当前 epoch / active claim 的执行准入。
+
+对 INTERACTIVE_MCP，这些 interrupt / close / cleanup 只作用于本 Run 的执行关联及 Connector 实际管理的受控资源；不能把窄管理授权解释为启动 / 终止用户整个聊天、重建 native Session 或清理其个人目录。当前 native continuation、attachment 停止 / 脱离和预算活动仍须可信宿主核验，不以 Agent 自报或 Connector 在线代替。
 
 状态转换：
 
@@ -1262,6 +1273,71 @@ SOURCE 的设备认证 receipt 是受控采集 adapter 的结果，必须覆盖 
 
 **事务与迁移。** admission / commit 仍遵守 Run → Binding → Job → SourceSnapshot 的既有相对锁序；节点 / 设备 / 集成授权应在该事务内按确定性次序核对当前状态，但不跨 WSS / HTTPS / Provider / Git / issue API I/O 持锁，返回后重新 fencing。节点配对 / 撤销、grant 颁发 / 失效、源码接受 / 拒绝、Issue 对账、恢复和清理均由 PostgreSQL 记录，并与相应状态变化同事务写 Audit / Outbox；不引入消息总线、Graph DB 或全量事件溯源。它们不进入 Gate State Hash / evidence manifest，也不把设备 heartbeat 当测试事实。迁移须验证唯一 / FK / append-only / scope / claim / epoch 约束；已有 Run / Snapshot / Artifact URI、`durable_job_id`、原生引用、预算和 FINAL 不回填、不合并、不重算。
 
+### 23.10 ADR-016 交互式 Agent MCP 接入（v0.6 已实现，真实当前 Agent 已验收 / 未生产部署）
+
+本节于 2026-10-20（Asia/Singapore）定义并实现新增 Operational 契约。接入方向为当前交互 Agent → 可安装 stdio MCP adapter → 本地常驻 Connector → 新的 scoped typed HTTPS API；安装包不自动授予平台或节点权限。独立 profile 为 `hypertest.interactive-mcp/v1alpha1`，不原地重解释现有 TMP、UDS Bridge、Connector WSS 或内部 relay。HyperTest 是外接测试平台，MCP 既可承载任务提交和获准读取，也可在显式本地执行绑定后承载当前 Agent 的任务领域交互；该驱动下 Connector 不得另开影子 Harness。实现状态与真实宿主验收、生产部署分别记录。
+
+**执行位置与驱动。** `execution_mode` 取 CLOUD / LOCAL，表示推进测试周期的 Agent / Harness 位置；`execution_driver` 取 PLATFORM_MANAGED / INTERACTIVE_MCP，表示该 Agent 的 Operational 驱动方式，二者均不是新增 HarnessMode：
+
+| execution_mode | 既有 HarnessMode | execution_driver | 任务执行者 |
+|---|---|---|---|
+| CLOUD | SERVER_HOST | PLATFORM_MANAGED | 既有服务器受管 Harness，按原 Worker / UDS 路径执行 |
+| LOCAL | LOCAL_CONNECTOR | PLATFORM_MANAGED | 保留 ADR-015 的节点受管本地 Provider 路径 |
+| LOCAL | LOCAL_CONNECTOR | INTERACTIVE_MCP | 显式绑定当前本地 Agent 为该 Run 唯一执行 Worker / primary AgentSession；Connector 不另 spawn Harness |
+
+CLOUD + INTERACTIVE_MCP 等未定义组合拒绝准入。新请求在 Run 创建前冻结 execution_mode / execution_driver、节点、来源与测试输入，写入独立 Operational 选择 / 提交回执并纳入幂等 digest；物理位置与驱动本身不加入 SourceSnapshot fingerprint / Gate hash。旧 payload 没有这些字段时仅按既有 HarnessMode 映射为 PLATFORM_MANAGED，保留旧 payload / Run / hash，不回填历史或隐式改成当前 Agent 执行。执行模式不是 Runner 地点、环境或信任等级：首版正式执行仍由平台可信 Runner 完成，按 ExecutionSpec 固定实际环境、源码和采集；LOCAL Agent 请求服务器 Runner 并不改变其 LOCAL 身份。本 ADR 不增加本地 Runner 授权，不将 Agent 自行运行的命令 / 日志升为正式 Evidence。
+
+**交互连接与当前 Agent 的显式绑定。** `InteractiveClientSession` 仅表示一次 MCP 连接 / 有界 Operational 观察；MCP session ID、JSON-RPC request ID、聊天窗口名和模型自报 chat ID 不能自动作为 §23 的 AgentSession 或原生续接身份。`client_instance_id` 是经受控注册确认、本地持久的客户端安装身份，跨 stdio 进程和 MCP 重连保持稳定，不能信任模型自行指定或因重启换身份绕过去重。提交任务、读取结果都不自动接管会话；LOCAL + INTERACTIVE_MCP 经明确授权和可信宿主 adapter 核验后，允许把当前真实本地 Agent 登记为该 Run 的原主 AgentSession，保留一 Run 一 logical Worker / primary Session / node / workspace 规则。
+
+宿主 adapter 必须独立核验真实 provider / native session continuation、稳定节点、受控 workspace / 固定源码与当前 Agent 生命周期，并将该身份绑定到本次 Run；不能只采信 Agent 填写的 session 字符串或把其他进程 / 新会话当成当前 Agent。不支持这些核验的宿主只能使用提交 / 读取或 CLOUD，拒绝 INTERACTIVE_MCP 本地执行绑定。平台不承诺接管任意桌面 Agent。既有 `UNIQUE(provider, provider_session_id)`、Binding.primary_agent_session_id 的唯一性和历史继续有效：首版一个可验证原生执行会话只绑定一个 Run；它仍可提交 / 读取其他获准 Run，但不能伪造复合 session ID 复用为另一个 Run 的 primary。需要替代或新的执行上下文时，必须由宿主真实建立可验证新 native session 并显式创建关联新 Run，Connector 不能静默 spawn 冒充当前会话或恢复。
+
+新增记录关系如下；`0019_interactive_mcp` 建立下列前七类关系，`0020_interactive_tool_inbox` 增加工具 inbox 与短 grant 的精确设备 FK。独立主记录使用 UUIDv7，客户端注册使用 actor / client 复合主键，执行选择以 Run 为主键；actor、Project、grant、Run、Job、Binding 和 Session 引用以 FK / 受约束身份关系及 `ON DELETE RESTRICT` 保护历史，不能将关联 ID 塞入无校验 JSON。当前单 Operator 环境不因此宣称具备多租户隔离。
+
+actor / client installation 的受控持久身份映射已由独立身份目录及复合 FK 实现，不能接受模型自行提供的字符串代替注册身份。`InteractiveClientSession` 是本地交互连接 / 有界观察概念，不是新建的 SQL 会话表、任务所有权或原生续接证明。这些均为 Operational 授权关系，不增加 Canonical 实体。
+
+| Operational 记录 | 固定字段、关系与不可变约束 | 生命周期 / 权限边界 |
+|---|---|---|
+| `InteractiveActorIdentity` | 独立 `id`、唯一 actor_ref、registered_by、状态 / 审计时间及单调 row_version；注册身份固定 | 受控注册为 ACTIVE，仅可 REVOKED，历史不删除、不以重新激活绕过撤销 |
+| `InteractiveClientRegistration` | `PRIMARY KEY(actor_identity_id, client_instance_id)`，actor FK、registered_by 与审计；安装身份固定 | 仅在已注册 ACTIVE actor 下建立 ACTIVE 注册，可 REVOKED；同客户端重连不生成新的安装身份 |
+| `RunExecutionSelection` | 以 TestRun FK 为主键；execution_mode / execution_driver / HarnessMode / stable host、node FK 与 source transfer FK 固定 | 首次 Binding 前建立、append-only；CLOUD 仅 PLATFORM_MANAGED / SERVER_HOST，LOCAL 须与原已接受 RunHarnessSelection 的 node / source transfer 一致 |
+| `InteractiveIntegrationGrant` | `id`、认证 `actor_identity_id`、稳定 `client_instance_id`、`project_id`、scope 子集、操作者 / policy version、`token_hash`、not_before / expires_at 与审计；actor / client 复合 FK、Project FK 与 scope 固定，扩权或轮换另建 grant | 受控签发为 ACTIVE，可 EXPIRED / REVOKED，终态不重开；拒绝授权不创建 PENDING grant。五个独立 scope 为 task:submit、run:read、evidence:read、report:read、run:execute；平台只存 token 哈希，Connector 本地私有文件保存秘密，不输出给模型或 stdio 调用 |
+| `InteractiveSubmissionReceipt` | 原 grant FK、actor / client / Project、submission_key、normalization_version、独立计算的请求 input_digest，以及 input_manifest 中的固定快照 / 环境 / host 引用与独立 frozen_input_digest、mode / driver / node / source policy、授权策略和创建时间；`UNIQUE(actor_identity_id, client_instance_id, project_id, submission_key)` | 只保存不可变 ACCEPTED / REJECTED；不增加 UNKNOWN 业务状态。ACCEPTED 必须引用同 Project 的 TestRun 和首个 ADVANCE_RUN Job，追溯 Source / Policy / 模式驱动选择；REJECTED 无这些新 Run / Job 关联。授权轮换不解除旧幂等身份 |
+| `InteractiveExecutionBinding` | UNIQUE FK → 既有 RunExecutionBinding，并 UNIQUE 引用其原 primary AgentSession；固定 Run / actor / client / node / provider / 真实 native session / workspace / INTERACTIVE_MCP driver、attach_key、versioned attach digest、首次 attached_epoch / 授权引用；`UNIQUE(actor_identity_id, client_instance_id, test_run_id, attach_key)` | 是对既有唯一 Binding 的交互执行登记，不是第二个 Run binding、AgentSession 或队列。初次 bind 原子建立所需原 Binding / Session / Placement 与该登记；已有登记不得换 actor / client / native session / workspace。活跃 epoch、lease、暂停 / 终态仍由原 Binding / Job / Session 管理，短执行 grant / 历史授权另有可审计账本，不能覆盖旧代次伪造续接 |
+| `InteractiveExecutionGrant` | 原 InteractiveExecutionBinding / integration grant / Job / 精确 `device_grant_id` FK、epoch、派生 claim_identity、call_id、宿主 attachment / proof digest、token_hash、not_before / expires_at；同 attachment / call_id 唯一，身份与 scope 不可变 | ACTIVE → REVOKED / EXPIRED；期限受原 Job / integration / 精确 device 与短 TTL 约束。设备轮换撤销原 device 后，旧短 grant 不得借同节点的新 ACTIVE device 继续有效；旧 NULL device 历史不回填，执行验证失败关闭。token 明文不进入数据库、模型或 inbox |
+| `InteractiveToolRequest` | 关联原 attachment / execution grant / integration grant / actor / client / Job / epoch / 派生 claim、tool_call_id、tool_name、原业务 idempotency_key、规范化 input_digest 与严格 typed arguments；`UNIQUE(interactive_binding_id, idempotency_key)` 和 `UNIQUE(interactive_binding_id, tool_call_id)` | 原 DurableJob 内的持久 typed transport inbox，不是第二 Task 队列。QUEUED → RUNNING / REJECTED / UNKNOWN；RUNNING → SUCCEEDED / REJECTED / UNKNOWN。原身份 / 参数 append-only，首次 claimed_at 固定，终态有 finished_at；UNKNOWN 仅可按精确原 RunToolCall 的 binding / key / tool / digest / 已记录 result 对账，不可重新执行。失效 server claim / epoch 不能发布执行结果 |
+
+**提交与绑定原子性。** `hypertest_submit_task` 从已有 Project、批准的 credential-free origin、完整 SHA、原始 PRD / configuration、固定 Policy、受控环境，以及显式 mode / driver / node / source trust / transfer policy 构造既有 bootstrap + ADVANCE_RUN。LOCAL 必须引用此前 ACCEPTED 且当前 Project / node / origin / SHA / policy 一致的 SourceBundleTransfer，SOURCE 保持 §9.1 / §23.9 的独立可信采集和对象校验；插件不负责 Git 采集、dirty / untracked 自冻结、上传或节点授权。SERVER_HOST 沿用既有批准来源与 pinned checkout 规则。branch / MR 是参考信息，不代替完整 SHA。
+
+新事务门面在一个 PostgreSQL 事务内复核当前 integration / Project / source / node / policy 权限、串行化 submission 唯一键、创建或合法复用不可变 Source / PolicySnapshot、冻结模式 / 驱动 / 节点 / SourceTransferSnapshot 关联、创建 TestRun 与首个 ADVANCE_RUN DurableJob，并写 ACCEPTED receipt 和配对 Audit / Outbox；提交后才返回 ACCEPTED。不能用既有先 bootstrap、再单独 POST Job 的两次事务冒称原子接受。外部镜像 / Artifact / source I/O 在聚合事务外执行，事务内重核当前授权和固定输入，不跨 HTTPS / Provider / Git / Docker I/O 持行锁；失败回滚全部新业务记录。需要持久拒绝时仅保存 REJECTED receipt / 安全原因与审计，不创建新 Run / Job / Selection / Snapshot，不删除此前已独立接受的来源或已有 Snapshot。
+
+LOCAL + INTERACTIVE_MCP 的 ACCEPTED 不表示 Agent 已绑定或开始执行。初始 Job 的调度必须受显式 attach 准入约束，不能因 QUEUED 自动调用 ADR-015 的受管 Provider。平台 coordinator 按原规则持有并维护 DurableJob claim，承担领域事务、租约、工具准入和事实治理，不启动第二个智能 Worker / Harness；只有当前 Agent 的真实身份完成受控绑定、原 Binding / Session 状态允许且当前 Job claim 有效时，才授予其短期执行上下文。绑定成功也不自动创建测试 Execution，正式执行仍需原受控 request_execution 准入。
+
+`hypertest_bind_execution` 要求独立 run:execute scope、匹配冻结的 LOCAL / INTERACTIVE_MCP / node / 预期 actor-client、当前有效设备身份与该节点的 Project Harness 能力、可信宿主核验，以及 attach_key / attach digest；integration grant 不代替现有设备 / 节点授权。初次 bind 在原规则下原子建立唯一 RunExecutionBinding / 主 AgentSession / Placement 及 InteractiveExecutionBinding，已真实存在的同一 native continuation 不得被替换。已绑定时，同 attach_key 同输入只查询 / 返回原登记，异输入冲突；不同 key 也不能创建第二绑定。attach digest 固定真实 native / workspace / node / mode / driver / source 等身份，短期 grant、claim 和当前可递增 epoch 不进入该固定 digest；首次 attached_epoch 保留历史，当前 epoch 从原 Binding 读取。actor / client / Run / native 等固定身份不因换 token 或 MCP 重连而改变。首次绑定前由客户端先持久 attach_key / digest / 意图，恢复继续使用原 attach 身份，不因恢复另造 key；失答后只以 `hypertest_get_execution` 查询原 attach 身份，不盲目重放 bind、换 key 或另建 Session。查询返回登记、当前原 Binding / claim 的受控状态，不因读取自动颁发或续约执行权；grant 颁发 / 续约必须有可信宿主证明、有效当前 claim / epoch 与显式受控执行意图。
+
+**权限分层与 MCP 工具。** 提交 / 读取面保留 hypertest_submit_task、hypertest_get_submission、hypertest_get_progress、hypertest_list_evidence、hypertest_read_evidence、hypertest_list_reports、hypertest_read_report；增加 hypertest_bind_execution / hypertest_get_execution。提交及原键最小回执查询需要 task:submit，进度需要 run:read，Evidence 列表 / 内容需要 evidence:read，报告列表 / 内容需要 report:read，执行绑定 / 状态需要 run:execute。独立 scope 不相互推定，也不隐含设备配对、source-acquisition、issue-executor 或全局 Operator 权限。每次请求及响应交付重新核对当前 grant / actor / client / Project / Run 对象范围，撤权后不借旧回执、缓存、Artifact 地址或节点 cleanup 读取或执行。
+
+绑定后的当前 Agent 可以经新认证 adapter 使用已有九个 TMP 工具：get_state、request_mission、complete_mission、request_execution、ask_user、evaluate_gate、submit_report、request_gitlab_issue、get_issue。它们保持 `hypertest.tmp/v1alpha2` / `run-persistent-harness/v1` 的既有 Schema、Proposal / Verifier、Mission / Attempt、预算和副作用规则，不直接公开内部 Worker relay。项目级 run:execute 不是无限任务权限；每次运行工具还须短期、限定原 Run / Binding / epoch / primary Session / node / client / call / Mission-Attempt（若适用）的执行上下文，以及平台当前有效 Job claim。客户端只得到派生 claim identity / 窄 capability，不得获得原始服务器 Job lease token、数据库写权、Runner 身份或 Operator 全局 key。读取范围仅覆盖该受控工作上下文，不能借任务工具读取其他 Run。Issue 继续按独立项目 / 负责人政策与已持久意图授权，UNKNOWN 只对账，不新增任意问题单写 API。
+
+工具 HTTPS API 只鉴权、按严格业务 schema 规范化后持久入 InteractiveToolRequest，并有界等待 / 查询原结果；API 不执行 HarnessTools、Docker / Runner、源码核验命令或受管 Harness。原平台 coordinator 在同一个 Run 的既有 DurableJob claim 下领取该 inbox，重新核验当前 actor / client / scope、精确 device、短 grant、binding / epoch 与工具范围，再调用原 HarnessTools / Runner。固定 input_digest 与原 RunToolCall 采用同一 tool + 规范化 arguments 身份；写工具沿用原业务幂等键，读取请求有独立 transport 身份，不借 JSON-RPC session ID 当副作用幂等。每 Job 最多 256 个 QUEUED / RUNNING 请求，arguments / result 各有 4 MB 上限；不通过 RuntimeControl 增加任意工具代理，也不创建另一测试周期或租约所有者。
+
+API 失联、请求取消或 ACK 丢失不撤回已被 Worker 接受的操作。已消费请求不再派发；失去原 Worker claim 的 RUNNING 结果不得发布，须保留 UNKNOWN 并核对原 RunToolCall / Execution / Issue。有效原 owner 仍可收集已接受 Runner 的事实；旧 Job 终结且其活跃执行已收口后，未消费 QUEUED 请求可拒绝，已消费 RUNNING 请求记录 UNKNOWN，原身份和历史保留。结果交付仍逐次鉴权，inbox 持有的授权引用与历史结果均不自动产生新的执行权。
+
+**短期执行权、预算和恢复。** 单 Run 同时只存在一个有效 interactive owner。平台按当前数据库时间验证 grant / claim / epoch；可信宿主证明当前 Agent 的 native continuation 与本 Run attachment 活动，Connector 存活、整个聊天窗口在线或模型自报均不能续执行权。平台 coordinator 的真实服务心跳仅维护其 Job 所有权，不证明 Agent 在线或推进，也不能据此续发 Agent 执行 grant。执行授权有界到期，Run 内调用 / 正式执行沿原账本累计；只用可验证的本 Run attachment 活动计量，不把整个 chat 时间或自报 stopped / elapsed 冒称为旧 Bridge 的受控进程测量。恢复不重置累计预算，未知调用保守保留额度并先核对。
+
+撤销或过期后立即 fence 平台写入、新 Mission / Runner / Issue 请求与迟到旧代次提交；Connector 可中断其实际管理的受控子进程，但不能声称能终止用户整个交互聊天或推理。已有正式 Runner 的结果按原 Execution / owner 授权对账，仍有效时先完成 / 收集或受控取消，再更换 epoch / Job claim；不重复启动正式执行。current Agent 关闭或不可验证活动后，本地任务推进停止，不能由仍存活的 Connector 假造 Agent 心跳或接管为受管 Harness。
+
+MCP 重连先查询原 submission / attach / Binding 与未知 call，不自动恢复推理、消费两次答案、重放外部副作用或替换 Session。原身份与原租约仍有效时，只有可信宿主证明下的显式继续才可使用受控原执行上下文；过期 / 失联则按 §23.4 / §23.9 先 fence 旧 owner，核对原 native Session / workspace / source / 未决操作，再在同一 Binding 单调增加 epoch 并取得新 Job claim / grant。既有 WAITING_INPUT 与 CLOSED / FAILED / CANCELLED 状态机不变；报告接受仍按原规则关闭本 Run 的主 AgentSession / Binding 测试关联，不代表用户聊天已结束，也不授权清理其无关工作。原 native 身份 / workspace 不可恢复时明确失败、保留历史，替代身份必须是真实新 native 执行上下文与显式关联新 Run。get_execution、网络重连或重新 submit 均不能充当恢复授权。
+
+恢复所需的平台工作区 / 固定源码文件核验同样在 Worker 边界执行。API 只鉴权并持久化限定原 Binding / epoch / source 关系的 typed 恢复请求、查询核验结果；不直接运行 Git、读取平台源码镜像或接受调用者自报 workspace_verified。工作区核验与授权复核不得跨外部 I/O 持行锁，应用恢复前须重新核对当前 grant / 设备 / 原身份与全部旧 Job / Runner 收口条件；受控核验也不授权通用 shell、任意路径或启动另一个 Harness。
+
+**提交未知与受控结果读取。** 第一次写提交前，客户端先把稳定 client_instance_id、Project、submission_key、normalization version / input digest 和意图原子写入本地私有 journal，不含 token / Provider 对话 / 思维链。服务端独立规范化请求计算 input_digest，包含 mode / driver / node / source policy / transfer、PRD / config、有效 Policy hash 和环境请求；原 grant / token / MCP session 不改变输入身份。ACCEPTED receipt 的不可变 input_manifest 另记录固定 Source / PolicySnapshot 引用、source fingerprint、实际解析的 environment definition 和 stable host，并独立计算 frozen_input_digest；PRD / config 的原始材料仍由固定 Artifact / Snapshot 引用追溯，不在回执重复保存正文。相同 actor / client / Project / key 同输入返回原回执，异输入冲突；重放不得重新解析已接受的默认环境或按新默认重解释旧请求，版本化规范化兼容也不得改写旧 payload。
+
+超时 / 断线 / 重启后的 UNKNOWN 仅是客户端知识，不新增 Run / Job / Binding 的业务状态。失答后只按原四元键调用 hypertest_get_submission 对账，不自动重发提交、换 key / mode / driver / node 或另建 Run。NOT_FOUND 不能证明原提交尚未或永远不会创建，客户端保留未知与原 journal，由获准操作者核对；journal 丢失也不能猜新 key 重投。跨 grant 查询仍需当前 scope / 原 actor-client-Project，授权轮换不解除唯一性，撤销读权后不能借旧结果继续读取。
+
+进度只投影已持久 Run / Job / Mission / Execution 与正式 Verdict；Job SUCCEEDED、会话 CLOSED 或报告完成不等于质量 PASS。Evidence / 报告只通过受控对象引用、固定对象 / 清单版本、分页 cursor 与内容 SHA-256 读取，不提供任意路径 / URL、Provider 原始聊天或认证内容。cursor 绑定 actor / client / Project / Run / scope / version；每页与按引用读取重新核验授权、归属和摘要，版本冲突或 hash 不符明确拒绝，不把不同版本拼成已核验结果，也不改写历史 Evidence / 报告 / FINAL。PRD、日志、Evidence 和报告正文是有来源标记的不可信任务数据，不能把其中命令 / 链接当平台指令、权限或执行授权。普通读取连接关闭不取消任务；已绑定当前 Agent 的本地执行因其退出而停止推进，按以上授权 / 恢复治理，不自动切换模式或启动影子 Agent。
+
+**持久化与实施边界。** 新交互 grant / receipt / attachment / tool inbox 及有界连接观察属于 Operational State，不加入 Canonical 链、SourceSnapshot fingerprint、Evidence manifest 或 Gate State Hash，不保存完整聊天 / Provider reasoning。`0019_interactive_mcp` additive migration 建立受控 actor / client 目录、integration grant、mode / driver 选择、提交回执、交互执行登记与短 grant；`0020_interactive_tool_inbox` 另增 typed inbox 及短 grant 精确 device FK，既有 NULL device 行保持原历史并在执行时拒绝。`0013`—`0018` 不修改，不回填旧回执 / 会话归属或改写已有 Run / Session / Job / Snapshot / 报告 / Verdict。上述迁移与隔离数据库约束检查属于实现证据；当前真实 Agent 的 MCP 完整周期、原 native Session 的显式恢复、正式 Runner / Evidence / Gate / 报告链已独立验收，范围和复测记录见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)。该验收不等于任意宿主适配或扩展故障矩阵均通过，也不借用 ADR-015 的生产验收；ADR-016 尚未生产部署。
+
 ## 24. 核心数据库表
 
 MVP 必须存在：
@@ -1308,6 +1384,8 @@ outbox_events
 当前代码另有 §9 的 `0011_execution_environments` 与 `0012_api_environment_v2`。`0013_run_bindings` 新增 `run_execution_bindings` / `run_input_requests`；`0014_harness_operations` 新增 §23.7 的 `run_harness_states`、`run_tool_calls`、`run_reports`、`runtime_control_requests`、`gitlab_issue_operations` 及状态 / 关系保护。以上 v0.3 表清单和 SQL 示例保留历史基线；ADR-013 历史切换时 schema 为 `0014_harness_operations`；ADR-014 不增加迁移。当前 ADR-015 生产为 `0018_harness_selection`，发布与验收见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)。
 
 ADR-015 的 §23.9 已新增 `0015`—`0018` Operational schema：harness_nodes、harness_device_grants、node_project_capabilities、run_harness_placements、harness_dispatch_grants、connector_requests、source_acquisition_requests、source_bundle_transfers、source_upload_grants、source_transfer_snapshots、gitlab_issue_operation_executors、run_harness_selections。隔离迁移 / 回归与正式生产向前升级已分别记录，当前生产 head 为 `0018_harness_selection`；`0013` / `0014` 历史迁移和既有 Canonical hash 保留。
+
+ADR-016 的 §23.10 已由 `0019_interactive_mcp` / `0020_interactive_tool_inbox` 增加 interactive_actor_identities、interactive_client_registrations、interactive_integration_grants、run_execution_selections、interactive_submission_receipts、interactive_execution_bindings、interactive_execution_grants、interactive_tool_requests 及相关 FK / 唯一 / scope / append-only / 当前 claim 保护。空库向前迁移、隔离约束回归与 [当前真实 Agent 完整周期](../ADR016_ACCEPTANCE.md) 已验证；本次实现尚未生产部署，不改变以上 ADR-015 生产 head 或其验收历史。
 
 ---
 
@@ -1753,6 +1831,10 @@ REQ-1 → RISK-2 → TC-3 → EX-7 FAIL → EV-20/EV-21
 | HarnessNode / DeviceGrant / Capability / Selection / Placement / DispatchGrant / ConnectorRequest（ADR-015 已实现） | HyperTest 受控设备与任务服务；Connector 不拥有 Canonical State 或自续授权 |
 | SourceAcquisitionRequest / SourceBundleTransfer / SourceUploadGrant / SourceTransferSnapshot（ADR-015 已实现） | 受控 source-acquisition adapter 采集，HyperTest 接收器独立校验并冻结来源关联 |
 | GitLabIssueOperationExecutor（ADR-015 已实现） | HyperTest 固定意图与 executor，受控集成持凭据执行，平台核验远端结果 |
+| InteractiveIntegrationGrant / InteractiveSubmissionReceipt（ADR-016） | HyperTest scoped integration / submission 服务管理独立授权与原子回执；提交 / 读取不自动取得执行权 |
+| InteractiveExecutionBinding（ADR-016） | HyperTest 核验当前 Agent 的真实宿主身份，将其登记为既有 RunExecutionBinding 的唯一交互执行者；不新建第二绑定或独立调度队列 |
+| InteractiveExecutionGrant / InteractiveToolRequest（ADR-016） | 平台签发 / 撤销精确 device 的短执行授权；API 仅持久化 typed inbox，原 Job 的 Worker 在有效 claim / epoch 下执行并记录结果，不向 API 转移 Runner 权限 |
+| InteractiveClientSession（ADR-016 连接概念） | 仅交互连接 / 有界 Operational 观察身份，不对应新增 SQL 会话表；显式绑定须另核验真实 native Session，不将 MCP session ID 当 AgentSession 或写权 |
 
 Agent 不直接拥有任何 Canonical Lifecycle。
 
@@ -1762,11 +1844,15 @@ Agent 不直接拥有任何 Canonical Lifecycle。
 
 | Actor | Requirement | Risk | TestCase | Execution | Evidence | Finding | Verdict |
 |---|---|---|---|---|---|---|---|
-| Agent | Proposal | Proposal | Proposal | Request | Read | Proposal | No |
+| 平台主 Harness Agent（TMP 运行 profile） | Proposal | Proposal | Proposal | Request | Read | Proposal | No |
+| 未绑定交互 Agent（ADR-016 MCP profile） | No | No | No | No | Scoped Read | No | No |
+| 已显式绑定的当前 LOCAL Agent（ADR-016 INTERACTIVE_MCP + TMP 执行上下文） | Proposal | Proposal | Proposal | Request | Scoped Read | Proposal | No |
 | Runner | No | No | No | Write | Write | No | No |
 | Verifier | Accept | Accept | Accept | Read | Verify | Validate | No |
 | Gate | Read | Read | Read | Read | Read | Read | Write |
 | User | Controlled | Controlled | Controlled | Trigger | Read | Manage | Override by Policy |
+
+上表区分入口、绑定和当前授权，而不是给同一模型永久全局角色。未绑定 Agent 的结果读取分别需要 evidence:read / report:read / run:read；hypertest_submit_task 经事务准入创建 Run / 初始 Job，不自动授予执行权。当前 LOCAL Agent 经 run:execute 和可信宿主核验完成显式绑定后，仍须每次具备原 Binding / Session / 当前 epoch / 有效 Job claim / Mission-Attempt 的短执行上下文，才可使用既有 TMP 工具；单独 integration grant 不足以执行。Proposal 仍由 Verifier 接受，Execution / Evidence 仍由平台可信 Runner 产生，当前 Agent 不直接写 Canonical State。
 
 ---
 
@@ -1781,6 +1867,8 @@ v1 初期不使用 PostgreSQL native ENUM，使用 varchar + application enum + 
 v0.4 的 Binding / Session 生命周期、唯一 / FK、epoch fencing 与 typed tools 需要 additive migration、版本化契约和成套验收。旧 Run / Session / Attempt / Job 的身份、原生引用与历史解释不因目标规则而回填或合并；新的绑定不能用改写旧结果代替显式恢复或新测试轮次。
 
 v0.5 / ADR-015 已通过 `0015`—`0018` 增加 §23.9 的 Operational schema、版本协商与隔离约束验收；真实集成和生产部署继续分别登记。旧 SERVER_HOST Run 不补造节点配对、source receipt、Placement 或 issue executor；其现有授权 / 历史解释保留，不能借兼容缺省把它迁入 LOCAL_CONNECTOR。新增 scope / 关系也不改变既有 Snapshot / Policy / Mission / ExecutionSpec / FINAL 内容或 hash。
+
+v0.6 / ADR-016 通过 `0019` / `0020` 实现 §23.10 Operational 身份 / grant / receipt / interactive attachment / typed inbox、模式驱动选择、唯一键 / 同 Project FK / append-only 历史约束及原子提交 / 绑定门面。迁移与隔离测试验证提交 / attach 的持久身份、同键幂等、失答先查、原生会话唯一性、短执行授权 / fencing / 预算及读取完整性；真实当前 Agent 完整周期的独立验收见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)；生产部署尚未进行。`0013`—`0018` 保持原样，不回填历史，不改 TestRun / DurableJob / AgentSession / Binding / Verdict 状态枚举。
 
 ---
 
@@ -1910,6 +1998,15 @@ v0.5 / ADR-015 新增不变量（已部署生产、隔离核心验收通过，�
 17. 源码在 Snapshot 冻结前经过可信来源采集与平台独立 Git 对象链校验；包 Hash 或 Agent 自报不证明 origin / commit 来源，Runner 再独立校验正式输入。
 18. 问题单先持久化获准意图和唯一 executor，UNKNOWN 只查询对账，后端、节点或新 epoch 不绕过同 Finding 去重。
 19. 连接 presence、短执行 grant 与服务器 Job / Runner lease 分开；重连不恢复执行权，显式 fenced recovery 只续原绑定，已有有效 Runner 仍可按原 Execution 完成。
+
+v0.6 / ADR-016 新增不变量（Implemented / Isolated Tests Verified；真实当前 Agent 已验收 / 未生产部署，2026-10-20）：
+
+20. execution_mode=CLOUD / LOCAL 固定 Agent 位置，execution_driver 固定受管或当前 Agent 驱动；不新增 HarnessMode，不改变正式 Runner 信任。
+21. 普通 MCP 连接不自动成为主会话；LOCAL / INTERACTIVE_MCP 只经可信宿主核验显式登记当前原生 Agent 为既有唯一 Binding / Session 的执行者，不启动影子 Harness，同一真实 native 执行会话只绑定一个 Run。
+22. ACCEPTED receipt、冻结输入 / mode / driver / node、TestRun、首个 ADVANCE_RUN Job 与 Audit / Outbox 同事务提交；INTERACTIVE_MCP 未显式绑定时不能因初始 Job 入队自动启动受管 Provider。
+23. submission_key / attach_key 与 digest 在首次写入前持久；失答 UNKNOWN 仅为客户端知识，先按原身份查询，NOT_FOUND 不触发自动重提或新 Session / Run。
+24. 项目 run:execute 和每次当前 Run / Session / epoch / claim 的短执行上下文分层验证；撤权立即 fence 平台提交，不把 Connector 在线或 Agent 自报当原生继续 / 停止证明。
+25. 当前 Agent 退出时本地推进停止，仍有效 Runner 先收集或受控取消；重连按原身份显式继续或 fenced recovery，不自动重开终态或更换主会话。
 
 ---
 

@@ -161,6 +161,7 @@ def _validate_payload(job_type: JobType, payload: dict[str, Any]) -> dict[str, A
 async def submit_job(
     session: AsyncSession, run_id: UUID, job_type: JobType, *, payload: dict[str, Any],
     idempotency_key: str, mission_id: UUID | None = None, retry_of_job_id: UUID | None = None,
+    commit: bool = True,
 ) -> DurableJob:
     if not idempotency_key.strip() or len(idempotency_key) > 512:
         raise ConflictError("job requires an idempotency key of 1–512 characters")
@@ -181,7 +182,8 @@ async def submit_job(
             job_type, payload, mission_id, retry_of_job_id,
         ):
             raise ConflictError("idempotency key is already bound to a different job request")
-        await session.commit()
+        if commit:
+            await session.commit()
         return existing
     if run.status is TestRunStatus.CANCELLED:
         raise ConflictError("cancelled test runs cannot accept work")
@@ -241,7 +243,10 @@ async def submit_job(
                      idempotency_key=idempotency_key)
     session.add(job)
     await _event(session, job, "job.queued")
-    await session.commit()
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()
     return job
 
 
@@ -252,7 +257,8 @@ async def retry_job(session: AsyncSession, job_id: UUID, *, idempotency_key: str
                             mission_id=previous.mission_id, retry_of_job_id=previous.id)
 
 
-async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: float = 30) -> DurableJob | None:
+async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: float = 30,
+                    run_id: UUID | None = None) -> DurableJob | None:
     if not worker_id or len(worker_id) > 255 or lease_seconds <= 0:
         raise ValueError("worker identity and positive lease duration required")
     # Lock the aggregate before the queue row. Audit inserts reference TestRun,
@@ -264,6 +270,7 @@ async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: flo
     from hypertest.domain.connector import HarnessNode, RunHarnessPlacement
     from hypertest.domain.harness import RunReport
     from hypertest.domain.harness_selection import RunHarnessSelection
+    from hypertest.domain.interactive import InteractiveExecutionBinding, RunExecutionSelection
 
     # Platform Workers may resume a fixed local Connector placement. Host
     # affinity still fences server bindings to their configured UDS host.
@@ -281,10 +288,27 @@ async def claim_job(session: AsyncSession, worker_id: str, *, lease_seconds: flo
         HarnessNode.node_kind == "LOCAL_CONNECTOR",
         HarnessNode.node_key == RunExecutionBinding.harness_host_id,
     ))
+    interactive_selection = exists(select(RunExecutionSelection.test_run_id).where(
+        RunExecutionSelection.test_run_id == TestRun.id,
+        RunExecutionSelection.execution_driver == "INTERACTIVE_MCP",
+    ))
+    attached_interactive_owner = exists(select(InteractiveExecutionBinding.id).where(
+        InteractiveExecutionBinding.test_run_id == TestRun.id,
+        InteractiveExecutionBinding.binding_id == RunExecutionBinding.id,
+        InteractiveExecutionBinding.agent_session_id == RunExecutionBinding.primary_agent_session_id,
+    ))
+    foreign_server_selection = exists(select(RunExecutionSelection.test_run_id).where(
+        RunExecutionSelection.test_run_id == TestRun.id,
+        RunExecutionSelection.harness_mode == "SERVER_HOST",
+        RunExecutionSelection.harness_host_id != get_settings().bridge_host_id,
+    ))
     run = await session.scalar(select(TestRun).join(
         DurableJob, DurableJob.test_run_id == TestRun.id,
     ).outerjoin(RunExecutionBinding, RunExecutionBinding.test_run_id == TestRun.id)
         .where(DurableJob.status == JobStatus.QUEUED,
+               TestRun.id == run_id if run_id is not None else True,
+               or_(~interactive_selection, attached_interactive_owner),
+               ~foreign_server_selection,
                or_(RunExecutionBinding.id.is_(None),
                    and_(RunExecutionBinding.status.in_([BindingStatus.RESERVED, BindingStatus.ACTIVE, BindingStatus.WAITING_INPUT]),
                         or_(RunExecutionBinding.harness_host_id == get_settings().bridge_host_id, local_placement)),
@@ -559,6 +583,11 @@ async def cleanup_job_resources(session: AsyncSession, job: DurableJob, *, on_wo
     if job.job_type is JobType.EVALUATE_GATE:
         # A Gate-only operation owns no Provider, Runner or workspace resources.
         return {"external_resources": "not_applicable"}
+    from hypertest.domain.interactive import RunExecutionSelection
+
+    selection = await session.get(RunExecutionSelection, job.test_run_id)
+    if selection is not None and selection.execution_driver == "INTERACTIVE_MCP":
+        return await _cleanup_interactive_job_resources(session, job, on_worker=on_worker)
     from hypertest.config import get_settings
 
     if get_settings().execution_mode == "queued" and not on_worker:
@@ -592,6 +621,103 @@ async def cleanup_job_resources(session: AsyncSession, job: DurableJob, *, on_wo
                    entity_type="DurableJob", entity_id=job.id, event_metadata=payload),
         OutboxEvent(aggregate_type="DurableJob", aggregate_id=job.id,
                     event_type="job.resources_cleanup", payload=payload),
+    ])
+    await session.commit()
+    return cleanup
+
+
+async def _cleanup_interactive_job_resources(
+    session: AsyncSession, job: DurableJob, *, on_worker: bool,
+) -> dict[str, Any]:
+    """Fence this Job's attachment without controlling the user's native chat.
+
+    A stale cleanup may target an old Job after recovery. Never revoke the new
+    Job's grants, touch its epoch, or infer that the native Agent has stopped.
+    Runner cleanup only removes platform-owned resources labelled by this Job.
+    """
+    from hypertest.config import get_settings
+    from hypertest.domain.interactive import (
+        InteractiveExecutionBinding,
+        InteractiveExecutionGrant,
+        InteractiveToolRequest,
+    )
+
+    job = await _lock_job(session, job.id)
+    grants = list(await session.scalars(select(InteractiveExecutionGrant).join(
+        InteractiveExecutionBinding,
+        InteractiveExecutionBinding.id == InteractiveExecutionGrant.interactive_binding_id,
+    ).where(
+        InteractiveExecutionBinding.test_run_id == job.test_run_id,
+        InteractiveExecutionGrant.job_id == job.id,
+        InteractiveExecutionGrant.status == "ACTIVE",
+    ).order_by(InteractiveExecutionGrant.id).with_for_update(of=InteractiveExecutionGrant)))
+    for grant in grants:
+        grant.status, grant.row_version = "REVOKED", grant.row_version + 1
+    active_executions = await session.scalar(select(func.count()).select_from(TestExecution).where(
+        TestExecution.test_run_id == job.test_run_id,
+        TestExecution.durable_job_id == job.id,
+        TestExecution.status.in_([
+            ExecutionStatus.QUEUED, ExecutionStatus.PROVISIONING,
+            ExecutionStatus.RUNNING, ExecutionStatus.COLLECTING,
+        ]),
+    ))
+    live_job = job.status in ACTIVE_JOB_STATUSES
+    rejected_tools, unknown_tools = 0, 0
+    if not live_job and not active_executions:
+        requests = list(await session.scalars(select(InteractiveToolRequest).where(
+            InteractiveToolRequest.job_id == job.id,
+            InteractiveToolRequest.status.in_(["QUEUED", "RUNNING"]),
+        ).order_by(InteractiveToolRequest.id).with_for_update()))
+        clock = await _now(session)
+        for request in requests:
+            if request.status == "QUEUED":
+                request.status, request.error_code = "REJECTED", "WORKER_JOB_TERMINATED"
+                rejected_tools += 1
+            else:
+                request.status, request.error_code = "UNKNOWN", "WORKER_JOB_TERMINATED"
+                unknown_tools += 1
+            request.finished_at = clock
+    cleanup: dict[str, Any] = {
+        "execution_driver": "INTERACTIVE_MCP", "interactive_grants_revoked": len(grants),
+        "bridge": "not_applicable", "agent_workspaces_removed": 0,
+        "agent_workspace_cleanup_failures": 0,
+        "runner_resources": ("deferred_active_execution" if active_executions else
+                             "deferred_active_job" if live_job else "pending"),
+        "active_execution_count": active_executions,
+        "queued_tools_rejected": rejected_tools, "running_tools_unknown": unknown_tools,
+    }
+    # Revocation and its audit commit before external I/O / queued cleanup. An
+    # unreachable Docker daemon must never leave an Agent capability usable.
+    payload = {"job_id": str(job.id), "test_run_id": str(job.test_run_id), **cleanup}
+    session.add_all([
+        AuditEvent(project_id=job.project_id, test_run_id=job.test_run_id,
+            actor_type="SYSTEM", actor_ref="hypertest.worker", action="job.interactive_authority_revoked",
+            entity_type="DurableJob", entity_id=job.id, event_metadata=payload),
+        OutboxEvent(aggregate_type="DurableJob", aggregate_id=job.id,
+            event_type="job.interactive_authority_revoked", payload=payload),
+    ])
+    await session.commit()
+    if active_executions or live_job:
+        return cleanup
+    if get_settings().execution_mode == "queued" and not on_worker:
+        from hypertest.application.runtime_control import request_control
+
+        cleanup["runner_resources"] = "queued_for_worker"
+        cleanup["control_request"] = await request_control(
+            session, "CLEANUP_JOB", {"job_id": str(job.id)}, wait=False,
+        )
+        return cleanup
+    from hypertest.runner.backends import cleanup_docker_job_resources
+
+    cleanup.update(await cleanup_docker_job_resources(job.id))
+    cleanup["runner_resources"] = "cleanup_attempted"
+    payload = {"job_id": str(job.id), "test_run_id": str(job.test_run_id), **cleanup}
+    session.add_all([
+        AuditEvent(project_id=job.project_id, test_run_id=job.test_run_id,
+            actor_type="SYSTEM", actor_ref="hypertest.worker", action="job.resources_cleanup",
+            entity_type="DurableJob", entity_id=job.id, event_metadata=payload),
+        OutboxEvent(aggregate_type="DurableJob", aggregate_id=job.id,
+            event_type="job.resources_cleanup", payload=payload),
     ])
     await session.commit()
     return cleanup

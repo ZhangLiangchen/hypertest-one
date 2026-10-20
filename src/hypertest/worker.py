@@ -49,6 +49,14 @@ class JobDispatchError(RuntimeError):
 
 async def dispatch_job(session: AsyncSession, job: DurableJob) -> dict[str, Any]:
     payload = dict(job.payload)
+    if job.job_type is JobType.ADVANCE_RUN:
+        from hypertest.domain.interactive import RunExecutionSelection
+
+        selection = await session.get(RunExecutionSelection, job.test_run_id)
+        if selection is not None and selection.execution_driver == "INTERACTIVE_MCP":
+            from hypertest.application.interactive_coordinator import advance_interactive_run
+
+            return await advance_interactive_run(session, job)
     from hypertest.domain.harness_selection import RunHarnessSelection
     if (await session.get(RunHarnessSelection, job.test_run_id) is not None
             and job.job_type is JobType.ADVANCE_RUN
@@ -123,6 +131,17 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
     monitor_error: Exception | None = None
     worker_id = job.worker_id
     assert worker_id is not None
+    lease_seconds = settings.worker_lease_seconds
+    from hypertest.domain.interactive import RunExecutionSelection
+
+    async with AsyncSessionLocal() as lease_db:
+        selection = await lease_db.get(RunExecutionSelection, job.test_run_id)
+        if selection is not None and selection.execution_driver == "INTERACTIVE_MCP":
+            # Extend only this coordinator's real server ownership. This does
+            # not renew the independently bounded current-Agent capability.
+            lease_seconds = max(lease_seconds, settings.interactive_grant_ttl_seconds
+                                + 2 * settings.worker_heartbeat_seconds)
+            await heartbeat_job(lease_db, job.id, lease_token, lease_seconds=lease_seconds)
 
     async def execute() -> dict[str, Any]:
         async with FencedAsyncSession(
@@ -145,7 +164,7 @@ async def run_claimed_job(job: DurableJob, *, dispatcher: Dispatcher = dispatch_
             try:
                 async with AsyncSessionLocal() as session:
                     monitored_status = await heartbeat_job(
-                        session, job.id, lease_token, lease_seconds=settings.worker_lease_seconds,
+                        session, job.id, lease_token, lease_seconds=lease_seconds,
                     )
                     await record_worker_heartbeat(session, worker_id, job.id)
                 if monitored_status is JobStatus.CANCEL_REQUESTED:

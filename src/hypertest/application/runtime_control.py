@@ -88,6 +88,20 @@ async def dispatch_control(session: AsyncSession, operation: str, payload: dict)
         await session.commit()
         return await cleanup_job_resources(session, job, on_worker=True)
     if operation == "RECOVER_BINDING":
+        if payload.get("kind") == "INTERACTIVE_MCP_RECOVERY_V1":
+            from hypertest.application.interactive import recover_execution_from_control
+            return await recover_execution_from_control(session, payload)
+        from hypertest.domain.bindings import RunExecutionBinding
+        from hypertest.domain.interactive import RunExecutionSelection
+
+        binding = await session.get(RunExecutionBinding, UUID(payload["binding_id"]))
+        if binding is not None:
+            selected = await session.get(RunExecutionSelection, binding.test_run_id)
+            if selected is not None and selected.execution_driver == "INTERACTIVE_MCP":
+                raise ConflictError(
+                    "Interactive recovery requires the original trusted host proof through "
+                    "the operator interactive recovery endpoint; no managed Harness is started"
+                )
         from hypertest.application.persistent import recover_binding
         return await recover_binding(session, UUID(payload["binding_id"]),
                                      expected_epoch=payload["expected_epoch"],

@@ -27,8 +27,19 @@ class CapabilityRequest(BaseModel):
     @model_validator(mode="after")
     def controlled_scope(self):
         if self.capability=="harness":
-            if self.constraints:
+            import re
+
+            if set(self.constraints) - {"interactive_host_adapters"}:
                 raise ValueError("Harness project scope has no credential or arbitrary configuration fields")
+            adapters = self.constraints.get("interactive_host_adapters")
+            if adapters is not None and (
+                not isinstance(adapters, list) or not 1 <= len(adapters) <= 16
+                or any(not isinstance(item, str)
+                       or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_./-]{0,127}", item)
+                       for item in adapters)
+                or len(set(adapters)) != len(adapters)
+            ):
+                raise ValueError("Interactive execution requires a bounded host adapter allowlist")
         elif self.capability=="source_acquisition":
             from hypertest.connector.source import validate_origin
             if set(self.constraints)-{"allowed_origins","policy_version"}:

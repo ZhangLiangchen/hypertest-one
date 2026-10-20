@@ -219,9 +219,18 @@ async def advance_persistent_run(db: AsyncSession, job: DurableJob) -> dict:
                 mode="LOCAL_CONNECTOR", node_id=selection.node_id,
                 source_transfer_kind="SOURCE_BUNDLE", source_bundle_transfer_id=selection.source_bundle_transfer_id))
         db.binding_id, db.binding_epoch = binding.id, binding.binding_epoch
+        from hypertest.domain.interactive import InteractiveSubmissionReceipt
+
+        receipt = await db.scalar(select(InteractiveSubmissionReceipt).where(
+            InteractiveSubmissionReceipt.test_run_id == run.id,
+            InteractiveSubmissionReceipt.status == "ACCEPTED"))
+        harness_budget = (receipt.input_manifest.get("budget", {}).get("harness_budget_seconds",
+                          settings.harness_max_seconds) if receipt else settings.harness_max_seconds)
+        if not isinstance(harness_budget, int) or not 1 <= harness_budget <= 7200:
+            raise ConflictError("frozen Harness budget is invalid")
         state = RunHarnessState(binding_id=binding.id, first_job_id=job.id, source_workspace=workspace,
             max_steps=job.payload.get("max_steps", 12), timeout_seconds=job.payload.get("timeout_seconds", 300),
-            harness_budget_seconds=settings.harness_max_seconds)
+            harness_budget_seconds=harness_budget)
         db.add(state)
         await db.commit()
         if selection is not None:

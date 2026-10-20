@@ -1,0 +1,8 @@
+{
+  "api_url": "https://hypertest.example.invalid/api/v1",
+  "state_dir": "~/.config/hypertest/interactive",
+  "integration_token_file": "~/.config/hypertest/interactive.integration-token",
+  "device_token_file": "~/.config/hypertest/device-token",
+  "host_adapter": {"kind": "unsupported"},
+  "workspaces": {}
+}
