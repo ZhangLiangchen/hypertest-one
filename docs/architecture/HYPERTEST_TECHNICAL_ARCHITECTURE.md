@@ -1,12 +1,26 @@
 # HyperTest Technical Architecture
 
-**Document Status:** Accepted Architecture; ADR-013 / ADR-015 Production History Retained; ADR-016 Implemented / Isolated Current-Agent Core E2E Verified / Production Deployed / Online Current-Agent Core E2E Verified (2026-10-20, Asia/Singapore)
+**Document Status:** Accepted v0.8 / ADR-018 Session Task Management (2026-10-21, Asia/Singapore). Implementation and acceptance tracked separately; ADR-017 and legacy histories retained below.
 
-**Version:** v0.6
+**Version:** v0.8
 
-**Parent Document:** HyperTest Whitepaper v1.3
+**Parent Document:** HyperTest Whitepaper v1.6 (v1.4 product responsibility correction retained)
 
 **Architecture Role:** Autonomous Testing Control Plane
+
+### v0.8 当前入口：Codex 会话任务同步（ADR-018 优先）
+
+现阶段 HyperTest 是 Codex 测试任务、用例和报告的管理平台：一个 Codex 会话对应一个 SessionTask，Codex 在项目已有工具链中完成测试并同步产物。平台只校验与保存管理数据，不承担测试执行。
+
+当前链路为 **Codex → MCP/私有客户端 → typed API → Project/SessionTask/CaseRevision/ReportRevision/SyncReceipt + Audit/Artifact**。共享既有 Project 与存储，不使用旧 TestRun bootstrap、Job、execution binding、Harness、Runner 或 Gate。查询不接管原生会话；session reference 是同步来源元数据，不要求宿主执行身份核验。
+
+新入口保留 reported result 与原始报告，版本保护和幂等回执保障同步一致性；缺少独立 CI 证明不阻止管理保存、不改写报告结果。正式质量门禁与 legacy VERIFIED Evidence 保持原义。[ADR-018](ADR-018_CODEX_SESSION_TASK_SYNC.md)优先于下文把新入口视为执行材料准入的描述；§43 ADR-017 切片及旧受管模式继续作为独立历史保留。模型与协议分别由领域 §50、TMP §45 拥有。
+
+### v0.7 原生框架接入与兼容范围（ADR-017）
+
+[ADR-017](ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)保留历史 `native-framework-intake/v1alpha1` 的材料治理与顺序贡献者交接。该兼容 profile 不增加平台执行引擎，不自动提升材料可信度；当前 Codex 任务、用例及报告管理按 ADR-018 同步，私有执行与验收原件不随产品源码分发。
+
+本轮是 PostgreSQL / Artifact Store 上的独立 native 轮次与 Operator 受控 API / 本机客户端，不改旧 `TestRun`、两种受管 Harness、交互 MCP 或 Runner 历史。下文 v0.3–v0.6 的部署、Job、Session、SourceSnapshot、Runner / OFFICIAL / Evidence 描述是旧 profile 的实现和规范；新 native 边界与最小组件见 §43，字段与请求由领域 §49、TMP §44 拥有。原生 CI 可信来源验证、正式 native PASS、Web/MCP 接入和生产发布不在已完成声明中。
 
 v0.4 由 [ADR-013：平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md) 确立。Run Binding、Host Harness Bridge、持续会话、九个领域工具和受控 GitLab 集成已有实现，新增 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)。2026-10-19 生产容器切换及真实正反链路已验收：该次源码入口为 `f415fd0`，运行构建来源为 `95e92c5`；PR #10 后已更新至 `828225d` API/Worker/Web，兼容 Bridge 保留 `95e92c5`、schema0014。现有数据和 OAuth 保留，访问策略以运维材料的最新决定为准。完整结果见[正式部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)；真实 GitLab 提单、其他 Provider 及后续 Web 改进不由该结果推定完成。标注“当前 v0.3”的段落记录当时的兼容路径，不描述当前生产拓扑；部署现状以[服务器运维文档](../SERVER_OPERATIONS.md)与实际验收为准。字段、关系及生命周期以[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)为准，消息与工具契约以 [TMP](../protocol/TEST_MISSION_PROTOCOL.md) 为准。
 
@@ -28,7 +42,7 @@ v0.6 的 [ADR-016：交互式 Agent MCP 接入](ADR-016_INTERACTIVE_AGENT_MCP_AC
 2. 哪些能力属于 HyperTest，哪些能力交给 Codex / Claude Code；
 3. Testing State 如何持久化；
 4. Mission 如何产生、执行、验证；
-5. Test Runner 如何产生可信 Evidence；
+5. 如何接收项目原生执行材料、独立核验来源，以及保留旧 Runner Evidence；
 6. 如何支持多 Agent Harness；
 7. 系统如何从 MVP 演进为完整 Autonomous Testing System。
 
@@ -40,9 +54,11 @@ HyperTest 不重新实现 Coding Agent，而是建立一个长期稳定的软件
 
 核心公式：
 
-> **Agent produces intelligence.**  
-> **Runner produces facts.**  
-> **HyperTest produces decisions.**
+> **Agent performs testing work.**<br>
+> **Project test tools produce execution results.**<br>
+> **HyperTest governs evidence and conclusions.**
+
+旧 Runner 仍在其 legacy profile 中产生可信正式事实；新 native 本机材料的来源尚未验证，不能因产品分层改变就获得相同信任。
 
 系统必须满足：Agent-independent、Model-independent、Stateful、Evidence-driven、Policy-driven、Reproducible、Auditable、Extensible、Human-observable、Agent-native。
 
@@ -52,17 +68,17 @@ HyperTest 不重新实现 Coding Agent，而是建立一个长期稳定的软件
 
 ### 3.1 HyperTest 负责
 
-Testing State、Requirement Model、Risk Model、Test Case Model、Coverage Model、Mission Admission / Compilation、Task Worker Binding、Agent Dispatch、Proposal Validation、Canonical State Commit、Official Test Execution、Evidence Collection、Finding Management、Quality Gate、Verdict、Audit / History。
+Project / Plan / Case / Testing State、Coverage、Task / Mission、责任与权限、Proposal Validation、Canonical State Commit、执行出处与材料接入、来源核验、Finding、Quality Gate、Conclusion / Verdict、Audit / History。原有 Official Test Execution / Runner Controller 作为 legacy 执行路径保留，不扩为新产品通用执行引擎。
 
 ### 3.2 Agent Harness 负责
 
-Codex、Claude Code、DeepSeek Harness 以及未来 Provider 负责 Reasoning、Repository Understanding、Code Search、File Reading、Code Editing、Shell、Debugging、Tool Calling、Context Management、Agent Loop、Local Retry。一个 TestRun 使用同一个持续主会话，自驱串行完成分析、设计、实现、请求正式执行、诊断和报告；平台不把这些阶段拆成相互独立的 Harness 会话，也不为一个 Run 分配多个平台 Task Worker 并行推进。
+Codex、Claude Code 等可替换 Agent 负责分析、设计、实现、原生框架 / CI 调用、结果分析和诊断，以及自身 Reasoning / Tool Calling / Context / Retry。native profile 通过持久状态与显式贡献者交接维持连续性，同一时刻只允许一个获授权 writer。ADR-013/015/016 的旧 TestRun 仍使用同一个持续主会话并遵守原 Binding / 恢复规则，不因新 profile 修改其身份。
 
 ### 3.3 Test Framework 负责
 
-pytest、JUnit、Playwright、k6、Frigate、Hypersonic 等负责具体测试逻辑和测试执行语义。HyperTest 负责调度、记录和证据治理。
+项目已有 pytest、JUnit、Playwright、k6 等框架 / CI 负责测试发现、fixtures、断言与执行语义、环境依赖和原始报告。Agent 调用项目入口；HyperTest 管任务下发、记录和证据治理，不复制框架执行调度。
 
-### 3.4 云端 / 本地执行与交互式 Agent（ADR-016 设计）
+### 3.4 旧受管 / 交互 profile 的云端 / 本地执行（ADR-016）
 
 产品 `execution_mode=CLOUD|LOCAL` 指 Agent / Harness 在何处完成任务智能工作，与正式 Runner 的位置及信任独立；首版仍使用平台可信 Runner。既有 `SERVER_HOST` / `LOCAL_CONNECTOR` 接入配置继续兼容，另以 Operational `execution_driver=PLATFORM_MANAGED|INTERACTIVE_MCP` 区分谁驱动原生会话，不新增第三种 Harness mode：
 
@@ -81,36 +97,24 @@ pytest、JUnit、Playwright、k6、Frigate、Hypersonic 等负责具体测试逻
 ## 4. 总体逻辑架构
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│                    HyperTest Web                     │
-│ Project / Requirement / Risk / Case / Run / Finding │
-└────────────────────────┬─────────────────────────────┘
-                         │
+Web / MCP（旧 profile） / 本机 native 管理客户端
+                         │ typed API
                          ▼
-┌──────────────────────────────────────────────────────┐
-│                 HyperTest API Layer                  │
-│ Project API    TestRun API     Mission API           │
-│ State API      Evidence API    Finding API           │
-└────────────────────────┬─────────────────────────────┘
+HyperTest Control Plane：Project / Plan / Case / Task / Records
+  Proposal / Verifier / Gate / Evidence governance / History
                          │
+          PostgreSQL + Audit / Outbox + Artifact Store
+                         ↕ 下发范围 / 贡献 / 材料 / 结论
+                   可替换 Agent
+                         │ 调用项目已有入口
                          ▼
-┌──────────────────────────────────────────────────────┐
-│             Autonomous Testing Control Plane         │
-│                                                      │
-│ State Engine      Test Planner                       │
-│ Policy Engine     Mission Compiler                   │
-│ Coverage Engine   Agent Gateway                      │
-│ Verifier          Runner Controller                  │
-│ Gate Engine                                           │
-└───────────────┬──────────────┬───────────────────────┘
-                │              │
-        ┌───────▼──────┐ ┌────▼─────────┐
-        │Agent Harness │ │ Test Runner   │
-        │Codex         │ │Docker        │
-        │Claude Code   │ │Kubernetes    │
-        │Pi / ...      │ │Remote SIT    │
-        └──────────────┘ └──────────────┘
+              SUT 既有测试框架 / 环境 / CI
+
+兼容分支：旧受管 / interactive Run → 既有 Harness / Runner
+          只保留原 OFFICIAL / Evidence / Gate / 历史语义
 ```
+
+本机 native API 是当前最小接入；上图的 Web/MCP 不意味着新 native 工具 / 页面已实现。平台保存材料及验证结论，不插入通用测试执行引擎。
 
 ---
 
@@ -158,7 +162,7 @@ ADR-016 的新执行步骤以“云端执行 / 本地执行”（`CLOUD / LOCAL`
 
 主要职责：Authentication、Project Management、Testing State CRUD、Mission Lifecycle、Policy Access、Evidence Metadata、Finding Lifecycle、Verdict、Audit。
 
-API 不直接执行 Agent，所有 Agent 工作必须进入 Run 绑定，并取得显式的 Mission 或 Run scope 授权。API 容器不安装 Provider CLI、不挂载 Host Harness Bridge socket 或 Docker socket，也不依赖宿主 Provider 认证目录。长任务、受控环境实际镜像查询/绑定、运行能力检查及取消后的外部资源清理，交由具备相应权限的 Task Worker / Runner 组件处理；API 读取其受控结果并按领域规则冻结输入，不能用镜像 tag 或缓存配置冒充实际 image ID。已有同步 direct 执行和宿主检查入口需要迁移，不属于此目标形态的保留接口。
+API 不直接执行 Agent。旧 managed / interactive profile 的所有 Agent 工作必须进入原 Run 绑定并取得 Mission / Run scope 授权；native profile 通过 §43 / 领域 §49 的独立 Operator 与私有 writer capability 管理贡献，不伪造旧 Binding。API 容器不安装 Provider CLI、不挂载 Host Harness Bridge socket 或 Docker socket，也不依赖宿主 Provider 认证目录。长任务、受控环境实际镜像查询/绑定、运行能力检查及取消后的外部资源清理，交由具备相应权限的 Task Worker / Runner 组件处理；API 读取其受控结果并按领域规则冻结输入，不能用镜像 tag 或缓存配置冒充实际 image ID。已有同步 direct 执行和宿主检查入口需要迁移，不属于此目标形态的保留接口。
 
 请求校验失败的 HTTP 422 仅返回错误的 `type`、`loc`、`msg`；不回显 `input`、validator `ctx` 或原请求 body，避免把提交中的凭据和 PRD 放入表单错误响应。此约束不等于所有日志已全面脱敏，持久化边界见领域模型 §9。
 
@@ -197,14 +201,16 @@ Mission
 MissionAttempt
 MissionProposal
 AgentSession
-RunExecutionBinding  # Operational State，非质量事实链
+RunExecutionBinding  # legacy Operational State，非质量事实链
+NativeTestRun / NativeCase / NativeExecutionRecord / NativeMaterial
+NativeVerification / NativeConclusion / NativeContributor / NativeHandoff
 ```
 
 详细字段、关系、生命周期和数据库约束以 `docs/domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md` 为准。
 
 ---
 
-## 10. SourceSnapshot
+## 10. Legacy SourceSnapshot
 
 一次 TestRun 必须绑定不可变 SourceSnapshot，至少固定 Repository、完整 Commit SHA、PRD Hash、Configuration Hash、Environment Definition。feat / MR 编号、分支名和 URL 是来源参考；正式测试对象始终是创建时解析并固定的精确 SHA，MR 更新后创建新测试任务，不能改写原 Snapshot。
 
@@ -230,7 +236,7 @@ Repository origin 的身份不得包含 HTTP(S) userinfo 或可解析 URL 的 pa
 
 ---
 
-## 11. TestRun
+## 11. Legacy TestRun
 
 TestRun 是用户可见的一个测试任务：一个 SUT 对应一个长期 Project，一个 feat / MR 的精确 SHA 的一次测试轮次对应一个 TestRun。TestRun 绑定 SourceSnapshot 和 PolicySnapshot，固定 PRD、配置、环境与策略，并拥有 CREATED、ANALYZING、DESIGNING、IMPLEMENTING、EXECUTING、DIAGNOSING、VERIFYING、COMPLETED、BLOCKED、CANCELLED 等运行状态。同一 SHA 可显式创建多个独立测试轮次；禁止以 `(project, SHA)` 唯一约束吞掉复测历史。
 
@@ -428,7 +434,7 @@ Codex 的真实 thread.started 引用与 HyperTest 自有 AgentSession ID 分离
 
 ---
 
-## 18. AgentSession
+## 18. Legacy AgentSession
 
 HyperTest 维护自己的 AgentSession ID；Provider Session 只是外部引用。
 
@@ -461,9 +467,9 @@ Agent Context 不应该等于整个数据库 Dump。Context Compiler 根据 Miss
 
 ---
 
-## 20. Workspace
+## 20. Legacy 受管 Workspace
 
-每个 TestRun 绑定一个隔离、持续的受控 Agent Workspace，供所选 Harness 节点的主 Session 在完整周期中使用；平台 Worker 通过受控引用治理它：
+每个旧 managed / interactive TestRun 绑定一个隔离、持续的受控 Agent Workspace，供所选 Harness 节点的主 Session 在完整周期中使用；平台 Worker 通过受控引用治理它：
 
 ```text
 /workspace
@@ -499,7 +505,7 @@ Workspace 需要区分固定源码、可写的生成/临时目录和已接受 Ar
 
 ---
 
-## 21. 运行中领域 MCP 与交互式 MCP 入口
+## 21. Legacy 运行中领域 MCP 与交互式 MCP 入口
 
 运行中领域 MCP / typed domain tools 是 v0.4 自驱工作流的工具契约，本分支已在 `hypertest.tmp/v1alpha2` 与 `run-persistent-harness/v1` profile 实现，不能按现有 `v1alpha1` 消息直接改变语义。此工具面供受平台绑定和执行授权的任务主 Harness 使用；ADR-016 的普通交互客户端只有提交 / 读取能力，当前本地 Agent 经显式绑定和有效短期执行授权后，才可在同一 Run 范围内复用该领域工具面。Harness 使用 `request_mission` / `complete_mission` 顺序推进阶段并提交 Proposal batch，使用 `request_execution` 申请可信 Runner，通过 `get_state` 读取正式事实继续诊断，最后通过 `evaluate_gate` 和 `submit_report` 请求判定并提交报告。平台保留工具准入、Schema/Policy/关系校验、事务提交及审计；不在工具实现中重建通用 Agent Loop。报告不引入新的 Mission Type，也不替代 Canonical State 或 Verdict。
 
@@ -584,9 +590,9 @@ v0.2 DESIGN_TESTS 使用确定性 schema / reference / source snapshot / fingerp
 
 ---
 
-## 24. Runner Controller
+## 24. Legacy Runner Controller
 
-正式 Execution 不能通过 Agent Shell 直接成为系统事实。
+旧 OFFICIAL Execution 不能通过 Agent Shell 直接成为系统事实。新 native 路径按 §43 接收未验证原生材料，不调用这个 Controller，也不因此产生正式 Evidence。
 
 ```text
 Agent
@@ -605,7 +611,7 @@ v0.4 Runner Controller / 执行组件在授权 Task Worker 一侧接收领域请
 
 ---
 
-## 25. ExecutionSpec
+## 25. Legacy Runner ExecutionSpec
 
 ExecutionSpec 至少固定 execution_id、source_commit、environment、framework、targets、timeout、collect 等字段，并计算不可变 SHA256。
 
@@ -613,11 +619,9 @@ ExecutionSpec 至少固定 execution_id、source_commit、environment、framewor
 
 ---
 
-## 26. Runner Backend
+## 26. Legacy Runner Backend
 
-统一抽象 `RunnerBackend`，实现 DockerRunner、KubernetesRunner、SSHRunner、ExistingEnvironmentRunner。
-
-多节点负载出现时可选择 Kubernetes Job 或其他受控执行节点；容器化首版不依赖 Kubernetes，也不把 Harness 会话改成短期 Agent Job。Runner 可以有不同后端，但同一 Run 的任务编排仍为单 Worker / 单主会话串行模型。
+既有 `RunnerBackend` / DockerRunner / LocalRunner 仅为已交付 legacy 执行路径。旧草案的 KubernetesRunner、SSHRunner、ExistingEnvironmentRunner 矩阵不再是产品演进承诺；新项目复用其原生框架 / CI，平台按真实报告需要接入材料与来源核验。新路径不把 Agent 包装成 Runner，也不以增加语言镜像或 SUT 启动器补齐职责差异。
 
 MVP 提供 DockerRunner 与显式开启的 LocalRunner。DockerRunner 使用预构建 Python/pytest 镜像，并记录解析出的 image ID；禁用网络、只读根文件系统、非 root、移除 capabilities、限制资源。执行时不安装依赖。LocalRunner 仅用于受控开发环境，需 `HYPERTEST_RUNNER_ALLOW_LOCAL=true`，不是安全沙箱。
 
@@ -629,15 +633,15 @@ API profile 的可信 launcher 在同一 Docker 容器内启动单个 ASGI SUT�
 
 ---
 
-## 27. Evidence Collector
+## 27. Legacy Runner Evidence Collector
 
-Runner 执行完成不能只返回 PASS / FAIL，必须输出 Execution Metadata、Command、Exit Code、JUnit、Stdout、Stderr、Logs、Metrics、Traces、Screenshots、Artifacts。
+旧 Runner 执行完成不能只返回 PASS / FAIL，必须输出 Execution Metadata、Command、Exit Code、JUnit、Stdout、Stderr、Logs、Metrics、Traces、Screenshots、Artifacts。
 
 PostgreSQL 保存 Evidence Metadata、Hash、URI、Relations。首版继续使用持久的本地内容寻址 Artifact Store，并在 API / Worker 中保持一致绝对路径；S3 / MinIO / Object Storage 是后续有独立需求时的迁移选项，不是容器化前提。
 
 ---
 
-## 28. Evidence Integrity
+## 28. Legacy Evidence Integrity
 
 Evidence 至少记录 SHA256、Source Execution、Source Commit、Environment ID、Created At、Collector、Content Type。
 
@@ -667,7 +671,7 @@ Gate 采用 deterministic-first。示例：Requirement Coverage = 100%，P0 Risk
 
 最终 Verdict 必须尽量可解释。
 
-当前 `canonical-gate/v1` 是确定性 Policy 组件。它要求完整识别/设计覆盖、每个 ACTIVE Case 最新 OFFICIAL 事实匹配 Commit 且通过、可信 VERIFIED metadata + JUnit Artifact，以及没有阻断级 confirmed PRODUCT_DEFECT。默认 BLOCKER / CRITICAL 阻断，可配置其他 FindingSeverity，BLOCKER 不可移除。缺失事实为 BLOCKED，失败为 RELEASE_BLOCKED，完整满足为 RELEASE_READY。评估记录规范化 State hash、Evidence manifest hash 和关系，重复状态评估幂等，变化追加新 Verdict；FINAL 内容由数据库 Trigger 保护。
+旧 `canonical-gate/v1` 是确定性 Policy 组件；它不读取 native 表或把新材料升级为 VERIFIED。native Gate 当前只允许 UNKNOWN/BLOCKED，见 §43。它要求完整识别/设计覆盖、每个 ACTIVE Case 最新 OFFICIAL 事实匹配 Commit 且通过、可信 VERIFIED metadata + JUnit Artifact，以及没有阻断级 confirmed PRODUCT_DEFECT。默认 BLOCKER / CRITICAL 阻断，可配置其他 FindingSeverity，BLOCKER 不可移除。缺失事实为 BLOCKED，失败为 RELEASE_BLOCKED，完整满足为 RELEASE_READY。评估记录规范化 State hash、Evidence manifest hash 和关系，重复状态评估幂等，变化追加新 Verdict；FINAL 内容由数据库 Trigger 保护。
 
 多个 TestRun 共享同一 SourceSnapshot 的 Canonical 分析 / 设计 / Implementation 状态。Gate 在 TestRun 锁之后持有 SourceSnapshot `FOR UPDATE`，覆盖读取、决策与 Hash 序列化处于一致的快照范围；Verifier 提交与 Runner 共享 Implementation 更新使用同一锁，不跨实际测试执行持有快照锁。State Hash 绑定既有 Gate rule version、Canonical 输入、Artifact integrity 与 computed decision；重用 Verdict 还要求 decision 和 Evidence manifest 相同，不能让矛盾的历史决策命中旧缓存。规则版本仍为 `canonical-gate/v1`，旧 FINAL 记录保持不变。
 
@@ -759,7 +763,7 @@ Agent 默认不能看到非 Mission 必需的 Secret；Secret 按 Mission / Exec
 
 ---
 
-## 38. 服务器基线与双模式目标部署
+## 38. Legacy 服务器基线与双模式部署
 
 下图保留 ADR-013 已实现的 `SERVER_HOST` 单宿主机拓扑。ADR-015 的本地扩展见 §38.4，不改变服务器平台与可信 Runner 的位置：
 
@@ -852,17 +856,17 @@ flowchart TB
 
 `LOCAL + INTERACTIVE_MCP` 由图中当前 Agent 直接完成智能工作，经上方 MCP 链获取 Mission、提交 Proposal 并读取 Runner 事实；平台 coordinator 不再走下方 WSS / UDS 派生另一个 Harness。API 只接收 / 入账请求，Worker 在原 Job 中消费九工具并调用可信 Runner；下方两个 Harness 箭头仅属原 `PLATFORM_MANAGED` 路径。查询客户端可以与执行节点不同，但本地执行绑定必须匹配可信宿主身份和所选节点，不共享身份或权限推导。新 API 沿用受保护入口、TLS、VPN / 白名单与速率 / 响应上限，不扩大现有 SSH 或公网边界。安装包、MCP 能力和新 API 契约独立协商；当前隔离真实核心周期已独立登记，新增 `0019` / `0020` migration 已在本次生产发布应用，迁移、线上核心周期与历史保全分别见[生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)。
 
-## 39. 并发与多节点演进
+## 39. Legacy 并发与多节点边界
 
 扩容单元是独立 TestRun。每个 SUT Project 可以有多个 feat / MR SHA 的 Run，同一 SHA 的显式复测也独立记录；各 Run 分别使用一个逻辑 Worker、一个持续主 Session 和隔离 Workspace。首版在同一宿主机增加 Task Worker 实例，受 Harness Provider/账号配额、CPU/内存和 Runner 容量共同限制。
 
 ADR-015 将 Harness 节点登记、认证、受控传输、容量和 Workspace/Session 亲和性定义为 v0.5 本地 Connector 实现；它不使用户设备自动成为可信 Runner 节点。调度按用户已选模式/节点建立首次绑定，后续执行与人工恢复路由回原节点；原会话或工作区不可达时进入可观察阻断，不向另一台机器静默创建新 Session。更换模式、节点或 Provider 须新 Run。这些能力已通过隔离回归；生产已部署，线上核心周期已通过。隔离真实本地 Codex 正反周期和同会话断线恢复已按 ADR-015 单独记录，不从既有宿主恢复结果或源码接收结果推定通过。
 
-Kubernetes 可以在有需求时承载平台或 Runner，而宿主 Harness 仍通过受控 Bridge 托管。本文替代原先“一次 TestRun 派生 N Agent Jobs、Agent Workspace 独立短期容器”的目标；不把 Run 内多 Worker / 多主 Session 作为未来扩容前提。若未来改变串行持续会话模型，需要新的 ADR 和领域/协议版本。
+平台基础设施的扩容可在有需求时另行决策，不为 native 场景扩展 Runner backend。ADR-013 替代原先“一次 TestRun 派生 N Agent Jobs”的 legacy 目标；ADR-017 为新 native profile 明确顺序贡献者交接，仍不允许并发 writer，也不改变旧受管 Session。
 
 ---
 
-## 40. 实现状态与验收边界
+## 40. Legacy 实现状态与验收边界
 
 v0.3 历史兼容路径已有 CodexAdapter、Python/pytest、DockerRunner、受控 ASGI profile，以及 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding / Verdict 闭环。v0.4 保留其 Canonical 事实与历史语义，新增持续会话边界；目标仍是验证 Testing Semantic Chain，而非仅验证 Agent 能生成测试。
 
@@ -919,7 +923,7 @@ scope / TTL / 精确设备撤权、旧 epoch、原子提交 / 并发幂等、未
 - **ADR-002** Agent Harness 必须可替换。
 - **ADR-003** Agent Output 默认是 Proposal。
 - **ADR-004** Agent Conversation 不是 Canonical State。
-- **ADR-005** 正式 Test Execution 只能由受控 Runner 产生。
+- **ADR-005** 旧正式 TestExecution / OFFICIAL 仅由受控 Runner 产生；ADR-017 新 native profile 独立接收执行材料，来源与质量不足时 UNKNOWN/BLOCKED，不重解释旧 Evidence。
 - **ADR-006** Verdict 必须基于 Policy + Canonical State + Evidence。
 - **ADR-007** BUGate 保持 Stateless。
 - **ADR-008** HyperTest orchestrates Testing Missions, not model reasoning.
@@ -934,7 +938,7 @@ scope / TTL / 精确设备撤权、旧 epoch、原子提交 / 并发幂等、未
 
 ---
 
-## 42. 最终技术定义
+## 42. Legacy 技术定义（ADR-013/015/016）
 
 ```text
 Project（SUT）
@@ -956,3 +960,25 @@ TestRun（feat/MR 的精确 SHA + 冻结输入/Policy + 一次测试轮次）
 ```
 
 HyperTest 复用 Harness 的智能与 Agent Loop，维护测试输入、结构化状态、执行信任、策略决策和长期历史，成为可靠的软件测试控制平面。
+
+## 43. ADR-017 原生框架接入组件与最小闭环
+
+```text
+HyperTest Project → NativeTestRun / 固定计划 / Case Proposal → Verifier 接受
+                         ↓ 下发范围与只读已有状态
+受授权 Agent → 项目已有脚本 / Maven / CI → 原始报告 / 日志 / 进程观察
+                         ↓ 有界材料提交，不调用平台 Runner
+NativeExecutionRecord / NativeMaterial → NativeVerification
+                         ↓ provenance=UNVERIFIED
+Native Gate → UNKNOWN / BLOCKED → 原始材料与结论引用
+                         ↓ Operator 显式 handoff，换私有 writer capability
+后续 contributor → 读取原计划 / 状态 / 原件 → 顺序继续，旧 key 失效
+```
+
+首版组件复用现有 FastAPI、PostgreSQL、Artifact Store、Audit / transactional outbox；native API 只登记、校验和评估，不运行 shell / Docker、不安装依赖、不启动 SUT、不新建调度队列或自研 Agent Loop。Agent 在实际工程环境使用项目原框架配置，平台记录实现引用而非强制 code/codegen/pytest。独立本机客户端提供私有意图 journal、key 查询和材料传输，不是测试执行器。
+
+NativeTestRun / Plan 当前一对一，以新表 / profile 与旧 TestRun ID 分离，二者共享 Project 长期身份。原始 Plan/Case Proposal 与接受结果冻结在根记录；执行 / case / material / verification / conclusion / handoff 使用受约束关系。该切片取得可审计的管理闭环，不宣称已完成旧 Requirement/Risk 语义覆盖或可信 Evidence / 发布通过。具体表、关系和状态见领域 §49，请求见 TMP §44。
+
+所有管理调用仍需 Operator 授权；非管理写另需当前 run/generation 私有 capability，body contributor/session label 只是归属元数据。handoff 由 Operator 显式确认，在同事务中递增 generation、切换贡献者与 capability；旧 writer key 不因读取新 generation 复活。新 key 一次交付，响应丢失只对账，不能 GET 恢复秘密或自动重签。平台只隔离 API 写入，不把会话标签解释成真实 Provider 连续性或任意聊天的生命周期控制。
+
+本轮原生材料仅在本机明确配置的隔离 PostgreSQL / Artifact Store 保存；不默认上传源代码、JAR 或认证。独立来源核验、可信 CI 接入、native PASS、Web/MCP 和生产部署仍需后续实现及单独验收；验收要求由 ADR-017 §8 约束。旧 Runner 只承担 legacy 兼容与历史职责，不继续扩展 Kubernetes/SSH/backend 矩阵来替代原生项目工具链。

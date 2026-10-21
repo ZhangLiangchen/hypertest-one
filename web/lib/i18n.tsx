@@ -33,6 +33,7 @@ const labels: Record<string, [string, string]> = {
   RELEASE_READY: ["Ready for release", "可发布"], RELEASE_BLOCKED: ["Release blocked", "阻止发布"],
   RETEST_REQUIRED: ["Retest required", "需要复测"], RISK_ACCEPTED: ["Risk accepted", "已接受风险"],
   DRAFT: ["Draft", "草稿"], FINAL: ["Final", "正式结论"], REVOKED: ["Revoked", "已撤销"],
+  IN_PROGRESS: ["In progress", "进行中"],
   NEW: ["New", "待分诊"], TRIAGED: ["Triaged", "已分诊"], INVALID: ["Invalid", "无效"],
   CONFIRMED: ["Confirmed", "已确认"], RESOLVED: ["Resolved", "已解决"],
   CLOSED: ["Closed", "已关闭"], REOPENED: ["Reopened", "已重开"],

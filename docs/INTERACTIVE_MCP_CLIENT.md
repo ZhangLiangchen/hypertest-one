@@ -1,5 +1,8 @@
 # Interactive Agent MCP client
 
+Current Codex task/case/report management uses the two scoped synchronization tools described in [Codex session task sync](CODEX_SESSION_TASK_SYNC.md). Distribution version `0.2.0` adds this management interface; its `task:sync` grant does not require the legacy execution setup below. Existing releases and controlled execution records retain their own identities.
+
+
 The ADR-016 API/Worker core is deployed at
 `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`, and its controlled current-Agent cycle
 is verified; acceptance scope and recovery evidence are recorded in

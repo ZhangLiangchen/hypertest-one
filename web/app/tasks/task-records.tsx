@@ -1,0 +1,87 @@
+"use client";
+
+import { Descriptions, Empty, Space, Table, Tag, Typography } from "antd";
+
+import { useI18n } from "@/lib/i18n";
+import type { ReportedResult, SessionCaseRevision, SessionReportRevision, SessionTaskDetail } from "@/lib/types";
+
+export function ReportedResultTag({ result }: { result: ReportedResult }) {
+  const { label } = useI18n();
+  return <Tag color={result === "PASS" ? "green" : ["FAIL", "ERROR"].includes(result) ? "red" : ["BLOCKED", "UNKNOWN"].includes(result) ? "gold" : undefined}>{label(result)}</Tag>;
+}
+
+function CaseContent({ item }: { item: SessionCaseRevision }) {
+  const { t } = useI18n();
+  return <div className="session-case-content">
+    <p className="muted">{t("Sync source", "同步来源")}: {item.source} · {t("Revision", "修订")} {item.revision} · {t("Task version", "任务版本")} {item.task_version}</p>
+    <Typography.Title level={5}>{t("Steps", "测试步骤")}</Typography.Title>
+    {item.steps.length ? <ol>{item.steps.map((step, index) => <li key={index}>{step}</li>)}</ol> : <p className="muted">{t("No steps supplied.", "未提供步骤。")}</p>}
+    <Typography.Title level={5}>{t("Expected result", "预期结果")}</Typography.Title><p className="session-literal">{item.expected || t("Not supplied", "未提供")}</p>
+    <Typography.Title level={5}>{t("Codex reported observation", "Codex 报告观察")}</Typography.Title><p className="session-literal">{item.actual || t("Not supplied", "未提供")}</p>
+    {item.implementation_ref ? <p>{t("Test implementation reference", "测试实现引用")}: <span className="session-literal">{item.implementation_ref}</span></p> : null}
+  </div>;
+}
+
+function ReportContent({ item }: { item: SessionReportRevision }) {
+  const { t, formatDate } = useI18n();
+  return <div className="session-report-content">
+    <Space wrap><ReportedResultTag result={item.reported_result} /><span>{t("Revision", "修订")} {item.revision}</span><span>{t("Task version", "任务版本")} {item.task_version}</span><span>{formatDate(item.created_at)}</span><Typography.Text copyable={{ text: item.markdown }}>{t("Copy original report", "复制原始报告")}</Typography.Text></Space>
+    <p className="session-literal muted">{t("Sync source", "同步来源")}: {item.source}{item.source_ref ? ` · ${item.source_ref}` : ""}</p>
+    {item.artifact_uri ? <p className="session-literal muted">{t("Original artifact reference", "原始产物引用")}: {item.artifact_uri}</p> : null}
+    <pre className="artifact-content session-markdown" aria-label={t("Original Markdown report", "原始 Markdown 报告")}>{item.markdown}</pre>
+  </div>;
+}
+
+export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
+  const { t, label, formatDate } = useI18n();
+  const { task, cases, reports, case_history, report_history, sync_history } = detail;
+  return <>
+    <section className="data-surface session-record" aria-label={t("Task and session", "任务与会话")}>
+      <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} layout="vertical" items={[
+        { key: "status", label: t("Task status", "任务状态"), children: <Tag color={task.status === "IN_PROGRESS" ? "blue" : task.status === "BLOCKED" ? "gold" : undefined}>{label(task.status)}</Tag> },
+        { key: "result", label: t("Codex reported result", "Codex 报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
+        { key: "sync", label: t("Last synced", "最后同步"), children: formatDate(task.last_synced_at) },
+        { key: "session", label: t("Codex session", "Codex 会话"), children: <span className="entity-key">{task.session_id}</span> },
+        { key: "source", label: t("Sync source", "同步来源"), children: `${task.provider} · ${task.source}` },
+        { key: "version", label: t("Task version", "任务版本"), children: task.version },
+      ]} />
+      <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
+      <p className="session-literal">{task.objective}</p>
+      <Typography.Paragraph className="muted">{t("Synced from the Codex session. Codex performs the testing work; this page manages its records and reported results.", "内容同步自 Codex 会话。测试工作由 Codex 完成，此页面管理任务记录与报告结果。")}</Typography.Paragraph>
+    </section>
+    <section className="data-surface session-record" aria-labelledby="task-plan-heading">
+      <Typography.Title id="task-plan-heading" level={2}>{t("Test plan", "测试计划")}</Typography.Title>
+      {task.plan_markdown ? <pre className="artifact-content session-markdown">{task.plan_markdown}</pre> : <Empty description={t("No test plan has been synced.", "尚未同步测试计划。")} />}
+    </section>
+    <section className="session-task-section" aria-labelledby="task-cases-heading">
+      <Typography.Title id="task-cases-heading" level={2}>{t("Test cases", "测试用例")} ({cases.length})</Typography.Title>
+      <div className="data-surface"><Table rowKey="id" dataSource={cases} pagination={{ pageSize: 20, hideOnSinglePage: true }} scroll={{ x: 680 }} expandable={{
+        expandedRowRender: (item) => <CaseContent item={item} />,
+        expandRowByClick: true,
+      }} columns={[
+        { title: t("Case", "用例"), key: "case", render: (_, item) => <><span className="entity-key">{item.key}</span><div>{item.title}</div></> },
+        { title: t("Codex reported result", "Codex 报告结果"), dataIndex: "reported_result", width: 180, render: (result) => <ReportedResultTag result={result} /> },
+        { title: t("Revision", "修订"), dataIndex: "revision", width: 80 },
+        { title: t("Synced", "同步时间"), dataIndex: "created_at", width: 190, render: formatDate },
+      ]} locale={{ emptyText: t("No cases have been synced.", "尚未同步测试用例。") }} /></div>
+      <details className="session-history"><summary>{t("Case revision history", "用例修订历史")} ({case_history.length})</summary>
+        {case_history.map((item) => <details key={item.id} className="session-revision"><summary>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /> · {formatDate(item.created_at)}</summary><CaseContent item={item} /></details>)}
+      </details>
+    </section>
+    <section className="session-task-section" aria-labelledby="task-reports-heading">
+      <Typography.Title id="task-reports-heading" level={2}>{t("Original test reports", "原始测试报告")} ({reports.length})</Typography.Title>
+      {reports.length ? reports.map((item) => <article key={item.id} className="data-surface session-record"><Typography.Title level={3}>{item.title}</Typography.Title><span className="entity-key">{item.key}</span><ReportContent item={item} /></article>) : <div className="data-surface session-task-empty"><Empty description={t("No reports have been synced.", "尚未同步测试报告。")} /></div>}
+      <details className="session-history"><summary>{t("Report revision history", "报告修订历史")} ({report_history.length})</summary>
+        {report_history.map((item) => <details key={item.id} className="session-revision"><summary>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /></summary><ReportContent item={item} /></details>)}
+      </details>
+    </section>
+    <section className="session-task-section" aria-labelledby="task-sync-heading">
+      <Typography.Title id="task-sync-heading" level={2}>{t("Sync history", "同步历史")}</Typography.Title>
+      {sync_history.length ? <ol className="session-sync-history">{sync_history.map((receipt) => <li key={receipt.id}>
+        <Space wrap><strong>{t("Task version", "任务版本")} {receipt.task_version}</strong><span>{formatDate(receipt.created_at)}</span></Space>
+        <p className="session-literal muted">{t("Submitted by", "提交来源")}: {receipt.actor_ref}</p>
+        <details><summary>{t("Task at this sync", "本次同步的任务内容")}</summary><pre className="artifact-content">{JSON.stringify(receipt.task_snapshot, null, 2)}</pre></details>
+      </li>)}</ol> : <Empty description={t("No sync history is available.", "暂无同步历史。")} />}
+    </section>
+  </>;
+}

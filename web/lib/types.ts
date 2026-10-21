@@ -10,6 +10,71 @@ export type Project = {
   updated_at: string;
 };
 
+export type SessionTaskStatus = "DRAFT" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "CANCELLED";
+export type ReportedResult = "NOT_RUN" | "PASS" | "FAIL" | "ERROR" | "SKIPPED" | "UNKNOWN" | "BLOCKED";
+export type SessionTask = {
+  id: string;
+  project_id: string;
+  provider: string;
+  session_id: string;
+  title: string;
+  objective: string;
+  plan_markdown: string;
+  status: SessionTaskStatus;
+  reported_result: ReportedResult;
+  version: number;
+  source: string;
+  created_at: string;
+  last_synced_at: string;
+};
+export type SessionCaseRevision = {
+  id: string;
+  task_id: string;
+  key: string;
+  title: string;
+  steps: string[];
+  expected: string;
+  actual: string;
+  reported_result: ReportedResult;
+  implementation_ref?: string | null;
+  revision: number;
+  task_version: number;
+  source: string;
+  created_at: string;
+};
+export type SessionReportRevision = {
+  id: string;
+  task_id: string;
+  key: string;
+  title: string;
+  markdown: string;
+  artifact_uri?: string | null;
+  source_ref?: string | null;
+  reported_result: ReportedResult;
+  revision: number;
+  task_version: number;
+  source: string;
+  created_at: string;
+};
+export type SessionSyncReceipt = {
+  id: string;
+  task_id: string;
+  task_version: number;
+  idempotency_key: string;
+  actor_ref: string;
+  created_at: string;
+  task_snapshot: SessionTask;
+};
+export type SessionTaskDetail = {
+  task: SessionTask;
+  cases: SessionCaseRevision[];
+  reports: SessionReportRevision[];
+  case_history: SessionCaseRevision[];
+  report_history: SessionReportRevision[];
+  sync_history: SessionSyncReceipt[];
+};
+export type SessionTaskList = { items: SessionTask[]; total: number; limit: number; offset: number };
+
 export type TestRun = {
   id: string;
   key: string;

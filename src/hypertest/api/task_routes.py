@@ -1,0 +1,107 @@
+"""ADR-018 scoped sync API plus read-only management views for the existing Web boundary."""
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from hypertest.api.interactive_routes import bearer, controlled_errors
+from hypertest.api.task_schemas import SessionTaskSync
+from hypertest.application import interactive
+from hypertest.application import session_tasks as service
+from hypertest.connector.security import require_operator
+from hypertest.db.session import get_db
+from hypertest.domain.interactive import (
+    InteractiveActorIdentity,
+    InteractiveClientRegistration,
+    InteractiveIntegrationGrant,
+)
+
+router = APIRouter(tags=["session-task-management"])
+
+
+async def identity(request, db, project_id, authorization, operator_key, *, lock_authority=False):
+    if operator_key is not None:
+        actor = await require_operator(operator_key)
+        return "operator:" + actor, True
+    token = bearer(request, authorization)
+    grant = await interactive.authenticate(db, token, "task:sync", project_id=project_id)
+    if lock_authority:
+        # Match the existing authority lock order. Hold shared locks through the
+        # write transaction so revoke cannot complete ahead of a later commit.
+        for model, predicates in (
+            (InteractiveActorIdentity, [InteractiveActorIdentity.id == grant.actor_identity_id]),
+            (InteractiveClientRegistration, [
+                InteractiveClientRegistration.actor_identity_id == grant.actor_identity_id,
+                InteractiveClientRegistration.client_instance_id == grant.client_instance_id,
+            ]),
+            (InteractiveIntegrationGrant, [InteractiveIntegrationGrant.id == grant.id]),
+        ):
+            await db.scalar(select(model).where(*predicates).with_for_update(read=True)
+                            .execution_options(populate_existing=True))
+        grant = await interactive.authenticate(db, token, "task:sync", project_id=project_id)
+    return "interactive:" + str(grant.actor_identity_id), False
+
+
+@router.post("/interactive/tasks/sync")
+@controlled_errors
+async def sync(payload: SessionTaskSync, request: Request,
+               authorization: str | None = Header(default=None),
+               x_hypertest_operator_key: str | None = Header(default=None),
+               db: AsyncSession = Depends(get_db)):
+    actor, operator = await identity(request, db, payload.project_id, authorization, x_hypertest_operator_key)
+    authority_locked = False
+
+    async def recheck_authority():
+        nonlocal authority_locked
+        current = await identity(request, db, payload.project_id, authorization,
+                                 x_hypertest_operator_key, lock_authority=not authority_locked)
+        if current != (actor, operator):
+            raise HTTPException(403, "Task synchronization authorization changed")
+        authority_locked = True
+
+    return await service.sync_task(db, payload, actor, operator=operator,
+                                   authorization_check=recheck_authority)
+
+
+@router.get("/interactive/tasks/by-session")
+@controlled_errors
+async def by_session(request: Request, project_id: UUID, provider: str, session_id: str,
+                     version: int | None = Query(default=None, ge=1),
+                     offset: int = Query(default=0, ge=0),
+                     limit: int = Query(default=24_000, ge=1, le=24_000),
+                     authorization: str | None = Header(default=None),
+                     x_hypertest_operator_key: str | None = Header(default=None),
+                     db: AsyncSession = Depends(get_db)):
+    actor, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.by_session(db, project_id, provider, session_id, actor, operator=operator,
+                                    version=version, offset=offset, limit=limit)
+
+
+@router.get("/interactive/tasks/syncs/by-key")
+@controlled_errors
+async def receipt(request: Request, project_id: UUID, idempotency_key: str,
+                  authorization: str | None = Header(default=None),
+                  x_hypertest_operator_key: str | None = Header(default=None),
+                  db: AsyncSession = Depends(get_db)):
+    actor, _ = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.receipt_view(db, project_id, actor, idempotency_key)
+
+
+# These read routes deliberately follow existing /projects and /test-runs Web
+# deployment access controls. They never expose the Operator or grant token.
+@router.get("/tasks")
+async def tasks(project_id: UUID, limit: int = Query(default=50, ge=1, le=100),
+                offset: int = Query(default=0, ge=0), db: AsyncSession = Depends(get_db)):
+    return await service.list_tasks(db, project_id, limit=limit, offset=offset)
+
+
+@router.get("/tasks/{task_id}")
+async def detail(task_id: UUID, version: int | None = Query(default=None, ge=1),
+                 db: AsyncSession = Depends(get_db)):
+    return await service.get_task(db, task_id, version=version)
+
+
+@router.get("/tasks/{task_id}/reports/{report_id}")
+async def report(task_id: UUID, report_id: UUID, db: AsyncSession = Depends(get_db)):
+    return await service.read_report(db, task_id, report_id)

@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     connector_allow_insecure_loopback: bool = False
     interactive_grant_ttl_seconds: int = Field(default=120, ge=10, le=120)
     interactive_bind_grace_seconds: int = Field(default=120, ge=10, le=300)
+    # ADR-017 is independently enabled for explicitly approved Project keys.
+    native_intake_enabled: bool = False
+    native_project_keys: list[str] = Field(default_factory=list)
 
 
 @lru_cache

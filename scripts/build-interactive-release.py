@@ -37,9 +37,10 @@ def install_instructions(manifest: dict) -> str:
 
 Source commit: `{manifest['source_commit']}`. Release tag: `{manifest['release_tag']}`.
 This file describes a fixed build; a locally built asset is not proof of publication.
-Use Python 3.12+ on macOS or Linux. Generic stdio hosts can submit/read and request
-CLOUD execution. Current-Agent LOCAL execution additionally requires the controlled
-Codex Desktop adapter; registration does not prove the active native session.
+Use Python 3.12+ on macOS or Linux. The session management tools synchronize
+tasks, cases and reports using a narrow task:sync grant; they do not execute tests.
+Legacy submit/read/CLOUD tools remain separate. Current-Agent LOCAL execution
+still requires the controlled Codex Desktop adapter.
 
 Download this exact release wheel over HTTPS; do not install a moving branch,
 `latest`, an unverified script, or an unrelated PyPI package:
@@ -69,7 +70,15 @@ version, source commit, size, supported hosts and profile. `SHA256SUMS` covers t
 wheel, manifest and this file. Compare against the independently selected release;
 a checksum downloaded from an untrusted location is not independent authorization.
 
-Next use the Project's **Create test run → My computer → MCP setup** instructions.
+For session management, follow the fixed-source documentation:
+https://github.com/{REPOSITORY}/blob/{manifest['source_commit']}/docs/CODEX_SESSION_TASK_SYNC.md
+The administrator supplies a private project-scoped task:sync token file; the Agent
+never receives an Operator key. Use the bundled session-sync.config.example.json
+with private absolute paths and trusted HTTPS. No device pairing, source upload,
+execution binding or Runner is required. Run acceptance in the authorized test
+environment and reconcile lost write responses by reading the original key.
+
+For legacy controlled execution, use **Create test run → My computer → MCP setup**.
 The administrator provides the existing device-management Operator key through a
 private owned 0600 file or an interactive secret prompt. Keep it out of Agent chat,
 MCP arguments, command arguments, generated client snippets and logs. The local
@@ -134,6 +143,7 @@ def build(args: argparse.Namespace) -> dict:
                         "hypertest/interactive_client/mcp_server.py",
                         "hypertest/interactive_client/setup.py",
                         "hypertest/interactive_client/assets/config.example.json",
+                        "hypertest/interactive_client/assets/session-sync.config.example.json",
                         "hypertest/interactive_client/assets/mcp.example.json",
                         "hypertest/interactive_client/assets/hypertest-interactive/SKILL.md"}
             if not required <= names:
@@ -153,7 +163,7 @@ def build(args: argparse.Namespace) -> dict:
                     "download_base_url": base, "profile": PROFILE,
                     "requires_python": project["requires-python"],
                     "supported_operating_systems": ["macOS", "Linux"],
-                    "generic_stdio_capabilities": ["task:submit", "run:read", "evidence:read", "report:read", "CLOUD"],
+                    "generic_stdio_capabilities": ["task:sync", "task:submit", "run:read", "evidence:read", "report:read", "CLOUD"],
                     "local_execution_adapter": "codex-desktop-stdio/v1",
                     "wheel": {"filename": wheel_path.name, "sha256": digest(raw), "size_bytes": len(raw)}}
         assets = {wheel_path.name: raw,

@@ -1,5 +1,8 @@
 # HyperTest One
 
+Codex 会话中的测试任务、计划、用例和原始报告可通过 [Session Task MCP 同步](docs/CODEX_SESSION_TASK_SYNC.md)保存到 HyperTest One。一个实际会话对应一个任务；Agent 使用被测项目已有框架执行测试，平台负责管理、读取和版本历史。该入口使用独立 `task:sync` 授权，保留已有受管执行路径与历史。
+
+
 > **One Input. One Mission. One Complete Test Cycle.**
 
 HyperTest One is an autonomous testing control plane with a state-centered Web workbench. It governs the complete supported testing cycle:

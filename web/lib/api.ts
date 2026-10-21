@@ -2,6 +2,7 @@ import type {
   RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingHistory, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
+  SessionTaskDetail, SessionTaskList, SessionReportRevision,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 
@@ -107,6 +108,12 @@ export const resolveSource = (payload: { repository_url: string; revision: strin
 export const getProject = (projectId: string) => api<Project>(`/projects/${projectId}`);
 export const getProjectRuns = (projectId: string) =>
   api<TestRun[]>(`/projects/${projectId}/test-runs`);
+export const getProjectTasks = (projectId: string, offset = 0, limit = 20) =>
+  api<SessionTaskList>(`/tasks?project_id=${encodeURIComponent(projectId)}&limit=${limit}&offset=${offset}`);
+export const getSessionTask = (taskId: string, version?: number) =>
+  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}${version === undefined ? "" : `?version=${version}`}`);
+export const getSessionReport = (taskId: string, revisionId: string) =>
+  api<SessionReportRevision>(`/tasks/${encodeURIComponent(taskId)}/reports/${encodeURIComponent(revisionId)}`);
 export const getRun = (runId: string) => api<TestRun>(`/test-runs/${runId}`);
 export const getRequirements = (runId: string) =>
   api<Requirement[]>(`/test-runs/${runId}/requirements`);
