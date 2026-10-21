@@ -53,6 +53,7 @@ jobs:
           import hypertest.interactive_client.setup
           assets = files("hypertest.interactive_client").joinpath("assets")
           assert json.loads(assets.joinpath("config.example.json").read_text())["api_url"]
+          assert json.loads(assets.joinpath("session-sync.config.example.json").read_text())["host_adapter"]["kind"] == "unsupported"
           assert json.loads(assets.joinpath("mcp.example.json").read_text())["mcpServers"]
           assert "name: hypertest-interactive" in assets.joinpath("hypertest-interactive/SKILL.md").read_text()
           print("Installed MCP modules and bundled assets verified")

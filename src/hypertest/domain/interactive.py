@@ -24,7 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, synonym
 from hypertest.common.ids import uuid7
 from hypertest.db.base import Base
 
-INTERACTIVE_SCOPES = frozenset({"task:submit", "run:read", "evidence:read", "report:read", "run:execute"})
+INTERACTIVE_SCOPES = frozenset({"task:submit", "task:sync", "run:read", "evidence:read", "report:read", "run:execute"})
 
 
 def utcnow() -> datetime:
@@ -62,7 +62,7 @@ class InteractiveIntegrationGrant(Base):
             ["interactive_client_registrations.actor_identity_id", "interactive_client_registrations.client_instance_id"], ondelete="RESTRICT"),
         CheckConstraint("status IN ('ACTIVE','EXPIRED','REVOKED')", name="ck_interactive_integration_status"),
         CheckConstraint("token_hash ~ '^[a-f0-9]{64}$' AND expires_at > not_before AND row_version > 0", name="ck_interactive_integration_validity"),
-        CheckConstraint("jsonb_typeof(scopes)='array' AND jsonb_array_length(scopes)>0 AND scopes <@ '[\"task:submit\",\"run:read\",\"evidence:read\",\"report:read\",\"run:execute\"]'::jsonb", name="ck_interactive_integration_scopes"),
+        CheckConstraint("jsonb_typeof(scopes)='array' AND jsonb_array_length(scopes)>0 AND scopes <@ '[\"task:submit\",\"task:sync\",\"run:read\",\"evidence:read\",\"report:read\",\"run:execute\"]'::jsonb", name="ck_interactive_integration_scopes"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     actor_identity_id: Mapped[UUID] = mapped_column(ForeignKey("interactive_actor_identities.id", ondelete="RESTRICT"))

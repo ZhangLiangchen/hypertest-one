@@ -22,6 +22,7 @@ import type { RunCreate, SourceResolution } from "@/lib/types";
 import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } from "./policy-fields";
 import type { PolicyFormValues } from "./policy-fields";
 import { HarnessFields } from "./harness-fields";
+import { ProjectSessionTasks } from "./session-tasks";
 
 type RunFormValues = PolicyFormValues & EnvironmentFormValues & {
   harness_mode?: "SERVER_HOST" | "LOCAL_CONNECTOR";
@@ -339,6 +340,10 @@ export default function ProjectPage() {
         style={{ marginBottom: 20 }}
       /> : null}
 
+      <ProjectSessionTasks projectId={params.projectId} />
+
+      <details className="session-legacy-history" open={fromRun ? true : undefined}>
+        <summary>{t("Managed test run history", "受管测试运行历史")}</summary>
       <Space wrap style={{ display: "flex", justifyContent: "space-between", marginBottom: 18 }}>
         <div>
           <Typography.Title level={3} style={{ margin: 0 }}>{t("Test runs", "测试运行")}</Typography.Title>
@@ -371,6 +376,7 @@ export default function ProjectPage() {
           </Empty>
         </Card>
       )}
+      </details>
 
       <Modal
         title={t("Create test run", "创建测试运行")}

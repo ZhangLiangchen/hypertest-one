@@ -1,0 +1,6 @@
+{
+  "api_url": "https://hypertest.example.invalid/api/v1",
+  "state_dir": "~/.config/hypertest/session-sync",
+  "integration_token_file": "~/.config/hypertest/session-sync.integration-token",
+  "host_adapter": {"kind": "unsupported"}
+}

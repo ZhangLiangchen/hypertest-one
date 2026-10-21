@@ -2,9 +2,12 @@
 
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
-**Version:** v0.6
+**Version:** v0.8
+
+**Current-stage precedence:** [ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) defines Codex session task synchronization (§45). One Codex session maps to one management task; Codex submits plans, cases and raw reports. Sync never invokes Job/Harness/Runner/Gate, requires no execution binding, source transfer or independent CI proof, and preserves reported results with their source. ADR-017 §44 and legacy execution contracts remain historical/compatible paths, not prerequisites for management sync. Transport UNKNOWN is reconciled by original key and is distinct from a report's test result.
 **Status:** Draft  
 **Owner:** HyperTest
+**Native intake decision:** [ADR-017](../architecture/ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)；新增独立业务 profile `native-framework-intake/v1alpha1`，本机 Operator 受控 typed API / 客户端，详见 §44。旧 TMP wire、九工具、MCP、Bridge / Connector 均不升级或重解释。旧 §5–43 的 Mission/Runner/Session 契约仅约束对应 legacy profile；native 的字段、准入和单 writer 能力由 §44 与领域 §49 定义。本轮不宣称新 MCP 工具、可信 CI 接入、正式 native PASS 或生产发布。
 **Accepted target decision:** [ADR-013 — Containerized Platform and Persistent Harness](../architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
 **Dual-mode implementation decision:** [ADR-015 — Dual-mode Harness and Local Connector](../architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)；Connector 契约及 `0015`—`0018` 已实现，隔离回归通过，核心隔离真实端到端验收通过，已部署生产，线上核心周期已通过，扩展故障矩阵继续逐设备登记；现有 TMP wire / profile / Host Bridge 版本保持。
 **Interactive access implementation:** [ADR-016 — Interactive Agent MCP Access](../architecture/ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)；当前分支已实现 stdio MCP / 私有 UDS / typed HTTPS、当前 Agent 绑定及原 Worker 工具 inbox，包含 `0019_interactive_mcp` / `0020_interactive_tool_inbox`；已部署生产，线上当前 Agent 核心周期已通过（2026-10-20，Asia/Singapore）。隔离 API / Worker / 数据库及真实 Docker Runner 回归已通过；真实当前 Codex Desktop Agent 的隔离端到端周期已完成，见 [ADR-016 验收记录](../ADR016_ACCEPTANCE.md)及[机器可读证据](../evidence/adr016-20261020.json)。该隔离结果不替代下段独立生产验收，不改变 ADR-015 的历史发布与验收记录。
@@ -27,13 +30,13 @@ Test Mission Protocol（TMP）定义 HyperTest 与外部 Agent Harness 之间的
 
 TMP 不定义 Agent 内部如何 reason、plan、spawn subagent、manage context、retry tools；这些属于 Agent Harness 自身能力。
 
-目标工作方式为：一个 SUT 对应一个 Project，一个 feat / MR 的固定完整 SHA 的一次测试轮次对应一个 TestRun；同一 TestRun 绑定一个逻辑任务 Worker 和一个持续主 Harness 会话，Harness 自驱串行完成分析、设计、实现、申请正式执行、诊断和报告。不同 TestRun 可以并发；不向同一 Run 派发多个任务 Worker 或并行阶段。输入仍由不可变 SourceSnapshot / PolicySnapshot 固定，不能仅按 SHA 去重而禁止显式复测。
+产品目标为：一个 SUT 对应长期 Project，HyperTest 管理计划 / 用例 / 任务 / 记录 / 证据 / 结论，Agent 调用项目已有框架 / CI。ADR-017 native 轮次按 §44 管理不可变输入与显式顺序贡献者交接；同一时刻只允许一个有效 writer。以下旧 managed / interactive TestRun 仍绑定一个逻辑任务 Worker 与持续主 Harness，使用不可变 SourceSnapshot / PolicySnapshot，自驱串行阶段并保留原会话恢复，不因新目标重解释历史。同 SHA 的显式复测仍可建立新轮次。
 
 平台服务及任务 Worker 容器化。ADR-013 已实现的 `SERVER_HOST` 模式由服务器宿主 Host Harness Bridge 托管 Harness；ADR-015 已在本分支实现 `LOCAL_CONNECTOR` 模式，由用户设备的常驻 Connector 主动连接平台并托管本地 Harness。两种模式均保留一个 Run 的主会话、原生认证与受控工作区，不能因 Worker 容器重建而丢失会话身份。模式和节点在 Run 首次绑定时固定；本地模式不绑定浏览器标签页生命周期，不因离线改派服务器。部署边界见 ADR-013 / ADR-015，绑定、租约、生命周期和持久化约束以领域模型为准。
 
 当前 `hypertest.tmp/v1alpha1` 兼容路径仍由 Web 提交 DurableJob、独立 Worker 调用 bounded Run test cycle controller，按 deterministic Planner 的 Canonical State gap 逐个启动 Mission；每次新 Attempt 创建会话，人工等待按 §29 恢复原会话。`max_steps` 限制当前平台工作单元；Job SUCCEEDED 不等于测试 PASS，Job payload 不是 Canonical State。本分支的持续会话使用 §6.1 独立协商的新 profile，不重解释旧 controller 或冻结的 v1alpha1 历史。
 
-周期先以所选 Runner 的只读 fingerprint 预检实际 daemon / 可信镜像或显式 local 启用条件，成功后才进行 Git / Agent；前后重新验证归属，预检 I/O 不持 Run / Job 行锁。失败不创建正式 Execution / Evidence，预检成功也不等于测试通过。独立 Gate-only 操作不要求 Runner。
+旧 Runner profile 的周期先以所选 Runner 的只读 fingerprint 预检实际 daemon / 可信镜像或显式 local 启用条件，成功后才进行 Git / Agent；前后重新验证归属，预检 I/O 不持 Run / Job 行锁。失败不创建正式 Execution / Evidence，预检成功也不等于测试通过。独立 Gate-only 操作不要求 Runner。
 
 `ADVANCE_RUN` 可在同一持久请求内先准备固定源 checkout（`prepare_workspace: true`），或接收已有 workspace；二者互斥。源准备是进入 Mission 之前的平台步骤，不消耗 max_steps、不产生 Agent Intelligence。Git I/O 不持有 Run / Job 行锁；准备后重新验证归属与 lease，失败或失联时不得开始 Agent。该扩展不改变 TestMission schema、Mission identity 或 Canonical 状态所有权。
 
@@ -125,7 +128,7 @@ HyperTest 在数据库层冻结已离开 CREATED 的 Mission 身份、优先级�
 }
 ```
 
-### 6.1 目标持续会话 profile 与协商
+### 6.1 Legacy 持续会话 profile 与协商
 
 ADR-013 的持续会话 profile 为 **`run-persistent-harness/v1`**，只在显式协商的 **`hypertest.tmp/v1alpha2`** 上启用；本分支已实现该版本，不能把 `profile` 等新字段附加到现有 v1alpha1 请求后假定支持。新 Run admission 固定 wire version、profile、Provider / Harness 能力与策略，任何一项不支持时明确拒绝，不能降级为每阶段新建会话并声称仍满足本 profile。已冻结 v1alpha1 Mission 保留原执行语义；迁移不得改写其版本、spec / hash、Attempt、Job 或 Session 历史。
 
@@ -168,7 +171,7 @@ RETEST_ANALYSIS
 VERIFY_COVERAGE
 ```
 
-`EXECUTE_TESTS` 通常由 Runner 处理，而不是 Coding Agent。Agent 通过 `request_execution` 请求正式执行。
+旧 TMP profile 的 `EXECUTE_TESTS` 由 Runner 处理，Agent 通过 `request_execution` 申请。ADR-017 native profile 中 Agent 自行调用项目原生入口，随后按 §44 提交执行材料，平台 API 不运行测试；不能把两种执行语义混在同一请求。
 
 ---
 
@@ -239,7 +242,7 @@ ANALYZE_REQUIREMENTS / ANALYZE_RISKS / DESIGN_TESTS / IMPLEMENT_TESTS 的 Runtim
 
 ---
 
-### 9.1 Controlled execution environment context
+### 9.1 Legacy controlled execution environment context
 
 对领域模型 §9 的非空环境绑定，Runtime 在 AgentSession / Attempt 创建前校验定义、固定 image ID、依赖/launcher 身份及安全 tracked ASGI 模块。`context.execution_environment` 由 HyperTest 从 SourceSnapshot 提供并覆盖同名未受信 Mission 输入；不能由 PRD、Agent Proposal 或当前可变镜像 tag 重绑定。旧 NULL 路径不伪造此上下文。所有 Docker 检查均在数据库行锁外完成，随后按既有状态/租约重新 admission。
 
@@ -457,7 +460,7 @@ v0.2 TestCase 的 `description` / `test_type` / 字符串 `expected_result` 是�
 
 ---
 
-## 18. ImplementationProposal
+## 18. Legacy ImplementationProposal
 
 ```json
 {
@@ -477,7 +480,7 @@ v0.2 TestCase 的 `description` / `test_type` / 字符串 `expected_result` 是�
 }
 ```
 
-示例应用符号需根据被测仓库调整。当前支持 Python / pytest，payload 必须提供至少一个当前 Snapshot 下的 ACTIVE test_case_keys。Repository 与 Commit 必须匹配 Canonical SourceSnapshot；file_path 必须为安全相对 Python 路径，symbol 由 Python identifier / `::` 构成。正式 Runner 进一步限制安全 `tests/**/*.py` 和 pytest test function 目标。
+示例应用符号需根据被测仓库调整。这个旧 Runner payload 支持 Python / pytest，payload 必须提供至少一个当前 Snapshot 下的 ACTIVE test_case_keys。Repository 与 Commit 必须匹配 Canonical SourceSnapshot；file_path 必须为安全相对 Python 路径，symbol 由 Python identifier / `::` 构成。正式 Runner 进一步限制安全 `tests/**/*.py` 和 pytest test function 目标。
 
 可选 code 必须可编译为 Python，生成路径必须在 tests/ 下。HyperTest 计算 source_sha256 并保存只写入一次的内容寻址 Artifact；Canonical TestImplementation 记录 artifact_uri / source_sha256。Fingerprint 使用规范化 repository / commit / file_path / symbol，生成源码另加入内容 hash。旧实现可被精确去重，但不同源码产生新版本；Case links 使用 ImplementationTestCase 关系表。
 
@@ -705,7 +708,7 @@ Connector 有独立于网络与 Provider 的本地 watchdog，以本地单调时
 
 ---
 
-## 23. TMP 与 MCP 分工
+## 23. Legacy TMP 与 MCP 分工
 
 ```text
 TMP = Task Contract
@@ -812,7 +815,7 @@ API 当前最多等待 15 秒，随后返回已持久暂态；HTTP 超时、stdi
 
 ---
 
-## 24. HyperTest MCP Read Tools
+## 24. Legacy HyperTest MCP Read Tools
 
 本节列出 Worker/TMP 的任务读取语义；ADR-016 当前 Agent 完成显式执行绑定后可经受控 adapter 使用 §25.2 的实际映射。仅有七个提交/读取入口权限时不能取得这些执行工具，也不授权任何客户端直接调用内部 relay。
 
@@ -831,7 +834,7 @@ hypertest.get_policy
 
 ---
 
-## 25. HyperTest MCP Proposal Tools
+## 25. Legacy HyperTest MCP Proposal Tools
 
 本节及 §25.1–25.2 只适用于有效 Run 绑定下的任务 Harness，包括 ADR-016 完成当前 Agent 执行绑定的 LOCAL 路径。七个提交/读取工具不授予 Proposal/阶段/Runner/Gate/报告写入/Issue 权限；这些动作仍须原 TMP 工具及当前执行授权。
 
@@ -885,7 +888,7 @@ hypertest.report_finding
 
 ---
 
-## 26. Execution Request
+## 26. Legacy Runner Execution Request
 
 本节属于内部 Worker/TMP 的正式执行请求契约。ADR-016 的交互 `submit_task` 只创建受控任务及初始 Job，不直接暴露 `request_execution` 或接受外部模型给定的 ExecutionSpec。
 
@@ -910,15 +913,15 @@ hypertest.report_finding
 
 Execution Purpose：EXPLORATORY、VALIDATION、OFFICIAL、REPRODUCTION。平台解析 Canonical TestCase / Implementation 及其 Artifact hash，强制匹配本 Run / SourceSnapshot；Runner 独立验证源码、环境和执行目标，冻结 ExecutionSpec 后采集事实。Tool request 仅为受控请求，不能由 Agent 提供的测试工作区路径 / 临时 commit 或自报结果取代该验证。
 
-只有符合固定 Policy、来自可信 Runner 且已经验证的 OFFICIAL Execution / Evidence 可按规则进入 Release Gate。等待执行期间保持主会话身份；Runner 执行和事实提交仍具有独立可审计的身份、取消与幂等边界。
+在旧 profile，只有符合固定 Policy、来自可信 Runner 且已验证的 OFFICIAL Execution / Evidence 可进入原 Release Gate；native 材料不会进入这个 Gate。等待执行期间保持主会话身份；Runner 执行和事实提交仍具有独立可审计的身份、取消与幂等边界。
 
 ---
 
-## 27. Agent Shell Execution
+## 27. Agent 原生执行与正式事实边界
 
-Agent 自己执行 pytest、curl、docker、kubectl 等结果默认是 exploratory context，除非 HyperTest Runner 对 Execution 进行了采集和认证。
+旧 TMP profile 下 Agent 自行执行命令仍属 exploratory context，不能绕过 Runner 把结果写成旧 OFFICIAL / VERIFIED Evidence。ADR-017 profile 下，Agent 应调用 SUT 已有原生框架并按 §44 保留实际结果为材料；平台分别校验完整性、报告一致性和独立来源。本轮材料 provenance=UNVERIFIED，合法 shell 输出、报告或 hash 都不能形成正式 native PASS。项目框架 / CI 的正式来源接入要求见 ADR-017 §8，不以平台重跑为唯一核验方法。
 
-> **Agent tool output is context. Runner output is evidence.**
+> **Project tools produce results; independently verified provenance and policy determine admissible evidence.**
 
 ---
 
@@ -1081,7 +1084,7 @@ UNKNOWN
 
 ---
 
-## 36. Capability Negotiation
+## 36. Legacy 持续会话 Capability Negotiation
 
 目标契约由 Adapter 注册 Harness Capability，以下为能力描述示例，并非当前 Codex Adapter 的已验收能力清单：
 
@@ -1110,7 +1113,7 @@ ADR-015 节点协商已要求声明 `SERVER_HOST / LOCAL_CONNECTOR`、支持的 
 
 ---
 
-## 37. Agent Selection
+## 37. Legacy 持续会话 Agent Selection
 
 Mission 声明需要的 Capability，而不是硬编码必须使用 Codex / Claude。Scheduler 可在新 Run admission 考虑 Capability、Cost、Latency、Reliability、Model Quality、Workspace Affinity、Historical Success。目标 profile 的绑定一经建立，后续 Mission 只能在该会话能力内执行；能力不足时显式停止 / 请求决策，不在同一 Run 中静默换 Harness。Provider 可替换性意味着平台契约独立且新 Run 可选不同 Provider，不保证跨 Provider 搬运原生会话。
 
@@ -1184,10 +1187,10 @@ SUT: payments → Project P-1
 2. Mission 描述目标，不规定 Agent 内部 reasoning。
 3. Provider-specific Session 只作隔离的外部引用，不能充当领域主键或 Canonical State。
 4. Agent Result 是 Submission，不是事实。
-5. Runner Evidence 才能成为正式执行事实。
+5. 旧 TMP 的正式执行事实仍要求 Runner Evidence；native 材料按 §44 分层接受，未经独立来源验证不成为正式质量通过。
 6. Mission Acceptance 由 HyperTest Verifier 决定。
-7. TMP 必须允许新 Run 选择不同 Harness；同 Run 的持续会话不得静默换 Provider。
-8. 一个任务的逻辑 Worker / 主 Session 绑定跨阶段、人工等待和显式恢复保持，物理进程 / lease 不等于绑定。
+7. 新轮次可选择不同 Harness；旧持续会话 Run 不得静默换 Provider，native 则使用 §44 的显式贡献者交接而不伪造 Provider 身份。
+8. 旧任务的逻辑 Worker / 主 Session 绑定跨阶段与恢复保持；native current contributor / generation / 私有能力按 §44 受控切换，二者不能互换或回填。
 9. 不同 Run 可以并发；同 Run 的 Mission / Attempt 串行且只有一个有效 owner。
 10. 目标 profile 必须显式协商，不能改写旧 wire schema、固定输入或执行历史。
 
@@ -1199,11 +1202,11 @@ TMP 不应演进成 Generic Agent Protocol，而必须始终保持：
 
 > **Testing-domain-specific Agent Work Protocol**
 
-它描述 Requirement、Risk、Case、Implementation、Execution、Evidence、Finding 及受控报告 / 人工协作边界，而不描述 LLM thinking steps。持续主会话由 Harness 自驱，平台维持类型化 guard 与事实治理，不演进成自制 Generic Agent Loop。
+它描述 Requirement、Risk、Case、Implementation、Execution、Evidence、Finding 及受控报告 / 人工协作边界，而不描述 LLM thinking steps。旧持续主会话由 Harness 自驱；native 工程动作仍由 Agent 自驱，平台维持类型化 guard 与事实治理，不演进成自制 Generic Agent Loop。
 
 ---
 
-## 43. 最终定义
+## 43. Legacy TMP 最终定义（native 契约见 §44）
 
 Test Mission Protocol 是：
 
@@ -1237,3 +1240,85 @@ Next typed Mission / Request（同一 Run 主会话）
 TMP 的价值不在于规定 Codex 或 Claude Code 应该如何思考，而在于：
 
 > **无论底层 Agent 如何变化，HyperTest 对软件测试的理解、状态、证据和治理协议始终保持稳定。**
+
+## 44. 原生框架材料接入 profile（ADR-017）
+
+### 44.1 版本与实际调用方
+
+`profile=native-framework-intake/v1alpha1` 是独立业务契约，不是新增 TMP wire、HarnessMode、RunnerBackend 或 MCP 标准版本。首版仅 opt-in FastAPI `/api/v1/native-runs` 和本机受保护客户端；MCP 的旧 `request_execution` 仍调用旧 Runner，不能附上新字段后改为本机执行。
+
+所有请求继续要求明确 Operator 授权；Operator 管理客户端保管全局 key，不将其交给 Agent、MCP、任务材料或提示词。create / handoff 首次成功时一次返回 run/generation-scoped 随机 writer capability；平台只保存 hash，客户端以 owned `0600` 私有文件保管，日志 / GET / 普通幂等回执不返回原文或 hash。除 create / handoff / reconcile 三类 Operator 管理写外，其余写另带 `X-Hypertest-Native-Writer-Key` 并验证当前 contributor / generation / capability。可读取的 generation 和模型自报 session_ref 不授予写权。
+
+首版由 Operator 确认管理调用与输入、Agent 负责原生工程动作；不宣称任意 Agent 已直接接入、contributor label 已证明真实 Provider 会话、或凭平台权限就可以执行 Git / 链写 / 问题单操作。
+
+### 44.2 请求与返回
+
+下列均为严格类型对象，未知字段拒绝；平台读写 PostgreSQL 记录，不执行 `command` 或访问 `cwd`。
+
+create / 各写 envelope 的 `idempotency_key` 必须匹配 `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`，以保证原 key 在精确查询路径中可安全对账；不允许 slash / dot-segment 绕过身份。新格式不改写任何既有 legacy key。
+
+| API | 契约 |
+| --- | --- |
+| `POST /native-runs` | `profile, project_id, idempotency_key, session_ref, plan`；`plan` 固定 `objective, scope, requirement_refs, risk_refs, inputs, cases`。原始 Proposal、Verifier 接受结果、计划与用例、初始 contributor/generation、operation 回执与 Audit/Outbox 同事务；响应含 run / contributor / generation 和仅首次可见 writer key |
+| `GET /native-runs/{run_id}` | 读取固定计划、用例、贡献、执行 / 材料 / 验证 / 结论、交接及未决操作的受控投影，不返回凭据或任意存储路径 |
+| `POST /native-runs/{run_id}/executions` | 写 envelope 为 `contributor_id, generation, idempotency_key`，加 `command, cwd, framework, started_at, finished_at, exit_code, results, materials`；执行已经在项目框架发生，API 仅登记观察 / 原件并追加平台验证 |
+| `POST /native-runs/{run_id}/evaluate` | 相同写 envelope；平台从固定计划及完整已有事实确定 UNKNOWN/BLOCKED，不接受 Agent 传 decision |
+| `POST /native-runs/{run_id}/handoffs` | Operator 显式管理操作，带原 contributor/generation、稳定 key、`successor_session_ref, remaining_work, reason`；核验原状态及未决操作后原子追加 handoff、递增 generation、换 contributor / 私有 writer capability；无需恢复旧 key，旧 key 失效 |
+| `GET /native-runs/{run_id}/operations/{key}` | 按原 key 只读对账原请求与已提交结果，不重做调用、不返旧 capability |
+| `GET /native-runs/submissions/{project_id}/{key}` | create 响应遗失时按原 Project/key 查询已接受轮次，不重发 create / writer key |
+| `GET /native-runs/{run_id}/materials/{material_id}` | 有界读取本轮原始 bytes（base64）与固定 metadata，服务端重验 hash / size，provenance 仍 UNVERIFIED |
+| `GET /native-runs/{run_id}/handoffs/{handoff_id}/state` | 按本轮 handoff ID 读取并核验原 generation 的冻结状态快照；摘要只能证明该快照完整性，不证明测试执行 |
+| `POST /native-runs/{run_id}/uncertainties` | 当前 writer 登记原外部 operation 的未知意图与受控材料引用，不发外部请求 |
+| `POST /native-runs/{run_id}/uncertainties/{key}/reconcile` | Operator 窄管理例外，可在 writer key 遗失时按原 key / 原 UNKNOWN 状态，提交 `resolution, observed_operation_ref, material, attestation, reason`；核验具体原操作查证材料、按 run 行锁追加 Audit，不运行测试 / CI 或重发外部 POST |
+
+`plan.inputs.sut` 区分 credential-free `repository_url`、nullable `source_commit` 与 nullable `binary_sha256`，必须如实固定可观察身份；framework 有独立 `repository_url, commit_sha, local_changes`，`test_assets` 固定 `path, sha256`；SUT 另有 `source_association=DECLARED|UNVERIFIED|UNKNOWN`、`local_changes`，`environment` 为无秘密工具 / 依赖 / 环境观察，`environment_variable_names` 只含变量名称；`authorization_scope` 记明确范围；首版 `source_transfer=NONE`。SUT SHA 不得被 framework SHA 替代。更详细 dirty / source-build 证明不足的材料进入已知缺口，不因 schema 合法就被认作完整源码身份。
+
+`cases` 每项为 `key, title, requirement_ref, risk_ref, expected_result, implementation_ref`。requirement / risk 是本计划固定来源引用，implementation_ref 是原生测试入口 / native case 引用，均不能冒充不存在的旧 Canonical UUID。Case 关系以 SQL FK / join 表保存；列表仅是输入 / 读投影，不是无约束的持久关系替代。
+
+`results` 每项为 `case_key, result`，result 为 PASS / FAIL / SKIPPED / ERROR / UNKNOWN，表示提交的原生断言观察。`materials` 为有界 `name, kind, format, content_base64, sha256`；kind 为 STDOUT / STDERR / REPORT / CONTEXT，format 为 TEXT / CONSUMER_PARITY_JSONL / JUNIT_XML。平台重算内容摘要与长度，按已支持格式校验报告的 case 标识、计数、结果与 exit code。format 扩展须来自真实项目，不建通用执行适配器。首版每文件最多 2 MiB、每执行最多 8 份材料 / 总共 6 MiB；最多 200 cases / results / test_assets，environment 最多 64 项，环境变量名最多 64 项；每字符串最多 16,000 字符（各字段可更严），plan 最多 512 KiB，每轮最多 128 条执行，普通 operation 最多 512、管理 operation 保留到 1,024；state / handoff snapshot 读取最多 8 MiB。达到限额停止新写并保留原轮次，不能删历史获得额度。
+
+`attestation` 是 Operator 对原操作回查的人工确认：`kind=ORIGINAL_OPERATION_READBACK|EXECUTION_CONTROL_READBACK`、`source_ref`、匹配原操作的 `operation_ref`、带时区 `observed_at`、匹配 resolution 的 `result`、匹配原件的 `raw_material_sha256` 与 `operator_attests_original_readback=true`。它和非空 CONTEXT/TEXT 原件一起约束管理确认；JSON 形状或一次人工声明不是独立 CI / 测试来源证明，本机材料 provenance 不变。
+
+### 44.3 信任、结论与原键对账
+
+接收 Plan / Cases 的 Proposal 验证、接收 material、校验报告一致性、独立确认 execution provenance 和形成质量结论分别报告。本轮来源核验固定 UNVERIFIED；NativeVerification 不把 `command`、process metadata、自报 exit、hash 或合法 XML/JSONL 当执行证明，也不生成旧 Evidence。`native-material-gate/v1alpha1` 原生结论仅 UNKNOWN / BLOCKED，观察到 PASS 也不能形成正式质量 PASS；实测断言失败 / setup ERROR 与平台采纳状态分别保留。
+
+所有写在发送前将稳定 key / versioned input digest / intent 写私有 journal；服务端同 key 同输入复用原 operation，异输入冲突。失答只 GET 原 key，NOT_FOUND 不使写请求安全重放。一次性 writer key 丢失后只能先对账、再由 Operator 发起新的显式 handoff 管理意图；不自动重签或通过 GET 恢复秘密，原操作 / 贡献历史保留。
+
+`NativeOperation.UNKNOWN` 阻断新执行和 handoff。reconcile 是独立 Operator 管理例外，不要求已遗失 writer key，但必须匹配原 operation key 与 UNKNOWN 状态、具体查证结果、受控原始材料及 reason；没有材料、仅摘要或 NOT_FOUND 不消除 UNKNOWN。服务端仍以 UNVERIFIED 对待本地查证材料，不因此提升测试来源；Operator 对原副作用结果承担明确确认责任。对账结果不能由换 session label / generation / key 来绕过。handoff 不重复测试，不恢复原生聊天，不复制对话，不让旧 key 在新 generation 继续写。Artifact 上传与业务记录的提交失败保留原意图和受控失败，不覆盖已经提交的事实。
+
+本轮是 retrospective intake：原生运行先于新 API 接受计划；observed started_at/finished_at 与平台 created_at/submitted_at 分别保存，不回填时间或声称平台先前已下发执行。计划可引用执行前的原始测试设计。
+
+后续独立可信 CI 接入必须按 ADR-017 §8 校验批准项目、pipeline/job/attempt、实际 source/test/env、原始报告、独立采集身份及对应关系，并发布新 profile / Gate 验收；当前 API 并未实现此来源提升或 native PASS。
+
+## 45. Codex 会话任务管理同步（ADR-018，当前阶段）
+
+§45 是管理数据同步，不是执行申请或新的 Runner profile。一个 `(provider, session_id)` 对应一个 SessionTask；Project、actor 与客户端授权来自有效 integration grant，session reference 仅为提交来源元数据。MCP/API 不启动或接管 Codex，不需要 execution binding、device token、host proof、源码传输、SourceSnapshot、Policy、Job、Runner 或 Gate。
+
+### 45.1 请求与读取
+
+| MCP / typed HTTPS | 契约 |
+| --- | --- |
+| `hypertest_sync_task` / `POST /interactive/tasks/sync` | `project_id, idempotency_key, expected_version, provider, session_id, title, objective, status, plan_markdown, reported_result, cases, reports`；权限 `task:sync` |
+| `hypertest_get_task` / `GET /interactive/tasks/by-session` | `project_id, provider, session_id, version?, offset?, limit?`；分页读取固定版本当前任务/用例/原报告，权限 `task:sync` |
+| `hypertest_get_task` / `GET /interactive/tasks/syncs/by-key` | `project_id, idempotency_key`；只查询原同步回执，权限 `task:sync` |
+
+get 工具两组参数互斥，未知字段拒绝。所有字段按服务端 typed schema 校验；schema 标识不引入新的执行生命周期。Case 是 `{key,title,steps:list[str],expected,actual,reported_result,implementation_ref?}`；Report 是 `{key,title,markdown,artifact_uri?,source_ref?,reported_result}`。`artifact_uri` 与 `source_ref` 是引用元数据，平台不得执行命令或自动访问任意本机路径/URL。`markdown` 原文由平台存储并可读回。
+
+状态为 `DRAFT | IN_PROGRESS | BLOCKED | COMPLETED | CANCELLED`，表示任务进度。任务/用例/报告的 `reported_result` 为 `NOT_RUN | PASS | FAIL | ERROR | SKIPPED | UNKNOWN | BLOCKED`，表示提交者报告的结果。平台校验管理一致性后保存，不要求独立 CI 才能记录 PASS，也不把来源不足统一转换为 UNKNOWN；旧 Evidence/FINAL/RELEASE_READY 权限不随此扩展。
+
+业务 key 为 `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`。provider 为小写字母起始、后续小写字母/数字/下划线/连字符，最多64字符；session reference 最多512字符。任务与报告标题最多512字符；objective/expected/actual/单step最多16,000字符；计划与原始报告各最多262,144字符；每同步最多200用例、每用例100 steps、16报告，typed payload最多2MiB。现有本机 MCP 通道还按完整JSON消息实施1,000,000字节上限；超出须缩减为获准的本次资产范围，不丢原件、不静默截断或增加隐式上传。
+
+成功同步与原key查询只返回瘦回执 `status=ACCEPTED, profile, task_id, project_id, provider, session_id, version, idempotency_key, source=AGENT_REPORTED`，不夹带snapshot或历史原文。客户端核对原key、Project/provider/session、task UUID、expected version+1与契约标识，已接受回执的后续查询继续固定原task ID；不匹配时保留UNKNOWN并只查询，不误ACK。
+
+MCP按会话读取返回有界 envelope `{task_id,version,format:'application/json',offset,total_chars,next_offset,content,complete,source:'AGENT_REPORTED'}`。content是固定版本current-only `{task,cases,reports}` JSON原文分片；不重复附带全history。offset/limit按Unicode字符计算，limit默认/最大24,000；首片offset=0可省version取得当前版，续片offset>0必须携首片version。每片核对固定task/version/total和next_offset连续性，拼接后JSON解析并核对Project/provider/session及原文；不截断报告、不把通道1MiB上限无限调大。原版本由冻结同步快照及对应修订重建；省略history不删除它们。
+
+管理 Web 查询用 `/tasks?project_id=…`、`/tasks/{id}`、`/tasks/{id}?version=N` 与 `/tasks/{id}/reports/{report_id}`，其详情可提供历史投影；沿用平台读取边界，不使客户端获得Operator权限。
+
+### 45.2 接受、身份与原 key 对账
+
+权限、schema、唯一性、owner、expected version、稳定 key 和引用一致性构成管理 Proposal/Verifier 接受边界。首次 `expected_version=0`；后续必须与当前任务版本匹配。一个同步原子保存任务更新、case/report新修订、冻结回执及 Audit/Outbox；失败不留下已接受的部分任务。用例/报告 key 稳定，同内容不伪造新修订，变更追加历史；省略不代表删除。
+
+首次固定 Project 和 actor owner，同项目的其他 actor 不得凭知道 session ID 覆盖任务；新 client 仍需同 actor 的有效项目授权。认证 scope 由现有 integration actor/client/project链核验，`task:sync` 不授予 `run:execute` 或设备控制。管理型 Operator 操作保留其独立权限；token只在本机私有文件/daemon保管，不进入模型工具参数。
+
+同 key 同输入返回原回执，同 key 异输入冲突。发送前保存 journal intent；发送后失答/响应不可确认时保持同步 UNKNOWN，只 GET 原 key。404/NOT_FOUND 不证明原 POST 未执行；客户端不得自动 POST 重发、换key、重建任务或重新发放凭据。旧 expected version 不能覆盖当前状态，失答查询结果不改变报告原 reported result。测试事实、推断与待验证材料在来源和原始报告中分别说明，摘要/hash不产生执行证明。

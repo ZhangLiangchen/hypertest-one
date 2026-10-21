@@ -68,14 +68,14 @@ export default function DashboardPage() {
       <div className="page-heading heading-with-action">
         <div>
           <Typography.Title level={1} style={{ margin: 0 }}>{t("Projects", "项目工作台")}</Typography.Title>
-          <Typography.Paragraph className="muted page-intro">{t("A clear path from requirements to a trusted testing decision.", "从需求出发，追踪每一轮测试，直到有据可查的质量结论。")}</Typography.Paragraph>
+          <Typography.Paragraph className="muted page-intro">{t("Manage Codex testing tasks, cases and reports by project.", "按项目管理 Codex 测试任务、用例和报告。")}</Typography.Paragraph>
         </div>
         <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button>
       </div>
       <section className="workspace-intro" aria-label={t("Testing workflow", "测试工作流")}>
         <div className="intro-mark"><FolderOpenOutlined aria-hidden /></div>
-        <div><h2>{t("Every test cycle has a home.", "让每一轮测试，都有迹可循。")}</h2><p>{t("Keep pinned inputs, test assets and execution evidence together in a project.", "按项目集中管理固定输入、测试资产和执行证据。打开项目，开始或回看一轮测试。")}</p></div>
-        <div className="workflow-labels"><span>{t("Requirements", "需求")}</span><ArrowRightOutlined aria-hidden /><span>{t("Execution", "执行")}</span><ArrowRightOutlined aria-hidden /><span>{t("Evidence & verdict", "证据与判定")}</span></div>
+        <div><h2>{t("Keep Codex testing work traceable.", "让 Codex 测试工作，有迹可循。")}</h2><p>{t("Codex performs the testing work. Sync each session's task, plan, cases and original reports to its project.", "Codex 完成测试工作，将每个会话的任务、计划、用例和原始报告同步到所属项目。")}</p></div>
+        <div className="workflow-labels"><span>{t("Task", "任务")}</span><ArrowRightOutlined aria-hidden /><span>{t("Cases", "用例")}</span><ArrowRightOutlined aria-hidden /><span>{t("Reports & history", "报告与历史")}</span></div>
       </section>
       <section className="data-surface" aria-label={t("Project list", "项目列表")}>
         <div className="list-toolbar">
@@ -93,7 +93,7 @@ export default function DashboardPage() {
             {title: t("Updated", "更新时间"), dataIndex: "updated_at", width: 160, sorter: (a, b) => a.updated_at.localeCompare(b.updated_at), render: formatDate},
             {title: t("Open", "打开"), key: "open", width: 65, render: (_, project) => <Link href={`/projects/${project.id}`} aria-label={`${t("Open project", "打开项目")} ${project.name}`}><ArrowRightOutlined /></Link>},
           ]}
-        /> : <div className="empty-workspace"><FolderOpenOutlined aria-hidden /><h3>{t("Your first project starts here", "从第一个项目开始")}</h3><p>{t("Add a project, then submit a PRD and a pinned code version to start testing.", "创建项目后，提交 PRD 和固定代码版本，开始完整测试周期。")}</p><Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button></div>}
+        /> : <div className="empty-workspace"><FolderOpenOutlined aria-hidden /><h3>{t("Your first project starts here", "从第一个项目开始")}</h3><p>{t("Create a project, then sync testing tasks and artifacts from your Codex sessions.", "创建项目后，从 Codex 会话同步测试任务和产物。")}</p><Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button></div>}
       </section>
 
       <Modal
@@ -108,7 +108,7 @@ export default function DashboardPage() {
         width={600}
       >
         <Typography.Paragraph className="muted">
-          {t("A project keeps requirements, risks, test runs and evidence together. Next, create a test run with a source revision and PRD.", "项目集中管理需求、风险、测试运行和证据。创建后，选择代码版本并提交 PRD，即可开始一轮测试。")}
+          {t("A project groups Codex testing tasks, plans, cases and reports. After creation, sync the testing work from its Codex sessions.", "项目集中管理 Codex 测试任务、计划、用例和报告。创建后，从所属 Codex 会话同步测试工作。")}
         </Typography.Paragraph>
         {creation.isError ? (
           <Alert
