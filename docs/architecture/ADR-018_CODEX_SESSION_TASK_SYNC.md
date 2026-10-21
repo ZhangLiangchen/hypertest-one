@@ -38,9 +38,9 @@ Proposal/Verifier 的原则保留在管理接受边界：提交内容先校验�
 
 ## 接入与权限
 
-复用现有 MCP → 私有本机客户端 → typed HTTPS API 通道，增加 `hypertest_sync_task` 与 `hypertest_get_task`。同步和查询不需要 execution binding、host proof、设备执行授权、源码传输或受控工作区。
+复用现有 MCP → 私有客户端 → typed HTTPS API 通道，增加 `hypertest_sync_task` 与 `hypertest_get_task`。同步和查询不需要 execution binding、host proof、设备执行授权、源码传输或受控工作区。
 
-权限沿用 integration actor/client/project 授权，新增 `task:sync` scope；不向 Agent 提供 Operator key。token 只保存在本机私有文件，工具参数只含任务数据。会话 ID 不替代 token 或项目授权。旧集成 scope、工具和 managed 语义不静默改变。
+权限沿用 integration actor/client/project 授权，新增 `task:sync` scope；不向 Agent 提供 Operator key。token 只保存在客户端私有文件，工具参数只含任务数据。会话 ID 不替代 token 或项目授权。旧集成 scope、工具和 managed 语义不静默改变。
 
 ## 验收与边界
 
