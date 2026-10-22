@@ -2207,3 +2207,34 @@ Report原Markdown直接保存在PostgreSQL ReportRevision.markdown，读接口�
 管理保存不要求独立CI证明，不生成UNVERIFIED→UNKNOWN强制转换，也不产生legacy VERIFIED Evidence、FINAL Verdict或RELEASE_READY。Proposal/Verifier原则在本节表现为管理输入接受，Gate不进入同步事务。旧路径保留其正式质量判定职责与历史。
 
 同步UNKNOWN表示客户端不能确认该写是否接受，和reported_result.UNKNOWN不同。保持原journal/key，只查询原Receipt；NOT_FOUND不授权自动重发、换key或替代任务。原始失败、历史结果、撤权记录与既有两种受管模式均保留；本机开发与验收不授权生产schema迁移或部署。
+
+## 52. ADR-020 Local 客户端不变量
+
+本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
+统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
+Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
+真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、
+LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
+源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
+
+原 ADR-018 全文、TMP §45 与领域 §50 保持本分支基线原文。原 API/profile、task:sync、
+Project/actor owner、完整请求、expected_version 与历史语义不变；hypertest_sync_task 不是 PATCH。
+同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
+只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
+冻结后保留完整请求/key/version；SENT/UNKNOWN/失答及 NOT_FOUND 只 GET 原 key，不自动再次 POST。
+有效 ACK 后完整读回固定接受版本才确认本次同步；传输状态不重写 reported_result，Stop 不代表 PASS/COMPLETED。
+
+Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重标。
+安装只复用既有私有 Project 授权，不申请 Operator key、签发 grant 或复制模型登录；
+Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
+升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
+Cloud/Local 共享 Project 的设计与任何外部 Cloud 实施进度不由本 Local 源码分支声称已交付。
+
+## 53. ADR-021 私有同步记录与域隔离
+
+TaskSyncCore 是内部可复用库，LocalSyncAdapter 保留 SessionTask 的原请求、身份、权限与版本规则。
+共享语义是批准的结构化意图、完整基线、冻结请求、原 key 对账、回执验证与固定版本完整读回；
+不增加通用 Task/API、跨模式 token、全局 journal 或服务端 fencing 字段。
+Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态。
+只合并未冻结新意图；显式 MCP 完整请求的空值不被自动推断为 omitted，传输失败不修改业务报告。
+Cloud 消费方由独立 Cloud 设计/源码/验收拥有；本 Local 分支不包括或发布该实现。

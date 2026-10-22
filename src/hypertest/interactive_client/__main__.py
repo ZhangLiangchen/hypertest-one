@@ -41,12 +41,13 @@ async def daemon(config: ClientConfig):
         journal.close()
 
 
-async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
+async def ensure_daemon(config: ClientConfig, config_path: Path):
+    """Start only the existing fenced transport, shared by MCP and hooks."""
     available = False
     if config.socket_path.exists() and not config.socket_path.is_symlink():
         with socket.socket(socket.AF_UNIX) as probe:
             available = probe.connect_ex(str(config.socket_path)) == 0
-    if autostart and not available:
+    if not available:
         # A transport daemon, never a model/Provider. Preserve the host launch
         # environment so the trusted adapter can attest the current native Agent.
         log_path = config.state_dir / "daemon.log"
@@ -56,10 +57,19 @@ async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
             os.close(fd)
             raise ClientError("PRIVATE_FILE_REQUIRED")
         with os.fdopen(fd, "ab") as log:
-            subprocess.Popen([sys.executable, "-m", "hypertest.interactive_client", "daemon",
+            child_environment = None
+            isolated_client = bool(config.local_sync.get("enabled"))
+            if isolated_client:
+                # Local management needs only its private platform profile.
+                # Do not retain the parent model CLI's API keys in a daemon.
+                names = {"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR",
+                         "VIRTUAL_ENV", "SSL_CERT_FILE", "SSL_CERT_DIR"}
+                child_environment = {key: value for key, value in os.environ.items() if key in names}
+            subprocess.Popen([sys.executable, *(["-I"] if isolated_client else []),
+                              "-m", "hypertest.interactive_client", "daemon",
                               "--config", str(config_path)], stdin=subprocess.DEVNULL,
                              stdout=subprocess.DEVNULL, stderr=log, start_new_session=True,
-                             close_fds=True)
+                             close_fds=True, env=child_environment)
         for _ in range(100):
             if config.socket_path.exists() and not config.socket_path.is_symlink():
                 with socket.socket(socket.AF_UNIX) as probe:
@@ -68,6 +78,12 @@ async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
             await asyncio.sleep(0.05)
         else:
             raise ClientError("LOCAL_CONNECTOR_UNAVAILABLE")
+    return
+
+
+async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
+    if autostart:
+        await ensure_daemon(config, config_path)
     from hypertest.interactive_client.mcp_server import run_stdio
     await run_stdio(LocalClient(config.socket_path, config.local_token_file))
 

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { errorText, getProjectTasks } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
+import { LocalModeGuide } from "./local-mode-guide";
 
 export function ProjectSessionTasks({ projectId }: { projectId: string }) {
   const { t, label, locale, formatDate } = useI18n();
@@ -20,6 +21,7 @@ export function ProjectSessionTasks({ projectId }: { projectId: string }) {
       <Button icon={<ReloadOutlined aria-hidden />} onClick={() => void tasks.refetch()} loading={tasks.isFetching}>{t("Refresh", "刷新")}</Button>
     </div>
     <Typography.Paragraph className="muted">{t("Each Codex session has one task. Codex performs the testing work and syncs its plan, cases and reports here.", "一个 Codex 会话对应一个任务。Codex 完成测试工作，将计划、用例和报告同步到此处。")}</Typography.Paragraph>
+    <LocalModeGuide projectId={projectId} />
     {tasks.isError ? <Alert showIcon type="error" message={t("Task sync records could not be refreshed", "无法刷新任务同步记录")} description={errorText(tasks.error, locale)} action={<Button onClick={() => void tasks.refetch()}>{t("Retry", "重试")}</Button>} /> : null}
     {tasks.isLoading || tasks.data?.items.length ? <div className="data-surface"><Table
       rowKey="id" loading={tasks.isLoading} dataSource={tasks.data?.items || []} scroll={{ x: 850 }}

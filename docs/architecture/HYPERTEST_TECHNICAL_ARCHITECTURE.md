@@ -982,3 +982,34 @@ NativeTestRun / Plan 当前一对一，以新表 / profile 与旧 TestRun ID 分
 所有管理调用仍需 Operator 授权；非管理写另需当前 run/generation 私有 capability，body contributor/session label 只是归属元数据。handoff 由 Operator 显式确认，在同事务中递增 generation、切换贡献者与 capability；旧 writer key 不因读取新 generation 复活。新 key 一次交付，响应丢失只对账，不能 GET 恢复秘密或自动重签。平台只隔离 API 写入，不把会话标签解释成真实 Provider 连续性或任意聊天的生命周期控制。
 
 本轮原生材料仅在本机明确配置的隔离 PostgreSQL / Artifact Store 保存；不默认上传源代码、JAR 或认证。独立来源核验、可信 CI 接入、native PASS、Web/MCP 和生产部署仍需后续实现及单独验收；验收要求由 ADR-017 §8 约束。旧 Runner 只承担 legacy 兼容与历史职责，不继续扩展 Kubernetes/SSH/backend 矩阵来替代原生项目工具链。
+
+## 46. ADR-020 LocalSyncCoordinator 与统一 Local 发行
+
+本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
+统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
+Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
+真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、
+LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
+源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
+
+原 ADR-018 全文、TMP §45 与领域 §50 保持本分支基线原文。原 API/profile、task:sync、
+Project/actor owner、完整请求、expected_version 与历史语义不变；hypertest_sync_task 不是 PATCH。
+同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
+只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
+冻结后保留完整请求/key/version；SENT/UNKNOWN/失答及 NOT_FOUND 只 GET 原 key，不自动再次 POST。
+有效 ACK 后完整读回固定接受版本才确认本次同步；传输状态不重写 reported_result，Stop 不代表 PASS/COMPLETED。
+
+Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重标。
+安装只复用既有私有 Project 授权，不申请 Operator key、签发 grant 或复制模型登录；
+Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
+升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
+Cloud/Local 共享 Project 的设计与任何外部 Cloud 实施进度不由本 Local 源码分支声称已交付。
+
+## 47. ADR-021 TaskSyncCore 的 Local 消费方
+
+TaskSyncCore 是内部可复用库，LocalSyncAdapter 保留 SessionTask 的原请求、身份、权限与版本规则。
+共享语义是批准的结构化意图、完整基线、冻结请求、原 key 对账、回执验证与固定版本完整读回；
+不增加通用 Task/API、跨模式 token、全局 journal 或服务端 fencing 字段。
+Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态。
+只合并未冻结新意图；显式 MCP 完整请求的空值不被自动推断为 omitted，传输失败不修改业务报告。
+Cloud 消费方由独立 Cloud 设计/源码/验收拥有；本 Local 分支不包括或发布该实现。

@@ -141,3 +141,7 @@ daemon 在发送前持久保存查询身份与完整请求 digest（不在 journ
 | 版本/原始报告读取 | `GET /api/v1/tasks/{task_id}?version=N`、`GET /api/v1/tasks/{task_id}/reports/{report_id}` |
 
 Web 任务页查询这些管理记录，不显示启动测试、Runner 或 Gate 操作。旧 Run 页面与旧数据继续保留为历史兼容入口。开发检查、远端测试验收、真实测试资产同步和发布的完成范围由各自记录注明；本文管理命令不会执行 SUT 测试。
+
+## Local 统一发行与自动触发
+
+原管理步骤与契约保持不变。新增 Local 协调器、三宿主接入及固定摘要安装入口见 [Local 状态](LOCAL_MODE_IMPLEMENTATION_STATUS.md)与[发行构建](LOCAL_MODE_RELEASE_BUILD.md)。
