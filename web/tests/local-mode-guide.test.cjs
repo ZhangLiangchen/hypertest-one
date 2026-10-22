@@ -79,7 +79,7 @@ const published = { targetId: "darwin-arm64-py313", python: "3.13", releaseTag: 
   hosts: { codex: { automaticTrigger: "ACCEPTED", versions: ["0.9.0"] } } };
 
 test("published commands verify fixed bootstrap and platform payload digests before installing", () => {
-  assert.deepEqual(helper.LOCAL_PUBLISHED_TARGETS, [], "no nonexistent public release is asserted");
+  assert.equal(helper.LOCAL_PUBLISHED_TARGETS.length, 0, "no nonexistent public release is asserted");
   const command = helper.buildPublishedLocalCommand(base, published);
   assert.ok(command.startsWith("python3.13 -I -c "));
   for (const value of [published.releaseTag, published.sourceCommit, published.bootstrapSha256, published.manifestSha256, published.bundleSha256]) assert.ok(command.includes(value));
