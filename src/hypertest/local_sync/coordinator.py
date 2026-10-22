@@ -7,7 +7,7 @@ import json
 import os
 import stat
 from contextlib import asynccontextmanager
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
@@ -141,6 +141,34 @@ class LocalSyncCoordinator:
         return {"status": outcome.state, "idempotency_key": key,
                 "code": outcome.code, "query_required": outcome.state in {"SENT", "UNKNOWN"}}
 
+    def _require_native_source(self, payload: dict) -> None:
+        """An opted-in file source admits only existing native root bindings.
+
+        This validates source selection, not the caller's native identity. A
+        local actor knowing an admitted root id is not authenticated by it.
+        Legacy profiles and the explicit GET/reconciliation tools are unchanged.
+        """
+        settings = self.config.local_sync
+        if not settings.get("artifact_source"):
+            return
+        from hypertest.local_sync.hosts import HOST_PROVIDERS
+        from hypertest.local_sync.sources import source_binding
+        try:
+            expected = {"project_id": str(UUID(settings["project_id"])),
+                        "provider": HOST_PROVIDERS[settings["host"]],
+                        "session_id": payload["session_id"]}
+            supplied = {"project_id": str(UUID(str(payload["project_id"]))),
+                        "provider": payload["provider"], "session_id": payload["session_id"]}
+            if supplied != expected:
+                raise ClientError("LOCAL_NATIVE_SOURCE_IDENTITY_MISMATCH")
+            _, record, _ = source_binding(self.config, {
+                "session_id": supplied["session_id"],
+                "cwd": settings["artifact_source"]["workspace"]}, create=False)
+            if record["identity"] != supplied:
+                raise ClientError("LOCAL_NATIVE_SOURCE_IDENTITY_MISMATCH")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ClientError("LOCAL_NATIVE_SOURCE_CONFIGURATION_REQUIRED") from exc
+
     async def submit_full(self, payload: dict) -> dict:
         # Preserve the caller's exact body, empty strings, original key/version
         # and no-op acceptance. This is never interpreted as PATCH or rebased.
@@ -150,6 +178,8 @@ class LocalSyncCoordinator:
             SessionTaskSync.model_validate(payload)
         except ValidationError as exc:
             raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
+        # Before writer admission, snapshots, journal records or API calls.
+        self._require_native_source(payload)
         async with self.writer(payload):
             blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"])
             if blocked:

@@ -344,6 +344,52 @@ async def test_hook_event_reference_uses_one_durable_record_and_drain_recovers_a
         await drain_source(config, coordinator, "unbound-session")
 
 
+@pytest.mark.parametrize("scenario", ["no-start", "child-id", "random-id", "wrong-project", "wrong-provider",
+    "record-identity", "record-workspace", "record-policy", "record-directory", "changed-policy"])
+async def test_artifact_source_explicit_mcp_rejects_unbound_or_foreign_sources_before_admission(local, scenario):
+    from hypertest.local_sync.hooks import handle_hook
+
+    config, api, journal, coordinator, identity = local
+    event = configure_artifact_source(config, identity)
+    payload = full(identity)
+    if scenario != "no-start":
+        await handle_hook(config, coordinator, {"event": event})
+    if scenario in {"child-id", "random-id"}:
+        payload["session_id"] = "actual-child-session" if scenario == "child-id" else str(uuid4())
+    elif scenario == "wrong-project":
+        payload["project_id"] = str(uuid4())
+    elif scenario == "wrong-provider":
+        payload["provider"] = "claude_code"
+    elif scenario.startswith("record-"):
+        path = next((config.state_dir / "local-sync" / "native-sources").glob("*.json"))
+        record = json.loads(path.read_text())
+        field = {"record-identity": "identity", "record-workspace": "workspace",
+                 "record-policy": "policy_digest", "record-directory": "artifact_directory"}[scenario]
+        record[field] = {**identity, "session_id": "another-source"} if field == "identity" else "foreign-value"
+        path.write_text(json.dumps(record))
+    elif scenario == "changed-policy":
+        config.local_sync["artifact_source"]["initial"]["objective"] = "another selection"
+    with pytest.raises(ClientError):
+        await coordinator.submit_full(payload)
+    assert not api.calls and journal.db.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 0
+    assert not list(coordinator.directory.glob("*.binding.json"))
+    assert not list(coordinator.snapshots.directory.glob("*.json"))
+
+
+async def test_artifact_source_explicit_mcp_accepts_existing_root_complete_snapshot(local):
+    from hypertest.local_sync.hooks import handle_hook
+
+    config, api, _, coordinator, identity = local
+    event = configure_artifact_source(config, identity)
+    await handle_hook(config, coordinator, {"event": event})
+    payload = {**full(identity), "plan_markdown": "", "objective": ""}
+    result = await coordinator.submit_full(payload)
+    assert result["_sync"]["readback_complete"]
+    assert api.documents[1]["task"]["plan_markdown"] == ""
+    assert api.documents[1]["task"]["reported_result"] == "FAIL"
+    assert [call[0] for call in api.calls].count("POST") == 1
+
+
 @pytest.mark.parametrize("old_state", ["ACKED", "UNKNOWN"])
 async def test_upgrade_old_compact_receipt_without_snapshot_reconciles_original_key(local, old_state):
     _, api, journal, coordinator, identity = local
