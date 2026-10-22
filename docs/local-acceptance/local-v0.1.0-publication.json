@@ -1,0 +1,143 @@
+{
+  "record_type": "PUBLIC_RELEASE_PUBLICATION_EVIDENCE",
+  "release_id": 420666845,
+  "release_url": "https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0",
+  "release_tag": "local-v0.1.0",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-22T12:08:14Z",
+  "source_commit": "874569fa566a137eba77ac4852caa6052cb04a17",
+  "source_digest": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+  "target_id": "darwin-arm64-py313",
+  "python": "3.13",
+  "qualification_ref": "darwin-arm64-py313.json",
+  "bootstrap_sha256": "cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a",
+  "manifest_sha256": "ba132292c57c740f0409728e3aa23ce93ecde39b5fa40a6d435dad03fb4531da",
+  "bundle_sha256": "e3c7ac8c5966e086c02e3d4b50abc8cd32787bc276d37c271c9949379255979f",
+  "anonymous_download_verification": {
+    "status": "PASS",
+    "download_execution": "NONE",
+    "receipt_sha256": "d9d39cb76d4734352dd194144025a9d6cc62a96d4de949ca3a69a00ed0d27989",
+    "assets": [
+      {
+        "name": "hypertest-local-v0.1.0-darwin-arm64-py313.zip",
+        "id": 665735973,
+        "url": "https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/hypertest-local-v0.1.0-darwin-arm64-py313.zip",
+        "status": 200,
+        "authentication": "ANONYMOUS_NO_AUTH_HEADER_OR_COOKIES",
+        "size_bytes": 8515770,
+        "sha256": "e3c7ac8c5966e086c02e3d4b50abc8cd32787bc276d37c271c9949379255979f",
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "name": "install-local-release.py",
+        "id": 665735957,
+        "url": "https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/install-local-release.py",
+        "status": 200,
+        "authentication": "ANONYMOUS_NO_AUTH_HEADER_OR_COOKIES",
+        "size_bytes": 21541,
+        "sha256": "cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a",
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "name": "local-install-catalog.json",
+        "id": 665735959,
+        "url": "https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/local-install-catalog.json",
+        "status": 200,
+        "authentication": "ANONYMOUS_NO_AUTH_HEADER_OR_COOKIES",
+        "size_bytes": 5455,
+        "sha256": "f307827acdf1f50cf74121e44f211ae6dd6b64551cdaeae196f59f73489e46a6",
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "name": "LOCAL_INSTALL.md",
+        "id": 665735960,
+        "url": "https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/LOCAL_INSTALL.md",
+        "status": 200,
+        "authentication": "ANONYMOUS_NO_AUTH_HEADER_OR_COOKIES",
+        "size_bytes": 13669,
+        "sha256": "96cb4f10b86b2628495ae17acb776699425ad4ace5049828c4b402eedc6a6a06",
+        "final_host": "release-assets.githubusercontent.com"
+      }
+    ]
+  },
+  "preservation": {
+    "original_assets_and_body_preserved": true,
+    "previous_latest": {
+      "id": 419349750,
+      "tag": "mcp-v0.2.0"
+    },
+    "old_mcp_releases": {
+      "mcp-v0.2.0": {
+        "id": 419349750,
+        "asset_ids_sizes_and_digests_preserved": true,
+        "published_at_preserved": true
+      },
+      "mcp-v0.1.0": {
+        "id": 418152189,
+        "asset_ids_sizes_and_digests_preserved": true,
+        "published_at_preserved": true
+      }
+    },
+    "old_mcp_tag_refs_preserved": true
+  },
+  "published_bootstrap_installation": {
+    "status": "PASS",
+    "scope": "Published public one-command download/install and isolated configuration verification; no new native model acceptance",
+    "target": {
+      "system": "Darwin",
+      "machine": "arm64",
+      "macos": "26.5.1",
+      "python": "3.13.3"
+    },
+    "isolated_python": true,
+    "formal_wheel_sha256": "a226e64a64f9c93a705e0139c0218f61cd804a3a562225d5bdbdf44984bf41d3",
+    "installed_wheel_members_matched": 36,
+    "r6_common_member_count": 35,
+    "r6_declared_metadata_differences_only": [
+      "hypertest/local_sync/release.json",
+      "hypertest_local-0.1.0.dist-info/RECORD"
+    ],
+    "dependencies_count": 29,
+    "dependency_bytes_and_origin_equal_r6": true,
+    "dependency_installed_versions_match": true,
+    "original_config_bytes_preserved": true,
+    "original_policy_bytes_preserved": true,
+    "original_host_configs_and_user_config_bytes_preserved": true,
+    "all_original_state_file_hashes_preserved": true,
+    "journal_states": {
+      "READBACK_COMPLETE": 3
+    },
+    "pending_event_count": 0,
+    "daemon_running": false,
+    "fresh_mcp_and_four_product_hooks_use_new_isolated_python": true,
+    "doctor": {
+      "host": "codex",
+      "version": "local-v0.1.0",
+      "configuration": "WRITTEN",
+      "native_acceptance": "NOT_OBSERVED",
+      "mcp": "RELOAD_AND_NATIVE_PROBE_REQUIRED",
+      "real_sync": "NOT_OBSERVED",
+      "authorization": "PRIVATE_CREDENTIAL_PRESENT_NOT_SERVER_VERIFIED",
+      "pending_state": "PRESERVED",
+      "socket_path_bytes_including_nul": 67,
+      "automatic_trigger": "CONFIGURED_UNACCEPTED"
+    },
+    "model_sut_build_test_executed": false,
+    "grant_changed": false,
+    "new_install_native_sync": "NOT_OBSERVED",
+    "receipt_sha256": "52b027831901ac6ae5cee27b462347f75072426533c43de32daeedc38e756271",
+    "installer": {
+      "exit_code": 0,
+      "elapsed_seconds": 14.17,
+      "stdout_bytes": 7570,
+      "stderr_bytes": 0
+    }
+  },
+  "limitations": [
+    "Only Darwin arm64 CPython 3.13 is published; Linux remains candidate-only.",
+    "Source acceptance records remain separate and unchanged; publication is not native acceptance on a newly installed machine.",
+    "DeepSeek CLI 0.1.5-rc.1 with components 0.1.5-rc.2: SDK-profile two-turn acceptance; headless one-shot, resume and independent root Stop handler counts were not accepted.",
+    "No model login, Project grant issuance, SUT execution or business-test PASS is established by publication."
+  ]
+}

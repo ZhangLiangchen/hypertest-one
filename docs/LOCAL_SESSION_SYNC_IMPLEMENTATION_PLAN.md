@@ -1,14 +1,14 @@
 # 本地会话同步分阶段实施计划
 
-**日期：2026-10-22，Asia/Singapore。状态：Accepted design / NOT IMPLEMENTED。**
+**日期：2026-10-22，Asia/Singapore。当前：local-v0.1.0 已公开，Darwin arm64 / CPython 3.13 的三宿主精确版本接入已验收；下文 L0–L4 保留原分阶段设计与退出条件，不表示所有矩阵已完成。**
 
-本计划交付 [ADR-020](architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 的 Local 改进：**Harness Hooks / 已核验事件自动触发，MCP 显式提交与查询，统一本地同步协调器复用现有私有客户端、typed HTTPS API 和 journal；统一 HyperTest Local release 提供一键安装。** [ADR-018](architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 的 Codex MCP 同步继续可用；协调器、自动触发、Claude Code / DeepSeek harness 适配、统一发行与安装均尚未实现，尚无新包可用安装命令。发行与安装契约见[统一指南](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。
+本计划交付 [ADR-020](architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 的 Local 改进：**Harness Hooks / 已核验事件自动触发，MCP 显式提交与查询，统一本地同步协调器复用现有私有客户端、typed HTTPS API 和 journal；统一 HyperTest Local release 提供一键安装。** [ADR-018](architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 的 Codex MCP 同步继续可用。协调器、自动触发、三宿主 adapter 与统一发行已经交付；正式目标、固定摘要命令和未观察范围见[当前实现状态](LOCAL_MODE_IMPLEMENTATION_STATUS.md)及[公开发行记录](local-acceptance/local-v0.1.0-publication.json)。发行与安装契约见[统一指南](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。
 
 Local 仍使用 SessionTask：一个真实 Provider / 父会话对应一个任务，复用已有授权 Project。同一 Project 可同时承载 ADR-019（独立设计参考，本 Local 源码分支未包含该文档） CloudTask；Hooks 不增加第三种模式、不改变 `task_kind` / `product_mode`，不改 legacy Run、HarnessMode 或执行历史。Local 代表会话来源与协作方式，Agent 可以使用另行获授权的远端测试环境 / CI；同步本身不启动、接管或授权测试。
 
 [ADR-021](architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) 将这里形成的可靠同步语义抽为 **TaskSyncCore**，由 LocalSyncCoordinator / LocalSyncAdapter 与云端 CloudTaskReporter / CloudSyncAdapter 复用。共享正式资产清单、语义进度、冻结意图、幂等对账与固定接受版本读回；各模式分别落实合法 typed 操作、任务状态、身份、授权和 writer。Local 保持原 SessionTask / `task:sync`，Cloud 保持 CloudTask / Attempt / `cloud:work` 与 lease / fencing，不共用 token、全局 journal 或一个 daemon。
 
-本次只修订文档，不安装 Hook、不创建上传进程、不修改全局技能、不触发资产上传，也不运行测试、迁移或部署。当前 XBlock 默认技能继续按其现有边界只调用原生同步 / 查询工具；未来只有受控发布、明确启用新版 adapter 后才切换自动策略。以下退出条件均为未来验收要求，不能据本文认定已经通过。
+本计划初订时只修订文档；后续实现、真实接入与公开发行分别留证，不以计划正文作为完成证明。以下未观察的 OS、产物类型、故障与混合模式仍为退出要求。现有 XBlock 默认技能边界保持；安装器不修改全局技能，自动策略仅在操作者明确安装并启用的宿主 / 工作区生效。本次发布状态文档本身不安装 Hook、启动上传进程、运行测试或部署。
 
 ## 顺序、依赖与共同边界
 

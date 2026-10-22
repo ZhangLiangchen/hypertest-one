@@ -1,4 +1,8 @@
-# HyperTest Local 源码候选实现
+# HyperTest Local 实现与发行状态
+
+## 已公开发行（2026-10-22）
+
+[local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 已于 `2026-10-22T12:08:14Z` 正式公开，固定源码 `874569fa566a137eba77ac4852caa6052cb04a17`；本轮只发布 `darwin-arm64-py313`。三项可信摘要、三宿主六条安装命令和限制见[正式安装入口](LOCAL_MODE_RELEASE_AND_INSTALLATION.md#已公开的-local-v010)。[公开发行记录](local-acceptance/local-v0.1.0-publication.json)保留四个资产匿名 HTTP 200 与完整字节摘要核验；公开一键 bootstrap 已在 Mac 新隔离目录完成下载、校验、安装与 Codex 配置复验；新安装的真实 MCP / 自动同步仍未观察，详见该记录。R6 原始宿主证据保持不变。
 
 ## R6 固定源码验收与发行资格（2026-10-22）
 
@@ -30,7 +34,7 @@
 
 ## 安全的源码候选路径
 
-以下保留第一阶段未发布源码路径。第二阶段新增固定摘要 HTTPS 下载、明确 workspace／artifact-source 策略、精确目标资格、独立源码冻结和正式 release gate，见[发行构建说明](LOCAL_MODE_RELEASE_BUILD.md)。当前并未据此预写三个真实宿主的验收状态；各宿主最终证据由主控完成并读回后记录。
+以下保留第一阶段未发布源码路径。第二阶段新增固定摘要 HTTPS 下载、明确 workspace／artifact-source 策略、精确目标资格、独立源码冻结和正式 release gate，见[发行构建说明](LOCAL_MODE_RELEASE_BUILD.md)。下列命令保留第一阶段历史；当前三宿主 R6 实测及正式发行状态以文首记录为准。
 
 前提：目标 Harness 已安装；操作者持有正确 Project 的既有私有 `task:sync` 配置及 token 文件。配置 / token 文件保持 `0600`，私有目录 `0700`。真实远端 API 使用 HTTPS 并校验证书，私有 CA 用已有 `ca_file`。管理员通过现有受控注册流程单独安排授权；不要运行旧 Operator-key `setup` 配对来取得 Local 管理权限，也不要把 token 放入聊天、命令参数或普通宿主配置。
 
@@ -112,7 +116,7 @@ Claude Code 使用 `--harness claude-code` 和明确作用域的 MCP JSON 文件
 
 ## Web 入口与验证接口
 
-入口为 `Project → Codex 测试任务 → 接入本地模式`，既有任务表与错误重试不受影响。向导按以下状态展示：发行未发布、等待既有项目授权、路径未完整、三宿主真实会话未验收、Hooks 关闭、MCP 保留、首次同步需原件读回。没有 release URL、无校验 `curl | sh`、Operator-key 输入或 PowerContext admin token。安装字段只含私有路径等非秘密引用；页面不持久保存这些输入，也不调用写 API。
+入口为 `Project → Codex 测试任务 → 接入本地模式`，既有任务表与错误重试不受影响。向导源码现按固定公开 descriptor 展示 `local-v0.1.0` 的 Mac arm64 / Python 3.13 目标与三宿主精确版本；填写已有私有授权路径后生成带可信摘要的安装命令。Hooks 默认关闭，须明确选择工作区策略；本机真实会话仍待核验，MCP 保留，首次同步需原件读回。未发布目标仍无可安装入口；页面没有无校验 `curl | sh`、Operator-key 输入或 PowerContext admin token。安装字段只含私有路径等非秘密引用；页面不持久保存这些输入，也不调用写 API；线上页面部署单独记录。
 
 新增 `web/tests/local-mode-guide.test.cjs` 覆盖命令与私有路径构造、注入边界、三宿主 / DeepSeek 目标、未完成模板、默认关闭 Hooks、无凭据输入，以及双语 SSR 状态和现有项目入口。既有 `session-tasks.test.cjs` 仅补新组件的测试 require 映射，原断言保留。
 
@@ -135,8 +139,8 @@ SSR / 单元 / 类型 / 构建通过均不代表真实宿主、自动事件、�
 
 验证完成后，主控核对 `hypertest.validation=ht-impl-mvjb1zvp` 标签并移除了本轮 Node、Python、PostgreSQL 三个隔离容器及专用网络；证据目录继续保留，未清理其他会话或生产资源。
 
-## 未交付能力
+## 未交付或未观察范围
 
-已有独立离线 bootstrap、候选构建工具源码及隔离专项结果，真实离线依赖闭包与合成 fixture 安装已通过；真实宿主会话仍待独立验收。尚未发布 `local-v*` 发行、线上可下载 bootstrap 或公开可信发行 manifest，也没有项目页可用的线上一键下载命令，不能将源码、单元通过或合成配置安装与正式发布混同。未自动安装当前机器或改全局技能；未承诺 Windows、三宿主自动事件、真实父会话接入与在线授权已通过；未实现 Memory Gateway、自动聊天 capture 或产品经验访问。Cloud 实现、共享应用注册入口与正式部署由独立所有者推进，不在本文冒称交付。
+三宿主 R6 原生接入与 Mac 精确目标公开发行已经分别留证；完整矩阵见文首，不能推广到其他 OS、Python 或宿主版本。公开 bootstrap 新隔离安装、Codex 配置与状态保全已通过，新安装尚未运行模型或观察真实同步；新用户机器仍需已有授权、重载与真实父会话 ACK / 固定版全读回。Windows、Linux 正式目标、全量 case / raw report 原生 E2E、DeepSeek headless / resume 与独立 Stop handler 次数仍未验收。未自动改全局技能；未实现 Memory Gateway、自动聊天 capture 或产品经验访问。Cloud 实现、共享应用注册入口与正式部署由独立所有者推进，不在本文冒称交付。
 
 Codex 的项目 Hook trust、MCP 读工具许可和宿主重载由其标准权限流程分别处理。安装器合并配置后，需让实际项目重新加载配置并确认受信任 Hook；`hypertest_get_task` 还须具有标准读工具许可。验收中的读许可通过该工具专属 `approval_mode=approve` 的单次 CLI overlay 显式给予；沙箱与持久用户配置保持原值，其他全局 MCP 仅在本次 CLI 运行中停用。安装成功、一次独立 GET 成功或诊断调用通过均不替代同一真实父会话的自动产物 ACK / 固定版本完整读回及 child 边界证明。此前缺少原始错误的失败运行保留为失败记录，不追认根因。

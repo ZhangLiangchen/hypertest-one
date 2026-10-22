@@ -1,5 +1,9 @@
 # ADR-020：Hooks 驱动的本地会话任务同步
 
+## 已公开发行（2026-10-22）
+
+[local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 已于 `2026-10-22T12:08:14Z` 正式公开，固定源码 `874569fa566a137eba77ac4852caa6052cb04a17`；本轮只发布 `darwin-arm64-py313`。三项可信摘要、三宿主六条安装命令和限制见[正式安装入口](../LOCAL_MODE_RELEASE_AND_INSTALLATION.md#已公开的-local-v010)。[公开发行记录](../local-acceptance/local-v0.1.0-publication.json)保留四个资产匿名 HTTP 200 与完整字节摘要核验；公开一键 bootstrap 已在 Mac 新隔离目录完成下载、校验、安装与 Codex 配置复验；新安装的真实 MCP / 自动同步仍未观察，详见该记录。R6 原始宿主证据保持不变。
+
 ## R6 固定源码验收与发行资格（2026-10-22）
 
 三宿主的真实 Local 接入均已完成，本提交固定 Darwin arm64 / CPython 3.13 的正式构建资格。[资格记录](../local-acceptance/darwin-arm64-py313.json)绑定 R6 源码 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`、Local source digest `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 和实装候选 wheel SHA-256 `dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40`。验收与公开资产发布分别记载；实际下载命令由固定资产生成并通过受信任的 [GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases) 分发，资产尚未出现时不使用占位 URL。
@@ -166,7 +170,7 @@ DeepSeek harness 在此是**独立 Local 父会话**的安装目标；Cloud SDK 
 
 重复安装幂等复用既有 client / Project 绑定、回执和账本。升级整体切换兼容组件并核验 journal schema；未决 / UNKNOWN 请求不得清理、改 key 或重发，旧状态无法安全读取时阻塞切换并允许回退。失败回退或禁用 Hooks 保留可用 MCP、原 key、材料和历史。卸载只移除本包所管理的配置项与二进制，保留用户会话目录、项目、原账本及必要私有导出，不覆盖用户后续修改或删除其他集成。安装不静默切换用户全局默认 Skill。
 
-决定时统一发行、安装器及三个宿主自动接入均为 **NOT IMPLEMENTED**；当前已实现并完成文首精确目标验收。本设计不授权当前会话发布 release、下载安装、修改宿主配置、签发授权或启动后台同步；现有 Codex MCP 同步继续独立可用。L0–L4 须分别完成三宿主身份 / MCP / 触发、缺授权、配置重载、重复安装、中断、升级回退和安全卸载的真实验收，后续真实 release 才能生成带固定版本 / hash 的项目安装命令；该命令不得含秘密。
+决定时统一发行、安装器及三个宿主自动接入均为 **NOT IMPLEMENTED**；当前已实现并完成文首精确目标验收。本设计不授权当前会话发布 release、下载安装、修改宿主配置、签发授权或启动后台同步；现有 Codex MCP 同步继续独立可用。L0–L4 须分别完成三宿主身份 / MCP / 触发、缺授权、配置重载、重复安装、中断、升级回退和安全卸载的真实验收，当前 `local-v0.1.0` 的固定目标已公开，项目安装命令依据独立发行记录中的版本 / hash 生成；未发布目标仍不得生成可安装入口，命令不得含秘密。
 
 ## 10. 本地同步设计复用于云端
 

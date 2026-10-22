@@ -1,5 +1,9 @@
 # DeepSeek Harness Local 接入验收
 
+## 正式发行追加记录（2026-10-22）
+
+[local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 已正式公开，仅 `darwin-arm64-py313`，tag 源码 `874569fa566a137eba77ac4852caa6052cb04a17`；Local source digest 与下文 R6 相同。公开三项摘要、SDK-profile 限制和安装命令见[统一安装入口](LOCAL_MODE_RELEASE_AND_INSTALLATION.md#已公开的-local-v010)，公开下载证据见[发行记录](local-acceptance/local-v0.1.0-publication.json)。DeepSeek `--host-config` 必须严格对应 `<DSH_HOME>/profiles/<profile>/cordis.patch.yml`；六条发行示例仅替换绝对路径 / 所选 profile，保留版本和摘要。公开包已在新隔离目录完成安装与 Codex 配置 / 保全复验，未进行新的模型或原生同步；该结果不扩大 DeepSeek SDK profile 既有验收范围。R5 / R6 原始 JSON 及其来源不变。
+
 日期：2026-10-22（Asia/Singapore）。本记录只覆盖独立 Local 父会话，不涉及 Cloud commander、模型委派或 SUT 执行。
 
 ## 已核对的官方能力
@@ -43,7 +47,7 @@
 
 ## 当前验收状态
 
-**R6 的真实 SDK profile 接入已重新观察通过；最终资格选择 R6，R5 独立保留为历史。** 机器可核验的无秘密记录见 [DeepSeek R6 原生验收证据](local-acceptance/deepseek-native-20261022.json)；[R5 历史证据](local-acceptance/deepseek-native-20261022-r5.json)的原字节和摘要没有改变。后续候选必须按其精确源码与 wheel 重新验收，不能自动继承通过。这不表示正式 release 已发布，也未启用个人全局 Hooks。
+**R6 的真实 SDK profile 接入已重新观察通过；最终资格选择 R6，R5 独立保留为历史。** 机器可核验的无秘密记录见 [DeepSeek R6 原生验收证据](local-acceptance/deepseek-native-20261022.json)；[R5 历史证据](local-acceptance/deepseek-native-20261022-r5.json)的原字节和摘要没有改变。后续候选必须按其精确源码与 wheel 重新验收，不能自动继承通过。这是 R6 源码接入证据，不作为公开发行后的重新实装证明，也未启用个人全局 Hooks。
 
 | 项目 | R6 实测结果 |
 | --- | --- |

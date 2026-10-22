@@ -73,7 +73,11 @@ export function LocalModeGuide({ projectId, initiallyOpen = false }: { projectId
                 <Space wrap><Radio value="codex">Codex</Radio><Radio value="claude-code">Claude Code</Radio><Radio value="deepseek-harness">DeepSeek harness</Radio></Space>
               </Radio.Group>
             </Form.Item>
-            <Typography.Paragraph className="muted">{deepseek
+            <Typography.Paragraph className="muted">{publishedTarget
+              ? deepseek
+                ? t("DeepSeek requires an existing home/profile. Its accepted native-root adapter uses a two-turn SDK profile with CLI 0.1.5-rc.1 and components 0.1.5-rc.2; headless one-shot and resume are not separately accepted. The command derives --host-config as <DSH_HOME>/profiles/<profile>/cordis.patch.yml.", "DeepSeek 需使用已有 home/profile。已验收 native-root adapter 使用 CLI 0.1.5-rc.1、组件 0.1.5-rc.2 的 SDK 双 turn profile；headless 单次运行与 resume 尚未独立验收。命令将 --host-config 固定为 <DSH_HOME>/profiles/<profile>/cordis.patch.yml。")
+                : t("The published bundle configures MCP and optionally the exact accepted Hooks version. Reload the selected host, then verify this machine's real parent session, automatic events and accepted-version readback.", "正式包配置 MCP，并可明确选择已验收的确切 Hooks 版本。重载选定宿主后，仍需核验本机真实父会话、自动事件与接受版本完整读回。")
+              : deepseek
               ? t("DeepSeek uses an existing home/profile. Only MCP configuration is available in this candidate; automatic triggers are blocked pending bridge acceptance.", "DeepSeek 必须选择已有 home/profile。此候选版本仅配置 MCP；自动触发在 bridge 验收前保持受阻。")
               : t("The candidate writes MCP configuration. Host reload, real parent identity and automatic events still require independent acceptance; no host is marked ready here.", "候选版本可写入 MCP 配置。宿主重载、真实父会话身份与自动事件仍需独立验收；本页不将任何宿主标为就绪。")}</Typography.Paragraph>
             <Typography.Paragraph>{t("Target Project", "目标项目")}: <Typography.Text code>{projectId}</Typography.Text></Typography.Paragraph>
@@ -91,11 +95,12 @@ export function LocalModeGuide({ projectId, initiallyOpen = false }: { projectId
             </Form.Item>}
             <Checkbox checked={hasPrivateConfig} onChange={(event) => setHasPrivateConfig(event.target.checked)}>{t("I already have a private task:sync profile authorized for this Project.", "我已有获准访问此项目的私有 task:sync 配置。")}</Checkbox>
           </Form>
-          {!hasPrivateConfig ? <Alert style={{ marginTop: 12 }} type="info" showIcon message={t("Waiting for existing Project authorization", "等待已有项目授权")} description={t("Ask the Project administrator to arrange a private scoped profile through the existing registration process. This page cannot inspect local files, issue a grant or verify authorization. No credential is entered here.", "请项目管理员通过现有注册流程安排私有 scoped 配置。本页不读取本机文件、不签发 grant，也不能验证授权；此处无需填写任何凭据。") } /> : !commands ? <Typography.Paragraph type="warning" role="status" style={{ marginTop: 12 }}>{t("Enter the absolute private paths and, for DeepSeek, a valid existing profile name to generate candidate commands.", "填写私有绝对路径；DeepSeek 还需有效的已有 profile 名称，才能生成候选命令。")}</Typography.Paragraph> : null}
+          {!hasPrivateConfig ? <Alert style={{ marginTop: 12 }} type="info" showIcon message={t("Waiting for existing Project authorization", "等待已有项目授权")} description={t("Ask the Project administrator to arrange a private scoped profile through the existing registration process. This page cannot inspect local files, issue a grant or verify authorization. No credential is entered here.", "请项目管理员通过现有注册流程安排私有 scoped 配置。本页不读取本机文件、不签发 grant，也不能验证授权；此处无需填写任何凭据。") } /> : !commands ? <Typography.Paragraph type="warning" role="status" style={{ marginTop: 12 }}>{t("Enter the absolute private paths and, for DeepSeek, a valid existing profile name to generate installation commands.", "填写私有绝对路径；DeepSeek 还需有效的已有 profile 名称，才能生成安装命令。")}</Typography.Paragraph> : null}
         </li>
         <li style={{ paddingInlineStart: 4, marginBottom: 24 }}>
           {LOCAL_PUBLISHED_TARGETS.length ? <>
             <Typography.Text strong>{t("Install the exact published Local bundle", "安装确切已发布的 Local 包")}</Typography.Text>
+            <Typography.Paragraph className="muted">{t("local-v0.1.0 is published for macOS arm64 / Python 3.13 only. Accepted hosts: Claude Code 2.1.218, Codex 0.144.6, and DeepSeek CLI 0.1.5-rc.1 with components 0.1.5-rc.2 (two-turn SDK profile). Linux remains candidate-only. Downloaded LOCAL_INSTALL.md provides MCP-only and Hooks commands for each host; replace its absolute paths and selected profile, retaining all release digests and version arguments.", "local-v0.1.0 仅正式发布 macOS arm64 / Python 3.13。已验宿主：Claude Code 2.1.218、Codex 0.144.6、DeepSeek CLI 0.1.5-rc.1 与组件 0.1.5-rc.2（SDK 双 turn profile）。Linux 仍为候选。下载的 LOCAL_INSTALL.md 为每个宿主分别提供 MCP-only 与 Hooks 命令；仅替换绝对路径和所选 profile，保留全部发行摘要与版本参数。")}</Typography.Paragraph>
             <Form layout="vertical" style={{ marginTop: 12 }}>
               <Form.Item label={t("Published OS / architecture / Python target", "已发布 OS／架构／Python 目标")}>
                 <Select aria-label={t("Published Local target", "已发布 Local 目标")} value={selectedTarget} onChange={setSelectedTarget} options={LOCAL_PUBLISHED_TARGETS.map((target) => ({ value: target.targetId, label: `${target.releaseTag} — ${target.targetId}` }))} />

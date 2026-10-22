@@ -1,10 +1,14 @@
 # Local 独立源码冻结
 
+## 正式发行追加记录（2026-10-22）
+
+独立分支最终资格提交 `874569fa566a137eba77ac4852caa6052cb04a17` 已钉 `local-v0.1.0`，[local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 于 `2026-10-22T12:08:14Z` 正式公开，仅包含 `darwin-arm64-py313`。完整三项摘要与公开下载验证见[发行记录](local-acceptance/local-v0.1.0-publication.json)；Local source digest 保持 `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a`。本次后续文档与 Web 描述符提交不移动 tag、不替换已发资产、不改原始资格证据；以下 R6 冻结过程作为历史保留。
+
 ## 已执行的独立候选冻结
 
-已从固定 base 形成独立 Local-only 分支并 nonforce 推送 [draft PR #23](https://github.com/ZhangLiangchen/hypertest-one/pull/23)，原共享 workspace / index 和 Cloud 改动保全。当前 R6 commit 为 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`；[CI #118](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39770913859) 已全通过。源摘要 `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 固定 runtime、依赖 catalog、pyproject 与构建 / 安装入口。Claude Code、Codex 与 DSH 的 R6 精确目标实机均已通过；本提交登记正式 Darwin 构建资格，tag / 资产发布仍由主控串行执行。
+已从固定 base 形成独立 Local-only 分支并 nonforce 推送 [draft PR #23](https://github.com/ZhangLiangchen/hypertest-one/pull/23)，原共享 workspace / index 和 Cloud 改动保全。当前 R6 commit 为 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`；[CI #118](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39770913859) 已全通过。源摘要 `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 固定 runtime、依赖 catalog、pyproject 与构建 / 安装入口。Claude Code、Codex 与 DSH 的 R6 精确目标实机均已通过；当时提交登记正式 Darwin 构建资格，后续 tag / 公开结果见文首追加记录。
 
-脚本只负责准备 checkout；授权后执行者显式形成 commit / bundle，每轮分别记录源码、wheel 和回归身份。验收、target publication 配置及文档随后单独提交，不改变 Local source digest；最终重新核对摘要后才接受正式目标。Darwin arm64 / CPython 3.13 已登记 RELEASE；Linux 仍 CANDIDATE。公开命令 / Web 描述符在资产发布后另行更新，避免 URL / 哈希自引用。
+脚本只负责准备 checkout；授权后执行者显式形成 commit / bundle，每轮分别记录源码、wheel 和回归身份。验收、target publication 配置及文档随后单独提交，不改变 Local source digest；最终重新核对摘要后才接受正式目标。Darwin arm64 / CPython 3.13 已登记 RELEASE；Linux 仍 CANDIDATE。公开命令 / Web 描述符在资产发布后单独追加，避免 URL / 哈希自引用。
 
 日期：2026-10-22（Asia/Singapore）。此流程保护当前共享 checkout 中尚未提交的 Cloud／Local 改动；不把整份 dirty tree 作为 Local release 来源。
 

@@ -1,5 +1,9 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+## 已公开发行（2026-10-22）
+
+[local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 已于 `2026-10-22T12:08:14Z` 正式公开，固定源码 `874569fa566a137eba77ac4852caa6052cb04a17`；本轮只发布 `darwin-arm64-py313`。三项可信摘要、三宿主六条安装命令和限制见[正式安装入口](LOCAL_MODE_RELEASE_AND_INSTALLATION.md#已公开的-local-v010)。[公开发行记录](local-acceptance/local-v0.1.0-publication.json)保留四个资产匿名 HTTP 200 与完整字节摘要核验；公开一键 bootstrap 已在 Mac 新隔离目录完成下载、校验、安装与 Codex 配置复验；新安装的真实 MCP / 自动同步仍未观察，详见该记录。R6 原始宿主证据保持不变。
+
 ## R6 固定源码验收与发行资格（2026-10-22）
 
 三宿主的真实 Local 接入均已完成，本提交固定 Darwin arm64 / CPython 3.13 的正式构建资格。[资格记录](local-acceptance/darwin-arm64-py313.json)绑定 R6 源码 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`、Local source digest `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 和实装候选 wheel SHA-256 `dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40`。验收与公开资产发布分别记载；实际下载命令由固定资产生成并通过受信任的 [GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases) 分发，资产尚未出现时不使用占位 URL。
@@ -112,7 +116,7 @@ bootstrap 未完成的隔离 venv 保留用于人工核对，不自动删除或�
 
 ## 固定下载与正式验收 gate（2026-10-22）
 
-新增流程保留离线路径，并提供实际固定版本 HTTPS 下载与正式验收 gate，不宣称已经公开发布。先按[Local 独立源码冻结](LOCAL_RELEASE_SOURCE_FREEZE.md)准备隔离分支 `codex/local-mode-release-v0.1.0`，不从整个 dirty tree 直接发布、不捎带 Cloud 实现。准备器不 commit／tag／push，后续由主控审阅后串行执行。
+本节记录构建机制与发布约束，保留初始开发时序；`local-v0.1.0` 的实际公开状态、摘要与安装入口见文首。流程保留离线路径，并提供固定版本 HTTPS 下载与正式验收 gate。先按[Local 独立源码冻结](LOCAL_RELEASE_SOURCE_FREEZE.md)准备隔离分支 `codex/local-mode-release-v0.1.0`，不从整个 dirty tree 直接发布、不捎带 Cloud 实现。准备器不 commit／tag／push，后续由主控审阅后串行执行。
 
 ### Python／目标与固定依赖
 

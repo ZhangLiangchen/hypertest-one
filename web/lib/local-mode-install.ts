@@ -1,6 +1,6 @@
-/** Source-candidate setup only. No published Local bootstrap exists yet. */
+/** Public Local assets are pinned; reviewed source setup remains a separate fallback. */
 export const LOCAL_CANDIDATE_VERSION = "local-v0.1.0-candidate";
-export const LOCAL_RELEASE_STATE = "UNPUBLISHED_SOURCE_CANDIDATE";
+export const LOCAL_RELEASE_STATE = "PUBLISHED";
 export const LOCAL_HARNESSES = ["codex", "claude-code", "deepseek-harness"] as const;
 export type LocalHarness = (typeof LOCAL_HARNESSES)[number];
 
@@ -15,7 +15,18 @@ export type PublishedLocalTarget = {
   bundleSha256: string;
   hosts: Partial<Record<LocalHarness, { automaticTrigger: "ACCEPTED" | "NOT_ACCEPTED"; versions: string[] }>>;
 };
-export const LOCAL_PUBLISHED_TARGETS: PublishedLocalTarget[] = [];
+export const LOCAL_PUBLISHED_TARGETS: PublishedLocalTarget[] = [{
+  targetId: "darwin-arm64-py313", python: "3.13", releaseTag: "local-v0.1.0",
+  sourceCommit: "874569fa566a137eba77ac4852caa6052cb04a17",
+  bootstrapSha256: "cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a",
+  manifestSha256: "ba132292c57c740f0409728e3aa23ce93ecde39b5fa40a6d435dad03fb4531da",
+  bundleSha256: "e3c7ac8c5966e086c02e3d4b50abc8cd32787bc276d37c271c9949379255979f",
+  hosts: {
+    "claude-code": { automaticTrigger: "ACCEPTED", versions: ["2.1.218"] },
+    codex: { automaticTrigger: "ACCEPTED", versions: ["0.144.6"] },
+    "deepseek-harness": { automaticTrigger: "ACCEPTED", versions: ["0.1.5-rc.1"] },
+  },
+}];
 
 export const LOCAL_PROVIDERS: Record<LocalHarness, string> = {
   codex: "codex", "claude-code": "claude_code", "deepseek-harness": "deepseek_harness",

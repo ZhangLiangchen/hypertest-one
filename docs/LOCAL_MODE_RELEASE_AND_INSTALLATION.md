@@ -1,10 +1,32 @@
 # HyperTest Local 统一发行与一键安装设计
 
-**日期：2026-10-22，Asia/Singapore。状态：统一源码与三宿主原生接入已验收 / Darwin arm64 CPython 3.13 已具正式构建资格 / 资产发布另行核对。**
+**日期：2026-10-22，Asia/Singapore。状态：local-v0.1.0 已公开 / 仅 Darwin arm64 CPython 3.13 / 三宿主精确版本 R6 原生接入已验收。**
 
 本地模式将 **MCP、Hooks 适配和同步协调器作为同一个 HyperTest Local release** 交付，用户可把项目页生成的一条非秘密安装命令交给 Claude Code、Codex 或 DeepSeek harness 执行。安装目标分别为 `claude-code`、`codex`、`deepseek-harness`；一个版本可以包含多个 OS 资产，所有组件复用同一提交链路 / 私有账本边界。
 
-**统一 Hooks / MCP 客户端、lean wheel、固定摘要 HTTPS bootstrap 和一键命令生成器均已实现；公开 `local-v*` release 尚未发布。** 当前使用独立源码分支生成私有候选，不能把候选包、GitHub CI 或安装收据当作真实宿主同步通过。三宿主的 R6 真实验收已通过；固定目标资产公开后，由发行记录提供可执行的正式下载命令。当前 ADR-018 Codex SessionTask 源码能力按[会话同步指南](CODEX_SESSION_TASK_SYNC.md)接入；历史 [`mcp-v0.1.0` 安装交付记录](MCP_INSTALLATION_DELIVERY_20261020.md)属于旧受管 Run 发行，其实际固定源码不能因当前构建脚本变化而被重标为支持 SessionTask、协调器、Hooks 或三宿主自动同步。当前 Local 候选、旧 MCP 正式发行、未来 Local 正式发行分别记录；旧 `mcp-v*` 保持原内容和适用范围。
+**统一 Hooks / MCP 客户端、lean wheel、固定摘要 HTTPS bootstrap 和一键命令生成器已随 `local-v0.1.0` 正式发行。** 正式下载仅面向下述 Mac 目标；三宿主 R6 真实验收与资产公开分别留证。候选包、GitHub CI、公开下载或安装收据均不能替代新机器的真实宿主同步验收。当前 ADR-018 Codex SessionTask 源码能力按[会话同步指南](CODEX_SESSION_TASK_SYNC.md)接入；历史 [`mcp-v0.1.0` 安装交付记录](MCP_INSTALLATION_DELIVERY_20261020.md)属于旧受管 Run 发行，其实际固定源码不能因当前构建脚本变化而被重标为支持 SessionTask、协调器、Hooks 或三宿主自动同步。历史 Local 候选、旧 MCP 正式发行、当前 Local 正式发行分别记录；旧 `mcp-v*` 保持原内容和适用范围。
+
+## 已公开的 Local v0.1.0
+
+[local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 于 `2026-10-22T12:08:14Z` 正式公开，release ID `420666845`，非 draft / prerelease。源码/tag 指向 `874569fa566a137eba77ac4852caa6052cb04a17`；Local source digest 仍为 `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a`，与下节 R6 验收源码一致。原始 R5 / R6 证据不改写为正式发行实装结果。只发布 `darwin-arm64-py313`（macOS arm64 / CPython 3.13）；Linux 与其他组合未正式发布。
+
+| 固定资产 | SHA-256 |
+| --- | --- |
+| [install-local-release.py](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/install-local-release.py) | `cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a` |
+| [hypertest-local-v0.1.0-darwin-arm64-py313.zip](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/hypertest-local-v0.1.0-darwin-arm64-py313.zip) | `e3c7ac8c5966e086c02e3d4b50abc8cd32787bc276d37c271c9949379255979f` |
+| bundle 内 `local-release-manifest.json` | `ba132292c57c740f0409728e3aa23ce93ecde39b5fa40a6d435dad03fb4531da` |
+
+[LOCAL_INSTALL.md](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/LOCAL_INSTALL.md) 提供 Claude Code `2.1.218`、Codex `0.144.6`、DeepSeek CLI `0.1.5-rc.1` 各自 MCP-only 与明确启用 Hooks 的命令，共六条。保留命令中的 tag、源码、三项摘要和宿主版本，只替换绝对路径及所选已有 profile。DeepSeek 的 **`--host-config` 必须是 `<DSH_HOME>/profiles/<profile>/cordis.patch.yml`**，须与 `--dsh-home` 和 `--profile` 一致；将发行示例里的通用 `/ABS/SELECTED/host-config` 替换为此确切路径，不能使用任意 YAML。项目页命令直接从选定 home/profile 生成该路径。
+
+DeepSeek 还要求组件 `0.1.5-rc.2`，实测范围仅为 SDK profile 双 turn；headless one-shot、resume 和独立 Stop handler 次数不在已验范围。Claude / Codex 的后端、子代理和产物限制继续以下节矩阵为准。Hooks 默认关闭；启用需明确 `--workspace` 或审核过的产物策略，保留已有 `task:sync` 配置，安装不签发 grant 或复制模型登录。
+
+[公开发行证据](local-acceptance/local-v0.1.0-publication.json)记录四个资产匿名 HTTP 200、完整字节摘要、旧 MCP release / tag 与旧 latest 保全；catalog 的 `publication=NOT_ASSERTED` 是构建时声明，公开事实由此独立记录证明。下载来源信任使用受信任发行渠道加预先确认的固定摘要，没有新增签名体系。公开 bootstrap 的新隔离安装结果见下段；任何新机器仍须重载并以真实父会话 ACK 和固定接受版本完整读回确认接入。
+
+### 公开一键安装实测
+
+在 macOS 26.5.1 / arm64 / Python 3.13.3 的新私有目录，实际运行上述公开下载与三项摘要校验的一键命令：`exit 0`，`14.17s`；正式 wheel SHA-256 为 `a226e64a64f9c93a705e0139c0218f61cd804a3a562225d5bdbdf44984bf41d3`，36 个实装成员逐字节匹配。与 R6 的 35 个共同成员一致，仅发行身份 `release.json` / `RECORD` 按正式构建变化；29 项依赖的字节、来源、版本与 R6 相符。
+
+仅对独立 Codex 配置完成合并与 doctor，结果为 `WRITTEN`；原私有授权 / policy / 宿主配置 / 用户配置 / state 文件摘要保全，3 个原 key 仍 `READBACK_COMPLETE`、pending 为 0，daemon 已停止。此步骤未启动模型、SUT 或新同步；新安装 `native_acceptance` / `real_sync` 仍为 `NOT_OBSERVED`，`automatic_trigger=CONFIGURED_UNACCEPTED`。它证明公开下载安装与配置保全，不追加三宿主原生 E2E 结论。[发行记录](local-acceptance/local-v0.1.0-publication.json)保存脱敏字段与原收据 SHA-256 `52b027831901ac6ae5cee27b462347f75072426533c43de32daeedc38e756271`。
 
 ## R6 固定源码验收与发行资格（2026-10-22）
 
@@ -67,7 +89,7 @@ DeepSeek 安装还须显式选择私有 `DSH_HOME` / `dsh_home` 和 profile，�
 
 ## 3. 一条命令的用户流程
 
-**Project → Codex 测试任务 → 接入本地模式** 的源码向导已实现，支持宿主选择、私有路径和候选命令。公开发行描述符尚未启用；资产发布后，该入口按固定版本、目标和可信摘要生成正式命令。旧 **Create test run → My computer** 继续提供其原受管执行安装流程。命令只含平台 API、Project UUID、宿主、固定版本和校验信息，不含 token、Operator key、环境私钥、模型凭据或授权兑换秘密。
+**Project → Codex 测试任务 → 接入本地模式** 的源码向导已实现，支持宿主选择、私有路径和候选命令。公开发行描述符现已固定上述 Mac 目标、三宿主精确版本及可信摘要，入口据此生成正式命令；Web 变更的源码交付与线上页面部署分别记录。旧 **Create test run → My computer** 继续提供其原受管执行安装流程。命令只含平台 API、Project UUID、宿主、固定版本和校验信息，不含 token、Operator key、环境私钥、模型凭据或授权兑换秘密。
 
 面向**目标 Harness 已安装、尚未安装 HyperTest Local 的机器**，单次 bootstrap 必须由已发布 release 与项目页生成；运行依赖仍须满足 manifest 基线。生成所需字段如下；缺少固定资产 / 可信校验材料时页面不得显示“可安装”命令：
 
@@ -87,7 +109,7 @@ DeepSeek 安装还须显式选择私有 `DSH_HOME` / `dsh_home` 和 profile，�
 
 不使用无校验的 `curl | sh`。与 payload 一起从不可信位置下载的 checksum 只能检测内容一致，不能认证来源；信任根来自独立确认的发行摘要、已受信任的项目入口或可信发布者签名。TLS 仍须校验系统 / 显式私有 CA；禁止跳过证书验证。发行记录须说明采用哪一种信任路径，不能把尚未建立的签名体系写成已存在。
 
-正式命令由 `scripts/local-release-commands.py` 从实际固定 bundle 生成，包含所选宿主、Project、已有私有 client config 和安装目录引用。已接受的自动同步命令还须含 `--enable-hooks --harness-version EXACT_ACCEPTED_VERSION --workspace /absolute/approved/workspace`；Claude Code / Codex 指定私有 `--hook-config`，DeepSeek 指定 `--event-bridge native-root --dsh-home ... --profile ...`。三宿主分别给出完整命令，MCP-only 是明确可选项。未发布前不提供虚构 URL 或可执行占位命令。
+正式命令由 `scripts/local-release-commands.py` 从实际固定 bundle 生成，包含所选宿主、Project、已有私有 client config 和安装目录引用。已接受的自动同步命令还须含 `--enable-hooks --harness-version EXACT_ACCEPTED_VERSION --workspace /absolute/approved/workspace`；Claude Code / Codex 指定私有 `--hook-config`，DeepSeek 指定 `--event-bridge native-root --dsh-home ... --profile ...`。三宿主分别给出完整命令，MCP-only 是明确可选项。本次实际固定命令见文首发行资产；未发布目标不提供虚构 URL 或可执行占位命令。
 
 安装器应完成：
 
