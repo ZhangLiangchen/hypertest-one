@@ -1,0 +1,229 @@
+{
+  "record_type": "HyperTest Local host native acceptance evidence",
+  "record_version": 1,
+  "recorded_date": "2026-10-22",
+  "timezone": "Asia/Singapore",
+  "host": "deepseek-harness",
+  "overall_scope": "Observed real Local SDK-profile synchronization; no SUT execution",
+  "release": {
+    "version": "local-v0.1.0",
+    "candidate": "R5",
+    "source_commit": "5e56ca532fba3b7f04f66879ed495ca4594954c1",
+    "source_digest_sha256": "ba0119aa56e7f28e1fa177fdc547f18f8212aaafbc41ddca0c2f5cff2d57a382",
+    "wheel_filename": "hypertest_local-0.1.0-py3-none-any.whl",
+    "wheel_size_bytes": 69662,
+    "wheel_sha256": "72f95325aea00d45dbd093e5f51c1fcf555f909e59fe15f5dd57861910f75341",
+    "adapter_path": "hypertest/local_sync/deepseek_root_bridge.mjs",
+    "adapter_sha256": "c54d40f507cf8c9dc43eaf8bf0b6ebe89d8de21582d07f19ff36783db588ef97",
+    "installed_wheel_members_checked": 36,
+    "installed_members_match_wheel": true,
+    "runtime_source_members_checked": 28,
+    "runtime_sources_match_candidate": true,
+    "expected_generated_member": "hypertest/__init__.py",
+    "unexpected_source_drift": []
+  },
+  "environment": {
+    "os": "Darwin",
+    "os_version": "26.5.1",
+    "architecture": "arm64",
+    "python_version": "3.13.3",
+    "node_version": "26.8.1",
+    "harness_cli_version": "0.1.5-rc.1",
+    "harness_component_version": "0.1.5-rc.2",
+    "sdk_protocol_version": "0.0.1",
+    "entry_mode": "official SDK app profile with official JsonRpcLineTransport",
+    "model_provider": "deepseek-official",
+    "model": "deepseek-flash",
+    "model_thinking": "disabled",
+    "per_request_max_tokens": 1024,
+    "execution_budget_seconds": 240,
+    "runtime_exit_code": 0
+  },
+  "official_components": [
+    {
+      "package": "@deepseek-ai/dsh",
+      "installed_version": "0.1.5-rc.1",
+      "published_version": "0.1.5-rc.1",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.5-rc.1.tgz",
+      "integrity": "sha512-rmNmzQCg3oIc1z8xH7izRSOuy1TNzq+/NILyfM+7e8DKOyV+yBtg47WEsqR2SiIe1ATec3L/rUa1YhIcfQ2XEg==",
+      "installed_entry_sha256": "0ff7f1d72c4e0cbe14001709c81e20a04b70464118a7f78568952988e28f2ac5",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-hooks-claude-code",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-hooks-claude-code/-/dsh-hooks-claude-code-0.1.5-rc.2.tgz",
+      "integrity": "sha512-wdsl+A8tvAk66N5ozqyxmJ5t30AQQ5byBaKYL60Vx1jFoWXaD83piPcD1BAPZ+hVoWI1a9PCUDowFzAzq/PnwQ==",
+      "installed_entry_sha256": "236633296049129787e3e8de705c5f7bade2fd16a6554ff15ad0e9143cac20a0",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-agent",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.1.5-rc.2.tgz",
+      "integrity": "sha512-SlUL1riZmVLwMUR3jo9CP/R1cxov9dHkCJDh6JQW3fSZJVCIdPygBRlAweCUDvHxAEmPpFHxE/U3NmSUbX+vQQ==",
+      "installed_entry_sha256": "b05aa36fce8e2f910596a682fb1d2b461eac2549e344360c92711a557d06b0bb",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-llm",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-llm/-/dsh-llm-0.1.5-rc.2.tgz",
+      "integrity": "sha512-Z7BVsBkK24SE4EItQeow8PHms/9GP0DSTi337vTAa/RY7tNg2Snz3INcXUj6CPZfvntQr1in9op9wLI+rfNsqA==",
+      "installed_entry_sha256": "f54d86572d4c0e8d9348cdc65e4c4684a4956a91162815d3c52ee7c0c58225ed",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-jsonrpc-server/-/dsh-sdk-jsonrpc-server-0.1.5-rc.2.tgz",
+      "integrity": "sha512-TRVkUngQPKlpHvqS5AZi63zwa+5eG0zp1NwZXzJjdiYhjV2LPICiWVM6EuSbmIRB6tUZMB1MXf4ZSj2OFQWn/Q==",
+      "installed_entry_sha256": "7b19ef78260b4a9287b9712074d9df63271a67bae752e5a26deb1fd17067340e",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-sdk-protocol",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-protocol/-/dsh-sdk-protocol-0.1.5-rc.2.tgz",
+      "integrity": "sha512-ewWYU+2tkcm5rTQtM5F6pYP5S6ox/7j/Gc/xCpXBtVOfUNchI8IUYbVNuea/lGX6XYGCBxpdG1jxV51W1YyWkg==",
+      "installed_entry_sha256": "371c38ca3514797d86df5f4bb78a56c40a2637294b83aababe8145bec6a20253",
+      "published_entry_matches": true
+    }
+  ],
+  "daemon_origin": {
+    "peer_uid_matches": true,
+    "daemon_args_match": true,
+    "python_executable_matches_or_same_framework": true,
+    "candidate_pydantic_core_mapped": true,
+    "candidate_pydantic_core_sha256": "6de7fdb17b3fd47e2afeb61834adc9483842eb962a5a828795fb0c14c8bc20c7",
+    "formal_daemon_source_observed": true
+  },
+  "source": {
+    "project_id": "01a16316-7411-74f5-b173-c6173caedc77",
+    "provider": "deepseek_harness",
+    "real_parent_session_id": "session-30b5940f-ff5c-4638-9877-2f35abb0d5bf",
+    "real_binding_observed": true,
+    "two_turns": [
+      "completed",
+      "completed"
+    ],
+    "source_identity_origin": "Real Harness registry creation and native agent/session-start; no synthetic Hook payload"
+  },
+  "automatic_sync": {
+    "status": "ACCEPTED",
+    "accepted_scope": [
+      "Real SessionStart root binding",
+      "Real PostToolUse approved-artifact checkpoint to accepted receipt and fixed complete readback"
+    ],
+    "not_separately_observed": [
+      "Root Stop handler invocation count"
+    ],
+    "session_end": "UNAVAILABLE",
+    "explicit_sync_tool_called": false,
+    "task_id": "01a16356-fa2c-7a8c-8417-0ab93de9026f",
+    "accepted_version": 1,
+    "idempotency_key": "hook-b38edc86ef39486899017515d6e35abb",
+    "journal_state": "READBACK_COMPLETE",
+    "accepted_checkpoint_count": 1,
+    "artifact_filename": "analysis.md",
+    "artifact_bytes": 238,
+    "artifact_sha256": "29c5c9aa69df9feb29f816c0e60fab0ca0e7aeaf318d67d3029baa0bc15cccee",
+    "platform_plan_sha256": "29c5c9aa69df9feb29f816c0e60fab0ca0e7aeaf318d67d3029baa0bc15cccee",
+    "artifact_bytes_match": true,
+    "task_status": "IN_PROGRESS",
+    "reported_result": "NOT_RUN",
+    "initial_status_and_result_source": "Explicit approved acceptance policy; never inferred from Hook or turn completion"
+  },
+  "mcp": {
+    "status": "ACCEPTED_ACTUAL_TOOL_CALL",
+    "actual_get_calls": [
+      {
+        "session_id": "session-30b5940f-ff5c-4638-9877-2f35abb0d5bf",
+        "tool_name": "mcp__hypertest__hypertest_get_task",
+        "is_error": false,
+        "args_match_source": true,
+        "returned_task_id": "01a16356-fa2c-7a8c-8417-0ab93de9026f",
+        "returned_version": 1
+      }
+    ],
+    "only_approved_root_tools": true,
+    "actual_tool_names": [
+      "write",
+      "mcp__hypertest__hypertest_get_task"
+    ]
+  },
+  "fixed_readback": {
+    "fixed_readback_complete": true,
+    "task_id": "01a16356-fa2c-7a8c-8417-0ab93de9026f",
+    "accepted_version": 1,
+    "idempotency_key": "hook-b38edc86ef39486899017515d6e35abb",
+    "journal_state": "READBACK_COMPLETE",
+    "plan_sha256": "29c5c9aa69df9feb29f816c0e60fab0ca0e7aeaf318d67d3029baa0bc15cccee",
+    "task_status": "IN_PROGRESS",
+    "reported_result": "NOT_RUN",
+    "case_count": 0,
+    "report_count": 0,
+    "accepted_checkpoint_count": 1,
+    "child_negative_get": {
+      "status": 404,
+      "code": "PLATFORM_REQUEST_REJECTED",
+      "no_child_task": true
+    },
+    "fixed_document_sha256": "e233555600e1f59b68c171453c53aed4aec69c01b81941eec8eea960157d09f7",
+    "direct_readback_sha256": "e233555600e1f59b68c171453c53aed4aec69c01b81941eec8eea960157d09f7",
+    "full_page_sha_match": true,
+    "ipc_page_count": 2,
+    "direct_page_count": 2
+  },
+  "child_filter": {
+    "parent_session_id": "session-30b5940f-ff5c-4638-9877-2f35abb0d5bf",
+    "child_session_id": "session-f6d409d0-0b70-402d-864f-44cd768a1e43",
+    "child_in_roots": false,
+    "registry_owned_by_parent": true,
+    "child_origin": "subagent",
+    "child_native_event_observed": true,
+    "child_root_at_native_event": false,
+    "child_model_requests": 0,
+    "mcp_sync_registered": true,
+    "mcp_get_registered": true,
+    "child_task_lookup": {
+      "status": 404,
+      "code": "PLATFORM_REQUEST_REJECTED",
+      "no_child_task": true
+    },
+    "child_binding_exists": false,
+    "claim_scope": "A real native child SessionStart reached the observer with Registry root=false; no child binding or Task was created"
+  },
+  "postconditions": {
+    "pending_events": 0,
+    "binding_count": 1,
+    "root_binding_exists": true,
+    "child_binding_exists": false,
+    "journal_states": {
+      "READBACK_COMPLETE": 1
+    },
+    "local_sync_mode": "0o700",
+    "postconditions_pass": true
+  },
+  "preservation": {
+    "existing_model_login_copied": false,
+    "existing_model_credentials_changed": false,
+    "user_global_profile_changed": false,
+    "raw_chats_or_reasoning_in_evidence": false,
+    "raw_tool_payloads_in_evidence": false,
+    "secrets_in_evidence": false,
+    "sut_executed": false,
+    "test_pass_inferred": false
+  },
+  "limitations": [
+    "SDK-profile two-turn acceptance only; headless one-shot and resume not separately accepted",
+    "Root Stop handler was not independently instrumented; two completed turn/end observations do not expand the accepted trigger scope",
+    "macOS acceptance state used a shorter owner-only socket path; existing state bytes and original authorization were preserved",
+    "This evidence does not certify other hosts, cloud execution, business tests, publication or a release-ready verdict"
+  ]
+}

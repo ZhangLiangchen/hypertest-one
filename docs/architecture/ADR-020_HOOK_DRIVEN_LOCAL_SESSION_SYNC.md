@@ -1,14 +1,32 @@
 # ADR-020：Hooks 驱动的本地会话任务同步
 
+## R6 固定源码验收与发行资格（2026-10-22）
+
+三宿主的真实 Local 接入均已完成，本提交固定 Darwin arm64 / CPython 3.13 的正式构建资格。[资格记录](../local-acceptance/darwin-arm64-py313.json)绑定 R6 源码 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`、Local source digest `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 和实装候选 wheel SHA-256 `dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40`。验收与公开资产发布分别记载；实际下载命令由固定资产生成并通过受信任的 [GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases) 分发，资产尚未出现时不使用占位 URL。
+
+| 精确目标上的宿主 | 实际通过范围 | 限制 |
+| --- | --- | --- |
+| Claude Code `2.1.218` | [原生证据](../local-acceptance/claude-code-native-20261022.json)：真实 SessionStart、批准 analysis.md → TEST_PLAN、原生 Hooks 自动同步、实际 MCP GET、Agent child 无独立 Task | 官方 DeepSeek Anthropic-compatible backend；DRAFT / NOT_RUN |
+| Codex CLI `0.144.6` / `gpt-5.6-sol` | [原生证据](../local-acceptance/codex-native-20261022.json)：同一最终父会话自动产物同步与实际 MCP GET completed；固定版本读回和 SHA 一致 | 子代理生命周期 / 404 / 无 child binding 来自另一真实 R6 父会话的独立 probe；最终父会话 3 次 spawn PreToolUse 未产生 child，不宣称这些尝试成功；DRAFT / NOT_RUN |
+| DeepSeek harness CLI `0.1.5-rc.1`，组件 `0.1.5-rc.2` | [R6 SDK-profile 证据](../local-acceptance/deepseek-native-20261022.json)：官方 JsonRpcLineTransport 双 turn、真实 SessionStart / PostToolUse、自动 ACK 与固定版本全页读回、实际 MCP GET、native registry child 404 | 显式批准策略 IN_PROGRESS / NOT_RUN；Stop 独立 handler 次数、headless / resume 未验收 |
+
+本次实机为 macOS 26.5.1 / arm64 / Python 3.13.3。Linux x86_64 / CPython 3.12 仅有源码回归、固定依赖构建与离线安装证明，保留 CANDIDATE，稳定 tag 不发布该目标；其他 OS / 架构 / Python / 宿主版本未接受。`local-v*` 使用独立发行线，旧 `mcp-v*` 内容与适用范围保留。
+
+真实产物范围仅为批准的 analysis.md → TEST_PLAN，另有实际 MCP GET；case / raw report 为 0。用例、报告与 FAIL 保全已有 ASGI / 单元回归，不能扩大为三宿主全部产物类型的原生 E2E。状态来自批准策略；Stop、上传或 ACK 不推导 COMPLETED / PASS。R5 DSH 证明保留为[独立历史](../local-acceptance/deepseek-native-20261022-r5.json)，当前资格来自新的 R6 运行。
+
+[CI #118](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39770913859) 已通过：后端 1180 passed / 21 skipped，Web 137 passed、typecheck 与 production build。R6 候选另通过隔离远端 168 项 Local / MCP / 旧客户端回归、focused Ruff、固定 29 依赖离线安装与 pip check。最终 evidence / target / 文档提交保持同一 Local source digest，另行执行发行专项与 CI。
+
+后文表格记录决定时的历史状态；当前 Local 资格以上节和[实现记录](../LOCAL_MODE_IMPLEMENTATION_STATUS.md)为准。`artifact_source` 模式显式 MCP 写入要求已有真实 root binding，核对 Project / provider / session / workspace / policy / artifact directory；此为私有来源选择约束，不认证当前调用者，不承诺防止知道 root ID 的本地 actor 冒用。旧路径和 GET-only 原 key 恢复保持。
+
 **Local 源码分支实现增补（2026-10-22）：Local 协调器、TaskSyncCore Local adapter、三宿主入口和统一发行工具已实现源码；真实宿主与发行状态见 LOCAL_MODE_IMPLEMENTATION_STATUS.md 及确切目标验收记录。下文为初始设计原文，其中 NOT IMPLEMENTED 是当时状态，不覆盖本段当前 Local 状态；本分支不包含 Cloud/Memory 的实现。**
 
-**状态：Accepted design；实现状态：NOT IMPLEMENTED（2026-10-22，Asia/Singapore）。**
+**决定时历史状态：Accepted design / NOT IMPLEMENTED。当前实现与原生验收状态见上节（2026-10-22，Asia/Singapore）。**
 
 **决定方：项目负责人接受 Hooks 自动触发、MCP 保留显式操作、二者共用本地同步协调器的设计。**
 
 **范围：Local 客户端触发与编排扩展；沿用 ADR-018，不新增或升级业务 wire / profile。**
 
-**同日发行决定：Hooks、MCP 与共享同步客户端作为统一 Local release，提供一个安装入口，目标宿主为 Claude Code / Codex / DeepSeek harness；发行和安装工具均待实现，见 §9（2026-10-22，Asia/Singapore）。**
+**同日发行决定：Hooks、MCP 与共享同步客户端作为统一 Local release，提供一个安装入口，目标宿主为 Claude Code / Codex / DeepSeek harness；决定时发行和安装工具均待实现，当前实现与实机资格见文首，原设计见 §9（2026-10-22，Asia/Singapore）。**
 
 **同日共享同步决定：[ADR-021](ADR-021_SHARED_TASK_SYNC_CORE.md)将这里的可靠同步机制抽为 TaskSyncCore，供 LocalSyncCoordinator + LocalSyncAdapter 与云端 CloudTaskReporter + CloudSyncAdapter 复用；共享组件尚未实现，Local 原 wire / grant 与云端 lease / 权限保持独立。**
 
@@ -148,7 +166,7 @@ DeepSeek harness 在此是**独立 Local 父会话**的安装目标；Cloud SDK 
 
 重复安装幂等复用既有 client / Project 绑定、回执和账本。升级整体切换兼容组件并核验 journal schema；未决 / UNKNOWN 请求不得清理、改 key 或重发，旧状态无法安全读取时阻塞切换并允许回退。失败回退或禁用 Hooks 保留可用 MCP、原 key、材料和历史。卸载只移除本包所管理的配置项与二进制，保留用户会话目录、项目、原账本及必要私有导出，不覆盖用户后续修改或删除其他集成。安装不静默切换用户全局默认 Skill。
 
-统一发行、安装器及三个宿主自动接入均 **NOT IMPLEMENTED**。本设计不授权当前会话发布 release、下载安装、修改宿主配置、签发授权或启动后台同步；现有 Codex MCP 同步继续独立可用。L0–L4 须分别完成三宿主身份 / MCP / 触发、缺授权、配置重载、重复安装、中断、升级回退和安全卸载的真实验收，后续真实 release 才能生成带固定版本 / hash 的项目安装命令；该命令不得含秘密。
+决定时统一发行、安装器及三个宿主自动接入均为 **NOT IMPLEMENTED**；当前已实现并完成文首精确目标验收。本设计不授权当前会话发布 release、下载安装、修改宿主配置、签发授权或启动后台同步；现有 Codex MCP 同步继续独立可用。L0–L4 须分别完成三宿主身份 / MCP / 触发、缺授权、配置重载、重复安装、中断、升级回退和安全卸载的真实验收，后续真实 release 才能生成带固定版本 / hash 的项目安装命令；该命令不得含秘密。
 
 ## 10. 本地同步设计复用于云端
 
@@ -157,3 +175,5 @@ DeepSeek harness 在此是**独立 Local 父会话**的安装目标；Cloud SDK 
 TaskSyncCore 共享结构化进度 / 产物清单、完整请求整理、语义差异、稳定 key / version、回执校验、UNKNOWN 对账与接受版本完整读回。局部意图合并仍以本 ADR §3 的完整基线和字段 presence 为准；原 MCP 完整请求 / 空值 / 冻结 key 语义不变。云端由 CloudTaskReporter 经当前 fenced Worker 使用 Cloud typed operations 保存领域进度与产物，不走 Local SessionTask API，不把本地运行代次升级为服务端 lease。
 
 共享的是可靠交付机制，SDK / Hook 的活动观察不等于领域进度、任务完成或测试结果；两种模式都只提交明确允许的领域产物，不上传聊天、CoT、raw tool payload 或秘密。共享架构见技术架构 §47，协作契约见 TMP §48，私有运行态 / 不变量见领域 §53；均为待实现设计。
+
+Codex 的项目 Hook trust、MCP 读工具许可和宿主重载由其标准权限流程分别处理。安装器合并配置后，需让实际项目重新加载配置并确认受信任 Hook；`hypertest_get_task` 还须具有标准读工具许可。验收中的读许可通过该工具专属 `approval_mode=approve` 的单次 CLI overlay 显式给予；沙箱与持久用户配置保持原值，其他全局 MCP 仅在本次 CLI 运行中停用。安装成功、一次独立 GET 成功或诊断调用通过均不替代同一真实父会话的自动产物 ACK / 固定版本完整读回及 child 边界证明。此前缺少原始错误的失败运行保留为失败记录，不追认根因。

@@ -495,6 +495,10 @@ def test_formal_release_selects_only_real_accepted_target_not_candidate_os(tmp_p
     root = tmp_path / "source"
     (root / "scripts").mkdir(parents=True)
     catalog = json.loads((ROOT / "scripts/local-release-targets.json").read_bytes())
+    # This negative fixture starts without qualification regardless of which
+    # exact targets the repository has subsequently accepted for publication.
+    for target in catalog["targets"]:
+        target.update(publication="CANDIDATE", acceptance_file=None)
     (root / "scripts/local-release-targets.json").write_text(json.dumps(catalog))
     assert len(release_plan.plan(root, TAG)["include"]) == 2
     with pytest.raises(ValueError, match="No accepted targets"):

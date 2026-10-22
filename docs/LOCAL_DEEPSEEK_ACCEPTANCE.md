@@ -43,4 +43,25 @@
 
 ## 当前验收状态
 
-已完成本机版本 / 安装布局、官方事件语义和固定版本 npm entry 比对；已实现受版本约束的 bridge / root adapter 与配置契约测试源码。早期源码快照的独立 SDK profile 无模型初始化已真实返回 protocol `0.0.1`、`initialized=true`、runtime exit `0`；它没有创建会话或管理任务，且不能代替正式 wheel 的来源与真实同步验收。正式 wheel 下的真实模型运行、父子过滤、平台 ACK / 固定版本完整读回尚待执行。本文件不表示已发布 release 或已启用个人全局 Hooks。
+**R6 的真实 SDK profile 接入已重新观察通过；最终资格选择 R6，R5 独立保留为历史。** 机器可核验的无秘密记录见 [DeepSeek R6 原生验收证据](local-acceptance/deepseek-native-20261022.json)；[R5 历史证据](local-acceptance/deepseek-native-20261022-r5.json)的原字节和摘要没有改变。后续候选必须按其精确源码与 wheel 重新验收，不能自动继承通过。这不表示正式 release 已发布，也未启用个人全局 Hooks。
+
+| 项目 | R6 实测结果 |
+| --- | --- |
+| 固定候选 | commit `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`；source digest `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a`；wheel SHA-256 `dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40` |
+| 客户端来源 | 36 个安装成员逐字节匹配 wheel；28 个非生成运行源码成员匹配候选，无意外源码漂移；`hypertest/__init__.py` 按 lean wheel 构建规则生成 |
+| 实际环境 | Darwin 26.5.1 / arm64，Python 3.13.3，Node 26.8.1；CLI `0.1.5-rc.1` / 组件 `0.1.5-rc.2` |
+| 真实父会话 | `session-87323bb7-3ee3-4589-8f75-4fcd1d1d342c`；两个真实模型 turn 完成，runtime exit `0` |
+| 自动同步 | 模型只写批准的 `analysis.md`；没有显式调用 sync；PostToolUse checkpoint 得到唯一 ACCEPTED / `READBACK_COMPLETE` |
+| 平台结果 | Task `01a16360-d6ae-71fe-92d6-89d238c773aa`，接受版本 `1`；原 key `hook-ec92200712d94249bf334dae924f2d67`；文件和平台计划 SHA-256 相同 |
+| 真实 MCP | 模型实际调用 `mcp__hypertest__hypertest_get_task`，原生 tool-result 无错误，来源参数匹配，返回上述 Task / version |
+| 固定版全读回 | IPC 和独立 typed GET 均完整读取同一接受版本，各 2 页；两份完整 JSON 与 canonical document SHA-256 相同 |
+| 真实 child | 官方 Registry 创建 child，真实 `agent/session-start` 已到达，Registry root=false / ownedByParent=true / 零模型请求；无 child binding，平台查询返回 404 |
+| 收尾 | 0 pending、2 个父绑定、2 个 `READBACK_COMPLETE`（R5 历史与 R6 新会话各一项），private parent 为 `0700`；两个 child 均无绑定 |
+
+R6 安装后没有换 actor / client / Project / grant，也没有重置原 journal。原 R5 key 再次 GET，固定版本仍为 `1`，完整文档 SHA 与 R5 历史证据相同；R5 私有证据文件的原摘要也全部保持一致。R6 使用真实新父会话建立独立 Task，不冒用或改写 R5 的身份。
+
+平台 `IN_PROGRESS / NOT_RUN` 来自事先明确批准的验收策略；未运行 SUT、Shell、Web 或业务测试。Hook / MCP 成功不生成测试 PASS。记录只含允许元数据、refs 和 digest，没有聊天、推理、原始工具 payload 或凭据。
+
+本次**自动触发接受范围是实际 PostToolUse 产物 checkpoint 至回执和完整读回**。父会话 Stop handler 未单独计数观察；两个 `turn/end completed` 和最终没有重复版本不能扩写为三个事件分别通过。`SessionEnd` 不可用；headless 单 turn、resume 和其他宿主不在本记录的接受范围。
+
+验收曾使用过长的 macOS 私有 socket 路径；在没有 intent / pending / binding 的阶段，将整个专用 state 原子迁到更短 owner-only 目录，既有文件内容、actor / client / Project / token 全部保留。正式 daemon 来源以同 UID 的 peer PID、实际隔离参数、Darwin Framework 执行关系，以及候选 venv 内的 Pydantic native extension 映射共同核验。早期源码 / R4 无模型初始化记录独立保留，未被计作真实同步通过。

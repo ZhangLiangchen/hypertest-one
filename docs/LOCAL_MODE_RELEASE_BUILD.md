@@ -1,5 +1,24 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+## R6 固定源码验收与发行资格（2026-10-22）
+
+三宿主的真实 Local 接入均已完成，本提交固定 Darwin arm64 / CPython 3.13 的正式构建资格。[资格记录](local-acceptance/darwin-arm64-py313.json)绑定 R6 源码 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`、Local source digest `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 和实装候选 wheel SHA-256 `dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40`。验收与公开资产发布分别记载；实际下载命令由固定资产生成并通过受信任的 [GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases) 分发，资产尚未出现时不使用占位 URL。
+
+| 精确目标上的宿主 | 实际通过范围 | 限制 |
+| --- | --- | --- |
+| Claude Code `2.1.218` | [原生证据](local-acceptance/claude-code-native-20261022.json)：真实 SessionStart、批准 analysis.md → TEST_PLAN、原生 Hooks 自动同步、实际 MCP GET、Agent child 无独立 Task | 官方 DeepSeek Anthropic-compatible backend；DRAFT / NOT_RUN |
+| Codex CLI `0.144.6` / `gpt-5.6-sol` | [原生证据](local-acceptance/codex-native-20261022.json)：同一最终父会话自动产物同步与实际 MCP GET completed；固定版本读回和 SHA 一致 | 子代理生命周期 / 404 / 无 child binding 来自另一真实 R6 父会话的独立 probe；最终父会话 3 次 spawn PreToolUse 未产生 child，不宣称这些尝试成功；DRAFT / NOT_RUN |
+| DeepSeek harness CLI `0.1.5-rc.1`，组件 `0.1.5-rc.2` | [R6 SDK-profile 证据](local-acceptance/deepseek-native-20261022.json)：官方 JsonRpcLineTransport 双 turn、真实 SessionStart / PostToolUse、自动 ACK 与固定版本全页读回、实际 MCP GET、native registry child 404 | 显式批准策略 IN_PROGRESS / NOT_RUN；Stop 独立 handler 次数、headless / resume 未验收 |
+
+本次实机为 macOS 26.5.1 / arm64 / Python 3.13.3。Linux x86_64 / CPython 3.12 仅有源码回归、固定依赖构建与离线安装证明，保留 CANDIDATE，稳定 tag 不发布该目标；其他 OS / 架构 / Python / 宿主版本未接受。`local-v*` 使用独立发行线，旧 `mcp-v*` 内容与适用范围保留。
+
+真实产物范围仅为批准的 analysis.md → TEST_PLAN，另有实际 MCP GET；case / raw report 为 0。用例、报告与 FAIL 保全已有 ASGI / 单元回归，不能扩大为三宿主全部产物类型的原生 E2E。状态来自批准策略；Stop、上传或 ACK 不推导 COMPLETED / PASS。R5 DSH 证明保留为[独立历史](local-acceptance/deepseek-native-20261022-r5.json)，当前资格来自新的 R6 运行。
+
+[CI #118](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39770913859) 已通过：后端 1180 passed / 21 skipped，Web 137 passed、typecheck 与 production build。R6 候选另通过隔离远端 168 项 Local / MCP / 旧客户端回归、focused Ruff、固定 29 依赖离线安装与 pip check。最终 evidence / target / 文档提交保持同一 Local source digest，另行执行发行专项与 CI。
+
+以下第一阶段接口 / fixture 记录保留为历史，不能代替实际源码候选或真实父会话验收。当前固定下载及信任入口见后续“统一发行增量”。
+
+
 日期：2026-10-22（Asia/Singapore）。本页记录实际源码接口；新增 HTTPS／正式发行能力见末尾“统一发行增量”。前面的首轮离线候选记录保留历史范围，新增接口以增量段为准。源码不表示已创建 `local-v*` tag、上传 release 或完成三个真实宿主验收。发行产品契约见[统一安装设计](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。
 
 ## 构建输入
@@ -49,7 +68,7 @@ python3.12 scripts/build-local-release.py \
 
 Local wheel 仅包含 `interactive_client`、`sync_core`、`local_sync`、原 SessionTask wire schema 和允许的配置模板；不打包 Cloud SDK / runtime、API 服务、数据库模型或 Worker。wheel 自带 `hypertest/local_sync/release.json`，记录 Local 版本、源码 commit 和核心契约。Local 发行版本独立于后端 `pyproject.toml` 版本；旧 `mcp-v0.1.0` 及其 wheel / 验收记录保持原义。
 
-manifest 固定代码组件、bootstrap / payload 大小和 SHA-256、所有依赖原始来源及版本、MCP / Task / journal / snapshot 兼容契约，以及实际构建 OS / 架构 / Python。当前固定为 `distribution_state=CANDIDATE`、`publication=NOT_ASSERTED`；Codex、Claude Code、DeepSeek harness 的真实 MCP / 自动触发验收均为 `NOT_ACCEPTED`。实际测试须另行记录，构建成功不产生 READY、SessionTask 或测试 PASS。
+manifest 固定代码组件、bootstrap / payload 大小和 SHA-256、所有依赖原始来源及版本、MCP / Task / journal / snapshot 兼容契约，以及实际构建 OS / 架构 / Python。早期 fixture 固定为 `distribution_state=CANDIDATE`、`publication=NOT_ASSERTED`，其宿主行均为 `NOT_ACCEPTED`。当前真实资格见文首 R6 记录：正式构建仅接受精确目标的三宿主已验收证据，并继续以 `publication=NOT_ASSERTED` 表示构建器不自行证明公开发布。构建成功不产生 READY、SessionTask 或测试 PASS。
 
 ## 离线验证与显式候选安装
 
@@ -91,7 +110,7 @@ bootstrap 未完成的隔离 venv 保留用于人工核对，不自动删除或�
 
 隔离 Git fixture 的构建 / 安装 smoke 只证明脚本与依赖闭包，不证明用户当前未提交代码已成为正式 release，也不代替三个宿主的真实会话验收。
 
-## 统一发行增量（2026-10-22，待本轮专项与真实宿主验收）
+## 固定下载与正式验收 gate（2026-10-22）
 
 新增流程保留离线路径，并提供实际固定版本 HTTPS 下载与正式验收 gate，不宣称已经公开发布。先按[Local 独立源码冻结](LOCAL_RELEASE_SOURCE_FREEZE.md)准备隔离分支 `codex/local-mode-release-v0.1.0`，不从整个 dirty tree 直接发布、不捎带 Cloud 实现。准备器不 commit／tag／push，后续由主控审阅后串行执行。
 
@@ -142,3 +161,5 @@ workspace 策略选择其 `analysis.md`、初始 DRAFT／NOT_RUN，并由真实 
 选定目标下载固定依赖并离线构建后，只创建 GitHub **draft**；正式构建再次绑定 source SHA／MCP／实际事件／ACK 全量读回 gate，不只相信清单标记。所有资产不覆盖，不改变旧 MCP latest。
 
 发布负责人核对 draft 的 commit、目标、三宿主证据、摘要与来源后串行公开。没有业务服务部署／数据库迁移。bootstrap 半成品与未知账本保留；配置事务恢复、升级／回退／卸载仍遵循前述保全规则，UNKNOWN 只 GET 原 key。
+
+Codex 的项目 Hook trust、MCP 读工具许可和宿主重载由其标准权限流程分别处理。安装器合并配置后，需让实际项目重新加载配置并确认受信任 Hook；`hypertest_get_task` 还须具有标准读工具许可。验收中的读许可通过该工具专属 `approval_mode=approve` 的单次 CLI overlay 显式给予；沙箱与持久用户配置保持原值，其他全局 MCP 仅在本次 CLI 运行中停用。安装成功、一次独立 GET 成功或诊断调用通过均不替代同一真实父会话的自动产物 ACK / 固定版本完整读回及 child 边界证明。此前缺少原始错误的失败运行保留为失败记录，不追认根因。

@@ -1,0 +1,252 @@
+{
+  "record_type": "HyperTest Local host native acceptance evidence",
+  "record_version": 1,
+  "recorded_date": "2026-10-22",
+  "timezone": "Asia/Singapore",
+  "host": "deepseek-harness",
+  "overall_scope": "Observed real Local SDK-profile synchronization; no SUT execution",
+  "release": {
+    "version": "local-v0.1.0",
+    "candidate": "R6",
+    "source_commit": "7aefe2878ffad4149d7e01bc18df69a6f090b0a6",
+    "source_digest_sha256": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+    "wheel_filename": "hypertest_local-0.1.0-py3-none-any.whl",
+    "wheel_size_bytes": 70108,
+    "wheel_sha256": "dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40",
+    "adapter_path": "hypertest/local_sync/deepseek_root_bridge.mjs",
+    "adapter_sha256": "c54d40f507cf8c9dc43eaf8bf0b6ebe89d8de21582d07f19ff36783db588ef97",
+    "installed_wheel_members_checked": 36,
+    "installed_members_match_wheel": true,
+    "runtime_source_members_checked": 28,
+    "runtime_sources_match_candidate": true,
+    "expected_generated_member": "hypertest/__init__.py",
+    "unexpected_source_drift": []
+  },
+  "environment": {
+    "os": "Darwin",
+    "os_version": "26.5.1",
+    "architecture": "arm64",
+    "python_version": "3.13.3",
+    "node_version": "26.8.1",
+    "harness_cli_version": "0.1.5-rc.1",
+    "harness_component_version": "0.1.5-rc.2",
+    "sdk_protocol_version": "0.0.1",
+    "entry_mode": "official SDK app profile with official JsonRpcLineTransport",
+    "model_provider": "deepseek-official",
+    "model": "deepseek-flash",
+    "model_thinking": "disabled",
+    "per_request_max_tokens": 1024,
+    "execution_budget_seconds": 240,
+    "runtime_exit_code": 0
+  },
+  "official_components": [
+    {
+      "package": "@deepseek-ai/dsh",
+      "installed_version": "0.1.5-rc.1",
+      "published_version": "0.1.5-rc.1",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.5-rc.1.tgz",
+      "integrity": "sha512-rmNmzQCg3oIc1z8xH7izRSOuy1TNzq+/NILyfM+7e8DKOyV+yBtg47WEsqR2SiIe1ATec3L/rUa1YhIcfQ2XEg==",
+      "installed_entry_sha256": "0ff7f1d72c4e0cbe14001709c81e20a04b70464118a7f78568952988e28f2ac5",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-hooks-claude-code",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-hooks-claude-code/-/dsh-hooks-claude-code-0.1.5-rc.2.tgz",
+      "integrity": "sha512-wdsl+A8tvAk66N5ozqyxmJ5t30AQQ5byBaKYL60Vx1jFoWXaD83piPcD1BAPZ+hVoWI1a9PCUDowFzAzq/PnwQ==",
+      "installed_entry_sha256": "236633296049129787e3e8de705c5f7bade2fd16a6554ff15ad0e9143cac20a0",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-agent",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.1.5-rc.2.tgz",
+      "integrity": "sha512-SlUL1riZmVLwMUR3jo9CP/R1cxov9dHkCJDh6JQW3fSZJVCIdPygBRlAweCUDvHxAEmPpFHxE/U3NmSUbX+vQQ==",
+      "installed_entry_sha256": "b05aa36fce8e2f910596a682fb1d2b461eac2549e344360c92711a557d06b0bb",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-llm",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-llm/-/dsh-llm-0.1.5-rc.2.tgz",
+      "integrity": "sha512-Z7BVsBkK24SE4EItQeow8PHms/9GP0DSTi337vTAa/RY7tNg2Snz3INcXUj6CPZfvntQr1in9op9wLI+rfNsqA==",
+      "installed_entry_sha256": "f54d86572d4c0e8d9348cdc65e4c4684a4956a91162815d3c52ee7c0c58225ed",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-jsonrpc-server/-/dsh-sdk-jsonrpc-server-0.1.5-rc.2.tgz",
+      "integrity": "sha512-TRVkUngQPKlpHvqS5AZi63zwa+5eG0zp1NwZXzJjdiYhjV2LPICiWVM6EuSbmIRB6tUZMB1MXf4ZSj2OFQWn/Q==",
+      "installed_entry_sha256": "7b19ef78260b4a9287b9712074d9df63271a67bae752e5a26deb1fd17067340e",
+      "published_entry_matches": true
+    },
+    {
+      "package": "@deepseek-ai/dsh-sdk-protocol",
+      "installed_version": "0.1.5-rc.2",
+      "published_version": "0.1.5-rc.2",
+      "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-protocol/-/dsh-sdk-protocol-0.1.5-rc.2.tgz",
+      "integrity": "sha512-ewWYU+2tkcm5rTQtM5F6pYP5S6ox/7j/Gc/xCpXBtVOfUNchI8IUYbVNuea/lGX6XYGCBxpdG1jxV51W1YyWkg==",
+      "installed_entry_sha256": "371c38ca3514797d86df5f4bb78a56c40a2637294b83aababe8145bec6a20253",
+      "published_entry_matches": true
+    }
+  ],
+  "daemon_origin": {
+    "peer_uid_matches": true,
+    "daemon_args_match": true,
+    "python_executable_matches_or_same_framework": true,
+    "candidate_pydantic_core_mapped": true,
+    "candidate_pydantic_core_sha256": "6de7fdb17b3fd47e2afeb61834adc9483842eb962a5a828795fb0c14c8bc20c7",
+    "formal_daemon_source_observed": true
+  },
+  "source": {
+    "project_id": "01a16316-7411-74f5-b173-c6173caedc77",
+    "provider": "deepseek_harness",
+    "real_parent_session_id": "session-87323bb7-3ee3-4589-8f75-4fcd1d1d342c",
+    "real_binding_observed": true,
+    "two_turns": [
+      "completed",
+      "completed"
+    ],
+    "source_identity_origin": "Real Harness registry creation and native agent/session-start; no synthetic Hook payload"
+  },
+  "automatic_sync": {
+    "status": "ACCEPTED",
+    "accepted_scope": [
+      "Real SessionStart root binding",
+      "Real PostToolUse approved-artifact checkpoint to accepted receipt and fixed complete readback"
+    ],
+    "not_separately_observed": [
+      "Root Stop handler invocation count"
+    ],
+    "session_end": "UNAVAILABLE",
+    "explicit_sync_tool_called": false,
+    "task_id": "01a16360-d6ae-71fe-92d6-89d238c773aa",
+    "accepted_version": 1,
+    "idempotency_key": "hook-ec92200712d94249bf334dae924f2d67",
+    "journal_state": "READBACK_COMPLETE",
+    "accepted_checkpoint_count": 1,
+    "artifact_filename": "analysis.md",
+    "artifact_bytes": 238,
+    "artifact_sha256": "29c5c9aa69df9feb29f816c0e60fab0ca0e7aeaf318d67d3029baa0bc15cccee",
+    "platform_plan_sha256": "29c5c9aa69df9feb29f816c0e60fab0ca0e7aeaf318d67d3029baa0bc15cccee",
+    "artifact_bytes_match": true,
+    "task_status": "IN_PROGRESS",
+    "reported_result": "NOT_RUN",
+    "initial_status_and_result_source": "Explicit approved acceptance policy; never inferred from Hook or turn completion"
+  },
+  "mcp": {
+    "status": "ACCEPTED_ACTUAL_TOOL_CALL",
+    "actual_get_calls": [
+      {
+        "session_id": "session-87323bb7-3ee3-4589-8f75-4fcd1d1d342c",
+        "tool_name": "mcp__hypertest__hypertest_get_task",
+        "is_error": false,
+        "args_match_source": true,
+        "returned_task_id": "01a16360-d6ae-71fe-92d6-89d238c773aa",
+        "returned_version": 1
+      }
+    ],
+    "only_approved_root_tools": true,
+    "actual_tool_names": [
+      "write",
+      "mcp__hypertest__hypertest_get_task"
+    ]
+  },
+  "fixed_readback": {
+    "fixed_readback_complete": true,
+    "task_id": "01a16360-d6ae-71fe-92d6-89d238c773aa",
+    "accepted_version": 1,
+    "idempotency_key": "hook-ec92200712d94249bf334dae924f2d67",
+    "journal_state": "READBACK_COMPLETE",
+    "plan_sha256": "29c5c9aa69df9feb29f816c0e60fab0ca0e7aeaf318d67d3029baa0bc15cccee",
+    "task_status": "IN_PROGRESS",
+    "reported_result": "NOT_RUN",
+    "case_count": 0,
+    "report_count": 0,
+    "accepted_checkpoint_count": 1,
+    "child_negative_get": {
+      "status": 404,
+      "code": "PLATFORM_REQUEST_REJECTED",
+      "no_child_task": true
+    },
+    "fixed_document_sha256": "095a4f575691b45e607a4f211325cb2e2527acb2048c05e1224d0a1c36babc0d",
+    "direct_readback_sha256": "095a4f575691b45e607a4f211325cb2e2527acb2048c05e1224d0a1c36babc0d",
+    "full_page_sha_match": true,
+    "ipc_page_count": 2,
+    "direct_page_count": 2
+  },
+  "child_filter": {
+    "parent_session_id": "session-87323bb7-3ee3-4589-8f75-4fcd1d1d342c",
+    "child_session_id": "session-df4aea74-8c48-4a47-9cbc-af57b1c9a3a7",
+    "child_in_roots": false,
+    "registry_owned_by_parent": true,
+    "child_origin": "subagent",
+    "child_native_event_observed": true,
+    "child_root_at_native_event": false,
+    "child_model_requests": 0,
+    "mcp_sync_registered": true,
+    "mcp_get_registered": true,
+    "child_task_lookup": {
+      "status": 404,
+      "code": "PLATFORM_REQUEST_REJECTED",
+      "no_child_task": true
+    },
+    "child_binding_exists": false,
+    "claim_scope": "A real native child SessionStart reached the observer with Registry root=false; no child binding or Task was created"
+  },
+  "postconditions": {
+    "pending_events": 0,
+    "binding_count": 2,
+    "root_binding_exists": true,
+    "child_binding_exists": false,
+    "journal_states": {
+      "READBACK_COMPLETE": 2
+    },
+    "local_sync_mode": "0o700",
+    "postconditions_pass": true,
+    "interpretation": "Two retained parent sessions: one historical R5 and one fresh R6; each has exactly one accepted checkpoint",
+    "historical_r5": {
+      "original_key": "hook-b38edc86ef39486899017515d6e35abb",
+      "task_id": "01a16356-fa2c-7a8c-8417-0ab93de9026f",
+      "accepted_version": 1,
+      "fixed_document_sha256": "e233555600e1f59b68c171453c53aed4aec69c01b81941eec8eea960157d09f7",
+      "matches_original_r5": true,
+      "private_evidence_file_hashes_unchanged": true
+    }
+  },
+  "preservation": {
+    "existing_model_login_copied": false,
+    "existing_model_credentials_changed": false,
+    "user_global_profile_changed": false,
+    "raw_chats_or_reasoning_in_evidence": false,
+    "raw_tool_payloads_in_evidence": false,
+    "secrets_in_evidence": false,
+    "sut_executed": false,
+    "test_pass_inferred": false
+  },
+  "limitations": [
+    "SDK-profile two-turn acceptance only; headless one-shot and resume not separately accepted",
+    "Root Stop handler was not independently instrumented; two completed turn/end observations do not expand the accepted trigger scope",
+    "macOS acceptance state used a shorter owner-only socket path; existing state bytes and original authorization were preserved",
+    "This evidence does not certify other hosts, cloud execution, business tests, publication or a release-ready verdict"
+  ],
+  "qualification_selection": {
+    "candidate": "R6",
+    "basis": "Fresh real native execution on the exact R6 wheel; R5 evidence is historical and was not promoted",
+    "historical_runs": [
+      {
+        "candidate": "R5",
+        "evidence_ref": "deepseek-native-20261022-r5.json",
+        "evidence_sha256": "0b10685663f4dc6eab07b3c05d46ec5a7b45ac7e405419550cb3d4215049f9af",
+        "task_id": "01a16356-fa2c-7a8c-8417-0ab93de9026f",
+        "accepted_version": 1,
+        "preserved_and_rechecked": true
+      }
+    ]
+  }
+}

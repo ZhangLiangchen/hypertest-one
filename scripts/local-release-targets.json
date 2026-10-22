@@ -16,8 +16,8 @@
       "python": "3.13",
       "system": "Darwin",
       "machine": "arm64",
-      "publication": "CANDIDATE",
-      "acceptance_file": null
+      "publication": "RELEASE",
+      "acceptance_file": "docs/local-acceptance/darwin-arm64-py313.json"
     }
   ]
 }
