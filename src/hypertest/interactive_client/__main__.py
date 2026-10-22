@@ -85,7 +85,8 @@ async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
     if autostart:
         await ensure_daemon(config, config_path)
     from hypertest.interactive_client.mcp_server import run_stdio
-    await run_stdio(LocalClient(config.socket_path, config.local_token_file))
+    await run_stdio(LocalClient(config.socket_path, config.local_token_file),
+                    local_host=config.local_sync.get("host") if config.local_sync.get("enabled") else None)
 
 
 async def stop(config: ClientConfig):

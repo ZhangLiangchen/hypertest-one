@@ -515,6 +515,8 @@ def test_formal_release_selects_only_real_accepted_target_not_candidate_os(tmp_p
 def test_release_source_allowlist_never_copies_cloud_implementation():
     selected = freeze.approved_paths(ROOT)
     assert "scripts/local-release-targets.json" in selected
+    assert "src/hypertest/interactive_client/mcp_server.py" in selected
+    assert "tests/test_session_task_mcp.py" in selected
     assert "src/hypertest/local_sync/deepseek_root_bridge.mjs" in selected
     assert "tests/test_local_deepseek_bridge.py" in selected
     assert not any(name.startswith(("src/hypertest/cloud/", "src/hypertest/deepseek_harness/")) for name in selected)

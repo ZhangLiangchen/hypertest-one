@@ -20,10 +20,11 @@ DIRECTORIES = ("src/hypertest/local_sync", "src/hypertest/sync_core")
 FILES = (
     "src/hypertest/interactive_client/__main__.py", "src/hypertest/interactive_client/config.py",
     "src/hypertest/interactive_client/ipc.py", "src/hypertest/interactive_client/service.py",
+    "src/hypertest/interactive_client/mcp_server.py",
     "scripts/build-local-release.py", "scripts/install-local-release.py", "scripts/prepare-local-dependencies.py",
     "scripts/local-release-commands.py", "scripts/freeze-local-release-source.py", "scripts/local-release-dependencies.json",
     "scripts/plan-local-release.py", "scripts/local-release-targets.json",
-    ".github/workflows/local-release.yml", "tests/test_task_sync_core.py",
+    ".github/workflows/local-release.yml", "tests/test_task_sync_core.py", "tests/test_session_task_mcp.py",
     "web/lib/local-mode-install.ts", "web/app/projects/[projectId]/local-mode-guide.tsx",
     "web/app/projects/[projectId]/session-tasks.tsx", "web/tests/local-mode-guide.test.cjs",
     "web/tests/session-tasks.test.cjs", "docs/LOCAL_MODE_RELEASE_AND_INSTALLATION.md",

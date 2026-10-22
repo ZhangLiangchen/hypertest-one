@@ -11,9 +11,9 @@ python3 scripts/freeze-local-release-source.py \
 
 准备过程从该基线创建隔离 Git 对象及 index，仅复制以下白名单：
 
-- `src/hypertest/local_sync/**`、`sync_core/**` 的代码及明确模板；`interactive_client/{__main__,config,ipc,service}.py`。
+- `src/hypertest/local_sync/**`、`sync_core/**` 的代码及明确模板；`interactive_client/{__main__,config,ipc,mcp_server,service}.py`。
 - `scripts/{build-local-release,install-local-release,prepare-local-dependencies,local-release-commands,freeze-local-release-source,plan-local-release}.py`、`scripts/local-release-dependencies.json` 和 `scripts/local-release-targets.json`。
-- `.github/workflows/local-release.yml`；`tests/test_task_sync_core.py`、`tests/test_local*.py`（含 DeepSeek bridge、真实事件 adapter 和后续来源测试）。
+- `.github/workflows/local-release.yml`；`tests/test_task_sync_core.py`、`tests/test_session_task_mcp.py`、`tests/test_local*.py`（含 DeepSeek bridge、真实事件 adapter 和后续来源测试）。
 - Local guide／helper／测试与 SessionTask 区域挂载、测试 require 映射；项目主页面不复制 Cloud 导航。
 - Local 发行／实现／计划文档、ADR-020／021、`docs/LOCAL_*ACCEPTANCE*.md` 和 `docs/local-acceptance/*.json` 的非秘密验收材料。
 
