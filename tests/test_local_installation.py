@@ -99,6 +99,20 @@ def test_doctor_missing_state_directory_is_strictly_read_only(installation):
     assert result["mcp"] == "RELOAD_AND_NATIVE_PROBE_REQUIRED"
 
 
+def test_doctor_blocks_overlong_darwin_socket_without_changing_state(installation, monkeypatch):
+    installer.install(**installation)
+    config = json.loads(installation["client_config"].read_text())
+    state = installation["directory"].parent / ("native-state-" + "a" * 100)
+    config["state_dir"] = str(state)
+    installation["client_config"].write_text(json.dumps(config))
+    before = installation["client_config"].read_bytes()
+    monkeypatch.setattr(installer.sys, "platform", "darwin")
+    result = installer.doctor(directory=installation["directory"], host="codex")
+    assert result["mcp"] == "BLOCKED" and result["mcp_code"] == "AF_UNIX_PATH_TOO_LONG"
+    assert result["socket_path_bytes_including_nul"] > 104
+    assert not state.exists() and installation["client_config"].read_bytes() == before
+
+
 @pytest.mark.parametrize("value", ["false", "true", 1])
 def test_string_or_numeric_config_flags_cannot_enable_automatic_sync(installation, value):
     from pydantic import ValidationError

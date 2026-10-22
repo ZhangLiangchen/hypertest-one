@@ -88,7 +88,8 @@ def source_binding(config, event: dict, *, create=False):
     identity = {"project_id": str(UUID(config.local_sync["project_id"])),
                 "provider": HOST_PROVIDERS[config.local_sync["host"]], "session_id": session}
     source_key = digest({key: identity[key] for key in ("provider", "session_id")})
-    bindings = private_directory(config.state_dir / "local-sync" / "native-sources")
+    local_directory = private_directory(config.state_dir / "local-sync")
+    bindings = private_directory(local_directory / "native-sources")
     path = bindings / (source_key + ".json")
     record = {"identity": identity, "workspace": str(policy.workspace),
               "policy_digest": digest(policy.model_dump(mode="json")),

@@ -1,6 +1,7 @@
 """Local coordinator invariants against a versioned management transport."""
 import asyncio
 import json
+import stat
 from copy import deepcopy
 from uuid import uuid4
 
@@ -388,6 +389,61 @@ async def test_artifact_source_explicit_mcp_accepts_existing_root_complete_snaps
     assert api.documents[1]["task"]["plan_markdown"] == ""
     assert api.documents[1]["task"]["reported_result"] == "FAIL"
     assert [call[0] for call in api.calls].count("POST") == 1
+
+
+@pytest.mark.parametrize("first_entry", ["native-start", "event-queue"])
+def test_hook_cold_start_creates_private_parent_before_coordinator(tmp_path, first_entry):
+    from hypertest.interactive_client.security import private_create
+    from hypertest.local_sync.hooks import persist_trigger
+    from hypertest.local_sync.hosts import parse_trigger
+    from hypertest.local_sync.sources import source_binding
+
+    token = tmp_path / "token"
+    private_create(token, b"synthetic-private-token")
+    config = ClientConfig(api_url="https://platform.invalid/api/v1", state_dir=tmp_path / "state",
+                          integration_token_file=token, local_sync={"enabled": True})
+    config.prepare()
+    identity = {"project_id": str(uuid4()), "provider": "codex", "session_id": "cold-start-parent"}
+    event = configure_artifact_source(config, identity)
+    directory = config.state_dir / "local-sync"
+    assert not directory.exists()
+    if first_entry == "native-start":
+        source_binding(config, event, create=True)
+    else:
+        persist_trigger(config, parse_trigger("codex", event, selected_parent=identity["session_id"]))
+    assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+    journal = Journal(config.state_dir / "client.sqlite3")
+    try:
+        LocalSyncCoordinator(config, VersionedApi(), journal)
+        assert journal.db.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 0
+    finally:
+        journal.close()
+
+
+@pytest.mark.parametrize("first_entry", ["native-start", "event-queue"])
+def test_hook_cold_start_refuses_existing_non_private_parent(tmp_path, first_entry):
+    from hypertest.interactive_client.security import private_create
+    from hypertest.local_sync.hooks import persist_trigger
+    from hypertest.local_sync.hosts import parse_trigger
+    from hypertest.local_sync.sources import source_binding
+
+    token = tmp_path / "token"
+    private_create(token, b"synthetic-private-token")
+    config = ClientConfig(api_url="https://platform.invalid/api/v1", state_dir=tmp_path / "state",
+                          integration_token_file=token, local_sync={"enabled": True})
+    config.prepare()
+    identity = {"project_id": str(uuid4()), "provider": "codex", "session_id": "cold-start-parent"}
+    event = configure_artifact_source(config, identity)
+    directory = config.state_dir / "local-sync"
+    directory.mkdir(mode=0o755)
+    directory.chmod(0o755)
+    with pytest.raises(ClientError, match="PRIVATE_DIRECTORY_REQUIRED"):
+        if first_entry == "native-start":
+            source_binding(config, event, create=True)
+        else:
+            persist_trigger(config, parse_trigger("codex", event, selected_parent=identity["session_id"]))
+    assert stat.S_IMODE(directory.stat().st_mode) == 0o755
+    assert not list(directory.iterdir())
 
 
 @pytest.mark.parametrize("old_state", ["ACKED", "UNKNOWN"])

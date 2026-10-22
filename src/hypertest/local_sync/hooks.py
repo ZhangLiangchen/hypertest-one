@@ -14,7 +14,8 @@ from hypertest.sync_core import canonical_json
 
 
 def persist_trigger(config, trigger):
-    queue = private_directory(config.state_dir / "local-sync" / "pending-events")
+    local_directory = private_directory(config.state_dir / "local-sync")
+    queue = private_directory(local_directory / "pending-events")
     if len(list(queue.glob("*.json"))) >= 1024:
         raise ClientError("LOCAL_EVENT_QUEUE_FULL_EXPLICIT_RECOVERY_REQUIRED")
     path = queue / (uuid4().hex + ".json")

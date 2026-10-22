@@ -446,6 +446,16 @@ def doctor(*, directory: Path, host: str) -> dict:
                 raise ClientError("PRIVATE_DIRECTORY_REQUIRED")
         result["authorization"] = "PRIVATE_CREDENTIAL_PRESENT_NOT_SERVER_VERIFIED"
         result["pending_state"] = "PRESERVED" if state_exists else "ABSENT"
+        if sys.platform == "darwin":
+            # sockaddr_un.sun_path is 104 bytes on this supported target;
+            # Python's pathname socket includes a terminating NUL byte.
+            socket_bytes = len(os.fsencode(config.socket_path)) + 1
+            result["socket_path_bytes_including_nul"] = socket_bytes
+            if socket_bytes > 104:
+                result["mcp"] = "BLOCKED"
+                result["mcp_code"] = "AF_UNIX_PATH_TOO_LONG"
+                result["code"] = "AF_UNIX_PATH_TOO_LONG"
+                result["recovery"] = "SELECT_SHORT_PRIVATE_STATE_DIRECTORY_PRESERVE_EXISTING_STATE"
     except ClientError as exc:
         result["authorization"] = "BLOCKED"
         result["code"] = exc.code
