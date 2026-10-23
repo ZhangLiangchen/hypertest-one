@@ -1,5 +1,9 @@
 # HyperTest Technical Architecture
 
+## ADR-024统一创建与Local绑定
+
+项目创建入口按Cloud/Local路由到独立领域API，不新增通用Task根表或跨模式写入。Local Operator先创建UNBOUND SessionTask，真实父会话通过现有私有客户端授权一次绑定同UUID；CREATE、人工管理、BIND和sync共用version，各自保留不可变快照/回执及Audit/Outbox。source/last_synced只在真实sync产生，绑定不启动Worker/Harness/Runner。新Local客户端首次资产前需TaskID绑定，旧已存在auto根可resume；服务端legacy兼容不作为新客户端fallback。字段/接口分别由领域§50.5、TMP§45.4拥有，取舍和验收见[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)。Cloud的任务/Attempt、资源与下发仍由独立Cloud设计和实施维护；本增补不将其源码存在或统一UI解释为已验收执行。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

@@ -2200,19 +2200,20 @@ NativeConclusion.UNKNOWN 是质量证据不足；NativeOperation.UNKNOWN 是副�
 
 | 对象 | 规范字段/关系与不变量 |
 | --- | --- |
-| SessionTask | UUID、Project FK、provider、session_id、固定actor owner、title/objective/status/plan_markdown/reported_result、nullable deleted_at/last_managed_at、last_synced_at、严格递增version、created/updated；`(provider,session_id)`全局唯一，首次Project与owner不变，软删除不释放唯一性 |
+| SessionTask | UUID、Project FK、binding_state/binding_required、creator_actor_ref/intended_actor_ref、nullable provider/session_id/owner_actor_ref/source/last_synced_at/bound_at、title/objective/status/plan_markdown/reported_result、nullable deleted_at/last_managed_at、严格递增version、created/updated；UNBOUND与BOUND约束见§50.5，真实来源一旦绑定不可改，`(provider,session_id)`全局唯一，软删除不释放唯一性 |
 | CaseRevision | Task FK、稳定case key、递增revision、接受该修订的task version、完整case内容与来源；task/key/revision唯一，不覆写旧版本 |
 | ReportRevision | Task FK、稳定report key、递增revision、接受该修订的task version、标题、PostgreSQL保存的原始Markdown原文、可选artifact_uri/source_ref来源元数据、原reported result；task/key/revision唯一，不覆写旧报告 |
 | SyncReceipt | Project/Task、actor_ref、稳定idempotency key、原请求摘要/原提交、接受version、冻结task_snapshot和结果引用；actor/项目/key唯一，异输入拒绝，历史回执不可变；client只在当前授权链核验 |
-| TaskManagementRevision | UUID、Task FK、严格唯一的task version、人工管理action（UPDATE/DELETE/RESTORE）、actor_ref、冻结task_snapshot、created_at；与任务及Audit/Outbox同事务追加，不修改SyncReceipt或用例/报告修订 |
+| TaskManagementRevision | UUID、Task FK、严格唯一的task version、人工管理action（CREATE/AUTHORIZE/UPDATE/DELETE/RESTORE）、actor_ref、冻结task_snapshot、created_at；与任务及Audit/Outbox同事务追加，不修改SyncReceipt或用例/报告修订 |
+| CREATE/BIND operation receipt | Task/Project、操作类型、actor、稳定key、输入摘要、固定接受version及snapshot；独立于SyncReceipt，原key查询固定接受状态；BIND历史投影单列，不伪造Agent同步 |
 
-Task mutable字段经同步事务或§50.4人工管理事务更新；Case/Report/Receipt/TaskManagementRevision为append-only。相同case/report key内容不变时复用现有修订，内容变化才递增revision；省略某key保留既有资产，禁止以“全量同步”名义删除失败历史。Task version在接受新同步或人工管理变更时严格递增；SyncReceipt与TaskManagementRevision的冻结快照共同覆盖可读版本，关联该版本以前已接受的case/report修订重建当时状态，不从最新字段拼装过去。
+Task mutable字段经同步事务、§50.4人工管理或§50.5预创建/绑定事务更新；Case/Report/各类Receipt/TaskManagementRevision为append-only。相同case/report key内容不变时复用现有修订，内容变化才递增revision；省略某key保留既有资产，禁止以“全量同步”名义删除失败历史。CREATE、管理、BIND和sync共用Task version，接受新变更时严格递增；原SyncReceipt、管理与绑定冻结快照共同覆盖可读版本，关联该版本以前已接受的case/report修订重建当时状态，不从最新字段拼装过去。
 
 任务状态为 DRAFT/IN_PROGRESS/BLOCKED/COMPLETED/CANCELLED，表示会话任务进度，不是平台执行状态。reported result为NOT_RUN/PASS/FAIL/ERROR/SKIPPED/UNKNOWN/BLOCKED，表示提交者报告的测试结果；进行中任务可以FAIL。新报告PASS不删除原FAIL；不同判定口径分别保存来源和报告key，不伪造用例重跑或把业务复核覆盖自动断言。
 
 ### 50.2 接受与并发
 
-`expected_version=0`仅创建；更新必须匹配当前version。在PostgreSQL聚合锁和唯一约束下核验权限/owner/版本/原key，原子保存Task、修订、Receipt、Audit/Outbox。幂等原key在版本检查前查重：已接受同请求返回原回执，不能因任务后来变更而接受第二次写；同key异输入拒绝。旧版本请求不覆盖新状态。客户端journal只是传输意图账本，不是服务端Canonical Store。
+legacy同步的 `expected_version=0`仅创建；预创建任务的绑定及后续sync使用§50.5同一当前version，不能以0另建替代任务。更新必须匹配当前version。在PostgreSQL聚合锁和唯一约束下核验权限/owner/版本/原key，原子保存Task、修订、Receipt、Audit/Outbox。幂等原key在版本检查前查重：已接受同请求返回原回执，不能因任务后来变更而接受第二次写；同key异输入拒绝。旧版本请求不覆盖新状态。客户端journal只是传输意图账本，不是服务端Canonical Store。
 
 `task:sync`沿用integration actor/client/project授权链，已撤销、未生效、过期、client/actor无效和越项目均拒绝。同actor换client不伪造新任务归属；其他actor不能仅凭session reference写入已有任务。session reference是来源标签，不是原生宿主身份、执行证明或能力密钥。一个新会话建立自己的任务，交接关联先前任务与剩余工作，不改历史session身份。
 
@@ -2234,9 +2235,29 @@ Operator 可编辑 `title / objective / plan_markdown / status`，使用当前�
 
 普通列表、详情及按会话查询隐藏已删除任务；回收站列表和带 `include_deleted=true` 的管理详情显式包含已删除记录。已删除项目也使其任务从普通读取隐藏。原 key 回执查询在当前有效 actor/client/project授权下仍返回原接受记录，确保删除后可以对账 UNKNOWN；它不恢复对象、不改写原回执或原接受版本，也不绕过撤权。
 
-人工管理与Agent同步使用同一任务版本并串行接受；发生并发修改时旧版本拒绝，客户端先读取当前记录再根据真实新意图提交。历史版本读取从两类不可变快照重建，Web详情提供 `management_history` 区分人工修改的版本、动作、actor与时间。`source=AGENT_REPORTED` 继续说明用例、报告及reported result的来源；人工管理历史不能被标为新的Agent测试结果或执行证明。
+人工管理与Agent同步使用同一任务版本并串行接受；发生并发修改时旧版本拒绝，客户端先读取当前记录再根据真实新意图提交。历史版本读取从同步、管理和§50.5绑定不可变快照重建，Web详情提供 `management_history` 区分人工修改的版本、动作、actor与时间。实际同步后 `source=AGENT_REPORTED` 继续说明用例、报告及reported result的来源；人工管理历史不能被标为新的Agent测试结果或执行证明。
 
 人工变更只更新 `last_managed_at`，不更新代表Agent实际同步时间的 `last_synced_at`。页面将最近同步与最近人工管理分别展示，不能把修改标题、删除或恢复显示成一次新的产物同步。
+
+### 50.5 预创建Local任务与一次性来源绑定（ADR-024）
+
+统一“创建测试任务”入口选择Cloud/Local；模式由任务类型派生，同一Project允许两者共存。Local仍为SessionTask，CloudTask/Attempt的ID、权限与执行生命周期不用于Local来源身份；统一目录只作有类型查询，不合并任务实体或写API。
+
+Operator创建Local任务即生成稳定UUID、version=1、binding_state=UNBOUND、binding_required=true、DRAFT/NOT_RUN。creator_actor_ref记录创建者；provider/session_id/owner_actor_ref/source/last_synced_at/bound_at均NULL，不以Web操作者或占位ID冒充Agent。CREATE保存独立原key回执、管理CREATE快照和Audit/Outbox，固定版本1可以读取，未形成SyncReceipt/用例/报告或执行记录。
+
+intended_actor_ref只指向有当前有效Project task:sync授权的integration actor；省略时仅sole可用actor允许默认，显式NULL保持未授权，无或多候选不先到先得。UNBOUND可保存而不可绑定。Operator使用expected_version修改/清除该字段，接受时追加AUTHORIZE管理快照与Audit/Outbox；同值no-op不增版。creator与intended actor均不是秘密，Task UUID不是凭据。BOUND后不得更改intended actor或writer owner。
+
+Local MCP在发送BIND前核对受支持宿主SessionStart建立的私有root context；服务端事务重新核验Project/Task未删除、当前integration actor/client/Project grant、intended actor精确匹配、expected_version及全局来源唯一性。root context是本地来源选择约束，不是服务端可独立验证的宿主执行证明或额外授权。成功将provider、真实父session_id、owner_actor_ref、BOUND、bound_at一次性写入原UUID并递增version，独立BIND回执冻结同版本snapshot、配对Audit/Outbox。source和last_synced_at在BOUND后仍NULL，直到首次实际sync；不能用绑定制造Agent报告或最近同步。BIND不改变status/reported_result/cases/reports。
+
+数据库条件约束必须拒绝半个来源对、UNBOUND带owner/来源、BOUND缺真实来源/owner、BOUND回UNBOUND或改绑。binding_required在创建时固定，手动任务true，legacy自动任务false。所有来源对（包括软删除Task）继续全局唯一；两Task抢一来源或两会话抢一Task最多一个接受，失败不得留下部分字段、版本或历史。绑定、AUTHORIZE、其他管理及sync共享version和聚合锁，不存在第二套绑定版本。
+
+原自动任务只标记为BOUND/binding_required=false，原UUID/provider/session/owner/结果/版本/修订/回执不改；creator只能使用已有可证实来源，不伪造人工创建身份。新的Local客户端在首次批准资产上传前必须显式绑定Task ID，否则TASK_BINDING_REQUIRED且不POST sync/不自动创建。已经核验原Task ID与来源的旧自动根允许resume，既有未决journal先按原key对账。
+
+手动任务后续sync必须携task_id并同时匹配Project、BOUND、真实provider/session、owner及version；Operator身份不绕过该integration owner校验。丢ID、错ID或身份不符明确拒绝，不忽略ID退回自动建任务。服务端原无task_id的legacy自动同步兼容单独保留，不作为新Local客户端fallback。首个实际sync使用绑定后的当前version，才写AGENT_REPORTED/source、last_synced_at及SyncReceipt。
+
+若来源已对应另一个autoTask，绑定409，只向有权读取者返回existing_task_id；不merge、不重分配主键/来源、不搬历史或覆盖原FAIL。可以显式继续已有Task并删除未绑定草稿，或以真实新会话绑定；计划/报告的前序引用不改变原身份和权限。软删除后不得新绑定或改绑，恢复保留UNBOUND/BOUND及原来源。
+
+CREATE/BIND写前冻结完整请求/key/version；同key同输入返回固定接受Task与版本，同key异输入冲突。SENT/UNKNOWN/失答甚至原keyNOT_FOUND只继续原key GET，不重POST、换key、另建Task或发新凭据。原回执在当前有效授权下可查询，软删除/版本前进不改原接受记录。绑定回执与sync回执是不同操作，不能混用查询身份。Web binding_history仅投影BIND的{id,action,actor_ref,task_version,task_snapshot,created_at}。
 
 ## 51. 云端测试任务模型（ADR-019，部分实现、默认关闭）
 
@@ -2378,7 +2399,7 @@ WAITING_INPUT 必须先保存问题、已接受产物和 checkpoint，再停止�
 | 真实任务类型 `task_kind` | 派生 `product_mode` | 规范实体与工作归属 |
 | --- | --- | --- |
 | `CLOUD_TASK` | `CLOUD` | §51 CloudTask/CloudAttempt；项目/任务创建和受监督执行在云端，由官方 Python SDK 驱动 DeepSeek，按六步流程回收产物 |
-| `SESSION_TASK` | `LOCAL` | §50 SessionTask；已有本地 Agent 会话经 MCP 同步测试资产，平台不因此执行测试。当前适配 Codex，其他 Agent 的接入后续独立实现/验收 |
+| `SESSION_TASK` | `LOCAL` | §50 SessionTask；按 §50.5 预创建原 UUID 并绑定真实父会话后，由本地 Agent 经 MCP 同步测试资产；已确认的 legacy 自动任务保留原身份。Local 0.1.0 三宿主资格保持其独立版本边界，ADR-024 新客户端 / 绑定验收与发行另记；平台不因此执行测试 |
 
 `task_kind` 由实际实体类型确定，`product_mode` 是该类型的固定读投影，不是任务可修改字段、Project 属性或新的执行选择器。不能从 SDK runtime、Agent Provider、本地/远端文件路径、测试环境位置或 reported result 推导模式；本地 Agent 调用授权远端框架/CI 仍是 SESSION_TASK。两类任务不自动转换或重建为彼此；原生子代理 session 引用也不自动生成 SessionTask。
 
@@ -2391,10 +2412,11 @@ WAITING_INPUT 必须先保存问题、已接受产物和 checkpoint，再停止�
 | `project_id` | 原任务的真实 Project FK；读取前按当前项目授权与对应任务归属核验 |
 | `task_kind, task_id` | 分别为 CLOUD_TASK / SESSION_TASK 与原表 UUID；二者共同构成目录行身份，不能仅按 UUID 去重或跨类型查询详情 |
 | `product_mode` | 由上述固定映射派生，拒绝把它作为类型转换或模式修改输入 |
-| `source_profile, source_ref` | 保留对应契约标识与非秘密来源；LOCAL 为原 `provider, session_id`，CLOUD 为最新 `attempt_id`（尚无 Attempt 时为 null），更细原生来源在其详情读取。来源标签不构成授权或执行证明 |
-| `title, task_version, status, reported_result, created_at, updated_at` | 原任务的真实摘要、版本、类型内进度和结果；不创造跨类型共同版本或改写状态枚举，不合并 reported result 或证据等级 |
+| `source_profile, source_ref` | 保留对应契约标识与非秘密来源；LOCAL 的 `provider, session_id` 在 UNBOUND 时为 null，BOUND 后为一次性绑定的真实来源；其 `source` 在首次实际 sync 前仍为 null，不造 AGENT_REPORTED。CLOUD 为最新 `attempt_id`（尚无 Attempt 时为 null），更细原生来源在其详情读取。来源标签不构成授权或执行证明 |
+| `title, task_version, status, reported_result, created_at, updated_at` | 原任务的真实摘要、版本、类型内进度和结果；updated_at 保留真实创建 / 管理 / 同步时间，不把管理或 BIND 伪装为 Agent 同步。不创造跨类型共同版本或改写状态枚举，不合并 reported result 或证据等级 |
+| Local `last_synced_at` | 首次实际 sync 前为 null，BIND 不推进此时间；不能因目录排序、绑定或人工管理补造最近同步 |
 
-目录按每行原类型的读取规则过滤，Project 可见不自动获得该项目全部任务权限。SessionTask 仍遵守 §50 的 integration actor/client/project、owner 和 `task:sync`；CloudTask 仍遵守 §51.2 的项目授权与 `cloud:read`。目录不得以共用 Project 规避 owner、暴露未授权记录/计数/来源或向本地会话授予云端控制/凭据能力；无需为目录增设 scope。明确只具有一种权限的调用者只能看到该类中获准的任务，两种权限兼有者才可读取两类获准任务。
+目录按每行原类型的读取规则过滤，Project 可见不自动获得该项目全部任务权限。SessionTask 仍遵守 §50 的 integration actor/client/project、owner 和 `task:sync`；UNBOUND 不能补造 owner，按 ID 读取 / BIND 须另核 §50.5 intended actor 的当前授权，目录不能自动扩大其读取范围。CloudTask 仍遵守 §51.2 的项目授权与 `cloud:read`。目录不得以共用 Project 规避 owner、暴露未授权记录/计数/来源或向本地会话授予云端控制/凭据能力；无需为目录增设 scope。明确只具有一种权限的调用者只能看到该类中获准的任务，两种权限兼有者才可读取两类获准任务。
 
 允许按 `task_kind`、派生 `product_mode` 和来源筛选；确定性排序/分页保留完整复合行身份，不能因两表 UUID 相同丢行。详情、历史版本和原件按类型路由至各自读取契约，并固定对应 task version；统一列表不是共同写入口，不取代原同步回执、CloudOperationReceipt 或各自幂等空间。本规范不声明现有 API/MCP 已实现混合查询，不修改 §50 的请求、回执或字段。
 
@@ -2420,7 +2442,7 @@ Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud
 LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
 源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
 
-Local 客户端沿用 ADR-018、TMP §45 与领域 §50 的身份和同步契约；本分支人工管理增补另见领域 §50.4 / TMP §45.3。原 API/profile、task:sync、
+Local 客户端沿用 ADR-018、TMP §45 与领域 §50 的身份和同步契约；人工管理见§50.4 / TMP§45.3，ADR-024预建绑定及新会话前置门槛见§50.5 / TMP§45.4。legacy API/profile、task:sync、
 Project/actor owner、完整请求、expected_version 与历史语义不变；hypertest_sync_task 不是 PATCH。
 同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
 只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
@@ -2438,7 +2460,7 @@ Local 发行不包含 Cloud runtime；Cloud 实施进度与最终树验收按独
 TaskSyncCore 是内部可复用库，LocalSyncAdapter 保留 SessionTask 的原请求、身份、权限与版本规则。
 共享语义是批准的结构化意图、完整基线、冻结请求、原 key 对账、回执验证与固定版本完整读回；
 不增加通用 Task/API、跨模式 token、全局 journal 或服务端 fencing 字段。
-Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态。
+Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态；此处Source binding不等同§50.5的服务端Task绑定字段/回执。私有root记录选定Task ID后，Hook与MCP共用目标及未决账本，不借共享核心改变授权或来源。
 只合并未冻结新意图；显式 MCP 完整请求的空值不被自动推断为 omitted，传输失败不修改业务报告。
 Cloud 消费方由 §51 和下节独立集成/验收拥有；Local 包不包含 Cloud runtime。
 

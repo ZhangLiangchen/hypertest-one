@@ -7,9 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.interactive_routes import bearer, controlled_errors
 from hypertest.api.schemas import ManagementVersion
-from hypertest.api.task_schemas import SessionTaskSync, SessionTaskUpdate
+from hypertest.api.task_schemas import (
+    LocalTaskCreate,
+    SessionTaskSync,
+    SessionTaskUpdate,
+    TaskBind,
+    TaskBindingAuthorization,
+)
 from hypertest.application import interactive
 from hypertest.application import session_tasks as service
+from hypertest.application import task_binding
 from hypertest.connector.security import require_operator
 from hypertest.db.session import get_db
 from hypertest.domain.interactive import (
@@ -87,6 +94,75 @@ async def receipt(request: Request, project_id: UUID, idempotency_key: str,
                   db: AsyncSession = Depends(get_db)):
     actor, _ = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
     return await service.receipt_view(db, project_id, actor, idempotency_key)
+
+
+@router.post("/interactive/tasks/bind")
+@controlled_errors
+async def bind(payload: TaskBind, request: Request,
+               authorization: str | None = Header(default=None),
+               x_hypertest_operator_key: str | None = Header(default=None),
+               db: AsyncSession = Depends(get_db)):
+    actor, operator = await identity(request, db, payload.project_id, authorization, x_hypertest_operator_key)
+    if operator:
+        raise HTTPException(403, "TASK_BINDING_REQUIRES_INTEGRATION_ACTOR")
+    locked = False
+
+    async def recheck():
+        nonlocal locked
+        current = await identity(request, db, payload.project_id, authorization,
+                                 x_hypertest_operator_key, lock_authority=not locked)
+        if current != (actor, False):
+            raise HTTPException(403, "Task binding authorization changed")
+        locked = True
+
+    return await task_binding.bind_task(db, payload, actor, authorization_check=recheck)
+
+
+@router.get("/interactive/tasks/bindings/by-key")
+@controlled_errors
+async def bind_receipt(request: Request, project_id: UUID, idempotency_key: str,
+                       authorization: str | None = Header(default=None),
+                       x_hypertest_operator_key: str | None = Header(default=None),
+                       db: AsyncSession = Depends(get_db)):
+    actor, _ = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await task_binding.binding_receipt(db, project_id, actor, idempotency_key)
+
+
+@router.get("/interactive/tasks/{task_id}")
+@controlled_errors
+async def binding_target(task_id: UUID, request: Request, project_id: UUID,
+                         version: int | None = Query(default=None, ge=1),
+                         offset: int = Query(default=0, ge=0), limit: int = Query(default=24000, ge=1, le=24000),
+                         authorization: str | None = Header(default=None),
+                         x_hypertest_operator_key: str | None = Header(default=None),
+                         db: AsyncSession = Depends(get_db)):
+    actor, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.by_task_id(db, project_id, task_id, actor, operator=operator,
+                                    version=version, offset=offset, limit=limit)
+
+
+# Operator Web intents share the established trusted management boundary.
+@router.post("/projects/{project_id}/local-tasks")
+async def create_local_task(project_id: UUID, payload: LocalTaskCreate,
+                            db: AsyncSession = Depends(get_db)):
+    return await task_binding.create_task(db, project_id, payload)
+
+
+@router.get("/projects/{project_id}/local-tasks/by-key")
+async def created_task_receipt(project_id: UUID, idempotency_key: str, db: AsyncSession = Depends(get_db)):
+    return await task_binding.creation_view(db, project_id, idempotency_key)
+
+
+@router.get("/projects/{project_id}/local-task-actors")
+async def local_task_actors(project_id: UUID, db: AsyncSession = Depends(get_db)):
+    return await task_binding.local_actors(db, project_id)
+
+
+@router.patch("/tasks/{task_id}/binding-authorization")
+async def authorize_task(task_id: UUID, payload: TaskBindingAuthorization,
+                          db: AsyncSession = Depends(get_db)):
+    return await service.manage_task(db, task_id, payload.expected_version,
+        changes={"intended_actor_ref": payload.intended_actor_ref}, action="AUTHORIZE")
 
 
 # These read routes deliberately follow existing /projects and /test-runs Web

@@ -83,7 +83,7 @@ test("project task reads show loading, empty and refresh errors without discardi
       const query = { isLoading: state === "loading", isFetching: false, isError: state === "error" || state === "stale", error: new Error("Read failed"), refetch() {}, data: state === "stale" ? { items: [fixture().task], total: 1 } : state === "empty" ? { items: [], total: 0 } : undefined };
       const component = load("app/projects/[projectId]/session-tasks.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "./local-mode-guide" ? { LocalModeGuide: () => null } : name === "@tanstack/react-query" ? { useQuery: () => query } : name === "@/lib/api" ? { errorText: (error) => error.message } : name === "@/app/tasks/task-actions" ? { SessionTaskActions: () => null } : name === "@/app/tasks/task-records" ? load("app/tasks/task-records.tsx", { require: (n) => n === "@/lib/i18n" ? i18n : require(n) }) : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
       const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.ProjectSessionTasks, { projectId: "project-1" })));
-      if (state === "empty") assert.ok(html.includes(locale === "en" ? "No local session tasks" : "尚未同步本地会话任务"));
+      if (state === "empty") assert.ok(html.includes(locale === "en" ? "No local session tasks" : "暂无本地会话任务"));
       if (query.isError) assert.ok(html.includes(locale === "en" ? "Task sync records could not be refreshed" : "无法刷新任务同步记录"));
       if (state === "stale") assert.ok(html.includes("Provider integration"));
       else assert.equal(html.includes("Provider integration"), false);

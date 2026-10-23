@@ -10,11 +10,11 @@ from hypertest.domain.native import NativeTestRun
 from hypertest.domain.session_tasks import SessionTask
 
 
-def record_change(db, row, before, action, *, version):
-    actor = "web:" + get_settings().connector_operator_identity
+def record_change(db, row, before, action, *, version, actor_ref=None):
+    actor = actor_ref or "web:" + get_settings().connector_operator_identity
     entity = "Project" if isinstance(row, Project) else "SessionTask"
     event = ("project." if entity == "Project" else "session_task.") + action.lower()
-    metadata = {"version": version, "source": "WEB_MANAGEMENT"}
+    metadata = {"version": version, "source": "LOCAL_BINDING" if action == "BIND" else "WEB_MANAGEMENT"}
     db.add(AuditEvent(project_id=row.id if entity == "Project" else row.project_id,
         actor_type="USER", actor_ref=actor, action=event, entity_type=entity,
         entity_id=row.id, before_state=before, after_state=public(row), event_metadata=metadata))

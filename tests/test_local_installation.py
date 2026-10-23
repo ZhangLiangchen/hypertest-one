@@ -65,6 +65,34 @@ def test_one_host_cannot_overwrite_another_hosts_shared_private_configuration(in
     assert installation["client_config"].read_bytes() == original
 
 
+def test_owned_source_upgrade_preserves_hooks_policy_credentials_and_pending_files(installation):
+    args = installation
+    workspace = args["directory"].parent / "approved-workspace"
+    workspace.mkdir()
+    hook_config = args["directory"].parent / "hooks.json"
+    hook_config.write_text('{"hooks":{},"userSetting":"preserved"}')
+    installer.install(**args, enable_hooks=True, hook_config=hook_config,
+                      workspace=workspace, harness_version="0.144.6")
+    original = json.loads(args["client_config"].read_text())
+    state = Path(original["state_dir"])
+    journal = state / "client.sqlite3"
+    private_create(journal, b"frozen UNKNOWN request bytes")
+    pending = state / "source-request.json"
+    private_create(pending, b"complete original approved snapshot")
+    result = installer.upgrade_owned(directory=args["directory"], host="codex",
+        version="local-v0.1.0-source." + "a" * 40, python=Path("/private/candidate/python"))
+    assert result["version"] == "local-v0.1.0-source." + "a" * 40
+    assert result["reload_required"] is True
+    current = json.loads(args["client_config"].read_text())
+    assert current == original and current["local_sync"]["hooks_enabled"] is True
+    assert journal.read_bytes() == b"frozen UNKNOWN request bytes"
+    assert pending.read_bytes() == b"complete original approved snapshot"
+    assert json.loads(hook_config.read_text())["userSetting"] == "preserved"
+    host = tomllib.loads(args["host_config"].read_text())
+    assert host["mcp_servers"]["hypertest_local"]["command"] == "/private/candidate/python"
+    assert host["mcp_servers"]["other"]["command"] == "other-server"
+
+
 @pytest.mark.parametrize("host", ["codex", "claude-code", "deepseek-harness"])
 def test_each_host_uninstall_removes_only_its_owned_configuration(installation, host):
     args = {**installation, "host": host}

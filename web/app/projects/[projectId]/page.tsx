@@ -317,7 +317,7 @@ export default function ProjectPage() {
     <main>
       <div className="page-heading">
         <Link href="/"><ArrowLeftOutlined aria-hidden /> {t("Projects", "项目")}</Link>
-        <div className="session-task-title"><Typography.Title level={1}>{project.data.name}</Typography.Title><ProjectActions project={project.data} /></div>
+        <div className="session-task-title"><Typography.Title level={1}>{project.data.name}</Typography.Title><Space wrap><ProjectActions project={project.data} /><Button type="primary" icon={<PlusOutlined aria-hidden />} href={project.data.deleted_at ? undefined : `/projects/${params.projectId}/tasks/new`} disabled={Boolean(project.data.deleted_at)}>{t("Create test task", "创建测试任务")}</Button></Space></div>
         <Typography.Paragraph className="muted" style={{ marginTop: 8 }}>
           {project.data.description || t("Project testing workspace", "项目测试工作台")}
         </Typography.Paragraph>

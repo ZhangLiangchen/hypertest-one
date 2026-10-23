@@ -16,7 +16,10 @@ from hypertest.interactive_client.ipc import LocalClient
 def create_server(client: LocalClient, *, local_host: str | None = None) -> Server:
     server = Server("hypertest-interactive", version="0.2.0", instructions=(
         "HyperTest access profile " + PROFILE + ". Current-stage management: one Codex session "
-        "corresponds to one task. Use hypertest_sync_task and hypertest_get_task to save plans, "
+        "corresponds to one task. New Local roots first bind an explicit platform Task ID with "
+        "hypertest_bind_task using the existing private native SessionStart context. "
+        "Reconcile uncertain binding only with hypertest_get_task_binding and its original key. "
+        "Use hypertest_sync_task and hypertest_get_task to save plans, "
         "cases and raw reports with their reported results. Sync never executes tests and needs "
         "no execution binding, host proof, Runner or Gate. Unknown syncs are queried by original "
         "keys; never replay their POST or change keys. Session IDs are source references, not "
@@ -40,7 +43,8 @@ def create_server(client: LocalClient, *, local_host: str | None = None) -> Serv
                 schema.pop("allOf", None)
                 item["description"] = (item.get("description", "") +
                     " Supply exactly one selector: provider AND session_id together, OR "
-                    "idempotency_key alone. With idempotency_key, omit provider, session_id, "
+                    "task_id alone, OR idempotency_key alone. With task_id omit provider/session_id. "
+                    "With idempotency_key, omit task_id, provider, session_id, "
                     "version, offset and limit. When offset is greater than zero, version "
                     "is required. The server validates these rules before any API request.")
             advertised.append(types.Tool.model_validate(item))

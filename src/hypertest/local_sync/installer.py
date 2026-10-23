@@ -234,7 +234,8 @@ def install(*, directory: Path, host: str, host_config: Path, client_config: Pat
             enable_hooks=False, harness_version: str | None = None,
             dsh_home: Path | None = None, profile: str | None = None,
             event_bridge: str | None = None, workspace: Path | None = None,
-            artifact_source: Path | None = None, harness_binary: Path | None = None) -> dict:
+            artifact_source: Path | None = None, harness_binary: Path | None = None,
+            expected_receipt: dict | None = None) -> dict:
     if host not in HOST_PROVIDERS or not re.fullmatch(r"local-v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?", version):
         raise ClientError("LOCAL_RELEASE_OR_HOST_INVALID")
     directory, host_config, client_config = directory.expanduser().absolute(), host_config.expanduser().absolute(), client_config.expanduser().absolute()
@@ -316,6 +317,8 @@ def install(*, directory: Path, host: str, host_config: Path, client_config: Pat
             raise ClientError("INSTALL_RECOVERY_REQUIRED")
         old_path = receipt_path(directory, host)
         old = json.loads(private_read(old_path)) if old_path.exists() else None
+        if expected_receipt is not None and old != expected_receipt:
+            raise ClientError("LOCAL_INSTALL_RECEIPT_CHANGED")
         if old and (old["host_config"] != str(host_config) or old["client_config"] != str(client_config)):
             raise ClientError("EXPLICIT_INSTALL_TARGET_MIGRATION_REQUIRED")
         raw = read_host(host_config)
@@ -419,6 +422,25 @@ def rollback(*, directory: Path, host: str) -> dict:
         profile=prior.get("dsh_profile"), event_bridge=prior.get("event_bridge"),
         harness_binary=Path(prior["native_version_probe"]["executable"])
             if prior.get("native_version_probe") else None)
+
+
+def upgrade_owned(*, directory: Path, host: str, version: str, python: Path) -> dict:
+    """Change runtime/version while retaining the recorded owned installation.
+
+    Artifact selection stays in the same private client configuration. The
+    conflict-aware installer still verifies every previously owned fragment.
+    """
+    current = json.loads(private_read(receipt_path(directory, host)))
+    if current.get("configuration") != "WRITTEN" or current.get("host") != host:
+        raise ClientError("EXISTING_LOCAL_INSTALLATION_REQUIRED")
+    return install(directory=directory, host=host, host_config=Path(current["host_config"]),
+        client_config=Path(current["client_config"]), version=version, python=python,
+        hook_config=Path(current["hook_config"]) if current.get("hook_config") else None,
+        enable_hooks=current["enable_hooks"], harness_version=current.get("harness_version"),
+        dsh_home=Path(current["dsh_home"]) if current.get("dsh_home") else None,
+        profile=current.get("dsh_profile"), event_bridge=current.get("event_bridge"),
+        harness_binary=Path(current["native_version_probe"]["executable"])
+            if current.get("native_version_probe") else None, expected_receipt=current)
 
 
 def doctor(*, directory: Path, host: str) -> dict:

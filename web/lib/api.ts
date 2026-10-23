@@ -2,14 +2,14 @@ import type {
   RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingHistory, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
-  SessionTaskDetail, SessionTaskList, SessionReportRevision, ProjectUpdate, SessionTaskUpdate,
+  SessionTaskDetail, SessionTaskList, SessionReportRevision, ProjectUpdate, SessionTaskUpdate, LocalTaskActorList, LocalTaskCreate, TaskBindingAuthorization,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 
 const API_PREFIX = "/api/v1";
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, public readonly detail: string) {
+  constructor(public readonly status: number, public readonly detail: string, public readonly existingTaskId?: string) {
     super(detail || `Request failed: ${status}`);
     this.name = "ApiError";
   }
@@ -17,7 +17,24 @@ export class ApiError extends Error {
 
 export function errorText(error: unknown, locale: Locale): string {
   const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  if (locale === "en") return detail || "Something went wrong. Please try again.";
+  if (locale === "en") {
+    const bindingProblems: Record<string, string> = {
+      TASK_VERSION_CONFLICT: "The task version changed. Refresh, then reopen this operation to review the latest version; your input is preserved.",
+      TASK_ALREADY_BOUND: "This task is already bound. Refresh to inspect its existing session.",
+      TASK_BINDING_REQUIRED: "Bind the intended Task ID before syncing work.",
+      TASK_BINDING_ACTOR_REQUIRED: "Authorize a Local client on the task page before binding.",
+      TASK_BINDING_ACTOR_MISMATCH: "This client is not authorized to bind the selected task.",
+      TASK_BINDING_ACTOR_UNAVAILABLE: "The selected client has no active sync authorization for this Project. Refresh the client list or arrange its authorization first.",
+      SESSION_ALREADY_HAS_TASK: "This session already has a task. Reuse that task instead of claiming another one.",
+      TASK_ID_REQUIRED: "Specify the bound Task ID before syncing.",
+      TASK_ID_MISMATCH: "The Task ID does not match this session's binding.",
+      TASK_BINDING_DELETED: "Restore the task and its Project before binding.",
+      TASK_OPERATION_KEY_CONFLICT: "This request key belongs to different input. Query the original key before continuing.",
+      TASK_CREATION_RECEIPT_NOT_FOUND: "The original creation receipt was not found. Continue querying the original key; this does not permit another POST.",
+      LOCAL_TASK_CREATION_RECEIPT_MISMATCH: "The creation receipt did not match the frozen request. Query the original key instead of creating another task.",
+    };
+    return bindingProblems[detail] || detail || "Something went wrong. Please try again.";
+  }
   if (error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(detail)) {
     return "无法连接服务。请确认已连接获准访问的网络，再重试。";
   }
@@ -34,6 +51,19 @@ export function errorText(error: unknown, locale: Locale): string {
     return "记录已被其他操作更新，当前输入已保留。请刷新记录并核对最新版本，再重新打开编辑窗口。";
   }
   const known: Record<string, string> = {
+    "TASK_VERSION_CONFLICT": "任务版本已变化，当前输入已保留。请刷新记录，核对后重新开始本次操作。",
+    "TASK_ALREADY_BOUND": "任务已经绑定会话，不能修改绑定授权。请刷新任务查看已有会话。",
+    "TASK_BINDING_REQUIRED": "此客户端需要先显式绑定任务 ID，再同步测试产物。",
+    "TASK_BINDING_ACTOR_REQUIRED": "此任务尚未授权本地客户端，请在任务页选择获准绑定的客户端。",
+    "TASK_BINDING_ACTOR_MISMATCH": "当前客户端不是此任务获准的绑定客户端，请核对任务授权。",
+    "TASK_BINDING_ACTOR_UNAVAILABLE": "所选客户端没有本项目的有效同步授权。请刷新客户端列表，或先完成本地接入。",
+    "SESSION_ALREADY_HAS_TASK": "当前真实会话已有任务，请查看并复用已有任务，不能另绑或重复创建。",
+    "TASK_ID_REQUIRED": "请明确指定已绑定的任务 ID，不能按标题或会话猜测目标。",
+    "TASK_ID_MISMATCH": "任务 ID 与当前绑定不一致，请核对原任务和真实会话后再同步。",
+    "TASK_BINDING_DELETED": "任务或项目已删除。请先在回收站恢复，再进行绑定。",
+    "TASK_OPERATION_KEY_CONFLICT": "此请求标识已用于另一组输入。请保留原标识，先按原请求查询对账。",
+    "TASK_CREATION_RECEIPT_NOT_FOUND": "尚未找到原创建请求回执。请继续查询原 key，不代表可以再次提交创建请求。",
+    "LOCAL_TASK_CREATION_RECEIPT_MISMATCH": "创建回执与固定请求不一致。请按原 key 查询，不要另建任务。",
     "controlled environment unavailable; build the configured profile on this host": "受控环境当前不可用。请在执行主机准备与所选配置匹配的可信镜像，再刷新环境可用性；当前草稿会保留。",
     "ASGI application module must be tracked in the pinned source": "ASGI 应用模块必须是固定源码中已跟踪的文件。请核对应用对象路径与提交 SHA。",
     "controlled environments require the Docker runner": "固定受控环境必须通过 Docker Runner 执行，不能改用本机进程。",
@@ -81,17 +111,22 @@ export function errorText(error: unknown, locale: Locale): string {
 async function responseError(response: Response, fallback?: string): Promise<ApiError> {
   const body = await response.text();
   let detail = fallback || "";
+  let existingTaskId: string | undefined;
   try {
     const problem = JSON.parse(body) as { detail?: unknown };
     if (typeof problem.detail === "string") detail = problem.detail;
     else if (Array.isArray(problem.detail)) {
       detail = problem.detail.map((issue) => `${issue.loc?.slice(1).join(".") || "Input"}: ${issue.msg}`).join("; ");
+    } else if (problem.detail && typeof problem.detail === "object") {
+      const issue = problem.detail as { code?: unknown; existing_task_id?: unknown };
+      if (typeof issue.code === "string") detail = issue.code;
+      if (typeof issue.existing_task_id === "string") existingTaskId = issue.existing_task_id;
     }
   } catch {
     // Proxy HTML is not a useful form error. Retain safe text diagnostics only.
     if (!response.headers.get("content-type")?.includes("text/html")) detail ||= body.slice(0, 2000);
   }
-  return new ApiError(response.status, detail);
+  return new ApiError(response.status, detail, existingTaskId);
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -126,6 +161,14 @@ export const getProjectRuns = (projectId: string) =>
   api<TestRun[]>(`/projects/${projectId}/test-runs`);
 export const getProjectTasks = (projectId: string, offset = 0, limit = 20, includeDeleted = false) =>
   api<SessionTaskList>(`/tasks?project_id=${encodeURIComponent(projectId)}&limit=${limit}&offset=${offset}${includeDeleted ? "&include_deleted=true" : ""}`);
+export const getLocalTaskActors = (projectId: string) =>
+  api<LocalTaskActorList>(`/projects/${encodeURIComponent(projectId)}/local-task-actors`);
+export const createLocalTask = (projectId: string, payload: LocalTaskCreate) =>
+  api<SessionTaskDetail>(`/projects/${encodeURIComponent(projectId)}/local-tasks`, { method: "POST", body: JSON.stringify(payload) });
+export const getLocalTaskCreation = (projectId: string, idempotencyKey: string) =>
+  api<SessionTaskDetail>(`/projects/${encodeURIComponent(projectId)}/local-tasks/by-key?idempotency_key=${encodeURIComponent(idempotencyKey)}`);
+export const updateTaskBindingAuthorization = (taskId: string, payload: TaskBindingAuthorization) =>
+  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}/binding-authorization`, { method: "PATCH", body: JSON.stringify(payload) });
 export const getSessionTask = (taskId: string, version?: number, includeDeleted = false) => {
   const query = [version === undefined ? "" : `version=${version}`, includeDeleted ? "include_deleted=true" : ""].filter(Boolean).join("&");
   return api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}${query ? `?${query}` : ""}`);

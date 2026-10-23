@@ -58,15 +58,15 @@ export function SessionTaskActions({ task, compact }: { task: SessionTask; compa
     <ManagementDialog open={Boolean(action)} title={title} mode={action?.mode} version={action?.record.version} pending={mutation.isPending} error={mutation.error} onRefresh={refresh} onCancel={() => { if (!mutation.isPending) setAction(null); }} onConfirm={() => void submit()}>
       <Typography.Paragraph className="management-subject">{action?.record.title}</Typography.Paragraph>
       {action?.mode === "delete" ? <Alert type="warning" showIcon message={t("Move this task to the recycle bin?", "将此任务移入回收站？")}
-        description={t("Cases, original reports, reported results and all revisions are retained. The session identity stays reserved. Restore the task from its project's task recycle bin to continue synchronization.", "用例、原始报告、报告结果及全部修订会保留，会话标识仍被占用。需要继续同步时，可从项目的任务回收站恢复。")}/>
+        description={t("Cases, original reports, reported results and all revisions are retained. The Task ID and any bound session identity stay reserved. Restore the task from its project's task recycle bin to continue using it.", "用例、原始报告、报告结果及全部修订会保留，任务 ID 及已绑定的会话标识仍被占用。需要继续使用时，可从项目的任务回收站恢复。")}/>
         : action?.mode === "restore" ? <Typography.Paragraph>{t("Restore the task with its original session identity, progress, results and history. Restore its project first if that project was also deleted.", "恢复任务及原有会话标识、进度、结果和历史。如果所属项目也已删除，请先恢复项目。")}</Typography.Paragraph>
         : <Form form={form} layout="vertical" disabled={mutation.isPending} requiredMark="optional" onFinish={() => void submit()}>
           {action?.mode === "status" ? <>
             <Form.Item name="status" label={t("Task status", "任务状态")} rules={[{ required: true }]}><Select options={TASK_STATUSES.map((value) => ({ value, label: label(value) }))} /></Form.Item>
             <Alert type="info" showIcon message={t("Status tracks task progress", "任务状态表示工作进度")}
-              description={t("You can reopen a completed or cancelled task. This change does not alter Codex reported results, cases or reports, and does not execute tests. Future Codex syncs must read the new task version first.", "可以重新打开已完成或已取消的任务。修改状态不改变 Codex 报告结果、用例和报告，也不执行测试。Codex 后续同步前需先读取新的任务版本。")}/>
+              description={t("You can reopen a completed or cancelled task. This change does not alter Agent reported results, cases or reports, and does not execute tests. Future Agent syncs must read the new task version first.", "可以重新打开已完成或已取消的任务。修改状态不改变 Agent 报告结果、用例和报告，也不执行测试。Agent 后续同步前需先读取新的任务版本。")}/>
           </> : <>
-            <Typography.Paragraph className="muted">{t("Manual edits are recorded in management history. Codex session identity, cases, reports and their results are preserved.", "手动修改记录在管理历史中。Codex 会话标识、用例、报告及其结果会保留。")}</Typography.Paragraph>
+            <Typography.Paragraph className="muted">{t("Manual edits are recorded in management history. Agent session identity, cases, reports and their results are preserved.", "手动修改记录在管理历史中。Agent 会话标识、用例、报告及其结果会保留。")}</Typography.Paragraph>
             <Form.Item name="title" label={t("Task title", "任务标题")} rules={[{ required: true, whitespace: true, message: t("Enter a task title.", "请输入任务标题。") }, { max: 512 }]}><Input maxLength={512} autoFocus /></Form.Item>
             <Form.Item name="objective" label={t("Objective", "测试目标")} rules={[{ max: 16000 }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item>
             <Form.Item name="plan_markdown" label={t("Test plan (Markdown)", "测试计划（Markdown）")} rules={[{ max: 262144 }]}><Input.TextArea rows={9} maxLength={262144} /></Form.Item>

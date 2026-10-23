@@ -42,6 +42,7 @@ def validate_sync_receipt(result: dict, key: str, expected_version: int | None =
         project_id = str(UUID(result["project_id"]))
         version = result["version"]
         identity = identity or {}
+        prior_task_id = identity.get("task_id") or prior_task_id
         valid = (result.get("status") == "ACCEPTED" and result.get("idempotency_key") == key
                  and result.get("profile") == "codex-session-task-sync/v1alpha1"
                  and result.get("source") == "AGENT_REPORTED"
@@ -74,7 +75,9 @@ def validate_task_page(result: dict, arguments: dict) -> None:
                  and result["complete"] == (offset + len(content) == total)
                  and ((following is None and result["complete"])
                       or (type(following) is int and following == offset + len(content) and not result["complete"]))
-                 and result.get("format") == "application/json" and result.get("source") == "AGENT_REPORTED")
+                 and result.get("format") == "application/json"
+                 and "source" in result and result.get("source") in {None, "AGENT_REPORTED"}
+                 and ("task_id" not in arguments or result["task_id"] == arguments["task_id"]))
     except (ValueError, TypeError, KeyError, AttributeError):
         valid = False
     if not valid:
@@ -89,6 +92,8 @@ class InteractiveService:
         self._grants: dict[str, dict] = {}
         self._content: dict[str, dict] = {}
         self.coordinator = None
+        self.local_capabilities = {"explicit_task_binding": bool(config.local_sync.get("enabled")),
+                                   "query_only_binding_recovery": True, "target_task_id_reads": True}
         if config.local_sync.get("enabled"):
             from hypertest.local_sync.coordinator import LocalSyncCoordinator
             self.coordinator = LocalSyncCoordinator(config, api, journal)
@@ -143,6 +148,14 @@ class InteractiveService:
                     result, payload["idempotency_key"], payload["expected_version"],
                     (intent.get("result") or {}).get("task_id"), payload),
             ))
+        if name == "hypertest_bind_task":
+            if self.coordinator is None:
+                raise ClientError("LOCAL_COORDINATOR_REQUIRED")
+            return public(await self.coordinator.bind_task(arguments))
+        if name == "hypertest_get_task_binding":
+            if self.coordinator is None:
+                raise ClientError("LOCAL_COORDINATOR_REQUIRED")
+            return public(await self.coordinator.get_binding(arguments))
         if name == "hypertest_get_task":
             if "idempotency_key" in arguments:
                 kind, key = "session-task:" + arguments["project_id"], arguments["idempotency_key"]
@@ -158,6 +171,11 @@ class InteractiveService:
                         self.journal.mark(kind, key, "UNKNOWN", intent.get("result"))
                     return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
                 self._observe(kind, key, result)
+            elif "task_id" in arguments:
+                params = dict(arguments)
+                task_id = str(UUID(params.pop("task_id")))
+                result = await self.api.request("GET", "interactive/tasks/" + task_id, params=params)
+                validate_task_page(result, arguments)
             else:
                 result = await self.api.request("GET", "interactive/tasks/by-session", params=arguments)
                 validate_task_page(result, arguments)

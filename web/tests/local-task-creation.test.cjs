@@ -1,0 +1,163 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const load = require("./load-helper.cjs");
+const helpers = load("lib/local-task-binding.ts");
+const bindingClient = load("lib/task-binding-client.ts");
+const i18n = load("lib/i18n.tsx", { require });
+
+function detail() {
+  return { task: { id: "task-1", project_id: "project-1", title: "Awaiting local Agent", objective: "Test an authorized target", plan_markdown: "# Initial plan", status: "DRAFT", reported_result: "NOT_RUN", version: 1, binding_state: "UNBOUND", binding_required: true, intended_actor_ref: null, provider: null, session_id: null, source: null, last_synced_at: null, last_managed_at: "2026-10-23T09:00:00Z", created_at: "2026-10-23T09:00:00Z" }, cases: [], reports: [], case_history: [], report_history: [], sync_history: [], binding_history: [], management_history: [], creation_receipt: { status: "ACCEPTED", operation: "CREATE", task_id: "task-1", project_id: "project-1", version: 1, idempotency_key: "create-original" } };
+}
+
+test("local creation accepts only management fields and explicitly leaves an unauthorized task unclaimed", () => {
+  const body = helpers.localTaskCreatePayload({ title: "  Local task  ", objective: "literal\nobjective", plan_markdown: "# Original\n", provider: "invented", session_id: "other-session", task_id: "other-task", reported_result: "PASS", mode: "cloud" }, "original-key");
+  assert.deepEqual(JSON.parse(JSON.stringify(body)), { idempotency_key: "original-key", title: "Local task", objective: "literal\nobjective", plan_markdown: "# Original\n", intended_actor_ref: null });
+  assert.equal(helpers.localTaskCreatePayload({ title: "Task", intended_actor_ref: "agent-client:allowed" }, "key").intended_actor_ref, "agent-client:allowed");
+});
+
+test("creation ACK is accepted only for the frozen Project, key, task ID and version", () => {
+  assert.equal(helpers.validateLocalTaskCreation(detail(), "project-1", "create-original").task.id, "task-1");
+  for (const change of [{ idempotency_key: "another-key" }, { project_id: "another-project" }, { task_id: "another-task" }, { version: 2 }, { status: "UNKNOWN" }, { operation: "BIND" }]) {
+    const value = detail();
+    Object.assign(value.creation_receipt, change);
+    assert.throws(() => helpers.validateLocalTaskCreation(value, "project-1", "create-original"), /RECEIPT_MISMATCH/);
+  }
+});
+
+test("pending request restoration retains its original key and never trusts extra stored identity fields", () => {
+  const raw = JSON.stringify({ project_id: "project-1", payload: { idempotency_key: "key-frozen", title: "Task", objective: "Exact objective", intended_actor_ref: null, provider: "fake", session_id: "fake" } });
+  const restored = helpers.pendingLocalTaskCreation(raw, "project-1");
+  assert.equal(restored.idempotency_key, "key-frozen");
+  assert.equal(restored.provider, undefined);
+  assert.equal(restored.session_id, undefined);
+  assert.throws(() => helpers.pendingLocalTaskCreation(raw, "other-project"), /PENDING_REQUEST_INVALID/);
+  for (const error of [new TypeError("Failed to fetch"), { status: 500 }, { status: 502 }, new Error("LOCAL_TASK_CREATION_RECEIPT_MISMATCH")]) assert.equal(helpers.localTaskCreateWasRejected(error), false);
+  assert.equal(helpers.localTaskCreateWasRejected({ status: 409, detail: "TASK_OPERATION_KEY_CONFLICT" }), false);
+  for (const status of [400, 403, 409, 422]) assert.equal(helpers.localTaskCreateWasRejected({ status }), true);
+});
+
+test("local task APIs use operator web routes, explicit actor refs and read-only original-key reconciliation", async () => {
+  const calls = [];
+  const api = load("lib/api.ts", { fetch: async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify(detail())); } });
+  await api.getLocalTaskActors("project id");
+  await api.createLocalTask("project id", { idempotency_key: "key-original", title: "Task", objective: "Objective", intended_actor_ref: null });
+  await api.getLocalTaskCreation("project id", "key original");
+  await api.updateTaskBindingAuthorization("task id", { expected_version: 4, intended_actor_ref: "agent-client:allowed" });
+  assert.deepEqual(calls.map(({ url }) => url), ["/api/v1/projects/project%20id/local-task-actors", "/api/v1/projects/project%20id/local-tasks", "/api/v1/projects/project%20id/local-tasks/by-key?idempotency_key=key%20original", "/api/v1/tasks/task%20id/binding-authorization"]);
+  assert.equal(calls[2].options.method, undefined);
+  assert.equal(calls[3].options.method, "PATCH");
+  assert.deepEqual(JSON.parse(calls[3].options.body), { expected_version: 4, intended_actor_ref: "agent-client:allowed" });
+  for (const { options } of calls) {
+    assert.equal(options.headers.Authorization, undefined);
+    assert.equal(options.headers["X-Hypertest-Operator-Key"], undefined);
+  }
+});
+
+test("structured binding failures preserve their stable code and safe existing-task reference", async () => {
+  const api = load("lib/api.ts", { fetch: async () => new Response(JSON.stringify({ detail: { code: "SESSION_ALREADY_HAS_TASK", existing_task_id: "existing-task" } }), { status: 409 }), require });
+  await assert.rejects(api.createLocalTask("project", { title: "Task", idempotency_key: "key" }), (error) => {
+    assert.equal(error.detail, "SESSION_ALREADY_HAS_TASK");
+    assert.equal(error.existingTaskId, "existing-task");
+    assert.ok(api.errorText(error, "zh").includes("已有任务"));
+    return true;
+  });
+});
+
+test("unbound task records show a stable ID without inventing a session or a successful sync", () => {
+  const { SessionTaskRecords } = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
+  for (const locale of ["en", "zh"]) {
+    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(SessionTaskRecords, { detail: detail() })));
+    assert.ok(html.includes("task-1"));
+    assert.ok(html.includes(locale === "en" ? "Awaiting binding" : "待绑定"));
+    assert.ok(html.includes(locale === "en" ? "Not bound yet" : "尚未绑定"));
+    assert.ok(html.includes(locale === "en" ? "No Agent sync received" : "尚未收到 Agent 同步"));
+    assert.ok(html.includes(locale === "en" ? "Not run" : "尚未运行"));
+    assert.equal(html.includes("null · null"), false);
+  }
+});
+
+test("binding guidance copies the chosen task and version while requiring a real native source", () => {
+  const template = JSON.parse(helpers.taskBindingTemplate(detail().task));
+  assert.equal(template.task_id, "task-1");
+  assert.equal(template.project_id, "project-1");
+  assert.equal(template.expected_version, 1);
+  assert.ok(template.provider.includes("NATIVE_SESSION_START"));
+  assert.ok(template.session_id.includes("NATIVE_SESSION_START"));
+  assert.equal(template.integration_token, undefined);
+  const query = { isLoading: false, isError: false, data: { items: [], total: 0 } };
+  const { LocalTaskBinding } = load("app/tasks/local-task-binding.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/local-task-binding" ? helpers : name === "./source-client-upgrade" ? { SourceClientUpgrade: () => null } : name === "@tanstack/react-query" ? { useQuery: () => query, useMutation: () => ({}), useQueryClient: () => ({}) } : name === "@/lib/api" ? {} : require(name) });
+  for (const locale of ["en", "zh"]) {
+    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(LocalTaskBinding, { task: detail().task })));
+    assert.ok(html.includes("hypertest_bind_task"));
+    assert.ok(html.includes("hypertest_get_task_binding"));
+    assert.ok(html.includes("task-1"));
+    assert.ok(html.includes(locale === "en" ? "it grants no access" : "不授予访问权限"));
+    assert.ok(html.includes("local-v0.1.0"));
+    assert.ok(html.includes(locale === "en" ? "start a new native session" : "开始新的原生会话"));
+    assert.equal(html.includes("hypertest_bind_execution"), false);
+  }
+});
+
+test("source upgrade commands pin the client commit and preserve owned installation settings", () => {
+  const options = { sourceCommit: "a".repeat(40), venvDirectory: "/private/new client's env", installDirectory: "/private/owned install", clientConfig: "/private/config.json", harness: "codex" };
+  const commands = bindingClient.taskBindingClientCommands(options);
+  assert.ok(commands.prepare.includes("hypertest-one[interactive] @ git+https://github.com/ZhangLiangchen/hypertest-one.git@" + options.sourceCommit));
+  assert.ok(commands.prepare.includes("if [ -e"));
+  assert.ok(commands.prepare.includes("'\"'\"'"), "private paths use POSIX quoting");
+  assert.ok(commands.upgrade.includes("upgrade-owned"));
+  assert.ok(commands.upgrade.includes("--version local-v0.1.0-source." + options.sourceCommit));
+  for (const guessed of ["--enable-hooks", "--hook-config", "--host-config", "--workspace", "--artifact-source", "--dsh-home"]) assert.equal(commands.upgrade.includes(guessed), false, guessed);
+  assert.ok(commands.stop.includes("hypertest.interactive_client stop --config"));
+  assert.ok(commands.capabilities.includes("hypertest.local_sync capabilities --config"));
+  for (const sourceCommit of ["main", "local-v0.1.0", "abc123", "a".repeat(39)]) assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, sourceCommit }), /fixed-source-commit/);
+  assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, clientConfig: options.installDirectory }), /distinct-private-paths/);
+});
+
+test("a bound task does not claim an Agent sync before actual artifacts arrive", () => {
+  const value = detail();
+  Object.assign(value.task, { binding_state: "BOUND", provider: "codex", session_id: "native-root", bound_at: "2026-10-23T10:00:00Z", version: 2 });
+  value.binding_history = [{ id: "bind-1", action: "BIND", actor_ref: "client:allowed", task_version: 2, task_snapshot: value.task, created_at: value.task.bound_at }];
+  const { SessionTaskRecords } = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(SessionTaskRecords, { detail: value })));
+  assert.ok(html.includes("Bound at"));
+  assert.ok(html.includes("Binding history"));
+  assert.ok(html.includes("no Agent work has been synced yet"));
+  assert.ok(html.includes("No sync history is available"));
+  assert.equal(html.includes("Synced from the source Agent session"), false);
+});
+
+test("one create form keeps shared inputs and exposes only the selected mode's controls", () => {
+  const antd = require("antd");
+  for (const mode of ["cloud", "local"]) for (const locale of ["en", "zh"]) {
+    const Form = Object.assign((props) => React.createElement(antd.Form, { ...props, initialValues: { ...props.initialValues, mode } }), antd.Form, { useWatch: (name) => name === "mode" ? mode : null });
+    const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/uuid" ? { createUuid: () => "stable-key" } : name === "@tanstack/react-query" ? { useQuery: () => ({ isSuccess: true, isLoading: false, data: { items: [], total: 0 } }), useMutation: () => ({}), useQueryClient: () => ({}) } : name === "@/lib/api" ? {} : name === "next/navigation" ? { useRouter: () => ({}) } : require(name) });
+    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(TaskCreateForm, { projectId: "project-1" })));
+    assert.equal((html.match(/id="title"/g) || []).length, 1);
+    assert.equal((html.match(/id="objective"/g) || []).length, 1);
+    assert.ok(html.includes(locale === "en" ? "Cloud execution" : "云端执行"));
+    assert.ok(html.includes(locale === "en" ? "Local execution" : "本地执行"));
+    if (mode === "local") {
+      assert.ok(html.includes(locale === "en" ? "Authorized local client" : "获准绑定的本地客户端"));
+      assert.ok(html.includes(locale === "en" ? "The task will wait for client authorization" : "任务将等待客户端授权"));
+    } else assert.ok(html.includes(locale === "en" ? "Cloud task creation is awaiting integration" : "云端任务创建能力待接入"));
+  }
+});
+
+test("unified task creation preserves Local setup and keeps binding mutations out of read-only record components", () => {
+  const project = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/page.tsx"), "utf8");
+  const list = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/session-tasks.tsx"), "utf8");
+  const form = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/tasks/new/task-create-form.tsx"), "utf8");
+  assert.ok(project.includes('/tasks/new'));
+  assert.ok(project.includes('"Create test task", "创建测试任务"'));
+  assert.ok(list.includes("<LocalModeGuide"));
+  assert.ok(list.includes("SessionTaskActions"));
+  assert.ok(form.includes('value: "cloud"'));
+  assert.ok(form.includes('value: "local"'));
+  assert.ok(form.includes("getLocalTaskCreation"));
+  assert.equal(form.includes("createRun"), false);
+  assert.equal(form.includes("bootstrap"), false);
+});

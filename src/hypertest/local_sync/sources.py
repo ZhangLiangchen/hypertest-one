@@ -120,9 +120,71 @@ def session_context(config, event):
             ", session_id=" + binding["identity"]["session_id"] +
             ", project_id=" + binding["identity"]["project_id"] + ". "
             "When producing the selected artifacts, write their approved Markdown files at " + selected +
-            ". Hooks sync these files automatically; no manifest command is needed. "
+            ". Before the first asset sync, ask for the platform-created Local Task ID and use "
+            "hypertest_bind_task with this exact native source and the current task version. "
+            "Until binding is confirmed, hooks retain files and return TASK_BINDING_REQUIRED without POST. "
             "Do not write chat transcripts, reasoning or secrets. Hook success does not mean test PASS. "
             "Use explicit HyperTest MCP for case data and changes to task status or test results.")
+
+
+def manifest_root(config, event, *, create=False):
+    """Record a manifest-selected real SessionStart, without reading any chat."""
+    from hypertest.local_sync.manifest import ArtifactManifest
+    settings = config.local_sync
+    manifest_path = Path(settings["manifest_file"])
+    selected = ArtifactManifest.model_validate_json(private_read(manifest_path))
+    identity = {"project_id": str(selected.identity.project_id),
+                "provider": selected.identity.provider, "session_id": selected.identity.parent_session_id}
+    workspace = event.get("cwd")
+    roots = settings.get("allowed_roots", [])
+    if (not isinstance(workspace, str) or workspace not in roots
+            or Path(workspace).resolve() != Path(workspace) or not Path(workspace).is_dir()):
+        raise ClientError("LOCAL_SOURCE_WORKSPACE_MISMATCH")
+    if (identity["project_id"] != settings.get("project_id")
+            or identity["provider"] != HOST_PROVIDERS.get(settings.get("host"))
+            or identity["session_id"] != event.get("session_id")):
+        raise ClientError("LOCAL_NATIVE_SOURCE_IDENTITY_MISMATCH")
+    source_key = digest({field: identity[field] for field in ("provider", "session_id")})
+    directory = private_directory(config.state_dir / "local-sync" / "manifest-roots")
+    path = directory / (source_key + ".json")
+    record = {"identity": identity, "workspace": workspace,
+              "policy_digest": digest({"manifest_file": str(manifest_path), "allowed_roots": roots})}
+    if create:
+        if event.get("hook_event_name") != "SessionStart":
+            raise ClientError("NATIVE_SESSION_START_REQUIRED")
+        try:
+            private_create(path, canonical_json(record).encode())
+        except FileExistsError:
+            pass
+    if not path.exists():
+        raise ClientError("NATIVE_SESSION_START_REQUIRED")
+    if json.loads(private_read(path)) != record:
+        raise ClientError("LOCAL_SOURCE_BINDING_CONFLICT")
+    return record
+
+
+def require_native_root(config, identity):
+    """Bind only an existing native root, matching policy/workspace/source."""
+    settings = config.local_sync
+    if (not settings.get("enabled") or settings.get("host") not in HOST_PROVIDERS
+            or not settings.get("harness_version")
+            or (settings.get("host") == "deepseek-harness" and settings.get("event_bridge") != "native-root")):
+        raise ClientError("LOCAL_NATIVE_SOURCE_CONFIGURATION_REQUIRED")
+    if settings.get("artifact_source"):
+        _, record, _ = source_binding(config, {"session_id": identity["session_id"],
+            "cwd": settings["artifact_source"]["workspace"]})
+    elif settings.get("manifest_file"):
+        source_key = digest({field: identity[field] for field in ("provider", "session_id")})
+        path = config.state_dir / "local-sync" / "manifest-roots" / (source_key + ".json")
+        if not path.exists():
+            raise ClientError("NATIVE_SESSION_START_REQUIRED")
+        old = json.loads(private_read(path))
+        record = manifest_root(config, {"session_id": identity["session_id"], "cwd": old["workspace"]})
+    else:
+        raise ClientError("LOCAL_NATIVE_SOURCE_CONFIGURATION_REQUIRED")
+    if any(record["identity"][field] != identity[field] for field in ("project_id", "provider", "session_id")):
+        raise ClientError("LOCAL_NATIVE_SOURCE_IDENTITY_MISMATCH")
+    return record
 
 
 async def submit_source(config, coordinator, event):

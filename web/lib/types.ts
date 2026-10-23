@@ -17,17 +17,23 @@ export type ReportedResult = "NOT_RUN" | "PASS" | "FAIL" | "ERROR" | "SKIPPED" |
 export type SessionTask = {
   id: string;
   project_id: string;
-  provider: string;
-  session_id: string;
+  provider: string | null;
+  session_id: string | null;
+  binding_state?: "UNBOUND" | "BOUND";
+  binding_required?: boolean;
+  creator_actor_ref?: string | null;
+  intended_actor_ref?: string | null;
+  owner_actor_ref?: string | null;
+  bound_at?: string | null;
   title: string;
   objective: string;
   plan_markdown: string;
   status: SessionTaskStatus;
   reported_result: ReportedResult;
   version: number;
-  source: string;
+  source: string | null;
   created_at: string;
-  last_synced_at: string;
+  last_synced_at: string | null;
   last_managed_at?: string | null;
   deleted_at?: string | null;
 };
@@ -77,6 +83,8 @@ export type SessionTaskDetail = {
   report_history: SessionReportRevision[];
   sync_history: SessionSyncReceipt[];
   management_history?: SessionManagementRecord[];
+  binding_history?: SessionManagementRecord[];
+  creation_receipt?: { status: "ACCEPTED"; operation: "CREATE"; task_id: string; project_id: string; version: number; idempotency_key: string };
 };
 export type SessionManagementRecord = {
   id?: string;
@@ -101,6 +109,16 @@ export type SessionTaskUpdate = {
   plan_markdown?: string;
   status?: SessionTaskStatus;
 };
+export type LocalTaskActor = { actor_ref: string; label: string };
+export type LocalTaskActorList = { items: LocalTaskActor[]; total: number };
+export type LocalTaskCreate = {
+  idempotency_key: string;
+  title: string;
+  objective?: string;
+  plan_markdown?: string;
+  intended_actor_ref?: string | null;
+};
+export type TaskBindingAuthorization = { expected_version: number; intended_actor_ref: string | null };
 export type SessionTaskList = { items: SessionTask[]; total: number; limit: number; offset: number };
 
 export type TestRun = {
