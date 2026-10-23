@@ -1,0 +1,33 @@
+{
+  "receipt": {
+    "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+    "idempotency_key": "uc18-real-session-current-20261021-v1"
+  },
+  "first_page": {
+    "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+    "provider": "codex",
+    "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+    "version": 1,
+    "offset": 0,
+    "limit": 24000
+  },
+  "known_next_pages_from_yesterday": [
+    {
+      "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+      "provider": "codex",
+      "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+      "version": 1,
+      "offset": 24000,
+      "limit": 24000
+    },
+    {
+      "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+      "provider": "codex",
+      "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+      "version": 1,
+      "offset": 48000,
+      "limit": 24000
+    }
+  ],
+  "continuation_rule": "Use actual next_offset returned today; fixed version1. Do not assume yesterday offsets if envelope differs."
+}

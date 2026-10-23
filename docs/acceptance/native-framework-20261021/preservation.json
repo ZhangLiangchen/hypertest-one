@@ -1,0 +1,54 @@
+{
+  "checked_at": "2026-10-21T06:27:47.125323+00:00",
+  "checks": [
+    {
+      "root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure",
+      "before": {
+        "commit": "83a1568905a9ac73852bd4749eeeea540b91b0b5",
+        "branch": "master",
+        "dirty": " M .claude/skills/staging-order-forensics/scripts/log_grep.sh\n?? .agents/skills/dev166-order-forensics/\n?? .agents/skills/staging-order-forensics/\n?? .agents/skills/xblock-api-doc/\n?? .codex/environments/\n?? c8a-4-order-by-coid.json\n?? c8a-4-submit-resp.json\n?? c8a-4-with-details.json\n?? deploy/vault/vault\n?? docs/evidence/.DS_Store\n?? docs/evidence/asset-retry-rca-20260916/\n?? docs/evidence/dev166-test-validity-extrapolation/\n?? docs/evidence/dev166-vault-binary-swap-20261012/\n?? docs/evidence/env-ledger-gap-20260915/\n?? docs/evidence/eth-dex-live-20260918/\n?? docs/evidence/staging-ledger-trace-rca-20260918/\n?? docs/evidence/tron-dex-energy-live-20260917/\n?? docs/evidence/tron-dex-energy-whitebox-20260917/\n?? docs/evidence/usdt-native-dex-acceptance-20260920/\n?? python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_helpers_unit.py\n?? python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_io_unit.py\n?? python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py\n?? python/tests/scenario_driven/transaction_flow/uc_tx_18_multi_energy_helpers.py\n?? python/tests/scenario_driven/transaction_flow/uc_tx_18_multi_energy_io.py\n"
+      },
+      "after": {
+        "commit": "83a1568905a9ac73852bd4749eeeea540b91b0b5",
+        "branch": "master",
+        "dirty": "M .claude/skills/staging-order-forensics/scripts/log_grep.sh\n?? .agents/skills/dev166-order-forensics/\n?? .agents/skills/staging-order-forensics/\n?? .agents/skills/xblock-api-doc/\n?? .codex/environments/\n?? c8a-4-order-by-coid.json\n?? c8a-4-submit-resp.json\n?? c8a-4-with-details.json\n?? deploy/vault/vault\n?? docs/evidence/.DS_Store\n?? docs/evidence/asset-retry-rca-20260916/\n?? docs/evidence/dev166-test-validity-extrapolation/\n?? docs/evidence/dev166-vault-binary-swap-20261012/\n?? docs/evidence/env-ledger-gap-20260915/\n?? docs/evidence/eth-dex-live-20260918/\n?? docs/evidence/staging-ledger-trace-rca-20260918/\n?? docs/evidence/tron-dex-energy-live-20260917/\n?? docs/evidence/tron-dex-energy-whitebox-20260917/\n?? docs/evidence/usdt-native-dex-acceptance-20260920/\n?? python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_helpers_unit.py\n?? python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_io_unit.py\n?? python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py\n?? python/tests/scenario_driven/transaction_flow/uc_tx_18_multi_energy_helpers.py\n?? python/tests/scenario_driven/transaction_flow/uc_tx_18_multi_energy_io.py"
+      },
+      "same_commit": true,
+      "same_branch": true,
+      "same_dirty_inventory": true
+    },
+    {
+      "root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9",
+      "before": {
+        "commit": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+        "branch": "claude/xblock-async-energy-vendor-d7fefe",
+        "dirty": "?? .agents/skills/xblock-api-doc/"
+      },
+      "after": {
+        "commit": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+        "branch": "claude/xblock-async-energy-vendor-d7fefe",
+        "dirty": "?? .agents/skills/xblock-api-doc/"
+      },
+      "same_commit": true,
+      "same_branch": true,
+      "same_dirty_inventory": true
+    },
+    {
+      "root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/raw/source_code/blockchain",
+      "before": {
+        "commit": "0914459b323b82d8f794145247c4627625a6c87b",
+        "branch": "dev",
+        "dirty": ""
+      },
+      "after": {
+        "commit": "0914459b323b82d8f794145247c4627625a6c87b",
+        "branch": "dev",
+        "dirty": ""
+      },
+      "same_commit": true,
+      "same_branch": true,
+      "same_dirty_inventory": true
+    }
+  ],
+  "scope": "Git commit/branch/status inventories only; does not attest all untracked file content"
+}

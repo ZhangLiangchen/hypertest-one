@@ -1,0 +1,55 @@
+{
+  "captured_at": "2026-10-21T06:56:32.400569+00:00",
+  "schema": "0021_native_intake",
+  "projects": 96,
+  "native_table_counts": {
+    "native_cases": 102,
+    "native_conclusion_executions": 41,
+    "native_conclusions": 27,
+    "native_contributors": 43,
+    "native_execution_cases": 102,
+    "native_execution_records": 27,
+    "native_handoffs": 16,
+    "native_materials": 75,
+    "native_operations": 120,
+    "native_test_runs": 27,
+    "native_verifications": 27
+  },
+  "legacy_table_counts": {
+    "test_runs": 66,
+    "source_snapshots": 61,
+    "missions": 59,
+    "test_executions": 10,
+    "evidence": 21,
+    "verdicts": 8,
+    "agent_sessions": 47,
+    "run_execution_bindings": 45
+  },
+  "container": {
+    "id": "fc2b840384f8568faed302bac2bdafda201a86442713cbcbab06ec8fe9bf0d1f",
+    "name": "/hypertest-native-qa16-20261021",
+    "image": "postgres:16",
+    "image_id": "sha256:aa01b97f2f0d3af4241d251d8cdc6cce2cf8f95809f0e9d32088620d02606ab9",
+    "status": "running",
+    "started_at": "2026-10-21T06:27:43.546843583Z",
+    "ports": {
+      "5432/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "55439"
+        }
+      ]
+    },
+    "mounts": [
+      {
+        "Type": "volume",
+        "Name": "b6469ef3d03c19af755134440c39d59616421f7204c1ba484de904f81b518226",
+        "Source": "/var/lib/docker/volumes/b6469ef3d03c19af755134440c39d59616421f7204c1ba484de904f81b518226/_data",
+        "Destination": "/var/lib/postgresql/data",
+        "RW": true
+      }
+    ]
+  },
+  "readonly_transaction": true,
+  "scope": "Fresh isolated QA database only; no claim of production preservation by table comparison"
+}

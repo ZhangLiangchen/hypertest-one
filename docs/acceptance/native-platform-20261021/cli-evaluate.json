@@ -1,0 +1,11 @@
+{
+  "conclusion_id": "01a15d3c-3059-7324-85b4-497d0bcb4ce2",
+  "decision": "UNKNOWN",
+  "reasons": [
+    "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+  ],
+  "state_digest": "f077333daa9d241710e5b43c08212092b520525c4c42e487f06019a227efb921",
+  "integrity": "CHECKED",
+  "policy_version": "native-material-gate/v1alpha1",
+  "formal_evidence": false
+}

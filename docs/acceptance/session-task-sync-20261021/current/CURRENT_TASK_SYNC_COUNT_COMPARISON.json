@@ -1,0 +1,59 @@
+{
+  "at": "2026-10-21T10:04:21.801451+00:00",
+  "source": "actual 76-table counts before first Task POST and after SDK + new grant GET-only; current DB",
+  "changed_counts": {
+    "audit_events": {
+      "before": 897,
+      "after": 898
+    },
+    "outbox_events": {
+      "before": 892,
+      "after": 893
+    },
+    "session_case_revisions": {
+      "before": 0,
+      "after": 15
+    },
+    "session_report_revisions": {
+      "before": 0,
+      "after": 2
+    },
+    "session_sync_receipts": {
+      "before": 0,
+      "after": 1
+    },
+    "session_tasks": {
+      "before": 0,
+      "after": 1
+    }
+  },
+  "protected_execution_tables_unchanged": [
+    "durable_jobs",
+    "evidence",
+    "execution_evidence",
+    "execution_test_cases",
+    "finding_evidence",
+    "interactive_execution_bindings",
+    "interactive_execution_grants",
+    "native_cases",
+    "native_conclusion_executions",
+    "native_conclusions",
+    "native_contributors",
+    "native_execution_cases",
+    "native_execution_records",
+    "native_handoffs",
+    "native_materials",
+    "native_operations",
+    "native_test_runs",
+    "native_verifications",
+    "run_execution_bindings",
+    "run_execution_selections",
+    "test_executions",
+    "test_runs",
+    "verdict_evidence",
+    "verdict_findings",
+    "verdicts"
+  ],
+  "Task_POST_owned_by": "session_sync_model",
+  "SUT_execution_performed": false
+}

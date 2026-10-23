@@ -1,0 +1,93 @@
+{
+  "environment": "LOCAL_DEVELOPMENT_ONLY",
+  "api_url": "http://127.0.0.1:8101/api/v1",
+  "sdk_transport": "Official MCP SDK stdio subprocess -> private daemon -> typed HTTP API",
+  "project_id": "01a15d61-85ef-7ded-8371-81ce7675f1fb",
+  "task_id": "01a15d61-87f5-7f9a-adac-4a226f23a7bb",
+  "source_session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+  "captured_at": "2026-10-21T15:33:54.750222+08:00",
+  "source_session_completed": false,
+  "task_status": "IN_PROGRESS",
+  "reported_result": "FAIL",
+  "task_version": 2,
+  "cases": 12,
+  "automatic_results": {
+    "PASS": 10,
+    "FAIL": 2
+  },
+  "independent_business_results": {
+    "PASS": 11,
+    "FAIL": 1
+  },
+  "raw_reports_exact_readback": true,
+  "reports": 2,
+  "history_version1_readback": true,
+  "events": [
+    {
+      "operation": "sync/replay-query/receipt-get",
+      "receipt": {
+        "status": "ACCEPTED",
+        "profile": "codex-session-task-sync/v1alpha1",
+        "task_id": "01a15d61-87f5-7f9a-adac-4a226f23a7bb",
+        "version": 1,
+        "idempotency_key": "uc18-local-20261021-assets-1",
+        "source": "AGENT_REPORTED"
+      }
+    },
+    {
+      "operation": "sync/replay-query/receipt-get",
+      "receipt": {
+        "status": "ACCEPTED",
+        "profile": "codex-session-task-sync/v1alpha1",
+        "task_id": "01a15d61-87f5-7f9a-adac-4a226f23a7bb",
+        "version": 2,
+        "idempotency_key": "uc18-local-20261021-assets-2",
+        "source": "AGENT_REPORTED"
+      }
+    }
+  ],
+  "execution_counts_before": {
+    "test_runs": 30,
+    "durable_jobs": 30,
+    "run_execution_bindings": 18,
+    "test_executions": 3,
+    "evidence": 3,
+    "verdicts": 0,
+    "native_test_runs": 12
+  },
+  "execution_counts_after": {
+    "test_runs": 30,
+    "durable_jobs": 30,
+    "run_execution_bindings": 18,
+    "test_executions": 3,
+    "evidence": 3,
+    "verdicts": 0,
+    "native_test_runs": 12
+  },
+  "sut_tests_executed_by_acceptance": 0,
+  "production_synced": false,
+  "private_config_path": "/Users/zhangliangchen/.local/share/hypertest/session-sync-dev-20261021/mcp-config.json",
+  "tools": [
+    "hypertest_sync_task",
+    "hypertest_get_task",
+    "hypertest_submit_task",
+    "hypertest_get_submission",
+    "hypertest_get_progress",
+    "hypertest_list_evidence",
+    "hypertest_read_evidence",
+    "hypertest_list_reports",
+    "hypertest_read_report",
+    "hypertest_bind_execution",
+    "hypertest_get_execution",
+    "get_state",
+    "request_mission",
+    "complete_mission",
+    "request_execution",
+    "ask_user",
+    "evaluate_gate",
+    "submit_report",
+    "request_gitlab_issue",
+    "get_issue"
+  ],
+  "checked_at": "2026-10-21T15:33:55.506675+08:00"
+}

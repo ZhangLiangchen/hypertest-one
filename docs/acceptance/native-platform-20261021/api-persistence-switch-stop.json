@@ -1,0 +1,8 @@
+{
+  "stopped_at": "2026-10-21T06:55:15.778422+00:00",
+  "old_pid": 27312,
+  "verified_before_stop": "only loopback 8097 listener, owned by current user",
+  "method": "SIGTERM exact PID",
+  "port_8097_listener_after_stop": false,
+  "database_and_artifacts_retained": true
+}

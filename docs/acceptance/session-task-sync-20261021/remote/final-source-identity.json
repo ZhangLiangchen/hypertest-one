@@ -1,0 +1,7 @@
+{
+  "source_dir": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150",
+  "source_archive_sha256": "4036ba150bf743db317bf51b13ae28363c46b49c5eae5098576ee6e703e50f4b",
+  "files": 325,
+  "base_commit": "5a68dd1bd6375fad0b271b2b86af48bdf857fe31",
+  "uncommitted_source_snapshot": true
+}

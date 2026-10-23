@@ -1,0 +1,11 @@
+cwd=/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/web
+command=npm run typecheck
+HYPERTEST_API_ORIGIN=http://127.0.0.1:18101
+
+> hypertest-one-web@0.1.0 typecheck
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Route types generated successfully
+
+exit_code=0

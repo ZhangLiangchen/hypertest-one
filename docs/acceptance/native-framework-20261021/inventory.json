@@ -1,0 +1,77 @@
+{
+  "captured_at": "2026-10-21T06:22:46.127893+00:00",
+  "material_status": "PENDING_VERIFICATION",
+  "formal_evidence": false,
+  "framework": {
+    "root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9",
+    "branch": "claude/xblock-async-energy-vendor-d7fefe",
+    "commit": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+    "dirty": "?? .agents/skills/xblock-api-doc/",
+    "origin": "git@git.hyperchain.cn:zhangliangchen/hypervise_pure.git"
+  },
+  "blockchain_sut": {
+    "root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/raw/source_code/blockchain",
+    "branch": "dev",
+    "commit": "0914459b323b82d8f794145247c4627625a6c87b",
+    "dirty": "",
+    "origin": "https://gitlab.charprotocol.com/blockchain/blockchain.git"
+  },
+  "xblock_binary": {
+    "path": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/.tronsave-work/asset-jar/app.jar",
+    "bytes": 183426836,
+    "md5": "3ac6163344440d5d4c78daf926a9b8b2",
+    "sha256": "8d53f8db68856feefacf3585f3c7f55d8ce500d043b2027cd4a5b3cd8478129e",
+    "source_commit": "UNVERIFIED",
+    "historical_source_abbrev": "cdb9686e",
+    "current_deployment_identity": "NOT_OBSERVED"
+  },
+  "selected_scenarios": [
+    "happy_inline_fill",
+    "deferred_short_budget_then_query",
+    "create_400_cannot_fulfilled",
+    "create_401_invalid_key",
+    "create_429_rate_limited",
+    "create_missing_order_id",
+    "create_close_socket",
+    "min_amount_boundary",
+    "duplicate_guard_must_wait_previous",
+    "create_balance_too_low_natural",
+    "balance_debit_after_purchase_exact",
+    "split_two_delegates",
+    "wrong_id_echo",
+    "activation_state_2_already_active",
+    "activation_state_4_invalid_address",
+    "balance_401_invalid_key",
+    "local_gate_chain_tron_test"
+  ],
+  "asset_files": [
+    {
+      "path": "deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+      "bytes": 7440,
+      "sha256": "0dd93a488e9bf3aab2be4d837a556d215d94988d235e82faf0c30b690bed4af9",
+      "git_tracked": true,
+      "dirty": ""
+    },
+    {
+      "path": "deploy/localchain/tronsave-mock/consumer-parity/TronSaveParity.java",
+      "bytes": 60057,
+      "sha256": "9d12b99af5c4511f976028b59a95689c8de74d0359864155c2574933f28f618c",
+      "git_tracked": true,
+      "dirty": ""
+    },
+    {
+      "path": "deploy/localchain/tronsave-mock/consumer-parity/scenarios.json",
+      "bytes": 83382,
+      "sha256": "b0e7ba7ce445ec9038198d133989ea6ff91a96b0bf0bc8724da933a7d71d6611",
+      "git_tracked": true,
+      "dirty": ""
+    },
+    {
+      "path": "deploy/localchain/tronsave-mock/test/support/local-fake-server.js",
+      "bytes": 5600,
+      "sha256": "2599a373ec4a3443cd3b5ea484ae4d039d5f4445e20f282acb2e93cf1f152361",
+      "git_tracked": true,
+      "dirty": ""
+    }
+  ]
+}

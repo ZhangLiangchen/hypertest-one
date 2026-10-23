@@ -1,0 +1,39 @@
+{
+  "ssh": [
+    "ssh",
+    "-T",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "PreferredAuthentications=publickey",
+    "-o",
+    "StrictHostKeyChecking=yes",
+    "hypertest-one"
+  ],
+  "cwd": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150",
+  "configuration": "Private candidate.env loaded in process; values omitted",
+  "migration_steps": [
+    ".venv/bin/python -m alembic upgrade 0020_interactive_tool_inbox",
+    ".venv/bin/python -m alembic upgrade head"
+  ],
+  "api_runtime": [
+    ".venv/bin/python",
+    "-m",
+    "uvicorn",
+    "hypertest.main:app",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18101"
+  ],
+  "web_build": [
+    "npm ci --no-audit --no-fund",
+    "npm run typecheck",
+    "npm test",
+    "npm run build"
+  ],
+  "web_api_origin": "http://127.0.0.1:18101",
+  "web_node_runtime": "/opt/hypertest/node/bin",
+  "business_write_transport": "Official MCP SDK over strict SSH stdio; separate REMOTE_MCP_OBSERVATIONS.json",
+  "after_acceptance": "GET and SQL SELECT only; no repeated business POST or SUT execution"
+}

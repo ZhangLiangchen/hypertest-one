@@ -1,0 +1,39 @@
+{
+  "run_id": "xblock-selfcheck-20261021-01",
+  "argv": [
+    "bash",
+    "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+    "selfcheck",
+    "--jar",
+    "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/.tronsave-work/asset-jar/app.jar",
+    "--cache-dir",
+    "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/parity-cache"
+  ],
+  "cwd": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9",
+  "started_at": "2026-10-21T06:23:13.022083+00:00",
+  "timezone": "UTC",
+  "environment_variable_names": [
+    "JAVA_HOME",
+    "TMPDIR"
+  ],
+  "material_status": "PENDING_VERIFICATION",
+  "framework_commit": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+  "sut_source_commit": "UNKNOWN",
+  "stdout": "xblock-selfcheck.stdout.jsonl",
+  "stderr": "xblock-selfcheck.stderr.log",
+  "ended_at": "2026-10-21T06:23:15.577645+00:00",
+  "exit_code": 0,
+  "duration_seconds": 2.555,
+  "artifacts": [
+    {
+      "path": "xblock-selfcheck.stdout.jsonl",
+      "bytes": 3012,
+      "sha256": "bb3cee457480ac71b65d913d396bbcc518fa2b69c76ceca77f2c79a9275c128f"
+    },
+    {
+      "path": "xblock-selfcheck.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

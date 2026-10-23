@@ -1,0 +1,16 @@
+source=/opt/hypertest/candidates/session-sync-20261021/final-4036ba150
+source_archive_sha256=4036ba150bf743db317bf51b13ae28363c46b49c5eae5098576ee6e703e50f4b
+command=/opt/hypertest/candidates/session-sync-20261021/.venv/bin/python -m pytest -q --tb=short tests/test_session_tasks.py tests/test_session_task_pages.py tests/test_session_task_mcp.py tests/test_interactive_client.py tests/test_interactive_api.py tests/test_interactive_constraints.py tests/test_interactive_scope.py tests/test_native_intake.py
+HYPERTEST_CONNECTOR_ALLOW_INSECURE_LOOPBACK=false
+........................................................................ [ 83%]
+..............                                                           [100%]
+=============================== warnings summary ===============================
+tests/test_session_tasks.py: 2 warnings
+tests/test_session_task_pages.py: 52 warnings
+  /opt/hypertest/candidates/session-sync-20261021/final-4036ba150/src/hypertest/application/session_tasks.py:199: SADeprecationWarning: Passing expression to ``distinct`` to generate a DISTINCT ON clause is deprecated. Use instead the ``postgresql.distinct_on`` function as an extension.
+    ).distinct(model.key).order_by(model.key, model.revision.desc()))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+86 passed, 54 warnings in 20.95s
+
+exit_code=0

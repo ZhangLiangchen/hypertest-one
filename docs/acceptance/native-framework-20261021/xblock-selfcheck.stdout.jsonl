@@ -1,0 +1,14 @@
+{"type":"client","built_by":"TransactionHttpClientConfig#trxEnergyOkHttpClient(TransactionExecutionBoundaryProperties)","config":{"connectTimeoutMillis":3000,"readTimeoutMillis":10000,"writeTimeoutMillis":10000,"callTimeoutMillis":15000,"retryOnConnectionFailure":false,"followRedirects":true,"pool.maxIdleConnections":5,"pool.keepAliveDurationNs":300000000000}}
+{"type":"adapter","class":"org.merypto.xblock.service.asset.service.energy.TronSaveEnergyRentalProvider","code":"TRONSAVE","POLL_BUDGET":"PT12S","POLL_INTERVAL":"PT1S","public_ctor_budget":"PT12S","package_private_ctor_budget":"PT0S"}
+{"type":"local_validation","case":"purchase chain=TRON_TEST","result":{"acceptanceConclusion":"NOT_ISSUED","errorCode":"INVALID_PARAMETER","failureKind":"LOCAL_VALIDATION","requestIssued":false,"providerReference":null,"providerReferenceIsTxHash":false,"message":"TronSave 购能参数不合法","elapsedMs":0,"payload":null},"verdict":"PASS"}
+{"type":"local_validation","case":"purchase amount=2^53","result":{"acceptanceConclusion":"NOT_ISSUED","errorCode":"INVALID_PARAMETER","failureKind":"LOCAL_VALIDATION","requestIssued":false,"providerReference":null,"providerReferenceIsTxHash":false,"message":"TronSave 购能参数不合法","elapsedMs":2,"payload":null},"verdict":"PASS"}
+{"type":"local_validation","case":"purchase blank apikey","result":{"acceptanceConclusion":"NOT_ISSUED","errorCode":"INVALID_PARAMETER","failureKind":"LOCAL_VALIDATION","requestIssued":false,"providerReference":null,"providerReferenceIsTxHash":false,"message":"TronSave 购能参数不合法","elapsedMs":0,"payload":null},"verdict":"PASS"}
+{"type":"local_validation","case":"queryPurchase blank orderId","result":{"acceptanceConclusion":"NOT_ISSUED","errorCode":"INVALID_PARAMETER","failureKind":"LOCAL_VALIDATION","requestIssued":false,"providerReference":"","providerReferenceIsTxHash":false,"message":"TronSave 订单查询参数不合法","elapsedMs":0,"payload":null},"verdict":"PASS"}
+{"type":"local_validation","case":"activate chain=TRON_TEST","result":{"acceptanceConclusion":"NOT_ISSUED","errorCode":"INVALID_PARAMETER","failureKind":null,"requestIssued":false,"providerReference":null,"providerReferenceIsTxHash":false,"message":"TronSave 激活参数不合法","elapsedMs":0,"payload":null},"verdict":"PASS"}
+{"type":"fastjson2_probe","body":"cloudflare_html","throws":"com.alibaba.fastjson2.JSONException"}
+{"type":"fastjson2_probe","body":"plain_text","throws":"com.alibaba.fastjson2.JSONException"}
+{"type":"fastjson2_probe","body":"truncated_json","throws":"com.alibaba.fastjson2.JSONException"}
+{"type":"fastjson2_probe","body":"fastify_500","parsed_as":"JSONObject"}
+{"type":"fastjson2_probe","body":"bare_array","parsed_as":"JSONArray"}
+{"type":"scenarios_file","path":"/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/deploy/localchain/tronsave-mock/consumer-parity/scenarios.json","scenarios":72,"problems":0}
+{"type":"selfcheck","verdict":"PASS","failures":[]}

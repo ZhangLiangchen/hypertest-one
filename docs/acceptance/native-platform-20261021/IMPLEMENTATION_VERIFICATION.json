@@ -1,0 +1,59 @@
+{
+  "record_type": "DERIVED_TOOL_TRANSCRIPT_VERIFICATION",
+  "recorded_at": "2026-10-21T07:07:51.157013+00:00",
+  "source": "implementation agent actual tool transcript, relayed to coordinating agents",
+  "raw_on_disk_capture_available": false,
+  "warning": "This is a transcript-derived verification record, not an original local pytest log or formal SUT Evidence. Do not add overlapping test counts.",
+  "checks": [
+    {
+      "kind": "final_native_tests",
+      "environment_variable_names": [
+        "HYPERTEST_TEST_DATABASE_URL"
+      ],
+      "command": ".venv/bin/pytest -q tests/test_native_intake.py tests/test_native_client.py",
+      "exit_code": 0,
+      "stdout_excerpt": "...................... [100%]\n22 passed in 0.75s",
+      "tool_chunk": "4272fe",
+      "count": 22
+    },
+    {
+      "kind": "related_mixed_regression",
+      "environment_variable_names": [
+        "HYPERTEST_TEST_DATABASE_URL"
+      ],
+      "command": ".venv/bin/pytest -q tests/test_native_intake.py tests/test_foundation.py tests/test_interactive_api.py tests/test_interactive_scope.py tests/test_interactive_tool_inbox.py tests/test_run_bindings.py tests/test_harness_tools.py tests/test_immutable_contracts.py",
+      "exit_code": 0,
+      "stdout_excerpt": "82 passed, 1 warning in 13.61s",
+      "tool_exec_session": 22820,
+      "tool_chunk": "39a41f",
+      "count": 82,
+      "composition": {
+        "native_tests_at_that_stage": 9,
+        "existing_tests": 73
+      },
+      "overlaps_final_native_suite": true,
+      "warning_class": "StarletteDeprecationWarning: use of httpx with starlette.testclient is deprecated, triggered by test_foundation"
+    },
+    {
+      "kind": "modified_files_ruff",
+      "command": ".venv/bin/ruff check src/hypertest/native_protocol.py src/hypertest/native_client.py src/hypertest/domain/native.py src/hypertest/application/native.py src/hypertest/application/native_verifier.py src/hypertest/api/native_routes.py src/hypertest/main.py src/hypertest/config.py src/hypertest/domain/models.py tests/test_native_intake.py tests/test_native_client.py alembic/versions/0021_native_intake.py",
+      "exit_code": 0,
+      "stdout_excerpt": "All checks passed!",
+      "tool_chunk": "6b7e59"
+    },
+    {
+      "kind": "documentation_diff_check",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "source": "documentation/acceptance agent direct tool observations"
+    },
+    {
+      "kind": "independent_review",
+      "remaining_P1": 0,
+      "remaining_P2": 0,
+      "source": "coordinator relayed independent reviewer final outcome; no local raw review log was captured"
+    }
+  ],
+  "formal_sut_evidence": false,
+  "database_connection_values_persisted": false
+}

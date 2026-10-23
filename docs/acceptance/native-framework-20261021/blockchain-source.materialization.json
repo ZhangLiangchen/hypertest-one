@@ -1,0 +1,381 @@
+{
+  "captured_at": "2026-10-21T06:24:38.477622+00:00",
+  "origin": "https://gitlab.charprotocol.com/blockchain/blockchain.git",
+  "commit": "0914459b323b82d8f794145247c4627625a6c87b",
+  "source_root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/raw/source_code/blockchain",
+  "materialized_root": "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/blockchain-source",
+  "transfer": "local git archive only; no external upload",
+  "tracked_blobs_compared_bytewise": true,
+  "files": [
+    {
+      "path": "blockchain-rpc-spring-boot-starter/README.md",
+      "bytes": 17428,
+      "sha256": "b6d171bd35ccd37095ff285b85c6774ab7dc6afaaa255ad9aa293b349f6c3303"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/pom.xml",
+      "bytes": 8148,
+      "sha256": "98671f4a899dd89bb3e5bed5ae868bae7ebd4fa58d5eee8da10d8fd39ff940a3"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/BlockchainRpcAutoConfiguration.java",
+      "bytes": 7260,
+      "sha256": "fe34c3884f70330ab9267e02420006266b62b9697b0479b3132e1ae3c19dc065"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/BlockchainRpcProperties.java",
+      "bytes": 5526,
+      "sha256": "e00c9ee8b989d9a7d24956b9540c8866c025ebec88c6c36bbe81aa9b7090759b"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BlockchainChainId.java",
+      "bytes": 919,
+      "sha256": "ec899680ec0784d0025086439b402f177efb1e73bbce888225f61a1f91da4012"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BlockchainRpcException.java",
+      "bytes": 6877,
+      "sha256": "1735c3ad39b560cfbe61dfd155043e8eb46feb6331714544a923a4c549faca39"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BroadcastAcceptance.java",
+      "bytes": 474,
+      "sha256": "ad76b64ac409febd7bbbab0d41de0e62a1a904b78437270dc50890306a1574cd"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BroadcastResult.java",
+      "bytes": 2817,
+      "sha256": "15a7731ead3f4a41a018e0228c603c8b397151e8cc8f965530e0b8feeb3dfb99"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/RpcCallContext.java",
+      "bytes": 1273,
+      "sha256": "87833d48ec6a08e95c3094ec7493c7d7d40fe9ede197525f733f9d9522372b29"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/RpcFailureKind.java",
+      "bytes": 1818,
+      "sha256": "73e0412808275dd0ba476287b68133f258e2fbd7a13f2154d7176a061c185c7f"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/core/RpcProtocol.java",
+      "bytes": 249,
+      "sha256": "12c79bb463e6b20cbaeb736ed0b0a6fd1f14449aa8fbfbf06150b799885b6cb3"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockDeliveryPage.java",
+      "bytes": 673,
+      "sha256": "848e12f761b3499ea5f962cce2f8efc09ce47f91ef21f9339bf7538855f0a056"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockDeliveryRestClient.java",
+      "bytes": 5961,
+      "sha256": "e380f45f2de6010f42004a99ea21e0877c96854cfd1b366a252d99c34c698619"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEvent.java",
+      "bytes": 1355,
+      "sha256": "6dd6ef9aa438c3ad827a6f11a5348e20bb54afd171baa94c7107f627b8193d2c"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventBatch.java",
+      "bytes": 2144,
+      "sha256": "d998b1131dacb5cc6ce5135e950acdd656e64a75d56cf60395abb1c8a652f945"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventGroup.java",
+      "bytes": 1061,
+      "sha256": "e2b1b4500530d21d2e69521db815970cf64c4f0aa438f60ab1969940c38804f1"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventHandler.java",
+      "bytes": 546,
+      "sha256": "d0af5bb65d0de1204101b780b23af8dfd3ffabc923d51728ca1ef2d93ce336f9"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventWebSocketClient.java",
+      "bytes": 7372,
+      "sha256": "b5abd1aa33ed1f0ffea1ee4ec6e8443eb6bd050dfcbe65a26c5f900e3aa8653b"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockHistoryUnavailableException.java",
+      "bytes": 1164,
+      "sha256": "6710099cc62eeec9319f2ea1371ee134ba607ef3eec74ee73b88191547a67e37"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockRecoveryCoordinator.java",
+      "bytes": 11621,
+      "sha256": "c267e918ec78fb061641bd62419bbc967953fb44166fe54672a7b9bd87dee5db"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockchainEventAutoConfiguration.java",
+      "bytes": 4341,
+      "sha256": "ee933373e4959b9f5444cd910919beb4a3ed47a5c7812e25e31fae593f574cc9"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockchainEventProperties.java",
+      "bytes": 6060,
+      "sha256": "839315c23a1e85b325c27ff47d166af50975610febe4b3cd6110c35d21236356"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventBatchStatus.java",
+      "bytes": 342,
+      "sha256": "b6bd527c2b4f7377ef9fc7728932777aae5e5941851315ef10cd3f8c8e7b6928"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventCheckpoint.java",
+      "bytes": 473,
+      "sha256": "52e621550db55fd4dac6127514aaf69b3872a74d8ba7768d000bbd776e602221"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventCheckpointStore.java",
+      "bytes": 604,
+      "sha256": "7e9d52fb65d3410405e7513441477ddddb9ce326163e86b646701a62c56ffa82"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventClientException.java",
+      "bytes": 1044,
+      "sha256": "4d178eee6df4cfc8c224f97a9b169b8140f0ec9a82784ffbb2ec7988cc1e65fb"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventIdempotencyStore.java",
+      "bytes": 1025,
+      "sha256": "eddf0b16f8ecadf290784ec2b9b3ad7bfe5ac373b5ff9c5c99bbec92c790e1c4"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventJsonCodec.java",
+      "bytes": 13177,
+      "sha256": "cfea124885197377ab368e9caefd8529fb3a7da80d897f9581d124624d56e9ab"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/events/PendingEventBatch.java",
+      "bytes": 439,
+      "sha256": "d06d88c72c9d490e0b99e7d3cd576207e5c5eed42cbe77e9fe08e6afb4068934"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClient.java",
+      "bytes": 10473,
+      "sha256": "c893fa7f2351ac7e5c6088a9593965e15009f25e15fb0344d532325ffd7db1f1"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastClassifier.java",
+      "bytes": 7238,
+      "sha256": "608653b6f32b948c4564d133e5e491c9d8f578f2ac016ab7ac46c947cacfbdb0"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastResult.java",
+      "bytes": 2616,
+      "sha256": "bdc0ae9d90220009d3a6249188f347adeff3514e4bcb5cce38fadf4a55ee1258"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmJsonParams.java",
+      "bytes": 4535,
+      "sha256": "ed23da80e4ea68e5c0af1f2eb34144f74a935912a60e741995329687c2f34f6c"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmJsonRpcClient.java",
+      "bytes": 6754,
+      "sha256": "370a9cebe324f1d6ff05a42c70779644f068733e0a9dc99b6ce8a5a0376c021d"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmProviderDataCodeClassifier.java",
+      "bytes": 1233,
+      "sha256": "0490b9f6252978849776aaf2e98908c06cf7c534894c5e097b832213fc443b63"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/jsonrpc/RpcJsonField.java",
+      "bytes": 1748,
+      "sha256": "8fdee51e58f3edcdab0c3ce57ad807aface040bd75c8ec3097b8652034f4e3b7"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/jsonrpc/RpcRequestEnvelope.java",
+      "bytes": 1797,
+      "sha256": "a0a58da82659270475cf5ddff6c7d5280d0c04cf784be4c98ad70ace85cc6478"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/jsonrpc/RpcResponseEnvelope.java",
+      "bytes": 2122,
+      "sha256": "a7bc76268545189b3351cf8a1c5eb9be6b6c7707ada554eb2ea7139725933752"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/JdkRpcHttpExchange.java",
+      "bytes": 4967,
+      "sha256": "5468f152516dd425060bbc5816eb32079bfdc947df1acf9b1af68e80d6ccb1f1"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/OkHttpRpcHttpExchange.java",
+      "bytes": 7082,
+      "sha256": "c1093094d4e31827b3744660e9297574fb06b79a3534e653ae34cb15c32f6f27"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RawHttpResponse.java",
+      "bytes": 1116,
+      "sha256": "32df6103f57d8d30516f8db61abd8c1c67e709d1c2711301a8b8fa51ba64ecfa"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcHttpCorrelation.java",
+      "bytes": 3386,
+      "sha256": "d64a5fb61e834de88de72027b80037381ffcdc5392b3a475e7255e24f1d4c422"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcHttpExchange.java",
+      "bytes": 459,
+      "sha256": "41ef6fc8c0bb21db495f8920a2db79da68e3abeb28279e3d9e64c00d5a3f9707"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcHttpHeaders.java",
+      "bytes": 3532,
+      "sha256": "d5fec578667bf0b2f55704cf569e277aebe42d6ac8a988ad9d2a8799b1327b78"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcHttpRequest.java",
+      "bytes": 1386,
+      "sha256": "e47c054db70a7746467eae886aa01b0b8117a2e81c3451f419476317b7551515"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcJacksonCodec.java",
+      "bytes": 10535,
+      "sha256": "56971f03215ea1d8bec5d20925d76084cba3d1588a96c7cf34a3329a13d6340b"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClient.java",
+      "bytes": 6868,
+      "sha256": "ecd9ce9667671468811575943e418ffc521fafc7885aee268bae8a9d4ae14255"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastClassifier.java",
+      "bytes": 8715,
+      "sha256": "33c3277b15a13bc9a6fbd286aea7dd971cd8188a50e49b3ce2a183e9b5899350"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastResult.java",
+      "bytes": 3351,
+      "sha256": "4b991b40bc8372d55fd1c50773dc88d80a2b5f8ec566f1ec6e42431026a6f4c5"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronWalletClient.java",
+      "bytes": 5622,
+      "sha256": "4b94157dddb41f4734e035cdd07954ed4b10cb87210e9cda34dc0b787eb32aa7"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+      "bytes": 185,
+      "sha256": "aea764ff8286ea0a042921926e051009a0fe6b11dd7198c6935b336713161661"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/BlockchainRpcAutoConfigurationTest.java",
+      "bytes": 22677,
+      "sha256": "9d231416ce15cc024c09588f34c66c5f469c1f4b4f5598c1f1c3fa62c2119f4b"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/RpcConsumerPackageDependencyRulesTest.java",
+      "bytes": 9840,
+      "sha256": "942af4cc21dccae2c3a06a2d402861fdcba16d9c60001eba0f0947fbe1c33820"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BlockchainChainIdTest.java",
+      "bytes": 574,
+      "sha256": "abbce6d074ea385a3b5775205753738ed74b19227d9fc298ae323d486e8a1ef3"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockDeliveryRestClientTest.java",
+      "bytes": 4091,
+      "sha256": "e797988b813e4d8d64b99fcb31a46da32bc7f128730a96cab113329fc1be446c"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventWebSocketClientTest.java",
+      "bytes": 4922,
+      "sha256": "c56f577da20824bc02b4635f2a7149fb92d9aed8c87340bd16859d7865daa953"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockRecoveryCoordinatorTest.java",
+      "bytes": 5112,
+      "sha256": "f771d21719b898b9740e27c869e7fd7211469c66e05e0daaab5a0c8bb37bff94"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockchainEventAutoConfigurationTest.java",
+      "bytes": 6461,
+      "sha256": "e8519646b86c5826adbe5218aa92e0cc949971a778bb4e020621dd90ac08917c"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventJsonCodecTest.java",
+      "bytes": 3152,
+      "sha256": "86033f0cd95f932afa26c32135a18e53379b8ee16aa86604f0abcf8dcd209662"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventTestFixtures.java",
+      "bytes": 2463,
+      "sha256": "b5acd662b8e13c39c3c66a8570b9677b0f681352b893da50d79bc64017279992"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClientContractTest.java",
+      "bytes": 20497,
+      "sha256": "eaaf442b01722681c16ee6a44af38ab34db42a7ccb5565c1f2a8ac260451c933"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClientOkHttpContractTest.java",
+      "bytes": 874,
+      "sha256": "4716df696445de2ebb53ec7393b282cb49e9d82907808cafef667fd99abcd7a6"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastClassificationTest.java",
+      "bytes": 16975,
+      "sha256": "a5c57b957017a142ef5971c564ad345b99a7adf8d2f53afd3b138708205cb541"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastOkHttpClassificationTest.java",
+      "bytes": 867,
+      "sha256": "b0347949649a0cf0cb7f35d3f478bbe85b87fa5d06b57e108a64274275984ca3"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmPublicContractFixtures.java",
+      "bytes": 5371,
+      "sha256": "f9754caa2e5d4e1f6d2f2760796f5071d86e19210ec001b54882795136ff24f9"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/jsonrpc/RpcProtocolModelsTest.java",
+      "bytes": 3952,
+      "sha256": "3ec65d1595806541cbfcbfe01332b44614b033d99d38f8831744d6f95425d39f"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/JdkRpcHttpExchangeTest.java",
+      "bytes": 8504,
+      "sha256": "c6456e5fe02837d5525b9c9d6bffd7c11e43e71111272494cf5cec27e0f921bc"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/OkHttpRpcHttpExchangeTest.java",
+      "bytes": 10042,
+      "sha256": "b87474ae808a0115c4ce7008b2e5494673952dc91820127a6618afb4291cba70"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcJacksonCodecTest.java",
+      "bytes": 8261,
+      "sha256": "99f3d864b76650e4e4a0493796ae15dc376e243b8b5de86a6d0bd8414d7de6e1"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClientContractTest.java",
+      "bytes": 8957,
+      "sha256": "8c460276c8bbba80f79e62043a445dc8aa29d81be23cb0d3b06c2e4956db419b"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClientOkHttpContractTest.java",
+      "bytes": 878,
+      "sha256": "d5df8aca3f8a5c990ab91342fe88feb3976f45d68bf9c907b895cf70a1068817"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastClassificationTest.java",
+      "bytes": 10883,
+      "sha256": "86f897423a82351bdbdcca44ffc11848ebb6df8725e448c666b8ffcd3bc13e05"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastOkHttpClassificationTest.java",
+      "bytes": 871,
+      "sha256": "b8c8bbf9ce8760f587d4418144cd1db4559eb97722a8959ea454c4076c637155"
+    },
+    {
+      "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronPublicContractFixtures.java",
+      "bytes": 7307,
+      "sha256": "14268dba90c838c06a7c9c61db90f229dd15860714d419eb077b5e73cea89fd1"
+    }
+  ]
+}

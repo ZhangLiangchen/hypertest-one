@@ -1,0 +1,42 @@
+{
+  "run_id": "blockchain-broadcast-junit-20261021-01",
+  "argv": [
+    "/opt/homebrew/bin/mvn",
+    "-o",
+    "-B",
+    "-s",
+    "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/maven-settings.xml",
+    "-Dmaven.repo.local=/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/m2-repository",
+    "-Djava.io.tmpdir=/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime",
+    "-Dtest=EvmBroadcastClassificationTest,EvmBroadcastOkHttpClassificationTest,TronBroadcastClassificationTest,TronBroadcastOkHttpClassificationTest",
+    "test"
+  ],
+  "cwd": "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/blockchain-source/blockchain-rpc-spring-boot-starter",
+  "started_at": "2026-10-21T06:25:48.158164+00:00",
+  "timezone": "UTC",
+  "environment_variable_names": [
+    "JAVA_HOME",
+    "TMPDIR"
+  ],
+  "material_status": "PENDING_VERIFICATION",
+  "sut_source_commit": "0914459b323b82d8f794145247c4627625a6c87b",
+  "source_checkout": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/raw/source_code/blockchain",
+  "materialization": "blockchain-source.materialization.json",
+  "stdout": "blockchain-maven-01.stdout.log",
+  "stderr": "blockchain-maven-01.stderr.log",
+  "ended_at": "2026-10-21T06:25:54.333836+00:00",
+  "exit_code": 0,
+  "duration_seconds": 6.176,
+  "artifacts": [
+    {
+      "path": "blockchain-maven-01.stdout.log",
+      "bytes": 4669,
+      "sha256": "6b1e910c846af64b18bb2ee5897480ce7fbb4686c2bcccd9d16b0d16279b7421"
+    },
+    {
+      "path": "blockchain-maven-01.stderr.log",
+      "bytes": 996,
+      "sha256": "8dde88be75af03b2c2baa17d270fad74ddb6e6318b614195e0f74dc91c45ddd4"
+    }
+  ]
+}

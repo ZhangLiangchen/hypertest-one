@@ -1,0 +1,19 @@
+{
+  "candidate_web_pid": 3553680,
+  "bind": "127.0.0.1:13101",
+  "uid": 999,
+  "gid": 989,
+  "cwd": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/web",
+  "command": [
+    "/opt/hypertest/node/bin/node",
+    "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/web/node_modules/next/dist/bin/next",
+    "start",
+    "--hostname",
+    "127.0.0.1",
+    "--port",
+    "13101"
+  ],
+  "api_origin": "http://127.0.0.1:18101",
+  "build_id": "KaWP3J0XFrLF0YqbgaUHW",
+  "production_changed": false
+}

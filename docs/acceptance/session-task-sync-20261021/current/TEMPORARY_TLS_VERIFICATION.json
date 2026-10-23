@@ -1,0 +1,68 @@
+{
+  "checked_at": "2026-10-21T09:51:37.312661+00:00",
+  "actual_TLS_handshake_verified": true,
+  "hostname_verification": true,
+  "CA_verification": true,
+  "proxy_headers": false,
+  "UDS_mode": "0600",
+  "parent_mode": "0700",
+  "schema_and_cluster_identity": {
+    "role": "hypertest",
+    "database": "hypertest",
+    "database_oid": "16384",
+    "postmaster_start": "2026-10-21T03:39:08.001871+00:00",
+    "system_identifier": "7697580503987753003"
+  },
+  "checks": [
+    {
+      "label": "correct_CA_and_hostname",
+      "status": 200,
+      "profile": "hypertest.interactive-mcp/v1alpha1"
+    },
+    {
+      "label": "missing_bearer",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "label": "old_execution_read_denied",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "label": "web_read_denied",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "label": "admin_read_denied",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "label": "wrong_method_denied",
+      "method": "HEAD",
+      "status": 403
+    },
+    {
+      "label": "get_sync_wrong_method_denied",
+      "method": "GET",
+      "status": 403
+    },
+    {
+      "label": "untrusted_CA",
+      "expected_handshake_failure": true,
+      "exception": "ConnectError",
+      "detail": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)"
+    },
+    {
+      "label": "wrong_hostname",
+      "expected_handshake_failure": true,
+      "exception": "ConnectError",
+      "detail": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'wrong.invalid'. (_ssl.c:1010)"
+    }
+  ],
+  "all_requests": "GET/HEAD only; no business write",
+  "scope_source": "native Uvicorn SSL; wrapper forbids non-https; request log includes https without X-Forwarded-Proto",
+  "public_HTTPS_or_VPN_e2e_tested": false
+}

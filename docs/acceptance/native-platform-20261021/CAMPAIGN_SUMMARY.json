@@ -1,0 +1,110 @@
+{
+  "captured_at": "2026-10-21T06:59:53.826727+00:00",
+  "profile": "native-framework-intake/v1alpha1",
+  "scope": "Two real-SUT retrospective intake runs only; database also retains independent test fixtures",
+  "source_baseline": "5a68dd1bd6375fad0b271b2b86af48bdf857fe31",
+  "branch": "codex/native-framework-evidence",
+  "new_git_commit_or_release": false,
+  "observed_native_assertions": 77,
+  "formal_native_PASS": false,
+  "runs": {
+    "xblock": {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "project_id": "01a15d34-358c-71f3-8d91-05a8d5ca4251",
+      "accepted_at": "2026-10-21T06:44:25.173834+00:00",
+      "generation": 2,
+      "case_count": 17,
+      "execution_ids": [
+        "01a15d34-35f5-7d10-826b-6e5a8ae34f56"
+      ],
+      "observed_times": [
+        {
+          "started_at": "2026-10-21T06:23:47.440767Z",
+          "finished_at": "2026-10-21T06:24:26.730339Z",
+          "exit_code": 0
+        }
+      ],
+      "execution_submitted_at": [
+        "2026-10-21T06:44:25.205759+00:00"
+      ],
+      "materials": 4,
+      "verification_provenance": [
+        "UNVERIFIED"
+      ],
+      "report_consistency": [
+        "CONSISTENT"
+      ],
+      "conclusion_history": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "BLOCKED"
+      ],
+      "handoff_ids": [
+        "01a15d34-51ae-77ae-abcf-7b07559356ce"
+      ],
+      "unknown_operation_keys": [
+        "control-only-unknown"
+      ]
+    },
+    "blockchain": {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "project_id": "01a15d34-3630-7656-938a-0ec893e41352",
+      "accepted_at": "2026-10-21T06:44:25.271896+00:00",
+      "generation": 2,
+      "case_count": 60,
+      "execution_ids": [
+        "01a15d34-364b-7468-b35b-afcfe478f1d9"
+      ],
+      "observed_times": [
+        {
+          "started_at": "2026-10-21T06:25:48.158164Z",
+          "finished_at": "2026-10-21T06:25:54.333836Z",
+          "exit_code": 0
+        }
+      ],
+      "execution_submitted_at": [
+        "2026-10-21T06:44:25.292037+00:00"
+      ],
+      "materials": 7,
+      "verification_provenance": [
+        "UNVERIFIED"
+      ],
+      "report_consistency": [
+        "CONSISTENT"
+      ],
+      "conclusion_history": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "handoff_ids": [
+        "01a15d34-51f9-7a44-a38e-a18fd77ad333"
+      ],
+      "unknown_operation_keys": []
+    }
+  },
+  "completed_http_phases": {
+    "one": 20,
+    "two": 15,
+    "readback": 27
+  },
+  "persistent_pure_GETs": 21,
+  "persistent_configuration_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021",
+  "runtime_stopped": {
+    "completed_at": "2026-10-21T06:58:55.556802+00:00",
+    "api_pid": 29428,
+    "api_stop": "SIGTERM exact verified PID",
+    "api_8097_listener_after_stop": false,
+    "container_name": "/hypertest-native-qa16-20261021",
+    "container_id": "fc2b840384f8568faed302bac2bdafda201a86442713cbcbab06ec8fe9bf0d1f",
+    "container_status": "exited",
+    "container_stop": "docker stop exact verified ID",
+    "container_removed": false,
+    "mounts_retained": true,
+    "persistent_private_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021",
+    "persistent_artifacts_present": true,
+    "original_temporary_directory_retained": true,
+    "other_resources_stopped": false,
+    "data_deleted": false
+  }
+}

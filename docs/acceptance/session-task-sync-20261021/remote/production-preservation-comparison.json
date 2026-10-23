@@ -1,0 +1,73 @@
+{
+  "schema_unchanged": true,
+  "current_targets_unchanged": true,
+  "protected_config_metadata_unchanged": true,
+  "production_tables_compared": 61,
+  "exactly_equal_table_counts_and_row_digests": 58,
+  "table_differences": {
+    "harness_nodes": {
+      "before": {
+        "count": 2,
+        "row_digest_multiset_md5": "b4fc6efb9f0eb443cfa76ea67cb40acb"
+      },
+      "after": {
+        "count": 2,
+        "row_digest_multiset_md5": "84bfd74581c5fb26d72419a4a2287d31"
+      }
+    },
+    "runtime_control_requests": {
+      "before": {
+        "count": 3808,
+        "row_digest_multiset_md5": "5fdf07276e167200a3ef6c3fef0745e0"
+      },
+      "after": {
+        "count": 3809,
+        "row_digest_multiset_md5": "fd2dcabb849d77841354729b10444a8d"
+      }
+    },
+    "worker_heartbeats": {
+      "before": {
+        "count": 44,
+        "row_digest_multiset_md5": "dd64595b94011290bb1a321c0983a1f9"
+      },
+      "after": {
+        "count": 44,
+        "row_digest_multiset_md5": "07749900a0ce424e5d7608acda9deb73"
+      }
+    }
+  },
+  "container_checks": {
+    "postgres": {
+      "identity_start_restart_equal": true,
+      "complete_mounts_equal_by_destination": true,
+      "running": true,
+      "health": "healthy"
+    },
+    "api": {
+      "identity_start_restart_equal": true,
+      "complete_mounts_equal_by_destination": true,
+      "running": true,
+      "health": "healthy"
+    },
+    "worker": {
+      "identity_start_restart_equal": true,
+      "complete_mounts_equal_by_destination": true,
+      "running": true,
+      "health": "healthy"
+    },
+    "web": {
+      "identity_start_restart_equal": true,
+      "complete_mounts_equal_by_destination": true,
+      "running": true,
+      "health": "healthy"
+    },
+    "nginx": {
+      "identity_start_restart_equal": true,
+      "complete_mounts_equal_by_destination": true,
+      "running": true,
+      "health": "healthy"
+    }
+  },
+  "preservation_is_not_execution_proof": true,
+  "dynamic_difference_boundary": "The before snapshot stores full-table row digest aggregates, not column-level heartbeat observations; changed columns are not inferred as observed."
+}

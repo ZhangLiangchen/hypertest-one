@@ -1,0 +1,3031 @@
+{
+  "run": {
+    "project_id": "01a15d34-3630-7656-938a-0ec893e41352",
+    "profile": "native-framework-intake/v1alpha1",
+    "idempotency_key": "blockchain-native-retrospective-20261021",
+    "proposal_digest": "052c229056fa59ea87e87d30109b6122351bcc0b088367736a78361c91c2e9bd",
+    "proposal": {
+      "plan": {
+        "cases": [
+          {
+            "key": "BC-001",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-002",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields"
+          },
+          {
+            "key": "BC-003",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]"
+          },
+          {
+            "key": "BC-004",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]"
+          },
+          {
+            "key": "BC-005",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]"
+          },
+          {
+            "key": "BC-006",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash"
+          },
+          {
+            "key": "BC-007",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-008",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection"
+          },
+          {
+            "key": "BC-009",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-010",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-011",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields"
+          },
+          {
+            "key": "BC-012",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]"
+          },
+          {
+            "key": "BC-013",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]"
+          },
+          {
+            "key": "BC-014",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]"
+          },
+          {
+            "key": "BC-015",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast"
+          },
+          {
+            "key": "BC-016",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash"
+          },
+          {
+            "key": "BC-017",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-018",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-019",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-020",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields"
+          },
+          {
+            "key": "BC-021",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]"
+          },
+          {
+            "key": "BC-022",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]"
+          },
+          {
+            "key": "BC-023",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]"
+          },
+          {
+            "key": "BC-024",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash"
+          },
+          {
+            "key": "BC-025",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-026",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection"
+          },
+          {
+            "key": "BC-027",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-028",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-029",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields"
+          },
+          {
+            "key": "BC-030",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]"
+          },
+          {
+            "key": "BC-031",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]"
+          },
+          {
+            "key": "BC-032",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]"
+          },
+          {
+            "key": "BC-033",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast"
+          },
+          {
+            "key": "BC-034",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash"
+          },
+          {
+            "key": "BC-035",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-036",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry"
+          },
+          {
+            "key": "BC-037",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected"
+          },
+          {
+            "key": "BC-038",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay"
+          },
+          {
+            "key": "BC-039",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown"
+          },
+          {
+            "key": "BC-040",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast"
+          },
+          {
+            "key": "BC-041",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]"
+          },
+          {
+            "key": "BC-042",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]"
+          },
+          {
+            "key": "BC-043",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown"
+          },
+          {
+            "key": "BC-044",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody"
+          },
+          {
+            "key": "BC-045",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId"
+          },
+          {
+            "key": "BC-046",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]"
+          },
+          {
+            "key": "BC-047",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]"
+          },
+          {
+            "key": "BC-048",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]"
+          },
+          {
+            "key": "BC-049",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected"
+          },
+          {
+            "key": "BC-050",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay"
+          },
+          {
+            "key": "BC-051",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown"
+          },
+          {
+            "key": "BC-052",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast"
+          },
+          {
+            "key": "BC-053",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]"
+          },
+          {
+            "key": "BC-054",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]"
+          },
+          {
+            "key": "BC-055",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown"
+          },
+          {
+            "key": "BC-056",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody"
+          },
+          {
+            "key": "BC-057",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId"
+          },
+          {
+            "key": "BC-058",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]"
+          },
+          {
+            "key": "BC-059",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]"
+          },
+          {
+            "key": "BC-060",
+            "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]"
+          }
+        ],
+        "scope": "Existing component tests only; no live chain/current deployment/full business E2E. This plan is accepted after the observed execution.",
+        "inputs": {
+          "sut": {
+            "binary_sha256": null,
+            "local_changes": "Clean checkout; local materialization checked bytewise; platform provenance UNVERIFIED",
+            "source_commit": "0914459b323b82d8f794145247c4627625a6c87b",
+            "repository_url": "https://gitlab.charprotocol.com/blockchain/blockchain.git",
+            "source_association": "DECLARED"
+          },
+          "framework": {
+            "commit_sha": "0914459b323b82d8f794145247c4627625a6c87b",
+            "local_changes": "No tracked changes; existing Maven/JUnit5 starter tests",
+            "repository_url": "https://gitlab.charprotocol.com/blockchain/blockchain.git"
+          },
+          "environment": {
+            "Java": "JBR 21.0.10",
+            "Maven": "3.9.16",
+            "network": "local MockWebServer only",
+            "framework": "JUnit5 / MockWebServer / Surefire",
+            "dependency_mode": "offline isolated Maven repository"
+          },
+          "test_assets": [
+            {
+              "path": "blockchain-rpc-spring-boot-starter/pom.xml",
+              "sha256": "98671f4a899dd89bb3e5bed5ae868bae7ebd4fa58d5eee8da10d8fd39ff940a3"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/BlockchainRpcAutoConfigurationTest.java",
+              "sha256": "9d231416ce15cc024c09588f34c66c5f469c1f4b4f5598c1f1c3fa62c2119f4b"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/RpcConsumerPackageDependencyRulesTest.java",
+              "sha256": "942af4cc21dccae2c3a06a2d402861fdcba16d9c60001eba0f0947fbe1c33820"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BlockchainChainIdTest.java",
+              "sha256": "abbce6d074ea385a3b5775205753738ed74b19227d9fc298ae323d486e8a1ef3"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockDeliveryRestClientTest.java",
+              "sha256": "e797988b813e4d8d64b99fcb31a46da32bc7f128730a96cab113329fc1be446c"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventWebSocketClientTest.java",
+              "sha256": "c56f577da20824bc02b4635f2a7149fb92d9aed8c87340bd16859d7865daa953"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockRecoveryCoordinatorTest.java",
+              "sha256": "f771d21719b898b9740e27c869e7fd7211469c66e05e0daaab5a0c8bb37bff94"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockchainEventAutoConfigurationTest.java",
+              "sha256": "e8519646b86c5826adbe5218aa92e0cc949971a778bb4e020621dd90ac08917c"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventJsonCodecTest.java",
+              "sha256": "86033f0cd95f932afa26c32135a18e53379b8ee16aa86604f0abcf8dcd209662"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventTestFixtures.java",
+              "sha256": "b5acd662b8e13c39c3c66a8570b9677b0f681352b893da50d79bc64017279992"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClientContractTest.java",
+              "sha256": "eaaf442b01722681c16ee6a44af38ab34db42a7ccb5565c1f2a8ac260451c933"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClientOkHttpContractTest.java",
+              "sha256": "4716df696445de2ebb53ec7393b282cb49e9d82907808cafef667fd99abcd7a6"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastClassificationTest.java",
+              "sha256": "a5c57b957017a142ef5971c564ad345b99a7adf8d2f53afd3b138708205cb541"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastOkHttpClassificationTest.java",
+              "sha256": "b0347949649a0cf0cb7f35d3f478bbe85b87fa5d06b57e108a64274275984ca3"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmPublicContractFixtures.java",
+              "sha256": "f9754caa2e5d4e1f6d2f2760796f5071d86e19210ec001b54882795136ff24f9"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/jsonrpc/RpcProtocolModelsTest.java",
+              "sha256": "3ec65d1595806541cbfcbfe01332b44614b033d99d38f8831744d6f95425d39f"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/JdkRpcHttpExchangeTest.java",
+              "sha256": "c6456e5fe02837d5525b9c9d6bffd7c11e43e71111272494cf5cec27e0f921bc"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/OkHttpRpcHttpExchangeTest.java",
+              "sha256": "b87474ae808a0115c4ce7008b2e5494673952dc91820127a6618afb4291cba70"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcJacksonCodecTest.java",
+              "sha256": "99f3d864b76650e4e4a0493796ae15dc376e243b8b5de86a6d0bd8414d7de6e1"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClientContractTest.java",
+              "sha256": "8c460276c8bbba80f79e62043a445dc8aa29d81be23cb0d3b06c2e4956db419b"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClientOkHttpContractTest.java",
+              "sha256": "d5df8aca3f8a5c990ab91342fe88feb3976f45d68bf9c907b895cf70a1068817"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastClassificationTest.java",
+              "sha256": "86f897423a82351bdbdcca44ffc11848ebb6df8725e448c666b8ffcd3bc13e05"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastOkHttpClassificationTest.java",
+              "sha256": "b8c8bbf9ce8760f587d4418144cd1db4559eb97722a8959ea454c4076c637155"
+            },
+            {
+              "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronPublicContractFixtures.java",
+              "sha256": "14268dba90c838c06a7c9c61db90f229dd15860714d419eb077b5e73cea89fd1"
+            }
+          ],
+          "source_transfer": "NONE",
+          "authorization_scope": "Local retrospective report intake only; no source/JAR export, production deploy, chain write or issue write",
+          "environment_variable_names": [
+            "JAVA_HOME",
+            "TMPDIR"
+          ]
+        },
+        "objective": "Retrospectively govern real blockchain native component results",
+        "risk_refs": [
+          "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+        ],
+        "requirement_refs": [
+          "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+        ]
+      },
+      "profile": "native-framework-intake/v1alpha1",
+      "project_id": "01a15d34-3630-7656-938a-0ec893e41352",
+      "session_ref": "acceptance-client-A",
+      "idempotency_key": "blockchain-native-retrospective-20261021"
+    },
+    "policy_version": "native-material-gate/v1alpha1",
+    "actor_ref": "native-dev-operator-20261021",
+    "generation": 2,
+    "id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+    "created_at": "2026-10-21T06:44:25.271896+00:00"
+  },
+  "current_contributor": {
+    "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+    "actor_ref": "native-dev-operator-20261021",
+    "session_ref": "acceptance-client-B",
+    "generation": 2,
+    "id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+    "created_at": "2026-10-21T06:44:32.377639+00:00"
+  },
+  "cases": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-001",
+      "accepted_payload": {
+        "key": "BC-001",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-705c-910c-07f74f45c9c8",
+      "created_at": "2026-10-21T06:44:25.273712+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-002",
+      "accepted_payload": {
+        "key": "BC-002",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields"
+      },
+      "id": "01a15d34-3639-7db2-9e06-6d94819325ea",
+      "created_at": "2026-10-21T06:44:25.273716+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-003",
+      "accepted_payload": {
+        "key": "BC-003",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]"
+      },
+      "id": "01a15d34-3639-7821-a3ea-3031f4de791d",
+      "created_at": "2026-10-21T06:44:25.273718+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-004",
+      "accepted_payload": {
+        "key": "BC-004",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]"
+      },
+      "id": "01a15d34-3639-7beb-97a9-566618f8ff78",
+      "created_at": "2026-10-21T06:44:25.273721+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-005",
+      "accepted_payload": {
+        "key": "BC-005",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]"
+      },
+      "id": "01a15d34-3639-72d9-b974-196d3aa08871",
+      "created_at": "2026-10-21T06:44:25.273725+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-006",
+      "accepted_payload": {
+        "key": "BC-006",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash"
+      },
+      "id": "01a15d34-3639-7aa9-a929-899758786561",
+      "created_at": "2026-10-21T06:44:25.273727+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-007",
+      "accepted_payload": {
+        "key": "BC-007",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-74f8-820d-0eb973914af1",
+      "created_at": "2026-10-21T06:44:25.273730+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-008",
+      "accepted_payload": {
+        "key": "BC-008",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection"
+      },
+      "id": "01a15d34-3639-7e38-a6b3-3d2086379525",
+      "created_at": "2026-10-21T06:44:25.273733+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-009",
+      "accepted_payload": {
+        "key": "BC-009",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7548-9db9-3df65c8cc930",
+      "created_at": "2026-10-21T06:44:25.273736+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-010",
+      "accepted_payload": {
+        "key": "BC-010",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7748-b0a8-26e64a50bb3e",
+      "created_at": "2026-10-21T06:44:25.273738+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-011",
+      "accepted_payload": {
+        "key": "BC-011",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields"
+      },
+      "id": "01a15d34-3639-78e2-b062-a0304e9a1c27",
+      "created_at": "2026-10-21T06:44:25.273741+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-012",
+      "accepted_payload": {
+        "key": "BC-012",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]"
+      },
+      "id": "01a15d34-3639-7b16-ace0-6af087f280c8",
+      "created_at": "2026-10-21T06:44:25.273743+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-013",
+      "accepted_payload": {
+        "key": "BC-013",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]"
+      },
+      "id": "01a15d34-3639-7851-9022-8d39afc2e89f",
+      "created_at": "2026-10-21T06:44:25.273746+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-014",
+      "accepted_payload": {
+        "key": "BC-014",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]"
+      },
+      "id": "01a15d34-3639-7e95-acfe-02c83edb1761",
+      "created_at": "2026-10-21T06:44:25.273748+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-015",
+      "accepted_payload": {
+        "key": "BC-015",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast"
+      },
+      "id": "01a15d34-3639-79a4-bdde-69e3addf2b64",
+      "created_at": "2026-10-21T06:44:25.273750+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-016",
+      "accepted_payload": {
+        "key": "BC-016",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash"
+      },
+      "id": "01a15d34-3639-7644-aee0-55ec18ad88d8",
+      "created_at": "2026-10-21T06:44:25.273753+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-017",
+      "accepted_payload": {
+        "key": "BC-017",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-79b1-baa8-2a4e346eab18",
+      "created_at": "2026-10-21T06:44:25.273755+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-018",
+      "accepted_payload": {
+        "key": "BC-018",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7208-a8e4-e13157a60534",
+      "created_at": "2026-10-21T06:44:25.273757+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-019",
+      "accepted_payload": {
+        "key": "BC-019",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7dbe-a8b1-0e6288be4289",
+      "created_at": "2026-10-21T06:44:25.273760+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-020",
+      "accepted_payload": {
+        "key": "BC-020",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields"
+      },
+      "id": "01a15d34-3639-719d-b375-6216f2d8be8b",
+      "created_at": "2026-10-21T06:44:25.273762+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-021",
+      "accepted_payload": {
+        "key": "BC-021",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]"
+      },
+      "id": "01a15d34-3639-7c82-b940-53dbe254d6d9",
+      "created_at": "2026-10-21T06:44:25.273765+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-022",
+      "accepted_payload": {
+        "key": "BC-022",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]"
+      },
+      "id": "01a15d34-3639-7279-bd4a-8f87a4f885f7",
+      "created_at": "2026-10-21T06:44:25.273767+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-023",
+      "accepted_payload": {
+        "key": "BC-023",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]"
+      },
+      "id": "01a15d34-3639-7238-a035-60aac569d05c",
+      "created_at": "2026-10-21T06:44:25.273770+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-024",
+      "accepted_payload": {
+        "key": "BC-024",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash"
+      },
+      "id": "01a15d34-3639-70b9-b497-eaa3c699ec96",
+      "created_at": "2026-10-21T06:44:25.273772+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-025",
+      "accepted_payload": {
+        "key": "BC-025",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-78f1-b1d0-d3a3400f3f96",
+      "created_at": "2026-10-21T06:44:25.273775+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-026",
+      "accepted_payload": {
+        "key": "BC-026",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection"
+      },
+      "id": "01a15d34-3639-7bf3-83a3-1f6db417bc4a",
+      "created_at": "2026-10-21T06:44:25.273777+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-027",
+      "accepted_payload": {
+        "key": "BC-027",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7ac6-977e-09ac3a1a02a7",
+      "created_at": "2026-10-21T06:44:25.273780+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-028",
+      "accepted_payload": {
+        "key": "BC-028",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7d43-b35a-305a2a0572c7",
+      "created_at": "2026-10-21T06:44:25.273782+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-029",
+      "accepted_payload": {
+        "key": "BC-029",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields"
+      },
+      "id": "01a15d34-3639-717a-90c9-3c990809be96",
+      "created_at": "2026-10-21T06:44:25.273784+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-030",
+      "accepted_payload": {
+        "key": "BC-030",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]"
+      },
+      "id": "01a15d34-3639-7847-a30a-34ecdd734c9e",
+      "created_at": "2026-10-21T06:44:25.273787+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-031",
+      "accepted_payload": {
+        "key": "BC-031",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]"
+      },
+      "id": "01a15d34-3639-72c6-95c2-a740e544d3b8",
+      "created_at": "2026-10-21T06:44:25.273789+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-032",
+      "accepted_payload": {
+        "key": "BC-032",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]"
+      },
+      "id": "01a15d34-3639-7c6f-b832-5a12ace9407e",
+      "created_at": "2026-10-21T06:44:25.273792+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-033",
+      "accepted_payload": {
+        "key": "BC-033",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast"
+      },
+      "id": "01a15d34-3639-7edd-a07a-402062136d6e",
+      "created_at": "2026-10-21T06:44:25.273794+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-034",
+      "accepted_payload": {
+        "key": "BC-034",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash"
+      },
+      "id": "01a15d34-3639-78a8-ad7f-16c22e87bd92",
+      "created_at": "2026-10-21T06:44:25.273796+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-035",
+      "accepted_payload": {
+        "key": "BC-035",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-7c95-a201-b5db23a45b72",
+      "created_at": "2026-10-21T06:44:25.273799+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-036",
+      "accepted_payload": {
+        "key": "BC-036",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry"
+      },
+      "id": "01a15d34-3639-78b5-b14d-f16bd8f9e514",
+      "created_at": "2026-10-21T06:44:25.273801+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-037",
+      "accepted_payload": {
+        "key": "BC-037",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected"
+      },
+      "id": "01a15d34-3639-73ce-840e-1d5743287527",
+      "created_at": "2026-10-21T06:44:25.273804+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-038",
+      "accepted_payload": {
+        "key": "BC-038",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay"
+      },
+      "id": "01a15d34-3639-7bd1-9190-6241a58aaed8",
+      "created_at": "2026-10-21T06:44:25.273806+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-039",
+      "accepted_payload": {
+        "key": "BC-039",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown"
+      },
+      "id": "01a15d34-3639-705f-9bd1-e3a8fd358238",
+      "created_at": "2026-10-21T06:44:25.273809+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-040",
+      "accepted_payload": {
+        "key": "BC-040",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast"
+      },
+      "id": "01a15d34-3639-779a-9944-0e67a472889e",
+      "created_at": "2026-10-21T06:44:25.273811+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-041",
+      "accepted_payload": {
+        "key": "BC-041",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]"
+      },
+      "id": "01a15d34-3639-749f-aa50-4c3964947cfa",
+      "created_at": "2026-10-21T06:44:25.273814+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-042",
+      "accepted_payload": {
+        "key": "BC-042",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]"
+      },
+      "id": "01a15d34-3639-72cc-b2f8-4a2bb6a76936",
+      "created_at": "2026-10-21T06:44:25.273816+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-043",
+      "accepted_payload": {
+        "key": "BC-043",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown"
+      },
+      "id": "01a15d34-3639-7123-8d4d-9cffbee71a67",
+      "created_at": "2026-10-21T06:44:25.273818+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-044",
+      "accepted_payload": {
+        "key": "BC-044",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody"
+      },
+      "id": "01a15d34-3639-7246-a565-7a52711fef01",
+      "created_at": "2026-10-21T06:44:25.273821+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-045",
+      "accepted_payload": {
+        "key": "BC-045",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId"
+      },
+      "id": "01a15d34-3639-7489-a663-ad36e52321e9",
+      "created_at": "2026-10-21T06:44:25.273823+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-046",
+      "accepted_payload": {
+        "key": "BC-046",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]"
+      },
+      "id": "01a15d34-3639-7890-9b94-1f075fb03f02",
+      "created_at": "2026-10-21T06:44:25.273825+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-047",
+      "accepted_payload": {
+        "key": "BC-047",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]"
+      },
+      "id": "01a15d34-3639-7668-814f-ceb900c4b2e0",
+      "created_at": "2026-10-21T06:44:25.273828+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-048",
+      "accepted_payload": {
+        "key": "BC-048",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]"
+      },
+      "id": "01a15d34-3639-7eb8-8788-8fc802bc01ac",
+      "created_at": "2026-10-21T06:44:25.273830+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-049",
+      "accepted_payload": {
+        "key": "BC-049",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected"
+      },
+      "id": "01a15d34-3639-758e-85a8-c9c92c6258b0",
+      "created_at": "2026-10-21T06:44:25.273833+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-050",
+      "accepted_payload": {
+        "key": "BC-050",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay"
+      },
+      "id": "01a15d34-3639-7474-bd11-4fdaf851b75c",
+      "created_at": "2026-10-21T06:44:25.273835+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-051",
+      "accepted_payload": {
+        "key": "BC-051",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown"
+      },
+      "id": "01a15d34-3639-7358-a191-a61de5e23591",
+      "created_at": "2026-10-21T06:44:25.273837+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-052",
+      "accepted_payload": {
+        "key": "BC-052",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast"
+      },
+      "id": "01a15d34-3639-7fb4-8740-c9fce1ae5832",
+      "created_at": "2026-10-21T06:44:25.273839+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-053",
+      "accepted_payload": {
+        "key": "BC-053",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]"
+      },
+      "id": "01a15d34-3639-767f-a61a-97c506b74179",
+      "created_at": "2026-10-21T06:44:25.273842+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-054",
+      "accepted_payload": {
+        "key": "BC-054",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]"
+      },
+      "id": "01a15d34-3639-7028-be62-f785dcce8645",
+      "created_at": "2026-10-21T06:44:25.273844+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-055",
+      "accepted_payload": {
+        "key": "BC-055",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown"
+      },
+      "id": "01a15d34-3639-7786-9b0b-39a48e9c5a49",
+      "created_at": "2026-10-21T06:44:25.273846+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-056",
+      "accepted_payload": {
+        "key": "BC-056",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody"
+      },
+      "id": "01a15d34-3639-7de5-970d-23bf2fd00375",
+      "created_at": "2026-10-21T06:44:25.273849+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-057",
+      "accepted_payload": {
+        "key": "BC-057",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId"
+      },
+      "id": "01a15d34-3639-79f9-bb94-e546f0968ec5",
+      "created_at": "2026-10-21T06:44:25.273851+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-058",
+      "accepted_payload": {
+        "key": "BC-058",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]"
+      },
+      "id": "01a15d34-3639-726d-af8c-c6dade123862",
+      "created_at": "2026-10-21T06:44:25.273854+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-059",
+      "accepted_payload": {
+        "key": "BC-059",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]"
+      },
+      "id": "01a15d34-3639-773c-bc9a-83849e1f9a3e",
+      "created_at": "2026-10-21T06:44:25.273856+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "case_key": "BC-060",
+      "accepted_payload": {
+        "key": "BC-060",
+        "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]"
+      },
+      "id": "01a15d34-3639-7120-b53f-8257630291e3",
+      "created_at": "2026-10-21T06:44:25.273858+00:00"
+    }
+  ],
+  "contributors": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "actor_ref": "native-dev-operator-20261021",
+      "session_ref": "acceptance-client-A",
+      "generation": 1,
+      "id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "created_at": "2026-10-21T06:44:25.275364+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "actor_ref": "native-dev-operator-20261021",
+      "session_ref": "acceptance-client-B",
+      "generation": 2,
+      "id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+      "created_at": "2026-10-21T06:44:32.377639+00:00"
+    }
+  ],
+  "executions": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "idempotency_key": "blockchain-observed-execution-20261021",
+      "retry_of_execution_id": null,
+      "observation": {
+        "cwd": "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/blockchain-source/blockchain-rpc-spring-boot-starter",
+        "command": [
+          "/opt/homebrew/bin/mvn",
+          "-o",
+          "-B",
+          "-s",
+          "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/maven-settings.xml",
+          "-Dmaven.repo.local=/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/m2-repository",
+          "-Djava.io.tmpdir=/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime",
+          "-Dtest=EvmBroadcastClassificationTest,EvmBroadcastOkHttpClassificationTest,TronBroadcastClassificationTest,TronBroadcastOkHttpClassificationTest",
+          "test"
+        ],
+        "results": [
+          {
+            "result": "PASS",
+            "case_key": "BC-001"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-002"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-003"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-004"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-005"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-006"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-007"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-008"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-009"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-010"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-011"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-012"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-013"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-014"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-015"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-016"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-017"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-018"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-019"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-020"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-021"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-022"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-023"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-024"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-025"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-026"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-027"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-028"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-029"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-030"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-031"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-032"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-033"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-034"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-035"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-036"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-037"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-038"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-039"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-040"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-041"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-042"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-043"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-044"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-045"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-046"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-047"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-048"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-049"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-050"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-051"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-052"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-053"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-054"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-055"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-056"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-057"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-058"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-059"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-060"
+          }
+        ],
+        "exit_code": 0,
+        "framework": "existing Maven/JUnit5/Surefire",
+        "generation": 1,
+        "started_at": "2026-10-21T06:25:48.158164Z",
+        "finished_at": "2026-10-21T06:25:54.333836Z",
+        "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+        "idempotency_key": "blockchain-observed-execution-20261021",
+        "retry_of_execution_id": null
+      },
+      "id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "created_at": "2026-10-21T06:44:25.292037+00:00"
+    }
+  ],
+  "materials": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest.xml",
+      "kind": "REPORT",
+      "format": "JUNIT_XML",
+      "sha256": "180b3bac9b7faff677a7568e5a3a92956ecfb87e2d175fff65551ec428cd37d7",
+      "size_bytes": 34601,
+      "artifact_uri": "sha256:180b3bac9b7faff677a7568e5a3a92956ecfb87e2d175fff65551ec428cd37d7",
+      "id": "01a15d34-364c-7fef-a527-50f9a89079b6",
+      "created_at": "2026-10-21T06:44:25.296920+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest.xml",
+      "kind": "REPORT",
+      "format": "JUNIT_XML",
+      "sha256": "f142a28fdff7bcd08000f6f270be73aefd7ef68716613b43e76909334ee4ec07",
+      "size_bytes": 33260,
+      "artifact_uri": "sha256:f142a28fdff7bcd08000f6f270be73aefd7ef68716613b43e76909334ee4ec07",
+      "id": "01a15d34-364c-72dd-a2c0-1459ea03b8d2",
+      "created_at": "2026-10-21T06:44:25.296921+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest.xml",
+      "kind": "REPORT",
+      "format": "JUNIT_XML",
+      "sha256": "9ba9b36723e278eff8cf59adc5b8ad3fd8f7c54ca452992bacccceb58d17f20a",
+      "size_bytes": 33181,
+      "artifact_uri": "sha256:9ba9b36723e278eff8cf59adc5b8ad3fd8f7c54ca452992bacccceb58d17f20a",
+      "id": "01a15d34-364c-7c7f-ad1c-ab122e7a4e94",
+      "created_at": "2026-10-21T06:44:25.296921+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest.xml",
+      "kind": "REPORT",
+      "format": "JUNIT_XML",
+      "sha256": "35644644e902160720be50219223d08b3b9d008d3bf4d642c88a5101190a4b15",
+      "size_bytes": 34715,
+      "artifact_uri": "sha256:35644644e902160720be50219223d08b3b9d008d3bf4d642c88a5101190a4b15",
+      "id": "01a15d34-364c-7d99-8ac3-0419f2c14cb5",
+      "created_at": "2026-10-21T06:44:25.296921+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "blockchain-maven-01.stderr.log",
+      "kind": "STDERR",
+      "format": "TEXT",
+      "sha256": "8dde88be75af03b2c2baa17d270fad74ddb6e6318b614195e0f74dc91c45ddd4",
+      "size_bytes": 996,
+      "artifact_uri": "sha256:8dde88be75af03b2c2baa17d270fad74ddb6e6318b614195e0f74dc91c45ddd4",
+      "id": "01a15d34-364c-74d4-9ebb-ea15371b60aa",
+      "created_at": "2026-10-21T06:44:25.296922+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "blockchain-maven-01.stdout.log",
+      "kind": "STDOUT",
+      "format": "TEXT",
+      "sha256": "6b1e910c846af64b18bb2ee5897480ce7fbb4686c2bcccd9d16b0d16279b7421",
+      "size_bytes": 4669,
+      "artifact_uri": "sha256:6b1e910c846af64b18bb2ee5897480ce7fbb4686c2bcccd9d16b0d16279b7421",
+      "id": "01a15d34-364c-78b1-bf04-dbcb8ed1855f",
+      "created_at": "2026-10-21T06:44:25.296922+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "name": "blockchain-maven-01.process.json",
+      "kind": "CONTEXT",
+      "format": "TEXT",
+      "sha256": "bda2bc7ed47de6fee9f6dd02db88dca8abd29b4d5d350caf46cab345d808ec51",
+      "size_bytes": 1856,
+      "artifact_uri": "sha256:bda2bc7ed47de6fee9f6dd02db88dca8abd29b4d5d350caf46cab345d808ec51",
+      "id": "01a15d34-364c-7b38-929e-2c2181ecbe99",
+      "created_at": "2026-10-21T06:44:25.296922+00:00"
+    }
+  ],
+  "verifications": [
+    {
+      "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+      "verifier_version": "native-report-consistency/v1alpha1",
+      "provenance": "UNVERIFIED",
+      "checks": {
+        "issues": [],
+        "integrity": "CHECKED",
+        "provenance": "UNVERIFIED",
+        "limitations": [
+          "Content checks do not prove execution occurrence, source or environment.",
+          "Local observations cannot create trusted Evidence or a native PASS."
+        ],
+        "report_consistency": "CONSISTENT",
+        "reported_case_count": 60
+      },
+      "id": "01a15d34-3651-7f84-a047-603810736bfe",
+      "created_at": "2026-10-21T06:44:25.297883+00:00"
+    }
+  ],
+  "conclusions": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "policy_version": "native-material-gate/v1alpha1",
+      "decision": "UNKNOWN",
+      "state_digest": "d282d20a52e7eddf47ee0fead7e83fce4488faa7eb399583d9dd9b39fa410f28",
+      "reasons": [
+        "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+      ],
+      "id": "01a15d34-3663-75e3-bafa-37cbe0dc72d2",
+      "created_at": "2026-10-21T06:44:25.315125+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+      "policy_version": "native-material-gate/v1alpha1",
+      "decision": "UNKNOWN",
+      "state_digest": "7c05f12a01cc726ed68b63e1ec241924a2f6c16cc6cbe95c07de901fa896d0de",
+      "reasons": [
+        "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+      ],
+      "id": "01a15d34-5215-7853-9c09-b60ca68ac09c",
+      "created_at": "2026-10-21T06:44:32.405180+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+      "policy_version": "native-material-gate/v1alpha1",
+      "decision": "UNKNOWN",
+      "state_digest": "f077333daa9d241710e5b43c08212092b520525c4c42e487f06019a227efb921",
+      "reasons": [
+        "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+      ],
+      "id": "01a15d3c-3059-7324-85b4-497d0bcb4ce2",
+      "created_at": "2026-10-21T06:53:08.058112+00:00"
+    }
+  ],
+  "handoffs": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "from_contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "to_contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+      "from_generation": 1,
+      "to_generation": 2,
+      "actor_ref": "native-dev-operator-20261021",
+      "state_digest": "49ef4c928e1bc0d7d45ad2cd9f9d95600524e9a7c92a2cc0e70e9aa7fbd3cb6f",
+      "state_artifact_uri": "sha256:49ef4c928e1bc0d7d45ad2cd9f9d95600524e9a7c92a2cc0e70e9aa7fbd3cb6f",
+      "remaining_work": [
+        "Independent provenance remains UNVERIFIED; native CI/PASS/Web/MCP are pending"
+      ],
+      "reason": "Explicit sequential contribution handoff between independent HTTP client processes; no claim of native Provider resume",
+      "id": "01a15d34-51f9-7a44-a38e-a18fd77ad333",
+      "created_at": "2026-10-21T06:44:32.378029+00:00"
+    }
+  ],
+  "operations": [
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "idempotency_key": "blockchain-native-retrospective-20261021",
+      "kind": "CREATE",
+      "input_digest": "052c229056fa59ea87e87d30109b6122351bcc0b088367736a78361c91c2e9bd",
+      "payload": {
+        "plan": {
+          "cases": [
+            {
+              "key": "BC-001",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-002",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields"
+            },
+            {
+              "key": "BC-003",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]"
+            },
+            {
+              "key": "BC-004",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]"
+            },
+            {
+              "key": "BC-005",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]"
+            },
+            {
+              "key": "BC-006",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash"
+            },
+            {
+              "key": "BC-007",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-008",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection"
+            },
+            {
+              "key": "BC-009",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-010",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-011",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields"
+            },
+            {
+              "key": "BC-012",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]"
+            },
+            {
+              "key": "BC-013",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]"
+            },
+            {
+              "key": "BC-014",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]"
+            },
+            {
+              "key": "BC-015",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast"
+            },
+            {
+              "key": "BC-016",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash"
+            },
+            {
+              "key": "BC-017",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-018",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-019",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-020",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields"
+            },
+            {
+              "key": "BC-021",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]"
+            },
+            {
+              "key": "BC-022",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]"
+            },
+            {
+              "key": "BC-023",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]"
+            },
+            {
+              "key": "BC-024",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash"
+            },
+            {
+              "key": "BC-025",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-026",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection"
+            },
+            {
+              "key": "BC-027",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-028",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-029",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields"
+            },
+            {
+              "key": "BC-030",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]"
+            },
+            {
+              "key": "BC-031",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]"
+            },
+            {
+              "key": "BC-032",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]"
+            },
+            {
+              "key": "BC-033",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast"
+            },
+            {
+              "key": "BC-034",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash"
+            },
+            {
+              "key": "BC-035",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-036",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry"
+            },
+            {
+              "key": "BC-037",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected"
+            },
+            {
+              "key": "BC-038",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay"
+            },
+            {
+              "key": "BC-039",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown"
+            },
+            {
+              "key": "BC-040",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast"
+            },
+            {
+              "key": "BC-041",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]"
+            },
+            {
+              "key": "BC-042",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]"
+            },
+            {
+              "key": "BC-043",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown"
+            },
+            {
+              "key": "BC-044",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody"
+            },
+            {
+              "key": "BC-045",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId"
+            },
+            {
+              "key": "BC-046",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]"
+            },
+            {
+              "key": "BC-047",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]"
+            },
+            {
+              "key": "BC-048",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]"
+            },
+            {
+              "key": "BC-049",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected"
+            },
+            {
+              "key": "BC-050",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay"
+            },
+            {
+              "key": "BC-051",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown"
+            },
+            {
+              "key": "BC-052",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast"
+            },
+            {
+              "key": "BC-053",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]"
+            },
+            {
+              "key": "BC-054",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]"
+            },
+            {
+              "key": "BC-055",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown"
+            },
+            {
+              "key": "BC-056",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody"
+            },
+            {
+              "key": "BC-057",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId"
+            },
+            {
+              "key": "BC-058",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]"
+            },
+            {
+              "key": "BC-059",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]"
+            },
+            {
+              "key": "BC-060",
+              "title": "blockchain: org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]"
+            }
+          ],
+          "scope": "Existing component tests only; no live chain/current deployment/full business E2E. This plan is accepted after the observed execution.",
+          "inputs": {
+            "sut": {
+              "binary_sha256": null,
+              "local_changes": "Clean checkout; local materialization checked bytewise; platform provenance UNVERIFIED",
+              "source_commit": "0914459b323b82d8f794145247c4627625a6c87b",
+              "repository_url": "https://gitlab.charprotocol.com/blockchain/blockchain.git",
+              "source_association": "DECLARED"
+            },
+            "framework": {
+              "commit_sha": "0914459b323b82d8f794145247c4627625a6c87b",
+              "local_changes": "No tracked changes; existing Maven/JUnit5 starter tests",
+              "repository_url": "https://gitlab.charprotocol.com/blockchain/blockchain.git"
+            },
+            "environment": {
+              "Java": "JBR 21.0.10",
+              "Maven": "3.9.16",
+              "network": "local MockWebServer only",
+              "framework": "JUnit5 / MockWebServer / Surefire",
+              "dependency_mode": "offline isolated Maven repository"
+            },
+            "test_assets": [
+              {
+                "path": "blockchain-rpc-spring-boot-starter/pom.xml",
+                "sha256": "98671f4a899dd89bb3e5bed5ae868bae7ebd4fa58d5eee8da10d8fd39ff940a3"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/BlockchainRpcAutoConfigurationTest.java",
+                "sha256": "9d231416ce15cc024c09588f34c66c5f469c1f4b4f5598c1f1c3fa62c2119f4b"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/autoconfigure/RpcConsumerPackageDependencyRulesTest.java",
+                "sha256": "942af4cc21dccae2c3a06a2d402861fdcba16d9c60001eba0f0947fbe1c33820"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/core/BlockchainChainIdTest.java",
+                "sha256": "abbce6d074ea385a3b5775205753738ed74b19227d9fc298ae323d486e8a1ef3"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockDeliveryRestClientTest.java",
+                "sha256": "e797988b813e4d8d64b99fcb31a46da32bc7f128730a96cab113329fc1be446c"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockEventWebSocketClientTest.java",
+                "sha256": "c56f577da20824bc02b4635f2a7149fb92d9aed8c87340bd16859d7865daa953"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockRecoveryCoordinatorTest.java",
+                "sha256": "f771d21719b898b9740e27c869e7fd7211469c66e05e0daaab5a0c8bb37bff94"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/BlockchainEventAutoConfigurationTest.java",
+                "sha256": "e8519646b86c5826adbe5218aa92e0cc949971a778bb4e020621dd90ac08917c"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventJsonCodecTest.java",
+                "sha256": "86033f0cd95f932afa26c32135a18e53379b8ee16aa86604f0abcf8dcd209662"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/events/EventTestFixtures.java",
+                "sha256": "b5acd662b8e13c39c3c66a8570b9677b0f681352b893da50d79bc64017279992"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClientContractTest.java",
+                "sha256": "eaaf442b01722681c16ee6a44af38ab34db42a7ccb5565c1f2a8ac260451c933"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBlockchainServiceClientOkHttpContractTest.java",
+                "sha256": "4716df696445de2ebb53ec7393b282cb49e9d82907808cafef667fd99abcd7a6"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastClassificationTest.java",
+                "sha256": "a5c57b957017a142ef5971c564ad345b99a7adf8d2f53afd3b138708205cb541"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmBroadcastOkHttpClassificationTest.java",
+                "sha256": "b0347949649a0cf0cb7f35d3f478bbe85b87fa5d06b57e108a64274275984ca3"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/evm/EvmPublicContractFixtures.java",
+                "sha256": "f9754caa2e5d4e1f6d2f2760796f5071d86e19210ec001b54882795136ff24f9"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/jsonrpc/RpcProtocolModelsTest.java",
+                "sha256": "3ec65d1595806541cbfcbfe01332b44614b033d99d38f8831744d6f95425d39f"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/JdkRpcHttpExchangeTest.java",
+                "sha256": "c6456e5fe02837d5525b9c9d6bffd7c11e43e71111272494cf5cec27e0f921bc"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/OkHttpRpcHttpExchangeTest.java",
+                "sha256": "b87474ae808a0115c4ce7008b2e5494673952dc91820127a6618afb4291cba70"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/transport/RpcJacksonCodecTest.java",
+                "sha256": "99f3d864b76650e4e4a0493796ae15dc376e243b8b5de86a6d0bd8414d7de6e1"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClientContractTest.java",
+                "sha256": "8c460276c8bbba80f79e62043a445dc8aa29d81be23cb0d3b06c2e4956db419b"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBlockchainServiceClientOkHttpContractTest.java",
+                "sha256": "d5df8aca3f8a5c990ab91342fe88feb3976f45d68bf9c907b895cf70a1068817"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastClassificationTest.java",
+                "sha256": "86f897423a82351bdbdcca44ffc11848ebb6df8725e448c666b8ffcd3bc13e05"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronBroadcastOkHttpClassificationTest.java",
+                "sha256": "b8c8bbf9ce8760f587d4418144cd1db4559eb97722a8959ea454c4076c637155"
+              },
+              {
+                "path": "blockchain-rpc-spring-boot-starter/src/test/java/org/merypto/blockchain/transferindex/rpc/consumer/tron/TronPublicContractFixtures.java",
+                "sha256": "14268dba90c838c06a7c9c61db90f229dd15860714d419eb077b5e73cea89fd1"
+              }
+            ],
+            "source_transfer": "NONE",
+            "authorization_scope": "Local retrospective report intake only; no source/JAR export, production deploy, chain write or issue write",
+            "environment_variable_names": [
+              "JAVA_HOME",
+              "TMPDIR"
+            ]
+          },
+          "objective": "Retrospectively govern real blockchain native component results",
+          "risk_refs": [
+            "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+          ],
+          "requirement_refs": [
+            "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+          ]
+        },
+        "profile": "native-framework-intake/v1alpha1",
+        "project_id": "01a15d34-3630-7656-938a-0ec893e41352",
+        "session_ref": "acceptance-client-A",
+        "idempotency_key": "blockchain-native-retrospective-20261021"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+        "status": "ACCEPTED",
+        "profile": "native-framework-intake/v1alpha1",
+        "generation": 1,
+        "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+        "quality_result": "NOT_EVALUATED",
+        "proposal_digest": "052c229056fa59ea87e87d30109b6122351bcc0b088367736a78361c91c2e9bd"
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-363c-70c5-b3f2-5d25e8dd21ce",
+      "created_at": "2026-10-21T06:44:25.276454+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "idempotency_key": "blockchain-observed-execution-20261021",
+      "kind": "EXECUTION",
+      "input_digest": "043958358f61ba85cdc9e645cfb04023a972dc5a703e97bc94eb54bbe758e3d1",
+      "payload": {
+        "cwd": "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/blockchain-source/blockchain-rpc-spring-boot-starter",
+        "command": [
+          "/opt/homebrew/bin/mvn",
+          "-o",
+          "-B",
+          "-s",
+          "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/maven-settings.xml",
+          "-Dmaven.repo.local=/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/m2-repository",
+          "-Djava.io.tmpdir=/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime",
+          "-Dtest=EvmBroadcastClassificationTest,EvmBroadcastOkHttpClassificationTest,TronBroadcastClassificationTest,TronBroadcastOkHttpClassificationTest",
+          "test"
+        ],
+        "results": [
+          {
+            "result": "PASS",
+            "case_key": "BC-001"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-002"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-003"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-004"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-005"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-006"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-007"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-008"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-009"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-010"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-011"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-012"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-013"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-014"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-015"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-016"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-017"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-018"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-019"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-020"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-021"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-022"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-023"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-024"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-025"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-026"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-027"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-028"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-029"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-030"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-031"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-032"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-033"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-034"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-035"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-036"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-037"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-038"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-039"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-040"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-041"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-042"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-043"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-044"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-045"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-046"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-047"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-048"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-049"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-050"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-051"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-052"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-053"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-054"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-055"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-056"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-057"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-058"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-059"
+          },
+          {
+            "result": "PASS",
+            "case_key": "BC-060"
+          }
+        ],
+        "exit_code": 0,
+        "framework": "existing Maven/JUnit5/Surefire",
+        "materials": [
+          {
+            "kind": "REPORT",
+            "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest.xml",
+            "format": "JUNIT_XML",
+            "sha256": "180b3bac9b7faff677a7568e5a3a92956ecfb87e2d175fff65551ec428cd37d7"
+          },
+          {
+            "kind": "REPORT",
+            "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest.xml",
+            "format": "JUNIT_XML",
+            "sha256": "35644644e902160720be50219223d08b3b9d008d3bf4d642c88a5101190a4b15"
+          },
+          {
+            "kind": "REPORT",
+            "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest.xml",
+            "format": "JUNIT_XML",
+            "sha256": "9ba9b36723e278eff8cf59adc5b8ad3fd8f7c54ca452992bacccceb58d17f20a"
+          },
+          {
+            "kind": "REPORT",
+            "name": "TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest.xml",
+            "format": "JUNIT_XML",
+            "sha256": "f142a28fdff7bcd08000f6f270be73aefd7ef68716613b43e76909334ee4ec07"
+          },
+          {
+            "kind": "STDOUT",
+            "name": "blockchain-maven-01.stdout.log",
+            "format": "TEXT",
+            "sha256": "6b1e910c846af64b18bb2ee5897480ce7fbb4686c2bcccd9d16b0d16279b7421"
+          },
+          {
+            "kind": "STDERR",
+            "name": "blockchain-maven-01.stderr.log",
+            "format": "TEXT",
+            "sha256": "8dde88be75af03b2c2baa17d270fad74ddb6e6318b614195e0f74dc91c45ddd4"
+          },
+          {
+            "kind": "CONTEXT",
+            "name": "blockchain-maven-01.process.json",
+            "format": "TEXT",
+            "sha256": "bda2bc7ed47de6fee9f6dd02db88dca8abd29b4d5d350caf46cab345d808ec51"
+          }
+        ],
+        "generation": 1,
+        "started_at": "2026-10-21T06:25:48.158164Z",
+        "finished_at": "2026-10-21T06:25:54.333836Z",
+        "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+        "idempotency_key": "blockchain-observed-execution-20261021",
+        "retry_of_execution_id": null
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "checks": {
+          "issues": [],
+          "integrity": "CHECKED",
+          "provenance": "UNVERIFIED",
+          "limitations": [
+            "Content checks do not prove execution occurrence, source or environment.",
+            "Local observations cannot create trusted Evidence or a native PASS."
+          ],
+          "report_consistency": "CONSISTENT",
+          "reported_case_count": 60
+        },
+        "status": "MATERIAL_RECEIVED",
+        "provenance": "UNVERIFIED",
+        "execution_id": "01a15d34-364b-7468-b35b-afcfe478f1d9",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-3651-7858-9a38-ca30f225bde3",
+      "created_at": "2026-10-21T06:44:25.297507+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "idempotency_key": "blockchain-gate-initial",
+      "kind": "EVALUATE",
+      "input_digest": "4966822ebf6c3bc864089fb76099f0d2e7c474ce85f603b89b6b6f3457e2d6b0",
+      "payload": {
+        "generation": 1,
+        "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+        "idempotency_key": "blockchain-gate-initial"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "reasons": [
+          "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+        ],
+        "decision": "UNKNOWN",
+        "integrity": "CHECKED",
+        "state_digest": "d282d20a52e7eddf47ee0fead7e83fce4488faa7eb399583d9dd9b39fa410f28",
+        "conclusion_id": "01a15d34-3663-75e3-bafa-37cbe0dc72d2",
+        "policy_version": "native-material-gate/v1alpha1",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-3664-7e41-ad77-e7746fa50495",
+      "created_at": "2026-10-21T06:44:25.316358+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+      "idempotency_key": "blockchain-handoff-A-to-B",
+      "kind": "HANDOFF",
+      "input_digest": "753ff6684c5c0a257f7adcd4bf8ea5b3faaf74d8f4135dfc9b5a629e97f910c7",
+      "payload": {
+        "reason": "Explicit sequential contribution handoff between independent HTTP client processes; no claim of native Provider resume",
+        "generation": 1,
+        "contributor_id": "01a15d34-3638-74b8-b16a-27b463d511e1",
+        "remaining_work": [
+          "Independent provenance remains UNVERIFIED; native CI/PASS/Web/MCP are pending"
+        ],
+        "idempotency_key": "blockchain-handoff-A-to-B",
+        "successor_session_ref": "acceptance-client-B"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+        "generation": 2,
+        "handoff_id": "01a15d34-51f9-7a44-a38e-a18fd77ad333",
+        "state_digest": "49ef4c928e1bc0d7d45ad2cd9f9d95600524e9a7c92a2cc0e70e9aa7fbd3cb6f",
+        "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+        "state_artifact_uri": "sha256:49ef4c928e1bc0d7d45ad2cd9f9d95600524e9a7c92a2cc0e70e9aa7fbd3cb6f"
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-51fa-7249-802f-7be8c679eb39",
+      "created_at": "2026-10-21T06:44:32.378427+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+      "idempotency_key": "blockchain-gate-successor",
+      "kind": "EVALUATE",
+      "input_digest": "d6d45278b5a25cda3f6c126f95cfb05e372318cde7583581d35e897e8067b0c5",
+      "payload": {
+        "generation": 2,
+        "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+        "idempotency_key": "blockchain-gate-successor"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "reasons": [
+          "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+        ],
+        "decision": "UNKNOWN",
+        "integrity": "CHECKED",
+        "state_digest": "7c05f12a01cc726ed68b63e1ec241924a2f6c16cc6cbe95c07de901fa896d0de",
+        "conclusion_id": "01a15d34-5215-7853-9c09-b60ca68ac09c",
+        "policy_version": "native-material-gate/v1alpha1",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-5216-7ffe-a51d-8af03ab2f184",
+      "created_at": "2026-10-21T06:44:32.406370+00:00"
+    },
+    {
+      "run_id": "01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+      "idempotency_key": "blockchain-cli-postrestart-gate",
+      "kind": "EVALUATE",
+      "input_digest": "415063d90a18603d3ee8acbc902b4aa76bc146a75ed6c05123d503cec92d1e3b",
+      "payload": {
+        "generation": 2,
+        "contributor_id": "01a15d34-51f9-7302-81e7-efdc4ab5d538",
+        "idempotency_key": "blockchain-cli-postrestart-gate"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "reasons": [
+          "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+        ],
+        "decision": "UNKNOWN",
+        "integrity": "CHECKED",
+        "state_digest": "f077333daa9d241710e5b43c08212092b520525c4c42e487f06019a227efb921",
+        "conclusion_id": "01a15d3c-3059-7324-85b4-497d0bcb4ce2",
+        "policy_version": "native-material-gate/v1alpha1",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d3c-305e-7c3d-8609-d8cae764e052",
+      "created_at": "2026-10-21T06:53:08.062799+00:00"
+    }
+  ]
+}

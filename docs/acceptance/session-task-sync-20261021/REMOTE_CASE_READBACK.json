@@ -1,0 +1,84 @@
+{
+  "environment": "REMOTE_ISOLATED_CANDIDATE",
+  "method": "GET_ONLY",
+  "task_id": "01a15d7e-7a28-7d0d-9044-cfecc3174199",
+  "version": 1,
+  "page_count": 3,
+  "total_chars": 61137,
+  "case_count": 15,
+  "case_fields": [
+    "key",
+    "title",
+    "steps",
+    "expected",
+    "actual",
+    "reported_result",
+    "implementation_ref"
+  ],
+  "results": [
+    {
+      "key": "CASE-001",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-002",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-003",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-004",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-005",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-006",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-007",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-008",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-009",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-010",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-011",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-012",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-013",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-014",
+      "all_submitted_fields_exact": true
+    },
+    {
+      "key": "CASE-015",
+      "all_submitted_fields_exact": true
+    }
+  ],
+  "all_exact": true,
+  "business_posts": 0,
+  "original_sdk_observation_preserved": true,
+  "checked_at": "2026-10-21T16:11:45.017593+08:00"
+}

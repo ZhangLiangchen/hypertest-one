@@ -1,0 +1,1255 @@
+{
+  "run": {
+    "project_id": "01a15d34-358c-71f3-8d91-05a8d5ca4251",
+    "profile": "native-framework-intake/v1alpha1",
+    "idempotency_key": "xblock-native-retrospective-20261021",
+    "proposal_digest": "0166c1676ce1460f99e26c8f193d17880d43ece4839950a5a7bce9fbd678ebba",
+    "proposal": {
+      "plan": {
+        "cases": [
+          {
+            "key": "happy_inline_fill",
+            "title": "xblock: happy_inline_fill",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "happy_inline_fill"
+          },
+          {
+            "key": "deferred_short_budget_then_query",
+            "title": "xblock: deferred_short_budget_then_query",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "deferred_short_budget_then_query"
+          },
+          {
+            "key": "create_400_cannot_fulfilled",
+            "title": "xblock: create_400_cannot_fulfilled",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "create_400_cannot_fulfilled"
+          },
+          {
+            "key": "create_401_invalid_key",
+            "title": "xblock: create_401_invalid_key",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "create_401_invalid_key"
+          },
+          {
+            "key": "create_429_rate_limited",
+            "title": "xblock: create_429_rate_limited",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "create_429_rate_limited"
+          },
+          {
+            "key": "create_missing_order_id",
+            "title": "xblock: create_missing_order_id",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "create_missing_order_id"
+          },
+          {
+            "key": "create_close_socket",
+            "title": "xblock: create_close_socket",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "create_close_socket"
+          },
+          {
+            "key": "min_amount_boundary",
+            "title": "xblock: min_amount_boundary",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "min_amount_boundary"
+          },
+          {
+            "key": "duplicate_guard_must_wait_previous",
+            "title": "xblock: duplicate_guard_must_wait_previous",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "duplicate_guard_must_wait_previous"
+          },
+          {
+            "key": "create_balance_too_low_natural",
+            "title": "xblock: create_balance_too_low_natural",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "create_balance_too_low_natural"
+          },
+          {
+            "key": "balance_debit_after_purchase_exact",
+            "title": "xblock: balance_debit_after_purchase_exact",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "balance_debit_after_purchase_exact"
+          },
+          {
+            "key": "split_two_delegates",
+            "title": "xblock: split_two_delegates",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "split_two_delegates"
+          },
+          {
+            "key": "wrong_id_echo",
+            "title": "xblock: wrong_id_echo",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "wrong_id_echo"
+          },
+          {
+            "key": "activation_state_2_already_active",
+            "title": "xblock: activation_state_2_already_active",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "activation_state_2_already_active"
+          },
+          {
+            "key": "activation_state_4_invalid_address",
+            "title": "xblock: activation_state_4_invalid_address",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "activation_state_4_invalid_address"
+          },
+          {
+            "key": "balance_401_invalid_key",
+            "title": "xblock: balance_401_invalid_key",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "balance_401_invalid_key"
+          },
+          {
+            "key": "local_gate_chain_tron_test",
+            "title": "xblock: local_gate_chain_tron_test",
+            "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+            "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+            "implementation_ref": "local_gate_chain_tron_test"
+          }
+        ],
+        "scope": "Existing component tests only; no live chain/current deployment/full business E2E. This plan is accepted after the observed execution.",
+        "inputs": {
+          "sut": {
+            "binary_sha256": "8d53f8db68856feefacf3585f3c7f55d8ce500d043b2027cd4a5b3cd8478129e",
+            "local_changes": "Binary only; no embedded build/source attestation",
+            "source_commit": null,
+            "repository_url": "https://gitlab.charprotocol.com/xblock/xblock-service-asset.git",
+            "source_association": "UNVERIFIED"
+          },
+          "framework": {
+            "commit_sha": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+            "local_changes": "?? .agents/skills/xblock-api-doc/",
+            "repository_url": "git@git.hyperchain.cn:zhangliangchen/hypervise_pure.git"
+          },
+          "environment": {
+            "Java": "JBR 21.0.10",
+            "Node": "v26.8.1",
+            "execution": "existing loopback fake provider and in-memory chain",
+            "identity_gap": "JAR to source commit UNVERIFIED"
+          },
+          "test_assets": [
+            {
+              "path": "deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+              "sha256": "0dd93a488e9bf3aab2be4d837a556d215d94988d235e82faf0c30b690bed4af9"
+            },
+            {
+              "path": "deploy/localchain/tronsave-mock/consumer-parity/TronSaveParity.java",
+              "sha256": "9d12b99af5c4511f976028b59a95689c8de74d0359864155c2574933f28f618c"
+            },
+            {
+              "path": "deploy/localchain/tronsave-mock/consumer-parity/scenarios.json",
+              "sha256": "b0e7ba7ce445ec9038198d133989ea6ff91a96b0bf0bc8724da933a7d71d6611"
+            },
+            {
+              "path": "deploy/localchain/tronsave-mock/test/support/local-fake-server.js",
+              "sha256": "2599a373ec4a3443cd3b5ea484ae4d039d5f4445e20f282acb2e93cf1f152361"
+            }
+          ],
+          "source_transfer": "NONE",
+          "authorization_scope": "Local retrospective report intake only; no source/JAR export, production deploy, chain write or issue write",
+          "environment_variable_names": [
+            "JAVA_HOME",
+            "TMPDIR",
+            "TRONSAVE_PARITY_APIKEY",
+            "TRONSAVE_PARITY_APIKEY2",
+            "TRONSAVE_PARITY_ADMIN_TOKEN",
+            "TRONSAVE_PARITY_ACCOUNT",
+            "PARITY_LOCAL_URL"
+          ]
+        },
+        "objective": "Retrospectively govern real xblock native component results",
+        "risk_refs": [
+          "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+        ],
+        "requirement_refs": [
+          "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+        ]
+      },
+      "profile": "native-framework-intake/v1alpha1",
+      "project_id": "01a15d34-358c-71f3-8d91-05a8d5ca4251",
+      "session_ref": "acceptance-client-A",
+      "idempotency_key": "xblock-native-retrospective-20261021"
+    },
+    "policy_version": "native-material-gate/v1alpha1",
+    "actor_ref": "native-dev-operator-20261021",
+    "generation": 2,
+    "id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+    "created_at": "2026-10-21T06:44:25.173834+00:00"
+  },
+  "current_contributor": {
+    "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+    "actor_ref": "native-dev-operator-20261021",
+    "session_ref": "acceptance-client-B",
+    "generation": 2,
+    "id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+    "created_at": "2026-10-21T06:44:32.302442+00:00"
+  },
+  "cases": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "happy_inline_fill",
+      "accepted_payload": {
+        "key": "happy_inline_fill",
+        "title": "xblock: happy_inline_fill",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "happy_inline_fill"
+      },
+      "id": "01a15d34-35d9-7aaf-b2f0-360cc04cf520",
+      "created_at": "2026-10-21T06:44:25.177771+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "deferred_short_budget_then_query",
+      "accepted_payload": {
+        "key": "deferred_short_budget_then_query",
+        "title": "xblock: deferred_short_budget_then_query",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "deferred_short_budget_then_query"
+      },
+      "id": "01a15d34-35d9-7273-8bd1-e2b14d1d71b6",
+      "created_at": "2026-10-21T06:44:25.177775+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "create_400_cannot_fulfilled",
+      "accepted_payload": {
+        "key": "create_400_cannot_fulfilled",
+        "title": "xblock: create_400_cannot_fulfilled",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "create_400_cannot_fulfilled"
+      },
+      "id": "01a15d34-35d9-713f-91a2-15181aee728d",
+      "created_at": "2026-10-21T06:44:25.177778+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "create_401_invalid_key",
+      "accepted_payload": {
+        "key": "create_401_invalid_key",
+        "title": "xblock: create_401_invalid_key",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "create_401_invalid_key"
+      },
+      "id": "01a15d34-35d9-7539-8de7-8ec136316d7d",
+      "created_at": "2026-10-21T06:44:25.177780+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "create_429_rate_limited",
+      "accepted_payload": {
+        "key": "create_429_rate_limited",
+        "title": "xblock: create_429_rate_limited",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "create_429_rate_limited"
+      },
+      "id": "01a15d34-35d9-714e-a3a2-d8d7d1c84dc4",
+      "created_at": "2026-10-21T06:44:25.177783+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "create_missing_order_id",
+      "accepted_payload": {
+        "key": "create_missing_order_id",
+        "title": "xblock: create_missing_order_id",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "create_missing_order_id"
+      },
+      "id": "01a15d34-35d9-78a6-ab29-e82630d3a365",
+      "created_at": "2026-10-21T06:44:25.177785+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "create_close_socket",
+      "accepted_payload": {
+        "key": "create_close_socket",
+        "title": "xblock: create_close_socket",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "create_close_socket"
+      },
+      "id": "01a15d34-35d9-722a-886e-87d82b3e8b23",
+      "created_at": "2026-10-21T06:44:25.177787+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "min_amount_boundary",
+      "accepted_payload": {
+        "key": "min_amount_boundary",
+        "title": "xblock: min_amount_boundary",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "min_amount_boundary"
+      },
+      "id": "01a15d34-35d9-7868-8139-2cb4f727968e",
+      "created_at": "2026-10-21T06:44:25.177789+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "duplicate_guard_must_wait_previous",
+      "accepted_payload": {
+        "key": "duplicate_guard_must_wait_previous",
+        "title": "xblock: duplicate_guard_must_wait_previous",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "duplicate_guard_must_wait_previous"
+      },
+      "id": "01a15d34-35d9-7971-8af8-74f2abc252b6",
+      "created_at": "2026-10-21T06:44:25.177792+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "create_balance_too_low_natural",
+      "accepted_payload": {
+        "key": "create_balance_too_low_natural",
+        "title": "xblock: create_balance_too_low_natural",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "create_balance_too_low_natural"
+      },
+      "id": "01a15d34-35d9-7d7d-8790-dd4b01d1bc0e",
+      "created_at": "2026-10-21T06:44:25.177794+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "balance_debit_after_purchase_exact",
+      "accepted_payload": {
+        "key": "balance_debit_after_purchase_exact",
+        "title": "xblock: balance_debit_after_purchase_exact",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "balance_debit_after_purchase_exact"
+      },
+      "id": "01a15d34-35d9-7f8e-aeb5-03a9ceda95bb",
+      "created_at": "2026-10-21T06:44:25.177797+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "split_two_delegates",
+      "accepted_payload": {
+        "key": "split_two_delegates",
+        "title": "xblock: split_two_delegates",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "split_two_delegates"
+      },
+      "id": "01a15d34-35d9-772a-b961-4805fec776ab",
+      "created_at": "2026-10-21T06:44:25.177799+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "wrong_id_echo",
+      "accepted_payload": {
+        "key": "wrong_id_echo",
+        "title": "xblock: wrong_id_echo",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "wrong_id_echo"
+      },
+      "id": "01a15d34-35d9-77b8-a13c-cbcf9279bf90",
+      "created_at": "2026-10-21T06:44:25.177801+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "activation_state_2_already_active",
+      "accepted_payload": {
+        "key": "activation_state_2_already_active",
+        "title": "xblock: activation_state_2_already_active",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "activation_state_2_already_active"
+      },
+      "id": "01a15d34-35d9-7e72-949d-eb1c325d1b39",
+      "created_at": "2026-10-21T06:44:25.177803+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "activation_state_4_invalid_address",
+      "accepted_payload": {
+        "key": "activation_state_4_invalid_address",
+        "title": "xblock: activation_state_4_invalid_address",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "activation_state_4_invalid_address"
+      },
+      "id": "01a15d34-35d9-7281-b683-5c740ea94157",
+      "created_at": "2026-10-21T06:44:25.177806+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "balance_401_invalid_key",
+      "accepted_payload": {
+        "key": "balance_401_invalid_key",
+        "title": "xblock: balance_401_invalid_key",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "balance_401_invalid_key"
+      },
+      "id": "01a15d34-35d9-7a7a-a42a-6ef8f0d31ecd",
+      "created_at": "2026-10-21T06:44:25.177808+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "case_key": "local_gate_chain_tron_test",
+      "accepted_payload": {
+        "key": "local_gate_chain_tron_test",
+        "title": "xblock: local_gate_chain_tron_test",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "implementation_ref": "local_gate_chain_tron_test"
+      },
+      "id": "01a15d34-35d9-793b-a9ad-91938353e8ed",
+      "created_at": "2026-10-21T06:44:25.177810+00:00"
+    }
+  ],
+  "contributors": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "actor_ref": "native-dev-operator-20261021",
+      "session_ref": "acceptance-client-A",
+      "generation": 1,
+      "id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "created_at": "2026-10-21T06:44:25.180882+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "actor_ref": "native-dev-operator-20261021",
+      "session_ref": "acceptance-client-B",
+      "generation": 2,
+      "id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "created_at": "2026-10-21T06:44:32.302442+00:00"
+    }
+  ],
+  "executions": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "idempotency_key": "xblock-observed-execution-20261021",
+      "retry_of_execution_id": null,
+      "observation": {
+        "cwd": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9",
+        "command": [
+          "bash",
+          "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+          "local",
+          "scenarios",
+          "--only",
+          "happy_inline_fill,deferred_short_budget_then_query,create_400_cannot_fulfilled,create_401_invalid_key,create_429_rate_limited,create_missing_order_id,create_close_socket,min_amount_boundary,duplicate_guard_must_wait_previous,create_balance_too_low_natural,balance_debit_after_purchase_exact,split_two_delegates,wrong_id_echo,activation_state_2_already_active,activation_state_4_invalid_address,balance_401_invalid_key,local_gate_chain_tron_test",
+          "--jar",
+          "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/.tronsave-work/asset-jar/app.jar",
+          "--cache-dir",
+          "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/parity-cache"
+        ],
+        "results": [
+          {
+            "result": "PASS",
+            "case_key": "happy_inline_fill"
+          },
+          {
+            "result": "PASS",
+            "case_key": "deferred_short_budget_then_query"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_400_cannot_fulfilled"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_401_invalid_key"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_429_rate_limited"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_missing_order_id"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_close_socket"
+          },
+          {
+            "result": "PASS",
+            "case_key": "min_amount_boundary"
+          },
+          {
+            "result": "PASS",
+            "case_key": "duplicate_guard_must_wait_previous"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_balance_too_low_natural"
+          },
+          {
+            "result": "PASS",
+            "case_key": "balance_debit_after_purchase_exact"
+          },
+          {
+            "result": "PASS",
+            "case_key": "split_two_delegates"
+          },
+          {
+            "result": "PASS",
+            "case_key": "wrong_id_echo"
+          },
+          {
+            "result": "PASS",
+            "case_key": "activation_state_2_already_active"
+          },
+          {
+            "result": "PASS",
+            "case_key": "activation_state_4_invalid_address"
+          },
+          {
+            "result": "PASS",
+            "case_key": "balance_401_invalid_key"
+          },
+          {
+            "result": "PASS",
+            "case_key": "local_gate_chain_tron_test"
+          }
+        ],
+        "exit_code": 0,
+        "framework": "existing Java/Node consumer-parity",
+        "generation": 1,
+        "started_at": "2026-10-21T06:23:47.440767Z",
+        "finished_at": "2026-10-21T06:24:26.730339Z",
+        "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+        "idempotency_key": "xblock-observed-execution-20261021",
+        "retry_of_execution_id": null
+      },
+      "id": "01a15d34-35f5-7d10-826b-6e5a8ae34f56",
+      "created_at": "2026-10-21T06:44:25.205759+00:00"
+    }
+  ],
+  "materials": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "execution_id": "01a15d34-35f5-7d10-826b-6e5a8ae34f56",
+      "name": "xblock-scenarios.stdout.jsonl",
+      "kind": "REPORT",
+      "format": "CONSUMER_PARITY_JSONL",
+      "sha256": "7fe0121990dc646b60fb78fe461c94f89d02aeb938adb628a4922a300c1ba324",
+      "size_bytes": 15309,
+      "artifact_uri": "sha256:7fe0121990dc646b60fb78fe461c94f89d02aeb938adb628a4922a300c1ba324",
+      "id": "01a15d34-35f7-7742-b96f-c327f0964e74",
+      "created_at": "2026-10-21T06:44:25.212297+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "execution_id": "01a15d34-35f5-7d10-826b-6e5a8ae34f56",
+      "name": "xblock-scenarios.process.json",
+      "kind": "CONTEXT",
+      "format": "TEXT",
+      "sha256": "eab5a1946d5dda49b4e26a3070c4b7ee96bf2aef6713d7bacff6b1f53494b421",
+      "size_bytes": 2209,
+      "artifact_uri": "sha256:eab5a1946d5dda49b4e26a3070c4b7ee96bf2aef6713d7bacff6b1f53494b421",
+      "id": "01a15d34-35f7-7e6b-ac46-1f4cc5155918",
+      "created_at": "2026-10-21T06:44:25.212298+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "execution_id": "01a15d34-35f5-7d10-826b-6e5a8ae34f56",
+      "name": "xblock-scenarios.stderr.log",
+      "kind": "STDERR",
+      "format": "TEXT",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_uri": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "id": "01a15d34-35f7-7ea5-831d-e693911d2706",
+      "created_at": "2026-10-21T06:44:25.212298+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "execution_id": null,
+      "name": "control-local-404-readback.json",
+      "kind": "CONTEXT",
+      "format": "TEXT",
+      "sha256": "6cfe21958c963e1f00ff486b9a39934545356388265a77d6f1a823f1a6d417c4",
+      "size_bytes": 299,
+      "artifact_uri": "sha256:6cfe21958c963e1f00ff486b9a39934545356388265a77d6f1a823f1a6d417c4",
+      "id": "01a15d3b-8598-7261-9e0c-a6b8a2d0054a",
+      "created_at": "2026-10-21T06:52:24.344960+00:00"
+    }
+  ],
+  "verifications": [
+    {
+      "execution_id": "01a15d34-35f5-7d10-826b-6e5a8ae34f56",
+      "verifier_version": "native-report-consistency/v1alpha1",
+      "provenance": "UNVERIFIED",
+      "checks": {
+        "issues": [],
+        "integrity": "CHECKED",
+        "provenance": "UNVERIFIED",
+        "limitations": [
+          "Content checks do not prove execution occurrence, source or environment.",
+          "Local observations cannot create trusted Evidence or a native PASS."
+        ],
+        "report_consistency": "CONSISTENT",
+        "reported_case_count": 17
+      },
+      "id": "01a15d34-3600-7be0-8c57-f49e3c19e19f",
+      "created_at": "2026-10-21T06:44:25.216566+00:00"
+    }
+  ],
+  "conclusions": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "policy_version": "native-material-gate/v1alpha1",
+      "decision": "UNKNOWN",
+      "state_digest": "62ca5393871ab4573b15bbbcb4d3f57c55b51d503b2c65cc147c1f47ccd91930",
+      "reasons": [
+        "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+      ],
+      "id": "01a15d34-3619-7f3b-96f8-4973e847420e",
+      "created_at": "2026-10-21T06:44:25.241473+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "policy_version": "native-material-gate/v1alpha1",
+      "decision": "UNKNOWN",
+      "state_digest": "43c4e57112038a93829978c605470112aacae37b17605422f7b5b92ac4c86bf0",
+      "reasons": [
+        "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+      ],
+      "id": "01a15d34-51d1-744e-be91-d983a571703f",
+      "created_at": "2026-10-21T06:44:32.338085+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "policy_version": "native-material-gate/v1alpha1",
+      "decision": "BLOCKED",
+      "state_digest": "1581f6b0b777c86422d63c80fb26ea3c4c14860b55247c1ce7f17881b6e02502",
+      "reasons": [
+        "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED",
+        "UNRESOLVED_EXTERNAL_OPERATION"
+      ],
+      "id": "01a15d34-5238-7064-84e9-42f74dd2c46b",
+      "created_at": "2026-10-21T06:44:32.440800+00:00"
+    }
+  ],
+  "handoffs": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "from_contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "to_contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "from_generation": 1,
+      "to_generation": 2,
+      "actor_ref": "native-dev-operator-20261021",
+      "state_digest": "529045c3724a6a5be6619189ee07e0d80fec5cc569ffae01bb322d1ec4db1475",
+      "state_artifact_uri": "sha256:529045c3724a6a5be6619189ee07e0d80fec5cc569ffae01bb322d1ec4db1475",
+      "remaining_work": [
+        "Independent provenance remains UNVERIFIED; native CI/PASS/Web/MCP are pending"
+      ],
+      "reason": "Explicit sequential contribution handoff between independent HTTP client processes; no claim of native Provider resume",
+      "id": "01a15d34-51ae-77ae-abcf-7b07559356ce",
+      "created_at": "2026-10-21T06:44:32.303365+00:00"
+    }
+  ],
+  "operations": [
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "idempotency_key": "xblock-native-retrospective-20261021",
+      "kind": "CREATE",
+      "input_digest": "0166c1676ce1460f99e26c8f193d17880d43ece4839950a5a7bce9fbd678ebba",
+      "payload": {
+        "plan": {
+          "cases": [
+            {
+              "key": "happy_inline_fill",
+              "title": "xblock: happy_inline_fill",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "happy_inline_fill"
+            },
+            {
+              "key": "deferred_short_budget_then_query",
+              "title": "xblock: deferred_short_budget_then_query",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "deferred_short_budget_then_query"
+            },
+            {
+              "key": "create_400_cannot_fulfilled",
+              "title": "xblock: create_400_cannot_fulfilled",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "create_400_cannot_fulfilled"
+            },
+            {
+              "key": "create_401_invalid_key",
+              "title": "xblock: create_401_invalid_key",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "create_401_invalid_key"
+            },
+            {
+              "key": "create_429_rate_limited",
+              "title": "xblock: create_429_rate_limited",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "create_429_rate_limited"
+            },
+            {
+              "key": "create_missing_order_id",
+              "title": "xblock: create_missing_order_id",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "create_missing_order_id"
+            },
+            {
+              "key": "create_close_socket",
+              "title": "xblock: create_close_socket",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "create_close_socket"
+            },
+            {
+              "key": "min_amount_boundary",
+              "title": "xblock: min_amount_boundary",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "min_amount_boundary"
+            },
+            {
+              "key": "duplicate_guard_must_wait_previous",
+              "title": "xblock: duplicate_guard_must_wait_previous",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "duplicate_guard_must_wait_previous"
+            },
+            {
+              "key": "create_balance_too_low_natural",
+              "title": "xblock: create_balance_too_low_natural",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "create_balance_too_low_natural"
+            },
+            {
+              "key": "balance_debit_after_purchase_exact",
+              "title": "xblock: balance_debit_after_purchase_exact",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "balance_debit_after_purchase_exact"
+            },
+            {
+              "key": "split_two_delegates",
+              "title": "xblock: split_two_delegates",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "split_two_delegates"
+            },
+            {
+              "key": "wrong_id_echo",
+              "title": "xblock: wrong_id_echo",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "wrong_id_echo"
+            },
+            {
+              "key": "activation_state_2_already_active",
+              "title": "xblock: activation_state_2_already_active",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "activation_state_2_already_active"
+            },
+            {
+              "key": "activation_state_4_invalid_address",
+              "title": "xblock: activation_state_4_invalid_address",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "activation_state_4_invalid_address"
+            },
+            {
+              "key": "balance_401_invalid_key",
+              "title": "xblock: balance_401_invalid_key",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "balance_401_invalid_key"
+            },
+            {
+              "key": "local_gate_chain_tron_test",
+              "title": "xblock: local_gate_chain_tron_test",
+              "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+              "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+              "implementation_ref": "local_gate_chain_tron_test"
+            }
+          ],
+          "scope": "Existing component tests only; no live chain/current deployment/full business E2E. This plan is accepted after the observed execution.",
+          "inputs": {
+            "sut": {
+              "binary_sha256": "8d53f8db68856feefacf3585f3c7f55d8ce500d043b2027cd4a5b3cd8478129e",
+              "local_changes": "Binary only; no embedded build/source attestation",
+              "source_commit": null,
+              "repository_url": "https://gitlab.charprotocol.com/xblock/xblock-service-asset.git",
+              "source_association": "UNVERIFIED"
+            },
+            "framework": {
+              "commit_sha": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+              "local_changes": "?? .agents/skills/xblock-api-doc/",
+              "repository_url": "git@git.hyperchain.cn:zhangliangchen/hypervise_pure.git"
+            },
+            "environment": {
+              "Java": "JBR 21.0.10",
+              "Node": "v26.8.1",
+              "execution": "existing loopback fake provider and in-memory chain",
+              "identity_gap": "JAR to source commit UNVERIFIED"
+            },
+            "test_assets": [
+              {
+                "path": "deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+                "sha256": "0dd93a488e9bf3aab2be4d837a556d215d94988d235e82faf0c30b690bed4af9"
+              },
+              {
+                "path": "deploy/localchain/tronsave-mock/consumer-parity/TronSaveParity.java",
+                "sha256": "9d12b99af5c4511f976028b59a95689c8de74d0359864155c2574933f28f618c"
+              },
+              {
+                "path": "deploy/localchain/tronsave-mock/consumer-parity/scenarios.json",
+                "sha256": "b0e7ba7ce445ec9038198d133989ea6ff91a96b0bf0bc8724da933a7d71d6611"
+              },
+              {
+                "path": "deploy/localchain/tronsave-mock/test/support/local-fake-server.js",
+                "sha256": "2599a373ec4a3443cd3b5ea484ae4d039d5f4445e20f282acb2e93cf1f152361"
+              }
+            ],
+            "source_transfer": "NONE",
+            "authorization_scope": "Local retrospective report intake only; no source/JAR export, production deploy, chain write or issue write",
+            "environment_variable_names": [
+              "JAVA_HOME",
+              "TMPDIR",
+              "TRONSAVE_PARITY_APIKEY",
+              "TRONSAVE_PARITY_APIKEY2",
+              "TRONSAVE_PARITY_ADMIN_TOKEN",
+              "TRONSAVE_PARITY_ACCOUNT",
+              "PARITY_LOCAL_URL"
+            ]
+          },
+          "objective": "Retrospectively govern real xblock native component results",
+          "risk_refs": [
+            "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+          ],
+          "requirement_refs": [
+            "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+          ]
+        },
+        "profile": "native-framework-intake/v1alpha1",
+        "project_id": "01a15d34-358c-71f3-8d91-05a8d5ca4251",
+        "session_ref": "acceptance-client-A",
+        "idempotency_key": "xblock-native-retrospective-20261021"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+        "status": "ACCEPTED",
+        "profile": "native-framework-intake/v1alpha1",
+        "generation": 1,
+        "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+        "quality_result": "NOT_EVALUATED",
+        "proposal_digest": "0166c1676ce1460f99e26c8f193d17880d43ece4839950a5a7bce9fbd678ebba"
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-35e1-7498-92de-e9e67507929d",
+      "created_at": "2026-10-21T06:44:25.185296+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "idempotency_key": "xblock-observed-execution-20261021",
+      "kind": "EXECUTION",
+      "input_digest": "50f6968421e0c6270e904ab6804ecffd859c2e9558e7df7cf0d6613ec612eb6c",
+      "payload": {
+        "cwd": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9",
+        "command": [
+          "bash",
+          "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+          "local",
+          "scenarios",
+          "--only",
+          "happy_inline_fill,deferred_short_budget_then_query,create_400_cannot_fulfilled,create_401_invalid_key,create_429_rate_limited,create_missing_order_id,create_close_socket,min_amount_boundary,duplicate_guard_must_wait_previous,create_balance_too_low_natural,balance_debit_after_purchase_exact,split_two_delegates,wrong_id_echo,activation_state_2_already_active,activation_state_4_invalid_address,balance_401_invalid_key,local_gate_chain_tron_test",
+          "--jar",
+          "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/.tronsave-work/asset-jar/app.jar",
+          "--cache-dir",
+          "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/parity-cache"
+        ],
+        "results": [
+          {
+            "result": "PASS",
+            "case_key": "happy_inline_fill"
+          },
+          {
+            "result": "PASS",
+            "case_key": "deferred_short_budget_then_query"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_400_cannot_fulfilled"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_401_invalid_key"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_429_rate_limited"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_missing_order_id"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_close_socket"
+          },
+          {
+            "result": "PASS",
+            "case_key": "min_amount_boundary"
+          },
+          {
+            "result": "PASS",
+            "case_key": "duplicate_guard_must_wait_previous"
+          },
+          {
+            "result": "PASS",
+            "case_key": "create_balance_too_low_natural"
+          },
+          {
+            "result": "PASS",
+            "case_key": "balance_debit_after_purchase_exact"
+          },
+          {
+            "result": "PASS",
+            "case_key": "split_two_delegates"
+          },
+          {
+            "result": "PASS",
+            "case_key": "wrong_id_echo"
+          },
+          {
+            "result": "PASS",
+            "case_key": "activation_state_2_already_active"
+          },
+          {
+            "result": "PASS",
+            "case_key": "activation_state_4_invalid_address"
+          },
+          {
+            "result": "PASS",
+            "case_key": "balance_401_invalid_key"
+          },
+          {
+            "result": "PASS",
+            "case_key": "local_gate_chain_tron_test"
+          }
+        ],
+        "exit_code": 0,
+        "framework": "existing Java/Node consumer-parity",
+        "materials": [
+          {
+            "kind": "REPORT",
+            "name": "xblock-scenarios.stdout.jsonl",
+            "format": "CONSUMER_PARITY_JSONL",
+            "sha256": "7fe0121990dc646b60fb78fe461c94f89d02aeb938adb628a4922a300c1ba324"
+          },
+          {
+            "kind": "STDERR",
+            "name": "xblock-scenarios.stderr.log",
+            "format": "TEXT",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "kind": "CONTEXT",
+            "name": "xblock-scenarios.process.json",
+            "format": "TEXT",
+            "sha256": "eab5a1946d5dda49b4e26a3070c4b7ee96bf2aef6713d7bacff6b1f53494b421"
+          }
+        ],
+        "generation": 1,
+        "started_at": "2026-10-21T06:23:47.440767Z",
+        "finished_at": "2026-10-21T06:24:26.730339Z",
+        "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+        "idempotency_key": "xblock-observed-execution-20261021",
+        "retry_of_execution_id": null
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "checks": {
+          "issues": [],
+          "integrity": "CHECKED",
+          "provenance": "UNVERIFIED",
+          "limitations": [
+            "Content checks do not prove execution occurrence, source or environment.",
+            "Local observations cannot create trusted Evidence or a native PASS."
+          ],
+          "report_consistency": "CONSISTENT",
+          "reported_case_count": 17
+        },
+        "status": "MATERIAL_RECEIVED",
+        "provenance": "UNVERIFIED",
+        "execution_id": "01a15d34-35f5-7d10-826b-6e5a8ae34f56",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-35ff-7bc5-a0e2-ea456c9785b0",
+      "created_at": "2026-10-21T06:44:25.215394+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "idempotency_key": "xblock-gate-initial",
+      "kind": "EVALUATE",
+      "input_digest": "8f06dfd68611319f0b0a2a3eab7ff02f1394b049e5a9f49835089ce6ecb38eee",
+      "payload": {
+        "generation": 1,
+        "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+        "idempotency_key": "xblock-gate-initial"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "reasons": [
+          "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+        ],
+        "decision": "UNKNOWN",
+        "integrity": "CHECKED",
+        "state_digest": "62ca5393871ab4573b15bbbcb4d3f57c55b51d503b2c65cc147c1f47ccd91930",
+        "conclusion_id": "01a15d34-3619-7f3b-96f8-4973e847420e",
+        "policy_version": "native-material-gate/v1alpha1",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-361d-760a-938c-0e63da8968b5",
+      "created_at": "2026-10-21T06:44:25.245202+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+      "idempotency_key": "xblock-handoff-A-to-B",
+      "kind": "HANDOFF",
+      "input_digest": "2279e32136335b9feeae4884e2f7fbf3474678f2d7907f4a08372770f092a489",
+      "payload": {
+        "reason": "Explicit sequential contribution handoff between independent HTTP client processes; no claim of native Provider resume",
+        "generation": 1,
+        "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+        "remaining_work": [
+          "Independent provenance remains UNVERIFIED; native CI/PASS/Web/MCP are pending"
+        ],
+        "idempotency_key": "xblock-handoff-A-to-B",
+        "successor_session_ref": "acceptance-client-B"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+        "generation": 2,
+        "handoff_id": "01a15d34-51ae-77ae-abcf-7b07559356ce",
+        "state_digest": "529045c3724a6a5be6619189ee07e0d80fec5cc569ffae01bb322d1ec4db1475",
+        "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+        "state_artifact_uri": "sha256:529045c3724a6a5be6619189ee07e0d80fec5cc569ffae01bb322d1ec4db1475"
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-51b1-7ea2-b476-8c67bc0cc958",
+      "created_at": "2026-10-21T06:44:32.305131+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "idempotency_key": "xblock-gate-successor",
+      "kind": "EVALUATE",
+      "input_digest": "2c0125ec72d67dcc9f642cfe791c2203a15b8b7bca1659c113483bcd10ac23f2",
+      "payload": {
+        "generation": 2,
+        "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+        "idempotency_key": "xblock-gate-successor"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "reasons": [
+          "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED"
+        ],
+        "decision": "UNKNOWN",
+        "integrity": "CHECKED",
+        "state_digest": "43c4e57112038a93829978c605470112aacae37b17605422f7b5b92ac4c86bf0",
+        "conclusion_id": "01a15d34-51d1-744e-be91-d983a571703f",
+        "policy_version": "native-material-gate/v1alpha1",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-51d4-7d74-a233-47a04377d6c0",
+      "created_at": "2026-10-21T06:44:32.340123+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "idempotency_key": "control-only-unknown",
+      "kind": "UNCERTAINTY",
+      "input_digest": "33f405d7da5709da068f5eaca687aaae72821fac7282a046dc513a92591a14ec",
+      "payload": {
+        "reason": "Governance control-path test only; no real external request is made by this acceptance script",
+        "generation": 2,
+        "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+        "idempotency_key": "control-only-unknown",
+        "external_operation_ref": "acceptance-control/no-external-request-sent"
+      },
+      "status": "UNKNOWN",
+      "result": {
+        "status": "UNKNOWN",
+        "instruction": "Read back the original operation; do not execute it again.",
+        "external_operation_ref": "acceptance-control/no-external-request-sent"
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-5228-7022-9551-622c9a0f4ebd",
+      "created_at": "2026-10-21T06:44:32.424010+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "idempotency_key": "xblock-gate-unknown-operation",
+      "kind": "EVALUATE",
+      "input_digest": "65d3bb0c7e73f1511796d04567bbea5b8827042d3d4c6802f340af9db9d6ed14",
+      "payload": {
+        "generation": 2,
+        "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+        "idempotency_key": "xblock-gate-unknown-operation"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "reasons": [
+          "NATIVE_EXECUTION_PROVENANCE_UNVERIFIED",
+          "UNRESOLVED_EXTERNAL_OPERATION"
+        ],
+        "decision": "BLOCKED",
+        "integrity": "CHECKED",
+        "state_digest": "1581f6b0b777c86422d63c80fb26ea3c4c14860b55247c1ce7f17881b6e02502",
+        "conclusion_id": "01a15d34-5238-7064-84e9-42f74dd2c46b",
+        "policy_version": "native-material-gate/v1alpha1",
+        "formal_evidence": false
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d34-5239-71d1-82c8-510ffc942cd7",
+      "created_at": "2026-10-21T06:44:32.441861+00:00"
+    },
+    {
+      "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+      "idempotency_key": "control-not-found-reconcile",
+      "kind": "RECONCILE",
+      "input_digest": "672bfd6ae5f4f76a972b12a7f59a4d7983b7851f95fa1f1cdc56cccc8a8a21cb",
+      "payload": {
+        "reason": "Expected rejection: old summary-only payload lacks Operator readback attestation",
+        "material": {
+          "kind": "CONTEXT",
+          "name": "control-local-404-readback.json",
+          "format": "TEXT",
+          "sha256": "6cfe21958c963e1f00ff486b9a39934545356388265a77d6f1a823f1a6d417c4"
+        },
+        "generation": 2,
+        "resolution": "NOT_FOUND",
+        "attestation": {
+          "kind": "EXECUTION_CONTROL_READBACK",
+          "result": "NOT_FOUND",
+          "source_ref": "local-api-control:01a15d34-35d5-7199-8b78-4d6327053b4b/operations/nonexistent-control-readback",
+          "observed_at": "2026-10-21T06:52:24.337706Z",
+          "operation_ref": "acceptance-control/no-external-request-sent",
+          "raw_material_sha256": "6cfe21958c963e1f00ff486b9a39934545356388265a77d6f1a823f1a6d417c4",
+          "operator_attests_original_readback": true
+        },
+        "unknown_key": "control-only-unknown",
+        "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+        "idempotency_key": "control-not-found-reconcile",
+        "observed_operation_ref": "acceptance-control/no-external-request-sent"
+      },
+      "status": "SUCCEEDED",
+      "result": {
+        "basis": "OPERATOR_RECONCILIATION",
+        "status": "UNKNOWN",
+        "provenance": "UNVERIFIED",
+        "resolution": "NOT_FOUND",
+        "material_id": "01a15d3b-8598-7261-9e0c-a6b8a2d0054a",
+        "original_key": "control-only-unknown"
+      },
+      "reconciled_material_id": null,
+      "id": "01a15d3b-85a2-7d65-8d37-0ee6df5ba207",
+      "created_at": "2026-10-21T06:52:24.354627+00:00"
+    }
+  ]
+}

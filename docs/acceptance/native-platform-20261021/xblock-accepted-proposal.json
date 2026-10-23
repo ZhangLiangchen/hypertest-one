@@ -1,0 +1,203 @@
+{
+  "profile": "native-framework-intake/v1alpha1",
+  "project_id": "01a15d34-358c-71f3-8d91-05a8d5ca4251",
+  "idempotency_key": "xblock-native-retrospective-20261021",
+  "session_ref": "acceptance-client-A",
+  "plan": {
+    "objective": "Retrospectively govern real xblock native component results",
+    "scope": "Existing component tests only; no live chain/current deployment/full business E2E. This plan is accepted after the observed execution.",
+    "requirement_refs": [
+      "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+    ],
+    "risk_refs": [
+      "docs/acceptance/native-framework-20261021/TEST_PLAN.md"
+    ],
+    "inputs": {
+      "sut": {
+        "repository_url": "https://gitlab.charprotocol.com/xblock/xblock-service-asset.git",
+        "source_commit": null,
+        "binary_sha256": "8d53f8db68856feefacf3585f3c7f55d8ce500d043b2027cd4a5b3cd8478129e",
+        "source_association": "UNVERIFIED",
+        "local_changes": "Binary only; no embedded build/source attestation"
+      },
+      "framework": {
+        "repository_url": "git@git.hyperchain.cn:zhangliangchen/hypervise_pure.git",
+        "commit_sha": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+        "local_changes": "?? .agents/skills/xblock-api-doc/"
+      },
+      "test_assets": [
+        {
+          "path": "deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+          "sha256": "0dd93a488e9bf3aab2be4d837a556d215d94988d235e82faf0c30b690bed4af9"
+        },
+        {
+          "path": "deploy/localchain/tronsave-mock/consumer-parity/TronSaveParity.java",
+          "sha256": "9d12b99af5c4511f976028b59a95689c8de74d0359864155c2574933f28f618c"
+        },
+        {
+          "path": "deploy/localchain/tronsave-mock/consumer-parity/scenarios.json",
+          "sha256": "b0e7ba7ce445ec9038198d133989ea6ff91a96b0bf0bc8724da933a7d71d6611"
+        },
+        {
+          "path": "deploy/localchain/tronsave-mock/test/support/local-fake-server.js",
+          "sha256": "2599a373ec4a3443cd3b5ea484ae4d039d5f4445e20f282acb2e93cf1f152361"
+        }
+      ],
+      "environment": {
+        "Java": "JBR 21.0.10",
+        "Node": "v26.8.1",
+        "execution": "existing loopback fake provider and in-memory chain",
+        "identity_gap": "JAR to source commit UNVERIFIED"
+      },
+      "environment_variable_names": [
+        "JAVA_HOME",
+        "TMPDIR",
+        "TRONSAVE_PARITY_APIKEY",
+        "TRONSAVE_PARITY_APIKEY2",
+        "TRONSAVE_PARITY_ADMIN_TOKEN",
+        "TRONSAVE_PARITY_ACCOUNT",
+        "PARITY_LOCAL_URL"
+      ],
+      "authorization_scope": "Local retrospective report intake only; no source/JAR export, production deploy, chain write or issue write",
+      "source_transfer": "NONE"
+    },
+    "cases": [
+      {
+        "key": "happy_inline_fill",
+        "title": "xblock: happy_inline_fill",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "happy_inline_fill"
+      },
+      {
+        "key": "deferred_short_budget_then_query",
+        "title": "xblock: deferred_short_budget_then_query",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "deferred_short_budget_then_query"
+      },
+      {
+        "key": "create_400_cannot_fulfilled",
+        "title": "xblock: create_400_cannot_fulfilled",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "create_400_cannot_fulfilled"
+      },
+      {
+        "key": "create_401_invalid_key",
+        "title": "xblock: create_401_invalid_key",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "create_401_invalid_key"
+      },
+      {
+        "key": "create_429_rate_limited",
+        "title": "xblock: create_429_rate_limited",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "create_429_rate_limited"
+      },
+      {
+        "key": "create_missing_order_id",
+        "title": "xblock: create_missing_order_id",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "create_missing_order_id"
+      },
+      {
+        "key": "create_close_socket",
+        "title": "xblock: create_close_socket",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "create_close_socket"
+      },
+      {
+        "key": "min_amount_boundary",
+        "title": "xblock: min_amount_boundary",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "min_amount_boundary"
+      },
+      {
+        "key": "duplicate_guard_must_wait_previous",
+        "title": "xblock: duplicate_guard_must_wait_previous",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "duplicate_guard_must_wait_previous"
+      },
+      {
+        "key": "create_balance_too_low_natural",
+        "title": "xblock: create_balance_too_low_natural",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "create_balance_too_low_natural"
+      },
+      {
+        "key": "balance_debit_after_purchase_exact",
+        "title": "xblock: balance_debit_after_purchase_exact",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "balance_debit_after_purchase_exact"
+      },
+      {
+        "key": "split_two_delegates",
+        "title": "xblock: split_two_delegates",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "split_two_delegates"
+      },
+      {
+        "key": "wrong_id_echo",
+        "title": "xblock: wrong_id_echo",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "wrong_id_echo"
+      },
+      {
+        "key": "activation_state_2_already_active",
+        "title": "xblock: activation_state_2_already_active",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "activation_state_2_already_active"
+      },
+      {
+        "key": "activation_state_4_invalid_address",
+        "title": "xblock: activation_state_4_invalid_address",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "activation_state_4_invalid_address"
+      },
+      {
+        "key": "balance_401_invalid_key",
+        "title": "xblock: balance_401_invalid_key",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "balance_401_invalid_key"
+      },
+      {
+        "key": "local_gate_chain_tron_test",
+        "title": "xblock: local_gate_chain_tron_test",
+        "requirement_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "risk_ref": "docs/acceptance/native-framework-20261021/TEST_PLAN.md",
+        "expected_result": "Existing native test assertions pass; negative behavior is classified as the existing test expects",
+        "implementation_ref": "local_gate_chain_tron_test"
+      }
+    ]
+  }
+}

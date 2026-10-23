@@ -1,0 +1,484 @@
+release	Set up job	﻿2026-10-21T09:03:49.0033995Z Current runner version: '2.338.0'
+release	Set up job	2026-10-21T09:03:49.0055398Z ##[group]Runner Image Provisioner
+release	Set up job	2026-10-21T09:03:49.0056166Z Hosted Compute Agent
+release	Set up job	2026-10-21T09:03:49.0056607Z Version: 20261015.610
+release	Set up job	2026-10-21T09:03:49.0057125Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+release	Set up job	2026-10-21T09:03:49.0057982Z Build Date: 2026-10-14T17:06:54Z
+release	Set up job	2026-10-21T09:03:49.0058488Z Worker ID: {dabd462c-a55c-452e-b56a-42d8233f67fd}
+release	Set up job	2026-10-21T09:03:49.0059021Z Region: centralus
+release	Set up job	2026-10-21T09:03:49.0059504Z Cloud: Azure
+release	Set up job	2026-10-21T09:03:49.0059897Z ##[endgroup]
+release	Set up job	2026-10-21T09:03:49.0060995Z ##[group]Operating System
+release	Set up job	2026-10-21T09:03:49.0061432Z Ubuntu
+release	Set up job	2026-10-21T09:03:49.0061826Z 24.04.5
+release	Set up job	2026-10-21T09:03:49.0062188Z LTS
+release	Set up job	2026-10-21T09:03:49.0062562Z ##[endgroup]
+release	Set up job	2026-10-21T09:03:49.0062957Z ##[group]Runner Image
+release	Set up job	2026-10-21T09:03:49.0063403Z Image: ubuntu-24.04
+release	Set up job	2026-10-21T09:03:49.0063812Z Version: 20261018.339.1
+release	Set up job	2026-10-21T09:03:49.0064550Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+release	Set up job	2026-10-21T09:03:49.0065820Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+release	Set up job	2026-10-21T09:03:49.0066513Z ##[endgroup]
+release	Set up job	2026-10-21T09:03:49.0067380Z ##[group]GITHUB_TOKEN Permissions
+release	Set up job	2026-10-21T09:03:49.0069729Z Contents: write
+release	Set up job	2026-10-21T09:03:49.0070160Z Metadata: read
+release	Set up job	2026-10-21T09:03:49.0070553Z ##[endgroup]
+release	Set up job	2026-10-21T09:03:49.0072089Z Secret source: Actions
+release	Set up job	2026-10-21T09:03:49.0072724Z Cache mode: write
+release	Set up job	2026-10-21T09:03:49.0073231Z Prepare workflow directory
+release	Set up job	2026-10-21T09:03:49.0326546Z Prepare all required actions
+release	Set up job	2026-10-21T09:03:49.0364289Z Getting action download info
+release	Set up job	2026-10-21T09:03:49.2768538Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+release	Set up job	2026-10-21T09:03:49.3752972Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+release	Set up job	2026-10-21T09:03:49.5319533Z Complete job name: release
+release	Run actions/checkout@v4	﻿2026-10-21T09:03:49.5870673Z ##[group]Run actions/checkout@v4
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5871390Z with:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5871770Z   fetch-depth: 0
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5872182Z   repository: ZhangLiangchen/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5875089Z   token: ***
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5875445Z   ssh-strict: true
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5875818Z   ssh-user: git
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5876205Z   persist-credentials: true
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5876623Z   clean: true
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5877014Z   sparse-checkout-cone-mode: true
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5877434Z   fetch-tags: false
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5878123Z   show-progress: true
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5878561Z   lfs: false
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5878937Z   submodules: false
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5879330Z   set-safe-directory: true
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5879746Z   allow-unsafe-pr-checkout: false
+release	Run actions/checkout@v4	2026-10-21T09:03:49.5880319Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6697186Z Syncing repository: ZhangLiangchen/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6699109Z ##[group]Getting Git version info
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6699739Z Working directory is '/home/runner/work/hypertest-one/hypertest-one'
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6700796Z [command]/usr/bin/git version
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6751528Z git version 2.55.0
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6766446Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6788424Z Temporarily overriding HOME='/home/runner/work/_temp/a88ff5e0-0a05-43b0-bc0a-74f92371df74' before making global git config changes
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6790465Z Adding repository directory to the temporary git global config as a safe directory
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6792993Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/hypertest-one/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6851718Z Deleting the contents of '/home/runner/work/hypertest-one/hypertest-one'
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6853752Z ##[group]Initializing the repository
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6855082Z [command]/usr/bin/git init /home/runner/work/hypertest-one/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6936533Z hint: Using 'master' as the name for the initial branch. This default branch name
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6938076Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6939492Z hint: to use in all of your new repositories, which will suppress this warning,
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6940824Z hint: call:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6941507Z hint:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6942175Z hint: 	git config --global init.defaultBranch <name>
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6942965Z hint:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6943630Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6944904Z hint: 'development'. The just-created branch can be renamed via this command:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6945886Z hint:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6946429Z hint: 	git branch -m <name>
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6947062Z hint:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6948057Z hint: Disable this message with "git config set advice.defaultBranchName false"
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6949170Z Initialized empty Git repository in /home/runner/work/hypertest-one/hypertest-one/.git/
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6951132Z [command]/usr/bin/git remote add origin https://github.com/ZhangLiangchen/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6991071Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6992106Z ##[group]Disabling automatic garbage collection
+release	Run actions/checkout@v4	2026-10-21T09:03:49.6994133Z [command]/usr/bin/git config --local gc.auto 0
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7021937Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7023229Z ##[group]Setting up auth
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7027207Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7050140Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7348478Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7375146Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7542961Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7569803Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7721635Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7758340Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7759208Z ##[group]Fetching the repository
+release	Run actions/checkout@v4	2026-10-21T09:03:49.7765709Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6658488Z From https://github.com/ZhangLiangchen/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6660817Z  * [new branch]      codex/adr013-containerized-platform -> origin/codex/adr013-containerized-platform
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6662676Z  * [new branch]      codex/adr015-local-connector -> origin/codex/adr015-local-connector
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6664705Z  * [new branch]      codex/adr015-migration-packaging -> origin/codex/adr015-migration-packaging
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6666764Z  * [new branch]      codex/adr015-production-record -> origin/codex/adr015-production-record
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6668978Z  * [new branch]      codex/adr016-interactive-mcp -> origin/codex/adr016-interactive-mcp
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6671194Z  * [new branch]      codex/adr016-production-acceptance -> origin/codex/adr016-production-acceptance
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6673207Z  * [new branch]      codex/closed-session-finding-gate -> origin/codex/closed-session-finding-gate
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6675503Z  * [new branch]      codex/controlled-api-environment -> origin/codex/controlled-api-environment
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6677433Z  * [new branch]      codex/handoff-integration -> origin/codex/handoff-integration
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6679316Z  * [new branch]      codex/mcp-install-delivery -> origin/codex/mcp-install-delivery
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6681062Z  * [new branch]      codex/mcp-install-onboarding -> origin/codex/mcp-install-onboarding
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6683268Z  * [new branch]      codex/mission-activity-timeline -> origin/codex/mission-activity-timeline
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6685568Z  * [new branch]      codex/phase-one-result-review-retest -> origin/codex/phase-one-result-review-retest
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6688166Z  * [new branch]      codex/phase-one-web-completion -> origin/codex/phase-one-web-completion
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6690281Z  * [new branch]      codex/prd-import-allowlist -> origin/codex/prd-import-allowlist
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6692255Z  * [new branch]      codex/session-task-management -> origin/codex/session-task-management
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6694726Z  * [new branch]      codex/source-preparation-diagnostics -> origin/codex/source-preparation-diagnostics
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6697280Z  * [new branch]      codex/waiting-input-resume -> origin/codex/waiting-input-resume
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6699522Z  * [new branch]      codex/web-product-bilingual -> origin/codex/web-product-bilingual
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6702349Z  * [new branch]      codex/whitepaper-native-framework-boundary -> origin/codex/whitepaper-native-framework-boundary
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6704618Z  * [new branch]      main       -> origin/main
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6705900Z  * [new tag]         mcp-v0.1.0 -> mcp-v0.1.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6707470Z  * [new tag]         mcp-v0.2.0 -> mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6710688Z [command]/usr/bin/git tag --list mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6711919Z mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6714252Z [command]/usr/bin/git rev-parse refs/tags/mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6721487Z b16df761cca6cb8a41af62fcc0cf35b7f9f78bec
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6730736Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin +5c03e4d90bed69b6420238849cbb3a8bae2f4c42:refs/tags/mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6781913Z From https://github.com/ZhangLiangchen/hypertest-one
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6784573Z  t [tag update]      5c03e4d90bed69b6420238849cbb3a8bae2f4c42 -> mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6789839Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6791696Z ##[group]Determining the checkout info
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6794111Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6795597Z [command]/usr/bin/git sparse-checkout disable
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6830257Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6856648Z ##[group]Checking out the ref
+release	Run actions/checkout@v4	2026-10-21T09:03:50.6858271Z [command]/usr/bin/git checkout --progress --force refs/tags/mcp-v0.2.0
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7234121Z Note: switching to 'refs/tags/mcp-v0.2.0'.
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7235188Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7235943Z You are in 'detached HEAD' state. You can look around, make experimental
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7237981Z changes and commit them, and you can discard any commits you make in this
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7240216Z state without impacting any branches by switching back to a branch.
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7241533Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7243049Z If you want to create a new branch to retain commits you create, you may
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7245362Z do so (now or later) by using -c with the switch command. Example:
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7246471Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7247055Z   git switch -c <new-branch-name>
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7248044Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7248678Z Or undo this operation with:
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7249566Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7250078Z   git switch -
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7250736Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7251609Z Turn off this advice by setting config variable advice.detachedHead to false
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7253072Z 
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7254012Z HEAD is now at 5c03e4d Merge PR #22: Codex session task management and MCP sync
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7258456Z ##[endgroup]
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7283796Z [command]/usr/bin/git log -1 --format=%H
+release	Run actions/checkout@v4	2026-10-21T09:03:50.7305386Z 5c03e4d90bed69b6420238849cbb3a8bae2f4c42
+release	Run actions/setup-python@v5	﻿2026-10-21T09:03:50.7600236Z ##[group]Run actions/setup-python@v5
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7601266Z with:
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7602072Z   python-version: 3.12
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7602870Z   check-latest: false
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7610320Z   token: ***
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7611259Z   update-environment: true
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7612162Z   allow-prereleases: false
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7613050Z   freethreaded: false
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.7613857Z ##[endgroup]
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.8667687Z ##[group]Installed versions
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.8742821Z (node:2111) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.8746022Z (Use `node --trace-deprecation ...` to show where the warning was created)
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.8748556Z Successfully set up CPython (3.12.15)
+release	Run actions/setup-python@v5	2026-10-21T09:03:50.8750763Z ##[endgroup]
+release	Install wheel build tools	﻿2026-10-21T09:03:50.8926185Z ##[group]Run python -m pip install build==1.2.2.post1 hatchling==1.27.0
+release	Install wheel build tools	2026-10-21T09:03:50.8928217Z ^[[36;1mpython -m pip install build==1.2.2.post1 hatchling==1.27.0^[[0m
+release	Install wheel build tools	2026-10-21T09:03:50.9082776Z shell: /usr/bin/bash -e {0}
+release	Install wheel build tools	2026-10-21T09:03:50.9083880Z env:
+release	Install wheel build tools	2026-10-21T09:03:50.9084758Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Install wheel build tools	2026-10-21T09:03:50.9086209Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+release	Install wheel build tools	2026-10-21T09:03:50.9087895Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Install wheel build tools	2026-10-21T09:03:50.9089168Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Install wheel build tools	2026-10-21T09:03:50.9090428Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Install wheel build tools	2026-10-21T09:03:50.9091711Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+release	Install wheel build tools	2026-10-21T09:03:50.9092802Z ##[endgroup]
+release	Install wheel build tools	2026-10-21T09:03:51.6613706Z Collecting build==1.2.2.post1
+release	Install wheel build tools	2026-10-21T09:03:51.7372507Z   Downloading build-1.2.2.post1-py3-none-any.whl.metadata (6.5 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.7744389Z Collecting hatchling==1.27.0
+release	Install wheel build tools	2026-10-21T09:03:51.7875131Z   Downloading hatchling-1.27.0-py3-none-any.whl.metadata (3.8 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.8076811Z Collecting packaging>=19.1 (from build==1.2.2.post1)
+release	Install wheel build tools	2026-10-21T09:03:51.8203981Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.8365026Z Collecting pyproject_hooks (from build==1.2.2.post1)
+release	Install wheel build tools	2026-10-21T09:03:51.8493456Z   Downloading pyproject_hooks-1.3.3-py3-none-any.whl.metadata (1.3 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.8666678Z Collecting pathspec>=0.10.1 (from hatchling==1.27.0)
+release	Install wheel build tools	2026-10-21T09:03:51.8794616Z   Downloading pathspec-1.1.1-py3-none-any.whl.metadata (14 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.9007463Z Collecting pluggy>=1.0.0 (from hatchling==1.27.0)
+release	Install wheel build tools	2026-10-21T09:03:51.9143192Z   Downloading pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.9404280Z Collecting trove-classifiers (from hatchling==1.27.0)
+release	Install wheel build tools	2026-10-21T09:03:51.9537219Z   Downloading trove_classifiers-2026.9.21.13-py3-none-any.whl.metadata (2.4 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.9705566Z Downloading build-1.2.2.post1-py3-none-any.whl (22 kB)
+release	Install wheel build tools	2026-10-21T09:03:51.9918175Z Downloading hatchling-1.27.0-py3-none-any.whl (75 kB)
+release	Install wheel build tools	2026-10-21T09:03:52.0196366Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+release	Install wheel build tools	2026-10-21T09:03:52.0452566Z Downloading pathspec-1.1.1-py3-none-any.whl (57 kB)
+release	Install wheel build tools	2026-10-21T09:03:52.0605204Z Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+release	Install wheel build tools	2026-10-21T09:03:52.0751061Z Downloading pyproject_hooks-1.3.3-py3-none-any.whl (10 kB)
+release	Install wheel build tools	2026-10-21T09:03:52.0894885Z Downloading trove_classifiers-2026.9.21.13-py3-none-any.whl (14 kB)
+release	Install wheel build tools	2026-10-21T09:03:52.1322115Z Installing collected packages: trove-classifiers, pyproject_hooks, pluggy, pathspec, packaging, hatchling, build
+release	Install wheel build tools	2026-10-21T09:03:52.2938519Z 
+release	Install wheel build tools	2026-10-21T09:03:52.2948477Z Successfully installed build-1.2.2.post1 hatchling-1.27.0 packaging-26.3 pathspec-1.1.1 pluggy-1.7.0 pyproject_hooks-1.3.3 trove-classifiers-2026.9.21.13
+release	Install wheel build tools	2026-10-21T09:03:52.2955618Z 
+release	Install wheel build tools	2026-10-21T09:03:52.2956354Z [notice] A new release of pip is available: 26.2.1 -> 26.2.2
+release	Install wheel build tools	2026-10-21T09:03:52.2957000Z [notice] To update, run: pip install --upgrade pip
+release	Build from the exact tagged commit	﻿2026-10-21T09:03:52.3531491Z ##[group]Run python scripts/build-interactive-release.py --tag "$GITHUB_REF_NAME" --ref "$GITHUB_SHA" --require-tag --output "$RUNNER_TEMP/hypertest-mcp-release"
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3532355Z ^[[36;1mpython scripts/build-interactive-release.py --tag "$GITHUB_REF_NAME" --ref "$GITHUB_SHA" --require-tag --output "$RUNNER_TEMP/hypertest-mcp-release"^[[0m
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3566073Z shell: /usr/bin/bash -e {0}
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3566395Z env:
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3566671Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3567154Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3567701Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3568070Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3568395Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3568699Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+release	Build from the exact tagged commit	2026-10-21T09:03:52.3569461Z ##[endgroup]
+release	Build from the exact tagged commit	2026-10-21T09:03:52.5500571Z * Getting build dependencies for wheel...
+release	Build from the exact tagged commit	2026-10-21T09:03:52.6446180Z * Building wheel...
+release	Build from the exact tagged commit	2026-10-21T09:03:52.7775881Z Successfully built hypertest_one-0.2.0-py3-none-any.whl
+release	Build from the exact tagged commit	2026-10-21T09:03:52.8036657Z {"source_commit": "5c03e4d90bed69b6420238849cbb3a8bae2f4c42", "tag": "mcp-v0.2.0", "tag_verification": "verified", "wheel": {"filename": "hypertest_one-0.2.0-py3-none-any.whl", "sha256": "d7e7bfdbb5a5a25bab343bf695185cc9587c745605c667ba28a9d23d336a6dd3", "size_bytes": 369859}}
+release	Smoke the installed wheel outside the repository	﻿2026-10-21T09:03:52.8173525Z ##[group]Run python - <<'PY'
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8173893Z ^[[36;1mpython - <<'PY'^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8174130Z ^[[36;1mimport json^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8174386Z ^[[36;1mimport os^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8174624Z ^[[36;1mimport pathlib^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8174863Z ^[[36;1mimport subprocess^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8175143Z ^[[36;1mimport venv^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8175353Z ^[[36;1m^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8175623Z ^[[36;1mroot = pathlib.Path(os.environ["RUNNER_TEMP"])^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8175944Z ^[[36;1massets = root / "hypertest-mcp-release"^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8176319Z ^[[36;1mmanifest = json.loads((assets / "release-manifest.json").read_text())^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8176714Z ^[[36;1menvironment = root / "hypertest-mcp-wheel-smoke"^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8177065Z ^[[36;1mvenv.EnvBuilder(with_pip=True).create(environment)^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8177388Z ^[[36;1mpython = environment / "bin" / "python"^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8177958Z ^[[36;1msubprocess.run([str(python), "-m", "pip", "install",^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8178470Z ^[[36;1m                str(assets / manifest["wheel"]["filename"]) + "[interactive]"], check=True)^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8178873Z ^[[36;1msmoke = r'''^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8179132Z ^[[36;1mimport json^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8179391Z ^[[36;1mfrom importlib.resources import files^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8179708Z ^[[36;1mimport hypertest.interactive_client.__main__^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8180033Z ^[[36;1mimport hypertest.interactive_client.mcp_server^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8180355Z ^[[36;1mimport hypertest.interactive_client.setup^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8180705Z ^[[36;1massets = files("hypertest.interactive_client").joinpath("assets")^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8181177Z ^[[36;1massert json.loads(assets.joinpath("config.example.json").read_text())["api_url"]^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8181752Z ^[[36;1massert json.loads(assets.joinpath("session-sync.config.example.json").read_text())["host_adapter"]["kind"] == "unsupported"^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8182293Z ^[[36;1massert json.loads(assets.joinpath("mcp.example.json").read_text())["mcpServers"]^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8182782Z ^[[36;1massert "name: hypertest-interactive" in assets.joinpath("hypertest-interactive/SKILL.md").read_text()^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8183238Z ^[[36;1mprint("Installed MCP modules and bundled assets verified")^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8183557Z ^[[36;1m'''^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8183849Z ^[[36;1msubprocess.run([str(python), "-I", "-c", smoke], cwd=root, check=True)^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8184205Z ^[[36;1mfor command in ([], ["setup"], ["doctor"]):^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8184571Z ^[[36;1m    subprocess.run([str(python), "-I", "-m", "hypertest.interactive_client",^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8185033Z ^[[36;1m                    *command, "--help"], cwd=root, check=True)^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8185483Z ^[[36;1msubprocess.run([str(environment / "bin" / "hypertest-interactive"), "--help"], cwd=root, check=True)^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8185848Z ^[[36;1mPY^[[0m
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8216588Z shell: /usr/bin/bash -e {0}
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8216940Z env:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8217209Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8217735Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8218120Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8218485Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8218806Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8219158Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:52.8219461Z ##[endgroup]
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:54.7846150Z Processing /home/runner/work/_temp/hypertest-mcp-release/hypertest_one-0.2.0-py3-none-any.whl (from hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:54.8788102Z Collecting alembic<2.0,>=1.14 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:54.9337388Z   Downloading alembic-1.20.0-py3-none-any.whl.metadata (7.3 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:54.9922693Z Collecting asyncpg<1.0,>=0.30 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.0053405Z   Downloading asyncpg-0.32.0-cp312-cp312-manylinux_2_28_x86_64.whl.metadata (4.4 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.0852010Z Collecting fastapi<1.0,>=0.115 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.0983791Z   Downloading fastapi-0.156.8-py3-none-any.whl.metadata (26 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.1372340Z Collecting pydantic-settings<3.0,>=2.6 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.1500107Z   Downloading pydantic_settings-2.16.1-py3-none-any.whl.metadata (4.0 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.2470753Z Collecting pydantic<3.0,>=2.10 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.2599838Z   Downloading pydantic-2.14.1-py3-none-any.whl.metadata (133 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.4675814Z Collecting sqlalchemy<3.0,>=2.0.36 (from sqlalchemy[asyncio]<3.0,>=2.0.36->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.4807218Z   Downloading sqlalchemy-2.1.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (9.7 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.5205006Z Collecting uvicorn<1.0,>=0.32 (from uvicorn[standard]<1.0,>=0.32->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.5331866Z   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.6146511Z Collecting websockets<18,>=14 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.6277171Z   Downloading websockets-17.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.3 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.6652854Z Collecting httpx<1.0,>=0.28 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.6779998Z   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.7084901Z Collecting jsonschema<5,>=4.20 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.7216772Z   Downloading jsonschema-4.26.0-py3-none-any.whl.metadata (7.6 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.7500629Z Collecting mcp<2,>=1.28 (from hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.7626592Z   Downloading mcp-1.30.0-py3-none-any.whl.metadata (9.3 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.8007373Z Collecting Mako (from alembic<2.0,>=1.14->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.8135123Z   Downloading mako-1.4.3-py3-none-any.whl.metadata (2.9 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.8385240Z Collecting typing-extensions>=4.12 (from alembic<2.0,>=1.14->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.8514645Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.9102438Z Collecting starlette>=0.46.0 (from fastapi<1.0,>=0.115->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.9230676Z   Downloading starlette-1.9.0-py3-none-any.whl.metadata (6.6 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.9575672Z Collecting typing-inspection>=0.4.2 (from fastapi<1.0,>=0.115->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.9705263Z   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:55.9913733Z Collecting annotated-doc>=0.0.2 (from fastapi<1.0,>=0.115->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.0041541Z   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.0311240Z Collecting opentelemetry-api>=1.44.0 (from fastapi<1.0,>=0.115->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.0439065Z   Downloading opentelemetry_api-1.45.1-py3-none-any.whl.metadata (1.4 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.0702844Z Collecting anyio (from httpx<1.0,>=0.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.0829332Z   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.1241184Z Collecting certifi (from httpx<1.0,>=0.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.1367228Z   Downloading certifi-2026.10.19-py3-none-any.whl.metadata (2.5 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.1630288Z Collecting httpcore==1.* (from httpx<1.0,>=0.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.1757328Z   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.2005074Z Collecting idna (from httpx<1.0,>=0.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.2131948Z   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.2361076Z Collecting h11>=0.16 (from httpcore==1.*->httpx<1.0,>=0.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.2487875Z   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.2732956Z Collecting attrs>=22.2.0 (from jsonschema<5,>=4.20->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.2859131Z   Downloading attrs-26.1.0-py3-none-any.whl.metadata (8.8 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.3098415Z Collecting jsonschema-specifications>=2023.03.6 (from jsonschema<5,>=4.20->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.3225291Z   Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.3523565Z Collecting referencing>=0.28.4 (from jsonschema<5,>=4.20->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.3649542Z   Downloading referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.5213725Z Collecting rpds-py>=0.25.0 (from jsonschema<5,>=4.20->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.5344737Z   Downloading rpds_py-2026.9.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.1 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.8138152Z Collecting httpx-sse>=0.4 (from mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.8267938Z   Downloading httpx_sse-0.4.3-py3-none-any.whl.metadata (9.7 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.9037964Z Collecting pyjwt>=2.10.1 (from pyjwt[crypto]>=2.10.1->mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:56.9168393Z   Downloading pyjwt-2.15.1-py3-none-any.whl.metadata (3.5 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:57.2418148Z Collecting python-multipart>=0.0.9 (from mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:57.2549674Z   Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:57.4002559Z Collecting sse-starlette>=1.6.1 (from mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:57.4133528Z   Downloading sse_starlette-3.5.0-py3-none-any.whl.metadata (15 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:57.5930588Z Collecting annotated-types>=0.6.0 (from pydantic<3.0,>=2.10->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:57.6065366Z   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:58.0986381Z Collecting pydantic-core==2.50.1 (from pydantic<3.0,>=2.10->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:58.1121156Z   Downloading pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.5 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:58.3750339Z Collecting python-dotenv>=1.2.2 (from pydantic-settings<3.0,>=2.6->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:58.3879708Z   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:58.9157074Z Collecting greenlet>=1 (from sqlalchemy[asyncio]<3.0,>=2.0.36->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:58.9290100Z   Downloading greenlet-3.5.6-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.8 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:59.2749147Z Collecting click>=7.0 (from uvicorn<1.0,>=0.32->uvicorn[standard]<1.0,>=0.32->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:59.2877874Z   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:59.9423146Z Collecting httptools>=0.8.0 (from uvicorn[standard]<1.0,>=0.32->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:03:59.9553982Z   Downloading httptools-0.9.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (3.5 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:00.5726577Z Collecting pyyaml>=5.1 (from uvicorn[standard]<1.0,>=0.32->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:00.5855110Z   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.0644065Z Collecting uvloop>=0.15.1 (from uvicorn[standard]<1.0,>=0.32->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.0774925Z   Downloading uvloop-0.23.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.1 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.1733729Z Collecting watchfiles>=0.20 (from uvicorn[standard]<1.0,>=0.32->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.1862189Z   Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.3275007Z Collecting cryptography>=3.4.0 (from pyjwt[crypto]>=2.10.1->mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.3405606Z   Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (4.4 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.4229321Z Collecting MarkupSafe>=2.0 (from Mako->alembic<2.0,>=1.14->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.4357939Z   Downloading markupsafe-3.0.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.5062560Z Collecting cffi>=2.0.0 (from cryptography>=3.4.0->pyjwt[crypto]>=2.10.1->mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.5191328Z   Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.5 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.5501815Z Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->pyjwt[crypto]>=2.10.1->mcp<2,>=1.28->hypertest-one==0.2.0->hypertest-one==0.2.0)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.5629613Z   Downloading pycparser-3.11-py3-none-any.whl.metadata (8.2 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.5812652Z Downloading alembic-1.20.0-py3-none-any.whl (268 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.6085848Z Downloading asyncpg-0.32.0-cp312-cp312-manylinux_2_28_x86_64.whl (3.8 MB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.6592678Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.8/3.8 MB 76.5 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.6720045Z Downloading fastapi-0.156.8-py3-none-any.whl (147 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.6866404Z Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7012764Z Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7155752Z Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7303368Z Downloading mcp-1.30.0-py3-none-any.whl (234 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7576071Z Downloading pydantic-2.14.1-py3-none-any.whl (488 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7731627Z Downloading pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.2 MB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7816138Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.2/2.2 MB 313.0 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.7943322Z Downloading pydantic_settings-2.16.1-py3-none-any.whl (80 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.8089991Z Downloading sqlalchemy-2.1.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.7 MB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.8460117Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 127.9 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.8588479Z Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.8735715Z Downloading websockets-17.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (225 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.8884346Z Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9028298Z Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9171043Z Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9319255Z Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9465722Z Downloading click-8.5.0-py3-none-any.whl (125 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9611369Z Downloading greenlet-3.5.6-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (621 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9682465Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 621.4/621.4 kB 68.0 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9807153Z Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:01.9950999Z Downloading httptools-0.9.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (552 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0001437Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 552.8/552.8 kB 103.6 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0124657Z Downloading httpx_sse-0.4.3-py3-none-any.whl (9.0 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0266769Z Downloading idna-3.20-py3-none-any.whl (69 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0409732Z Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0554692Z Downloading opentelemetry_api-1.45.1-py3-none-any.whl (60 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0701238Z Downloading pyjwt-2.15.1-py3-none-any.whl (33 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0843003Z Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.0989352Z Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.1137374Z Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (807 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.1195962Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 807.9/807.9 kB 155.7 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.1322310Z Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.1470067Z Downloading rpds_py-2026.9.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (371 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.1623347Z Downloading sse_starlette-3.5.0-py3-none-any.whl (17 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.1909267Z Downloading starlette-1.9.0-py3-none-any.whl (80 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.2054968Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.2198841Z Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.2340726Z Downloading uvloop-0.23.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.5 MB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.2650563Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 146.7 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.2776866Z Downloading watchfiles-1.3.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (458 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.2929241Z Downloading certifi-2026.10.19-py3-none-any.whl (136 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.3075444Z Downloading mako-1.4.3-py3-none-any.whl (80 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.3221057Z Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl (4.8 MB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.3488506Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 180.9 MB/s eta 0:00:00
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.3615185Z Downloading markupsafe-3.0.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.3762084Z Downloading cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.3914445Z Downloading pycparser-3.11-py3-none-any.whl (51 kB)
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:02.4816788Z Installing collected packages: websockets, uvloop, typing-extensions, rpds-py, pyyaml, python-multipart, python-dotenv, pyjwt, pycparser, MarkupSafe, idna, httpx-sse, httptools, h11, greenlet, click, certifi, attrs, asyncpg, annotated-types, annotated-doc, uvicorn, typing-inspection, sqlalchemy, referencing, pydantic-core, opentelemetry-api, Mako, httpcore, cffi, anyio, watchfiles, starlette, pydantic, jsonschema-specifications, httpx, cryptography, alembic, sse-starlette, pydantic-settings, jsonschema, fastapi, mcp, hypertest-one
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:05.2031450Z Successfully installed Mako-1.4.3 MarkupSafe-3.0.4 alembic-1.20.0 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 asyncpg-0.32.0 attrs-26.1.0 certifi-2026.10.19 cffi-2.1.1 click-8.5.0 cryptography-50.0.2 fastapi-0.156.8 greenlet-3.5.6 h11-0.16.0 httpcore-1.0.9 httptools-0.9.0 httpx-0.28.1 httpx-sse-0.4.3 hypertest-one-0.2.0 idna-3.20 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 mcp-1.30.0 opentelemetry-api-1.45.1 pycparser-3.11 pydantic-2.14.1 pydantic-core-2.50.1 pydantic-settings-2.16.1 pyjwt-2.15.1 python-dotenv-1.2.4 python-multipart-0.0.32 pyyaml-6.0.3 referencing-0.37.0 rpds-py-2026.9.1 sqlalchemy-2.1.5 sse-starlette-3.5.0 starlette-1.9.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.54.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.3
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:05.2842483Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:05.2843146Z [notice] A new release of pip is available: 25.0.1 -> 26.2.2
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:05.2843686Z [notice] To update, run: /home/runner/work/_temp/hypertest-mcp-wheel-smoke/bin/python -m pip install --upgrade pip
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:05.9320500Z Installed MCP modules and bundled assets verified
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1106649Z usage: __main__.py [-h]
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1107823Z                    {daemon,stdio,stop,print-client-config,doctor,setup} ...
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1108412Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1108682Z HyperTest current-Agent MCP access
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1109100Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1109320Z positional arguments:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1109890Z   {daemon,stdio,stop,print-client-config,doctor,setup}
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1110659Z     setup               Explicit operator-authorized MCP installation
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1111104Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1111300Z options:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.1111779Z   -h, --help            show this help message and exit
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2396295Z usage: __main__.py setup [-h] --api-url API_URL --project-id PROJECT_ID
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2397209Z                          --directory DIRECTORY
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2398149Z                          [--operator-key-file OPERATOR_KEY_FILE]
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2398819Z                          [--ca-file CA_FILE] [--name NAME]
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2399444Z                          [--host {generic,codex-desktop}]
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2399855Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2400044Z options:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2400487Z   -h, --help            show this help message and exit
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2401083Z   --api-url API_URL
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2401559Z   --project-id PROJECT_ID
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2401995Z   --directory DIRECTORY
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2402546Z   --operator-key-file OPERATOR_KEY_FILE
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2403060Z   --ca-file CA_FILE
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2403536Z   --name NAME
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.2403950Z   --host {generic,codex-desktop}
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.3685723Z usage: __main__.py doctor [-h] --config CONFIG
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.3686860Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.3687688Z options:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.3688251Z   -h, --help       show this help message and exit
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.3688566Z   --config CONFIG
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4980940Z usage: hypertest-interactive [-h]
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4981608Z                              {daemon,stdio,stop,print-client-config,doctor,setup}
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4981996Z                              ...
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4982130Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4982287Z HyperTest current-Agent MCP access
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4982444Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4982564Z positional arguments:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4983252Z   {daemon,stdio,stop,print-client-config,doctor,setup}
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4983627Z     setup               Explicit operator-authorized MCP installation
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4983953Z 
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4984036Z options:
+release	Smoke the installed wheel outside the repository	2026-10-21T09:04:06.4984298Z   -h, --help            show this help message and exit
+release	Publish versioned assets	﻿2026-10-21T09:04:06.5328157Z ##[group]Run gh release create "$GITHUB_REF_NAME" \
+release	Publish versioned assets	2026-10-21T09:04:06.5328565Z ^[[36;1mgh release create "$GITHUB_REF_NAME" \^[[0m
+release	Publish versioned assets	2026-10-21T09:04:06.5328938Z ^[[36;1m  --verify-tag --title "HyperTest interactive MCP $GITHUB_REF_NAME" \^[[0m
+release	Publish versioned assets	2026-10-21T09:04:06.5329419Z ^[[36;1m  --notes-file "$RUNNER_TEMP/hypertest-mcp-release/INSTALL.md" \^[[0m
+release	Publish versioned assets	2026-10-21T09:04:06.5329768Z ^[[36;1m  "$RUNNER_TEMP/hypertest-mcp-release/"*^[[0m
+release	Publish versioned assets	2026-10-21T09:04:06.5360617Z shell: /usr/bin/bash -e {0}
+release	Publish versioned assets	2026-10-21T09:04:06.5360948Z env:
+release	Publish versioned assets	2026-10-21T09:04:06.5361303Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Publish versioned assets	2026-10-21T09:04:06.5361676Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+release	Publish versioned assets	2026-10-21T09:04:06.5362056Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Publish versioned assets	2026-10-21T09:04:06.5362419Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Publish versioned assets	2026-10-21T09:04:06.5362748Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+release	Publish versioned assets	2026-10-21T09:04:06.5363090Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+release	Publish versioned assets	2026-10-21T09:04:06.5365155Z   GH_TOKEN: ***
+release	Publish versioned assets	2026-10-21T09:04:06.5365401Z ##[endgroup]
+release	Publish versioned assets	2026-10-21T09:04:11.4941683Z https://github.com/ZhangLiangchen/hypertest-one/releases/tag/mcp-v0.2.0
+release	Post Run actions/setup-python@v5	﻿2026-10-21T09:04:11.5059293Z Post job cleanup.
+release	Post Run actions/setup-python@v5	2026-10-21T09:04:11.5970993Z (node:2234) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+release	Post Run actions/setup-python@v5	2026-10-21T09:04:11.5971825Z (Use `node --trace-deprecation ...` to show where the warning was created)
+release	Post Run actions/checkout@v4	﻿2026-10-21T09:04:11.6120288Z Post job cleanup.
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6803229Z [command]/usr/bin/git version
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6836406Z git version 2.55.0
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6888691Z Temporarily overriding HOME='/home/runner/work/_temp/aaf11653-4e76-41ca-9bcb-a90ef40d4f57' before making global git config changes
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6910942Z Adding repository directory to the temporary git global config as a safe directory
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6928737Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/hypertest-one/hypertest-one
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6930415Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.6931931Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.7098340Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.7128091Z http.https://github.com/.extraheader
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.7136419Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.7169709Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.7364042Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+release	Post Run actions/checkout@v4	2026-10-21T09:04:11.7390289Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+release	Complete job	﻿2026-10-21T09:04:11.7693606Z Cleaning up orphan processes
+release	Complete job	2026-10-21T09:04:11.7898538Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

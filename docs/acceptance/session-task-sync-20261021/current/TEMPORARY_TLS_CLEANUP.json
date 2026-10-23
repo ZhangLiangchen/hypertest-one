@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-21T10:04:21.391315+00:00",
+  "PID": 3688162,
+  "process_absent": true,
+  "termination": "SIGTERM; actual Uvicorn application shutdown complete and finished process log",
+  "wrapper_stop_record_present": false,
+  "explicit_engine_disposal_confirmed": false,
+  "closed_socket_metadata_before_removal": {
+    "inode": 503029,
+    "mode": "0600",
+    "uid": 0,
+    "mtime_ns": 1792576006252073822
+  },
+  "files_tokens_journals_retained": true,
+  "client_IPC_sockets": {
+    "/var/lib/hypertest-a18-client/remote-state/interactive.sock": false,
+    "/var/lib/hypertest-a18-client/mac-state/interactive.sock": false
+  },
+  "socket_path_absent": true
+}

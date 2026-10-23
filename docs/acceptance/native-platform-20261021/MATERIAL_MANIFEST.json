@@ -1,0 +1,150 @@
+{
+  "generated_at": "2026-10-21T07:07:51.160510+00:00",
+  "classification": "LOCAL_PLATFORM_ACCEPTANCE_RECORD",
+  "hash_purpose": "INTEGRITY_ONLY; neither hashes nor summaries prove SUT execution or trusted provenance",
+  "formal_sut_evidence": false,
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 17,
+      "sha256": "9241b1752dca8628d56eabecf53acf7d9c313f9e5a3d50fdc0c7492884904dab"
+    },
+    {
+      "path": "CAMPAIGN_SUMMARY.json",
+      "bytes": 3373,
+      "sha256": "15231ad298dee2095d33c00ac42ff2265eeed30cfd8dfb2ab381d6dfee2cb67e"
+    },
+    {
+      "path": "IMPLEMENTATION_VERIFICATION.json",
+      "bytes": 2716,
+      "sha256": "5e0a24ef7af51667d3250adfa05684d097c53e5f3211ada490979691b7f9be42"
+    },
+    {
+      "path": "REPORT.md",
+      "bytes": 8050,
+      "sha256": "9ce5e120633dae9bb6ab5a2a2852e5bd0e4c3a6b08c5cbcd5a73fcc75bdf173d"
+    },
+    {
+      "path": "TEST_PLAN.md",
+      "bytes": 2937,
+      "sha256": "e2850810f86304ddb910b3a57153ced8c983c75aa2925bd71f6db4631bd6c32b"
+    },
+    {
+      "path": "api-persistence-switch-stop.json",
+      "bytes": 273,
+      "sha256": "038c2f4e030ee9da4e5d0d45b7b8f9b98c79f21fd62ceb896c09f4382cb4257e"
+    },
+    {
+      "path": "blockchain-accepted-proposal.json",
+      "bytes": 50086,
+      "sha256": "b3503f62ba5d91994049cd8fd750bc0c0b9f1e3904ab3f3fcf019d2cb695216c"
+    },
+    {
+      "path": "blockchain-final-state.json",
+      "bytes": 192627,
+      "sha256": "efa23958a1a6e3f4e0940e244f26f407aef59e933e125b4e32fe517d9afb40d9"
+    },
+    {
+      "path": "blockchain-initial-state.json",
+      "bytes": 186907,
+      "sha256": "5fb84f78d5ed63e800d3a01f217f9043f8f2ab0e0859b39f0396a9609dffd140"
+    },
+    {
+      "path": "blockchain-post-handoff-state.json",
+      "bytes": 191049,
+      "sha256": "dc2d0fdd66041061845a5e6385eb97054c9e0604fe2470770960a195bf5cf611"
+    },
+    {
+      "path": "cli-evaluate.json",
+      "bytes": 345,
+      "sha256": "c9ca82d71fba299f3be20b39868f1a053567253c6a621d87884ab4dee375a4b6"
+    },
+    {
+      "path": "cli-operation.json",
+      "bytes": 1284,
+      "sha256": "4615a2f6e56c79affed434b67dba09cb5c5132c5cbcb25d034f83d96586ab3d8"
+    },
+    {
+      "path": "cli-xblock-state.json",
+      "bytes": 59784,
+      "sha256": "44c086faebc8a6dbe516fb76b1e5ad6f7ac26c0017b07ccc483a614f98825213"
+    },
+    {
+      "path": "database-state.json",
+      "bytes": 1652,
+      "sha256": "4b43849c90c2dda78541e68ccce33eeb0fa5f35f583b3eb58f0386863cd399a2"
+    },
+    {
+      "path": "http-one.json",
+      "bytes": 277447,
+      "sha256": "9bfa81830aa17ff9a5f257545401a9ce15ddec4862a1baaa0551c073afe06862"
+    },
+    {
+      "path": "http-readback.json",
+      "bytes": 630558,
+      "sha256": "900931893155fef93bb46a72c340d395092cf7e703e353a310f6528258565bd5"
+    },
+    {
+      "path": "http-two.json",
+      "bytes": 541023,
+      "sha256": "560294ab53479bea5c729631bf848caa4059aec4667842a396486500957d3863"
+    },
+    {
+      "path": "http_acceptance.py",
+      "bytes": 21221,
+      "sha256": "fb1676c908dd19e715c732b3711af11b8f238163568c4e2b31768c5a631b1620"
+    },
+    {
+      "path": "persistence-migration.json",
+      "bytes": 992,
+      "sha256": "cf06f528b4a1b32b10119341d96c0ff010d7dbd141cebb373916017c474141a4"
+    },
+    {
+      "path": "persistent-readback-initial-error.json",
+      "bytes": 346,
+      "sha256": "9caab19974102319d6aefbd70412f92a186047f9b77ee0ade3260540433259ce"
+    },
+    {
+      "path": "persistent-readback.json",
+      "bytes": 4362,
+      "sha256": "6f7f85ee94fc1d1fe3fee67c2933bc2efb68a0220359a15516b33e071f21b7f6"
+    },
+    {
+      "path": "privacy-verification.json",
+      "bytes": 423,
+      "sha256": "eba910606f976c427fdc56fa99c5e6be1d7df057d9c96a9c07781e0f5de39847"
+    },
+    {
+      "path": "runtime-identity.json",
+      "bytes": 1825,
+      "sha256": "0c150370f3d9589fb89716410d250c7f24cd1c2cc71bdfeaf6f143e8c00d6da9"
+    },
+    {
+      "path": "runtime-stopped.json",
+      "bytes": 697,
+      "sha256": "fa6a83c7dc35810d92b76e8d1bf5c8a1a363bab570499a5000f6784c7cb6c5c3"
+    },
+    {
+      "path": "xblock-accepted-proposal.json",
+      "bytes": 10654,
+      "sha256": "7a92e5c7408b0a114618b95156d95d62116e76c80e4f8b08acbbf25fb530fc52"
+    },
+    {
+      "path": "xblock-final-state.json",
+      "bytes": 59784,
+      "sha256": "44c086faebc8a6dbe516fb76b1e5ad6f7ac26c0017b07ccc483a614f98825213"
+    },
+    {
+      "path": "xblock-initial-state.json",
+      "bytes": 50478,
+      "sha256": "f4dc4adbc7c157176608baa3d3512e31ff6bdf0f0e2df1895c7d4b98b88d6551"
+    },
+    {
+      "path": "xblock-post-handoff-state.json",
+      "bytes": 54604,
+      "sha256": "d10c5e305fa215a55dab08f7375207eb652dcdce0a9bfbb2c0a4618449884f2f"
+    }
+  ],
+  "private_material_excluded": true,
+  "private_configuration_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021"
+}

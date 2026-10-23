@@ -1,0 +1,8 @@
+{
+  "old_pid": 3548537,
+  "new_pid": 3551094,
+  "reason": "Isolate HOME for non-root host API; preserve original PostgreSQL defaults/credentials",
+  "source": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150",
+  "uid": 999,
+  "host": "127.0.0.1:18101"
+}

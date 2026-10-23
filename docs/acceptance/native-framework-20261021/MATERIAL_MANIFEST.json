@@ -1,0 +1,133 @@
+{
+  "created_at": "2026-10-21T06:29:56.523239+00:00",
+  "classification": "local pending-verification materials; digests establish integrity only",
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 17,
+      "sha256": "9241b1752dca8628d56eabecf53acf7d9c313f9e5a3d50fdc0c7492884904dab"
+    },
+    {
+      "path": "inventory.json",
+      "bytes": 2838,
+      "sha256": "598205f67655abfbda3e180ea7d87db99e8b73c9d06854409ef14cdbc5974878"
+    },
+    {
+      "path": "environment.json",
+      "bytes": 6749,
+      "sha256": "3e8ddd76e26057da407aefa68d095bb488912c4b0da82404a6bf4ba857d9f7fc"
+    },
+    {
+      "path": "TEST_PLAN.md",
+      "bytes": 1802,
+      "sha256": "bea101b407fa2a150a7f31bad127e6b89a2f2bcbe484489298af1cf885bd6fad"
+    },
+    {
+      "path": "REPORT.md",
+      "bytes": 10101,
+      "sha256": "b6be2b45aaea031894bc072ae40aa67ecd665b152b833309c1d2ec233165e173"
+    },
+    {
+      "path": "NATIVE_RESULTS.json",
+      "bytes": 30806,
+      "sha256": "b09f53815b1714366dd3f7df0a43af35b9bf6515501a42207addc87a9eaf9179"
+    },
+    {
+      "path": "preservation.json",
+      "bytes": 4163,
+      "sha256": "c7b0e0b6b4282e8fb8191373829258e577d2fec6a7e0edff07ffc36c7141a81f"
+    },
+    {
+      "path": "blockchain-source.materialization.json",
+      "bytes": 20243,
+      "sha256": "dde6c1d1f3547027b2205d26c169120055fcef086c0b66d32ebd2e01f277410f"
+    },
+    {
+      "path": "xblock-selfcheck.process.json",
+      "bytes": 1469,
+      "sha256": "79c5cbbb613f23a2f1d70b6b4c9fcd4f456c541a841dff84c073e28c92700b4c"
+    },
+    {
+      "path": "xblock-selfcheck.stdout.jsonl",
+      "bytes": 3012,
+      "sha256": "bb3cee457480ac71b65d913d396bbcc518fa2b69c76ceca77f2c79a9275c128f"
+    },
+    {
+      "path": "xblock-selfcheck.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "xblock-scenarios.process.json",
+      "bytes": 2209,
+      "sha256": "eab5a1946d5dda49b4e26a3070c4b7ee96bf2aef6713d7bacff6b1f53494b421"
+    },
+    {
+      "path": "xblock-scenarios.stdout.jsonl",
+      "bytes": 15309,
+      "sha256": "7fe0121990dc646b60fb78fe461c94f89d02aeb938adb628a4922a300c1ba324"
+    },
+    {
+      "path": "xblock-scenarios.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "blockchain-maven-01.process.json",
+      "bytes": 1856,
+      "sha256": "bda2bc7ed47de6fee9f6dd02db88dca8abd29b4d5d350caf46cab345d808ec51"
+    },
+    {
+      "path": "blockchain-maven-01.stdout.log",
+      "bytes": 4669,
+      "sha256": "6b1e910c846af64b18bb2ee5897480ce7fbb4686c2bcccd9d16b0d16279b7421"
+    },
+    {
+      "path": "blockchain-maven-01.stderr.log",
+      "bytes": 996,
+      "sha256": "8dde88be75af03b2c2baa17d270fad74ddb6e6318b614195e0f74dc91c45ddd4"
+    },
+    {
+      "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest.xml",
+      "bytes": 34601,
+      "sha256": "180b3bac9b7faff677a7568e5a3a92956ecfb87e2d175fff65551ec428cd37d7"
+    },
+    {
+      "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest.xml",
+      "bytes": 34715,
+      "sha256": "35644644e902160720be50219223d08b3b9d008d3bf4d642c88a5101190a4b15"
+    },
+    {
+      "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest.xml",
+      "bytes": 33181,
+      "sha256": "9ba9b36723e278eff8cf59adc5b8ad3fd8f7c54ca452992bacccceb58d17f20a"
+    },
+    {
+      "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest.xml",
+      "bytes": 33260,
+      "sha256": "f142a28fdff7bcd08000f6f270be73aefd7ef68716613b43e76909334ee4ec07"
+    },
+    {
+      "path": "blockchain-surefire/org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest.txt",
+      "bytes": 419,
+      "sha256": "8d25018cc4ed7869c7a1874bac280ec7d8947025b2e34f68027af075aae8992a"
+    },
+    {
+      "path": "blockchain-surefire/org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest.txt",
+      "bytes": 431,
+      "sha256": "52accdaa31e66342f591a7634e9937dc48357bec57f9c3dc4b0f6785d2812a84"
+    },
+    {
+      "path": "blockchain-surefire/org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest.txt",
+      "bytes": 423,
+      "sha256": "7740807358c7de4aeab1bd72bf67d0a3bb0b7d894796395f1901d68d5b0b6f07"
+    },
+    {
+      "path": "blockchain-surefire/org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest.txt",
+      "bytes": 435,
+      "sha256": "a0fb0cd42601ee8705f4ad861888e1e4e9c9418469b3b595188d187bb0635138"
+    }
+  ],
+  "private_runtime": "ignored, local-only; excluded from manifest and version control",
+  "sensitive_materials_captured": false
+}

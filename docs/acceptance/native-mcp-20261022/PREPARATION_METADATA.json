@@ -1,0 +1,23 @@
+{
+  "prepared_at": "2026-10-22T02:49:32.610721+00:00",
+  "payload_source": "/Users/zhangliangchen/.local/share/hypertest/session-sync-dev-20261021/local-direct-mcp-20261021/before.json ->receipts[].request_payload",
+  "request_digest": "a3be2c5222fb7ac223297bc25f9907da60d1f06de2194d9a1453dd508395d10f",
+  "source_bundle_sha256": "278f5003a287746b5abba528eed1f04f2d1f31122f0b8fea5e39c37601662f3c",
+  "source_captured_at": "2026-10-21T15:33:54.750222+08:00",
+  "payload_matches_frozen_normalized_fields": true,
+  "previous_report_and_receipt_match": true,
+  "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+  "task_id": "01a15de5-9aca-76b4-bd57-c673112f2e92",
+  "expected_version": 0,
+  "accepted_version": 1,
+  "idempotency_key": "uc18-real-session-current-20261021-v1",
+  "case_count": 15,
+  "report_count": 2,
+  "local_journal_read_only": true,
+  "journal_state": "ACKED",
+  "journal_digest_matches": true,
+  "journal_result_equals_original_receipt": true,
+  "native_sync_expected_http_method": "GET original receipt, no POST for existing ACKED intent",
+  "mcp_or_api_or_sdk_calls_by_preparer": 0,
+  "token_values_included": false
+}
