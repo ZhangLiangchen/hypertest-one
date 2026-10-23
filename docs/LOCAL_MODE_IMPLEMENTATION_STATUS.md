@@ -1,5 +1,10 @@
 # HyperTest Local 实现与发行状态
 
+## 2026-10-23 生产 Web 上线补记
+
+PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上线。实际 Web 源码为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`；内部真实浏览器六条命令及已有用例 / 原始报告、外部严格 CA HTTPS 已验证。文中“待合并 / 待最终 gate”属于下方验收冻结时点；精确 image、保全、补证顺序和临时授权清理见[生产部署记录](LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。原 `local-v0.1.0` 包 / tag / 三摘要与三宿主证明保持不变；本次后续纯文档提交不代表部署新 Web 源码。
+
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

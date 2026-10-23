@@ -1,0 +1,474 @@
+{
+  "schema": "hypertest.local-production-web-deployment/v1alpha1",
+  "document_status": "DEPLOYED_AND_VERIFIED",
+  "recorded_date": "2026-10-23",
+  "timezone_for_timestamps": "UTC",
+  "entry_path": [
+    "项目页",
+    "本地会话任务",
+    "接入本地模式"
+  ],
+  "delivery_scope": "Production Web image only; Local management integration; no backend/Cloud/schema rollout or business SUT execution.",
+  "pull_request": {
+    "number": 23,
+    "url": "https://github.com/ZhangLiangchen/hypertest-one/pull/23",
+    "reviewed_head": "10de445c813dbad9e37201f1210d8595a35e206b",
+    "merge_commit": "b27c8c14c80dce46bc21a02c83daba7070cf8292",
+    "merge_tree_equals_reviewed_head": true
+  },
+  "ci": {
+    "run_number": 121,
+    "run_id": 39895747568,
+    "url": "https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39895747568",
+    "conclusion": "success",
+    "exact_checkout_head_both_jobs": "10de445c813dbad9e37201f1210d8595a35e206b",
+    "python": {
+      "passed": 1180,
+      "skipped": 21,
+      "warnings": 89
+    },
+    "web": {
+      "passed": 140,
+      "failed": 0,
+      "typecheck": "PASS",
+      "build": "PASS"
+    },
+    "ci_migration_scope": "CI only; no production schema migration."
+  },
+  "build": {
+    "source_commit": "b27c8c14c80dce46bc21a02c83daba7070cf8292",
+    "source_archive_sha256": "06dc406678b4a63986b91f842f9ef2cc2cfbafb2fdc016e1719b7b488f7aa6a7",
+    "source_file_count": 68,
+    "image": "sha256:559c62b7b394fd30bbe34aaf91dc3bbea05ffbe5a1480051d2ab5679cd4f1c2b",
+    "fixed_node_base": "node@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392",
+    "only_web_built": true,
+    "started_at": "2026-10-23T03:45:08.641589+00:00",
+    "finished_at": "2026-10-23T03:47:36.690003+00:00",
+    "build_receipt_deployed_flag": false,
+    "build_vs_deploy_note": "The build receipt stopped at image construction; completed production deployment is evidenced separately by the cutover receipt."
+  },
+  "cutover": {
+    "status": "DEPLOYED",
+    "started_at": "2026-10-23T03:52:44.016082+00:00",
+    "finished_at": "2026-10-23T03:53:13.187741+00:00",
+    "old_image": "sha256:c4f1ce4ef9d2a61b246999a7bf680f89dfa9e060018722f68d74898309714529",
+    "new_image": "sha256:559c62b7b394fd30bbe34aaf91dc3bbea05ffbe5a1480051d2ab5679cd4f1c2b",
+    "protected_check_count": 35,
+    "protected_checks": {
+      "application_root": true,
+      "application_sha": true,
+      "operations_root": true,
+      "bridge_root": true,
+      "schema": true,
+      "protected_configuration_sha256": true,
+      "protected_public_policy_sha256": true,
+      "sshd_effective": true,
+      "sshd_global": true,
+      "ssh_dropins": true,
+      "ufw_status_sha256": true,
+      "ufw_added_sha256": true,
+      "docker_user_rules_sha256": true,
+      "units": true,
+      "oauth_metadata": true,
+      "oauth_status": true,
+      "operations_manifest_sha256": true,
+      "operations_source_hashes": true,
+      "installed_bridge_source_hashes": true,
+      "current_alembic_hashes": true,
+      "directory_files": true,
+      "native_session_files": true,
+      "container_api": true,
+      "container_worker": true,
+      "container_postgres": true,
+      "container_nginx": true,
+      "canonical_rows": true,
+      "node_configuration": true,
+      "node_observation_monotonic": true,
+      "node_last_seen_monotonic": true,
+      "new_web_image": true,
+      "guard": true,
+      "active_empty": true,
+      "HTTP": true,
+      "compose_only_web_image": true
+    },
+    "all_35_checks_passed": true,
+    "compared_table_count": 74,
+    "compared_table_rows_and_hashes_unchanged": true,
+    "excluded_table_comparison": [
+      "worker_heartbeats",
+      "runtime_control_requests"
+    ],
+    "production_schema_before": "0022_session_task_sync",
+    "production_schema_after": "0022_session_task_sync",
+    "backend_worker_database_ingress_container_replaced": false,
+    "existing_services_preserved": true,
+    "historical_legacy_services_baseline": {
+      "hypertest-api": "inactive",
+      "hypertest-worker": "inactive",
+      "hypertest-web": "inactive",
+      "nginx": "failed"
+    },
+    "historical_legacy_services_baseline_unchanged": true,
+    "backup": {
+      "new_cold_backup_performed": false,
+      "prior_ADR016_verified_paired_backup_and_isolated_restore_boundary_retained": true,
+      "database_restore_performed": false
+    },
+    "rollback": {
+      "scope": "Web image only",
+      "triggered": false
+    },
+    "table_hash_comparison_window": "Web cutover before/after only; later three grant revocations are separate explicitly authorized row/audit changes.",
+    "check_interpretation": "34 snapshot-derived checks independently recomputed plus one reviewed runtime byte assertion (compose_only_web_image)."
+  },
+  "idle_supplement": {
+    "status": "PASS",
+    "collected_at": "2026-10-23T03:56:28.402159+00:00",
+    "timing": "POST_SWITCH_SUPPLEMENT_NOT_PRE_SWITCH_GATE",
+    "single_sql_same_snapshot_counts_and_complete_row_hash": true,
+    "maintenance_lock_acquired": true,
+    "maintenance_lock_is_database_write_fencing": false,
+    "four_nonterminal_counts": {
+      "QUEUED": 0,
+      "PROVISIONING": 0,
+      "RUNNING": 0,
+      "COLLECTING": 0
+    },
+    "current_table": {
+      "count": 11,
+      "rows_sha256": "5f95fa6ea87a604afc0f096cd075d3e03e190141cdb7b4c43695cc5de930f918"
+    },
+    "before": {
+      "collected_at": "2026-10-23T03:52:39.733815+00:00",
+      "test_executions": {
+        "count": 11,
+        "rows_sha256": "5f95fa6ea87a604afc0f096cd075d3e03e190141cdb7b4c43695cc5de930f918"
+      }
+    },
+    "after": {
+      "collected_at": "2026-10-23T03:53:09.150607+00:00",
+      "test_executions": {
+        "count": 11,
+        "rows_sha256": "5f95fa6ea87a604afc0f096cd075d3e03e190141cdb7b4c43695cc5de930f918"
+      }
+    },
+    "complete_row_digest_equal_before_after_and_supplement": true,
+    "missing_direct_pre_switch_test_execution_status_query_preserved": true
+  },
+  "remote_browser_ui": {
+    "status": "PASS",
+    "scope": "Actual remote internal production browser interaction; GET-only with no business writes.",
+    "request_count": 50,
+    "methods": [
+      "GET"
+    ],
+    "blocked_request_count": 0,
+    "page_errors": 0,
+    "console_errors": 0,
+    "installation_command_variant_count": 6,
+    "installation_command_variants": [
+      {
+        "host": "codex",
+        "automatic_hooks": false
+      },
+      {
+        "host": "codex",
+        "automatic_hooks": true
+      },
+      {
+        "host": "claude-code",
+        "automatic_hooks": false
+      },
+      {
+        "host": "claude-code",
+        "automatic_hooks": true
+      },
+      {
+        "host": "deepseek-harness",
+        "automatic_hooks": false
+      },
+      {
+        "host": "deepseek-harness",
+        "automatic_hooks": true
+      }
+    ],
+    "viewport_1440": {
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    "viewport_390": {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    "existing_task": {
+      "id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+      "version": 3,
+      "provider": "codex",
+      "status": "BLOCKED",
+      "reported_result": "FAIL",
+      "cases": 1,
+      "reports": 1,
+      "actual_source_visible": true,
+      "generic_Agent_labels": true,
+      "case_actual_and_report_markdown_preserved": true
+    },
+    "install_commands_executed_by_browser_probe": false
+  },
+  "independent_mac_https": {
+    "status": "PASS",
+    "observed_at": "2026-10-23T04:01:59.407003+00:00",
+    "request_count": 24,
+    "all_responses_status_200": true,
+    "html_documents": 1,
+    "javascript_resources": 21,
+    "existing_project_and_task_api_reads": 2,
+    "strict_existing_ca": true,
+    "hostname_verification": true,
+    "certificate_required": true,
+    "release_runtime_pins_match": {
+      "releaseTag": true,
+      "sourceCommit": true,
+      "bootstrapSha256": true,
+      "manifestSha256": true,
+      "bundleSha256": true
+    },
+    "existing_task_version": 3,
+    "existing_task_status": "BLOCKED",
+    "existing_task_reported_result": "FAIL",
+    "existing_case_reported_result": "FAIL",
+    "raw_report_bytes": 792,
+    "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+    "local_browser_executed": false,
+    "business_data_written": false,
+    "public_browser_end_to_end_claimed": false,
+    "client_rendering_boundary": "Strict HTTPS checks cover the HTML shell, referenced JavaScript bytes and existing Project/Task APIs; interactive hydration behavior is covered by the separate remote browser receipt.",
+    "GET_retry_errors_before_final_success": 1,
+    "retry_count_scope": "One JS SSL EOF retry in the final accepted pass; an earlier whole probe also encountered Task GET SSL EOF and is retained separately. No global single-error claim."
+  },
+  "local_release": {
+    "tag": "local-v0.1.0",
+    "url": "https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0",
+    "runtime_source_commit": "874569fa566a137eba77ac4852caa6052cb04a17",
+    "target_id": "darwin-arm64-py313",
+    "python_minor": "3.13",
+    "bootstrap_sha256": "cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a",
+    "manifest_sha256": "ba132292c57c740f0409728e3aa23ce93ecde39b5fa40a6d435dad03fb4531da",
+    "bundle_sha256": "e3c7ac8c5966e086c02e3d4b50abc8cd32787bc276d37c271c9949379255979f",
+    "exact_hosts": {
+      "claude-code": {
+        "versions": [
+          "2.1.218"
+        ]
+      },
+      "codex": {
+        "versions": [
+          "0.144.6"
+        ]
+      },
+      "deepseek-harness": {
+        "versions": [
+          "0.1.5-rc.1"
+        ]
+      }
+    },
+    "published_package_and_pins_changed": false,
+    "existing_four_assets_preserved": true,
+    "latest_release_tag_unchanged": "mcp-v0.2.0",
+    "linux_x86_64_py312": "CANDIDATE_ONLY",
+    "hooks_default": "OFF_UNTIL_EXPLICITLY_SELECTED_AND_VERIFIED",
+    "deepseek_boundary": {
+      "headless": "Actual installed official headless bundle observed.",
+      "resume_api": "agents.resume({resumeSessionId,agentOptions,setup})",
+      "resume_entry_surface": "Official Registry API cross-process resume through a bounded acceptance driver; no general installable headless resume CLI or SDK wire method was added.",
+      "sdk_two_turn_history": "Earlier SDK-only proof remains separate; it does not establish this production UI or general CLI behavior.",
+      "product_Stop_handler_invocation_count": "NOT_INDEPENDENTLY_INSTRUMENTED"
+    },
+    "business_sut_execution": "NOT_RUN",
+    "tag_object": "c919cdbd850d4ce9447d1c829ff177d41a78e7de",
+    "source_digest": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+    "release_assets": [
+      {
+        "id": 665735973,
+        "name": "hypertest-local-v0.1.0-darwin-arm64-py313.zip",
+        "size": 8515770,
+        "digest": "sha256:e3c7ac8c5966e086c02e3d4b50abc8cd32787bc276d37c271c9949379255979f"
+      },
+      {
+        "id": 665735957,
+        "name": "install-local-release.py",
+        "size": 21541,
+        "digest": "sha256:cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a"
+      },
+      {
+        "id": 665735959,
+        "name": "local-install-catalog.json",
+        "size": 5455,
+        "digest": "sha256:f307827acdf1f50cf74121e44f211ae6dd6b64551cdaeae196f59f73489e46a6"
+      },
+      {
+        "id": 665735960,
+        "name": "LOCAL_INSTALL.md",
+        "size": 13669,
+        "digest": "sha256:96cb4f10b86b2628495ae17acb776699425ad4ace5049828c4b402eedc6a6a06"
+      }
+    ]
+  },
+  "producer_cleanup": {
+    "status": "COMPLETE_WITH_HISTORY_PRESERVED",
+    "codex": {
+      "observer_groups_removed": 7,
+      "daemon_stopped": true,
+      "readback_complete_intents": 3,
+      "pending_events": 0,
+      "journal_unchanged": true
+    },
+    "claude_code": {
+      "observer_groups_removed": 8,
+      "daemon_stopped": true,
+      "readback_complete_intents": 4,
+      "pending_events": 0,
+      "journal_unchanged": true
+    },
+    "codex_owned_trust_keys_removed": 10,
+    "unrelated_codex_trust_entries_preserved": 17,
+    "deepseek_harness": {
+      "private_acceptance_profile_active": false,
+      "metadata_observer_active": false,
+      "daemon_socket_listening": false,
+      "readback_complete_intents": 4,
+      "pending_events": 0,
+      "history_and_journal_preserved": true
+    },
+    "native_history_bindings_snapshots_workspaces_failed_originals_preserved": true
+  },
+  "credential_cleanup": {
+    "status": "COMPLETE",
+    "temporary_grant_count": 3,
+    "revoke_POST_count": 3,
+    "all_revoke_HTTP_statuses": [
+      200,
+      200,
+      200
+    ],
+    "all_grants_status": "REVOKED",
+    "each_original_Bearer_GET_HTTP_status": 403,
+    "operator_header_on_original_Bearer_verification": false,
+    "strict_CA_on_original_Bearer_verification": true,
+    "revocation_receipt_sha256": "aed4866211f7800cd6784500ca0f8ed2e1b391af8bd9758e9caaf417c9e83e8a",
+    "original_bearer_403_verification_sha256": "18bda28c1cd9e14dd41fcc4147361281a314c926f4cd7cccaade6374e8b57da5",
+    "local_token_file_deletion_receipt_sha256": "511759f0a939d2370d9f4d9ae3b62021cb321940bd4d238b6c74d8dae378f770",
+    "remote_raw_carrier_deletion_receipt_sha256": "c0f338d518c8c45f9c7a88b13f0459f186bdb39b4047bef13d50efdffd2747f1",
+    "deleted_run_owned_token_files": 3,
+    "deleted_run_owned_raw_token_carriers": 2,
+    "state_file_count_preserved": 40,
+    "state_file_hashes_unchanged": true,
+    "Project_Tasks_all_versions_reports_native_history_and_journals_preserved": true,
+    "model_credentials_production_credentials_or_Cloud_resources_deleted": false
+  },
+  "disclosure_policy": {
+    "raw_commands_included": false,
+    "private_absolute_paths_included": false,
+    "entry_ip_included": false,
+    "secret_values_or_raw_tool_chat_included": false
+  },
+  "source_receipt_sha256": {
+    "web-build.json": "916a046a1dc9a6fe5dfd06d7f206e45dd322ffda8af6bc41fb8e1281e1928a63",
+    "web-cutover-result.json": "3389a4ee2002f2b3bc280384603877be37eb6a49557495fcca606adf733bdcdb",
+    "cutover-before.json": "a9336e97ae262e89f8f8b1f8e8a7208b3167f2d7ef0b9673d3148ec9d7b8df92",
+    "cutover-after.json": "67a784f4088c10f9d01ecaadab1124398eb9279c858d428e973557c8ebef9f16",
+    "local-project-ui-receipt.json": "dc32188fe6f72d04985fee3256fa81ad384f3d85db995c79e99f2ce4864c0a43",
+    "production-strict-https-verification.json": "568acffb46e942347e78c9ace67cfa1c315de3b1dbbc06e962abf1ec02204d93",
+    "test-execution-idle-supplement-single-snapshot.json": "8cc79d1e131feea12f09282b9b316b54fab7bb5aaec4d4fc5d2f87b3d1552d9d",
+    "claude-codex-cleanup-receipt.json": "665d48db0d0c843ce8c12dcb487d31ac43f55b10e70f148a6538f5cef89e6e28",
+    "deepseek-harness/cleanup-private-profile-receipt.json": "d187c7c4a1c00213bc66a66ae5a074b1ca7c92f9bd277b0e164aca1b2be49f6a",
+    "review-receipts/ci121-independent-review.json": "45057bd36983f377e65077fef22ec4b279e92f27316d6aee7cfbb2b6797a6cc1",
+    "merged-web-source.json": "2514a83f0c73f117d51fafd5784218110d9917b1fbacb16166b87baa6d6ca393",
+    "postdeploy-release-preservation.json": "78eda4f26714b5f60f46d85c3865dcf37049c0280f0e1998782fd6a4f583601a",
+    "deepseek-harness/native-matrix-final-receipt.json": "01a5ba99f44601d63381f2bf9b382529c0a6dffd86cbc6013a7eb359c7322685",
+    "revoke-state.json": "aed4866211f7800cd6784500ca0f8ed2e1b391af8bd9758e9caaf417c9e83e8a",
+    "original-bearer-revocation-verification.json": "18bda28c1cd9e14dd41fcc4147361281a314c926f4cd7cccaade6374e8b57da5",
+    "test-secret-local-cleanup-receipt.json": "511759f0a939d2370d9f4d9ae3b62021cb321940bd4d238b6c74d8dae378f770",
+    "remote-token-carrier-cleanup-receipt.json": "c0f338d518c8c45f9c7a88b13f0459f186bdb39b4047bef13d50efdffd2747f1",
+    "postcleanup-production-readback.json": "d74b5c250d4efafd383f367dbc4ba1037c9692540459653c0a7e29f6635d2b2f",
+    "final-readiness.json": "cdf959b4b88796d93a75313482a4842cec53834fa7b6ba555228e3921ad2bb74",
+    "review-receipts/production-deployment-independent-review.json": "da9b954bb1a14e50c163452912c83e567a785bc5f8cc48715c5fa31b6091ae44",
+    "review-receipts/postcleanup-deployment-independent-review.json": "876fa30fa9070d6b962239486005e4ed6b15c696bca2aa97ac737fb7d5ddc3e9"
+  },
+  "documentation_followup": {
+    "production_web_source_commit": "b27c8c14c80dce46bc21a02c83daba7070cf8292",
+    "later_documentation_only_commits_are_not_deployed_web_source": true,
+    "native_matrix_and_prior_release_evidence_immutable": true
+  },
+  "postcleanup_readback": {
+    "status": "PASS",
+    "observed_at": "2026-10-23T04:08:49.685559+00:00",
+    "project_id": "01a166a9-c5ca-78fc-8ef6-373a6f4ce2f0",
+    "project_HTTP_body_sha256": "258852456c238ee72fef05d46ff3500163ef9d3762b740440d32ad7dbcfa08f6",
+    "tasks": {
+      "codex": {
+        "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+        "version": 3,
+        "status": "BLOCKED",
+        "reported_result": "FAIL",
+        "provider": "codex",
+        "case_count": 1,
+        "case_reported_result": "FAIL",
+        "report_count": 1,
+        "raw_report_bytes": 792,
+        "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+        "HTTP_body_sha256": "c77f1de08e9f57164da694f204eb68e35b02a105bec31c2e36424523104cb3a6",
+        "preserved": true
+      },
+      "claude-code": {
+        "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+        "version": 4,
+        "status": "BLOCKED",
+        "reported_result": "FAIL",
+        "provider": "claude_code",
+        "case_count": 1,
+        "case_reported_result": "FAIL",
+        "report_count": 1,
+        "raw_report_bytes": 792,
+        "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+        "HTTP_body_sha256": "e57479f72489ae2bd7532da1dfbaa2b0c8a6c194c30f78239616c95a71098011",
+        "preserved": true
+      },
+      "deepseek-harness": {
+        "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "version": 4,
+        "status": "IN_PROGRESS",
+        "reported_result": "FAIL",
+        "provider": "deepseek_harness",
+        "case_count": 1,
+        "case_reported_result": "FAIL",
+        "report_count": 1,
+        "raw_report_bytes": 339,
+        "raw_report_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80",
+        "HTTP_body_sha256": "505cc1d2f53c5cc3769d7e7a87cbb477a21d56c7f6cd70b8ea4925aeebcbdf61",
+        "preserved": true
+      }
+    },
+    "five_containers_healthy": true,
+    "non_Web_container_identities_and_all_restart_counts_preserved": true,
+    "fixed_operations_readiness_checks": 10,
+    "fixed_operations_readiness": "PASS",
+    "standard_health_wrapper": "PREEXISTING_LEGACY_HOST_NGINX_FAILED_BASELINE_RETAINED",
+    "current_application_operations_bridge_links_unchanged": true,
+    "generic_readiness_unverified_flags": {
+      "external_vpn_boundary_verified": false,
+      "existing_application_data_verified": false,
+      "real_testing_cycle_verified": false,
+      "connector_tls_e2e_verified": false
+    }
+  },
+  "probe_history": {
+    "strict_HTTPS_initial_raw_HTML_assertion_revised": "The Local guide is client hydrated. Initial private probe expected its text in raw server HTML; changed only probe to verify HTML shell plus exact referenced JavaScript, while separate real browser interaction covers hydration.",
+    "strict_HTTPS_GET_failures": "Initial read-only pass encountered SSL EOF at Task GET; final bounded GET-only pass retained one SSL EOF retry then succeeded with strict CA/hostname validation. No TLS bypass.",
+    "idle_initial_inline_SQL_failed": "An independent read-only supplementary SQL attempt lost quoting and failed before returning data. A later single-statement original preserved receipt is the acceptance proof. No database mutation or pre-switch status-query claim."
+  },
+  "independent_deployment_review": {
+    "status": "PASS_WITH_EXPLICIT_LIMITS",
+    "production_deployment_review_sha256": "da9b954bb1a14e50c163452912c83e567a785bc5f8cc48715c5fa31b6091ae44",
+    "postcleanup_deployment_review_sha256": "876fa30fa9070d6b962239486005e4ed6b15c696bca2aa97ac737fb7d5ddc3e9"
+  }
+}
