@@ -1,0 +1,31 @@
+[Unit]
+Description=PowerContext dedicated TLS proxy
+After=network-online.target powercontext.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=powercontext-proxy
+Group=powercontext-proxy
+RuntimeDirectory=powercontext-proxy
+RuntimeDirectoryMode=0750
+ExecStartPre=/opt/powercontext/proxy/nginx-1.26.3-3+deb13u10/root/usr/sbin/nginx -t -c /etc/powercontext/proxy.conf
+ExecStart=/opt/powercontext/proxy/nginx-1.26.3-3+deb13u10/root/usr/sbin/nginx -c /etc/powercontext/proxy.conf
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGQUIT
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/powercontext-proxy /run/powercontext-proxy
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=64M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target

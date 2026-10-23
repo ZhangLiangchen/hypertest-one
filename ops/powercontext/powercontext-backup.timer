@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily consistent private PowerContext backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=900
+Persistent=true
+Unit=powercontext-backup.service
+
+[Install]
+WantedBy=timers.target

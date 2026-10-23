@@ -1,0 +1,11 @@
+[Unit]
+Description=Check PowerContext short-lived certificate renewal every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:00:00 UTC
+RandomizedDelaySec=900
+Persistent=true
+Unit=powercontext-cert-renew.service
+
+[Install]
+WantedBy=timers.target
