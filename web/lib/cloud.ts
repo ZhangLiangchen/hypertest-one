@@ -13,29 +13,49 @@ export type CloudConfiguration = {
 export type CloudConfigRevision = { id: string; revision: number; configuration: CloudConfiguration };
 export type CloudTask = { id: string; project_id: string; title: string; status: string; reported_result: CloudResult; version: number; latest_attempt_id?: string | null; config_id: string; inputs: CloudRecord; frozen_manifest?: CloudRecord | null; updated_at?: string };
 export type CloudAttempt = { id: string; status: string; reported_result: CloudResult; attempt_no: number; reason?: string | null; checkpoint: CloudRecord; runtime_metadata: CloudRecord; lease_generation: number };
-export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; observed_at: string };
+export type CloudRecoverySummary = {
+  resume_supported: boolean; resume_reason?: string; old_owner_fenced: boolean;
+  local_processes_stopped_observed: boolean; pending_operation_keys: string[];
+  remote_operations_reconciled: boolean; can_reconcile: boolean; blocking_reasons: string[];
+  reconciliation_source: string; budget_disposition: string;
+  phase: "ACTIVE" | "CANCELLATION_REQUESTED" | "STOP_UNCONFIRMED" | "RECONCILIATION_REQUIRED" | "TERMINATED";
+};
+export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; observed_at: string; recovery?: CloudRecoverySummary };
 export type CloudAsset = { id: string; attempt_id: string; kind: string; key: string; title: string; revision: number; task_version: number; markdown: string; details: CloudRecord; reported_result: CloudResult; artifact_id?: string | null };
 export type CloudDocument = { task: CloudTask; attempts: CloudAttempt[]; resolutions: CloudRecord[]; assets: CloudAsset[]; artifacts: CloudRecord[]; runs: CloudRecord[]; run_cases: CloudRecord[]; delegations: CloudRecord[]; questions: CloudRecord[]; answers: CloudRecord[] };
 export type CloudReceipt = { status: string; profile: string; project_id: string; operation_key: string; operation: string; version: number; task_id?: string; attempt_id?: string; config_id?: string; resolution_id?: string; credential_id?: string; credential_version_id?: string };
 export type CloudMutation = { profile: string; project_id: string; operation_key: string; expected_version: number; operation: string; [key: string]: unknown };
-export type CloudPending = { project_id: string; operation_key: string; expected_version: number; operation: string; task_id?: string; digest: string; state: "SENT" | "UNKNOWN" };
+export type CloudPending = { project_id: string; operation_key: string; expected_version: number; operation: string; task_id?: string; attempt_id?: string; digest: string; state: "SENT" | "UNKNOWN" };
 export type CloudCapabilities = { enabled?: boolean; worker_enabled?: boolean;
-  supported?: { codex_delegation?: boolean; claude_code_delegation?: boolean; ssh_fixed_diagnostics?: boolean; ssh_profile?: string };
+  supported?: { codex_delegation?: boolean; claude_code_delegation?: boolean; ssh_fixed_diagnostics?: boolean; ssh_profile?: string; resume_attempt?: boolean; reconcile_attempt?: boolean };
+  recovery?: { resume_supported?: boolean; resume_reason?: string; reconcile_supported?: boolean; reconciliation_source?: string; independent_stop_proof?: boolean; budget_disposition?: string };
   configuration?: { codex_enabled?: boolean; ssh_fixed_diagnostics_enabled?: boolean };
   admission?: { state?: string; scope?: string }; [key: string]: unknown };
 export type CloudCredential = { id: string; label: string; kind: string; purpose: string; allowed_targets: string[]; allowed_actions: string[]; version: number; status: string };
 export type CloudCredentialVersion = { id: string; credential_id: string; version: number; expires_at?: string | null };
 
 export class CloudApiError extends Error {
-  constructor(public readonly status: number, message: string) { super(message); this.name = "CloudApiError"; }
+  constructor(public readonly status: number, message: string, public readonly code?: string) { super(message); this.name = "CloudApiError"; }
+}
+
+export function cloudSubmissionIssue(error: CloudApiError): string {
+  if (error.status !== 409) return "REQUEST_REJECTED";
+  if (error.code === "OPERATION_KEY_CONFLICT" || error.message === "Cloud operation key conflicts with its original actor or request") return "OPERATION_KEY_CONFLICT";
+  if (error.code === "VERSION_CONFLICT" || ["Cloud Task version is stale", "Cloud configuration version is stale", "Credential version is stale"].includes(error.message)) return "VERSION_CONFLICT";
+  return error.code === "SDK_RESUME_UNSUPPORTED" ? "SDK_RESUME_UNSUPPORTED" : "REQUEST_PRECONDITION_REQUIRED";
 }
 
 export async function cloudRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/cloud/${path}`, { ...init, cache: "no-store", headers: { "Content-Type": "application/json", ...init?.headers } });
   if (!response.ok) {
     let detail = "Cloud request failed";
-    try { const body = await response.json(); if (typeof body.detail === "string") detail = body.detail; } catch { /* Never echo proxy HTML. */ }
-    throw new CloudApiError(response.status, detail);
+    let code: string | undefined;
+    try {
+      const body = await response.json();
+      if (typeof body.detail === "string") detail = body.detail;
+      if (["VERSION_CONFLICT", "SDK_RESUME_UNSUPPORTED", "REQUEST_PRECONDITION_REQUIRED", "OPERATION_KEY_CONFLICT"].includes(body.code)) code = body.code;
+    } catch { /* Never echo proxy HTML. */ }
+    throw new CloudApiError(response.status, detail, code);
   }
   return response.json() as Promise<T>;
 }
@@ -54,13 +74,14 @@ export function cloudReceiptMatches(pending: CloudPending, receipt: CloudReceipt
   return receipt.status === "ACCEPTED" && receipt.profile === CLOUD_PROFILE && receipt.project_id === pending.project_id
     && receipt.operation_key === pending.operation_key && receipt.operation === pending.operation
     && Number.isSafeInteger(receipt.version) && receipt.version === pending.expected_version + 1
-    && (!pending.task_id || receipt.task_id === pending.task_id);
+    && (!pending.task_id || receipt.task_id === pending.task_id)
+    && (!pending.attempt_id || receipt.attempt_id === pending.attempt_id);
 }
 
-export function canReleaseCloudPending(status: number, acknowledged: boolean): boolean {
+export function canReleaseCloudPending(status: number, acknowledged: boolean, issue?: string): boolean {
   // Timeouts and proxy/rate-limit failures are not proof that a write was rejected.
   // A denied readback after ACK also cannot release the original operation.
-  return !acknowledged && [400, 401, 403, 404, 405, 409, 413, 415, 422].includes(status);
+  return !acknowledged && issue !== "OPERATION_KEY_CONFLICT" && [400, 401, 403, 404, 405, 409, 413, 415, 422].includes(status);
 }
 
 export function cloudCredentialReceiptVisible(receipt: CloudReceipt, records: { credentials: CloudCredential[]; versions: CloudCredentialVersion[] }): boolean {
@@ -112,9 +133,11 @@ export function parseCloudPending(raw: string | null, projectId: string): CloudP
   const value = JSON.parse(raw) as CloudPending;
   if (value.project_id !== projectId || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value.operation_key)
     || !Number.isSafeInteger(value.expected_version) || value.expected_version < 0 || typeof value.operation !== "string"
+    || (value.task_id !== undefined && (typeof value.task_id !== "string" || !value.task_id || value.task_id.length > 128))
+    || (value.attempt_id !== undefined && (typeof value.attempt_id !== "string" || !value.attempt_id || value.attempt_id.length > 128))
     || !["SENT", "UNKNOWN"].includes(value.state) || !/^[a-f0-9]{64}$/.test(value.digest)) throw new Error("PENDING_RECORD_INVALID");
   return { project_id: value.project_id, operation_key: value.operation_key, expected_version: value.expected_version,
-    operation: value.operation, digest: value.digest, state: value.state, ...(value.task_id ? { task_id: value.task_id } : {}) };
+    operation: value.operation, digest: value.digest, state: value.state, ...(value.task_id ? { task_id: value.task_id } : {}), ...(value.attempt_id ? { attempt_id: value.attempt_id } : {}) };
 }
 
 /** Browser-safe SHA-256 for an HTTP deployment where Web Crypto may be unavailable. */

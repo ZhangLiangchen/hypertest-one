@@ -1,5 +1,7 @@
 # HyperTest 白皮书
 
+2026-10-23 P0 增补：Web 的 Cloud 与 Local CREATE 使用独立持久账本和原 key 对账；取消请求与停止确认分开，人工收尾声明不产生独立停止证明或预算结算权。当前 Cloud Worker 尚不支持 SDK 原会话续接。实现与部署见[P0 恢复交付](../P0_RECOVERY_DELIVERY_20261023.md)，不改变下文历史验收身份。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

@@ -60,12 +60,16 @@ async def capabilities():
                               "codex_enabled": settings.cloud_codex_enabled,
                               "ssh_fixed_diagnostics_enabled": settings.cloud_ssh_enabled},
             "admission": {"state": "NOT_CHECKED", "scope": "PER_ATTEMPT", "checked_by": "WORKER"},
+            "recovery": {"resume_supported": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
+                         "reconcile_supported": True, "reconciliation_source": "OPERATOR_ATTESTATION",
+                         "independent_stop_proof": False, "budget_disposition": "KEEP_HELD"},
             "supported": {"repositories": ["HTTPS"], "environment_connections": ["NONE"],
                           "execution": "WORKSPACE_LOCAL", "root_agent": True,
                           "codex_delegation": True, "claude_code_delegation": False,
                           "ssh": False, "ssh_fixed_diagnostics": True,
                           "ssh_profile": "SSH_FIXED_DIAGNOSTICS_V1",
-                          "remote_ci": False, "project_framework": True},
+                          "remote_ci": False, "project_framework": True,
+                          "resume_attempt": False, "reconcile_attempt": True},
             "not_proven": ["provider_authentication", "model_execution", "delegation", "production_acceptance"]}
 
 

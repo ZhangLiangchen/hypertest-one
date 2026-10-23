@@ -1,16 +1,17 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Form, Input, Radio, Select, Space, Spin, Typography } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-import { createLocalTask, errorText, getLocalTaskActors, getLocalTaskCreation } from "@/lib/api";
+import { errorText, getLocalTaskActors } from "@/lib/api";
 import { cloudCapabilities, cloudConfiguration, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
+import { useLocalCreateOperation } from "@/lib/local-create-operation";
 import { useI18n } from "@/lib/i18n";
-import { localTaskCreatePayload, localTaskCreateWasRejected, pendingLocalTaskCreation, validateLocalTaskCreation } from "@/lib/local-task-binding";
+import { localTaskCreatePayload } from "@/lib/local-task-binding";
 import type { LocalTaskCreateValues } from "@/lib/local-task-binding";
 import type { LocalTaskCreate } from "@/lib/types";
 import { createUuid } from "@/lib/uuid";
@@ -37,41 +38,21 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
   const latestConfig = configuration.data?.items.slice().sort((a, b) => b.revision - a.revision)[0];
   const initialActorResolved = useRef(false);
   const request = useRef<{ signature: string; payload: LocalTaskCreate } | null>(null);
-  const storageKey = `hypertest:local-task-create:${projectId}`;
-  const [unresolved, setUnresolved] = useState<LocalTaskCreate | null>(null);
-  const [storageError, setStorageError] = useState(false);
-  const accepted = (detail: Awaited<ReturnType<typeof createLocalTask>>) => {
-    try { window.sessionStorage.removeItem(storageKey); } catch { /* The accepted task can still be opened safely. */ }
-    setUnresolved(null);
+  const localOperation = useLocalCreateOperation(projectId);
+  const unresolved = localOperation.pending;
+  const storageError = localOperation.storageError;
+  const accepted = (detail: NonNullable<Awaited<ReturnType<typeof localOperation.submit>>>) => {
     queryClient.setQueryData(["session-task", detail.task.id], detail);
     void queryClient.invalidateQueries({ queryKey: ["session-task", detail.task.id] });
     void queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
     void queryClient.invalidateQueries({ queryKey: ["cloud-directory", projectId] });
     router.push(`/tasks/${detail.task.id}`);
   };
-  const creation = useMutation({
-    mutationFn: async (payload: LocalTaskCreate) => validateLocalTaskCreation(await createLocalTask(projectId, payload), projectId, payload.idempotency_key),
-    onSuccess: accepted,
-    onError: (error, payload) => {
-      if (localTaskCreateWasRejected(error)) {
-        try { window.sessionStorage.removeItem(storageKey); } catch { /* No accepted operation exists for a rejected request. */ }
-      } else setUnresolved(payload);
-    },
-  });
-  const reconciliation = useMutation({
-    mutationFn: async (payload: LocalTaskCreate) => validateLocalTaskCreation(await getLocalTaskCreation(projectId, payload.idempotency_key), projectId, payload.idempotency_key),
-    onSuccess: accepted,
-  });
   useEffect(() => {
-    try {
-      const raw = window.sessionStorage.getItem(storageKey);
-      if (!raw) return;
-      const payload = pendingLocalTaskCreation(raw, projectId);
-      initialActorResolved.current = true;
-      form.setFieldsValue({ ...payload, mode: "local" });
-      setUnresolved(payload);
-    } catch { setStorageError(true); }
-  }, [form, projectId, storageKey]);
+    if (!unresolved) return;
+    initialActorResolved.current = true;
+    form.setFieldsValue({ ...unresolved, mode: "local" });
+  }, [form, unresolved]);
   useEffect(() => {
     if (!actors.isSuccess || initialActorResolved.current) return;
     initialActorResolved.current = true;
@@ -79,7 +60,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
       form.setFieldValue("intended_actor_ref", actors.data.items[0].actor_ref);
     }
   }, [actors.isSuccess, actors.data, form]);
-  const localBlocked = creation.isPending || creation.isSuccess || Boolean(unresolved);
+  const localBlocked = localOperation.busy || localOperation.success || Boolean(unresolved);
   const cloudBlocked = cloudOperation.busy || Boolean(cloudOperation.pending) || cloudOperation.receipt?.operation === "CREATE_TASK";
   const cloudReadFailed = cloudSetupQuery.isError || capabilities.isError || configuration.isError;
   const refreshingCloud = cloudSetupQuery.isFetching || capabilities.isFetching || configuration.isFetching;
@@ -88,22 +69,18 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     if (setup.data?.configured) await Promise.all([capabilities.refetch(), configuration.refetch()]);
   };
   const submit = (values: TaskCreateValues) => {
-    if (values.mode !== "local" || localBlocked || cloudBlocked || storageError) return;
+    if (values.mode !== "local" || localBlocked || cloudBlocked || !localOperation.ready || storageError) return;
     const canonical = localTaskCreatePayload(values, "");
     const signature = JSON.stringify({ project_id: projectId, ...canonical });
     if (!request.current || request.current.signature !== signature) {
       request.current = { signature, payload: localTaskCreatePayload(values, createUuid()) };
     }
-    try {
-      window.sessionStorage.setItem(storageKey, JSON.stringify({ project_id: projectId, payload: request.current.payload }));
-      setStorageError(false);
-      creation.mutate(request.current.payload);
-    } catch { setStorageError(true); }
+    void localOperation.submit(request.current.payload).then((detail) => { if (detail) accepted(detail); });
   };
   return <><Form form={form} layout="vertical" initialValues={{ mode: "cloud", title: "", objective: "", plan_markdown: "", intended_actor_ref: null }}
     disabled={localBlocked || cloudBlocked} requiredMark="optional" onFinish={submit}
     onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}
-    onValuesChange={() => { if (creation.isError) creation.reset(); }}>
+    onValuesChange={localOperation.resetError}>
     <Form.Item name="mode" label={t("Execution mode", "执行方式")}>
       <Radio.Group aria-label={t("Execution mode", "执行方式")} options={[{ value: "cloud", label: t("Cloud execution", "云端执行") }, { value: "local", label: t("Local execution", "本地执行") }]} />
     </Form.Item>
@@ -124,9 +101,9 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
       {!selectedActor ? <Alert showIcon type="info" message={t("The task will wait for client authorization", "任务将等待客户端授权")} description={t("Arrange an existing Project-scoped Local connection, then select its client on the task page before binding.", "先按项目的本地接入引导准备有效授权，再在任务页选择对应客户端并绑定。") } style={{ marginBottom: 20 }} /> : null}
       <Form.Item name="plan_markdown" label={t("Initial test plan (optional, Markdown)", "初始测试计划（可选，Markdown）")} rules={[{ max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item>
     </> : null}
-    {storageError ? <Alert type="error" showIcon message={t("The pending request cannot be saved or read", "无法保存或读取未决请求")} description={t("Check browser session storage before creating a task. Preserve any earlier request key and reconcile it before creating another task.", "请检查浏览器会话存储后再创建任务。若已有请求标识，请保留并先完成查询对账，不要另建任务。") } action={<Button onClick={() => window.location.reload()}>{t("Reload page", "重载页面")}</Button>} style={{ marginBottom: 20 }} /> : null}
-    {mode === "local" && creation.isError && !unresolved ? <Alert type="error" showIcon message={t("Task was not created", "任务未创建")} description={<>{errorText(creation.error, locale)} {t("Your input is preserved. Review it before retrying.", "当前输入已保留，请检查后重试。")}</>} style={{ marginBottom: 20 }} /> : null}
-    {mode === "local" ? <Button type="primary" htmlType="submit" disabled={localBlocked || cloudBlocked || storageError} loading={creation.isPending || creation.isSuccess}>{t("Create test task", "创建测试任务")}</Button> : null}
+    {storageError ? <Alert type="error" showIcon message={t("The pending request cannot be saved or read", "无法保存或读取未决请求")} description={t("Check browser persistent storage before creating a task. Preserve any earlier request key and reconcile it before creating another task.", "请检查浏览器持久存储后再创建任务。若已有请求标识，请保留并先完成查询对账，不要另建任务。") } action={<Button onClick={() => window.location.reload()}>{t("Reload page", "重载页面")}</Button>} style={{ marginBottom: 20 }} /> : null}
+    {mode === "local" && Boolean(localOperation.error) && !unresolved ? <Alert type="error" showIcon message={t("Task was not created", "任务未创建")} description={<>{errorText(localOperation.error, locale)} {t("Your input is preserved. Review it before retrying.", "当前输入已保留，请检查后重试。")}</>} style={{ marginBottom: 20 }} /> : null}
+    {mode === "local" ? <Button type="primary" htmlType="submit" disabled={localBlocked || cloudBlocked || !localOperation.ready || storageError} loading={localOperation.busy || localOperation.success}>{t("Create test task", "创建测试任务")}</Button> : null}
   </Form>
   <CloudOperationNotice operation={cloudOperation} />
   <div hidden={mode !== "cloud"} style={{ marginTop: 24 }}>
@@ -137,12 +114,12 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     {cloudSetupQuery.isPending || cloudConfigured && capabilities.isPending ? <Spin aria-label={t("Checking Cloud access", "正在检查云端访问")} />
       : !cloudConfigured || capabilities.data?.enabled !== true ? <CloudCapabilitiesNotice configured={cloudConfigured} capabilities={capabilities.data} /> : null}
     {cloudReadFailed ? <Alert showIcon type="error" style={{ marginBottom: 20 }} message={t("Cloud configuration could not be refreshed", "无法刷新云端配置")} description={t("Your inputs and loaded configuration are preserved. Refresh Cloud configuration before creating a draft.", "当前输入和已读取的配置已保留，请刷新云端配置后再创建草稿。") } /> : null}
-    <CloudTaskForm config={latestConfig} operation={cloudOperation} enabled={cloudConfigured && capabilities.data?.enabled === true && !cloudReadFailed && !localBlocked && !storageError}
+    <CloudTaskForm config={latestConfig} operation={cloudOperation} enabled={cloudConfigured && capabilities.data?.enabled === true && !cloudReadFailed && !localBlocked}
       sharedFields={{ title, objective }} resourcesHref={`/projects/${projectId}/cloud?tab=resources`}
       onCreated={(taskId) => { void queryClient.invalidateQueries({ queryKey: ["cloud-directory", projectId] }); router.push(`/cloud-tasks/${taskId}?projectId=${projectId}`); }} />
   </div>
   <Button onClick={() => router.push(`/projects/${projectId}`)} style={{ marginTop: 20 }}>{t("Back to project", "返回项目")}</Button>
   {unresolved ? <Alert showIcon type="warning" style={{ marginTop: 24 }} message={t("Creation is unresolved: query the original request", "创建结果未决：请查询原请求")}
-    description={<><Typography.Paragraph>{t("Only a read-only lookup is allowed now. A missing receipt does not authorize resubmitting or changing the request key. Your draft and key are retained in this browser tab across reloads.", "当前仅查询原请求。尚未找到回执不代表可以重发或更换请求标识。本标签页重载后仍会保留草稿和请求标识。")}</Typography.Paragraph><Typography.Text code copyable>{unresolved.idempotency_key}</Typography.Text>{reconciliation.isError ? <Typography.Paragraph type="danger">{errorText(reconciliation.error, locale)}</Typography.Paragraph> : null}</>}
-    action={<Button loading={reconciliation.isPending} onClick={() => reconciliation.mutate(unresolved)}>{t("Query original request", "查询原请求")}</Button>} /> : null}</>;
+    description={<><Typography.Paragraph>{t("Only a read-only lookup is allowed now. A missing receipt does not authorize resubmitting or changing the request key. Your request and key are retained in this browser after closing and reopening tabs. Clearing site data or ending a private browsing session can remove them.", "当前仅查询原请求。尚未找到回执不代表可以重发或更换请求标识。关闭并重开标签页后，本浏览器仍会保留完整请求和标识。清除网站数据或结束隐私浏览会话会丢失这些记录。")}</Typography.Paragraph><Typography.Text code copyable>{unresolved.idempotency_key}</Typography.Text>{localOperation.error ? <Typography.Paragraph type="danger">{errorText(localOperation.error, locale)}</Typography.Paragraph> : null}</>}
+    action={<Button loading={localOperation.busy} onClick={() => void localOperation.reconcile().then((detail) => { if (detail) accepted(detail); })}>{t("Query original request", "查询原请求")}</Button>} /> : null}</>;
 }

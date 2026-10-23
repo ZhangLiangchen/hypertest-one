@@ -147,7 +147,8 @@ def inspect_sdk() -> dict[str, Any]:
         return {"sdk_version": sdk, "runtime_version": runtime,
                 "source_commit": SOURCE_COMMIT, "profile": "sdk",
                 "launch_executable": launch[0], "launch_paths": list(launch),
-                "supports_resume": callable(getattr(DeepSeekHarness, "resume_session", None)),
+                "sdk_resume_api_available": callable(getattr(DeepSeekHarness, "resume_session", None)),
+                "supports_resume": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
                 "per_session_cancel": False, "model_started": False}
     except ImportError as exc:
         raise CloudBlocked("SDK_UNAVAILABLE", "Pinned SDK/runtime cannot be loaded") from exc

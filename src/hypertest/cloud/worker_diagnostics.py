@@ -23,7 +23,8 @@ _FUNCTIONS = frozenset({"run", "run_once", "resolve", "execute", "collect", "con
     "apply_resource_limits", "write_workspace_receipt", "write_workspace_rejection", "_write_workspace_metadata",
     "read_workspace_file", "private_directory", "private_read", "private_create", "_reject_secrets",
     "worker_authority", "mutate", "_reserve_budget", "_settle_budget", "_state", "_usage", "_task",
-    "_attempt", "claim_attempt", "claim_resolution", "expire_leases", "enabled", "_events", "get", "record"})
+    "_attempt", "claim_attempt", "claim_resolution", "expire_leases", "enabled", "_events", "get", "record",
+    "safety_fence", "suspend_writes", "fence_for_recovery", "fence_attempt_for_recovery", "_require_writes"})
 _TYPES = frozenset({"CloudBlocked", "BrokerFailure", "ClientError", "SyncError", "SdkOperationError",
     "ValidationError", "KeyError", "TypeError", "ValueError", "AssertionError", "AttributeError",
     "RuntimeError", "HTTPException", "OSError", "PermissionError", "FileExistsError", "FileNotFoundError",
@@ -32,7 +33,7 @@ _TYPES = frozenset({"CloudBlocked", "BrokerFailure", "ClientError", "SyncError",
     "InterfaceError", "MissingGreenlet", "InvalidRequestError", "JSONDecodeError", "BrokenPipeError",
     "ConnectionError", "OTHER"})
 _STAGES = frozenset({"NAMESPACE_STOP", "RUNTIME_DIAGNOSTIC_WRITE", "WORKER_DIAGNOSTIC_WRITE",
-    "REPORT_PENDING_READ", "REPORT_TRANSITION", "REPORTER_CLOSE", "ENGINE_DISPOSE", "SSH_REMOTE_CLEANUP"})
+    "REPORT_PENDING_READ", "REPORT_TRANSITION", "REPORTER_CLOSE", "ENGINE_DISPOSE", "SSH_REMOTE_CLEANUP", "SAFETY_FENCE", "MODEL_BROKER_CLOSE"})
 _ROOT = Path(__file__).resolve().parents[1]
 
 

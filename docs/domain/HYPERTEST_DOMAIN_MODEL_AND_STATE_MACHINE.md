@@ -2360,6 +2360,8 @@ Task 还允许 DRAFT → CANCELLED；无 Attempt 的取消不伪造执行历史�
 
 ### 51.5 SDK 运行隔离、WAITING_INPUT 与 UNKNOWN
 
+2026-10-23 P0 恢复增补：当前固定 Worker 的 SDK 原会话续接未实现，静态能力与控制入口须据实拒绝新 RESUME_ATTEMPT，不因 SDK 方法存在而改变生命周期。人工 RECONCILE 仅允许有权限的操作者在服务端重新核对最新 RECOVERY_REQUIRED、旧 lease/token 已 fence、无 checkpoint/平台/远端未决操作及无活动委派后明确收尾为 FAILED 或 CANCELLED；不得清空 UNKNOWN key 以满足前置条件。停止观察引用与操作者声明追加为 operator-attested 元数据，不能改称独立停止/模型 drain 证明；reported_result、原 checkpoint、原件、回执及完整 HELD/preparation hold 保持。该增补不新增任务状态、执行身份或预算结算权。超时/异常/失联清理须先封闭普通 writer 并按原 owner/generation fence，再停止本地进程；失权 owner 仅保留原 key 读取与受限清理。
+
 每 Attempt 拥有独立 runtime、workspace、dsh_home；恢复仍归同 Attempt，但新运行进程/代次另记来源。官方 Python SDK 经 `dsh --profile sdk` 子进程通信，不是免进程调用或更快测试引擎。SDK/runtime 配对版本和能力探针结果随 Attempt 固定；不能把尚未提供的单 session cancel/close 或实时审批当成可用能力。DeepSeek 是唯一任务汇总者；平台 Worker 是唯一管理提交边界，子代理只贡献产物，不各自创建 Task 或获得管理写密钥。
 
 当前固定 Codex opt-in profile 的 `CloudDelegation.native_ref` 是官方 `subagent_codex` 工具返回的 external activation child UUID；另存官方 run UUID 与受控生命周期观察。它不是 Codex app-server 的产品 thread ID，不证明原生会话可恢复。责任与已接受资产由父任务 handoff 提供，status / terminal_observation 仅由 Worker 的已验证事件观察注入，Agent 不能自报。该 runtime-reported 来源仍不等于独立执行证明；只有实际子代理验收后才记录 observed，Claude Code 仍为 placeholder。
@@ -2473,6 +2475,8 @@ Cloud 消费方由 §51 和下节独立集成/验收拥有；Local 包不包含 
 CloudTaskReporter 只在当前 fenced Worker 内，经 CloudSyncAdapter 使用共享同步语义；CloudOperationReceipt 与 Attempt 私有报告账本不与 Local SyncReceipt/journal 合并。Task/Attempt UUID、lease/generation、操作类型和Project归属分别核对，共享 Project 或相同 key 文本不形成跨模式权限。
 
 ### 53.2 Cloud 冻结、接受与结果保全
+
+Web 未决请求使用浏览器 IndexedDB 事务持久账本，Cloud 与 Local CREATE 分别占据独立存储流，不新增 Canonical 领域表或跨模式 journal。Cloud 仅保存恢复所需的非秘密身份/key/version/digest/传输元数据，禁止保存秘密、PRD 和完整正文；Local CREATE 按 §50.5 保留完整冻结请求。事务内核验已有未决并写入原 key 后才允许单次 POST，失败闭锁；跨页响应按原 key 比较后更新/删除，旧 sessionStorage 冲突记录不得覆盖或丢弃。ACK 及完整固定接受版本读回均通过后才完成；关闭标签页不清除未决，NOT_FOUND 不授权重发。站点数据被用户删除、浏览器驱逐或私密浏览结束属于客户端保留能力限制，不据此补造回执或重写业务结果。
 
 正式阶段资产及非最终 REPORT 可以持续追加，版本、原件和来源必须可读回；SDK活动或子代理回答不成为业务进度和PASS。冻结后的完整请求/key/expected_version/适用generation不因重启、文件变化或换owner修改。SENT/UNKNOWN/NOT_FOUND只查原key；有效接受后按该固定版本完整分页/分块读回。安全取消或失租不删除未决请求；在途上传、领域接受、子进程/模型与远端动作分开对账，未知仍保留，不能自动重放或释放HELD。
 

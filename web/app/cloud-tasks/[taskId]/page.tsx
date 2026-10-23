@@ -2,13 +2,13 @@
 
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Checkbox, Descriptions, Form, Input, Space, Spin, Steps, Table, Tabs, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Form, Input, Space, Spin, Steps, Table, Tabs, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ReportedResultTag } from "@/app/tasks/task-records";
-import { CloudCapabilitiesNotice, CloudOperationNotice } from "@/app/projects/[projectId]/cloud/cloud-shared";
+import { CloudAttemptRecovery, CloudCapabilitiesNotice, CloudOperationNotice } from "@/app/projects/[projectId]/cloud/cloud-shared";
 import { cloudCapabilities, cloudCancellation, cloudConfiguration, cloudDocument, cloudOperationalView, cloudProgressTone, cloudSetup, cloudSummary } from "@/lib/cloud";
 import type { CloudRecord } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
@@ -21,10 +21,8 @@ const isUuid = (value: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]
 export default function CloudTaskPage() {
   const { taskId } = useParams<{ taskId: string }>(); const search = useSearchParams();
   const projectId = search.get("projectId") || "";
-  const { t, label } = useI18n(); const [reason, setReason] = useState(""); const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [recovery, setRecovery] = useState({ old_owner_fenced: false, local_processes_stopped: false, external_operations_reconciled: false, checkpoint_verified: false });
-  const [observations, setObservations] = useState("");
-  useEffect(() => { setReason(""); setAnswers({}); setRecovery({ old_owner_fenced: false, local_processes_stopped: false, external_operations_reconciled: false, checkpoint_verified: false }); setObservations(""); }, [projectId, taskId]);
+  const { t, label } = useI18n(); const [answers, setAnswers] = useState<Record<string, string>>({});
+  useEffect(() => { setAnswers({}); }, [projectId, taskId]);
   const operation = useCloudOperation(projectId);
   const setup = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup });
   const configured = setup.data?.configured === true;
@@ -102,21 +100,13 @@ export default function CloudTaskPage() {
             <Form.Item label={t("Answer within the existing authorization", "在现有授权范围内回答")} required><Input.TextArea rows={3} maxLength={16000} value={answers[String(question.id)] || ""} onChange={(event) => setAnswers((current) => ({ ...current, [String(question.id)]: event.target.value }))} /></Form.Item>
             <Button htmlType="submit" disabled={operation.blocked || !operational.valid || !answers[String(question.id)]?.trim()}>{t("Save answer", "保存回答")}</Button>
           </Form>) : null}
-          {["WAITING_INPUT", "RECOVERY_REQUIRED"].includes(attempt.status) ? <details style={{ marginTop: 20 }}><summary>{t("Reconcile and explicitly resume", "对账后显式恢复")}</summary>
-            <Typography.Paragraph className="muted">{t("Verify the original operation, old owner, processes and checkpoint first. These confirmations record your observations; they do not stop remote work or expand authorization.", "请先核对原操作、旧 owner、进程与 checkpoint；下列确认仅记录观察，不会停止远端执行或扩大授权。 ")}</Typography.Paragraph>
-            <Space direction="vertical">{(Object.keys(recovery) as (keyof typeof recovery)[]).map((key) => <Checkbox key={key} checked={recovery[key]} onChange={(event) => setRecovery((value) => ({ ...value, [key]: event.target.checked }))}>{({ old_owner_fenced: t("Old owner is fenced", "旧 owner 已隔离"), local_processes_stopped: t("Managed local processes are stopped", "受管本地进程已停止"), external_operations_reconciled: t("External operations are reconciled", "外部操作已对账"), checkpoint_verified: t("Original checkpoint is verified", "原 checkpoint 已核验") })[key]}</Checkbox>)}</Space>
-            <Form layout="vertical" style={{ marginTop: 16 }} onFinish={() => void mutate({ operation: "RESUME_ATTEMPT", attempt_id: attempt.id, reason: reason.trim(), reconciliation: { ...recovery, observations: observations.trim() } })}>
-              <Form.Item label={t("Observed evidence and original operation references", "观察证据及原操作引用")} required><Input.TextArea rows={3} value={observations} onChange={(event) => setObservations(event.target.value)} maxLength={16000} /></Form.Item>
-              <Form.Item label={t("Resume reason", "恢复原因")} required><Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={4096} /></Form.Item>
-              <Button htmlType="submit" disabled={blocked || !Object.values(recovery).every(Boolean) || !observations.trim() || !reason.trim() || !attempt.checkpoint.runtime_context}>{t("Request explicit resume", "请求显式恢复")}</Button>
-              {!attempt.checkpoint.runtime_context ? <Typography.Paragraph className="muted">{t("No recoverable runtime context has been saved. Resume remains blocked.", "尚无已保存的可恢复运行上下文，恢复保持阻塞。 ")}</Typography.Paragraph> : null}
-            </Form>
-          </details> : null}
+          <CloudAttemptRecovery key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} capabilities={capabilities.data} recovery={live.data?.recovery}
+            blocked={operation.blocked || !operational.valid} onSubmit={mutate} />
         </section> : null}
         {status && !["COMPLETED", "FAILED", "CANCELLED"].includes(status) ? <section className="overview-section"><Typography.Title level={2}>{t("Cancel this task or attempt", "取消当前任务或尝试")}</Typography.Title>
           <Typography.Paragraph className="muted">{t("Cancellation fences the writer first. Active or uncertain work stays in recovery until cleanup and external operations are reconciled.", "取消会先隔离写入权；活动或未知工作在清理及外部操作完成对账前保持待恢复。 ")}</Typography.Paragraph>
           <Typography.Paragraph className="muted">{t("This control records the fixed reason OPERATOR_REQUESTED_CANCELLATION. It remains a single keyed request, including when credential decryption is unavailable.", "本操作记录固定原因 OPERATOR_REQUESTED_CANCELLATION；即使凭据暂时无法解密，也使用同一个幂等请求完成隔离控制。 ")}</Typography.Paragraph>
-          <Button danger disabled={operation.blocked || !operational.valid} onClick={() => void mutate(cloudCancellation(attempt?.id))}>{t("Request cancellation", "请求取消")}</Button>
+          <Button danger disabled={operation.blocked || !operational.valid || attempt?.checkpoint.cancellation_requested === true} onClick={() => void mutate(cloudCancellation(attempt?.id))}>{attempt?.checkpoint.cancellation_requested === true ? t("Cancellation requested", "已请求取消") : t("Request cancellation", "请求取消")}</Button>
         </section> : null}
       </Space> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },

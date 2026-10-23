@@ -160,10 +160,11 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
     return { isSuccess: true, isLoading: false, isPending: false, isError: false, isFetching: false, data, refetch: async () => ({ data }) };
   };
   const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
-  const notices = load("app/projects/[projectId]/cloud/cloud-shared.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "next/link" ? link : require(name) });
+  const notices = load("app/projects/[projectId]/cloud/cloud-shared.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cloud-recovery" ? load("lib/cloud-recovery.ts") : name === "next/link" ? link : require(name) });
   const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n
     : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/cloud" ? cloud
       : name === "@/lib/cloud-operation" ? { useCloudOperation: () => { operationHookCalls++; return operation; } }
+        : name === "@/lib/local-create-operation" ? { useLocalCreateOperation: () => ({ ready: true, busy: false, success: false, pending: null, submit: async (payload) => { localWrites.push(payload); return null; }, resetError() {} }) }
         : name === "../../cloud/task-form" ? cloudForm : name === "../../cloud/cloud-shared" ? notices
           : name === "@/lib/uuid" ? { createUuid: () => "stable-key" }
             : name === "@tanstack/react-query" ? { useQuery: query, useMutation: () => ({ mutate: (payload) => localWrites.push(payload) }), useQueryClient: () => ({ invalidateQueries() {}, setQueryData() {} }) }
@@ -252,7 +253,8 @@ test("unified task creation preserves Local setup and keeps binding mutations ou
   assert.ok(list.includes("SessionTaskActions"));
   assert.ok(form.includes('value: "cloud"'));
   assert.ok(form.includes('value: "local"'));
-  assert.ok(form.includes("getLocalTaskCreation"));
+  assert.ok(form.includes("useLocalCreateOperation"));
+  assert.ok(fs.readFileSync(path.join(__dirname, "../lib/local-create-operation.ts"), "utf8").includes("getLocalTaskCreation"));
   assert.equal(form.includes("createRun"), false);
   assert.equal(form.includes("bootstrap"), false);
 });

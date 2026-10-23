@@ -544,6 +544,10 @@ async def test_fencing_cancels_active_git_preparation_before_second_repo_or_mode
         async def renew(self, seconds):
             await preparing.wait()
             raise CloudBlocked("WORKER_FENCED", "fixture revoked authority")
+        def suspend_writes(self):
+            pass
+        async def fence_for_recovery(self, reason, **kwargs):
+            assert reason == "WORKER_LEASE_UNCONFIRMED"
     class Reporter:
         def __init__(self, **kwargs):
             pass

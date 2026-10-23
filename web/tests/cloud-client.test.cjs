@@ -90,70 +90,56 @@ test("Repository selectors reject embedded credentials and freeze complete SHA o
   for (const base of ["--exec=secret", "refs/heads/../main", "main.lock", "refs/heads/main:other", "main@{1}"]) assert.throws(() => cloudSelector("MR", "3", "HEAD", base));
 });
 
-// Execute the actual hook with a bounded lifecycle substrate; browser validation
-// still owns real React navigation, forms and rendering behavior.
-function operationHarness(overrides = {}) {
-  const client = helpers(); const slots = [], effects = [], data = new Map(); let cursor = 0, sequence = 0;
-  const sessionStorage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: (key) => data.delete(key) };
-  const react = {
-    useState(initial) { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], (value) => { slots[index] = typeof value === "function" ? value(slots[index]) : value; }]; },
-    useRef(initial) { const index = cursor++; if (!(index in slots)) slots[index] = { current: initial }; return slots[index]; },
-    useEffect(effect, dependencies) { const index = cursor++, before = slots[index]; if (!before || dependencies.some((value, i) => value !== before[i])) { slots[index] = dependencies; effects.push(effect); } },
-  };
-  const hook = load("lib/cloud-operation.ts", { sessionStorage,
-    require: (name) => name === "react" ? react : name === "@/lib/uuid" ? { createUuid: () => `operation-${++sequence}` } : name === "@/lib/cloud" ? { ...client, ...overrides } : require(name),
-  });
-  const render = (projectId) => { cursor = 0; const value = hook.useCloudOperation(projectId); while (effects.length) effects.shift()(); return value; };
-  return { render, data, client };
-}
+const { operationHarness, until, document: completeDocument } = require("./operation-harness.cjs");
 
 test("An old Project response settles only its own key and cannot clear the next Project's pending write", async () => {
   let finish, posts = 0;
   const pendingResponse = new Promise((resolve) => { finish = resolve; });
-  const harness = operationHarness({ cloudRequest: async () => { posts++; return pendingResponse; }, cloudDocument: async () => ({}) });
-  harness.render("project-a"); const first = harness.render("project-a");
-  const submitted = first.submit({ operation: "CREATE_TASK", expected_version: 0 });
-  const original = JSON.parse(harness.data.get(harness.client.cloudStorageKey("project-a")));
+  const harness = operationHarness({ cloudRequest: async () => { posts++; return pendingResponse; }, cloudDocument: async (project, task, version) => completeDocument(project, task, version) });
+  await harness.mount("project-a");
+  const submitted = harness.render().submit({ operation: "CREATE_TASK", expected_version: 0 });
+  await until(() => posts === 1);
+  const [original] = await harness.journal.read("project-a");
   const second = { project_id: "project-b", operation_key: "web:kept-original", expected_version: 2, task_id: "task-b", operation: "DISPATCH", state: "UNKNOWN", digest: "b".repeat(64) };
-  harness.data.set(harness.client.cloudStorageKey("project-b"), JSON.stringify(second));
-  harness.render("project-b");
+  await harness.journal.importLegacy(second);
+  await harness.mount("project-b");
   finish({ status: "ACCEPTED", profile: harness.client.CLOUD_PROFILE, project_id: "project-a", task_id: "task-a", operation_key: original.operation_key, operation: "CREATE_TASK", version: 1 });
   assert.equal(await submitted, null, "must not navigate back to the previous Project");
   const next = harness.render("project-b");
   assert.equal(next.pending.operation_key, second.operation_key);
-  assert.equal(harness.data.has(harness.client.cloudStorageKey("project-a")), false);
-  assert.equal(JSON.parse(harness.data.get(harness.client.cloudStorageKey("project-b"))).operation_key, second.operation_key);
+  assert.equal((await harness.journal.read("project-a")).length, 0);
+  assert.equal((await harness.journal.read("project-b"))[0].operation_key, second.operation_key);
   assert.equal(await next.submit({ operation: "CREATE_TASK", expected_version: 0 }), null);
-  assert.equal(posts, 1);
+  assert.equal(posts, 1); harness.close();
 });
 
 test("Timeout and NOT_FOUND reconciliation preserve the original key and never repeat a POST", async () => {
   let posts = 0, queried;
   const harness = operationHarness({ cloudRequest: async () => { posts++; throw new harness.client.CloudApiError(408, "timeout"); }, cloudOperation: async (_project, key) => { queried = key; throw new harness.client.CloudApiError(404, "not found"); } });
-  harness.render("project-a");
-  await harness.render("project-a").submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 });
-  const pending = harness.render("project-a");
+  await harness.mount("project-a");
+  await harness.render().submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 });
+  const pending = harness.render();
   assert.equal(pending.pending.state, "UNKNOWN");
   const original = pending.pending.operation_key;
   await pending.reconcile();
-  const retained = harness.render("project-a");
+  const retained = harness.render();
   assert.equal(queried, original);
   assert.equal(retained.pending.operation_key, original);
   assert.equal(retained.blocked, true);
-  assert.equal(posts, 1);
+  assert.equal(posts, 1); harness.close();
 });
 
 test("A definitive version rejection keeps the submitted key visible without automatically retrying", async () => {
   let posts = 0;
-  const harness = operationHarness({ cloudRequest: async () => { posts++; throw new harness.client.CloudApiError(409, "Refresh the accepted version"); } });
-  harness.render("project-a");
-  await harness.render("project-a").submit({ operation: "RESOLVE_INPUTS", task_id: "task-a", expected_version: 4 });
-  const rejected = harness.render("project-a");
+  const harness = operationHarness({ cloudRequest: async () => { posts++; throw new harness.client.CloudApiError(409, "Refresh the accepted version", "VERSION_CONFLICT"); } });
+  await harness.mount("project-a");
+  await harness.render().submit({ operation: "RESOLVE_INPUTS", task_id: "task-a", expected_version: 4 });
+  const rejected = harness.render();
   assert.equal(rejected.issue, "VERSION_CONFLICT");
-  assert.equal(rejected.rejectedOperation.operation_key, "web:operation-1");
+  assert.equal(rejected.rejectedOperation.operation_key, "web:operation-one-1");
   assert.equal(rejected.rejectedOperation.expected_version, 4);
   assert.equal(rejected.pending, null);
-  assert.equal(posts, 1);
+  assert.equal(posts, 1); harness.close();
 });
 
 test("Cancellation uses only the fixed operator fence reason for tasks and attempts", () => {
@@ -239,10 +225,10 @@ test("A delivered task can reach execution/report while retaining its original r
 test("Browser reconciliation only reads the original key and retains the pending stream", () => {
   const source = fs.readFileSync(path.join(__dirname, "../lib/cloud-operation.ts"), "utf8");
   const reconciliation = source.slice(source.indexOf("async function reconcile"));
-  assert.ok(reconciliation.includes("cloudOperation(projectId, current.current.operation_key)"));
+  assert.ok(reconciliation.includes("cloudOperation(projectId, original.operation_key)"));
   assert.equal(reconciliation.includes('method: "POST"'), false);
-  assert.ok(source.indexOf("save(original)") < source.indexOf('method: "POST"'));
-  assert.ok(source.includes('state: "UNKNOWN"'));
+  assert.ok(source.indexOf("await cloudJournal.reserve(candidate)") < source.indexOf('method: "POST"'));
+  assert.ok(source.includes("await cloudJournal.markUnknown(original)"));
   assert.ok(source.includes("const { secret: _secret, ...safeIdentity }"));
   assert.equal(source.includes("setInterval"), false);
 });

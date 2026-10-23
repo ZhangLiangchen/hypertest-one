@@ -30,27 +30,47 @@ class CloudBroker:
         self.identity = service.WorkerIdentity(worker_id, claim["lease_token"],
             claim["generation"], claim["work_token"])
         self.actor_ref = "worker:" + worker_id
+        self.writes_suspended = False
+
+    def suspend_writes(self):
+        self.writes_suspended = True
+
+    def _require_writes(self):
+        if self.writes_suspended:
+            raise CloudBlocked("WORKER_WRITES_SUSPENDED", "Worker may only reconcile original operations after interruption")
+
+    async def fence_for_recovery(self, reason, *, metadata=None):
+        self.suspend_writes()
+        async with self.sessions() as db:
+            return await service.fence_attempt_for_recovery(db, UUID(self.task_id), UUID(self.attempt_id),
+                self.identity, reason, metadata=metadata)
 
     async def assert_current(self):
+        self._require_writes()
         async with self.sessions() as db:
+            self._require_writes()
             task = await service._task(db, UUID(self.task_id), UUID(self.project_id))
             attempt = await service._attempt(db, task, UUID(self.attempt_id))
             await service.worker_authority(db, task, attempt, self.identity)
 
     async def renew(self, lease_seconds: int):
+        self._require_writes()
         async with self.sessions() as db:
             return await service.renew_lease(db, UUID(self.attempt_id), self.identity.worker_id,
                 self.identity.lease_token, self.identity.generation, self.identity.work_token,
                 lease_seconds=lease_seconds)
 
     async def credentials(self):
+        self._require_writes()
         async with self.sessions() as db:
             return await service.materialize_credentials(db, UUID(self.task_id), UUID(self.attempt_id), self.identity)
 
     async def submit(self, payload: dict):
+        self._require_writes()
         typed = TypeAdapter(CloudMutation).validate_python(payload)
         try:
             async with self.sessions() as db:
+                self._require_writes()
                 return await service.mutate(db, typed, self.actor_ref, worker=self.identity)
         except HTTPException as error:
             raise BrokerFailure(error.status_code, "CLOUD_OPERATION_REJECTED") from None

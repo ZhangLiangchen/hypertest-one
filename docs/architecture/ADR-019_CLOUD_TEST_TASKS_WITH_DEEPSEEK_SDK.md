@@ -137,6 +137,8 @@ SDK 是执行控制通道，报告由当前持有效 lease / generation 和短�
 
 ## 6. 完成、取消与恢复
 
+2026-10-23 实施增补：当前受控 Worker 尚未实现原 SDK 会话续接；SDK 包暴露的 resume 方法不等于平台能力，能力响应与 Web 明确不支持，服务端拒绝新 RESUME_ATTEMPT。真实续接需独立核验原会话/工作区/未决操作/剩余预算后另项实施。人工 RECONCILE 复用 RECOVERY_REQUIRED 收尾：有权操作者携原停止/对账观察与声明，服务端重新核验版本、writer fence、checkpoint/平台/外部未决和委派；未知不清空、不重放。声明来源为 operator-attested，不证明独立停止或模型 drain；FAILED/CANCELLED 收尾保留 reported_result、历史及全部 HELD/preparation hold。超时/异常/失联先封闭普通 broker 写并安全 fence，再停止本地树。
+
 CloudTask 主进度为 `DRAFT → QUEUED → PREPARING → RUNNING → COMPLETED`；需要输入时进入 WAITING_INPUT，回答后显式回到 PREPARING 重查，再进入 RUNNING。另保留 `FAILED / CANCELLED / RECOVERY_REQUIRED`；精确合法迁移由领域 §51 规定。`reported_result=NOT_RUN|PASS|FAIL|ERROR|SKIPPED|UNKNOWN|BLOCKED` 独立表达测试结果。完成的任务可以报告 FAIL 或 BLOCKED；进程成功、根 idle、上传成功都不自动产生 PASS。
 
 只有已核对执行尝试、委派终态、阶段交付和原始结果，且不存在未知外部操作时，才允许业务完成。无法解析的原件仍可保存，但不得推定具体用例 PASS。reported 结果保留来源和原文，不自动成为 legacy VERIFIED Evidence、FINAL Verdict 或 RELEASE_READY。

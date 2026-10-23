@@ -21,7 +21,7 @@ from hypertest.application.services import create_project
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudTask, CloudWorkGrant, CredentialVersion
+from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask, CloudWorkGrant, CredentialVersion
 from hypertest.domain.session_tasks import SessionTask
 from hypertest.main import app
 
@@ -273,6 +273,122 @@ async def test_running_cancel_fences_worker_and_requires_observed_reconciliation
         retry_of_attempt_id=latest["attempt_id"], reason="Explicit same-input fixture retry")
     assert retry.status_code == 200, retry.text
     assert retry.json()["attempt_id"] != latest["attempt_id"]
+
+
+async def test_recovery_capabilities_disable_unimplemented_resume_without_new_claim(cloud_context):
+    context = cloud_context
+    capabilities = (await context["client"].get("/api/v1/cloud/capabilities")).json()
+    assert capabilities["supported"]["resume_attempt"] is False
+    assert capabilities["recovery"]["resume_reason"] == "SDK_RESUME_UNSUPPORTED"
+    receipt, _, identity = await claimed(context)
+    recovery = await worker_submit(context, identity, receipt, "TRANSITION", status="RECOVERY_REQUIRED",
+        checkpoint={"session_id": "original-session", "workspace_id": "original-workspace"})
+    resumed = await post(context, "RESUME_ATTEMPT", recovery["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], reason="Cannot resume without implemented runtime support",
+        reconciliation={"old_owner_fenced": True, "local_processes_stopped": True,
+            "external_operations_reconciled": True, "checkpoint_verified": True, "observations": "Synthetic fixture"})
+    assert resumed.status_code == 409 and "SDK_RESUME_UNSUPPORTED" in resumed.text
+    async with AsyncSessionLocal() as db:
+        assert await service.claim_attempt(db, "restart-worker", project_id=UUID(context["project_id"])) is None
+    assert (await read_all(context, receipt["task_id"], recovery["version"]))["attempts"][-1]["checkpoint"]["runtime_context"]["session_id"] == "original-session"
+
+
+async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_hold(cloud_context):
+    context = cloud_context
+    receipt, _, identity = await claimed(context)
+    receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
+        budget_reservation={"reserved_seconds": 60, "request_limits": [
+            {"scope": "ROOT", "max_requests": 1, "cost_per_request_microunits": 100}]})
+    original = await read_all(context, receipt["task_id"], receipt["version"])
+    key = "cancel-lost-response-" + uuid4().hex
+    cancelled = await post(context, "CANCEL_ATTEMPT", receipt["version"], operation_key=key,
+        task_id=receipt["task_id"], attempt_id=receipt["attempt_id"], reason="Synthetic cancellation")
+    assert cancelled.status_code == 200
+    restored = await context["client"].get(f"/api/v1/cloud/projects/{context['project_id']}/operations/{key}", headers=context["headers"])
+    assert restored.status_code == 200 and restored.json() == cancelled.json()
+    summary = (await context["client"].get(f"/api/v1/cloud/tasks/{receipt['task_id']}/summary",
+        params={"project_id": context["project_id"]}, headers=context["headers"])).json()
+    assert summary["recovery"]["phase"] == "STOP_UNCONFIRMED"
+    assert summary["recovery"]["old_owner_fenced"] is True
+    assert summary["recovery"]["local_processes_stopped_observed"] is False
+    assert summary["recovery"]["can_reconcile"] is True
+    fields = dict(task_id=receipt["task_id"], attempt_id=receipt["attempt_id"], status="FAILED",
+        reason="Manual fixture finish", reconciliation={"old_owner_fenced": True,
+            "local_processes_stopped": True, "external_operations_reconciled": True,
+            "observations": "Operator checked the synthetic fixture; no model or process ran",
+            "source": "INDEPENDENT_STOP_PROOF", "independent_process_stop_proof": True,
+            "independent_stop_proof": True, "model_drain_observed": True,
+            "reconciliation_source": "INDEPENDENT_STOP_PROOF", "arbitrary_stop_proof": "must not persist",
+            "model_budget_disposition": "RELEASE"})
+    finished = await post(context, "RECONCILE_ATTEMPT", cancelled.json()["version"], **fields)
+    assert finished.status_code == 200, finished.text
+    final = await read_all(context, receipt["task_id"], finished.json()["version"])
+    attempt = final["attempts"][-1]
+    assert attempt["checkpoint"]["reconciliation"]["source"] == "OPERATOR_ATTESTATION"
+    assert attempt["checkpoint"]["reconciliation"]["independent_process_stop_proof"] is False
+    assert attempt["checkpoint"]["reconciliation"]["independent_stop_proof"] is False
+    assert attempt["checkpoint"]["reconciliation"]["model_drain_observed"] is False
+    assert attempt["checkpoint"]["reconciliation"]["reconciliation_source"] == "OPERATOR_ATTESTATION"
+    assert "arbitrary_stop_proof" not in attempt["checkpoint"]["reconciliation"]
+    assert attempt["checkpoint"]["reconciliation"]["model_budget_disposition"] == "KEEP_HELD"
+    assert attempt["runtime_metadata"] == original["attempts"][-1]["runtime_metadata"]
+    assert attempt["reported_result"] == original["attempts"][-1]["reported_result"]
+    assert await read_all(context, receipt["task_id"], receipt["version"]) == original
+
+
+@pytest.mark.parametrize("pending_kind", ["platform_key", "delegation"])
+async def test_manual_reconcile_cannot_erase_original_unknown_operations(cloud_context, pending_kind):
+    context = cloud_context
+    receipt, _, identity = await claimed(context)
+    if pending_kind == "delegation":
+        receipt = await worker_submit(context, identity, receipt, "SUBMIT_DELEGATION",
+            delegation_key="unobserved-child", provider="codex", responsibility="Synthetic work",
+            status="UNKNOWN", native_ref="fixture-native-ref")
+    else:
+        async with AsyncSessionLocal() as db:
+            attempt = await db.get(CloudAttempt, UUID(receipt["attempt_id"]))
+            attempt.checkpoint = {"pending_operation_keys": ["original-unknown-operation"]}
+            await db.commit()
+    cancelled = await post(context, "CANCEL_ATTEMPT", receipt["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], reason="Stop fixture but preserve its original unknown")
+    response = await post(context, "RECONCILE_ATTEMPT", cancelled.json()["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], status="CANCELLED", reason="Must not overwrite UNKNOWN",
+        reconciliation={"old_owner_fenced": True, "local_processes_stopped": True,
+            "external_operations_reconciled": True, "pending_operation_keys": [], "observations": "Operator assertion"})
+    assert response.status_code == 409
+    summary = (await context["client"].get(f"/api/v1/cloud/tasks/{receipt['task_id']}/summary",
+        params={"project_id": context["project_id"]}, headers=context["headers"])).json()
+    assert summary["status"] == "RECOVERY_REQUIRED" and summary["recovery"]["can_reconcile"] is False
+    reason = "DELEGATIONS_UNRECONCILED" if pending_kind == "delegation" else "PENDING_ORIGINAL_OPERATIONS"
+    assert reason in summary["recovery"]["blocking_reasons"]
+    if pending_kind == "platform_key":
+        assert summary["recovery"]["pending_operation_keys"] == ["original-unknown-operation"]
+
+
+async def test_original_worker_safety_fence_prevents_restart_and_ordinary_writes(cloud_context):
+    context = cloud_context
+    receipt, _, identity = await claimed(context)
+    original = await read_all(context, receipt["task_id"], receipt["version"])
+    wrong_identity = service.WorkerIdentity(identity.worker_id, identity.lease_token, identity.generation + 1, identity.work_token)
+    async with AsyncSessionLocal() as db:
+        with pytest.raises(HTTPException, match="different Worker"):
+            await service.fence_attempt_for_recovery(db, UUID(receipt["task_id"]), UUID(receipt["attempt_id"]), wrong_identity, "RUNTIME_TIMEOUT")
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("UPDATE cloud_attempts SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=:id"),
+            {"id": UUID(receipt["attempt_id"])})
+        await db.commit()
+        assert await service.fence_attempt_for_recovery(db, UUID(receipt["task_id"]), UUID(receipt["attempt_id"]), identity, "RUNTIME_TIMEOUT") is True
+    async with AsyncSessionLocal() as db:
+        assert await service.fence_attempt_for_recovery(db, UUID(receipt["task_id"]), UUID(receipt["attempt_id"]), identity, "RUNTIME_TIMEOUT") is False
+        assert await service.claim_attempt(db, "restart-worker", project_id=UUID(context["project_id"])) is None
+    with pytest.raises(HTTPException, match="stale"):
+        await worker_submit(context, identity, receipt, "SUBMIT_ASSETS", assets=[{
+            "kind": "REPORT", "key": "late", "title": "Late report", "markdown": "Forbidden after safety fence"}])
+    summary = (await context["client"].get(f"/api/v1/cloud/tasks/{receipt['task_id']}/summary",
+        params={"project_id": context["project_id"]}, headers=context["headers"])).json()
+    assert summary["status"] == "RECOVERY_REQUIRED" and summary["current_attempt"]["reason"] == "RUNTIME_TIMEOUT"
+    assert summary["current_attempt"]["runtime_metadata"]["preparation_budget_reservation"]["state"] == "HELD"
+    assert await read_all(context, receipt["task_id"], receipt["version"]) == original
 
 
 async def test_stage_checkpoint_raw_report_and_failure_are_preserved(cloud_context):

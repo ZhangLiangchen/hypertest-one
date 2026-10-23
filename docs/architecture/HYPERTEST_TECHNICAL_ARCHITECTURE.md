@@ -1112,6 +1112,10 @@ Worker 使用官方 `deepseek-harness-sdk`，在独立 runtime 中显式指定 h
 
 ### 45.6 状态、取消、恢复与幂等
 
+2026-10-23 P0 增补：Web 的 Cloud 未决元数据与 Local CREATE 完整请求分别置于独立 IndexedDB store，readwrite 事务负责同模式/Project 的跨标签写入互锁，通知仅用于刷新。写前持久化失败禁止 POST，旧 sessionStorage 原 key 无损迁移；固定接受版本完整读回后按原 key 比较删除，跨页迟到响应不能清除后续操作。Cloud 不持久化秘密、PRD 或完整请求正文；Local CREATE 保留其既有冻结请求合同。
+
+当前 Worker 尚不支持原 SDK 会话续接；能力响应、Web 和服务端控制必须一致拒绝新续接，真实 SDK 恢复另项交付。取消请求仅确认 fence，不代表整树或远端停止。超时、异常、失联先封闭 broker 普通写权并安全 fence，再执行限域停止/原 key 对账。人工 RECONCILE 复用原状态机，以服务端当前版本、fenced owner、原未决操作及委派检查为前提；声明明确标记 operator-attested，仅支持受控 FAILED/CANCELLED 收尾，保留 checkpoint/结果/回执及全部 HELD，不作独立停止证明或预算结算。
+
 任务主进度采用 `DRAFT → QUEUED → PREPARING → RUNNING → COMPLETED`。需要输入时进入 WAITING_INPUT，回答后显式回到 PREPARING 重查，再进入 RUNNING；另保留 FAILED、CANCELLED、RECOVERY_REQUIRED。精确合法迁移、attempt 状态、聚合和约束由领域 §51 拥有。`reported_result=NOT_RUN|PASS|FAIL|ERROR|SKIPPED|UNKNOWN|BLOCKED` 是独立结果维度，完成可以伴随 FAIL / BLOCKED。阶段活动、SDK finish reason、任务进度和执行结果分别显示。
 
 SDK 没有单会话 cancel / close，取消先持久化撤权，再由 Cloud Worker 关闭 runtime 并按受监督进程范围停止根 / 子代理与本地测试进程，保存实际停止观察。远端 SSH / CI 已接受动作须按原操作 ID 另行查询或受控取消；杀死本地 SDK 进程不证明远端停止。不能确认资源和外部动作状态时保留 RECOVERY_REQUIRED，不误报已完整取消。

@@ -28,7 +28,10 @@ export function pendingLocalTaskCreation(raw: string, projectId: string): LocalT
     || (payload.intended_actor_ref != null && typeof payload.intended_actor_ref !== "string")) {
     throw new Error("LOCAL_TASK_PENDING_REQUEST_INVALID");
   }
-  return localTaskCreatePayload(payload, payload.idempotency_key);
+  return { idempotency_key: payload.idempotency_key, title: payload.title,
+    ...(Object.prototype.hasOwnProperty.call(payload, "objective") ? { objective: payload.objective } : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "plan_markdown") ? { plan_markdown: payload.plan_markdown } : {}),
+    ...(Object.prototype.hasOwnProperty.call(payload, "intended_actor_ref") ? { intended_actor_ref: payload.intended_actor_ref } : {}) };
 }
 
 export function localTaskCreateWasRejected(error: unknown): boolean {

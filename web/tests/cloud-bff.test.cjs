@@ -192,3 +192,24 @@ test("Rejected forms expose known invalid field names but never input, context, 
   assert.ok(content.includes("inputs.prd_markdown"));
   assert.equal(content.includes(canary), false);
 });
+
+test("Cloud conflicts distinguish stale versions, unsupported SDK resume and unmet preconditions without echoing raw errors", async () => {
+  for (const [detail, code] of [
+    ["Cloud Task version is stale", "VERSION_CONFLICT"],
+    ["Cloud configuration version is stale", "VERSION_CONFLICT"],
+    ["Credential version is stale", "VERSION_CONFLICT"],
+    ["SDK_RESUME_UNSUPPORTED", "SDK_RESUME_UNSUPPORTED"],
+    ["Cloud operation key conflicts with its original actor or request", "OPERATION_KEY_CONFLICT"],
+    ["Reconciliation requires observed stopping and no unresolved external operations", "REQUEST_PRECONDITION_REQUIRED"],
+    [canary, "REQUEST_PRECONDITION_REQUIRED"],
+  ]) {
+    const routes = moduleFor(async () => new Response(JSON.stringify({ detail }), { status: 409 }));
+    const response = await routes.POST(request("http://web/api/cloud/operations", {
+      method: "POST", headers: { origin: "http://web", "content-type": "application/json" }, body: "{}",
+    }), context("operations"));
+    assert.equal(response.status, 409);
+    const body = await response.json();
+    assert.equal(body.code, code);
+    assert.equal(JSON.stringify(body).includes(canary), false);
+  }
+});

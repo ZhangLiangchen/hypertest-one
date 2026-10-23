@@ -344,6 +344,10 @@ async def test_worker_requires_both_remote_observations_after_local_stop_before_
         def __init__(self, sessions, claim, worker_id):
             self.task_id, self.project_id = claim["task"]["id"], claim["task"]["project_id"]
             self.attempt_id, self.identity = claim["attempt"]["id"], SimpleNamespace(generation=1)
+        def suspend_writes(self):
+            pass
+        async def fence_for_recovery(self, reason, **kwargs):
+            submitted.append(("SAFETY_FENCE", {"status": "RECOVERY_REQUIRED"}, {}))
         async def assert_current(self):
             pass
         async def renew(self, seconds):

@@ -1,5 +1,6 @@
 """Cloud runtime contracts; inert subprocess/SDK fixtures only, no models or SUT."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ import pytest
 from hypertest.cloud import sdk
 from hypertest.cloud import worker as worker_module
 from hypertest.cloud.artifacts import write_workspace_receipt
+from hypertest.cloud.broker import CloudBroker
 from hypertest.cloud.errors import CloudBlocked
 from hypertest.cloud.manifests import MANIFEST_PROFILE, Handoff
 from hypertest.cloud.reporter import CloudSyncAdapter, CloudTaskReporter
@@ -123,6 +125,32 @@ def test_production_boundary_does_not_auto_resume_or_send_replacement_prompt(mon
     assert error.value.code == "SDK_RESUME_UNSUPPORTED"
 
 
+async def test_suspended_broker_rejects_new_work_but_can_query_original_receipt(monkeypatch):
+    claim = {"task": {"id": str(uuid4()), "project_id": str(uuid4()), "version": 1},
+        "attempt": {"id": str(uuid4())}, "lease_token": "synthetic-lease", "generation": 1,
+        "work_token": "synthetic-work"}
+    opened = []
+    class Session:
+        async def __aenter__(self):
+            opened.append(True)
+            return self
+        async def __aexit__(self, *args):
+            pass
+    async def original_receipt(db, project_id, key, actor):
+        assert key == "original-unknown-key" and actor == "worker:fixture"
+        return {"operation_key": key, "version": 2}
+    monkeypatch.setattr(worker_module.service, "receipt_view", original_receipt)
+    broker = CloudBroker(Session, claim, "fixture")
+    broker.suspend_writes()
+    for operation in (broker.assert_current(), broker.credentials(), broker.renew(90), broker.submit({})):
+        with pytest.raises(CloudBlocked) as caught:
+            await operation
+        assert caught.value.code == "WORKER_WRITES_SUSPENDED"
+    assert opened == []
+    assert (await broker.receipt("original-unknown-key"))["version"] == 2
+    assert len(opened) == 1
+
+
 def test_official_client_receipt_and_wait_not_runresult_transcript(tmp_path, monkeypatch):
     """Exercise our production SDK boundary through the actual optional client."""
     official = pytest.importorskip("deepseek_harness")
@@ -184,6 +212,17 @@ async def test_idle_without_terminal_handoff_preserves_recovery_and_never_replay
 
         async def renew(self, seconds):
             pass
+
+        def suspend_writes(self):
+            pass
+
+        async def fence_for_recovery(self, reason, *, metadata=None):
+            transitions.append("RECOVERY_REQUIRED")
+            transition_metadata.append({"status": "RECOVERY_REQUIRED",
+                "reason": (metadata or {}).get("interruption_reason", reason),
+                "runtime_metadata": metadata or {}})
+            if cleanup_failure:
+                raise KeyError("private-secondary-fence")
 
     class Reporter:
         def __init__(self, *, broker, **kwargs):
@@ -335,12 +374,13 @@ async def test_idle_without_terminal_handoff_preserves_recovery_and_never_replay
     observed = failure_metadata(error.value)
     assert observed["primary"]["type"] == "CloudBlocked"
     if cleanup_failure:
-        assert {entry["stage"] for entry in observed["secondary"]} >= {"NAMESPACE_STOP", "REPORT_TRANSITION", "REPORTER_CLOSE"}
+        assert {entry["stage"] for entry in observed["secondary"]} >= {"NAMESPACE_STOP", "SAFETY_FENCE", "REPORTER_CLOSE"}
     assert "private-" not in json.dumps(observed)
     metadata = transition_metadata[-1]["runtime_metadata"]
-    assert "worker_diagnostics" in metadata and "host_model_observation" in metadata
+    assert "worker_diagnostics" in metadata
     model_observation = Path(settings.cloud_runtime_root) / ("attempt-" + claim["attempt"]["id"]) / "model-observations.json"
-    assert json.loads(model_observation.read_bytes()) == metadata["host_model_observation"]
+    cleanup = Path(settings.cloud_runtime_root) / ("attempt-" + claim["attempt"]["id"]) / "worker-cleanup.json"
+    assert json.loads(model_observation.read_bytes()) == json.loads(cleanup.read_bytes())["host_model_observation"]
     assert model_observation.stat().st_mode & 0o077 == 0
     first = Path(settings.cloud_runtime_root) / ("attempt-" + claim["attempt"]["id"]) / "worker-error.json"
     assert json.loads(first.read_bytes())["primary"]["type"] == "CloudBlocked"
@@ -348,3 +388,116 @@ async def test_idle_without_terminal_handoff_preserves_recovery_and_never_replay
         await worker.execute(claim)
     assert error.value.code == "ATTEMPT_RECOVERY_REQUIRED"
     assert len(starts) == 1
+
+
+@pytest.mark.parametrize("fault", ["timeout", "cancel", "lease_response_lost", "report_response_lost"])
+async def test_runtime_fault_fences_before_process_and_model_cleanup_preserving_original_intent(tmp_path, monkeypatch, fault):
+    from hypertest.cloud import worker as module
+
+    timeline, submitted = [], []
+    elapsed = [0]
+    active = asyncio.Event()
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: elapsed[0], time=lambda: 2000 + elapsed[0]))
+
+    class Broker:
+        def __init__(self, _, claim, worker_id):
+            self.task_id, self.project_id = claim["task"]["id"], claim["task"]["project_id"]
+            self.attempt_id, self.identity = claim["attempt"]["id"], SimpleNamespace(generation=1)
+        async def assert_current(self):
+            pass
+        async def credentials(self):
+            return {}
+        async def renew(self, _):
+            await active.wait()
+            raise ConnectionError("synthetic renewal response lost")
+        def suspend_writes(self):
+            timeline.append("writes-sealed")
+        async def fence_for_recovery(self, reason, **kwargs):
+            if fault == "lease_response_lost":
+                await asyncio.sleep(0.03)
+            timeline.append("server-fenced")
+            assert reason in {"RUNTIME_TIMEOUT", "WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED", "REPORT_RECONCILIATION_PENDING"}
+
+    class Reporter:
+        def __init__(self, **kwargs):
+            pass
+        async def recover(self):
+            pass
+        async def submit_handoff(self, handoff, *args, **kwargs):
+            submitted.append(handoff.payload["status"])
+            return SimpleNamespace(synced=True, receipt={})
+        def pending(self):
+            return ["original-report-key"] if fault == "report_response_lost" else []
+        def close(self):
+            pass
+
+    class Process:
+        returncode = None
+
+    class Sandbox:
+        def __init__(self, **kwargs):
+            pass
+        def command(self):
+            return []
+        async def start(self, config):
+            active.set()
+            if fault == "timeout":
+                elapsed[0] = 61
+            if fault == "cancel":
+                raise asyncio.CancelledError()
+            return Process()
+        async def stop(self):
+            timeline.append("namespace-stopped")
+            Process.returncode = 0
+            return {"local_processes_stopped": True}
+
+    class Model:
+        requests = 0
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            timeline.append("model-closed")
+        def observation(self):
+            return {"closed": True, "drained": True, "inflight": 0}
+
+    for name, replacement in (("CloudBroker", Broker), ("CloudTaskReporter", Reporter),
+                              ("BubblewrapSandbox", Sandbox), ("ModelBroker", Model)):
+        monkeypatch.setattr(module, name, replacement)
+    monkeypatch.setattr(module, "inspect_sdk", lambda: {})
+    monkeypatch.setattr(module, "inspect_resource_envelope", lambda **kwargs: {
+        "kind": "CGROUP_V2", "memory_max_bytes": 2 * 1024**3, "swap_max_bytes": 0, "pids_max": 256})
+    monkeypatch.setattr(module, "read_model_key", lambda _: b"synthetic-no-provider-key")
+    settings = SimpleNamespace(cloud_runtime_root=str(tmp_path / "runtime"), cloud_worker_lease_seconds=0.03,
+        cloud_attempt_timeout_seconds=60, cloud_model_request_cost_microunits=1, cloud_model_max_requests=1,
+        cloud_model_max_tokens=1024, cloud_model_base_url="https://model.invalid", cloud_model="fixture",
+        cloud_model_key_file="never-read", cloud_codex_enabled=False)
+    manifest = {"inputs": {"authorization": {"network_targets": [], "permitted_actions": ["git:read", "framework:execute"]},
+        "budgets": {"total_seconds": 60}}, "configuration": {"environment": {"connection": "NONE"}},
+        "resolution": {"repositories": {"sut": {}, "framework": {}}}}
+    claim = {"task": {"id": str(uuid4()), "project_id": str(uuid4()), "frozen_manifest": manifest,
+                      "input_digest": digest(manifest)},
+             "attempt": {"id": str(uuid4()), "input_digest": digest(manifest), "checkpoint": {}},
+             "budget_remaining": {"seconds": 60, "cost_microunits": 10}}
+    worker = CloudWorker(None, settings, "fixture")
+    async def checkout(*args, **kwargs):
+        pass
+    async def consume(*args, **kwargs):
+        pass
+    async def collect(*args, **kwargs):
+        if fault == "report_response_lost":
+            raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Synthetic receipt response lost")
+        return None
+    worker.resolver = SimpleNamespace(checkout=checkout)
+    monkeypatch.setattr(worker, "consume_runtime", consume)
+    monkeypatch.setattr(worker, "collect", collect)
+    with pytest.raises((CloudBlocked, asyncio.CancelledError)):
+        await worker.execute(claim)
+    assert submitted == ["RUNNING"]
+    assert timeline.index("writes-sealed") < timeline.index("server-fenced") < timeline.index("namespace-stopped")
+    assert timeline.index("server-fenced") < timeline.index("model-closed")
+    root = Path(settings.cloud_runtime_root) / ("attempt-" + claim["attempt"]["id"])
+    intent = json.loads((root / "prompt-intent.json").read_bytes())
+    assert intent["state"] == "SENT" and intent["generation"] == 1
+    assert "prompt" not in intent

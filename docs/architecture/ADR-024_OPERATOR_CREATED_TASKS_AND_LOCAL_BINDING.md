@@ -52,6 +52,8 @@ CREATE/BIND 有独立 operation receipt，BIND 冻结接受时的 task snapshot�
 
 每次 CREATE/BIND 写前固定完整请求、稳定 key 和预期版本；原 key 查重在当前版本检查前进行。同 key 同输入返回原接受结果，同 key 异输入拒绝。SENT/失答/UNKNOWN，包括原 key GET 返回 NOT_FOUND，只允许继续原 key 查询，不重新 POST、换 key、另建任务或发新凭据。MCP 提供绑定原 key 查询入口；查询仍检查当前授权，不因 Task 后来删除或版本前进改写原接受身份。
 
+Web Local CREATE 使用独立 IndexedDB store 保存完整冻结请求、原 key 与 expected_version=0；事务占据同 Project 的 Local 创建流，跨标签不能各自发新 key。它不借用 Cloud 的元数据账本或权限。旧 sessionStorage 记录事务迁移成功后才移除，有冲突则保留所有原 key；存储失败禁止新 POST。有效 CREATE 回执后完整读取同 Task 固定接受版本并核对请求，才按原 key 完成；SENT/UNKNOWN/失答/NOT_FOUND 始终只 GET 原 CREATE key。用户清除站点数据、浏览器驱逐或私密模式结束不承诺客户端保留。
+
 ### 5. 新 Local 会话先绑定，再同步
 
 新 Local 客户端在首次批准产物上传前必须选择并绑定明确 Task ID；未绑定时返回 `TASK_BINDING_REQUIRED`，保存允许的本地材料，不 POST sync、不自动建 SessionTask。Hook 和 MCP 共用当前 root、目标 Task ID、writer 锁、绑定/同步账本与恢复状态，不产生另一个 writer。若已有 SENT/UNKNOWN 操作，先对账原 key，不能越过它绑定另一个任务。

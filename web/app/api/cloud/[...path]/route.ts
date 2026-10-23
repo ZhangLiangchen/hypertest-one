@@ -8,7 +8,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const UUID = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
 const GET_PATH = new RegExp(`^(?:capabilities|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/artifacts/${UUID})?)$`);
-const safeError = (status: number, detail: string) => NextResponse.json({ detail }, { status, headers: { "Cache-Control": "no-store" } });
+const safeError = (status: number, detail: string, code?: string) => NextResponse.json({ detail, ...(code ? { code } : {}) }, { status, headers: { "Cache-Control": "no-store" } });
+
+/** A 409 can mean a failed safety precondition, not only a stale version. */
+async function conflictDetail(response: Response) {
+  let detail: unknown;
+  try { detail = (await response.json()).detail; } catch { /* Use the safe state-conflict fallback. */ }
+  if (detail === "Cloud operation key conflicts with its original actor or request") return safeError(409,
+    "This original operation key conflicts with an existing request. Preserve it and query its original receipt; do not submit again with a replacement key.", "OPERATION_KEY_CONFLICT");
+  if (["Cloud Task version is stale", "Cloud configuration version is stale", "Credential version is stale"].includes(String(detail))) {
+    return safeError(409, "The accepted version changed. Refresh and review it before submitting a new intention.", "VERSION_CONFLICT");
+  }
+  if (detail === "SDK_RESUME_UNSUPPORTED") return safeError(409, "This runtime cannot resume the original SDK session. Reconcile original operations before authorized manual closure.", "SDK_RESUME_UNSUPPORTED");
+  return safeError(409, "The current state or operation preconditions do not allow this request. Refresh the live state and reconcile original operations before submitting a new intention.", "REQUEST_PRECONDITION_REQUIRED");
+}
 
 /** Only known schema field names may leave a rejected request, never values or unknown keys. */
 async function rejectedFormDetail(response: Response): Promise<string> {
@@ -139,9 +152,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pa
     const body = await request.text();
     if (Buffer.byteLength(body) > 12 * 1024 * 1024) return safeError(413, "Cloud form exceeds its size limit.");
     const response = await upstream("cloud/operations", key, { method: "POST", body });
-    if (!response.ok) return safeError(response.status, response.status === 409
-      ? "Cloud state changed. Your form is preserved; refresh the accepted version before a new submission."
-      : response.status >= 500 ? "Cloud submission is uncertain. Query the original operation key; do not submit again."
+    if (response.status === 409) return await conflictDetail(response);
+    if (!response.ok) return safeError(response.status, response.status >= 500
+      ? "Cloud submission is uncertain. Query the original operation key; do not submit again."
       : await rejectedFormDetail(response));
     return NextResponse.json(await response.json(), { headers: { "Cache-Control": "no-store" } });
   } catch { return safeError(502, "Cloud submission is uncertain. Query the original operation key; do not submit again."); }

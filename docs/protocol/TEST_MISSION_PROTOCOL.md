@@ -1375,6 +1375,8 @@ CREATE的`creation_receipt`为`{status:'ACCEPTED',operation:'CREATE',project_id,
 
 同key同输入返回原接受身份/版本，同key异输入拒绝；CREATE/BIND失答、SENT/UNKNOWN或GET原key NOT_FOUND只继续对应key GET，不自动重POST、换key或另建Task。幂等匹配在当前版本检查之前，回执读取仍要求当前有效授权。两种操作不能混用key查询。普通404不证明之前写入未接受。
 
+Web 的 Local CREATE 在发送前将完整原请求、原 key 与 expected_version=0 写入浏览器持久账本；与 Cloud 使用独立记录及原 key 查询路径。多标签页通过 IndexedDB readwrite 事务占据同 Project 的 Local 创建流，不能以无锁 localStorage 或单页内存互锁替代。已有未决记录、旧 sessionStorage 迁移冲突或存储失败时禁止新 CREATE POST；迁移不得覆盖未决原件。有效 creation_receipt 后还须完整 GET 同 Task 的固定接受版本并核对身份及请求内容，才完成本次 CREATE。关闭普通标签页后可恢复；用户清除站点数据、浏览器驱逐或私密模式结束不承诺持久保留。
+
 新Local客户端在首次asset上传前未绑定返回TASK_BINDING_REQUIRED，零sync POST；Hooks/MCP共用同一真实root、目标ID、协调器及未决账本。旧已确认auto根保留原ID兼容resume；服务端旧无task_id自动创建仅为legacy兼容，不作为新客户端fallback。新手动绑定任务的每次sync强校验task_id、Project/provider/session/owner/BOUND及当前version；不匹配不得另建任务。来源已属于另一Task时409，错误code为SESSION_ALREADY_HAS_TASK，仅对有权读取者给existing_task_id，不自动合并或改ID/历史。
 
 ## 46. 云端测试任务 profile（ADR-019，部分实现、代码默认关闭）
@@ -1513,6 +1515,12 @@ Worker 提问先持久化 question/checkpoint 和已接受资产，再安全停�
 
 Resume 只能延续原 Attempt 的已保存上下文/文件/SDK session（确实可恢复时），不恢复 shell、浏览器、CI 或测试进程。恢复前读取原 operation key，核对外部动作、委派和产物，fence 旧 owner、重新鉴权并记录新 generation；无法安全续接则继续 RECOVERY_REQUIRED。只有对账结束且旧 Attempt 已明确终结，才允许显式新 Attempt。
 
+当前受控 Worker 不支持原 SDK 会话续接；SDK 包中存在 resume 方法不构成本运行端能力。能力 GET 必须明确该限制，Web 不提供可用的 RESUME 承诺，服务端拒绝新 RESUME_ATTEMPT，且不推进版本或重新排队。请求取消、平台写权已 fence 但停止待确认、待对账、已终止与可续接分别显示；只有实现支持并满足服务端前置条件时才能称为可续接。
+
+具体能力字段为 `supported.resume_attempt=false`、`supported.reconcile_attempt=true`，`recovery.resume_supported=false` / `resume_reason="SDK_RESUME_UNSUPPORTED"`、`reconcile_supported=true`、`reconciliation_source="OPERATOR_ATTESTATION"`、`independent_stop_proof=false`、`budget_disposition="KEEP_HELD"`。当前 task summary 的 `recovery` 投影 owner fence、原 pending key、remote closure、phase、can_reconcile 和 blocking_reasons；这是已检查到的 Canonical 前置条件，不代表操作者已有 cloud:control，也不声明独立进程停止。
+
+RECONCILE_ATTEMPT 是 cloud:control / Operator 的显式人工收尾，不启动 runtime。服务端重新核对当前版本、最新 RECOVERY_REQUIRED Attempt、旧 writer 已 fence、平台/外部及 checkpoint 未决操作与委派状态；有 UNKNOWN 或未决原 key 时拒绝，不能由操作者声明清空。操作者须引用原停止/对账观察并作明确声明；声明保留为 operator-attested 来源，不构成独立进程停止证明、模型 drain 证明或测试结果。人工 FAILED/CANCELLED 收尾保留原 reported_result、checkpoint、完整回执及 HELD/preparation hold，不结算预算；旧终态不可改写。超时、异常和失联清理先封闭普通 broker 写入并按原 owner/generation 安全 fence，再停止本地进程；只有原 key 查询与限域清理保留。
+
 CompleteCloudAttempt 须核对必需阶段资产已接受且原件可读、委派终态、执行记录/明确未执行原因、无未决操作，以及最终报告的范围/失败/阻塞/不确定项。测试 FAIL/ERROR/BLOCKED 可与任务 COMPLETED 并存。若材料不足以交付约定工作则保留 WAITING_INPUT/RECOVERY_REQUIRED 或显式 FAILED；不能用“Agent 已回答”代替交付。
 
 ### 46.7 幂等、外部副作用与同步兼容
@@ -1520,6 +1528,8 @@ CompleteCloudAttempt 须核对必需阶段资产已接受且原件可读、委�
 普通 mutation 在发送前固定完整非秘密请求、稳定 operation key 与 expected_version；同 Project/key 同输入返回冻结原回执，异输入冲突。资源配置/凭据匹配各自聚合版本；Task 创建 expected_version=0，后续 Task/Attempt 控制及资产/结果写入匹配当前 Task version 并严格递增，同 key 查重先于版本检查。Worker 写入还须有效 lease/generation，管理操作按生命周期规则核验所有权并 fence 旧 owner，Task version 不替代租约检查。Task/Attempt 状态、修订、报告结果、回执与 Audit/Outbox 同事务接受；Git、SDK、远端命令和 Artifact I/O 在行锁外，返回后重新核验当前授权、版本与 fencing。凭据原文只走专门秘密入口和审计，普通 journal/回执不复制秘密。
 
 收到回执要核对 profile、Project、Task/Attempt、原 key、请求摘要与接受版本。失答、不完整回执或 UNKNOWN 时仅 GetCloudOperation 查询原 key；NOT_FOUND 不证明原请求未接受，不授权自动 POST、换 key、新 Task 或启动另一次 Harness。外部 Git/CI/SSH/业务动作另有执行前固定的 operation key 与输入摘要，UNKNOWN 逐项保存，查询管理回执不能替代外部状态对账。
+
+Web Cloud 操作发送前，以 IndexedDB readwrite 事务原子保全并占据同 Project 的 Cloud 操作流；只持久保存原 key、expected_version、操作/目标身份、请求摘要和传输状态等恢复所需的非秘密元数据，不保存秘密、PRD 或完整正文。Local CREATE 使用独立账本和契约。存储不可用、迁移失败或已有未决时禁止新 POST；SENT/UNKNOWN/失答/NOT_FOUND 只查原 key。跨标签通知只刷新视图，不授予发送权；响应仅可按匹配原 key 更新/移除自身记录，迟到响应不能清除新操作或另一 Project/模式的账本。旧 sessionStorage 记录事务迁移成功后才移除，冲突原 key 全部保留待对账。ACK 后按固定接受版本完整读回才移除未决记录，不用可变 head 代替。
 
 ReconcileCloudOperation 只追加原 key 的确定观察、原材料和有权 resolution，不触发原动作或改变既有测试结果。PENDING/UNKNOWN 未消除前禁止重投/重跑；恢复和新 Attempt 都是对账完成后的显式管理动作，不宣称 exactly-once 外部执行。
 

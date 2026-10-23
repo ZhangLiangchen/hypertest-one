@@ -496,27 +496,21 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         checkpoint["cancellation_requested"] = True
         attempt.checkpoint = checkpoint
     elif op == "RESUME_ATTEMPT":
-        from .cloud_ssh import ensure_remote_closed
-        await ensure_remote_closed(db, task_id=task.id)
-        if attempt.status not in {"WAITING_INPUT", "RECOVERY_REQUIRED"}:
-            raise HTTPException(409, "Only waiting or recovery Attempt may resume explicitly")
-        proof = payload.reconciliation
-        if not all(proof.get(key) is True for key in ("old_owner_fenced", "local_processes_stopped", "external_operations_reconciled", "checkpoint_verified")) or not proof.get("observations"):
-            raise HTTPException(409, "Resume requires observed reconciliation and a verified runtime checkpoint")
-        if not attempt.checkpoint.get("runtime_context"):
-            raise HTTPException(409, "No recoverable runtime context exists")
-        unanswered = await db.scalar(select(CloudInputRequest.id).where(CloudInputRequest.attempt_id == attempt.id,
-            ~select(CloudInputAnswer.id).where(CloudInputAnswer.question_id == CloudInputRequest.id).exists()))
-        if unanswered:
-            raise HTTPException(409, "Input questions remain unanswered")
-        await _fence(db, attempt)
-        attempt.runtime_metadata = {**attempt.runtime_metadata, "resume_reconciliation": proof}
-        _state(task, attempt, "PREPARING", payload.reason, await clock(db))
+        # The pinned SDK exposes an API, but the Worker has no verified original
+        # session/workspace/budget continuation. Never accept an unexecutable
+        # resume or let a new claim turn it into a replay of the original prompt.
+        raise HTTPException(409, "SDK_RESUME_UNSUPPORTED")
     elif op == "RECONCILE_ATTEMPT":
         from .cloud_ssh import ensure_remote_closed
         await ensure_remote_closed(db, task_id=task.id)
         if attempt.status != "RECOVERY_REQUIRED":
             raise HTTPException(409, "Only recovery Attempts accept explicit terminal reconciliation")
+        if not await _owner_fenced(db, attempt):
+            raise HTTPException(409, "Previous Worker ownership is not fenced")
+        if attempt.checkpoint.get("pending_operation_keys"):
+            raise HTTPException(409, "Original pending operations require original-key reconciliation")
+        if await _delegations_unresolved(db, attempt):
+            raise HTTPException(409, "Delegated Agents require observed terminal reconciliation")
         proof = payload.reconciliation
         if (not all(proof.get(key) is True for key in
                     ("old_owner_fenced", "local_processes_stopped", "external_operations_reconciled"))
@@ -524,8 +518,15 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
                 or proof.get("pending_operation_keys")):
             raise HTTPException(409, "Reconciliation requires observed stopping and no unresolved external operations")
         await _fence(db, attempt)
-        attempt.checkpoint = {**attempt.checkpoint, "reconciliation": proof,
-                              "pending_operation_keys": [], "external_operations_reconciled": True}
+        # These are the authorized operator's assertions. They cannot mint an
+        # independent stop observation, settle budget, or erase unknown keys.
+        attestation = {key: proof[key] for key in
+            ("old_owner_fenced", "local_processes_stopped", "external_operations_reconciled", "observations")}
+        attestation.update(source="OPERATOR_ATTESTATION", reconciliation_source="OPERATOR_ATTESTATION",
+            actor_ref=actor_ref, independent_process_stop_proof=False, independent_stop_proof=False,
+            model_drain_observed=False, model_budget_disposition="KEEP_HELD")
+        attempt.checkpoint = {**attempt.checkpoint, "reconciliation": attestation,
+                              "external_operations_reconciled": True}
         _state(task, attempt, payload.status, payload.reason, await clock(db))
     elif op == "ANSWER_INPUT":
         question = await db.get(CloudInputRequest, payload.question_id)
@@ -773,6 +774,49 @@ async def _fence(db, attempt):
         grant.revoked_at = now
 
 
+async def _owner_fenced(db, attempt):
+    if any((attempt.lease_owner, attempt.lease_token_hash, attempt.lease_expires_at)):
+        return False
+    return not await db.scalar(select(CloudWorkGrant.id).where(
+        CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.revoked_at.is_(None)).limit(1))
+
+
+async def _delegations_unresolved(db, attempt):
+    return bool(await db.scalar(select(CloudDelegation.id).where(
+        CloudDelegation.attempt_id == attempt.id,
+        or_(CloudDelegation.status.not_in(TERMINAL), CloudDelegation.terminal_observation.is_(None))).limit(1)))
+
+
+async def fence_attempt_for_recovery(db, task_id, attempt_id, identity, reason, *, metadata=None):
+    """Remove only this original owner's rights; never renew or submit work.
+
+    Like lease expiry this updates the live lifecycle, without rewriting an
+    accepted operation snapshot. A lost response is safe: retrying this narrow
+    removal cannot run an Agent, change a new owner or overwrite a terminal.
+    """
+    task = await _task(db, task_id, lock=True)
+    attempt = await _attempt(db, task, attempt_id)
+    if attempt.status in TERMINAL or await _owner_fenced(db, attempt):
+        return False
+    if (attempt.lease_owner != identity.worker_id or attempt.lease_generation != identity.generation
+            or attempt.lease_token_hash != token_hash(identity.lease_token)):
+        raise HTTPException(409, "Safety fence cannot remove a different Worker owner")
+    allowed = {"WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED", "RUNTIME_TIMEOUT",
+               "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED", "WORKER_RUNTIME_FAILED"}
+    if reason not in allowed:
+        raise HTTPException(422, "Safety fence requires a fixed interruption reason")
+    await _fence(db, attempt)
+    if metadata:
+        # Host passes the same closed diagnostic vocabulary used by the normal
+        # Worker transition. Runtime messages and credentials never reach here.
+        attempt.runtime_metadata = {**attempt.runtime_metadata, **metadata}
+    _state(task, attempt, "RECOVERY_REQUIRED", reason, await clock(db))
+    _events(db, task.project_id, "worker:" + identity.worker_id, "WORKER_SAFETY_FENCED", task.id,
+            {"attempt_id": str(attempt.id), "reason": reason, "generation": identity.generation})
+    await db.commit()
+    return True
+
+
 async def _asset(db, task_id, asset_id, *, kind=None):
     row = await db.get(CloudAssetRevision, asset_id)
     if row is None or row.task_id != task_id or (kind and row.kind != kind):
@@ -979,6 +1023,38 @@ async def task_summary(db, task_id, *, project_id=None):
                       "accepted_task_version": row.accepted_task_version} for row in resolutions])
     from .cloud_ssh import live_operations
     result["remote_operations"] = await live_operations(db, attempt.id) if attempt else []
+    if attempt:
+        from .cloud_ssh import ensure_remote_closed
+        remote_closed = True
+        try:
+            await ensure_remote_closed(db, task_id=task.id)
+        except HTTPException as error:
+            if error.detail != "SSH_REMOTE_OPERATIONS_UNRECONCILED":
+                raise
+            remote_closed = False
+        fenced = await _owner_fenced(db, attempt)
+        pending = attempt.checkpoint.get("pending_operation_keys", [])
+        blocking = []
+        if attempt.status != "RECOVERY_REQUIRED":
+            blocking.append("RECOVERY_REQUIRED_ONLY")
+        if not fenced:
+            blocking.append("OLD_OWNER_NOT_FENCED")
+        if pending:
+            blocking.append("PENDING_ORIGINAL_OPERATIONS")
+        if not remote_closed:
+            blocking.append("SSH_REMOTE_OPERATIONS_UNRECONCILED")
+        if await _delegations_unresolved(db, attempt):
+            blocking.append("DELEGATIONS_UNRECONCILED")
+        cancellation = attempt.checkpoint.get("cancellation_requested") is True
+        phase = ("TERMINATED" if attempt.status in TERMINAL else
+                 "CANCELLATION_REQUESTED" if cancellation and not fenced else
+                 "STOP_UNCONFIRMED" if cancellation else
+                 "RECONCILIATION_REQUIRED" if attempt.status == "RECOVERY_REQUIRED" else "ACTIVE")
+        result["recovery"] = {"resume_supported": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
+            "old_owner_fenced": fenced, "local_processes_stopped_observed": False,
+            "pending_operation_keys": pending, "remote_operations_reconciled": remote_closed,
+            "can_reconcile": not blocking, "blocking_reasons": blocking, "phase": phase,
+            "reconciliation_source": "OPERATOR_ATTESTATION", "budget_disposition": "KEEP_HELD"}
     return result
 
 

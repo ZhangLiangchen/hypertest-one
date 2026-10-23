@@ -2,11 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createUuid } from "@/lib/uuid";
-import { CLOUD_PROFILE, CloudApiError, canReleaseCloudPending, cloudConfiguration, cloudCredentialReceiptVisible, cloudCredentials, cloudDocument, cloudInputIdentity, cloudOperation, cloudReceiptMatches, cloudRequest, cloudStorageKey, parseCloudPending } from "@/lib/cloud";
+import { createOperationJournal } from "@/lib/operation-journal";
+import { CLOUD_PROFILE, CloudApiError, canReleaseCloudPending, cloudConfiguration, cloudCredentialReceiptVisible, cloudCredentials, cloudDocument, cloudInputIdentity, cloudOperation, cloudReceiptMatches, cloudRequest, cloudStorageKey, parseCloudPending, cloudSubmissionIssue } from "@/lib/cloud";
 import type { CloudMutation, CloudPending, CloudReceipt, CloudRecord } from "@/lib/cloud";
 
+export const cloudJournal = createOperationJournal<CloudPending>("cloud", (value, projectId) => {
+  const pending = parseCloudPending(JSON.stringify(value), projectId);
+  if (!pending) throw new Error("PENDING_RECORD_INVALID");
+  return pending;
+});
+
 async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise<void> {
-  if (receipt.task_id) { await cloudDocument(projectId, receipt.task_id, receipt.version); return; }
+  if (receipt.task_id) {
+    const document = await cloudDocument(projectId, receipt.task_id, receipt.version);
+    if (document.task?.id !== receipt.task_id || document.task.project_id !== projectId || document.task.version !== receipt.version
+      || ![document.attempts, document.resolutions, document.assets, document.artifacts, document.runs, document.run_cases, document.delegations, document.questions, document.answers].every(Array.isArray)) throw new Error("READBACK_PENDING");
+    return;
+  }
   if (receipt.operation === "CONFIGURE") {
     const configurations = await cloudConfiguration(projectId);
     if (!configurations.items.some((row) => row.id === receipt.config_id && row.revision === receipt.version)) throw new Error("READBACK_PENDING");
@@ -16,7 +28,7 @@ async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise
   }
 }
 
-/** One Web submission stream: uncertain writes reconcile by original key only. */
+/** One durable Cloud stream per Project, independently fenced by its original key. */
 export function useCloudOperation(projectId: string) {
   const [pending, setPending] = useState<CloudPending | null>(null);
   const [ready, setReady] = useState(false);
@@ -28,70 +40,103 @@ export function useCloudOperation(projectId: string) {
   const active = useRef(false);
   const current = useRef<CloudPending | null>(null);
   const visibleProject = useRef(projectId);
+  const generation = useRef(0);
+  const migrationFailed = useRef(false);
+  const reads = useRef<Promise<void>>(Promise.resolve());
+  visibleProject.current = projectId;
 
-  useEffect(() => {
-    visibleProject.current = projectId;
-    setReady(false); setReceipt(null); setIssue(null); setRejection(null); setRejectedOperation(null);
-    try {
-      const restored = parseCloudPending(sessionStorage.getItem(cloudStorageKey(projectId)), projectId);
-      current.current = restored; setPending(restored); setReady(true);
-    } catch { setIssue("PRIVATE_JOURNAL_UNAVAILABLE"); }
-  }, [projectId]);
-
-  function save(value: CloudPending | null) {
-    if (value) sessionStorage.setItem(cloudStorageKey(projectId), JSON.stringify(value));
-    else sessionStorage.removeItem(cloudStorageKey(projectId));
-    // A response to the previous route may settle its own key, never the new Project's stream.
-    if (visibleProject.current === projectId) { current.current = value; setPending(value); }
+  const visible = (epoch: number) => visibleProject.current === projectId && generation.current === epoch;
+  function refresh(epoch: number): Promise<void> {
+    const read = reads.current.catch(() => {}).then(async () => {
+      const records = await cloudJournal.read(projectId);
+      if (visible(epoch)) { current.current = records[0] || null; setPending(current.current); }
+    });
+    reads.current = read;
+    return read;
   }
 
-  async function accept(original: CloudPending, response: CloudReceipt) {
+  useEffect(() => {
+    const epoch = ++generation.current;
+    active.current = false; current.current = null; setPending(null);
+    setReady(false); setBusy(false); setReceipt(null); setIssue(null); setRejection(null); setRejectedOperation(null);
+    const changed = () => { void refresh(epoch).catch(() => { if (visible(epoch)) { setReady(false); setIssue("PRIVATE_JOURNAL_UNAVAILABLE"); } }); };
+    const unsubscribe = cloudJournal.subscribe(projectId, changed);
+    void (async () => {
+      // An unreadable legacy store blocks new writes, while durable keys remain
+      // available for authorized read-only reconciliation.
+      migrationFailed.current = false;
+      try {
+        const legacy = parseCloudPending(sessionStorage.getItem(cloudStorageKey(projectId)), projectId);
+        if (legacy) {
+          await cloudJournal.importLegacy(legacy);
+          sessionStorage.removeItem(cloudStorageKey(projectId));
+        }
+      } catch { if (visible(epoch)) migrationFailed.current = true; }
+      await refresh(epoch);
+      if (visible(epoch)) { setReady(!migrationFailed.current); if (migrationFailed.current) setIssue("PRIVATE_JOURNAL_UNAVAILABLE"); }
+    })().catch(() => { if (visible(epoch)) setIssue("PRIVATE_JOURNAL_UNAVAILABLE"); });
+    return () => { unsubscribe(); if (generation.current === epoch) generation.current++; };
+  }, [projectId]);
+
+  async function accept(original: CloudPending, response: CloudReceipt, epoch: number) {
     if (!cloudReceiptMatches(original, response)) throw new Error("RECEIPT_MISMATCH");
-    if (visibleProject.current === projectId) setReceipt(response);
     await verifyAccepted(projectId, response);
-    save(null); if (visibleProject.current === projectId) setIssue(null);
-    return visibleProject.current === projectId ? response : null;
+    // Another tab may have settled this key and started a new request while our
+    // readback was in flight. Settle only this immutable identity.
+    const settled = await cloudJournal.settle(original);
+    await refresh(epoch);
+    if (!visible(epoch) || !settled) return null;
+    setReceipt(response); setIssue(migrationFailed.current ? "PRIVATE_JOURNAL_UNAVAILABLE" : null);
+    return response;
   }
 
   async function submit(fields: CloudRecord): Promise<CloudReceipt | null> {
     if (!ready || active.current || current.current) return null;
+    const epoch = generation.current;
     active.current = true; setBusy(true); setIssue(null); setReceipt(null); setRejection(null); setRejectedOperation(null);
     let original: CloudPending | null = null;
     let acknowledged = false;
     try {
       const payload = { ...fields, profile: CLOUD_PROFILE, project_id: projectId, operation_key: "web:" + createUuid() } as CloudMutation;
-      // The exact body is frozen in memory; private credentials are never journaled.
       const body = JSON.stringify(payload);
       const { secret: _secret, ...safeIdentity } = payload;
-      original = { project_id: projectId, operation_key: payload.operation_key, expected_version: payload.expected_version,
+      const candidate: CloudPending = { project_id: projectId, operation_key: payload.operation_key, expected_version: payload.expected_version,
         operation: payload.operation, digest: cloudInputIdentity(safeIdentity), state: "SENT",
-        ...(typeof payload.task_id === "string" ? { task_id: payload.task_id } : {}) };
-      save(original); // A failing storage write prevents the POST.
+        ...(typeof payload.task_id === "string" ? { task_id: payload.task_id } : {}),
+        ...(typeof payload.attempt_id === "string" ? { attempt_id: payload.attempt_id } : {}) };
+      const reserved = await cloudJournal.reserve(candidate); // Commit before any POST; storage failure prohibits sending.
+      if (!reserved.created) { await refresh(epoch); if (visible(epoch)) setIssue("ORIGINAL_KEY_READBACK_REQUIRED"); return null; }
+      original = candidate;
+      if (visible(epoch)) { current.current = original; setPending(original); }
       const response = await cloudRequest<CloudReceipt>("operations", { method: "POST", body });
       acknowledged = true;
-      return await accept(original, response);
+      return await accept(original, response, epoch);
     } catch (error) {
-      if (error instanceof CloudApiError && canReleaseCloudPending(error.status, acknowledged)) {
-        try { save(null); } catch { /* Keep the in-memory stream blocked on storage failure. */ }
-        if (visibleProject.current === projectId) {
-          setIssue(error.status === 409 ? "VERSION_CONFLICT" : "REQUEST_REJECTED");
-          setRejection(error.message);
-          setRejectedOperation(original);
+      if (original && error instanceof CloudApiError && canReleaseCloudPending(error.status, acknowledged, cloudSubmissionIssue(error))) {
+        try { await cloudJournal.settle(original); await refresh(epoch); }
+        catch { if (visible(epoch)) setReady(false); }
+        if (visible(epoch)) {
+          setIssue(cloudSubmissionIssue(error));
+          setRejection(error.message); setRejectedOperation(original);
         }
       } else {
-        if (original) { try { save({ ...original, state: "UNKNOWN" }); } catch { if (visibleProject.current === projectId) setReady(false); } }
-        if (visibleProject.current === projectId) setIssue(original ? "ORIGINAL_KEY_READBACK_REQUIRED" : "PRIVATE_JOURNAL_UNAVAILABLE");
+        if (original) {
+          try { await cloudJournal.markUnknown(original); await refresh(epoch); }
+          catch { if (visible(epoch)) setReady(false); }
+        } else if (visible(epoch)) setReady(false);
+        if (visible(epoch)) setIssue(original ? "ORIGINAL_KEY_READBACK_REQUIRED" : "PRIVATE_JOURNAL_UNAVAILABLE");
       }
       return null;
-    } finally { active.current = false; setBusy(false); }
+    } finally { if (visible(epoch)) { active.current = false; setBusy(false); } }
   }
 
   async function reconcile(): Promise<CloudReceipt | null> {
     if (!current.current || active.current) return null;
+    const original = current.current, epoch = generation.current;
     active.current = true; setBusy(true);
-    try { return await accept(current.current, await cloudOperation(projectId, current.current.operation_key)); }
-    catch { if (visibleProject.current === projectId) setIssue("ORIGINAL_KEY_READBACK_REQUIRED"); return null; }
-    finally { active.current = false; setBusy(false); }
+    try { return await accept(original, await cloudOperation(projectId, original.operation_key), epoch); }
+    catch { if (visible(epoch)) setIssue("ORIGINAL_KEY_READBACK_REQUIRED"); return null; }
+    finally { if (visible(epoch)) { active.current = false; setBusy(false); } }
   }
 
   return { pending, ready, busy, issue, rejection, rejectedOperation, receipt, submit, reconcile, blocked: !ready || busy || pending !== null };

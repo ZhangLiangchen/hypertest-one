@@ -205,6 +205,12 @@ class CloudWorker:
         try:
             root.mkdir(mode=0o700)
         except FileExistsError:
+            # A service restart must never reuse an existing runtime directory
+            # as a fresh prompt. Remove this claim's write rights immediately.
+            try:
+                await asyncio.wait_for(broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED"), 3)
+            except Exception:
+                pass  # The unchanged lease will expire; no execution is begun.
             raise CloudBlocked("ATTEMPT_RECOVERY_REQUIRED", "Existing runtime state requires explicit reconciliation; no prompt is replayed") from None
         workspace, home = root / "workspace", root / "dsh-home"
         workspace.mkdir(mode=0o700)
@@ -237,6 +243,25 @@ class CloudWorker:
         ssh_cleanup_attempted = False
         ssh_observation = None
         ssh_deadline = None
+        writes_suspended = False
+        safety_fence_done = asyncio.Event()
+        models = ExitStack()
+
+        async def safety_fence(reason, metadata=None):
+            nonlocal writes_suspended
+            if writes_suspended:
+                await safety_fence_done.wait()
+                return
+            writes_suspended = True
+            broker.suspend_writes()
+            try:
+                # A DB/network failure cannot postpone local process cleanup.
+                # This narrow operation only removes this original ownership.
+                await asyncio.wait_for(broker.fence_for_recovery(reason, metadata=metadata), 3)
+            except (Exception, asyncio.CancelledError) as secondary:
+                secondary_failure("SAFETY_FENCE", secondary)
+            finally:
+                safety_fence_done.set()
 
         async def close_ssh():
             nonlocal ssh_cleanup_attempted, ssh_observation
@@ -311,8 +336,12 @@ class CloudWorker:
                         await broker.renew(self.settings.cloud_worker_lease_seconds)
                     except Exception:
                         lease_failure = CloudBlocked("WORKER_FENCED", "Worker ownership or authorization is no longer current")
+                        # Renewal loss is uncertain, not permission to keep
+                        # reporting until the server eventually expires a lease.
+                        broker.suspend_writes()
                         if preparing is not None:
                             preparing.cancel()
+                        await safety_fence("WORKER_LEASE_UNCONFIRMED")
                         if sandbox is not None:
                             await sandbox.stop()
                         return
@@ -427,101 +456,103 @@ class CloudWorker:
             model_broker = ModelBroker(root / "model.sock", base_url=self.settings.cloud_model_base_url,
                 api_key=read_model_key(self.settings.cloud_model_key_file), model=self.settings.cloud_model,
                 max_requests=requests, max_tokens=policy.max_tokens, deadline=started + seconds)
-            with ExitStack() as models:
-                scope_brokers["ROOT"] = models.enter_context(model_broker)
-                sockets = {}
-                if native_enabled:
-                    child_limit = next(item for item in limits if item["scope"] == "CODEX")
-                    scope_brokers["CODEX"] = models.enter_context(CodexOAuthBroker(root / "codex.sock",
-                        identity=oauth_identity, model=self.settings.cloud_codex_model,
-                        max_requests=child_limit["max_requests"], deadline=started + seconds))
-                    sockets["codex"] = root / "codex.sock"
-                if ssh_broker is not None:
-                    await ssh_broker.start()
-                sandbox = BubblewrapSandbox(workspace=workspace, dsh_home=home,
-                    broker_socket=root / "model.sock", policy=policy,
-                    delegate_payload=payload_root, delegate_sockets=sockets,
-                    ssh_socket=root / "ssh.sock" if ssh_broker is not None else None)
-                sandbox.command()  # Fail admission before recording a prompt intent.
-                await host_transition("RUNNING", "Pinned SDK runtime admitted", metadata,
-                    reservation={"accounting_unit": accounting_unit, "reserved_seconds": seconds,
-                                 "request_limits": limits})
-                await broker.assert_current()
-                require_cloud_environment_route(environment)
-                prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile)
-                configuration = {"workspace": "/workspace", "dsh_home": "/home/agent/dsh",
-                    "session_id": session_id, "model": self.settings.cloud_model,
-                    "max_tokens": policy.max_tokens, "timeout_seconds": seconds, "prompt": prompt}
-                if native_enabled:
-                    configuration["native_delegation"] = {"codex_model": self.settings.cloud_codex_model}
-                save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": session_id,
-                    "generation": broker.identity.generation, "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
-                    "runtime_limits": {"model": configuration["model"], "max_tokens": configuration["max_tokens"],
-                        **metadata["runtime_limits"],
-                        "timeout_seconds": configuration["timeout_seconds"],
-                        "reasoning_effort": configuration.get("reasoning_effort"),
-                        "codex_model": configuration.get("native_delegation", {}).get("codex_model"),
-                        "request_limits": [{"scope": item["scope"], "max_requests": item["max_requests"]} for item in limits]}})
-                prompt_sent = True
-                process = await sandbox.start(configuration)
-                stdout_reader = asyncio.create_task(self.consume_runtime(process, delegations=delegations,
-                    diagnostics=runtime_diagnostics))
-                deadline = started + seconds
-                terminal = None
-                while process.returncode is None:
-                    if lease_failure:
-                        raise lease_failure
-                    if time.monotonic() >= deadline:
-                        raise CloudBlocked("RUNTIME_TIMEOUT", "Attempt exceeded its remaining execution budget")
-                    if ssh_broker is not None and not ssh_cleanup_attempted and time.time() >= ssh_deadline:
-                        # Fence just this scope while the root can still finish
-                        # workspace work within its unchanged original budget.
-                        await close_ssh()
-                        if not await remote_operations_closed():
-                            raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "SSH cleanup did not confirm remote stopping inside its reserved window")
-                    if stdout_reader.done() and stdout_reader.exception() is not None:
-                        raise stdout_reader.exception()
-                    terminal = await self.collect(reporter, workspace, accepted_keys, stopped=False,
-                        delegations=delegations, submitted_delegations=submitted_delegations)
-                    if terminal:
-                        await sandbox.stop()
-                        break
-                    await asyncio.sleep(0.2)
-                await asyncio.wait_for(process.wait(), 3)
-                await asyncio.wait_for(stdout_reader, 3)
-                stopped = await sandbox.stop()
-                persist_runtime_diagnostics()
-                await broker.assert_current()
-                terminal = terminal or await self.collect(reporter, workspace, accepted_keys, stopped=False,
+            scope_brokers["ROOT"] = models.enter_context(model_broker)
+            sockets = {}
+            if native_enabled:
+                child_limit = next(item for item in limits if item["scope"] == "CODEX")
+                scope_brokers["CODEX"] = models.enter_context(CodexOAuthBroker(root / "codex.sock",
+                    identity=oauth_identity, model=self.settings.cloud_codex_model,
+                    max_requests=child_limit["max_requests"], deadline=started + seconds))
+                sockets["codex"] = root / "codex.sock"
+            if ssh_broker is not None:
+                await ssh_broker.start()
+            sandbox = BubblewrapSandbox(workspace=workspace, dsh_home=home,
+                broker_socket=root / "model.sock", policy=policy,
+                delegate_payload=payload_root, delegate_sockets=sockets,
+                ssh_socket=root / "ssh.sock" if ssh_broker is not None else None)
+            sandbox.command()  # Fail admission before recording a prompt intent.
+            await host_transition("RUNNING", "Pinned SDK runtime admitted", metadata,
+                reservation={"accounting_unit": accounting_unit, "reserved_seconds": seconds,
+                             "request_limits": limits})
+            await broker.assert_current()
+            require_cloud_environment_route(environment)
+            prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile)
+            configuration = {"workspace": "/workspace", "dsh_home": "/home/agent/dsh",
+                "session_id": session_id, "model": self.settings.cloud_model,
+                "max_tokens": policy.max_tokens, "timeout_seconds": seconds, "prompt": prompt}
+            if native_enabled:
+                configuration["native_delegation"] = {"codex_model": self.settings.cloud_codex_model}
+            save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": session_id,
+                "generation": broker.identity.generation, "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+                "runtime_limits": {"model": configuration["model"], "max_tokens": configuration["max_tokens"],
+                    **metadata["runtime_limits"],
+                    "timeout_seconds": configuration["timeout_seconds"],
+                    "reasoning_effort": configuration.get("reasoning_effort"),
+                    "codex_model": configuration.get("native_delegation", {}).get("codex_model"),
+                    "request_limits": [{"scope": item["scope"], "max_requests": item["max_requests"]} for item in limits]}})
+            prompt_sent = True
+            process = await sandbox.start(configuration)
+            stdout_reader = asyncio.create_task(self.consume_runtime(process, delegations=delegations,
+                diagnostics=runtime_diagnostics))
+            deadline = started + seconds
+            terminal = None
+            while process.returncode is None:
+                if lease_failure:
+                    raise lease_failure
+                if time.monotonic() >= deadline:
+                    await safety_fence("RUNTIME_TIMEOUT")
+                    raise CloudBlocked("RUNTIME_TIMEOUT", "Attempt exceeded its remaining execution budget")
+                if ssh_broker is not None and not ssh_cleanup_attempted and time.time() >= ssh_deadline:
+                    # Fence just this scope while the root can still finish
+                    # workspace work within its unchanged original budget.
+                    await close_ssh()
+                    if not await remote_operations_closed():
+                        raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "SSH cleanup did not confirm remote stopping inside its reserved window")
+                if stdout_reader.done() and stdout_reader.exception() is not None:
+                    raise stdout_reader.exception()
+                terminal = await self.collect(reporter, workspace, accepted_keys, stopped=False,
                     delegations=delegations, submitted_delegations=submitted_delegations)
-                if not terminal:
-                    raise CloudBlocked("EXPLICIT_HANDOFF_MISSING", "SDK activity ended without an explicit terminal handoff")
-                handoff, handoff_digest = terminal
-                if delegations is not None and (not delegations.channel_closed or not delegations.all_terminal or
-                        {item["native_ref"] for item in delegations.runs.values()} != submitted_delegations):
-                    raise CloudBlocked("DELEGATION_RECONCILIATION_REQUIRED", "Native delegates need observed terminals and accepted parent contributions")
-                # Listener shutdown alone does not prove upstream requests ended.
-                # Stop every model scope and observe all in-flight work before
-                # accounting or accepting a task terminal.
-                models.close()
-                persist_model_observation(stopped)
-                if not all(item.observation()["drained"] for item in scope_brokers.values()):
-                    raise CloudBlocked("MODEL_DRAIN_UNCONFIRMED", "Model requests remain in flight; keep the original budget reservation and reconcile")
-                await close_ssh()
-                if not await remote_operations_closed():
-                    raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "Canonical remote operations are not all observed stopped; retain the original reservation")
-                usage = int(time.monotonic() - started)
-                settlement = {"accounting_unit": accounting_unit, "observed_seconds": usage,
-                    "namespace_stopped": stopped["local_processes_stopped"], "brokers_drained": True,
-                    "requests": [{"scope": scope, "requests": item.requests} for scope, item in scope_brokers.items()]}
-                result = await reporter.submit_handoff(handoff, handoff_digest,
-                    runtime_stopped=stopped["local_processes_stopped"],
-                    external_operations_reconciled=await remote_operations_closed(),
-                    usage_seconds=usage, cost_microunits=observed_cost(), budget_settlement=settlement)
-                if not result.synced:
-                    raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Terminal handoff needs original receipt/readback reconciliation")
-                terminal_accepted = True
-                write_workspace_receipt(workspace, handoff.key, result.receipt)
+                if terminal:
+                    await sandbox.stop()
+                    break
+                await asyncio.sleep(0.2)
+            if lease_failure:
+                raise lease_failure
+            await asyncio.wait_for(process.wait(), 3)
+            await asyncio.wait_for(stdout_reader, 3)
+            stopped = await sandbox.stop()
+            persist_runtime_diagnostics()
+            await broker.assert_current()
+            terminal = terminal or await self.collect(reporter, workspace, accepted_keys, stopped=False,
+                delegations=delegations, submitted_delegations=submitted_delegations)
+            if not terminal:
+                raise CloudBlocked("EXPLICIT_HANDOFF_MISSING", "SDK activity ended without an explicit terminal handoff")
+            handoff, handoff_digest = terminal
+            if delegations is not None and (not delegations.channel_closed or not delegations.all_terminal or
+                    {item["native_ref"] for item in delegations.runs.values()} != submitted_delegations):
+                raise CloudBlocked("DELEGATION_RECONCILIATION_REQUIRED", "Native delegates need observed terminals and accepted parent contributions")
+            # Listener shutdown alone does not prove upstream requests ended.
+            # Stop every model scope and observe all in-flight work before
+            # accounting or accepting a task terminal.
+            models.close()
+            persist_model_observation(stopped)
+            if not all(item.observation()["drained"] for item in scope_brokers.values()):
+                raise CloudBlocked("MODEL_DRAIN_UNCONFIRMED", "Model requests remain in flight; keep the original budget reservation and reconcile")
+            await close_ssh()
+            if not await remote_operations_closed():
+                raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "Canonical remote operations are not all observed stopped; retain the original reservation")
+            usage = int(time.monotonic() - started)
+            settlement = {"accounting_unit": accounting_unit, "observed_seconds": usage,
+                "namespace_stopped": stopped["local_processes_stopped"], "brokers_drained": True,
+                "requests": [{"scope": scope, "requests": item.requests} for scope, item in scope_brokers.items()]}
+            result = await reporter.submit_handoff(handoff, handoff_digest,
+                runtime_stopped=stopped["local_processes_stopped"],
+                external_operations_reconciled=await remote_operations_closed(),
+                usage_seconds=usage, cost_microunits=observed_cost(), budget_settlement=settlement)
+            if not result.synced:
+                raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Terminal handoff needs original receipt/readback reconciliation")
+            terminal_accepted = True
+            write_workspace_receipt(workspace, handoff.key, result.receipt)
         except (Exception, asyncio.CancelledError) as error:
             # Capture the business/SDK first failure before any stop, disk write,
             # DB query or failure-report path can itself throw.
@@ -536,6 +567,23 @@ class CloudWorker:
             else:
                 primary_failure = error
             attach_failure(primary_failure, primary_metadata, secondary_failures)
+            pending = None
+            try:
+                pending = reporter.pending()
+            except Exception as secondary:
+                secondary_failure("REPORT_PENDING_READ", secondary)
+            if not terminal_accepted and not writes_suspended and (prompt_sent or cancelled or pending is None or pending):
+                recovery_metadata = {"worker_diagnostics": failure_metadata(primary_failure),
+                                     "interruption_reason": failure_code(primary_failure)}
+                if diagnostics:
+                    recovery_metadata["sdk_diagnostics"] = diagnostics
+                await safety_fence("WORKER_INTERRUPTED" if cancelled else
+                    "REPORT_RECONCILIATION_PENDING" if pending is None or pending else "WORKER_RUNTIME_FAILED",
+                    recovery_metadata)
+            if writes_suspended:
+                # Renewal failure can cancel preparation while its bounded
+                # safety-fence request is still in flight in the heartbeat.
+                await safety_fence_done.wait()
             try:
                 save_once(root / "worker-error.json", failure_metadata(primary_failure))
             except Exception as secondary:
@@ -551,14 +599,13 @@ class CloudWorker:
                 await close_ssh()
             except (Exception, asyncio.CancelledError) as secondary:
                 secondary_failure("SSH_REMOTE_CLEANUP", secondary)
+            try:
+                models.close()
+            except (Exception, asyncio.CancelledError) as secondary:
+                secondary_failure("MODEL_BROKER_CLOSE", secondary)
             observed_models = host_model_metadata(scope_brokers, stopped)
             persist_model_observation(stopped)
-            pending = None
-            try:
-                pending = reporter.pending()
-            except Exception as secondary:
-                secondary_failure("REPORT_PENDING_READ", secondary)
-            if pending == [] and lease_failure is None and not terminal_accepted:
+            if pending == [] and lease_failure is None and not terminal_accepted and not writes_suspended:
                 metadata = {"worker_diagnostics": failure_metadata(primary_failure),
                     "host_model_observation": observed_models}
                 if diagnostics:
@@ -580,6 +627,7 @@ class CloudWorker:
                 raise
             raise primary_failure from None
         finally:
+            models.close()
             finished.set()
             monitor.cancel()
             await asyncio.gather(monitor, return_exceptions=True)

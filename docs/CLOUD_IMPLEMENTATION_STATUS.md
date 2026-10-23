@@ -1,5 +1,7 @@
 # 云端任务实现状态与接入入口
 
+**最新 P0 工作：** [Web 未决保全与 Cloud 安全收尾](P0_RECOVERY_DELIVERY_20261023.md)。本轮开始时实际部署为 `55de50e`，下文 C4/6d49 属于旧轮次；本次实现、回归和部署身份以新记录为准，用户功能验收仍由用户负责。SDK 原会话续接未实现，人工收尾不清 UNKNOWN、不释放 HELD。
+
 ## 正式 Git 集成与当前部署边界
 
 正式迁移已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。C4 Git `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署到单人专用测试服务器，当前库备份后从管理 `0023` 向前升级至 `0026`；API / Web / nginx 与原 Worker / PostgreSQL 五角色健康，独立 Cloud Worker 以 Codex=true / SSH=false 空闲运行。新空库迁移、组件回归、构建、doctor、基础健康和路由检查分别记录为部署检查，用户验收 `PENDING / USER_OWNED`，未经用户明确要求不擅自开展。Web Cloud详情步骤勾选显示修正已按6d49单独部署；API / Worker / schema保持C4身份。精确 Git / image / 各轮结果见[本轮交付记录](CLOUD_GIT_DELIVERY_20261023.md)。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写；统一入口 / Local 绑定由[独立管理交付](UNIFIED_TASK_CREATION_DELIVERY_20261023.md)记录，不由 Cloud 部署检查推定真实 native bind 通过。
