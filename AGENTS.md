@@ -4,13 +4,16 @@
 
 剩余工作统一看[当前TODO](docs/TODO.md)与[本轮跟进](docs/FOLLOWUP_DELIVERY_20261023.md)；实现、部署和USER_OWNED验收分别记录，不从历史候选状态重复安排已完成工作。
 
-## 当前测试服务器：开发与部署规则（2026-10-23）
+## 当前测试服务器：开发与部署规则（2026-10-24 增补）
 
-最新API/独立Cloud Worker已按Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b` 部署，新增默认关闭的受控公开HTTPS首片与框架冻结；Web保留`e28d23cd58cd868a9a672be9f9ab6f608416c5c7`，schema0028，legacy Worker保留55de50e。P0/Memory能力与独立权限保持，见[最新跟进交付](docs/FOLLOWUP_DELIVERY_20261023.md)、[Memory原交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文C4/6d49等保留历史，不替代最新部署身份或用户验收。根盘仅余约0.5GiB，后续构建前应先明确容量处置，不自行删除历史。
+最新API/独立Cloud Worker已按Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b` 部署，新增默认关闭的受控公开HTTPS首片与框架冻结；Web保留`e28d23cd58cd868a9a672be9f9ab6f608416c5c7`，schema0028，legacy Worker保留55de50e。P0/Memory能力与独立权限保持，见[最新跟进交付](docs/FOLLOWUP_DELIVERY_20261023.md)、[Memory原交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文C4/6d49等保留历史，不替代最新部署身份或用户验收。容量处置与清理结果由[本轮磁盘清理记录](docs/DISK_CLEANUP_20261024.md)拥有；后续构建检查实际余量，不沿用旧观察或自行删除历史。
 
 本服务器是内部测试环境，允许服务中断，没有零停机要求。Compose、容器、目录和历史文档中的 `production` / “生产”命名不代表当前环境的可用性要求。
 
 - 用户要求部署时，已授权停止旧服务、原地构建、执行必要的非破坏性迁移并重启，无需为服务中断再次确认。默认流程为：本地修改 → commit/push → 服务器 fetch 并固定完整 Git SHA → 停止受影响服务 → 在服务器构建新版本 → 迁移（需要时）→ 启动 → 最小冒烟检查；不要求先建隔离环境。
+- 常规开发、构建和相关自动回归默认复用已有干净 checkout、兼容的依赖环境、构建缓存与测试基础设施；不把临时工作目录、隔离/影子环境、额外源码或构建副本、重复 virtualenv / node_modules 作为每轮默认步骤。复用环境不减少必要回归或强制检查。
+- 只有具体依赖冲突、破坏性测试或安全边界确有需要时，才采用最小范围隔离。创建前说明原因、资源和生命周期，优先复用已有测试环境，不为局部问题复制多套全栈；完成后清理本轮新增、确认可再生且不再使用的临时目录、容器、依赖环境和副本，保留必须的源产物、历史与未决记录。
+- 复用环境不等于将测试 fixtures 写入业务数据库。可复用明确用于自动回归的已有 test DB，reset 仅限其中的合成测试数据；不得初始化、清空或覆盖业务库及其历史。需要数据库安全边界时，隔离最小必要的测试库即可，不默认另建整套平台。
 - 日常部署不默认要求蓝绿切换、影子环境、冷备、隔离恢复演练、逐表逐文件 hash 保全、独立复核或历史生产 Gate。PR 合并、正式发行资格也不是测试服务器部署的默认前置条件；用户明确要求的发行流程及强制 CI 检查仍适用。
 - 验证与改动范围相称：文档修改只检查文档差异；局部代码修改只做相关检查；部署后检查服务启动、健康接口及本次变更的一条关键路径。相关检查通过且无具体未解决问题后立即结束，不自行扩大到全量回归、多宿主矩阵、反复健康采样或额外审查。
 - 只有用户明确要求、强制检查要求或具体故障需要时，才扩大验证。不得为普通开发任务额外建设验收、证明或保全体系。
@@ -88,6 +91,10 @@ boundary or authorization to run an unrelated SUT.
   an explicit user request, mandatory checks or a specific failure. Run a needed
   full suite remotely. Do not default to a full local test suite or local production build;
   quick local checks are optional debugging aids, not a mandatory preflight matrix.
+- Environment reuse, minimal isolation and cleanup follow the current test-server
+  rules above and [server operations](docs/SERVER_OPERATIONS.md#复用现有环境与最小隔离2026-10-24-增补).
+  Reuse does not reduce mandatory tests or authorize fixtures in the business DB;
+  only synthetic data in an explicitly dedicated test DB may be reset.
 - Default scope is implementation and deployment, including necessary builds,
   migrations, restarts and basic service health checks. Functional acceptance is
   performed by the user unless the user explicitly requests the agent to conduct

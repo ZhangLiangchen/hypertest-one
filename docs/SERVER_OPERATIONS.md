@@ -10,6 +10,25 @@
 本节与 [AGENTS.md](../AGENTS.md) 的测试服务器规则共同取代旧文档对当前环境的可用性和
 发布流程约束；产品领域、授权、幂等、证据真实性和历史语义保持不变。
 
+### 复用现有环境与最小隔离（2026-10-24 增补）
+
+常规开发、构建和相关自动回归默认复用已有干净 Git checkout、兼容的依赖环境、构建缓存与
+测试基础设施。尽量避免为每轮工作另建临时工作目录、隔离/影子环境、额外源码或构建副本、
+重复 virtualenv / node_modules；本测试机允许停服后原地构建，不采用生产零停机流程。
+复用环境不减少必要的变更范围回归、构建检查或强制 CI 检查。
+
+只有具体依赖冲突、破坏性测试或安全边界确有需要时，才采用最小范围隔离。创建前说明
+原因、资源和生命周期，优先复用已有测试环境；局部问题只隔离相应依赖、进程或测试库，
+不复制多套全栈。完成后清理本轮新增、确认可再生且不再使用的临时目录、容器、依赖环境
+和副本，保留必须的源产物、历史、凭据及未决 key / journal。其他工作目录和旧发行材料
+不因名称含 `temp`、`test` 或 `release` 就自动成为本轮可删除资源。
+
+复用现有环境不等于把测试 fixtures 写入业务数据库。可以复用明确用于自动回归的已有
+test DB，reset 只作用于该测试库的合成数据；不得对业务库执行测试初始化、清空或覆盖，
+也不得覆盖真实项目、任务或历史。需要防止破坏性测试触及业务数据时，隔离最小必要的
+测试数据库是正当安全例外，无需另建整套平台。功能验收仍为 `USER_OWNED`；复用或
+最小隔离都不授权 Agent 自动创建验收业务数据、签发凭据或调用真实模型 / SUT。
+
 ### 默认 Git 交付与直接部署
 
 默认流程适用于本项目的代码、依赖或部署配置变更：
@@ -57,7 +76,7 @@
 
 ### 2026-10-23 Cloud Git 交付
 
-最新API/独立Cloud Worker为Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增默认关闭的受控公开HTTPS首片/框架冻结；Web保留e28d23c，schema0028，五容器healthy、Cloud Worker active，legacy Worker保留55de50e。镜像、迁移与健康见[最新跟进交付](FOLLOWUP_DELIVERY_20261023.md)，[Memory](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)与[P0](P0_RECOVERY_DELIVERY_20261023.md)原记录保留。根盘仅余约0.5GiB，后续构建前应明确扩容或可清理范围；本轮未删历史，仅共享本轮新增的4个完全相同只读payload文件。以下C4/6d49是原轮次历史，不能据此覆盖工作区或判断当前镜像。
+最新API/独立Cloud Worker为Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增默认关闭的受控公开HTTPS首片/框架冻结；Web保留e28d23c，schema0028，五容器healthy、Cloud Worker active，legacy Worker保留55de50e。镜像、迁移与健康见[最新跟进交付](FOLLOWUP_DELIVERY_20261023.md)，[Memory](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)与[P0](P0_RECOVERY_DELIVERY_20261023.md)原记录保留。当前容量处置与清理结果由[本轮磁盘清理记录](DISK_CLEANUP_20261024.md)拥有，构建前检查实际余量；2026-10-23当轮未删历史，仅共享当轮新增的4个完全相同只读payload文件。以下C4/6d49是原轮次历史，不能据此覆盖工作区或判断当前镜像。
 
 C4 `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署可供用户操作：当前库备份后向前升级至 `0026_cloud_ssh_operations`，原五角色健康；独立 `hypertest-cloud-worker.service` active-idle，Codex=true / SSH=false，未自动enable。旧Bridge、legacy Worker镜像、端口 / VPN和历史计数保留。严格TLS / CA / IP SAN及Cloud BFF typed读取已作部署路由检查，本轮未创建用户验收业务数据、未启动新的模型或SUT执行，用户验收为 `PENDING / USER_OWNED`。Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份；精确Git / images / 回执和既有失败见[Cloud交付记录](CLOUD_GIT_DELIVERY_20261023.md)。下方05:49等旧交付段落仍按其原轮次保存，不作为当前schema身份。
 

@@ -1,6 +1,6 @@
 # HyperTest One 当前 TODO
 
-更新：2026-10-23（Asia/Singapore）。以本表和链接中的精确范围区分开发、部署与用户功能验收；历史交付原件不重标。本次后续交付见[FOLLOWUP_DELIVERY_20261023](FOLLOWUP_DELIVERY_20261023.md)。
+更新：2026-10-24（Asia/Singapore）。以本表和链接中的精确范围区分开发、部署与用户功能验收；历史交付原件不重标。本次后续交付见[FOLLOWUP_DELIVERY_20261023](FOLLOWUP_DELIVERY_20261023.md)。
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
@@ -17,4 +17,4 @@
 
 [P2独立设计与具体所需输入](CLOUD_P2_FOLLOWUP_20261023.md)、[受控HTTPS首片](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)、[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。待授权、未实现与USER_OWNED验收分别记录，不能只因缺少真实目标而把尚未开发的能力写成已完成。
 
-当前API/Cloud Worker部署SHA为`76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，Web保留e28d23c，schema0028。根盘剩余约0.5GiB，后续构建前需用户决定扩容或明确可清理范围；不自动删除历史。
+当前API/Cloud Worker部署SHA为`76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，Web保留e28d23c，schema0028。经用户授权定向清理后根盘可用约12.14GiB，实测释放11.63GiB；详见[磁盘清理记录](DISK_CLEANUP_20261024.md)。后续开发默认复用现有环境，操作前分别检查根盘与tmpfs实际余量；未授权或用途不明的历史继续保留。
