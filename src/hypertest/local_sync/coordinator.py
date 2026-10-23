@@ -78,10 +78,14 @@ class LocalSyncCoordinator:
                 if all(json.loads(raw).get(field) == identity[field]
                        for field in ("provider", "session_id"))]
 
-    async def _settle_pending(self, identity: dict, *, current_key=None, current_namespace=None) -> dict | None:
+    async def _settle_pending(self, identity: dict, *, current_key=None, current_namespace=None,
+                              query_only=False) -> dict | None:
         for namespace, key in self._pending(identity):
             if key == current_key and namespace == current_namespace:
                 continue
+            if query_only and self.journal.get(namespace, key)["state"] == "PENDING":
+                return {"status": "BLOCKED", "code": "ORIGINAL_REQUEST_NOT_SENT",
+                        "idempotency_key": key, "query_required": False}
             try:
                 original = self.snapshots.load(namespace, key)
             except (ClientError, ValueError, KeyError):
@@ -96,7 +100,7 @@ class LocalSyncCoordinator:
             if not outcome.synced and outcome.state != "REJECTED":
                 return self._projection(outcome, key)
             if outcome.synced and namespace.startswith("task-bind:"):
-                self._remember_target(original.target)
+                self._remember_target(original.target, binding_required=True)
             if outcome.synced and original.target.get("checkpoint_digest"):
                 self._mark_checkpoint(identity, original.target["checkpoint_digest"], key,
                                       outcome.receipt["version"])
@@ -178,13 +182,18 @@ class LocalSyncCoordinator:
         source = {field: identity[field] for field in ("provider", "session_id")}
         return self.directory / (digest(source) + ".task.json")
 
-    def _remember_target(self, identity):
+    def _remember_target(self, identity, *, binding_required=None):
         selected = {field: identity[field] for field in ("project_id", "provider", "session_id", "task_id")}
+        if binding_required is not None:
+            selected["binding_required"] = binding_required
         path = self._target_path(identity)
         try:
             private_create(path, canonical_json(selected).encode())
         except FileExistsError:
-            if json.loads(private_read(path)) != selected:
+            old = json.loads(private_read(path))
+            if (any(old.get(field) != selected[field] for field in ("project_id", "provider", "session_id", "task_id"))
+                    or ("binding_required" in old and "binding_required" in selected
+                        and old["binding_required"] != selected["binding_required"])):
                 raise ClientError("LOCAL_TARGET_TASK_CONFLICT") from None
 
     async def _target(self, identity, *, supplied_task_id=None):
@@ -194,7 +203,7 @@ class LocalSyncCoordinator:
             if (any(target[field] != identity[field] for field in ("project_id", "provider", "session_id"))
                     or (supplied_task_id is not None and target["task_id"] != supplied_task_id)):
                 raise ClientError("LOCAL_TARGET_TASK_CONFLICT")
-            return target
+            return {field: target[field] for field in ("project_id", "provider", "session_id", "task_id")}
         # A current scoped server read confirms an existing legacy source.
         # Missing new fields mean a historical BOUND auto-task, never a new root.
         baseline = await self.adapter.baseline(identity, allow_unsynced=True)
@@ -207,18 +216,35 @@ class LocalSyncCoordinator:
             raise ClientError("LOCAL_TARGET_TASK_CONFLICT")
         target = {**{field: identity[field] for field in ("project_id", "provider", "session_id")},
                   "task_id": task["id"]}
-        self._remember_target(target)
+        self._remember_target(target, binding_required=False)
         return target
 
-    async def bind_task(self, arguments):
+    def _require_native_caller(self, identity, context):
         from hypertest.local_sync.sources import require_native_root
+        if (self.config.local_sync.get("host") != "codex"
+                or self.config.local_sync.get("harness_version") != "0.144.6"):
+            raise ClientError("NATIVE_CALLER_CONTEXT_UNSUPPORTED")
+        if context is None:
+            raise ClientError("NATIVE_CALLER_CONTEXT_REQUIRED")
+        if (not isinstance(context, dict)
+                or set(context) != {"provider", "session_id", "transport"}
+                or context.get("provider") != "codex"
+                or context.get("transport") != "codex-mcp-thread-id/v1"
+                or context.get("provider") != identity.get("provider")
+                or context.get("session_id") != identity.get("session_id")):
+            raise ClientError("NATIVE_CALLER_CONTEXT_MISMATCH")
+        # Equality to a private root is checked only after the actual native
+        # caller is known. A child cannot select a known parent's root record.
+        require_native_root(self.config, identity)
+
+    async def bind_task(self, arguments, *, native_caller_context=None):
         try:
             payload = TaskBind.model_validate(arguments).model_dump(mode="json")
         except ValidationError as exc:
             raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
         # Source metadata supplied by the model can only select an existing
         # private SessionStart context; it cannot create or override one.
-        require_native_root(self.config, payload)
+        self._require_native_caller(payload, native_caller_context)
         async with self.writer(payload):
             blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"],
                                                  current_namespace="task-bind:" + payload["project_id"])
@@ -236,7 +262,7 @@ class LocalSyncCoordinator:
                 return await self._binding_query(intent)
             outcome = await self.binding_core.deliver(intent)
             if outcome.synced:
-                self._remember_target(target)
+                self._remember_target(target, binding_required=True)
             return self._projection(outcome, intent.key)
 
     async def get_binding(self, arguments):
@@ -259,7 +285,7 @@ class LocalSyncCoordinator:
                 self.journal.mark(namespace, key, "ACKED", receipt)
                 outcome = await self.binding_core.deliver(original)
                 if outcome.synced:
-                    self._remember_target(original.target)
+                    self._remember_target(original.target, binding_required=True)
                 return self._projection(outcome, key)
         try:
             receipt = await self.adapter.api.request("GET", "interactive/tasks/bindings/by-key", params=arguments)
@@ -277,7 +303,7 @@ class LocalSyncCoordinator:
             return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
         return {**receipt, "_sync": {"state": "READBACK_COMPLETE", "readback_complete": True, "code": None}}
 
-    async def submit_full(self, payload: dict) -> dict:
+    async def submit_full(self, payload: dict, *, native_caller_context=None) -> dict:
         # Preserve the caller's exact body, empty strings, original key/version
         # and no-op acceptance. This is never interpreted as PATCH or rebased.
         payload = dict(payload)
@@ -288,9 +314,36 @@ class LocalSyncCoordinator:
             raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
         # Before writer admission, snapshots, journal records or API calls.
         self._require_native_source(payload)
+        known = self.journal.get("session-task:" + payload["project_id"], payload["idempotency_key"])
+        # A saved original that reached SENT is query-only. It need not recreate
+        # an invocation context; no new business write is admitted in that case.
+        recovering = known is not None and known["state"] in {
+            "SENT", "UNKNOWN", "ACKED", "READBACK_COMPLETE", "LEGACY_ACCEPTED_READBACK", "REJECTED"}
+        if not recovering:
+            pending = self._pending(payload)
+            if (native_caller_context is None and pending
+                    and all(self.journal.get(namespace, key)["state"] != "PENDING"
+                            for namespace, key in pending)):
+                # Settle only already-sent operations under the writer lock.
+                # Missing caller context never promotes a prepared request.
+                recovered = await self.reconcile_source(payload, query_only=True)
+                if recovered.get("status") != "SETTLED":
+                    return recovered
+            manual = None
+            path = self._target_path(payload)
+            if path.exists():
+                manual = json.loads(private_read(path)).get("binding_required")
+            if manual is None:
+                baseline = await self.adapter.baseline(payload, allow_unsynced=True)
+                if baseline is None:
+                    raise ClientError("TASK_BINDING_REQUIRED")
+                manual = baseline["task"].get("binding_required", False)
+            if manual:
+                self._require_native_caller(payload, native_caller_context)
         async with self.writer(payload):
             blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"],
-                                                 current_namespace="session-task:" + payload["project_id"])
+                                                 current_namespace="session-task:" + payload["project_id"],
+                                                 query_only=recovering or native_caller_context is None)
             if blocked:
                 return blocked
             namespace, key = "session-task:" + payload["project_id"], payload["idempotency_key"]
@@ -326,10 +379,10 @@ class LocalSyncCoordinator:
             self.snapshots.save(intent)
             return self._projection(await self.core.deliver(intent), intent.key)
 
-    async def reconcile_source(self, identity: dict) -> dict:
+    async def reconcile_source(self, identity: dict, *, query_only=False) -> dict:
         """Recover original frozen writes without requiring current files."""
         async with self.writer(identity):
-            blocked = await self._settle_pending(identity)
+            blocked = await self._settle_pending(identity, query_only=query_only)
             return blocked or {"status": "SETTLED", "readback_complete": True}
 
     async def submit_partial(self, identity: dict, changes: dict, *, clear_fields=(),

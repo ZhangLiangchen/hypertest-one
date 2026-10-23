@@ -78,9 +78,13 @@ class LocalServer:
                         value["local_capabilities"] = self.service.local_capabilities
                 elif request["operation"] == "call":
                     payload = request["payload"]
-                    if set(payload) != {"name", "arguments"}:
+                    if set(payload) not in ({"name", "arguments"}, {"name", "arguments", "native_caller_context"}):
                         raise ClientError("LOCAL_REQUEST_REJECTED")
-                    value = await self.service.call(payload["name"], payload["arguments"], peer_pid=pid)
+                    if "native_caller_context" in payload:
+                        value = await self.service.call(payload["name"], payload["arguments"], peer_pid=pid,
+                                                       native_caller_context=payload["native_caller_context"])
+                    else:
+                        value = await self.service.call(payload["name"], payload["arguments"], peer_pid=pid)
                 elif request["operation"] == "local-hook":
                     value = await self.service.local_hook(request["payload"])
                 elif request["operation"] == "local-manifest":

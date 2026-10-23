@@ -107,7 +107,20 @@ def bound_local(local):
             "source": None, "last_synced_at": None}
     api.documents[1] = {"task": {**task, "version": 1, "binding_state": "UNBOUND"}, "cases": [], "reports": []}
     api.documents[2] = {"task": task, "cases": [], "reports": []}
-    coordinator._remember_target(identity)
+    coordinator._remember_target(identity, binding_required=True)
+    event = configure_artifact_source(config, identity)
+    native_submit = coordinator.submit_full
+
+    async def submit_native_fixture(payload, **kwargs):
+        # Synthetic trusted transport metadata for coordinator unit tests;
+        # SDK/UDS caller isolation is tested independently, never host E2E.
+        from hypertest.local_sync.sources import source_binding
+        source_binding(config, event, create=True)
+        kwargs.setdefault("native_caller_context", {"provider": "codex",
+            "session_id": identity["session_id"], "transport": "codex-mcp-thread-id/v1"})
+        return await native_submit(payload, **kwargs)
+
+    coordinator.submit_full = submit_native_fixture
     return config, api, journal, coordinator, identity
 
 
@@ -137,8 +150,8 @@ async def test_partial_status_preserves_plan_failure_original_report_and_duplica
     rows = journal.db.execute("SELECT payload,state FROM intents").fetchall()
     assert all("Original plan" not in row[0] and "failure report" not in row[0] for row in rows)
     assert all(row[1] == "READBACK_COMPLETE" for row in rows)
-    pages = [call[2]["params"] for call in api.calls if call[1].endswith("by-session")]
-    assert all("version" in page for page in pages if page.get("offset", 0))
+    pages = [call[2]["params"] for call in api.calls if call[1].endswith(api.task_id)]
+    assert pages and all("version" in page for page in pages if page.get("offset", 0))
 
 
 async def test_explicit_complete_empty_values_and_new_key_noop_still_create_versions(bound_local):
@@ -190,7 +203,7 @@ async def test_source_lock_rejects_cross_project_and_serializes_two_new_partial_
         return_exceptions=True)
     assert len(api.documents) == 4
     assert len([value for value in results if isinstance(value, ClientError)]) == 1
-    with pytest.raises(ClientError, match="LOCAL_SOURCE_PROJECT_CONFLICT"):
+    with pytest.raises(ClientError, match="LOCAL_NATIVE_SOURCE_IDENTITY_MISMATCH"):
         await coordinator.submit_full({**full(identity), "project_id": str(uuid4())})
 
 
@@ -208,7 +221,7 @@ def test_native_source_mapping_and_deepseek_child_bridge_are_separate():
 
 def configure_artifact_source(config, identity):
     workspace = config.state_dir.parent / "workspace"
-    workspace.mkdir()
+    workspace.mkdir(exist_ok=True)
     config.local_sync.update(host="codex", harness_version="0.144.6", hooks_enabled=True,
         project_id=identity["project_id"], artifact_source={"workspace": str(workspace),
         "initial": {"title": "Approved local analysis", "objective": "Analyze the fixture",
@@ -507,6 +520,20 @@ async def test_v010_native_context_without_target_field_resumes_original_auto_ta
     assert source_binding(config, event)[1] == original_context
     assert not journal.db.execute("SELECT key FROM intents WHERE kind LIKE 'task-bind:%'").fetchall()
     assert len([call for call in api.calls if call[0] == "POST"]) == 1
+
+
+async def test_legacy_auto_task_resumes_with_host_meta_without_new_local_root(local):
+    config, api, _, coordinator, identity = local
+    original = full(identity)
+    legacy = await api.request("POST", "interactive/tasks/sync", payload=original)
+    config.local_sync.update(host="codex", harness_version="0.144.6")
+    result = await coordinator.submit_full({**original, "expected_version": 1,
+        "idempotency_key": "legacy-native-meta-resume"}, native_caller_context={
+            "provider": "codex", "session_id": identity["session_id"],
+            "transport": "codex-mcp-thread-id/v1"})
+    assert result["task_id"] == legacy["task_id"] and result["version"] == 2
+    assert result["_sync"]["readback_complete"] is True
+    assert not (coordinator.directory / "native-sources").exists()
 
 
 async def test_old_unknown_receipt_not_found_stays_blocked_without_reposting(local):

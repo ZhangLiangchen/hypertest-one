@@ -53,7 +53,20 @@ def create_server(client: LocalClient, *, local_host: str | None = None) -> Serv
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
         try:
-            result = await client.exchange("call", {"name": name, "arguments": arguments})
+            payload = {"name": name, "arguments": arguments}
+            if local_host == "codex" and name in {"hypertest_bind_task", "hypertest_sync_task"}:
+                # Codex 0.144.6 overwrites this per invocation with the actual
+                # calling thread. Tool arguments never provide this context.
+                try:
+                    meta = server.request_context.meta
+                    thread_id = (meta.model_extra or {}).get("threadId") if meta is not None else None
+                except LookupError:
+                    thread_id = None
+                if isinstance(thread_id, str) and thread_id.strip() and len(thread_id) <= 512:
+                    payload["native_caller_context"] = {
+                        "provider": "codex", "session_id": thread_id,
+                        "transport": "codex-mcp-thread-id/v1"}
+            result = await client.exchange("call", payload)
             return types.CallToolResult(
                 content=[types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))],
                 structuredContent=result, isError=False)

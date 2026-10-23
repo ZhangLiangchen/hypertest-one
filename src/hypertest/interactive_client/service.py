@@ -92,8 +92,17 @@ class InteractiveService:
         self._grants: dict[str, dict] = {}
         self._content: dict[str, dict] = {}
         self.coordinator = None
-        self.local_capabilities = {"explicit_task_binding": bool(config.local_sync.get("enabled")),
-                                   "query_only_binding_recovery": True, "target_task_id_reads": True}
+        self.local_capabilities = {
+            "explicit_task_binding": bool(config.local_sync.get("enabled")
+                and config.local_sync.get("host") == "codex"
+                and config.local_sync.get("harness_version") == "0.144.6"),
+            "query_only_binding_recovery": True, "target_task_id_reads": True,
+            "task_binding_callers": {
+                "codex": {"support": "NATIVE_THREAD_ID_REQUIRED", "harness_version": "0.144.6",
+                          "metadata_key": "threadId", "per_call_check": True},
+                "claude_code": {"support": "UNSUPPORTED"},
+                "deepseek_harness": {"support": "UNSUPPORTED"}},
+        }
         if config.local_sync.get("enabled"):
             from hypertest.local_sync.coordinator import LocalSyncCoordinator
             self.coordinator = LocalSyncCoordinator(config, api, journal)
@@ -121,7 +130,8 @@ class InteractiveService:
                 })
         return list(self._tools.values())
 
-    async def call(self, name: str, arguments: dict, *, peer_pid: int | None = None) -> dict:
+    async def call(self, name: str, arguments: dict, *, peer_pid: int | None = None,
+                   native_caller_context: dict | None = None) -> dict:
         await self.tools()
         spec = self._tools.get(name)
         if not spec:
@@ -134,7 +144,7 @@ class InteractiveService:
             payload = dict(arguments)
             payload.setdefault("provider", "codex")
             if self.coordinator is not None:
-                return public(await self.coordinator.submit_full(payload))
+                return public(await self.coordinator.submit_full(payload, native_caller_context=native_caller_context))
             lookup = {"project_id": payload["project_id"], "idempotency_key": payload["idempotency_key"]}
             # Reports live on the platform. Keep only lookup identity plus the
             # complete-request digest in this bounded local transport journal.
@@ -151,7 +161,7 @@ class InteractiveService:
         if name == "hypertest_bind_task":
             if self.coordinator is None:
                 raise ClientError("LOCAL_COORDINATOR_REQUIRED")
-            return public(await self.coordinator.bind_task(arguments))
+            return public(await self.coordinator.bind_task(arguments, native_caller_context=native_caller_context))
         if name == "hypertest_get_task_binding":
             if self.coordinator is None:
                 raise ClientError("LOCAL_COORDINATOR_REQUIRED")

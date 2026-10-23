@@ -79,7 +79,9 @@ async def test_approved_manifest_real_api_preserves_failure_and_assets_across_pa
         task_id = created.json()["task"]["id"]
         bound = await coordinator.bind_task({"project_id": f["project_id"], "task_id": task_id,
             "provider": "codex", "session_id": source["parent_session_id"],
-            "expected_version": 1, "idempotency_key": "integration-bind"})
+            "expected_version": 1, "idempotency_key": "integration-bind"}, native_caller_context={
+                "provider": "codex", "session_id": source["parent_session_id"],
+                "transport": "codex-mcp-thread-id/v1"})
         assert bound["version"] == 2 and bound["_sync"]["readback_complete"]
         accepted = await submit_manifest(config, coordinator)
         assert accepted["status"] == "ACCEPTED" and accepted["version"] == 3

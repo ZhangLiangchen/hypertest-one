@@ -4,7 +4,9 @@ Native root events below are adapter fixtures, never proof of a real host E2E.
 """
 import asyncio
 import json
+import tempfile
 from copy import deepcopy
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -16,13 +18,18 @@ from hypertest.db.session import AsyncSessionLocal
 from hypertest.interactive_client.api_client import ApiError
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.journal import Journal
+from hypertest.interactive_client.ipc import LocalClient, LocalServer
+from hypertest.interactive_client.service import InteractiveService
 from hypertest.local_sync.coordinator import LocalSyncCoordinator
 from hypertest.local_sync.sources import source_binding
+from hypertest.sync_core import FrozenIntent
+from hypertest.sync_core.storage import JournalLedger
 
 from test_local_sync import configure_artifact_source, full
 from test_local_sync import local as local
 from test_session_tasks import body, sync
 from test_session_tasks import context as context
+from test_session_task_mcp import NoExecutionHost
 
 
 async def create_local(f, **changes):
@@ -284,6 +291,23 @@ class BindingTransport:
         self.hide_receipt = False
         self.receipt_changes = {}
 
+    async def capabilities(self):
+        from hypertest.api.task_schemas import (
+            GET_TASK_SCHEMA, TASK_BINDING_QUERY_SCHEMA, SessionTaskSync, TaskBind,
+        )
+        from hypertest.interactive_client import PROFILE
+
+        return {"profile": PROFILE, "tools": [
+            {"name": "hypertest_bind_task", "description": "Bind the selected fixture Task",
+             "inputSchema": TaskBind.model_json_schema()},
+            {"name": "hypertest_get_task_binding", "description": "Query the original fixture key",
+             "inputSchema": TASK_BINDING_QUERY_SCHEMA},
+            {"name": "hypertest_sync_task", "description": "Sync existing fixture assets",
+             "inputSchema": SessionTaskSync.model_json_schema()},
+            {"name": "hypertest_get_task", "description": "Read the fixture Task",
+             "inputSchema": GET_TASK_SCHEMA},
+        ], "execution_tools": []}
+
     async def request(self, method, path, **kwargs):
         self.calls.append((method, path, deepcopy(kwargs)))
         if method == "POST":
@@ -312,12 +336,13 @@ class BindingTransport:
         assert self.document is not None
         assert path == "interactive/tasks/" + self.document["task"]["id"]
         params = kwargs["params"]
-        assert params["version"] == self.document["task"]["version"]
+        selected_version = params.get("version", self.document["task"]["version"])
+        assert selected_version == self.document["task"]["version"]
         content = json.dumps(self.document)
         offset = params.get("offset", 0)
         fragment = content[offset:offset + 137]
         end = offset + len(fragment)
-        return {"task_id": self.document["task"]["id"], "version": params["version"],
+        return {"task_id": self.document["task"]["id"], "version": selected_version,
             "source": None, "format": "application/json", "content": fragment,
             "offset": offset, "total_chars": len(content), "complete": end == len(content),
             "next_offset": None if end == len(content) else end}
@@ -334,6 +359,12 @@ def native_binding(local):
     coordinator = LocalSyncCoordinator(config, api, journal)
     payload = {**identity, "task_id": str(uuid4()), "expected_version": 1, "idempotency_key": "binding-one"}
     return config, api, journal, coordinator, payload, event
+
+
+def native_caller(payload):
+    """Synthetic transport metadata; never a real native-host assertion."""
+    return {"provider": "codex", "session_id": payload["session_id"],
+            "transport": "codex-mcp-thread-id/v1"}
 
 
 @pytest.mark.parametrize("mutation", ["missing-root", "project", "provider", "child", "workspace", "policy", "host"])
@@ -355,7 +386,7 @@ async def test_bind_rejects_missing_forged_or_changed_native_root_before_network
     elif mutation == "host":
         config.local_sync["host"] = "unsupported-host"
     with pytest.raises(ClientError):
-        await coordinator.bind_task(payload)
+        await coordinator.bind_task(payload, native_caller_context=native_caller(payload))
     assert api.calls == []
 
 
@@ -381,7 +412,7 @@ async def test_unbound_new_root_keeps_artifact_and_never_posts_sync(native_bindi
 async def test_lost_binding_restart_not_found_and_new_target_only_reconcile_original_key(native_binding):
     config, api, _, coordinator, payload, _ = native_binding
     api.lose_response = True
-    first = await coordinator.bind_task(payload)
+    first = await coordinator.bind_task(payload, native_caller_context=native_caller(payload))
     assert first["status"] == "UNKNOWN" and first["query_required"]
     api.hide_receipt = True
     reopened = Journal(config.state_dir / "client.sqlite3")
@@ -391,11 +422,11 @@ async def test_lost_binding_restart_not_found_and_new_target_only_reconcile_orig
                                                "idempotency_key": payload["idempotency_key"]})
         assert queried["status"] == "UNKNOWN"
         new_target = {**payload, "task_id": str(uuid4()), "idempotency_key": "do-not-create-another-binding"}
-        blocked = await restarted.bind_task(new_target)
+        blocked = await restarted.bind_task(new_target, native_caller_context=native_caller(payload))
         assert blocked["status"] == "UNKNOWN" and blocked["idempotency_key"] == payload["idempotency_key"]
         identity = {key: payload[key] for key in ("project_id", "provider", "session_id")}
         colliding_sync = {**full(identity), "idempotency_key": payload["idempotency_key"]}
-        blocked_sync = await restarted.submit_full(colliding_sync)
+        blocked_sync = await restarted.submit_full(colliding_sync, native_caller_context=native_caller(payload))
         assert blocked_sync["status"] == "UNKNOWN" and blocked_sync["idempotency_key"] == payload["idempotency_key"]
         assert [call[:2] for call in api.calls] == [
             ("POST", "interactive/tasks/bind"), ("GET", "interactive/tasks/bindings/by-key"),
@@ -409,7 +440,7 @@ async def test_lost_binding_restart_not_found_and_new_target_only_reconcile_orig
 
 async def test_binding_only_confirms_after_complete_fixed_version_readback(native_binding):
     _, api, journal, coordinator, payload, _ = native_binding
-    accepted = await coordinator.bind_task(payload)
+    accepted = await coordinator.bind_task(payload, native_caller_context=native_caller(payload))
     assert accepted["status"] == "ACCEPTED" and accepted["source"] is None
     assert accepted["_sync"]["readback_complete"] is True
     assert journal.get("task-bind:" + payload["project_id"], payload["idempotency_key"])["state"] == "READBACK_COMPLETE"
@@ -427,9 +458,9 @@ async def test_binding_only_confirms_after_complete_fixed_version_readback(nativ
 async def test_binding_receipt_mismatch_stays_unknown_and_never_resends(native_binding, changes):
     _, api, journal, coordinator, payload, _ = native_binding
     api.receipt_changes = changes
-    first = await coordinator.bind_task(payload)
+    first = await coordinator.bind_task(payload, native_caller_context=native_caller(payload))
     assert first["status"] == "UNKNOWN" and first["query_required"]
-    repeat = await coordinator.bind_task(payload)
+    repeat = await coordinator.bind_task(payload, native_caller_context=native_caller(payload))
     assert repeat["status"] == "UNKNOWN"
     queried = await coordinator.get_binding({"project_id": payload["project_id"],
                                             "idempotency_key": payload["idempotency_key"]})
@@ -445,3 +476,136 @@ async def test_unknown_binding_query_without_local_intent_is_read_only(native_bi
     assert result["status"] == "UNKNOWN" and result["query_required"]
     assert [call[:2] for call in api.calls] == [("GET", "interactive/tasks/bindings/by-key")]
     assert journal.get("task-bind:" + payload["project_id"], "never-posted") is None
+
+
+def write_state(coordinator, journal):
+    """Only target, frozen requests and intent rows; excludes advisory locks."""
+    paths = list(coordinator.directory.glob("*.task.json"))
+    paths += list((coordinator.directory / "approved-snapshots").glob("*.json"))
+    return ({str(path.relative_to(coordinator.directory)): path.read_bytes() for path in paths},
+            journal.db.execute("SELECT * FROM intents ORDER BY rowid").fetchall())
+
+
+@pytest.fixture
+async def mcp_binding_boundary(native_binding):
+    """Official SDK memory transport → real UDS → service/coordinator fixture.
+
+    The test supplies MCP metadata itself; this is deliberately not a native
+    Codex process or proof that an installed host injects the right metadata.
+    """
+    config, api, _, _, payload, event = native_binding
+    with tempfile.TemporaryDirectory(prefix="ht-caller-", dir="/tmp") as short:
+        selected = config.model_copy(deep=True, update={"state_dir": Path(short).resolve()})
+        selected.prepare()
+        source_binding(selected, event, create=True)
+        journal = Journal(selected.state_dir / "client.sqlite3")
+        service = InteractiveService(selected, api, journal, NoExecutionHost())
+        server = LocalServer(selected, service)
+        await server.start()
+        try:
+            client = LocalClient(selected.socket_path, selected.local_token_file)
+            yield selected, api, journal, service, client, payload, event
+        finally:
+            await server.close()
+            journal.close()
+
+
+@pytest.mark.parametrize("operation", ["bind", "manual-sync", "manual-sync-old-target"])
+async def test_child_meta_cannot_write_known_parent_through_mcp_and_private_ipc(mcp_binding_boundary, operation):
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from hypertest.interactive_client.mcp_server import create_server
+
+    _, api, journal, service, ipc_client, payload, _ = mcp_binding_boundary
+    async with create_connected_server_and_client_session(create_server(ipc_client, local_host="codex")) as client:
+        if operation.startswith("manual-sync"):
+            parent = await client.call_tool("hypertest_bind_task", payload, meta={"threadId": payload["session_id"]})
+            assert not parent.isError and parent.structuredContent["_sync"]["readback_complete"]
+            if operation == "manual-sync-old-target":
+                # A's private target files predate the local manual/auto flag.
+                path = service.coordinator._target_path(payload)
+                old = json.loads(path.read_text())
+                old.pop("binding_required")
+                path.write_text(json.dumps(old))
+            identity = {key: payload[key] for key in ("project_id", "provider", "session_id")}
+            arguments = {**full(identity), "task_id": payload["task_id"], "expected_version": 2}
+            tool = "hypertest_sync_task"
+        else:
+            arguments, tool = payload, "hypertest_bind_task"
+        before = write_state(service.coordinator, journal)
+        posts = sum(call[0] == "POST" for call in api.calls)
+        result = await client.call_tool(tool, arguments, meta={"threadId": "actual-child-thread"})
+        assert result.isError and result.content[0].text == "NATIVE_CALLER_CONTEXT_MISMATCH"
+        assert sum(call[0] == "POST" for call in api.calls) == posts
+        assert write_state(service.coordinator, journal) == before
+
+
+@pytest.mark.parametrize("spoof", ["no-metadata", "argument-meta", "argument-caller-context"])
+async def test_bind_arguments_cannot_supply_or_override_mcp_native_caller(mcp_binding_boundary, spoof):
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from hypertest.interactive_client.mcp_server import create_server
+
+    _, api, journal, service, ipc_client, payload, _ = mcp_binding_boundary
+    arguments = deepcopy(payload)
+    expected = "NATIVE_CALLER_CONTEXT_REQUIRED"
+    if spoof == "argument-meta":
+        arguments["_meta"] = {"threadId": payload["session_id"]}
+        expected = "INVALID_TOOL_ARGUMENTS"
+    elif spoof == "argument-caller-context":
+        arguments["native_caller_context"] = native_caller(payload)
+        expected = "INVALID_TOOL_ARGUMENTS"
+    before = write_state(service.coordinator, journal)
+    async with create_connected_server_and_client_session(create_server(ipc_client, local_host="codex")) as client:
+        result = await client.call_tool("hypertest_bind_task", arguments)
+        assert result.isError and result.content[0].text == expected
+    assert api.calls == [] and write_state(service.coordinator, journal) == before
+
+
+@pytest.mark.parametrize("host,provider,metadata", [
+    ("claude-code", "claude_code", {"claudecode/toolUseId": "tool-call-is-not-root-proof"}),
+    ("deepseek-harness", "deepseek_harness", {"threadId": "not-a-supported-host-adapter"}),
+])
+async def test_unsupported_host_mcp_binding_fails_closed_but_original_key_get_remains_available(
+        mcp_binding_boundary, host, provider, metadata):
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from hypertest.interactive_client.mcp_server import create_server
+
+    config, api, journal, service, ipc_client, payload, event = mcp_binding_boundary
+    config.local_sync.update(host=host, event_bridge="native-root")
+    source_binding(config, event, create=True)
+    arguments = {**payload, "provider": provider}
+    before = write_state(service.coordinator, journal)
+    async with create_connected_server_and_client_session(create_server(ipc_client, local_host=host)) as client:
+        result = await client.call_tool("hypertest_bind_task", arguments, meta=metadata)
+        assert result.isError and result.content[0].text == "NATIVE_CALLER_CONTEXT_UNSUPPORTED"
+        assert api.calls == [] and write_state(service.coordinator, journal) == before
+        queried = await client.call_tool("hypertest_get_task_binding", {
+            "project_id": payload["project_id"], "idempotency_key": "unknown-original-key"})
+        assert not queried.isError and queried.structuredContent["status"] == "UNKNOWN"
+    assert [call[:2] for call in api.calls] == [("GET", "interactive/tasks/bindings/by-key")]
+
+
+@pytest.mark.parametrize("operation", ["bind", "manual-sync"])
+async def test_missing_caller_cannot_promote_prepared_intent_or_send_it(native_binding, operation):
+    _, api, journal, coordinator, payload, _ = native_binding
+    target = {key: payload[key] for key in ("project_id", "provider", "session_id", "task_id")}
+    if operation == "bind":
+        namespace, arguments = "task-bind:" + payload["project_id"], payload
+    else:
+        accepted = await coordinator.bind_task(payload, native_caller_context=native_caller(payload))
+        assert accepted["_sync"]["readback_complete"]
+        identity = {key: payload[key] for key in ("project_id", "provider", "session_id")}
+        arguments = {**full(identity), "task_id": payload["task_id"], "expected_version": 2}
+        namespace = "session-task:" + payload["project_id"]
+    intent = FrozenIntent(namespace, arguments["idempotency_key"], target, arguments, arguments["expected_version"])
+    coordinator.snapshots.save(intent)
+    JournalLedger(journal).prepare(intent)
+    before = write_state(coordinator, journal)
+    posts = sum(call[0] == "POST" for call in api.calls)
+    with pytest.raises(ClientError, match="NATIVE_CALLER_CONTEXT_REQUIRED"):
+        if operation == "bind":
+            await coordinator.bind_task(arguments)
+        else:
+            await coordinator.submit_full(arguments)
+    assert sum(call[0] == "POST" for call in api.calls) == posts
+    assert write_state(coordinator, journal) == before
+    assert journal.get(namespace, intent.key)["state"] == "PENDING"
