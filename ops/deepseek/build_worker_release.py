@@ -12,6 +12,7 @@ import os
 import pwd
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +31,37 @@ def output(command: list[str], *, cwd: Path | None = None) -> str:
 
 def regular_directory(path: Path) -> None:
     canonical_directory(path)
+
+
+def worker_context(source: Path, destination: Path) -> None:
+    """Derive the exact Worker inputs without modifying the Git source tree.
+
+    Debian's legacy Docker builder ignores Dockerfile-specific ignore files.
+    A separate narrow context gives it the same reviewed Worker root ignore.
+    """
+    regular_directory(source)
+    regular_directory(source / "src")
+    for path in (source / "src").rglob("*"):
+        info = path.lstat()
+        if (not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode))
+                or (stat.S_ISREG(info.st_mode) and info.st_nlink != 1)):
+            raise ValueError("runtime source context cannot contain aliases or special files")
+    selected = {"pyproject.toml": "pyproject.toml", "README.md": "README.md",
+        "requirements/cloud-runtime.lock": "requirements/cloud-runtime.lock",
+        "ops/deepseek/Dockerfile.worker": "Dockerfile",
+        "ops/deepseek/Dockerfile.worker.dockerignore": ".dockerignore"}
+    for name in selected:
+        original = source / name
+        if (not original.is_file() or original.resolve(strict=True) != original
+                or original.stat().st_nlink != 1):
+            raise ValueError("runtime context input must be a canonical Git file")
+    destination.mkdir(mode=0o755)
+    os.chmod(destination, 0o755)
+    for name, target_name in selected.items():
+        target = destination / target_name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / name, target)
+    shutil.copytree(source / "src", destination / "src", symlinks=False)
 
 
 def build(args: argparse.Namespace) -> dict:
@@ -70,15 +102,19 @@ def build(args: argparse.Namespace) -> dict:
                        stdout=stream, check=True, timeout=60)
     context = args.output / "source"
     context.mkdir(mode=0o755)
+    os.chmod(context, 0o755)
     extract_image(archive, context)
-    # Git archive stores uid/gid 0; source must be immutable to the service.
+    # Git source remains verbatim. Docker receives only the derived Worker
+    # closure, with its root ignore effective under both legacy and BuildKit.
+    build_context = args.output / "build-context"
+    worker_context(context, build_context)
     iid_file = args.output / "image.id"
     subprocess.run(["docker", "build", "--pull=false", "--iidfile", str(iid_file),
         "--build-arg", "PYTHON_IMAGE=" + args.python_image,
         "--build-arg", "SOURCE_COMMIT=" + args.commit,
         "--build-arg", "CLOUD_UID=" + str(identity.pw_uid),
         "--build-arg", "CLOUD_GID=" + str(identity.pw_gid),
-        "-f", str(context / "ops/deepseek/Dockerfile.worker"), str(context)], check=True, timeout=1800)
+        "-f", str(build_context / "Dockerfile"), str(build_context)], check=True, timeout=1800)
     image = iid_file.read_text().strip()
     if not image.startswith("sha256:") or not HEX64.fullmatch(image[7:]):
         raise ValueError("builder did not return an immutable local image ID")
@@ -94,6 +130,7 @@ def build(args: argparse.Namespace) -> dict:
         subprocess.run(["docker", "rm", container], check=True, stdout=subprocess.DEVNULL, timeout=30)
     rootfs = args.output / "rootfs"
     rootfs.mkdir(mode=0o755)
+    os.chmod(rootfs, 0o755)
     extract_image(rootfs_archive, rootfs)
     # Complete Git source is outside the image build's narrow runtime COPY and
     # is the exact read-only PYTHONPATH tree bound by the service template.

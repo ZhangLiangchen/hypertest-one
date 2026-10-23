@@ -6,6 +6,7 @@ import importlib.util
 import io
 import os
 import stat
+import subprocess
 import tarfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -182,6 +183,180 @@ def test_release_refuses_provenance_identity_and_existing_outputs_before_build(m
     else:
         assert not destination.exists()
     assert all(command[0] == "git" for command in commands)
+
+
+@pytest.fixture
+def worker_inputs(tmp_path):
+    source = tmp_path / "checkout"
+    source.mkdir()
+    content = {
+        "pyproject.toml": b"[project]\nname = 'synthetic-worker'\n",
+        "README.md": b"Synthetic public source fixture\n",
+        "requirements/cloud-runtime.lock": b"synthetic-wheel-pair-lock\n",
+        "ops/deepseek/Dockerfile.worker": (OPS / "Dockerfile.worker").read_bytes(),
+        "ops/deepseek/Dockerfile.worker.dockerignore": (OPS / "Dockerfile.worker.dockerignore").read_bytes(),
+        "src/hypertest/__init__.py": b"# synthetic runtime input\n",
+        ".dockerignore": b"**\n!src/\n!src/**\n# API context intentionally excludes requirements\n",
+        ".env": b"SYNTHETIC_PRIVATE_ENV=must-not-enter-worker-context\n",
+        ".codex/auth.json": b'{"synthetic": "must-not-enter-worker-context"}\n',
+        "web/private-copy.pem": b"synthetic excluded file\n",
+        "ops/deepseek/private-copy.key": b"synthetic excluded file\n",
+        "requirements/unrelated.lock": b"unrelated dependency closure\n",
+    }
+    for name, value in content.items():
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(value)
+        path.chmod(0o644)
+    for path in (source, *(path for path in source.rglob("*") if path.is_dir())):
+        path.chmod(0o755)
+    return source
+
+
+def test_worker_context_uses_root_ignore_and_includes_pair_lock_without_private_or_api_inputs(modules, worker_inputs, tmp_path):
+    source = worker_inputs
+    target = tmp_path / "worker-context"
+    before = {str(path.relative_to(source)): path.read_bytes() for path in source.rglob("*") if path.is_file()}
+    previous_umask = os.umask(0o077)
+    try:
+        modules["build_worker_release"].worker_context(source, target)
+    finally:
+        os.umask(previous_umask)
+    expected = {"pyproject.toml", "README.md", "requirements/cloud-runtime.lock",
+        "Dockerfile", ".dockerignore", "src/hypertest/__init__.py"}
+    actual = {str(path.relative_to(target)): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+    assert set(actual) == expected
+    assert actual["requirements/cloud-runtime.lock"] == before["requirements/cloud-runtime.lock"]
+    assert actual["Dockerfile"] == before["ops/deepseek/Dockerfile.worker"]
+    assert actual[".dockerignore"] == before["ops/deepseek/Dockerfile.worker.dockerignore"]
+    rules = actual[".dockerignore"].decode().splitlines()
+    assert "!requirements/" in rules and "!requirements/cloud-runtime.lock" in rules
+    assert "**/.env" in rules and "**/auth.json" in rules and "**/*.pem" in rules
+    assert stat.S_IMODE(target.stat().st_mode) == 0o755
+    assert (target / "src/hypertest/__init__.py").stat().st_mode & 0o444 == 0o444
+    assert before == {str(path.relative_to(source)): path.read_bytes() for path in source.rglob("*") if path.is_file()}
+    with pytest.raises(FileExistsError):
+        modules["build_worker_release"].worker_context(source, target)
+    assert actual == {str(path.relative_to(target)): path.read_bytes() for path in target.rglob("*") if path.is_file()}
+
+
+@pytest.mark.parametrize("corruption", ["source_symlink", "selected_symlink", "selected_parent_symlink",
+    "selected_hardlink", "src_symlink", "src_directory_symlink", "src_hardlink", "src_fifo", "selected_fifo"])
+def test_worker_context_rejects_aliases_and_special_inputs_before_creating_context(modules, worker_inputs, tmp_path, corruption):
+    source = worker_inputs
+    if corruption == "source_symlink":
+        alias = tmp_path / "alias"
+        alias.symlink_to(source, target_is_directory=True)
+        source = alias
+    elif corruption == "selected_parent_symlink":
+        original = source / "requirements"
+        moved = tmp_path / "requirements-original"
+        original.rename(moved)
+        original.symlink_to(moved, target_is_directory=True)
+    elif corruption == "src_directory_symlink":
+        (source / "src/alias").symlink_to(source / "src/hypertest", target_is_directory=True)
+    else:
+        selected = corruption.startswith("selected_")
+        original = source / ("README.md" if selected else "src/hypertest/__init__.py")
+        if corruption.endswith("hardlink"):
+            os.link(original, tmp_path / "hardlink-alias")
+        else:
+            original.unlink()
+            if corruption.endswith("fifo"):
+                os.mkfifo(original, 0o600)
+            else:
+                original.symlink_to(source / "pyproject.toml")
+    destination = tmp_path / "refused-context"
+    with pytest.raises(ValueError):
+        modules["build_worker_release"].worker_context(source, destination)
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize("build_fails", [False, True])
+def test_release_umask077_context_and_rootfs_modes_and_failed_leaf_are_preserved(modules, worker_inputs, tmp_path, monkeypatch, build_fails):
+    builder = modules["build_worker_release"]
+    commit, image, container = "a" * 40, "sha256:" + "b" * 64, "c" * 64
+    source_archive = tmp_path / "git-fixture.tar"
+    with tarfile.open(source_archive, "w") as stream:
+        stream.add(worker_inputs, arcname=".")
+    image_archive = tmp_path / "image-fixture.tar"
+    archive(image_archive, [("opt", "directory", ""), ("opt/hypertest-cloud", "directory", ""),
+        ("opt/hypertest-cloud/venv", "directory", ""),
+        ("opt/hypertest-cloud/venv/pyvenv.cfg", "file", "synthetic exported venv\n")])
+    destination = tmp_path / commit
+    args = SimpleNamespace(checkout=worker_inputs, output=TrustedOutput(destination), commit=commit,
+        remote_ref="origin/cloud-release", python_image="python@sha256:" + "d" * 64,
+        codex_payload=None, codex_manifest_sha256="")
+    commands = []
+
+    def git_or_container_metadata(command, **kwargs):
+        commands.append(command)
+        if command == ["git", "rev-parse", "HEAD"] or command == ["git", "rev-parse", "refs/remotes/origin/cloud-release"]:
+            return commit
+        if command == ["git", "status", "--porcelain", "--untracked-files=all"]:
+            return ""
+        assert command == ["docker", "create", "--network", "none", image]
+        return container
+
+    def synthetic_external(command, **kwargs):
+        commands.append(command)
+        if command == ["git", "archive", "--format=tar", commit]:
+            kwargs["stdout"].write(source_archive.read_bytes())
+        elif command[:2] == ["docker", "build"]:
+            context = destination / "build-context"
+            assert command[-3:] == ["-f", str(context / "Dockerfile"), str(context)]
+            assert stat.S_IMODE((destination / "source").stat().st_mode) == 0o755
+            assert stat.S_IMODE(context.stat().st_mode) == 0o755
+            assert (context / "requirements/cloud-runtime.lock").read_bytes() == b"synthetic-wheel-pair-lock\n"
+            assert (context / ".dockerignore").read_bytes() == (worker_inputs / "ops/deepseek/Dockerfile.worker.dockerignore").read_bytes()
+            assert not (context / ".env").exists() and not (context / ".codex").exists()
+            if build_fails:
+                raise subprocess.CalledProcessError(1, command)
+            Path(command[command.index("--iidfile") + 1]).write_text(image)
+        elif command == ["docker", "export", container]:
+            kwargs["stdout"].write(image_archive.read_bytes())
+        elif command == ["docker", "rm", container]:
+            pass
+        else:
+            assert command == ["tar", "--sort=name", "--mtime=@0", "--owner=0", "--group=0",
+                "-cf", str(destination / "venv.tar"), "-C", str(destination / "rootfs/opt/hypertest-cloud/venv"), "."]
+            (destination / "venv.tar").write_bytes(b"synthetic venv archive; no command executed")
+        return SimpleNamespace(returncode=0)
+
+    original_regular_directory = builder.regular_directory
+    monkeypatch.setattr(builder, "regular_directory", lambda path: None if path is args.output.parent else original_regular_directory(path))
+    monkeypatch.setattr(builder, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(builder, "os", SimpleNamespace(geteuid=lambda: 0, chmod=os.chmod))
+    monkeypatch.setattr(builder, "pwd", SimpleNamespace(getpwnam=lambda name: SimpleNamespace(pw_uid=997, pw_gid=988)))
+    monkeypatch.setattr(builder, "output", git_or_container_metadata)
+    monkeypatch.setattr(builder, "subprocess", SimpleNamespace(run=synthetic_external, DEVNULL=subprocess.DEVNULL))
+    monkeypatch.setattr(os, "chown", lambda *args, **kwargs: None)
+    previous_umask = os.umask(0o077)
+    try:
+        if build_fails:
+            with pytest.raises(subprocess.CalledProcessError):
+                builder.build(args)
+        else:
+            record = builder.build(args)
+            assert record["service_started"] is record["database_accessed"] is record["model_started"] is False
+            assert record["test_result"] == "NOT_RUN"
+            assert stat.S_IMODE((destination / "rootfs").stat().st_mode) == 0o755
+    finally:
+        os.umask(previous_umask)
+    assert stat.S_IMODE(destination.stat().st_mode) == 0o700
+    assert (destination / "source.tar").read_bytes() == source_archive.read_bytes()
+    assert (destination / "source/.env").read_bytes() == (worker_inputs / ".env").read_bytes()
+    assert (destination / "source/.dockerignore").read_bytes() == (worker_inputs / ".dockerignore").read_bytes()
+    if build_fails:
+        assert not (destination / "image.id").exists()
+        assert not (destination / "rootfs").exists()
+        assert all(command[:2] != ["docker", "create"] for command in commands)
+    retained = {str(path.relative_to(destination)): path.read_bytes() for path in destination.rglob("*") if path.is_file()}
+    calls = list(commands)
+    with pytest.raises(ValueError, match="new release"):
+        builder.build(args)
+    assert commands == calls
+    assert retained == {str(path.relative_to(destination)): path.read_bytes() for path in destination.rglob("*") if path.is_file()}
 
 
 @pytest.mark.parametrize("unsafe", ["PYTHONPATH=/untrusted", "HYPERTEST_CLOUD_SSH_ENABLED=true",
