@@ -70,6 +70,13 @@ boundary or authorization to run an unrelated SUT.
   → run the relevant remote validation once. If a full suite is needed, run it
   remotely. Do not default to a full local test suite or local production build;
   quick local checks are optional debugging aids, not a mandatory preflight matrix.
+- Default scope is implementation and deployment, including necessary builds,
+  migrations, restarts and basic service health checks. Functional acceptance is
+  performed by the user unless the user explicitly requests the agent to conduct
+  it. Do not independently create acceptance projects, tasks or credentials, or
+  trigger models, SUT tests or business acceptance flows. Normal change-scoped
+  automated regression tests during implementation and deployment health checks
+  remain allowed; report them as regression or health checks, not user acceptance.
 - Pure documentation changes only need static checks and commit/push. They do not
   trigger a server build, migration, restart or functional regression run.
 - Deploy from pushed Git history. Do not package and upload an uncommitted local
