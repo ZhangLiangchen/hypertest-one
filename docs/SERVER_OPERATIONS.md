@@ -27,6 +27,12 @@ hash矩阵或固定15分钟观察。需要验证恢复、协议兼容或其他�
 检查；备份依据本次迁移和数据风险决定，保留历史不等于每次都做完整恢复演练。
 允许中断不等于允许清库、删卷、覆盖历史或盲目重放结果未知的外部操作。
 
+**功能验收由用户执行；除非用户明确要求，不擅自开展验收。** 必要构建、组件回归、迁移和基础健康 / 部署路由检查可以形成交付记录，但不称为用户验收；不因部署完成自动创建业务Task、调用模型 / SUT或追加浏览器 / 凭据fixture验收。
+
+### 2026-10-23 Cloud Git 交付
+
+C4 `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署可供用户操作：当前库备份后向前升级至 `0026_cloud_ssh_operations`，原五角色健康；独立 `hypertest-cloud-worker.service` active-idle，Codex=true / SSH=false，未自动enable。旧Bridge、legacy Worker镜像、端口 / VPN和历史计数保留。严格TLS / CA / IP SAN及Cloud BFF typed读取已作部署路由检查，本轮未创建用户验收业务数据、未启动新的模型或SUT执行，用户验收为 `PENDING / USER_OWNED`。Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份；精确Git / images / 回执和既有失败见[Cloud交付记录](CLOUD_GIT_DELIVERY_20261023.md)。下方05:49等旧交付段落仍按其原轮次保存，不作为当前schema身份。
+
 现有脚本不会自动完成 Git 更新。下面是复用已有干净 Git checkout 的示例，不表示已经
 在服务器执行或该示例路径已经存在；`release_checkout` 和 `target_ref` 需填为本次实际目标：
 

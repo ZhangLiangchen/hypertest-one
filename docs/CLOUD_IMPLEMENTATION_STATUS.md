@@ -1,8 +1,10 @@
 # 云端任务实现状态与接入入口
 
-## 正式 Git 集成候选边界
+## 正式 Git 集成与当前部署边界
 
-本候选正式迁移文件已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写。ADR-024 平台预建 Local ID / MCP 绑定已合入当前候选；新空库升级及现有管理 `0023` 库向前升级到 `0026`、最终合并树和统一入口仍待相关远端验证，本段不声明已迁移或部署。服务器是允许中断的单人专用测试环境，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 一次相关远端验证交付；纯文档变更只做静态检查，不额外要求生产维护窗口或恢复演练。
+正式迁移已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。C4 Git `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署到单人专用测试服务器，当前库备份后从管理 `0023` 向前升级至 `0026`；API / Web / nginx 与原 Worker / PostgreSQL 五角色健康，独立 Cloud Worker 以 Codex=true / SSH=false 空闲运行。新空库迁移、组件回归、构建、doctor、基础健康和路由检查分别记录为部署检查，用户验收 `PENDING / USER_OWNED`，未经用户明确要求不擅自开展。Web Cloud详情步骤勾选显示修正已按6d49单独部署；API / Worker / schema保持C4身份。精确 Git / image / 各轮结果见[本轮交付记录](CLOUD_GIT_DELIVERY_20261023.md)。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写；统一入口 / Local 绑定由[独立管理交付](UNIFIED_TASK_CREATION_DELIVERY_20261023.md)记录，不由 Cloud 部署检查推定真实 native bind 通过。
+
+服务器允许开发中断，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 必要部署检查交付。纯文档变更只做静态检查，不额外要求生产维护窗口、恢复演练或业务验收。代码开关默认仍关闭；当前服务器配置与默认值分别记录，不由当前进程存活推定每 Attempt 准入。
 
 API 镜像只安装 `cloud-crypto` extra（cryptography）处理项目凭据的加密与解密；不安装官方 Harness SDK/runtime，不加载模型身份或执行 Agent。受控 Worker 独立安装 `cloud` extra。Cloud 写入持有与人工 DELETE 冲突的 Project 共享行锁，拒绝已删除项目；保留任意 CloudTask（包括 CANCELLED）时禁止删除 Project，归档不删除任务。旧 key 回执仍在当前授权和原提交者约束下只读。混合目录隐藏已删除 Local 任务；integration actor 只见 BOUND owner 或 UNBOUND 精确 intended actor 对应的记录，未绑定和首次同步前的来源与同步时间保持 null。
 
@@ -17,7 +19,7 @@ ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在�
 - `configuration` 分别给出 `cloud_enabled`、`worker_enabled`、`codex_enabled`、`ssh_fixed_diagnostics_enabled`；这些是当前开关值，不是认证、payload、网络、预算或隔离预检成功。
 - `admission={"state":"NOT_CHECKED","scope":"PER_ATTEMPT","checked_by":"WORKER"}` 明确本 GET 未做准入。原 `profile` / `enabled` / `worker_enabled` / `sdk_package_version` / `not_proven` 保留；模型身份、执行和委派仍由 Worker 在具体 Attempt 领取前检查并单独留证。
 
-**更新：2026-10-23，Asia/Singapore。部分实现、默认关闭；尚未更新测试服务器常驻Cloud服务。source30 Worker / source29 helper的r8 Task已固定完整读回v19 COMPLETED / reported PASS，canonical固定SSH专项PASS；source31只读验收器对同一v19固定快照的SNAPSHOT_REASSESSMENT为strict PASS，未进行新的current GET、模型 / SSH / SUT执行或canonical写入。source30初次NON_PASS及两个码永久保留。独立只读重放19项通过、原件链联核，私有备份 / catalog核验与owned隔离服务退场完成。旧source-r22直接引用缺口、r7 UNKNOWN / HELD及r6严格PASS分别保留；仍非独立writer证明或legacy VERIFIED / Gate通过，故障矩阵与其余P0未全退出。Claude占位、CI与一般远端shell不支持。**
+**更新：2026-10-23，Asia/Singapore。部分实现、代码默认关闭；C4 常驻部署可供用户操作，用户验收未执行、由用户负责。本轮未创建用户验收业务数据、未启动新的模型或SUT执行；组件回归使用的合成fixtures按各自范围登记。source30 Worker / source29 helper的r8 Task已固定完整读回v19 COMPLETED / reported PASS，canonical固定SSH专项PASS；source31只读验收器对同一v19固定快照的SNAPSHOT_REASSESSMENT为strict PASS，未进行新的current GET、模型 / SSH / SUT执行或canonical写入。source30初次NON_PASS及两个码永久保留。独立只读重放19项通过、原件链联核，私有备份 / catalog核验与owned隔离服务退场完成。旧source-r22直接引用缺口、r7 UNKNOWN / HELD及r6严格PASS分别保留；仍非独立writer证明或legacy VERIFIED / Gate通过，故障矩阵与其余P0未全退出。Claude占位、CI与一般远端shell不支持。**
 
 本次加入 [ADR-019](architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 的独立 CloudTask / CloudAttempt 路径，采用官方 `deepseek-harness-sdk==0.2.1rc2` 与同版本 runtime。现有 ADR-018 SessionTask 同步、旧 Run / Runner 与各自历史继续保留；Cloud 的执行和同步权限不由 `task:sync` 派生。
 
@@ -33,7 +35,7 @@ source-r23物理源码archive `a765288f6465aecf294d1c8f7b1497f9c349676e269429fe7
 
 source-r24 archive `372f5fb9c1e7a78214b791b2bdc7956139fbd6400d199066789cdee7fe8a643a` / manifest `a65f9182c89704d5ac1e545c36f4e99ab0ece50952b664420a5a0567f5959ca9`，远端所选 **231 passed（10.81秒）**、Ruff通过。同一v20只读严格重评 **PASS / failures=[]**，assessment SHA256 `b80c6ab449f95e117ef8869208fa588fded7bbb90022993b5b283ca94797000c`，canonical aggregate未变；旧source-r22 v17仍只有DESIGN_DIRECT_ARTIFACT_MISMATCH的NON_PASS。保留初次误判、旧失败 / RECOVERY / HELD历史，不拼接不同Task完成验收。
 
-第二阶段[固定SSH诊断](architecture/ADR-023_CLOUD_SSH_FIXED_DIAGNOSTICS.md)的r8 canonical专项及source31同v19固定快照strict重评均通过，旧source30 NON_PASS保留；独立开关默认关闭，真实staging及取消 / 失联矩阵未验收，尚未更新测试服务器常驻Cloud服务。本轮隔离服务已按独立回执退场，历史r22退场记录保持原轮次范围。
+第二阶段[固定SSH诊断](architecture/ADR-023_CLOUD_SSH_FIXED_DIAGNOSTICS.md)的r8 canonical专项及source31同v19固定快照strict重评均通过，旧source30 NON_PASS保留；独立开关默认关闭，C4服务器也保持SSH=false，真实staging及取消 / 失联矩阵未验收。上述隔离服务已按独立回执退场，历史r22退场记录保持原轮次范围；C4常驻部署单独记录，未重放旧r8 Task或启动新模型 / SUT。
 
 环境路由硬边界：XBlock staging需SSH / 服务器日志 / 操作的任务仅Local，由用户Mac经Workbench CLI访问；166dev内网自建链仅Local。纯Web / API可选Cloud仍需独立实现并验收HTTPS访问，网络可达不等于当前runtime支持；在本SSH小片之后另行接通。禁止Cloud直连受限环境、转发绕过 / 扩IP许可或复制Mac登录 / 本地环境秘密。固定 SSH 诊断仅在隔离 fixture 中实施；通用 SSH 仍不支持，不改变Project共享双模式；见[执行环境路由](CLOUD_LOCAL_ENVIRONMENT_ROUTING.md)。
 
@@ -93,9 +95,9 @@ canonical SSH操作 `01a1676b-70e6-7b2d-ac07-f4d8581766a5`有真实终态。独�
 
 私有最终custom dump已完成，1182203字节、SHA256 `e7ff6c747247e085d0037d0576149710899a60d767d26fdbc0be84054a9aef39`；PGDMP头与`pg_restore --list` exit0通过，catalog70454字节、SHA256 `8e5267650483e1f4f2644e6ca1b16115c254ff220006081f75e988e171e0d555`。回执`r8-final-private-backup-cleanup/backup-result.json`保留全部原件、旧备份与UNKNOWN / HELD；这是归档 / catalog核验，**未做restore演练**。
 
-最终owned cleanup已完成：固定r30 fixture daemon与API26停止、精确隔离PG container停止、其空internal network移除。全部目录 / 镜像 / container / volume / 备份 / key / session与旧UNKNOWN / HELD保留，专用user manager未停止；回执`r8-final-private-backup-cleanup/cleanup-result.json`。尚未更新测试服务器常驻Cloud服务；已停止的临时入口不代表常驻Cloud服务已经启用。后续checker重评使用已有固定完整快照，不恢复模型 / SSH执行或创建新Task。
+最终owned cleanup已完成：固定r30 fixture daemon与API26停止、精确隔离PG container停止、其空internal network移除。全部目录 / 镜像 / container / volume / 备份 / key / session与旧UNKNOWN / HELD保留，专用user manager未停止；回执`r8-final-private-backup-cleanup/cleanup-result.json`。该隔离轮次退场时尚未更新测试服务器常驻Cloud服务；已停止的临时入口不代表常驻Cloud服务已经启用。后续checker重评使用已有固定完整快照，不恢复模型 / SSH执行或创建新Task。其后C4常驻部署见[独立交付记录](CLOUD_GIT_DELIVERY_20261023.md)。
 
-现网hypertest-one是用户明确允许中断的单人专用测试环境。后续常驻更新沿本地修改→Git commit / push→服务器拉固定SHA构建 / 迁移 / 重启→一次相关远端验证推进，不默认增加生产维护窗口或完整恢复演练。正式Git集成前还须解决管理分支已部署`0023_project_task_management`与本轮历史Cloud0023 / SSH0024编号冲突；迁移顺延由其owner处理，本文保留原隔离DB迁移与source pins的历史事实，不直接改迁移源码。
+hypertest-one是用户明确允许中断的单人专用测试环境。C4已沿Git固定SHA构建 / 迁移 / 重启完成部署检查，不默认增加生产维护窗口、恢复演练或业务验收。正式迁移已顺延为0025 / 0026并接续管理0024，当前库已向前升级；原隔离DB迁移编号与source pins保持历史事实，不倒写旧数据库或验收记录。
 
 source31仅修只读验收器与对应测试两文件，其他419份source30 payload逐字保留；archive SHA256 `751ef85fd850d2804b348a7a3ea603e3bfa5cda78d36c50bf9939a3af34843bf`、manifest `db105141570888fc751d4dbd702b6d95f0765405602c26e72ad5b72cd2f197ec`。独立静态审查确认：只增加一个精确build表达并联核完整SHA / import path / report；combined patch只接受声明的新测试与逐字相同child；baseline只收独立operator提供的固定Git原件 / commit / path / hash / count，新增AST方法仍须CASE / JSON / log完整覆盖，direct child、归属与失败闭集不变。
 
@@ -116,17 +118,17 @@ source31仅修只读验收器与对应测试两文件，其他419份source30 pay
 | 5. 产物 | 显式工作区 handoff manifest，经唯一 Worker broker 提交分析 / 设计 / CASE / 实现 / 报告修订；正式 REPORT checkpoint 持续回写，原 key 与固定版本完整读回 |
 | 6. 执行与结果 | 原项目框架执行由 Agent 发起；保存原报告 / 日志 / Run / case actual 和 reported result，FAIL 与修订历史保留。完成仍要求明确 completion manifest |
 
-当前受控验收包括 **HTTPS Git 仓库、工作区内项目框架**与独立隔离fixture内的**固定SSH诊断专项**，source31对r8同v19固定快照strict重评通过；常驻测试服务器Cloud服务尚未更新。其余目标能力仍属于完整方案范围：
+已有受控fixture验收包括 **HTTPS Git 仓库、工作区内项目框架**与独立隔离fixture内的**固定SSH诊断专项**，source31对r8同v19固定快照strict重评通过。C4常驻部署已可供用户操作，未启动新模型 / SUT或代替用户验收。其余目标能力仍属于完整方案范围：
 
 | 能力 | 当前支持情况 |
 | --- | --- |
 | DeepSeek root 使用官方 SDK | source-r18与source-r22两个Task分别完成受控六步；后者固定v17 COMPLETED / reported PASS、16资产 / Run1 / 原件4份，关联核对与本Task独立重放9项通过。每轮证据独立，不升级legacy VERIFIED或全部P0 |
-| Codex 原生推理 / 文本贡献 | 默认关闭；source-r18文本贡献与source-r22实际子分析原件分别接受。后者ROOT36 / CODEX5全HTTP200完整完成，native_ref / run_id及分析 / 设计引用已核验；来源为official-plugin-runtime-reported，非独立writer证明 |
+| Codex 原生推理 / 文本贡献 | 代码默认关闭，C4服务器显式启用但保持idle；source-r18文本贡献与source-r22实际子分析原件分别接受。后者ROOT36 / CODEX5全HTTP200完整完成，native_ref / run_id及分析 / 设计引用已核验；来源为official-plugin-runtime-reported，非独立writer证明 |
 | Codex 子代理文件 / 命令工具 | source-r23新Task的ANALYSIS / DESIGN直接引用当前子原件，source-r24对同v20严格PASS；实际框架8项只读重放通过。子贡献仍runtime-reported，非独立writer证明；source-r18 SIGTRAP、source-r21 RECOVERY和source-r22 transitive-only / NON_PASS历史保留 |
 | Claude Code 外部子代理 | placeholder；未实现 / 未验收，不能由 Codex 路径推定支持 |
 | SSH固定诊断 / 其他远端能力 | ADR-023默认关闭；source29合成transport与source30 Worker的r8 canonical专项PASS，source31对同v19快照strict重评PASS、旧source30 NON_PASS保留；取消 / 失联矩阵及真实staging未验收。CI、一般远端shell和Git写入仍不支持 |
 | 精确旧会话恢复 | 仍阻塞；不会自动重放 prompt、恢复旧 shell 或创建替代 session |
-| 常驻测试服务器Cloud服务更新 | 尚未执行；隔离fixture已退场，正式集成先处理迁移编号冲突，再按固定SHA更新并做相关远端验证 |
+| 常驻测试服务器Cloud服务更新 | C4固定Git已部署、schema26、五角色healthy与Cloud Worker active-idle；部署检查不等于用户验收。本轮无新模型 / SUT；Web步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份，见[交付记录](CLOUD_GIT_DELIVERY_20261023.md) |
 
 ## 服务端 API 与权限
 
@@ -362,8 +364,8 @@ source-r21真实执行的 Task `01a16539-e3bd-72e9-b7e3-e66155fbaee6` / Attempt 
 
 Cloud 控制平面 fixture 使用合成原始报告验证关系、幂等、固定版本读回、FAIL 历史、凭据保护及 Local 兼容；它不证明真实框架 / 模型执行。源码存在、SDK 协议成功、测试 fixture 接受或页面可打开均不证明完整六步已完成。
 
-仍需：正式Git集成的迁移编号顺延与常驻测试服务器Cloud服务更新、SSH取消 / 失联故障矩阵验收、旧任务未交付原因的证据收尾、DeepSeek自行路径完整成功、另行授权启用后才实现 / 预配Claude身份、批准真实目标准入与CI / 网络 adapter、实际项目依赖与入口范围强制、真实模型活动下的整树取消 / 故障与恢复、首个 staging 项目完整验收。已通过的隔离、固定工具、各快照所选回归、平台完成、接受版本内部关系及本轮独立重放 / 实现关联不重复标为全未实现，也不替代未完成的真实验收。P0 的三种真实工作路径尚未全部退出；P1–P4 其余可靠性与生产准入按[实施计划](CLOUD_TEST_IMPLEMENTATION_PLAN.md)逐项完成，不删减原规范目标。
+正式Git迁移顺延与C4常驻部署已经完成，用户验收保持PENDING / USER_OWNED；未经明确要求不继续业务验收。尚未完成的能力或证据包括：SSH取消 / 失联矩阵、旧任务未交付原因收尾、DeepSeek自行路径完整成功、另行授权后的Claude实现 / 身份预配、真实目标准入与CI / 网络adapter、项目依赖与入口范围强制、真实模型下的整树取消 / 故障与恢复，以及staging项目完整流程。已有隔离、固定工具、所选回归、接受版本和独立重放不重复标为全未实现，也不代替这些未完成项；后续由用户选择实现 / 部署或明确要求验收，不自动开始。P0三种真实路径尚未全部退出，P1–P4范围见[实施计划](CLOUD_TEST_IMPLEMENTATION_PLAN.md)。
 
 环境路由的仅收紧字段`cloud_access_policy=LOCAL_ONLY|WEB_ONLY|None`保持旧None序列化省略；LOCAL_ONLY拒绝Cloud创建 / 解析 / 下发和执行，WEB_ONLY限制HTTPS且当前HTTPS执行仍闭锁。未配置真实XBlock / 166dev资源，详见[环境路由](CLOUD_LOCAL_ENVIRONMENT_ROUTING.md)。
 
-部署归属说明：本会话仅操作独立验收API / 数据库 / SSH fixture，未执行生产部署或更改生产配置。现场生产容器已有其他并行更新，不以历史uptime声称整个生产环境自baseline不变。当前SSH与r6临时资源的清理另需本轮实际回执，不沿用r22退场结论。
+历史隔离轮次归属说明：上述fixture仅操作独立API / 数据库 / SSH资源，不代表当时常驻服务已部署；其清理按各轮实际回执，不沿用r22退场结论。此后单人测试服务器C4 Git交付另见[部署记录](CLOUD_GIT_DELIVERY_20261023.md)，不以旧uptime或旧fixture通过替代本次部署检查，也不据此宣称用户验收完成。
