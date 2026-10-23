@@ -1,16 +1,21 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Form, Input, Radio, Select, Space, Typography } from "antd";
+import { Alert, Button, Form, Input, Radio, Select, Space, Spin, Typography } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { createLocalTask, errorText, getLocalTaskActors, getLocalTaskCreation } from "@/lib/api";
+import { cloudCapabilities, cloudConfiguration, cloudSetup } from "@/lib/cloud";
+import { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
 import { localTaskCreatePayload, localTaskCreateWasRejected, pendingLocalTaskCreation, validateLocalTaskCreation } from "@/lib/local-task-binding";
 import type { LocalTaskCreateValues } from "@/lib/local-task-binding";
 import type { LocalTaskCreate } from "@/lib/types";
 import { createUuid } from "@/lib/uuid";
+import { CloudCapabilitiesNotice, CloudOperationNotice } from "../../cloud/cloud-shared";
+import { CloudTaskForm } from "../../cloud/task-form";
 
 type TaskCreateValues = LocalTaskCreateValues & { mode: "cloud" | "local" };
 
@@ -20,8 +25,16 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [form] = Form.useForm<TaskCreateValues>();
   const mode = Form.useWatch("mode", { form, preserve: true }) || "cloud";
+  const title = Form.useWatch("title", { form, preserve: true }) || "";
+  const objective = Form.useWatch("objective", { form, preserve: true }) || "";
   const selectedActor = Form.useWatch("intended_actor_ref", { form, preserve: true });
   const actors = useQuery({ queryKey: ["local-task-actors", projectId], queryFn: () => getLocalTaskActors(projectId), retry: false });
+  const cloudOperation = useCloudOperation(projectId);
+  const cloudSetupQuery = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup, retry: false });
+  const cloudConfigured = cloudSetupQuery.data?.configured === true;
+  const capabilities = useQuery({ queryKey: ["cloud-capabilities"], queryFn: cloudCapabilities, enabled: cloudConfigured, retry: false });
+  const configuration = useQuery({ queryKey: ["cloud-config", projectId], queryFn: () => cloudConfiguration(projectId), enabled: cloudConfigured, retry: false });
+  const latestConfig = configuration.data?.items.slice().sort((a, b) => b.revision - a.revision)[0];
   const initialActorResolved = useRef(false);
   const request = useRef<{ signature: string; payload: LocalTaskCreate } | null>(null);
   const storageKey = `hypertest:local-task-create:${projectId}`;
@@ -33,6 +46,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     queryClient.setQueryData(["session-task", detail.task.id], detail);
     void queryClient.invalidateQueries({ queryKey: ["session-task", detail.task.id] });
     void queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["cloud-directory", projectId] });
     router.push(`/tasks/${detail.task.id}`);
   };
   const creation = useMutation({
@@ -65,8 +79,16 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
       form.setFieldValue("intended_actor_ref", actors.data.items[0].actor_ref);
     }
   }, [actors.isSuccess, actors.data, form]);
+  const localBlocked = creation.isPending || creation.isSuccess || Boolean(unresolved);
+  const cloudBlocked = cloudOperation.busy || Boolean(cloudOperation.pending) || cloudOperation.receipt?.operation === "CREATE_TASK";
+  const cloudReadFailed = cloudSetupQuery.isError || capabilities.isError || configuration.isError;
+  const refreshingCloud = cloudSetupQuery.isFetching || capabilities.isFetching || configuration.isFetching;
+  const refreshCloud = async () => {
+    const setup = await cloudSetupQuery.refetch();
+    if (setup.data?.configured) await Promise.all([capabilities.refetch(), configuration.refetch()]);
+  };
   const submit = (values: TaskCreateValues) => {
-    if (values.mode !== "local" || creation.isPending || creation.isSuccess || unresolved || storageError) return;
+    if (values.mode !== "local" || localBlocked || cloudBlocked || storageError) return;
     const canonical = localTaskCreatePayload(values, "");
     const signature = JSON.stringify({ project_id: projectId, ...canonical });
     if (!request.current || request.current.signature !== signature) {
@@ -79,7 +101,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     } catch { setStorageError(true); }
   };
   return <><Form form={form} layout="vertical" initialValues={{ mode: "cloud", title: "", objective: "", plan_markdown: "", intended_actor_ref: null }}
-    disabled={creation.isPending || creation.isSuccess || Boolean(unresolved)} requiredMark="optional" onFinish={submit}
+    disabled={localBlocked || cloudBlocked} requiredMark="optional" onFinish={submit}
     onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}
     onValuesChange={() => { if (creation.isError) creation.reset(); }}>
     <Form.Item name="mode" label={t("Execution mode", "执行方式")}>
@@ -101,14 +123,26 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
       {actors.isError ? <Alert showIcon type="warning" message={t("Local clients could not be loaded", "无法读取本地客户端")} description={<>{errorText(actors.error, locale)} {t("You can still create an unbound task and authorize its client later.", "仍可先创建待绑定任务，稍后再授权客户端。")}</>} action={<Button onClick={() => void actors.refetch()} loading={actors.isFetching}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 20 }} /> : null}
       {!selectedActor ? <Alert showIcon type="info" message={t("The task will wait for client authorization", "任务将等待客户端授权")} description={t("Arrange an existing Project-scoped Local connection, then select its client on the task page before binding.", "先按项目的本地接入引导准备有效授权，再在任务页选择对应客户端并绑定。") } style={{ marginBottom: 20 }} /> : null}
       <Form.Item name="plan_markdown" label={t("Initial test plan (optional, Markdown)", "初始测试计划（可选，Markdown）")} rules={[{ max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item>
-    </> : <Alert type="info" showIcon message={t("Cloud task creation is awaiting integration", "云端任务创建能力待接入")} description={t("The CloudTask service and execution form are not available in this version yet. Your shared title and objective stay here when switching modes.", "此版本尚未接入 CloudTask 服务及其执行配置。切换执行方式会保留已填写的标题和目标。") } style={{ marginBottom: 24 }} />}
+    </> : null}
     {storageError ? <Alert type="error" showIcon message={t("The pending request cannot be saved or read", "无法保存或读取未决请求")} description={t("Check browser session storage before creating a task. Preserve any earlier request key and reconcile it before creating another task.", "请检查浏览器会话存储后再创建任务。若已有请求标识，请保留并先完成查询对账，不要另建任务。") } action={<Button onClick={() => window.location.reload()}>{t("Reload page", "重载页面")}</Button>} style={{ marginBottom: 20 }} /> : null}
-    {creation.isError && !unresolved ? <Alert type="error" showIcon message={t("Task was not created", "任务未创建")} description={<>{errorText(creation.error, locale)} {t("Your input is preserved. Review it before retrying.", "当前输入已保留，请检查后重试。")}</>} style={{ marginBottom: 20 }} /> : null}
-    <Space wrap>
-      <Button type="primary" htmlType="submit" disabled={mode !== "local" || Boolean(unresolved) || storageError || creation.isPending || creation.isSuccess} loading={creation.isPending || creation.isSuccess}>{t("Create test task", "创建测试任务")}</Button>
-      <Button onClick={() => router.push(`/projects/${projectId}`)}>{t("Back to project", "返回项目")}</Button>
+    {mode === "local" && creation.isError && !unresolved ? <Alert type="error" showIcon message={t("Task was not created", "任务未创建")} description={<>{errorText(creation.error, locale)} {t("Your input is preserved. Review it before retrying.", "当前输入已保留，请检查后重试。")}</>} style={{ marginBottom: 20 }} /> : null}
+    {mode === "local" ? <Button type="primary" htmlType="submit" disabled={localBlocked || cloudBlocked || storageError} loading={creation.isPending || creation.isSuccess}>{t("Create test task", "创建测试任务")}</Button> : null}
+  </Form>
+  <CloudOperationNotice operation={cloudOperation} />
+  <div hidden={mode !== "cloud"} style={{ marginTop: 24 }}>
+    <Space wrap style={{ marginBottom: 20 }}>
+      <Button onClick={() => void refreshCloud()} loading={refreshingCloud}>{t("Refresh Cloud configuration", "刷新云端配置")}</Button>
+      {latestConfig ? <Link href={`/projects/${projectId}/cloud?tab=resources`} target="_blank" rel="noopener noreferrer">{t("Project resources (new tab)", "项目资源（新标签页）")}</Link> : null}
     </Space>
-  </Form>{unresolved ? <Alert showIcon type="warning" style={{ marginTop: 24 }} message={t("Creation is unresolved: query the original request", "创建结果未决：请查询原请求")}
+    {cloudSetupQuery.isPending || cloudConfigured && capabilities.isPending ? <Spin aria-label={t("Checking Cloud access", "正在检查云端访问")} />
+      : !cloudConfigured || capabilities.data?.enabled !== true ? <CloudCapabilitiesNotice configured={cloudConfigured} capabilities={capabilities.data} /> : null}
+    {cloudReadFailed ? <Alert showIcon type="error" style={{ marginBottom: 20 }} message={t("Cloud configuration could not be refreshed", "无法刷新云端配置")} description={t("Your inputs and loaded configuration are preserved. Refresh Cloud configuration before creating a draft.", "当前输入和已读取的配置已保留，请刷新云端配置后再创建草稿。") } /> : null}
+    <CloudTaskForm config={latestConfig} operation={cloudOperation} enabled={cloudConfigured && capabilities.data?.enabled === true && !cloudReadFailed && !localBlocked && !storageError}
+      sharedFields={{ title, objective }} resourcesHref={`/projects/${projectId}/cloud?tab=resources`}
+      onCreated={(taskId) => { void queryClient.invalidateQueries({ queryKey: ["cloud-directory", projectId] }); router.push(`/cloud-tasks/${taskId}?projectId=${projectId}`); }} />
+  </div>
+  <Button onClick={() => router.push(`/projects/${projectId}`)} style={{ marginTop: 20 }}>{t("Back to project", "返回项目")}</Button>
+  {unresolved ? <Alert showIcon type="warning" style={{ marginTop: 24 }} message={t("Creation is unresolved: query the original request", "创建结果未决：请查询原请求")}
     description={<><Typography.Paragraph>{t("Only a read-only lookup is allowed now. A missing receipt does not authorize resubmitting or changing the request key. Your draft and key are retained in this browser tab across reloads.", "当前仅查询原请求。尚未找到回执不代表可以重发或更换请求标识。本标签页重载后仍会保留草稿和请求标识。")}</Typography.Paragraph><Typography.Text code copyable>{unresolved.idempotency_key}</Typography.Text>{reconciliation.isError ? <Typography.Paragraph type="danger">{errorText(reconciliation.error, locale)}</Typography.Paragraph> : null}</>}
     action={<Button loading={reconciliation.isPending} onClick={() => reconciliation.mutate(unresolved)}>{t("Query original request", "查询原请求")}</Button>} /> : null}</>;
 }

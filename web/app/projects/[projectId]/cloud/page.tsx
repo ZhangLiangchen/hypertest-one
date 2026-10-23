@@ -51,7 +51,7 @@ export default function CloudProjectPage() {
           locale={{ emptyText: <Empty description={configured ? t("No tasks match this source.", "此来源尚无任务。") : t("Configure Cloud Web access to read this directory. Local tasks remain in the project workspace.", "配置云端 Web 访问后可读取此目录；Local 任务仍在项目工作台。 ")} /> }}
           pagination={{ current: page, pageSize: 20, total: tasks.data?.total || 0, hideOnSinglePage: true, showSizeChanger: false, onChange: setPage }} columns={[
             { title: t("Task", "任务"), key: "title", render: (_, row) => <Link className="entity-title" href={row.task_kind === "CLOUD_TASK" ? `/cloud-tasks/${row.task_id}?projectId=${projectId}` : `/tasks/${row.task_id}`}>{String(row.title)}</Link> },
-            { title: t("Source", "来源"), key: "source", render: (_, row) => <><Tag>{String(row.product_mode)}</Tag><span>{row.provider ? String(row.provider) : t("Awaiting local binding", "等待本地绑定")}</span></> },
+            { title: t("Source", "来源"), key: "source", render: (_, row) => <><Tag>{String(row.product_mode)}</Tag><span>{row.provider ? String(row.provider) : row.product_mode === "LOCAL" ? t("Awaiting local binding", "等待本地绑定") : "—"}</span></> },
             { title: t("Task progress", "任务进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
             { title: t("Reported test result", "报告的测试结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> },
             { title: t("Version", "版本"), dataIndex: "version" }, { title: t("Updated", "更新时间"), dataIndex: "updated_at", render: (value: string) => formatDate(value) },

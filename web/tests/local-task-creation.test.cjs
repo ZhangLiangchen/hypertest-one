@@ -137,21 +137,108 @@ test("a bound task does not claim an Agent sync before actual artifacts arrive",
   assert.equal(html.includes("Synced from the source Agent session"), false);
 });
 
-test("one create form keeps shared inputs and exposes only the selected mode's controls", () => {
-  const antd = require("antd");
+function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {} } = {}) {
+  const antd = require("antd"), forms = [], submissions = [], localWrites = [], navigation = [];
+  const config = { id: "config-1", revision: 1, configuration: { environment: { connection: "NONE" },
+    sut: { url: "https://git.example.org/team/sut.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } },
+    framework: { url: "https://git.example.org/team/framework.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } } } };
+  const shared = { title: "Shared task title", objective: "Shared testing objective" };
+  const Form = Object.assign((props) => {
+    forms.push(props);
+    return React.createElement(antd.Form, { ...props, initialValues: { ...props.initialValues, ...(props.initialValues?.mode ? { mode, ...shared } : {}) } });
+  }, antd.Form, { useWatch: (name) => name === "mode" ? mode : shared[name] ?? null });
+  const link = { default: ({ children, ...props }) => React.createElement("a", props, children) };
+  const cloud = load("lib/cloud.ts", { URL, TextEncoder, Uint8Array, DataView, Int32Array });
+  const operation = { ready: true, busy: false, pending: null, receipt: null, issue: null,
+    submit: async (fields) => { submissions.push(fields); return { operation: "CREATE_TASK", task_id: "cloud-task-1" }; }, reconcile() {}, ...operationChanges };
+  operation.blocked = !operation.ready || operation.busy || Boolean(operation.pending);
+  let operationHookCalls = 0;
+  const query = ({ queryKey }) => {
+    const data = queryKey[0] === "cloud-web-setup" ? { configured }
+      : queryKey[0] === "cloud-capabilities" ? configured ? { enabled: true, worker_enabled: false } : undefined
+        : queryKey[0] === "cloud-config" ? configured ? { items: [config] } : undefined : { items: [], total: 0 };
+    return { isSuccess: true, isLoading: false, isPending: false, isError: false, isFetching: false, data, refetch: async () => ({ data }) };
+  };
+  const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
+  const notices = load("app/projects/[projectId]/cloud/cloud-shared.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "next/link" ? link : require(name) });
+  const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n
+    : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/cloud" ? cloud
+      : name === "@/lib/cloud-operation" ? { useCloudOperation: () => { operationHookCalls++; return operation; } }
+        : name === "../../cloud/task-form" ? cloudForm : name === "../../cloud/cloud-shared" ? notices
+          : name === "@/lib/uuid" ? { createUuid: () => "stable-key" }
+            : name === "@tanstack/react-query" ? { useQuery: query, useMutation: () => ({ mutate: (payload) => localWrites.push(payload) }), useQueryClient: () => ({ invalidateQueries() {}, setQueryData() {} }) }
+              : name === "@/lib/api" ? {} : name === "next/link" ? link : name === "next/navigation" ? { useRouter: () => ({ push: (href) => navigation.push(href) }) } : require(name) });
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(TaskCreateForm, { projectId: "project-1" })));
+  return { html, forms, shared, submissions, localWrites, navigation, operationHookCalls };
+}
+
+test("unified creation shares title and objective without nesting the Cloud form", () => {
   for (const mode of ["cloud", "local"]) for (const locale of ["en", "zh"]) {
-    const Form = Object.assign((props) => React.createElement(antd.Form, { ...props, initialValues: { ...props.initialValues, mode } }), antd.Form, { useWatch: (name) => name === "mode" ? mode : null });
-    const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/uuid" ? { createUuid: () => "stable-key" } : name === "@tanstack/react-query" ? { useQuery: () => ({ isSuccess: true, isLoading: false, data: { items: [], total: 0 } }), useMutation: () => ({}), useQueryClient: () => ({}) } : name === "@/lib/api" ? {} : name === "next/navigation" ? { useRouter: () => ({}) } : require(name) });
-    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(TaskCreateForm, { projectId: "project-1" })));
+    const { html, operationHookCalls } = unifiedCreationHarness({ mode, locale });
     assert.equal((html.match(/id="title"/g) || []).length, 1);
     assert.equal((html.match(/id="objective"/g) || []).length, 1);
+    assert.equal(operationHookCalls, 1);
     assert.ok(html.includes(locale === "en" ? "Cloud execution" : "云端执行"));
     assert.ok(html.includes(locale === "en" ? "Local execution" : "本地执行"));
+    assert.ok(html.indexOf("</form>") < html.indexOf('id="new-cloud-task-title"'), "the Cloud form is a sibling of the shared form");
+    assert.equal((html.match(/<form\b/g) || []).length, 2);
+    assert.ok(html.includes('href="/projects/project-1/cloud?tab=resources" target="_blank"'), "resource setup retains this page's draft");
     if (mode === "local") {
       assert.ok(html.includes(locale === "en" ? "Authorized local client" : "获准绑定的本地客户端"));
       assert.ok(html.includes(locale === "en" ? "The task will wait for client authorization" : "任务将等待客户端授权"));
-    } else assert.ok(html.includes(locale === "en" ? "Cloud task creation is awaiting integration" : "云端任务创建能力待接入"));
+      assert.ok(html.includes('hidden=""'), "the Cloud draft stays mounted but hidden in Local mode");
+    } else {
+      assert.ok(html.includes(locale === "en" ? "Create draft and review versions" : "创建草稿并核对版本"));
+      assert.equal(html.includes(locale === "en" ? "Authorized local client" : "获准绑定的本地客户端"), false);
+    }
   }
+});
+
+test("the embedded Cloud form creates only a draft using shared fields and request credits", async () => {
+  const harness = unifiedCreationHarness();
+  const cloudForm = harness.forms.find((form) => form.initialValues?.accounting_unit);
+  assert.equal(cloudForm.initialValues.accounting_unit, "REQUEST_CREDITS");
+  await cloudForm.onFinish({ ...cloudForm.initialValues, title: "Ignored duplicate title", objective: "Ignored duplicate objective", prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
+  await new Promise(setImmediate); // AntD's onFinish wrapper intentionally returns void.
+  assert.equal(harness.submissions.length, 1);
+  assert.equal(harness.submissions[0].operation, "CREATE_TASK");
+  assert.equal(harness.submissions[0].expected_version, 0);
+  assert.equal(harness.submissions[0].title, harness.shared.title);
+  assert.equal(harness.submissions[0].inputs.objective, harness.shared.objective);
+  assert.equal(harness.submissions[0].inputs.budgets.accounting_unit, "REQUEST_CREDITS");
+  assert.equal(harness.localWrites.length, 0);
+  assert.deepEqual(harness.navigation, ["/cloud-tasks/cloud-task-1?projectId=project-1"]);
+});
+
+test("an unresolved Cloud creation keeps its original key visible and prevents a Local create", () => {
+  const harness = unifiedCreationHarness({ mode: "local", operation: { pending: { operation_key: "web:original-unknown", operation: "CREATE_TASK" } } });
+  assert.equal(harness.forms[0].disabled, true);
+  assert.ok(harness.html.includes("web:original-unknown"));
+  assert.ok(harness.html.includes("Query original key"));
+  harness.forms[0].onFinish({ mode: "local", ...harness.shared });
+  assert.equal(harness.localWrites.length, 0);
+  assert.equal(harness.submissions.length, 0);
+  assert.equal(unifiedCreationHarness({ mode: "local", configured: false }).forms[0].disabled, false, "Cloud setup does not gate Local creation");
+});
+
+test("the task directory reopens both task kinds and marks only unbound Local rows as waiting", () => {
+  const cloud = load("lib/cloud.ts", { URL, TextEncoder, Uint8Array, DataView, Int32Array });
+  const records = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
+  const rows = [{ task_id: "cloud-task-1", task_kind: "CLOUD_TASK", product_mode: "CLOUD", title: "Cloud draft", status: "DRAFT", reported_result: "NOT_RUN", version: 1 },
+    { task_id: "local-task-1", task_kind: "SESSION_TASK", product_mode: "LOCAL", title: "Local draft", status: "DRAFT", reported_result: "NOT_RUN", version: 1, provider: null, last_synced_at: null }];
+  const page = load("app/projects/[projectId]/cloud/page.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cloud" ? cloud
+    : name === "@/lib/api" ? {} : name === "@/lib/cloud-operation" ? { useCloudOperation: () => ({ blocked: false }) }
+      : name === "@/app/tasks/task-records" ? records : name === "./cloud-shared" ? { CloudCapabilitiesNotice: () => null, CloudOperationNotice: () => null }
+        : name === "./resources" ? { CloudResources: () => null } : name === "./task-form" ? { CloudTaskForm: () => null }
+          : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) }
+            : name === "next/navigation" ? { useParams: () => ({ projectId: "project-1" }), useRouter: () => ({}), useSearchParams: () => new URLSearchParams() }
+              : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => ({ isSuccess: true, data: queryKey[0] === "project" ? { name: "Project" } : queryKey[0] === "cloud-web-setup" ? { configured: true } : queryKey[0] === "cloud-capabilities" ? { enabled: true } : queryKey[0] === "cloud-directory" ? { items: rows, total: rows.length } : { items: [] } }) } : require(name) });
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(page.default)));
+  assert.ok(html.includes('href="/cloud-tasks/cloud-task-1?projectId=project-1"'));
+  assert.ok(html.includes('href="/tasks/local-task-1"'));
+  assert.equal((html.match(/Awaiting local binding/g) || []).length, 1);
+  assert.ok(html.includes("Not synced yet"));
+  assert.equal(html.includes("null · null"), false);
 });
 
 test("unified task creation preserves Local setup and keeps binding mutations out of read-only record components", () => {
@@ -160,6 +247,7 @@ test("unified task creation preserves Local setup and keeps binding mutations ou
   const form = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/tasks/new/task-create-form.tsx"), "utf8");
   assert.ok(project.includes('/tasks/new'));
   assert.ok(project.includes('"Create test task", "创建测试任务"'));
+  assert.ok(project.includes('/cloud?tab=tasks'));
   assert.ok(list.includes("<LocalModeGuide"));
   assert.ok(list.includes("SessionTaskActions"));
   assert.ok(form.includes('value: "cloud"'));
