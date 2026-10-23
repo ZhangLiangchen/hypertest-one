@@ -2432,6 +2432,8 @@ WAITING_INPUT 必须先保存问题、已接受产物和 checkpoint，再停止�
 
 本次 Cloud 集成的项目与混合目录必须遵循已存在的 Project/SessionTask 软删除、owner/provider/type 读取边界；不覆盖 §50 的人工管理历史。统一创建入口与 Local 预建 Task/绑定由管理路径及其 ADR-024 拥有，本节不引入另一套 Local 身份或绕过该路径。最终集成兼容性验证尚未执行。
 
+Cloud 配置、凭据及任务写入先取得 Project 共享行锁并持续到提交，与人工 DELETE 的排他 Project 行锁互斥；锁后重新读取 deleted_at，已删除项目不接受新写。Project 保留任意 CloudTask 时拒绝 DELETE，包括已取消 / 已终结任务；归档不删除原任务或回执。原 operation key 的只读对账不因 Project 墓碑失效，仍核当前授权及原提交者。普通混合目录排除已删除 SessionTask；integration actor 的 Local 行限于 BOUND owner 或 UNBOUND 精确 intended actor，未授权 UNBOUND 不进入结果或计数。绑定状态、真实 session_id、source 和 last_synced_at 按原值投影；首次实际同步前不补造来源或同步时间，排序使用真实创建 / 管理 / 同步时间。
+
 ## 52. ADR-020 Local 客户端不变量
 
 

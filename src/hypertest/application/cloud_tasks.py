@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, or_, select, text
 
 from hypertest.api.cloud_schemas import PROFILE, CloudBudgetReservation, CloudBudgetSettlement
 from hypertest.application import interactive
@@ -1014,12 +1014,18 @@ async def directory(db, project_id, *, actor_ref, local_allowed, cloud_allowed,
     if local_allowed and task_kind in {None, "SESSION_TASK"} and product_mode in {None, "LOCAL"}:
         query = select(SessionTask).where(SessionTask.project_id == project_id, SessionTask.deleted_at.is_(None))
         if not operator:
-            query = query.where(SessionTask.owner_actor_ref == actor_ref)
+            # Match the Local ID-read boundary: precreated tasks have no owner,
+            # and only their explicitly intended actor can see them before bind.
+            query = query.where(or_(
+                and_(SessionTask.binding_state == "BOUND", SessionTask.owner_actor_ref == actor_ref),
+                and_(SessionTask.binding_state == "UNBOUND", SessionTask.intended_actor_ref == actor_ref),
+            ))
         if provider:
             query = query.where(SessionTask.provider == provider)
         for row in await db.scalars(query):
             entries.append({"task_kind": "SESSION_TASK", "product_mode": "LOCAL", "task_id": str(row.id),
                 "project_id": str(project_id), "title": row.title, "provider": row.provider, "source": row.source,
+                "binding_state": row.binding_state, "session_id": row.session_id,
                 "status": row.status, "reported_result": row.reported_result, "version": row.version,
                 "last_synced_at": row.last_synced_at.isoformat() if row.last_synced_at else None,
                 "updated_at": max(stamp for stamp in (row.created_at, row.last_managed_at, row.last_synced_at)

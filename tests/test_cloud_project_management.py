@@ -179,9 +179,11 @@ async def test_directory_projection_preserves_unsynced_nulls_and_real_management
     created = datetime(2026, 10, 23, tzinfo=UTC)
     managed = created + timedelta(minutes=1)
     rows = [SimpleNamespace(id=uuid4(), title="Awaiting binding", provider=None, source=None,
+                            binding_state="UNBOUND", session_id=None,
                             status="DRAFT", reported_result="NOT_RUN", version=1,
                             created_at=created, last_managed_at=None, last_synced_at=None),
             SimpleNamespace(id=uuid4(), title="Bound, awaiting sync", provider="codex", source=None,
+                            binding_state="BOUND", session_id="actual-bound-session-reference",
                             status="DRAFT", reported_result="NOT_RUN", version=2,
                             created_at=created, last_managed_at=managed, last_synced_at=None)]
     db = SimpleNamespace(scalar=AsyncMock(return_value=SimpleNamespace(deleted_at=None)),
@@ -194,3 +196,65 @@ async def test_directory_projection_preserves_unsynced_nulls_and_real_management
     assert result["items"][1]["updated_at"] == created.isoformat()
     assert result["items"][1]["provider"] is None
     assert all(item["source"] is None and item["last_synced_at"] is None for item in result["items"])
+
+
+async def test_directory_uses_exact_intended_actor_before_binding_and_keeps_unsynced_source_null(cloud_context):
+    f = cloud_context
+    other = await f["client"].post("/api/v1/interactive/registrations", headers=f["operator_headers"], json={
+        "actor_ref": "directory-other-" + uuid4().hex, "client_instance_id": str(uuid4()),
+        "project_id": f["project_id"], "scopes": ["task:sync"]})
+    assert other.status_code == 201, other.text
+    other_grant = other.json()
+    other_headers = {"Authorization": "Bearer " + other_grant["integration_token"]}
+    tasks = []
+    for actor_id in (f["grant"]["actor_identity_id"], other_grant["actor_identity_id"], None):
+        created = await f["client"].post(f"/api/v1/projects/{f['project_id']}/local-tasks", json={
+            "idempotency_key": "directory-create-" + uuid4().hex, "title": "Precreated directory fixture",
+            "intended_actor_ref": "interactive:" + actor_id if actor_id else None})
+        assert created.status_code == 200, created.text
+        tasks.append(created.json()["task"])
+    path = f"/api/v1/projects/{f['project_id']}/task-directory"
+    for headers, expected in ((f["headers"], [tasks[0]]), (other_headers, [tasks[1]]),
+                              (f["operator_headers"], tasks)):
+        response = await f["client"].get(path, headers=headers, params={"product_mode": "LOCAL"})
+        assert response.status_code == 200, response.text
+        directory = response.json()
+        assert directory["total"] == len(expected)
+        assert {row["task_id"] for row in directory["items"]} == {task["id"] for task in expected}
+        for row in directory["items"]:
+            assert row["binding_state"] == "UNBOUND" and row["updated_at"]
+            assert row["provider"] is row["session_id"] is row["source"] is row["last_synced_at"] is None
+    bound_payload = {"project_id": f["project_id"], "task_id": tasks[0]["id"], "provider": "codex",
+                     "session_id": "directory-native-" + uuid4().hex, "expected_version": 1,
+                     "idempotency_key": "directory-bind-" + uuid4().hex}
+    bound = await f["client"].post("/api/v1/interactive/tasks/bind", headers=f["headers"], json=bound_payload)
+    assert bound.status_code == 200, bound.text
+    own = (await f["client"].get(path, headers=f["headers"], params={"provider": "codex"})).json()
+    assert own["total"] == 1
+    row = own["items"][0]
+    assert row["task_id"] == tasks[0]["id"] and row["binding_state"] == "BOUND"
+    assert row["session_id"] == bound_payload["session_id"] and row["provider"] == "codex"
+    assert row["source"] is row["last_synced_at"] is None
+    hidden = await f["client"].get(path, headers=other_headers, params={"provider": "codex"})
+    assert hidden.json()["total"] == 0 and hidden.json()["items"] == []
+    deleted = await f["client"].delete(f"/api/v1/tasks/{tasks[0]['id']}", params={"expected_version": 2})
+    assert deleted.status_code == 200, deleted.text
+    assert (await f["client"].get(path, headers=f["headers"])).json()["total"] == 0
+    old = await f["client"].get("/api/v1/interactive/tasks/bindings/by-key", headers=f["headers"], params={
+        "project_id": f["project_id"], "idempotency_key": bound_payload["idempotency_key"]})
+    assert old.status_code == 200 and old.json() == bound.json()
+
+
+async def test_cloud_only_reader_never_lists_unbound_local_tasks_or_their_count(cloud_context):
+    f = cloud_context
+    created = await f["client"].post(f"/api/v1/projects/{f['project_id']}/local-tasks", json={
+        "idempotency_key": "directory-no-cloud-local-leak", "title": "Private Local fixture",
+        "intended_actor_ref": "interactive:" + f["grant"]["actor_identity_id"]})
+    assert created.status_code == 200, created.text
+    reader = await f["client"].post("/api/v1/interactive/registrations", headers=f["operator_headers"], json={
+        "actor_ref": "directory-cloud-only-" + uuid4().hex, "client_instance_id": str(uuid4()),
+        "project_id": f["project_id"], "scopes": ["cloud:read"]})
+    assert reader.status_code == 201, reader.text
+    response = await f["client"].get(f"/api/v1/projects/{f['project_id']}/task-directory", headers={
+        "Authorization": "Bearer " + reader.json()["integration_token"]}, params={"product_mode": "LOCAL"})
+    assert response.status_code == 200 and response.json()["total"] == 0 and response.json()["items"] == []

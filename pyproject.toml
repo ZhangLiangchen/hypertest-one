@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cloud-crypto = [
+  "cryptography>=44,<47",
+]
 cloud = [
   "cryptography>=44,<47",
   "httpx>=0.28,<1.0",

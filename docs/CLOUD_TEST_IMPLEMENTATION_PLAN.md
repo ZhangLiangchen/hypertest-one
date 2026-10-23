@@ -2,7 +2,7 @@
 
 ## 当前交付范围与集成顺序
 
-本候选正式迁移接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写。最终管理 head 与 ADR-024 统一 Cloud/Local 创建及平台预建 Local ID / MCP 绑定仍需串行合并；本候选最终树尚未验证或部署。服务器是允许中断的单人专用测试环境，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 一次相关远端验证交付；纯文档变更只做静态检查，不额外要求生产维护窗口或恢复演练。
+本候选正式迁移文件已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写。ADR-024 平台预建 Local ID / MCP 绑定已合入当前候选；新空库升级及现有管理 `0023` 库向前升级到 `0026`、最终合并树和统一入口仍待相关远端验证，本段不声明已迁移或部署。服务器是允许中断的单人专用测试环境，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 一次相关远端验证交付；纯文档变更只做静态检查，不额外要求生产维护窗口或恢复演练。
 
 当前只交付 DeepSeek Harness + Codex；Claude Code 为占位，不开展具体实现或真实委派验收，也不作为本次候选上线前置。下文完整 P0–P4 包含长期目标，未完成故障矩阵另列，不能据旧 fixture 或将来目标阻止本次已授权的测试环境串行集成。
 
@@ -54,11 +54,11 @@ r8固定v19 COMPLETED / reported PASS，canonical固定SSH专项PASS；source31�
 
 各阶段实现已交错推进，退出条件保持下文原义。下一步按以下顺序收尾，不能把已通过的fixture或代码覆盖扩大为生产准入：
 
-1. r6严格直接原件与r8固定SSH专项已通过；source31对同v19固定快照strict重评PASS，旧source30 NON_PASS及全部旧任务历史保留。先解决正式Git集成的迁移编号冲突，再按允许中断的专用测试服务器流程更新常驻服务并做一次相关远端验证。后续补取消 / 失租 / 撤权 / 后代矩阵，DeepSeek完整自行路径另补；Claude继续占位，待另行启用授权后独立实现 / 验收。XBlock staging SSH与166dev仅Local，纯Web / API Cloud需之后另接HTTPS adapter。
+1. r6严格直接原件与r8固定SSH专项已通过；source31对同v19固定快照strict重评PASS，旧source30 NON_PASS及全部旧任务历史保留。正式候选迁移已顺接 `0025` / `0026`，先远端验证新空库和已有管理 `0023` 的向前升级，再按允许中断的专用测试服务器流程更新常驻服务并做一次相关远端验证。后续补取消 / 失租 / 撤权 / 后代矩阵，DeepSeek完整自行路径另补；Claude继续占位，待另行启用授权后独立实现 / 验收。XBlock staging SSH与166dev仅Local，纯Web / API Cloud需之后另接HTTPS adapter。
 2. 补P2真实模型活动中的取消 / 超时 / 撤权 / lease失效 / UNKNOWN对账及持久问答矩阵，保留整树停止、broker drain与HELD证据；不自动重放旧prompt或POST。
 3. 在单独授权的staging实际项目补P1 / P3私有双仓、依赖 / 入口 / 环境身份和真实FAIL→合法修订原件；SSH / CI / 一般网络先完成窄adapter准入与独立验收，再展示为可用。
 4. 完成P4真实Web全流程与长报告 / FAIL / 等待 / 恢复、多窗口持久账本和混合Project兼容验收；Local交付状态由其独立计划负责，不以Cloud增加Local新功能。
-5. 常驻测试服务器更新按本地修改→Git commit / push→服务器拉固定SHA构建 / 迁移 / 重启→一次相关远端验证执行。该服务器是允许中断的单人专用测试环境，不新增生产维护窗口或完整恢复演练门槛；未来release信任 / 恢复等可靠性目标另行完成。正式 Git 集成接续管理分支 `0023_project_task_management` / `0024_local_task_binding`，Cloud / SSH 顺延为 `0025_cloud_tasks` / `0026_cloud_ssh_operations`，最终管理 head 仍需串行合并核对，原隔离验收history / source pins不重写。当前尚未更新常驻Cloud服务。
+5. 常驻测试服务器更新按本地修改→Git commit / push→服务器拉固定SHA构建 / 迁移 / 重启→一次相关远端验证执行。该服务器是允许中断的单人专用测试环境，不新增生产维护窗口或完整恢复演练门槛；未来release信任 / 恢复等可靠性目标另行完成。正式 Git 候选已包含管理路径 `0023_project_task_management` / `0024_local_task_binding` 和后续 `0025_cloud_tasks` / `0026_cloud_ssh_operations`，最终合并树仍待相关远端验证；原隔离验收history / source pins不重写。当前尚未更新常驻Cloud服务。
 
 第二轮独立远端后端检查为 **115 passed**，并完成空库向前迁移；它只覆盖本轮选择的 SDK / Cloud / 同步兼容链路，不是全仓所有测试或六步 E2E。第三轮采集的完整工作树快照为 466 个文件，摘要 `24793481179afa43ca8b82a9f3958d9e2316a8092c5902238efeacf60f8ad60d`；后续定点修复须有新的快照与检查记录，不能沿用此摘要声明新内容已测。
 

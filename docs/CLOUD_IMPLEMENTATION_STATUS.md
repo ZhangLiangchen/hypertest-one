@@ -2,7 +2,9 @@
 
 ## 正式 Git 集成候选边界
 
-本候选正式迁移接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写。最终管理 head 与 ADR-024 统一 Cloud/Local 创建及平台预建 Local ID / MCP 绑定仍需串行合并；本候选最终树尚未验证或部署。服务器是允许中断的单人专用测试环境，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 一次相关远端验证交付；纯文档变更只做静态检查，不额外要求生产维护窗口或恢复演练。
+本候选正式迁移文件已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写。ADR-024 平台预建 Local ID / MCP 绑定已合入当前候选；新空库升级及现有管理 `0023` 库向前升级到 `0026`、最终合并树和统一入口仍待相关远端验证，本段不声明已迁移或部署。服务器是允许中断的单人专用测试环境，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 一次相关远端验证交付；纯文档变更只做静态检查，不额外要求生产维护窗口或恢复演练。
+
+API 镜像只安装 `cloud-crypto` extra（cryptography）处理项目凭据的加密与解密；不安装官方 Harness SDK/runtime，不加载模型身份或执行 Agent。受控 Worker 独立安装 `cloud` extra。Cloud 写入持有与人工 DELETE 冲突的 Project 共享行锁，拒绝已删除项目；保留任意 CloudTask（包括 CANCELLED）时禁止删除 Project，归档不删除任务。旧 key 回执仍在当前授权和原提交者约束下只读。混合目录隐藏已删除 Local 任务；integration actor 只见 BOUND owner 或 UNBOUND 精确 intended actor 对应的记录，未绑定和首次同步前的来源与同步时间保持 null。
 
 ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在本次 Cloud 交付中。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
 

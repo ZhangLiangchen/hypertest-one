@@ -56,6 +56,8 @@ doctor 只比较安装元数据，不校验全部二进制、插件、profile �
 
 将依赖安装在专用远端验收环境或受控云端构建环境；不要向现有生产环境或用户全局 Python 环境直接安装。以下命令假设已进入该环境并安装 HyperTest：
 
+API 构建只选择 `cloud-crypto` extra 处理加密凭据，不安装 SDK/runtime 或启动 Harness；下面的 `cloud` extra 与 doctor/probe 命令属于独立 Worker / 诊断环境。两种依赖选择不启用 Cloud、授予资源访问或配置模型身份。
+
 ```bash
 python -m pip install '.[cloud]'
 python -m hypertest.deepseek_probe doctor
