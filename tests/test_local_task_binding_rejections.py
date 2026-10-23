@@ -549,10 +549,10 @@ async def test_bind_arguments_cannot_supply_or_override_mcp_native_caller(mcp_bi
     expected = "NATIVE_CALLER_CONTEXT_REQUIRED"
     if spoof == "argument-meta":
         arguments["_meta"] = {"threadId": payload["session_id"]}
-        expected = "INVALID_TOOL_ARGUMENTS"
+        expected = "Input validation error: Additional properties are not allowed ('_meta' was unexpected)"
     elif spoof == "argument-caller-context":
         arguments["native_caller_context"] = native_caller(payload)
-        expected = "INVALID_TOOL_ARGUMENTS"
+        expected = "Input validation error: Additional properties are not allowed ('native_caller_context' was unexpected)"
     before = write_state(service.coordinator, journal)
     async with create_connected_server_and_client_session(create_server(ipc_client, local_host="codex")) as client:
         result = await client.call_tool("hypertest_bind_task", arguments)

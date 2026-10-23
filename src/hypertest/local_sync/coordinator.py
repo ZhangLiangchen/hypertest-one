@@ -321,7 +321,12 @@ class LocalSyncCoordinator:
             "SENT", "UNKNOWN", "ACKED", "READBACK_COMPLETE", "LEGACY_ACCEPTED_READBACK", "REJECTED"}
         if not recovering:
             pending = self._pending(payload)
-            if (native_caller_context is None and pending
+            path = self._target_path(payload)
+            manual = json.loads(private_read(path)).get("binding_required") if path.exists() else None
+            if native_caller_context is not None and (
+                    manual is True or any(namespace.startswith("task-bind:") for namespace, _ in pending)):
+                self._require_native_caller(payload, native_caller_context)
+            if (pending
                     and all(self.journal.get(namespace, key)["state"] != "PENDING"
                             for namespace, key in pending)):
                 # Settle only already-sent operations under the writer lock.
@@ -330,7 +335,6 @@ class LocalSyncCoordinator:
                 if recovered.get("status") != "SETTLED":
                     return recovered
             manual = None
-            path = self._target_path(payload)
             if path.exists():
                 manual = json.loads(private_read(path)).get("binding_required")
             if manual is None:
