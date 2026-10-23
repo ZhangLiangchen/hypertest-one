@@ -37,9 +37,9 @@ export function localTaskCreateWasRejected(error: unknown): boolean {
   return typeof status === "number" && [400, 401, 403, 404, 409, 422].includes(status);
 }
 
-/** Source identity comes from the Agent's private native record, never the browser. */
+/** This flow supports native Codex callers; the client validates every MCP call. */
 export function taskBindingTemplate(task: Pick<SessionTask, "id" | "project_id" | "version">): string {
   return JSON.stringify({ project_id: task.project_id, task_id: task.id,
-    provider: "<REAL_PROVIDER_FROM_NATIVE_SESSION_START>", session_id: "<REAL_PARENT_SESSION_ID_FROM_NATIVE_SESSION_START>",
+    provider: "codex", session_id: "<REAL_PARENT_SESSION_ID_FROM_NATIVE_SESSION_START>",
     expected_version: task.version, idempotency_key: "<FREEZE_ONE_KEY_FOR_THIS_BIND_REQUEST>" }, null, 2);
 }

@@ -85,7 +85,7 @@ test("binding guidance copies the chosen task and version while requiring a real
   assert.equal(template.task_id, "task-1");
   assert.equal(template.project_id, "project-1");
   assert.equal(template.expected_version, 1);
-  assert.ok(template.provider.includes("NATIVE_SESSION_START"));
+  assert.equal(template.provider, "codex");
   assert.ok(template.session_id.includes("NATIVE_SESSION_START"));
   assert.equal(template.integration_token, undefined);
   const query = { isLoading: false, isError: false, data: { items: [], total: 0 } };
@@ -97,13 +97,17 @@ test("binding guidance copies the chosen task and version while requiring a real
     assert.ok(html.includes("task-1"));
     assert.ok(html.includes(locale === "en" ? "it grants no access" : "不授予访问权限"));
     assert.ok(html.includes("local-v0.1.0"));
-    assert.ok(html.includes(locale === "en" ? "start a new native session" : "开始新的原生会话"));
+    assert.ok(html.includes(locale === "en" ? "start a new primary session" : "新建主会话"));
+    assert.ok(html.includes("0.144.6"));
+    assert.ok(html.includes(locale === "en" ? "do not currently support new Task ID binding" : "当前不支持新任务 ID 绑定"));
+    assert.ok(html.includes(locale === "en" ? "Copy the request below" : "复制下方请求"));
     assert.equal(html.includes("hypertest_bind_execution"), false);
   }
 });
 
 test("source upgrade commands pin the client commit and preserve owned installation settings", () => {
-  const options = { sourceCommit: "a".repeat(40), venvDirectory: "/private/new client's env", installDirectory: "/private/owned install", clientConfig: "/private/config.json", harness: "codex" };
+  assert.equal(bindingClient.TASK_BINDING_CLIENT_SOURCE_COMMIT, "86f7659254cf2253de6376e64b287352e6df7f89");
+  const options = { sourceCommit: bindingClient.TASK_BINDING_CLIENT_SOURCE_COMMIT, venvDirectory: "/private/new client's env", installDirectory: "/private/owned install", clientConfig: "/private/config.json", harness: "codex" };
   const commands = bindingClient.taskBindingClientCommands(options);
   assert.ok(commands.prepare.includes("hypertest-one[interactive] @ git+https://github.com/ZhangLiangchen/hypertest-one.git@" + options.sourceCommit));
   assert.ok(commands.prepare.includes("if [ -e"));
@@ -113,6 +117,9 @@ test("source upgrade commands pin the client commit and preserve owned installat
   for (const guessed of ["--enable-hooks", "--hook-config", "--host-config", "--workspace", "--artifact-source", "--dsh-home"]) assert.equal(commands.upgrade.includes(guessed), false, guessed);
   assert.ok(commands.stop.includes("hypertest.interactive_client stop --config"));
   assert.ok(commands.capabilities.includes("hypertest.local_sync capabilities --config"));
+  for (const localCheck of ["local_capabilities", "explicit_task_binding", "task_binding_callers", "NATIVE_THREAD_ID_REQUIRED", "0.144.6", "threadId", "per_call_check", "CURRENT_NATIVE_MCP_CALL_STILL_REQUIRED"]) assert.ok(commands.capabilities.includes(localCheck), localCheck);
+  assert.equal(commands.capabilities.includes("BINDING_READY"), false);
+  for (const harness of ["claude-code", "deepseek-harness"]) assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, harness }), /task-binding-host-unsupported/);
   for (const sourceCommit of ["main", "local-v0.1.0", "abc123", "a".repeat(39)]) assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, sourceCommit }), /fixed-source-commit/);
   assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, clientConfig: options.installDirectory }), /distinct-private-paths/);
 });

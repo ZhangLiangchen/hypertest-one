@@ -93,6 +93,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     </Form.Item>
     {mode === "local" ? <>
       <Typography.Paragraph className="muted">{t("Create a task ID first, then bind it from the authorized local Agent. The Agent performs the testing; this page does not start a model or a test.", "先创建任务 ID，再从获准的本地 Agent 中绑定。测试由 Agent 执行；此页面不会启动模型或测试。")}</Typography.Paragraph>
+      <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("New binding needs Codex CLI 0.144.6", "新绑定需要 Codex CLI 0.144.6")} description={t("Use the matching client and follow the task page's upgrade and binding steps after creation. Claude Code and DeepSeek existing task sync remains compatible. You can create an unbound task first.", "创建后按任务页说明升级匹配客户端，再绑定任务。Claude Code 和 DeepSeek 的已有任务同步不受影响，也可以先创建待绑定任务。") } />
       <Form.Item name="intended_actor_ref" label={t("Authorized local client", "获准绑定的本地客户端")} extra={t("Only this client's active Project authorization may claim the task. A Task ID is not a credential. You can leave this empty and authorize a client on the task page later.", "只有所选客户端持有本项目的有效授权时才能绑定。任务 ID 不是凭据。可以暂不选择，创建后再在任务页授权。") }>
         <Select allowClear loading={actors.isLoading} placeholder={t("Authorize later", "稍后授权")} options={actors.data?.items.map((actor) => ({ value: actor.actor_ref, label: actor.label }))} />
       </Form.Item>
