@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 from mcp import types
 from mcp.server import Server
@@ -12,7 +13,7 @@ from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.ipc import LocalClient
 
 
-def create_server(client: LocalClient) -> Server:
+def create_server(client: LocalClient, *, local_host: str | None = None) -> Server:
     server = Server("hypertest-interactive", version="0.2.0", instructions=(
         "HyperTest access profile " + PROFILE + ". Current-stage management: one Codex session "
         "corresponds to one task. Use hypertest_sync_task and hypertest_get_task to save plans, "
@@ -27,7 +28,23 @@ def create_server(client: LocalClient) -> Server:
     @server.list_tools()
     async def list_tools():
         result = await client.exchange("list", {})
-        return [types.Tool.model_validate(item) for item in result["tools"]]
+        advertised = []
+        for item in result["tools"]:
+            if local_host == "claude-code" and item.get("name") == "hypertest_get_task":
+                # Claude deployments without its optional schema-rewrite flag
+                # omit tools with a root combinator. Advertise a plain object,
+                # but keep the daemon's original schema as the authority.
+                item = deepcopy(item)
+                schema = item["inputSchema"]
+                schema.pop("oneOf", None)
+                schema.pop("allOf", None)
+                item["description"] = (item.get("description", "") +
+                    " Supply exactly one selector: provider AND session_id together, OR "
+                    "idempotency_key alone. With idempotency_key, omit provider, session_id, "
+                    "version, offset and limit. When offset is greater than zero, version "
+                    "is required. The server validates these rules before any API request.")
+            advertised.append(types.Tool.model_validate(item))
+        return advertised
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
@@ -43,7 +60,7 @@ def create_server(client: LocalClient) -> Server:
     return server
 
 
-async def run_stdio(client: LocalClient):
-    server = create_server(client)
+async def run_stdio(client: LocalClient, *, local_host: str | None = None):
+    server = create_server(client, local_host=local_host)
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())

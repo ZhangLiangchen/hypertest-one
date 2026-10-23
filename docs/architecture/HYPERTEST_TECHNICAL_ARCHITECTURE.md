@@ -1,20 +1,62 @@
 # HyperTest Technical Architecture
 
-**Document Status:** Accepted v0.8 / ADR-018 Session Task Management (2026-10-21, Asia/Singapore). Implementation and acceptance tracked separately; ADR-017 and legacy histories retained below.
+## 2026-10-23 新增真实矩阵（已通过）
 
-**Version:** v0.8
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
 
-**Parent Document:** HyperTest Whitepaper v1.6 (v1.4 product responsibility correction retained)
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
+
+**Document Status:** Accepted design v0.10 / Cloud + Local product modes in one shared Project (2026-10-22, Asia/Singapore). ADR-019 Cloud is **PARTIALLY IMPLEMENTED / DEFAULT OFF / RESIDENT TEST-SERVER UPDATE PENDING**; its Cloud reporter consumes shared TaskSyncCore source. Full model / delegation / six-step acceptance is incomplete. [Implementation status](../CLOUD_IMPLEMENTATION_STATUS.md) records the admitted subset; independently owned Local delivery and ADR-018 / ADR-017 / legacy histories retain their own scope.
+
+**Version:** v0.10
+
+**Proposed memory addendum:** [ADR-022](ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) / §48 proposes a Project Memory Gateway backed by an independently deployed PowerContext service. Gateway / HyperTest integration is NOT IMPLEMENTED; the [service record](../POWERCONTEXT_SERVICE.md) owns deployment and service-only acceptance. This addendum does not change accepted task contracts or imply multi-tenant isolation.
+
+**Parent Document:** HyperTest Whitepaper v1.8 (v1.4 product responsibility correction retained)
 
 **Architecture Role:** Autonomous Testing Control Plane
 
-### v0.8 当前入口：Codex 会话任务同步（ADR-018 优先）
+### 产品双模式：共享 Project，独立任务来源与生命周期
 
-现阶段 HyperTest 是 Codex 测试任务、用例和报告的管理平台：一个 Codex 会话对应一个 SessionTask，Codex 在项目已有工具链中完成测试并同步产物。平台只校验与保存管理数据，不承担测试执行。
+| 产品模式 | 用户入口与工作归属 | 内部身份与状态 |
+| --- | --- | --- |
+| Cloud 云端模式 | Project 创建 / 资源配置、CloudTask 创建 / 下发和六步执行全在云端完成；Cloud Worker 经官方 Python SDK 驱动 DeepSeek，并由其自行参与或委派子代理 | 独立 CloudTask / CloudAttempt；默认关闭、尚未更新测试服务器常驻Cloud服务；HTTPS Git / 工作区fixture已有正式reported PASS及Codex推理 / 文本贡献，子工具与其余P0边界见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md) |
+| Local 本地模式 | 本地 Agent 会话由用户在本地驱动；设计为 Hooks 自动触发与 MCP 显式提交 / 查询共用本地同步协调器；统一 Local release 为 Claude Code / Codex / DeepSeek harness 提供一个安装入口，测试继续使用 Agent 原有且另行授权的工具链 | SessionTask；ADR-018 Codex MCP 同步已实现并保留，协调器、三宿主自动适配及统一发行 / 安装器尚未实现 |
 
-当前链路为 **Codex → MCP/私有客户端 → typed API → Project/SessionTask/CaseRevision/ReportRevision/SyncReceipt + Audit/Outbox（PostgreSQL）**。共享既有 Project 与存储，不使用旧 TestRun bootstrap、Job、execution binding、Harness、Runner 或 Gate。查询不接管原生会话；session reference 是同步来源元数据，不要求宿主执行身份核验。
+同一 Project 可以同时承载两类任务；Project 是统一的项目级目录，不设置 Cloud / Local 二选一。项目可仅使用 Local 而不配置云端资源，也可后续添加云端任务。Local 表示会话来源和协作模式，不证明每次测试框架调用或 SUT 都在本机；另行授权的远端 / CI 仍可使用。平台不会因同步远程启动 / 接管本地 Agent，也不提供额外本地工具或环境执行授权。
 
-新入口保留 reported result 与原始报告，版本保护和幂等回执保障同步一致性；缺少独立 CI 证明不阻止管理保存、不改写报告结果。正式质量门禁与 legacy VERIFIED Evidence 保持原义。[ADR-018](ADR-018_CODEX_SESSION_TASK_SYNC.md)优先于下文把新入口视为执行材料准入的描述；§43 ADR-017 切片及旧受管模式继续作为独立历史保留。模型与协议分别由领域 §50、TMP §45 拥有。
+`product_mode=CLOUD|LOCAL` 按 `task_kind=CLOUD_TASK|SESSION_TASK` 派生，表示不可变任务类型 / 来源，不新增持久化可变 mode 列或转换已有任务。项目统一任务目录是只读 `ProjectTaskSummary` 投影（默认关闭源码已加入，尚未更新测试服务器常驻Cloud服务），以 `(task_kind, task_id)` 定位真实记录，显示模式 / 来源标签并支持筛选；不共用跨表 task FK，不统一写入或重解释状态和权限。字段、关联与查询契约分别由领域 §51、TMP §46 定义。
+
+这两个产品模式与 ADR-015 / 016 的 legacy `execution_mode=LOCAL|CLOUD` 使用不同契约。旧字段继续解释原 TestRun、受管 Harness、Connector 和 Runner 历史；新 Local 同步不因此要求旧执行绑定，旧 LOCAL 也不自动改成 SessionTask。
+
+### v0.10 本地触发改进：Hooks + MCP 共用同步协调器（ADR-020）
+
+[ADR-020](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md)接受 Local 的新增触发与客户端编排设计：Hooks 捕捉同步时机，MCP 保留显式提交、查询与恢复入口，两者共用一个本地同步协调器，复用现有私有客户端 / journal / typed HTTPS 和 ADR-018 SessionTask 契约。每个真实父会话只有一个有效 writer；协调器对完整基线读取、语义合并、固定请求、提交和接受版本读回进行串行编排，不把 Hook 生命周期事件当任务完成或测试结果。
+
+该扩展 **NOT IMPLEMENTED（2026-10-22，Asia/Singapore）**；§46 定义组件边界，TMP §47 定义触发契约，领域 §52 定义客户端运行态与持久化边界，交付见[本地同步实施计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)。不升级现有 wire / profile，不修改 SessionTask 字段、owner、唯一性或结果语义；现有 Codex MCP 能力继续可用，用户当前默认工作流仍只使用已部署工具。本次文档修订不安装 Hook、后台监听器或上传进程，也不修改用户全局 Skill。
+
+同日补充统一 Local release 与 Agent 自助安装设计，见 §46.5 / [ADR-020 §9](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md#9-统一-local-release-与-agent-自助安装待实现)。该发行版本不升级业务 wire / profile，不替换既有 MCP 发行记录；DeepSeek 本地父会话 adapter 与云端 SDK 指挥官分别接入和验收。
+
+### v0.10 共享任务同步核心：本地设计复用于云端（ADR-021）
+
+[ADR-021](ADR-021_SHARED_TASK_SYNC_CORE.md)将结构化进度 / 产物清单、完整请求整理、语义差异、固定意图 / key / 版本、回执校验、UNKNOWN 对账和固定接受版本完整读回抽为 **TaskSyncCore**。LocalSyncCoordinator + LocalSyncAdapter 和 CloudTaskReporter + CloudSyncAdapter 复用同源库，分别适配 SessionTask 与 CloudTask / CloudAttempt；不共用 token、全局锁或提交账本，不新增通用 Task 写 API。SDK 保持云端执行控制通道，领域报告由当前 fenced Worker broker 提交，子代理只贡献产物。
+
+共享核心和 Cloud reporter / adapter 已有增量源码，完整验收未完成，Local 交付另记；组件见 §47、契约见 TMP §48、不变量见领域 §53。云端可在 Worker 镜像中复用库，不依赖终端 Local 安装器、Hooks 或三宿主 release；两种模式继续独立交付、开关和恢复。
+
+### v0.9 新增云端任务设计：官方 DeepSeek Harness Python SDK（ADR-019）
+
+[ADR-019](ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)接受独立业务 profile `cloud-harness-task/v1alpha1`：用户配置项目仓库、凭据与环境，创建并下发云端测试任务；Cloud Worker 通过官方 Python SDK 启动 DeepSeek Harness，由其自行工作或委派 Codex / Claude Code，调用项目已有测试框架并回收产物。HyperTest 管理排队、资源授权、执行尝试和持久状态，不自研通用 Agent Loop 或测试引擎。**云端路径部分实现、默认关闭、尚未更新测试服务器常驻Cloud服务。source-r23新独立Task已固定读回v20 COMPLETED / reported PASS，ANALYSIS与DESIGN均直接引用当前child原件；source-r24只读验收器对同v20严格PASS，独立只读重放8项与原件 / 实际文件 / host日志关联通过。旧source-r22 v17仍保留DESIGN直接引用NON_PASS，原RECOVERY / HELD历史不变；SSH固定诊断默认关闭，source30 Worker的r8 canonical专项PASS，source31对同v19固定快照strict重评PASS；旧source30 NON_PASS保留（不是新的current GET，精确证据见实现状态），故障矩阵与真实staging未验收；Claude占位，CI / 一般远端shell和生产未准入。详见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。**
+
+新路径共享既有 Project，使用独立 CloudTask / CloudAttempt，不冒充 Codex SessionTask、native 轮次或 legacy TestRun。设计见 §45；字段和状态由领域 §51 拥有，协议由 TMP §46 拥有；分阶段交付见[实施计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)。ADR-019 只在此新 profile 内允许受授权的云端工作区、shell、文件写入、框架执行和 Harness 内部委派，不放宽旧 managed / Connector 权限。
+
+### v0.8 保留入口：Local 的 Codex 会话任务同步（ADR-018 在本路径优先）
+
+ADR-018 管理路径仍是 Codex 测试任务、用例和报告的同步：一个 Codex 会话对应一个 SessionTask，Codex 在项目已有工具链中完成测试并同步产物。本路径的平台只校验与保存管理数据，不承担测试执行。
+
+同步链路为 **Codex → MCP/私有客户端 → typed API → Project/SessionTask/CaseRevision/ReportRevision/SyncReceipt + Audit/Outbox（PostgreSQL）**。共享既有 Project 与存储，不使用旧 TestRun bootstrap、Job、execution binding、Harness、Runner 或 Gate。查询不接管原生会话；session reference 是同步来源元数据，不要求宿主执行身份核验。启用云端能力不得增加这些同步前提；组件边界见 §44。
+
+同步入口保留 reported result 与原始报告，版本保护和幂等回执保障同步一致性；缺少独立 CI 证明不阻止管理保存、不改写报告结果。正式质量门禁与 legacy VERIFIED Evidence 保持原义。[ADR-018](ADR-018_CODEX_SESSION_TASK_SYNC.md)优先于下文把同步入口视为执行材料准入的描述；§43 ADR-017 切片及旧受管模式继续作为独立历史保留。模型与协议分别由领域 §50、TMP §45 拥有。
 
 ### v0.7 原生框架接入与兼容范围（ADR-017）
 
@@ -80,7 +122,7 @@ Codex、Claude Code 等可替换 Agent 负责分析、设计、实现、原生�
 
 ### 3.4 旧受管 / 交互 profile 的云端 / 本地执行（ADR-016）
 
-产品 `execution_mode=CLOUD|LOCAL` 指 Agent / Harness 在何处完成任务智能工作，与正式 Runner 的位置及信任独立；首版仍使用平台可信 Runner。既有 `SERVER_HOST` / `LOCAL_CONNECTOR` 接入配置继续兼容，另以 Operational `execution_driver=PLATFORM_MANAGED|INTERACTIVE_MCP` 区分谁驱动原生会话，不新增第三种 Harness mode：
+本节 legacy 产品执行字段 `execution_mode=CLOUD|LOCAL` 指 Agent / Harness 在何处完成任务智能工作，与正式 Runner 的位置及信任独立；首版仍使用平台可信 Runner。它不是本文开头的 Cloud / Local 产品模式，也不约束 ADR-018 的会话同步准入。既有 `SERVER_HOST` / `LOCAL_CONNECTOR` 接入配置继续兼容，另以 Operational `execution_driver=PLATFORM_MANAGED|INTERACTIVE_MCP` 区分谁驱动原生会话，不新增第三种 Harness mode：
 
 | 产品执行选择 | 既有 Harness mode | 执行驱动 | 执行者与路径 |
 |---|---|---|---|
@@ -114,7 +156,7 @@ HyperTest Control Plane：Project / Plan / Case / Task / Records
           只保留原 OFFICIAL / Evidence / Gate / 历史语义
 ```
 
-本机 native API 是当前最小接入；上图的 Web/MCP 不意味着新 native 工具 / 页面已实现。平台保存材料及验证结论，不插入通用测试执行引擎。
+上图记录 ADR-017 native / legacy 架构；本机 native API 是该 profile 的最小接入，Web/MCP 不意味着新 native 工具 / 页面已实现。ADR-018 同步链路见 §44，ADR-019 新增云端设计见 §45，ADR-020 本地同步触发设计见 §46。平台不插入通用测试执行引擎。
 
 ---
 
@@ -162,7 +204,7 @@ ADR-016 的新执行步骤以“云端执行 / 本地执行”（`CLOUD / LOCAL`
 
 主要职责：Authentication、Project Management、Testing State CRUD、Mission Lifecycle、Policy Access、Evidence Metadata、Finding Lifecycle、Verdict、Audit。
 
-API 不直接执行 Agent。旧 managed / interactive profile 的所有 Agent 工作必须进入原 Run 绑定并取得 Mission / Run scope 授权；native profile 通过 §43 / 领域 §49 的独立 Operator 与私有 writer capability 管理贡献，不伪造旧 Binding。API 容器不安装 Provider CLI、不挂载 Host Harness Bridge socket 或 Docker socket，也不依赖宿主 Provider 认证目录。长任务、受控环境实际镜像查询/绑定、运行能力检查及取消后的外部资源清理，交由具备相应权限的 Task Worker / Runner 组件处理；API 读取其受控结果并按领域规则冻结输入，不能用镜像 tag 或缓存配置冒充实际 image ID。已有同步 direct 执行和宿主检查入口需要迁移，不属于此目标形态的保留接口。
+API 不直接执行 Agent。旧 managed / interactive profile 的所有 Agent 工作必须进入原 Run 绑定并取得 Mission / Run scope 授权；native profile 通过 §43 / 领域 §49 的独立 Operator 与私有 writer capability 管理贡献，不伪造旧 Binding。ADR-018 同步只提交管理事务；ADR-019 云端 API 只受理项目资源、任务、调度意图、查询与管理命令，SDK / Git / SSH / 测试动作由 §45 的 Cloud Worker 执行。API 容器不安装 Provider CLI、不挂载 Host Harness Bridge socket 或 Docker socket，也不依赖宿主 Provider 认证目录。长任务、受控环境实际镜像查询/绑定、运行能力检查及取消后的外部资源清理，交由具备相应权限的 Task Worker / Runner 组件处理；API 读取其受控结果并按领域规则冻结输入，不能用镜像 tag 或缓存配置冒充实际 image ID。已有同步 direct 执行和宿主检查入口需要迁移，不属于此目标形态的保留接口。
 
 请求校验失败的 HTTP 422 仅返回错误的 `type`、`loc`、`msg`；不回显 `input`、validator `ctx` 或原请求 body，避免把提交中的凭据和 PRD 放入表单错误响应。此约束不等于所有日志已全面脱敏，持久化边界见领域模型 §9。
 
@@ -374,7 +416,7 @@ class AgentHarness:
 
 这些是生命周期能力，不表示在每个 Mission 调用 create / close。v0.4 在 Run 获得绑定时创建主会话，之后的 Mission 和人工回答在同一会话中执行或 resume；只有整个任务结束、取消或不可恢复失败才关闭会话。
 
-当前 v0.3 实现：`CodexAdapter`，由 Worker 直接运行本地 CLI。`ClaudeCodeAdapter`、DeepSeek Harness 及其他 Provider 属于后续可替换路线，统一接口不表示已完成这些集成。
+历史 v0.3 实现：`CodexAdapter`，由 Worker 直接运行本地 CLI。该 legacy 统一接口不表示已完成 `ClaudeCodeAdapter` 或 DeepSeek 集成。ADR-019 的 DeepSeek Python SDK Adapter 是 §45 的新设计，不要求将缺少的 SDK 单会话 cancel / close 伪装成上述 legacy 能力。
 
 restore_session 使用已持久化的 Gateway handle、真实 Provider thread 引用和受控 workspace 恢复进程内映射，不能创建新会话冒充原会话。当前 v0.3 的阶段内人工问答以 resume 进入原 Mission / Attempt 的下一交互轮次；人工回答不是新 Mission，原 Attempt 的 Job 所有权和冻结 spec 保持不变。v0.4 对 Run scope 问答则恢复同一 Run 的主会话和原 Job / 绑定，不伪造活动阶段或重开已完成 Mission / Attempt；阶段内问答继续保留原 Attempt。完整 Capability 协商和跨 Provider 的恢复不由接口声明推断为已实现。
 
@@ -935,6 +977,9 @@ scope / TTL / 精确设备撤权、旧 epoch、原子提交 / 并发幂等、未
 - **ADR-013** [平台容器化与持续 Harness 会话](ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)：平台服务/Task Worker 容器化，Harness/Bridge 留宿主；一 SUT 一 Project，一 feat/MR 精确 SHA 的测试轮次一 TestRun，一逻辑 Worker 与一持续主 Session 串行完成完整周期，Run 间并发。领域模型拥有绑定/唯一性/恢复规则，TMP 拥有持续会话 profile/工具契约，本文拥有服务/部署边界；该目标不等于已实施迁移。
 - **ADR-015** [双模式 Harness 与本地 Connector](ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)：保留服务器 UDS Harness，新增已实现的用户电脑主动 WSS 连接、HTTPS 源码传输与本地受控集成；认证留所选节点，平台独立验证源码和问题单引用，断线只恢复原身份且不得自动换绑。它扩展 ADR-013 的部署位置，不改变单 Run 单主会话、可信 Runner 或质量治理边界；已部署生产，核心隔离验收通过，线上核心周期已通过，扩展故障矩阵继续逐设备登记。
 - **ADR-016** [交互式 Agent MCP 接入](ADR-016_INTERACTIVE_AGENT_MCP_ACCESS.md)：已实现，隔离当前 Agent 核心周期验收通过，已部署生产，线上当前 Agent 核心周期已通过。CLOUD / LOCAL 区分 Agent 执行位置，保留原 Harness mode，新增 Operational driver；当前本地 Agent 经可信宿主证明、显式绑定与短期 scope 使用 TMP 完成测试，平台不另启替身 Harness。原 Job Worker 消费 typed inbox、执行领域工具和可信 Runner，API 只鉴权与入账。只替代旧设计中禁止受控绑定现有交互会话的限制，不改写其历史；Verifier、可信 Runner 与 Gate 继续拥有事实与决策。
+- **ADR-018** [Codex 会话任务同步](ADR-018_CODEX_SESSION_TASK_SYNC.md)：一个会话一个 SessionTask，管理计划、用例、原始报告和 reported result；同步不触发 Harness、Runner 或 Gate，不要求执行身份或源码传输。
+- **ADR-019** [官方 Python SDK 云端测试任务](ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)：已接受设计、部分实现、默认关闭、尚未更新测试服务器常驻Cloud服务；实际范围见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。新增独立 CloudTask / CloudAttempt，由受隔离 Cloud Worker 驱动 DeepSeek、内部委派和项目测试框架；Project 资源凭据加密持久化，SDK 不成为统一认证或测试通过的证明，现有同步与历史路径保留。
+- **ADR-020** [Hooks 驱动的本地会话同步](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md)：已接受设计、尚未实现。Hooks 与 MCP 共用客户端同步协调器，单父会话单 writer、完整基线合并与可靠对账；复用 ADR-018 任务、授权和协议，不将 Hook 事件、退出或上传成功解释为测试通过。
 
 ---
 
@@ -982,3 +1027,334 @@ NativeTestRun / Plan 当前一对一，以新表 / profile 与旧 TestRun ID 分
 所有管理调用仍需 Operator 授权；非管理写另需当前 run/generation 私有 capability，body contributor/session label 只是归属元数据。handoff 由 Operator 显式确认，在同事务中递增 generation、切换贡献者与 capability；旧 writer key 不因读取新 generation 复活。新 key 一次交付，响应丢失只对账，不能 GET 恢复秘密或自动重签。平台只隔离 API 写入，不把会话标签解释成真实 Provider 连续性或任意聊天的生命周期控制。
 
 本轮原生材料仅在本机明确配置的隔离 PostgreSQL / Artifact Store 保存；不默认上传源代码、JAR 或认证。独立来源核验、可信 CI 接入、native PASS、Web/MCP 和生产部署仍需后续实现及单独验收；验收要求由 ADR-017 §8 约束。旧 Runner 只承担 legacy 兼容与历史职责，不继续扩展 Kubernetes/SSH/backend 矩阵来替代原生项目工具链。
+
+## 44. Local：ADR-018 会话任务同步组件与保留边界
+
+```text
+现有 Codex 会话 → hypertest_sync_task / hypertest_get_task
+  → 私有客户端 / scoped typed HTTPS API
+  → SessionTask / CaseRevision / ReportRevision / SyncReceipt
+  → PostgreSQL + Audit / Outbox
+```
+
+此路径继续按 ADR-018、领域 §50、TMP §45 工作。一个真实 `(provider, session_id)` 只对应一个 SessionTask；平台接受版本化计划、用例、原始 Markdown 报告和 reported result，不启动 Job、Harness、Runner、SDK、Git 或 SSH。新建云端任务不替用户创建 Codex SessionTask；云端产物不能借另一会话 ID 覆写原任务。
+
+这是 Local 模式目前已实现的 Codex adapter；其他本地 Agent 接入属于后续 adapter，不因协议携带 provider 字段就宣称已经支持。本地会话由用户与原 Harness 驱动，MCP 同步不承担会话远程启动、接管或测试调度，不为本地工具、SSH、CI 或环境操作提供授权。Project 可与 CloudTask 共享，但 Local 不要求其云端仓库、环境或 Provider 凭据，也不取得这些秘密。
+
+同步权限、幂等回执、expected-version 防旧写、原 key 查询和固定版本分页读回保持。云端仓库 / 环境 / 模型凭据、源 checkout、测试环境、执行绑定、独立 CI 证明和云端执行组件可用性均不是同步前提；现有集成授权与同步 API 仍必需。云端运行组件停止或 feature flag 关闭时，既有同步和历史读取仍应可用；同步 UNKNOWN 不改变报告的 reported result。
+
+§46 是此链路的待实现客户端触发扩展：现有 MCP 两工具继续保留，未来写入口经过同一协调器，仍只调用现有 typed API，不另建服务端任务类别或服务端 Hook 接收执行器。§44 的已实现声明只覆盖原 Codex MCP 同步，不包含自动触发、完整 RMW 协调器或 Claude provider mapping。
+
+## 45. ADR-019 云端测试任务与 Python SDK 架构（已接受设计，部分实现）
+
+本节是 Cloud 产品模式的 `cloud-harness-task/v1alpha1` 完整服务目标，与 §44 的 Local 模式共享 Project；它不是既有 `execution_mode=CLOUD` 的别名。后者仍解释 ADR-013 / 015 / 016 的原 Run、HarnessMode、Runner 和历史。API、凭据、解析 / 冻结、SDK Worker、报告和任务目录已有增量源码，**默认关闭、未生产部署**；当前只准入 HTTPS Git / 工作区内框架。source-r18的公共fixture任务已固定读回v14 COMPLETED / reported PASS、真实Codex推理与文本贡献；source-r22新native16任务已固定读回v17 reported PASS、接受实际子原件 / 资产 / Run，独立只读重放9项通过；DESIGN直接引用的精确PRD偏差、旧引用拒绝 / RECOVERY / HELD、Claude / SSH / CI及其余P0仍分别保留。实际边界见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)，完整要求仍按[分阶段计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)跟踪。
+
+早期CASE提案拒绝、缺handoff、凭据命名错配和模型不支持的失败及原HELD历史分别保留；不重放旧Task或读取会话正文推断。后续source-r18任务的15资产、8个CASE与Run关联、1条delegation及2份原件已完整读回，ROOT27 / CODEX7真实请求完整成功；独立只读重放9项unittest通过并与接受实现原件精确关联。子Codex只交文本分析，Root完成设计、代码与执行，正式产物披露子工具SIGTRAP；后续无模型单变量AS对照支持V8虚拟地址兼容性原因，修正后的source-r21任务接受子原件后因Artifact / AssetRevision引用错误而RECOVERY_REQUIRED / HELD，该历史不改。source-r22新Task已完成reported PASS、runtime-reported子文件 / 只读检查贡献与正式资产 / Run，独立重放9项及原件关联通过；DESIGN仅经ANALYSIS关联原件，未完全满足本次PRD直接引用要求，不升级独立writer证明。各轮回归、r7基线、服务文件准入与精确source身份均独立登记于[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)，平台reported PASS不自动成为legacy VERIFIED / Gate或全部P0通过。
+
+最新严格验收：source-r23新独立Task已固定读回v20 COMPLETED / reported PASS，ANALYSIS与DESIGN均直接引用当前child原件；source-r24只读验收器对同v20严格PASS，独立只读重放8项与原件 / 实际文件 / host日志关联通过。旧source-r22 v17仍保留DESIGN直接引用NON_PASS，原RECOVERY / HELD历史不变；SSH固定诊断默认关闭，source30 Worker的r8 canonical专项PASS，source31对同v19固定快照strict重评PASS；旧source30 NON_PASS保留（不是新的current GET，精确证据见实现状态），故障矩阵与真实staging未验收；Claude占位，CI / 一般远端shell和生产未准入。source-r23 / source-r24各自回归201 / 231通过，source-r21所选535通过 / 1跳过与source-r22针对性169仍为各自快照；不是同一轮全量。
+
+### 45.1 六步流程与组件归属
+
+| 用户步骤 | HyperTest 控制平面 / Worker | Harness / 项目工具链 |
+| --- | --- | --- |
+| 1. 创建项目 | 在云端创建 Project 或配置既有共享 Project；配置 SUT 与 framework 仓库、环境连接、加密凭据引用和默认授权 | 不启动 Harness 或测试；允许两仓相同；可与 Local 任务共存 |
+| 2. 创建任务 | 在云端创建 CloudTask，保存分支、feat / MR / SHA、PRD、目标、基本流程、framework 版本选择、环境、预算和范围 | 不因表单保存开始执行 |
+| 3. 下发任务 | DRAFT 阶段受限 Worker 预检 ResolveCloudInputs，得到不可变 CloudInputResolution；dispatch 引用 resolution_id 并核验版本 / 授权后冻结、入队，PREPARING 只 checkout / 核验 | 未固定双仓完整 SHA 或未通过运行预检不得接收任务 prompt |
+| 4. 接取与分工 | 隔离 CloudAttempt 并通过官方 Python SDK 驱动 DeepSeek，投影进度和持久问答 | DeepSeek 自行工作或委派 Codex / Claude Code，内部安排推理和工具调用 |
+| 5. 输出产物 | 接受带版本 / 来源的分析、设计、用例、代码与 commit / patch；保留原件 | 根与子代理按职责产出文件；主指挥官汇总 |
+| 6. 执行与汇报 | 回收原始框架结果、日志、实际环境与报告，核对完整性后更新进度 / reported result | 调用项目已有测试入口、授权远端框架或 CI，诊断并可回到第 5 步 |
+
+测试发现、fixtures、断言和框架调度继续由项目工具链实现，不建立新的通用 Runner backend 或语言镜像矩阵。Worker 准备平台批准的执行基线与项目已有依赖入口；任意仓库脚本和 hooks 不因存在仓库就取得执行授权。
+
+### 45.2 逻辑与部署边界
+
+```mermaid
+flowchart LR
+    U[Cloud: Project resources / CloudTask inputs] --> API[API: validate, authorize, persist]
+    LOCAL[Local: existing Codex session] --> MCP[MCP session sync]
+    MCP --> API
+    API --> DB[(PostgreSQL: tasks, attempts, receipts, audit, outbox)]
+    DB --> W[Cloud Worker: claim, lease, fencing, supervise]
+    W --> R[CloudAttempt runtime / workspace / dsh_home]
+    W --> C[Scoped credential delivery]
+    R --> SDK[Official Python Harness SDK]
+    SDK --> D[dsh --profile sdk]
+    D --> DEEP[DeepSeek root commander]
+    DEEP --> SUB[Codex / Claude Code]
+    DEEP --> TEST[Project framework / environment / CI]
+    SUB --> TEST
+    TEST --> ART[Artifacts and raw results]
+    ART --> W
+    W --> STORE[Artifact Store]
+    W --> DB
+    DB --> VIEW[ProjectTaskSummary: typed read-only directory]
+```
+
+| 组件 | 职责及边界 |
+| --- | --- |
+| Web / API | 管理 Project 资源、CloudTask 草稿、dispatch / cancel / resume 等受控意图和只读投影；不执行 SDK、Git、SSH、安装脚本或测试 |
+| 项目资源与凭据保管 | 接收一次性秘密输入、加密保存、授予 / 撤销、按 attempt 使用；读取只返回引用与非秘密元数据，解密密钥与业务数据库分离 |
+| Cloud Worker | 使用 PostgreSQL 的可持久领取 / 租约和 fencing；受限 INPUT_RESOLUTION 工作先解析来源而不启动 Harness / 测试；指定 attempt 的工作准备工作区、实施资源策略、监督 runtime / 子进程、对账和提交产物；独立于原 legacy Job 执行身份 |
+| DeepSeek SDK Adapter | 在 Worker 执行侧封装官方 Python SDK，投影平台自己的状态 / 事件；SDK 类型与 JSON-RPC method 不渗入业务实体 |
+| CloudTaskReporter / CloudSyncAdapter | Worker 内的领域报告边界，调用 TaskSyncCore 整理明确的阶段进度 / 产物与固定提交，经当前 lease / generation 和 `cloud:work` 提交 Cloud typed operations；SDK 活动仅提供脱敏观察，不自动生成阶段完成或测试结果 |
+| CloudAttempt 执行范围 | 专属 runtime、workspace、显式 `dsh_home`、派生 Provider 配置与受监督进程组 / 容器范围；同范围包含子代理和本地测试进程，API 不挂载该工作区或认证目录 |
+| Artifact collector | 从批准目录收集 manifest、文档、代码 patch、用例结果、stdout / stderr 和原始报告，校验路径 / 大小 / 完整性与来源；不将整段 Provider 对话或思维链视为测试资产 |
+| 既有存储 | 复用 PostgreSQL、Audit / Outbox、Artifact Store 的持久能力；云端关系和历史另建，不给旧表伪造 Job / Binding / Evidence |
+| ProjectTaskSummary 查询层 | 在同一 Project 中按原任务类型分别鉴权，再合并为带 `task_kind` / `task_id`、派生 `product_mode` 和来源标签的只读目录；支持模式 / 来源筛选和进入正确详情，不路由通用执行写入 |
+
+CloudTask 是稳定业务任务，CloudAttempt 是一次可追溯执行尝试；Provider session ID、容器 ID、PID、SDK prompt message ID 都不能替代它们。每任务最多一个未终结 attempt；WAITING_INPUT、RECOVERY_REQUIRED 占用该归属，租约失效阻断旧 Worker 的后续提交和新工具动作。外部动作是否已停止仍需单独观察，数据库 fencing 不提供跨系统 exactly-once。
+
+只有当前 fenced coordinator 写平台状态。DeepSeek 主指挥官统一汇总并经该提交边界保存，子代理仅返回工作产物 / 委派结果，不取得 Operator key、数据库访问或独立平台 writer，不各建 SessionTask。Harness 内可并发执行被委派工程工作；共享文件需分工并在收集前核对，不能推导为多个平台 writer。
+
+任务级隔离是执行准入要求，须强制工作区 / 凭据 / 环境 / 网络范围、有限资源和根 / 子代理 / 测试进程整树停止。该要求不绑定某一namespace实现：经过独立等价验收的容器或VM可以替代，但不能降为共享宿主普通进程或仅依赖prompt约束，也不据此新增通用Runner后端矩阵。当前已验证的部署基线为专用非root systemd RootDirectory + 独立cgroup + bubblewrap namespaces；其他机制仍需独立实现及范围、泄漏、资源、取消和清理验收。不得因未测性能或OAuth推测绕过隔离、扩大权限或实际内存；模型身份可用性由上游请求观察独立证明。
+
+统一目录没有新的 Canonical Task 根实体；`(task_kind, task_id)` 是查询定位键，不可供存储层用一个无类型 FK 跨表引用。任务详情、修订、状态、写入授权和结果仍回到原 profile；同项目权限仍须核验对应操作，读取一类任务不自动取得另一类的同步、调度、控制或凭据权限。Local 不需要 CloudAttempt，Cloud 子代理不自动产生 Local SessionTask，旧记录也不经改标签转型。
+
+### 45.3 项目资源、固定输入与工作区
+
+项目可以保存 SUT / framework 两个 credential-free origin、默认分支、测试工作目录 / 入口、环境地址和连接方式；允许同仓，但各自角色和实际 SHA 必须明确。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
+
+CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA、MR base / head 和实际使用 head 或 merge commit，返回不可变 CloudInputResolution。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
+
+dispatch 只接受有效 resolution_id，重新校验版本和当前授权，原子冻结精确双仓输入、环境引用、操作范围 / 预算并入队。草稿 / 配置变化必须重新解析；排队后 branch 移动不改变本次输入。PREPARING 仅按固定 SHA checkout、核对身份和执行前能力，不能改为最新分支。相同输入的显式 rerun 复用原固定 SHA；精确持久化规则由领域 §51 定义。
+
+两个仓库在 attempt 独立目录中准备；源和生成测试变更分别记录。SUT 基线不可悄悄修改为另一版本；framework 可写 checkout 中的测试改动以实际 commit 或完整可恢复 patch 关联基线，未提交代码不能伪称原 SHA 的内容。测试代码默认回收为产物；远端 push / MR / 合并另需该操作授权。项目依赖、框架入口、锁文件与必要执行基线也应进入 manifest，避免仅凭 checkout 成功断言可复现。
+
+Worker claim 在 Git 前于数据库持久准备时间 hold，进入 RUNNING 前预留完整准备 / 执行截止及 ROOT / 获准 child 共同占用的最坏请求额度。原 hold 不充当实测费用；累计计量与 HELD / SETTLED 由领域 §51.3 拥有。停止整 namespace 且全部 host broker 关闭 / join、无在途请求后才按观察计数结算；丢失 lease、取消或人工对账不自动返还。显式 `REQUEST_CREDITS` 试点沿用 cost 字段记录请求额度，不称 USD，旧缺省单位和冻结任务保持原义。
+
+框架、Agent 与 SUT 的实际位置分别记录。云端源码解析和 SSH 连通不证明 SUT 已部署目标 SHA；记录部署版本 / binary 身份与 source-build 关联，缺少时说明已知缺口。每次执行观察实际环境，冻结引用不掩盖共享环境随时间改变。
+
+### 45.4 持久凭据与可执行授权
+
+Git token、Git SSH key、环境 private key / SSH 访问资料作为独立 Project 凭据资产加密持久化，具备用途、版本、授权对象、允许目标、到期 / 撤销与审计。密文和解密能力分离，API 不返回原文；任务及 artifact 只保存引用，禁止在仓库 URL userinfo、prompt、PRD、普通事件或报告中携带秘密。当前加密录入 / 修订源码已加入，生产密钥管理、存量迁移与 SSH 实际接入仍待验收；不读取或复制本机现有登录。
+
+运行时通过限域 Git helper、SSH agent / 临时私有文件或显式子进程环境交付；SSH 还需 host / port / user、host-key 校验、跳板和网络可达性。环境变量值不进入 manifest，只记录必要名称与来源引用；输出持久化前检测和脱敏，保存脱敏说明与可公开原件身份，不把含秘密的字节以“原始日志”为由写入普通 Artifact Store。完成或撤权后释放临时凭据，保留非秘密使用记录。
+
+一次授权体验来自 Project 资源授权向本任务及获准子代理的派生，并不来自 SDK 自动统一认证。DeepSeek、Codex、Claude Code 各产品模型身份由平台在云端预配、最小化投影并实际验证；子代理 bundle 清理 ambient 凭据环境，所需子进程凭据必须明确配置，不能假定继承或以 Git token 替代模型身份。
+
+当前受控模型路径把 DeepSeek key 与云端 Codex OAuth 留在宿主 broker；namespace 仅挂载限定模型推理 socket，使用 sentinel，不挂真实认证目录。普通 host secret 仍要求 root / 当前 UID 的 owner-only 0400/0600 普通文件；systemd LoadCredential 的特殊 0440 / 0550 仅在 canonical 当前 unit 路径、root owner、只读文件系统、无文件硬链接和 exact ACL 仅授 root / 当前非 root UID 时接受，不笼统放宽组读取。读取与权限检查使用同一 FD，并逐组件拒绝 symlink；秘密不进入命令值、普通环境、事件或产物。
+
+范围由运行时 / 工具策略强制执行，包括工作区挂载、文件权限、网络目标、Git / SSH / CI 入口和外部写操作；项目仓库提供的配置不能覆盖平台策略。仅在 prompt 中声明限制不构成授权隔离，无法执行本次 scope 时拒绝启动并报告 BLOCKED。最小目录 / 进程隔离不宣称已是可安全运行任意恶意代码的完整沙箱；首版支持的信任与执行基线需经实施验收固定。
+
+SDK 没有可用的运行中审批请求；新增访问范围、危险操作或无法无人值守的步骤通过 HyperTest 持久问答和显式重新准入处理。WAITING_INPUT 是平台状态，不是虚构的 SDK permission method；改变冻结范围建立关联新任务，不绕过原任务输入不可变约束。预授权不默认使用各 Provider 的 bypass 模式，也不解除旧 managed `native_shell=false` / `native_filesystem=false`。
+
+### 45.5 SDK 驱动、委派与版本控制
+
+Worker 使用官方 `deepseek-harness-sdk`，在独立 runtime 中显式指定 home / cwd、记录 session 引用并投影允许通知。官方高层提供 `DeepSeekHarness` / `run()`；当前受控 driver 使用同包低层 client 的 start / create / prompt / wait / close，避免将完整模型结果持久化。SDK 启动 `dsh --profile sdk`，仍有 stdio NDJSON / JSON-RPC 子进程通信；它减少 Python 接入适配，不提供测试更快的性能证明。官方事实和来源见 [ADR-019 §4](ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)。
+
+实施时固定 SDK / 同版本 runtime、子代理 bundles、profile patch / manifest 和所选 Provider / model，启动前校验组合、依赖与认证；任务记录实际版本。官方 handshake 无完整版本协商，不能以返回版本字符串代替兼容测试。用户输入不得替换任意 SDK argv、插件源码或平台受控 policy。
+
+固定 SDK / runtime `0.2.1rc2` 的根 provider 使用 DeepSeek Anthropic Messages，不是 Chat Completions；host broker 固定 HTTPS `/anthropic/v1/messages`、模型与文本 / 客户端工具 profile。Codex opt-in 的官方 bundle `0.2.1-rc.2` / Codex CLI `0.153.4` 使用单独的固定 Responses OAuth relay，仅限云端已有身份，不导入本机登录。配套 Node、锁文件、全部 payload 文件及受信任 manifest 摘要单独固定；本地 shim 仅将官方 subprocess 的精确 Codex app-server argv 从 SEA executable 映射到受控 Node，不另写 provider / Agent Loop。READY只证明加载；source-r18已实际核验Codex推理 / 文本贡献与native_ref / run_id、接受资产关联，source-r22的native16任务已接受runtime-reported子文件原件 / typed贡献，正式reported PASS及独立重放9项分别核验；DESIGN直接原件引用的精确PRD偏差保留，不升独立writer证明，也不能从组件READY或委派COMPLETED单独推定。Claude Code当前为placeholder。
+
+官方 plugin 的 session / subagent 生命周期经私有有界 UDS 交付序号和 ACK；不扩 SDK wire、不扫描聊天。`native_ref` 对应官方工具返回的 external child UUID，非 Codex thread ID。父任务只交责任 / 资产 / child 引用，Worker 注入 runtime-reported 状态；完成要求通道关闭、全部 child 终态与每份贡献回执，再观察整 namespace 停止和全部模型请求 drain，不以单个 subagent.finished 代替。
+
+2026-10-22 的 r7 在专用非 root systemd RootDirectory、只读源码 / venv、cap0 / NnP、独立 cgroup（2 GiB、0 swap、256 pids）中通过生产 bubblewrap 的真实 SDK 无模型初始化 / 关闭。默认 Docker 内层 namespace 的 EPERM 历史保持 BLOCKED；不自动放宽 seccomp / AppArmor，不使用 privileged 或通用宿主执行替代。该基线不含模型 / Git 网络授权，不证明真实任务已完成；部署记录与精确前提见[隔离验收说明](../../ops/deepseek/README.md)及[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。
+
+当前runtime profile在native Codex启用时设置有限 `RLIMIT_AS=16 GiB`，root-only为4GiB；这是单进程虚拟地址上限，不是RSS或聚合物理内存额度。独立cgroup的有效memory + swap准入上限仍4GiB、pids至多256且须核对PID归属；当前实测部署为精准2GiB / 0swap / 256pids，不因AS调整改变。RUNNING与私有prompt-intent分别记录配置上限和实际cgroup闭集数值，不持久化路径 / 环境。固定Code Mode纯text在相同namespace / 权限 / flags / payload / 物理额度下，AS4 / 8GiB触发SIGTRAP、16GiB执行 / 关闭成功；这支持有限AS兼容性修正，不代替真实子工具、模型或任务验收。该源码修正与source-r18旧任务分别验证，原失败 / 请求 / 结果与HELD保留。
+
+设置初始化、请求和整任务超时 / 预算，持续事件采集不依赖一个长 HTTP 请求。`session/prompt` 返回 durable enqueue receipt，不是测试结果；`run()` 的根响应和 whole-agent idle 也不等于平台任务完成。`session/wait` 可以等待进行中的 managed descendant work，但停放输入的后代可能不阻塞；`subagent.finished` 仅覆盖进程内工作，Codex / Claude 外部委派不能仅凭此通知判结束。
+
+主指挥官维护委派清单、所有者、输入范围、终态和交付路径。外部子代理单次委派不支持 continuation / resume，答案不含完整代码差异；collector 必须核对实际工作区产物，失败、缺失或未知不能从根答案补造。只有交付核对和未知动作对账后才能收尾。
+
+### 45.6 状态、取消、恢复与幂等
+
+任务主进度采用 `DRAFT → QUEUED → PREPARING → RUNNING → COMPLETED`。需要输入时进入 WAITING_INPUT，回答后显式回到 PREPARING 重查，再进入 RUNNING；另保留 FAILED、CANCELLED、RECOVERY_REQUIRED。精确合法迁移、attempt 状态、聚合和约束由领域 §51 拥有。`reported_result=NOT_RUN|PASS|FAIL|ERROR|SKIPPED|UNKNOWN|BLOCKED` 是独立结果维度，完成可以伴随 FAIL / BLOCKED。阶段活动、SDK finish reason、任务进度和执行结果分别显示。
+
+SDK 没有单会话 cancel / close，取消先持久化撤权，再由 Cloud Worker 关闭 runtime 并按受监督进程范围停止根 / 子代理与本地测试进程，保存实际停止观察。远端 SSH / CI 已接受动作须按原操作 ID 另行查询或受控取消；杀死本地 SDK 进程不证明远端停止。不能确认资源和外部动作状态时保留 RECOVERY_REQUIRED，不误报已完整取消。
+
+恢复先对账平台原 key、runtime、委派清单和外部操作，再明确继续。原 attempt 恢复使用新的 fencing generation，只有确认旧 owner 已失效、版本兼容且原 session / `dsh_home` / workspace 一致，才使用 SDK `resume_session()` 恢复原历史；它不恢复测试 shell / browser / CI 进程。丢失原会话不自动创建替代 session 或重发 prompt。
+
+RECOVERY_REQUIRED 非终态，先对账并恢复或结束原 attempt 才可开始复测。已终结任务允许按同冻结输入显式下发新 CloudAttempt，仍受原任务累计预算约束；任务聚合最新 attempt，旧终态 / 失败不可改写。新输入或新授权范围创建关联 CloudTask。所有控制写和产物写使用平台稳定幂等 key、expected version 与 fenced owner，具体 envelope 由 TMP §46 定义。发送失答 / UNKNOWN 只查询原 key，NOT_FOUND 不授权自动重发或创建替代任务；外部副作用也不得借重试重复执行。
+
+### 45.7 测试产物、执行记录与结论
+
+分析、设计、用例、测试代码、实现 manifest、每次框架调用、case actual / reported result 和原始报告分别保留版本。第 5、6 步迭代追加执行记录，不把修复后的 PASS 覆盖原 FAIL。manifest 关联双仓 SHA、测试改动、命令 / 入口、cwd、时间、exit、实际环境和可用原件；二进制或环境无法归属目标源时明确记录，hash 只证明完整性。
+
+框架 / CI 产生结果，平台做格式、关联、完整性和来源检查；依据首个真实项目支持必要报告格式，不把成功退出或合法 JUnit 当产品行为证明。无法解析也可保存原件并标明未解析，缺少 case 对应就不推断逐例 PASS。Agent 报告来源与可观察执行来源分别记录，不自动提升为 legacy VERIFIED Evidence / FINAL / RELEASE_READY，也不把云端 reported PASS 因无 legacy Runner 而强改 UNKNOWN。
+
+业务完成需要本次输入范围内的阶段交付、委派终态、执行结果与原报告可读回，无未知外部动作且已完成收尾。预算耗尽、权限 / 环境不足和 Agent / 框架失败按实际状态与 reported result 记录，不能用 SDK `completed` 替代该判定。
+
+运行中由 CloudTaskReporter 持续接受根指挥官明确的阶段 checkpoint / 产物清单并核对原件，复用 §47 的 TaskSyncCore；不等待 SDK 最终答复才保存。执行控制与报告是分开的逻辑职责：SDK 驱动任务，Worker broker 持有平台提交权限；不假定 SDK 原生提供正式测试产物上传接口，不给根 / 子代理平台 writer token。报告失答只按原操作 key 对账，不能重跑测试或把网络错误改成测试 FAIL。
+
+### 45.8 实施、兼容与验收
+
+本节完整目标与已加入的代码 / schema / 隔离验收分别登记于[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)，不代表真实凭据、远端 SUT 测试或生产部署完成。按[实施计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)逐阶段完成协议 / 数据、项目资源与凭据、CloudTask / Attempt、Worker / SDK、产物结果、Web 和可靠性；每阶段保留明确验收入口和未完成项。
+
+验收至少区分 SDK 契约探针、云端实际 Harness / 子代理接入、首个真实项目完整六步流程、取消 / 恢复 / 未知对账、凭据隔离及 ADR-018 无副作用回归。启动成功、模拟通知或旧 Docker Runner 的历史通过不替代新 profile 端到端结果。生产权限、密钥接入、网络和部署另行受控，不因设计接受自动执行。
+
+双模式验收需在同一 Project 内建立 CloudTask 与真实 Codex SessionTask，验证统一目录的模式 / 来源筛选、有类型身份和正确详情，以及两类任务的独立状态、版本、结果、权限和历史；跨类型写入或转换身份必须拒绝。未配置云端仓库 / 凭据的 Project 仍可使用 Local MCP，同步不会启动 Agent 或授予执行权。其他本地 Agent 未有独立 adapter 验收前不算已交付。
+
+新 profile 可通过独立准入开关停止新调度，已接受任务 / 产物仍可读；活动 attempt 按自身取消 / 对账收尾。保留 SessionTask 同步、native 轮次、旧 Run / Job / Attempt / Execution / Evidence / FINAL、数据库卷、Artifact、OAuth / SSH / VPN 和现有两种 managed Harness；不在迁移中改写、删除或用新语义回填旧历史。
+
+关闭 Cloud 准入 / SDK、云端 Worker 故障或其取消 / 恢复不得阻断 Local MCP 同步、原 key 对账和两类任务的历史读取；混合 Project 的读取与同步不依赖云端运行组件健康。独立关闭只停止新云端调度，已有活动 attempt 仍需按原生命周期取消或对账，不能用关闭开关冒充已停止所有外部动作。
+
+### 45.9 默认关闭的固定SSH诊断边界（ADR-023，实施中）
+
+[ADR-023](ADR-023_CLOUD_SSH_FIXED_DIAGNOSTICS.md)定义`SSH_FIXED_DIAGNOSTICS_V1`：一个冻结literal IP / port / nonroot user / Ed25519 host key，最多8个串行无参数只读动作，每项≤30秒、每输出流≤64KiB。namespace仍无网络 / 凭据，只挂载`/run/hypertest-ssh.sock`；host独立SshBroker使用受信只读固定摘要OpenSSH、当前credential与独立签名key，禁止PATH / 个人登录 / 转发回退。完整启动准入不连接SSH / DB / 模型。
+
+Cloud canonical SSH操作与追加观察独立持久：先SENT后一次发送，原ID QUERY / STOP，UNKNOWN / NOT_FOUND不得START。远端forced helper验签短票据、登记后运行有限unit / cgroup / TTL；票据绑定精确请求 / generation / lease / hard deadline，公开有界撤销延迟，generation本身不是授权。关闭namespace和模型后仍需实际远端终态 / unit inactive / emptycgroup / 输出封存；未知阻止完成 / 结算，保留HELD。失租原owner只有原操作清理能力，不能恢复普通写权；撤销SSHkey后不得缓存复用。source30 Worker / source29 helper的r8 canonical固定SSH专项已通过，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留；故障矩阵与真实staging待验收，CI / Git写入仍不支持，Claude占位。
+
+环境路由硬边界：XBlock staging需SSH / 服务器日志 / 操作的任务仅Local，由用户Mac经Workbench CLI访问；166dev内网自建链仅Local。纯Web / API可选Cloud仍需独立实现并验收HTTPS访问，网络可达不等于当前runtime支持；在本SSH小片之后另行接通。禁止Cloud直连受限环境、转发绕过 / 扩IP许可或复制Mac登录 / 本地环境秘密。通用SSH只在隔离fixture中实施，不改变Project共享双模式；见[执行环境路由](../CLOUD_LOCAL_ENVIRONMENT_ROUTING.md)。
+
+## 46. ADR-020：Hooks + MCP 本地同步协调器（已接受设计，未实现）
+
+本节仅扩展 §44 的 Local 触发和客户端编排，沿用 ADR-018 / TMP §45 / 领域 §50；不新增任务类型、不升级业务 wire / profile，不改变 SessionTask 字段、首次 Project / actor owner、`(provider, session_id)`、reported result 和原 key 规则。协调器、Codex / Claude / DeepSeek 的自动适配及统一 Local release / 安装器均 **NOT IMPLEMENTED（2026-10-22，Asia/Singapore）**；现有 Codex MCP 同步继续保留。决策见 [ADR-020](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md)，触发契约见 TMP §47，客户端运行态见领域 §52，交付见[本地同步实施计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)。
+
+### 46.1 组件与数据流
+
+```mermaid
+flowchart LR
+    H[Harness hooks: automatic trigger] --> C[Local sync coordinator: one real parent session]
+    M[MCP: explicit submission and query] --> C
+    S[Allowed testing artifacts / source snapshots] --> C
+    C --> P[Existing private client / one shared journal]
+    P --> A[Existing scoped typed HTTPS]
+    A --> T[SessionTask / revisions / SyncReceipt]
+    T --> DB[(PostgreSQL / Audit / Outbox)]
+```
+
+| 组件 | 责任与边界 |
+| --- | --- |
+| Harness Hook adapter | 校验版本 / event schema / handler 能力，取得父会话来源与允许元数据，持久标记待检查资产；不是测试调度器，也不把工具事件解释为 PASS |
+| MCP 入口 | 保留显式提交、查询和恢复能力；未来与 Hooks 共用协调器，不另建平台写路径或 journal。既有完整请求与显式空值继续按原契约处理 |
+| LocalSyncCoordinator / LocalSyncAdapter | 按真实父会话串行协调，复用 §47 TaskSyncCore 处理完整基线、语义合并、去抖、固定意图、原 key 对账和固定接受版本读回；adapter 保留原 SessionTask 完整提交与私有客户端语义，不执行测试、重跑命令或另启 Agent |
+| 既有私有客户端 | 保管当前集成授权，复用私有 IPC、compact journal、typed HTTPS 与回执校验；Hook 配置 / 模型不取得 token 或 Operator key |
+| Local 服务端同步入口 | 沿用权限、固定 owner、expected version、唯一性、事务和审计；不运行客户端 Hook、SDK、Git / SSH、SUT 或测试 |
+
+Project 必须是已有受权 Project；provider 与真实父 session 来源需由对应 adapter 明确映射，不从 prompt、目录名、MCP connection、子代理 ID 或 Hook invocation ID 猜测。metadata / session 引用仅供关联，不构成宿主执行证明或授权。一个父会话仍一 SessionTask，resume 读回复用；子代理只贡献父任务资产。当前 Codex MCP 已实现不证明其 Hook adapter 或 Claude provider mapping 已存在。
+
+### 46.2 单 writer 与完整读取—合并—提交
+
+协调器对同一父会话的 Hooks 与 MCP 编排维持一个有效本地 writer；覆盖完整 RMW，不以 IPC 单次调用锁冒称跨多个请求的互斥。跨进程恢复须检查旧 owner / 本地代次，跨设备 / 多实例的异常并发来源先阻塞并显式移交，不自动抢写。该归属不是新的服务端 lease 字段；无法控制的外部客户端仍由既有 owner / expected version / 聚合锁拒绝旧写，不能宣称本地锁能全局 fencing。
+
+新局部意图先完整分页读取固定版本基线，再按字段 presence、明确修改 / 清空与允许资产合并，保留未改变标量和用例 / 报告。`hypertest_sync_task` 不是 PATCH；Hook 只有 status 不得提交空计划，缺少报告结果不以默认 NOT_RUN 覆盖 FAIL。既有 MCP 显式完整 snapshot（含有意空值）继续原义；已固定 payload / key / expected version 不被协调器重写、补字段或自动 rebase。
+
+自动触发只在管理内容有实质变化时创建新同步意图；去抖 / 重复事件自身不产生版本。新意图写前固定完整非秘密请求、key、expected version 和 digest，经同一私有客户端与 journal 唯一提交。来源原文或范围无法完整保留时报告阻塞，不静默截断、从摘要重造原件或改用隐式文件上传。
+
+匹配 ACCEPTED 回执后，仍须按其 task UUID / 固定接受 version 完整分页读回和核对 task / cases / reports 原文，才能将本地意图标为 synced。journal ACK 只表示传输已接受，读回完成属于协调器状态；晚到事件保持 dirty。旧版本冲突先读基线、核对已拒绝请求和差异，再由新意图推进；不借自动 rebase 覆写既有失败或另一客户端接受的修订。
+
+### 46.3 事件、能力与有界恢复
+
+SessionStart / resume 用于恢复映射、查询原 key 与读取任务；PostToolUse / 阶段产物变化用于标记待检查；Stop / SessionEnd 仅请求刷新或持久化 pending。任何事件、Agent 回答、上传成功或退出码都不直接映射 SessionTask COMPLETED / PASS / CANCELLED。业务进度与测试结果必须来自允许的明确领域产物；新 PASS 继续保留旧 FAIL、原始报告与修订历史。
+
+Hooks 是 best-effort，可能重复、乱序、超时或退出前未完成。不同 Harness 需分别固定版本和能力探针；只有支持 `mcp_tool` 且服务就绪的事件才可走该 handler，不预设 SessionStart / SessionEnd 均能稳定调用 MCP。启动 / 退出可用获授权轻量 command adapter 保存允许元数据，不依赖退出前完成网络上传；具体官方限制和第一手来源见 [ADR-020 §5](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md)。排除同步工具与协调器自身临时文件事件以防循环。
+
+写请求不能确认是否发送 / 接受时，保留原意图和 journal，仅 GET 原 key；PENDING / SENT / UNKNOWN / 失答及 NOT_FOUND 不授权重发 POST、换 key、另建 Task 或重签凭据。只有能够确认从未发送的新意图才允许第一次 POST。未决写阻塞同会话后续写，后来事件只累积待检查引用；不依赖一次重启或去重标记提供 exactly-once。
+
+本地 pending / dirty / deferred / readback-needed 是客户端运行态，不新增服务端任务 status，也不改变 reported result。离线、撤权、来源缺失或 MCP 不可用时保留允许材料并报告同步阻塞；同步失败不是测试失败。协调器恢复继续原 key，不重跑测试或接管 Agent。
+
+### 46.4 私有材料、授权与兼容交付
+
+事件队列 / 去抖仅持久化允许元数据、refs、版本和 digest。获准完整领域产物或冻结请求可在独立私有来源快照中保存并校验，不塞入传输 journal；journal 继续仅保存查询身份和完整请求 digest。不复制整聊天、思维链、raw tool payload 或秘密，transcript 路径不是读取 / 上传全文的授权。Hook 配置与命令参数只含固定入口及非秘密引用，不含 token、私钥或 Operator key。
+
+复用现有 `task:sync` integration actor / client / Project grant；不新增 Cloud scope、云端仓库 / 环境 / 模型凭据、执行绑定、Job 或 Runner，不扩大本地工具 / SSH / CI 的既有授权。Cloud 六步与官方 Python SDK 继续独立；同 Project 的两类任务不转换身份或共用写权。Cloud 未配置 / 停用 / Worker 失败时，Local 现 MCP、未来协调器对账和历史读取仍可用；关闭自动触发保留显式 MCP 和未决 journal。
+
+按本地 L0–L4 独立交付与验收，覆盖真实父会话 / 子代理映射、Hook + MCP 并发、原完整 snapshot 兼容、无变化去重、原文读回、失败保全、重启 / 退出、失答与 NOT_FOUND、版本冲突、撤权及混合 Project 隔离。文档检查或 fake Hook 不能替代真实 Harness / 版本记录；本轮不运行测试、安装 Hook、启动监听 / 上传或修改用户全局 Skill。现默认 XBlock 工作流仍只用现有原生管理工具；设计接受不等于未来自动同步的运行授权。
+
+### 46.5 统一 Local release、安装与宿主适配（待实现）
+
+按 [ADR-020 §9](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md#9-统一-local-release-与-agent-自助安装待实现) 将 MCP stdio server、私有客户端 / shared journal、协调器、Claude Code / Codex / DeepSeek harness 三个 adapter、Hooks / 配置模板及允许的 Skills / manifest 打包为单一版本的 **HyperTest Local**，使用未来独立 `local-vMAJOR.MINOR.PATCH` 发行线，配套 installer / doctor / upgrade / uninstall。只分发本地同步客户端资产，不包含三个模型 CLI、模型登录、云端 SDK / runtime 或平台服务。manifest 固定 bootstrap / payload 摘要与来源校验、完整源码 commit、core / templates / adapters / installer 及依赖来源和版本、MCP wire / journal / 配置兼容性，以及 OS / 架构与三宿主能力 / 实测验收矩阵；不让单组件漂移到 `latest`，旧 `mcp-v0.1.0` 不重标为该包。
+
+| 安装责任 | 边界 |
+| --- | --- |
+| 选择与校验 | 检测或选择 `claude-code|codex|deepseek-harness`，默认单宿主；显式 `all` 仅是三个目标的请求集合，逐项报告缺失 / 不支持 / 受阻 / 就绪，不剔除失败项或以部分成功显示整体 READY。安装选择不改 wire provider，也不代表已有 `all` CLI flag。校验完整 manifest / 最小权限 / 兼容性和来源信任后才写配置；checksum 只证明下载内容一致性，可信固定 digest / 签名和来源渠道另验 |
+| 配置事务 | 隔离安装依赖；备份原设置，仅合并所选宿主 MCP / Hooks 与获准资产引用并原子写入，保留其他设置。私有安装回执记录本包管理项和中断进度，不是 SyncReceipt 或新的 Canonical 状态 |
+| 项目与认证 | 使用有效 integration actor / client / Project grant 和明确的本地会话选择范围（仅客户端配置，非新增 wire 字段 / 授权 scope）；无 profile 时安全私有认证引导 / 等待，不从聊天或参数接收秘密，不给 Agent Operator key，不自动提升 `task:sync`。不得复用旧使用 Operator key 的 `setup` / 设备、source 与 execution 配对路径作为本地任务安装 |
+| 能力与读回 | 只读 doctor 检查版本 / 配置 / 权限，必要时提示 reload，不强关会话。配置由真实宿主加载后再验身份、MCP 与触发；下载、配置、doctor exit、连接、触发和真实 ACK / 固定版本完整读回分别报告，不用模拟会话建立任务 |
+| 生命周期 | 重装复用 client / Project / 回执，升级整体保持组件和 journal schema 兼容；未决 / UNKNOWN 先按原 key 对账。回退或禁用 Hooks 保留 MCP 与历史；卸载仅移除本包管理项和二进制，保留用户会话目录、项目、原账本及必要私有导出 |
+
+三个宿主各自核验身份 / MCP / trigger。DeepSeek adapter 面向独立 Local 父会话，不与 Cloud 指挥官或其子代理混用；没有固定版本的真实能力证据，不声称原生 Hooks 支持。合法且实测的 provider plugin 事件桥可进入同一协调器，不能扫描聊天、绕过 single writer 或失效后静默标成自动同步可用。多个入口关联同一真实父会话时共用锁、队列和账本；复用凭据须满足现有 grant / client / actor 链，不能自动为每宿主发全局授权或承诺所有 provider 共用一个 actor。
+
+一个非秘密、固定版本 / hash 的安装命令在真实发行后提供，契约见[Local 发行与安装设计](../LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。Agent 可以在用户选择的宿主与作用域内自助安装，不由安装器启动模型 / SUT、创建 CloudTask、上传已有聊天或切换全局默认 Skill。统一包、安装器与新适配均未实现 / 发布；本次文档更新不执行安装或启用同步。交付纳入 Local L0–L4，Cloud P0–P4 保持独立。
+
+## 47. ADR-021：本地与云端共享 TaskSyncCore（已接受设计，未实现）
+
+本节将 §46 的可靠同步机制复用于 §45 的云端报告，决定见 [ADR-021](ADR-021_SHARED_TASK_SYNC_CORE.md)。**TaskSyncCore 与 CloudTaskReporter / CloudSyncAdapter 已有增量源码，完整验收未完成（2026-10-22，Asia/Singapore）；Local 组件交付另记**。这是共享语义与库设计，不新增服务端 profile、通用写 API、Task 根实体或授权 scope。请求协作由 TMP §48、运行态与持久化不变量由领域 §53 拥有；原 ADR-018 / TMP §45 / 领域 §50 保持原文和语义。
+
+### 47.1 组件分层与实例隔离
+
+```mermaid
+flowchart TD
+    H[Local Hooks / explicit MCP] --> L[LocalSyncCoordinator]
+    R[Cloud root checkpoint / approved manifest] --> C[CloudTaskReporter in Worker]
+    O[Cloud collector / execution observations] --> C
+    L --> KL[TaskSyncCore: Local instance]
+    C --> KC[TaskSyncCore: Attempt instance]
+    KL -. shared library and semantics .-> KC
+    KL --> LA[LocalSyncAdapter / private client / original journal]
+    KC --> CA[CloudSyncAdapter / fenced broker / isolated ledger]
+    LA --> ST[ADR-018 SessionTask API]
+    CA --> CT[Cloud typed operations]
+    W[Worker execution supervisor] --> SDK[Official Python SDK / Harness]
+    SDK -. bounded activity metadata .-> C
+```
+
+| 层 | 共享责任与域边界 |
+| --- | --- |
+| TaskSyncCore | 整理获准结构化意图 / 产物清单、语义差异、固定请求、交付状态驱动、原 key 对账与接受版本读回；不推导业务结果、签发授权或执行测试 |
+| LocalSyncCoordinator + LocalSyncAdapter | Hooks / MCP 同真实父来源的有效本地 writer；adapter 使用原完整 SessionTask 请求、`task:sync`、actor owner、expected version、私有客户端与 compact journal，不新增服务端 lease |
+| CloudTaskReporter + CloudSyncAdapter | Worker 中的报告单 writer；adapter 生成对应 Cloud typed operation，核验 Task / Attempt / 当前 lease generation 与短期 `cloud:work`，使用独立 CloudOperationReceipt 与原件读取，不冒用 SessionTask |
+| 模式私有持久层 | Local 复用原 compact journal 与分离的获准私有来源快照；Cloud 使用 Attempt 隔离的持久待提交账本及受控 Artifact 存储。共享库不等于共享物理进程、全局锁、目录、token 或 journal |
+
+每个 adapter 提供所属操作的基线、合并 / 校验、版本、提交、回执查询、读回与授权接口；核心不能凭任务目录中的 `task_id` 猜 profile 或通用路由。Local 按原 profile / Project / actor / 父来源隔离，Cloud 按 profile / Project / Task / Attempt 隔离并核对当前归属。同 Project 仅共享项目级目录，不合并 writer 或秘密；服务端 Audit / transactional outbox 继续属于各领域接受事务，不替代客户端待提交账本。
+
+### 47.2 活动观察、领域交付与可靠同步
+
+SDK / Hooks 事件只触发检查或生成有界脱敏活动摘要。业务进度来自主 writer 明确提交的领域 checkpoint：阶段、已交付项、剩余 / 阻塞 / 需要输入、版本化产物与来源；checkpoint 是共享适配输入，不是新的服务端实体。SDK turn / idle、Hook Stop / SessionEnd、子代理回答与工具成功不直接成为业务阶段完成、RunRecord、COMPLETED 或 PASS。
+
+Cloud 中途进度落为现有 `SubmitCloudAssets` 的 `kind=REPORT` 非最终报告修订，使用每 Attempt 独立的稳定 key，同 Task 内不跨 Attempt 复用进度 key，完整原文含阶段 / 里程碑 / 阻塞和已接受产物 refs；CloudAttempt 现有 checkpoint 可引用该已接受 REPORT revision。此落点不新增操作、profile、enum 或表，不自动改变 status / reported result；`final_report_revision` 仍单独明确指定并满足完成条件，不能默认取最新进度报告。
+
+未来 Cloud draft 的 `SubmitCloudAssets` 可选 `checkpoint_report_key` 指定本批正式 REPORT key，在同原 operation key、Task version、lease / generation 的接受事务中接受 / 复用修订并绑定 Attempt 既有 checkpoint。省略保留原绑定，不允许任意 ref 或隐式清除；原回执和固定版本完整读回同时核对绑定。这不增加 Local wire 字段。
+
+该绑定只更新业务进度报告引用，不覆盖 WAITING_INPUT / Resume 所需的 SDK 会话、文件、委派或外部操作恢复材料；REPORT 可读回不证明运行时或外部进程可恢复。运行恢复继续按 §45 和领域 §51 核验，不能把最新进度报告当作可恢复 runtime 的证明。
+
+Local 与 Cloud 都在阶段产物形成时保存，保留后续修改、原 FAIL 与每次执行；不用最终聊天答复代替原件。产物清单只指向明确允许的分析、设计、用例、实现与原始报告，不扫描 / 上传聊天、CoT、raw tool payload、任意工作区文件或秘密。Local 继续使用原 Markdown / 引用契约；Cloud 受控上传与字节 / hash / 大小校验、Artifact 关系接受、业务操作回执分别确认，不能把通用核心理解为 Local 获得附件上传 API。
+
+共同顺序为：核验本域 writer 与未决账本 → 读取目标操作所需完整固定版本基线 → 仅合并未固定新意图、比较实质差异 → 固定目标、完整非秘密请求、原 key、expected version / 必要运行归属与 digest → 唯一提交路径 → 校验本 profile / 操作的接受回执 → 按固定接受版本完整分页 / 分块读回承诺对象和原文，再标记 synced。Cloud 每个 typed operation 只构造它自己所需的完整请求，不强加 Local 整任务 snapshot；版本规则和接受集合由所属域定义，不普遍套用 `expected_version+1`。
+
+既有 MCP 完整请求、显式空值与冻结 payload / key / version 原义保留。局部意图缺字段不能清空计划或把 FAIL 改为默认 NOT_RUN；无变化自动触发不制造修订。SENT / UNKNOWN / 失答及 NOT_FOUND 只能查原 key，不换 key、不重发、不另建任务或重跑 Harness；ACK 后读回失败继续原接受版本读取。未决写或接受读回未完时，同一汇报顺序中的后续普通 mutation 不越过当前意图，后到事件只积累允许引用；有权安全取消 / fence 不受此报告队列阻塞，但不能越过未决直接完成或重跑。查询与读回继续核验当前授权；同步状态不改测试结果。
+
+### 47.3 云端运行中的报告与停止边界
+
+CloudTaskReporter 在当前 CloudAttempt Worker 内接收根指挥官通过允许领域交付入口 / workspace manifest 形成的 checkpoint，结合 collector 原件核验和 Worker 观察，经 CloudSyncAdapter / 当前 fenced broker 提交。具体入口须在实施时固定 schema、路径、大小和 Attempt 归属；官方 Python SDK 是执行控制通道，不因此获得平台产物上传 API。经验证的 Hook / plugin event 可以辅助触发，不成为 Cloud 必须的同步通道。
+
+DeepSeek / Codex / Claude 子代理只向主指挥官交付；Worker 持有平台写权，模型不取得 writer token、DB 或 Operator key。报告不为各子代理创建 Local SessionTask，不以授权云端资源为由复用 Local 集成 token。Cloud 内可并行产出，平台写入仍按同一 Task / Attempt 串行固定和提交。
+
+取消或 lease 失效先阻止旧 reporter 新提交，保留原冻结请求与接受引用；合法新 owner 先按原 key / 版本对账，再以当前归属形成后续新意图，不能改旧请求 generation 后重发。在途报告回执、暂存上传、已接受 Artifact 和外部 CI / SSH 运行在取消 / fence 后仍分别对账，不因取消而清除 UNKNOWN；报告故障按 Cloud 生命周期阻止错误完成、进入必要恢复，但不把网络错误改成测试 FAIL，也不自动重放外部动作。最终完成仍须满足 §45 和领域 §51 的全部收尾条件。
+
+### 47.4 依赖与交付
+
+Local release 固定 TaskSyncCore 与 Local adapter 版本；Cloud 镜像 / Worker 以独立 manifest 固定同源共享库与 Cloud adapter，不要求同进程安装或同步发布。两者记录实际版本与兼容性，Cloud 不依赖终端 Local bootstrap、三宿主安装器或 Hooks 发布 / 启用。
+
+按[本地 L1](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)和[云端 P2 / P3](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)复用核心并分别集成；P2 先交付最小中途 REPORT 接受、checkpoint 绑定与固定版本读回，P3 扩展完整产物 / 执行结果。契约回归覆盖两个 adapter。运行验收包括真实阶段 checkpoint、原件读回、重复 / 乱序、失答 / NOT_FOUND、部分意图保全、旧租约拒写、取消期间未决报告对账与混合 Project 隔离；一个模式停用、缺依赖或故障，不阻断另一模式同步、原 key 对账和历史读取。文档设计不等于组件实现、安装、发布或运行授权。
+
+## 48. 项目经验服务与 Memory Gateway（ADR-022，Proposed / NOT IMPLEMENTED）
+
+用户已选择独立云主机部署 PowerContext；[ADR-022](ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) 提议未来在 HyperTest 接入 Memory Gateway，使 Cloud / Local 在授权 Project 内跨会话复用经验。独立服务部署与测试结果由[服务运行记录](../POWERCONTEXT_SERVICE.md)拥有，不是平台集成或项目隔离验收。任务 / 原件、TaskSyncCore 交付与记忆托管保持三层边界：
+
+| 组件 | 职责与限制 |
+| --- | --- |
+| Canonical Testing Store | 既有 PostgreSQL、原报告、固定接受修订与原件；任务、授权及结果仍按各领域契约，不从经验回填事实 |
+| TaskSyncCore / 两模式 adapter | 正式任务进度和资产的可靠交付；不持 memory 全局 key、不增加记忆依赖或等待其完成 |
+| Memory Gateway（拟议） | 核验独立 memory 权限、Project、来源 / owner、发布 / 失效可见集及引用读取；持服务端 PowerContext key |
+| PowerContext（独立服务） | 托管获准经验及检索索引；首版固定 1.4.0、SQLite Basic / `fts`，外部 Generation / Embedding 默认关闭 |
+| Cloud Memory Adapter（拟议） | 当前 Worker broker 接收主 / 子代理的受控 query 或候选，不给模型服务 admin token；与 CloudTaskReporter 的任务报告分开 |
+| Local Memory Adapter（拟议） | 未来统一 Local release 的可选显式工具，经私有客户端 / Gateway 接入；不携远端 admin token、不安装服务或原生自动采集插件 |
+
+### 48.1 身份、来源与隔离
+
+PowerContext 固定基线 commit `cab054dbf6d86e2311b079388e5158178257def2` 的静态 Bearer 共用 `admin`，Scope 不能当项目授权。当前独立服务仅供可信单操作者；未来 Gateway 根据当前授权确定 Project / 过滤条件，并分别校验检索、候选和确认发布权限。不得从 `task:sync` / `cloud:work` 自动派生 memory 权限，也不将请求自填 namespace、session label 或子代理身份当授权。
+
+候选绑定 Local 的 SessionTask / provider / 真实父来源 / actor，或 CloudTask / Attempt / Worker 来源，以及确切已接受修订 / 原件 refs。候选保留来源 owner；人工确认、脱敏并明确发布后才在 Project 内共享。正文发布不公开原报告，来源标题 / URI / 内容和解引用分别鉴权；不能以索引、摘要或缓存泄漏原不可读材料。首版无跨项目召回；记忆内容和检索结果均是需重新验证的不可信历史上下文，不是命令、权限或当前测试证明。
+
+### 48.2 数据流、独立交付与故障
+
+正式任务同步先按原契约接受 / 读回，经验路径再从获准片段与固定引用生成候选。Gateway 的拟议发布元数据、版本 / 可见集、审计及 memory queue / outbox 独立于任务 journal 与事务；索引交付不得让任务接受事务跨服务等待。实现可复用选材 / digest 校验库，但不能把 memory 写入塞进任务 UNKNOWN 串行流。检索 / 写入故障、维护或停用不得阻断测试、同步、原 key 对账或历史读取，不能改变 reported result。
+
+不宣称上游具有 HyperTest 幂等回执。失答保留实际 ID / 上游已知 key 和原操作关联，按该版本真实查询能力核对；无可靠查询身份或结论未知时保留未决，不盲重写 / 换 key。Gateway 的去重、发布版本和撤回屏障须另行设计验收；撤回 / 过期以受控可见集过滤，不能只等待异步索引删除。
+
+### 48.3 数据边界、部署与交付
+
+不装原生自动 memory Hooks，不扫描历史聊天，仅显式最小 query 与获准经验。固定版本 Codex recall 在 `CAPTURE_PROMPTS=false` 下仍 POST 完整 prompt 到 `context/prepare`；该开关不能当作无外发保证。根 / 子代理没有服务管理员凭据；外部模型默认关闭，后续启用要明确发送字段 / 服务商与数据许可。
+
+独立服务不修改 HyperTest PostgreSQL、生产 Compose、认证目录或既有入口；本文不列真实地址或 endpoint。网络、TLS、资源、持久化和备份由[服务记录](../POWERCONTEXT_SERVICE.md)单独登记。未来 Gateway 的组件权限、拟议数据模型与通信边界分别由本节、领域 §54、TMP §49拥有；按[集成计划](../POWERCONTEXT_INTEGRATION_PLAN.md)依次验收独立服务、Gateway 隔离、两模式适配与经验维护。服务上线不升级 ADR-019 / 020 / 021 的实现状态。

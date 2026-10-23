@@ -88,6 +88,10 @@ class InteractiveService:
         self._tools: dict[str, dict] | None = None
         self._grants: dict[str, dict] = {}
         self._content: dict[str, dict] = {}
+        self.coordinator = None
+        if config.local_sync.get("enabled"):
+            from hypertest.local_sync.coordinator import LocalSyncCoordinator
+            self.coordinator = LocalSyncCoordinator(config, api, journal)
 
     async def tools(self) -> list[dict]:
         if self._tools is None:
@@ -124,6 +128,8 @@ class InteractiveService:
         if name == "hypertest_sync_task":
             payload = dict(arguments)
             payload.setdefault("provider", "codex")
+            if self.coordinator is not None:
+                return public(await self.coordinator.submit_full(payload))
             lookup = {"project_id": payload["project_id"], "idempotency_key": payload["idempotency_key"]}
             # Reports live on the platform. Keep only lookup identity plus the
             # complete-request digest in this bounded local transport journal.
@@ -148,7 +154,7 @@ class InteractiveService:
                                           (intent.get("result") or {}).get("task_id") if intent else None,
                                           intent["payload"] if intent else arguments)
                 except ApiError as exc:
-                    if intent:
+                    if intent and intent["state"] not in {"READBACK_COMPLETE", "LEGACY_ACCEPTED_READBACK"}:
                         self.journal.mark(kind, key, "UNKNOWN", intent.get("result"))
                     return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
                 self._observe(kind, key, result)
@@ -192,6 +198,26 @@ class InteractiveService:
             self._verify_content(result, requested_cursor=arguments.get("cursor"))
         return public(result)
 
+    async def local_hook(self, payload: dict) -> dict:
+        """Private local IPC operation, deliberately absent from MCP tools/API."""
+        from hypertest.local_sync.hooks import handle_hook
+        if self.coordinator is None:
+            raise ClientError("LOCAL_COORDINATOR_DISABLED")
+        return await handle_hook(self.config, self.coordinator, payload)
+
+    async def local_manifest(self, payload: dict) -> dict:
+        from hypertest.local_sync.hooks import submit_manifest
+        if payload or self.coordinator is None:
+            raise ClientError("LOCAL_COORDINATOR_DISABLED")
+        return await submit_manifest(self.config, self.coordinator)
+
+    async def local_source(self, payload: dict) -> dict:
+        from hypertest.local_sync.hooks import drain_source
+        if (set(payload) != {"session_id"} or not isinstance(payload["session_id"], str)
+                or self.coordinator is None):
+            raise ClientError("LOCAL_COORDINATOR_DISABLED")
+        return await drain_source(self.config, self.coordinator, payload["session_id"])
+
     async def _write(self, kind: str, key: str, payload: dict, path: str,
                      query_path: str, query: dict, *, device=False, token=None,
                      identity: dict | None = None, request_key: str | None = None,
@@ -229,7 +255,8 @@ class InteractiveService:
         return result  # Caller consumes secrets privately before final projection.
 
     def _observe(self, kind: str, key: str, result: dict) -> None:
-        if self.journal.get(kind, key) and result.get("status") not in {"NOT_FOUND", "UNKNOWN"}:
+        record = self.journal.get(kind, key)
+        if record and record["state"] not in {"READBACK_COMPLETE", "LEGACY_ACCEPTED_READBACK"} and result.get("status") not in {"NOT_FOUND", "UNKNOWN"}:
             self.journal.mark(kind, key, "ACKED", public(result))
 
     async def _proof(self, run_id: str, peer_pid: int | None) -> dict:

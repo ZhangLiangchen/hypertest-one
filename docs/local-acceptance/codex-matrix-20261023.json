@@ -1,0 +1,262 @@
+{
+  "schema": "hypertest.local-native-matrix-observation/v1",
+  "run": "local-matrix-20261023-bcf53ca2",
+  "host": "codex",
+  "harness_version": "0.144.6",
+  "os": "Darwin",
+  "architecture": "arm64",
+  "python_version": "3.13.3",
+  "published_release": "local-v0.1.0",
+  "runtime_source_commit": "874569fa566a137eba77ac4852caa6052cb04a17",
+  "runtime_source_digest": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+  "published_runtime_code_changed": false,
+  "review_status": "PENDING_INDEPENDENT_REVIEW",
+  "observed_checks_passed": true,
+  "project_id": "01a166a9-c5ca-78fc-8ef6-373a6f4ce2f0",
+  "provider": "codex",
+  "native_session_id": "01a166b0-24a4-7df2-a8dc-3266ed39165d",
+  "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+  "head_version": 3,
+  "task_status": "BLOCKED",
+  "reported_result": "FAIL",
+  "real_business_sut_execution": "NOT_RUN",
+  "fixture_notice": "Management synchronization fixture only; FAIL is deliberately reported fixture data, not a business SUT execution result.",
+  "process_boundary_proven": true,
+  "process_boundary_basis": "Each actual native CLI subprocess was spawned and awaited to close before the next exact-ID resume invocation.",
+  "child_pid_recorded": false,
+  "session_persistence_enabled": true,
+  "fork_or_last_or_ephemeral_used": false,
+  "dangerous_approval_or_hook_bypass_used": false,
+  "source_metadata_is_caller_authentication": false,
+  "native_session_start_observations": [
+    {
+      "session_id": "01a166b0-24a4-7df2-a8dc-3266ed39165d",
+      "source": "startup",
+      "observed_at": "2026-10-23T02:56:28.360355+00:00"
+    },
+    {
+      "session_id": "01a166b0-24a4-7df2-a8dc-3266ed39165d",
+      "source": "resume",
+      "observed_at": "2026-10-23T02:59:28.378480+00:00"
+    }
+  ],
+  "native_cli_stages": [
+    {
+      "stage": "FRESH_HEADLESS_CASE_REPORT_RETRY1",
+      "cli_exit_code": 0,
+      "timed_out": false,
+      "native_session_ids": [
+        "01a166b0-24a4-7df2-a8dc-3266ed39165d"
+      ],
+      "requested_resume_session": null,
+      "resume_matches_observed": null,
+      "completed_mcp_calls": [
+        {
+          "tool": "hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+          "version": 1,
+          "idempotency_key": null,
+          "sync": null
+        },
+        {
+          "tool": "hypertest_sync_task",
+          "is_error": false,
+          "result_status": "ACCEPTED",
+          "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+          "version": 2,
+          "idempotency_key": "matrix-codex-case-v1",
+          "sync": {
+            "state": "READBACK_COMPLETE",
+            "readback_complete": true,
+            "code": null
+          }
+        },
+        {
+          "tool": "hypertest_get_task",
+          "is_error": false,
+          "result_status": "ACCEPTED",
+          "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+          "version": 2,
+          "idempotency_key": "matrix-codex-case-v1",
+          "sync": null
+        },
+        {
+          "tool": "hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+          "version": 2,
+          "idempotency_key": null,
+          "sync": null
+        }
+      ],
+      "raw_output_retained": false
+    },
+    {
+      "stage": "RESUME_EXACT_HEADLESS_PLAN_REVISION",
+      "cli_exit_code": 0,
+      "timed_out": false,
+      "native_session_ids": [
+        "01a166b0-24a4-7df2-a8dc-3266ed39165d"
+      ],
+      "requested_resume_session": "01a166b0-24a4-7df2-a8dc-3266ed39165d",
+      "resume_matches_observed": true,
+      "completed_mcp_calls": [
+        {
+          "tool": "hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+          "version": 2,
+          "idempotency_key": null,
+          "sync": null
+        },
+        {
+          "tool": "hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+          "version": 3,
+          "idempotency_key": null,
+          "sync": null
+        }
+      ],
+      "raw_output_retained": false
+    }
+  ],
+  "versions": [
+    {
+      "version": 1,
+      "key": "hook-af1c107d39e04628bf86c07c386d59d2",
+      "expected_version": 0,
+      "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "IN_PROGRESS",
+      "task_result": "NOT_RUN",
+      "plan_sha256": "2c4dc550c1eb1c1a8be3a71827572e82954bf183bed1c1e71175b6ac25c6d7e1",
+      "case_count": 0,
+      "report_count": 1,
+      "case": null,
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "raw_report_result": "FAIL",
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 17,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    },
+    {
+      "version": 2,
+      "key": "matrix-codex-case-v1",
+      "expected_version": 1,
+      "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "BLOCKED",
+      "task_result": "FAIL",
+      "plan_sha256": "2c4dc550c1eb1c1a8be3a71827572e82954bf183bed1c1e71175b6ac25c6d7e1",
+      "case_count": 1,
+      "report_count": 1,
+      "case": {
+        "key": "matrix-fail-case",
+        "reported_result": "FAIL",
+        "revision": 1,
+        "task_version": 2
+      },
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "raw_report_result": "FAIL",
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 22,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    },
+    {
+      "version": 3,
+      "key": "hook-7883e08643884aac9be35c19760bc244",
+      "expected_version": 2,
+      "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "BLOCKED",
+      "task_result": "FAIL",
+      "plan_sha256": "894790827cb70dafeaa728871f4f0048092481a63dad9ed83f006aeb0c056db7",
+      "case_count": 1,
+      "report_count": 1,
+      "case": {
+        "key": "matrix-fail-case",
+        "reported_result": "FAIL",
+        "revision": 1,
+        "task_version": 2
+      },
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "raw_report_result": "FAIL",
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 22,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    }
+  ],
+  "raw_report_bytes": 792,
+  "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+  "raw_report_unicode_blank_lines_fences_end_marker_preserved": true,
+  "case_fields_verified": [
+    "key",
+    "title",
+    "steps",
+    "expected",
+    "actual",
+    "reported_result",
+    "implementation_ref"
+  ],
+  "checks": {
+    "one_source": true,
+    "same_task_all_versions": true,
+    "contiguous_versions": true,
+    "head_is_latest_accepted": true,
+    "head_task_fail": true,
+    "head_task_blocked": true,
+    "head_case_exact": true,
+    "head_report_exact_bytes": true,
+    "head_report_fail": true,
+    "head_plan_exact_bytes": true,
+    "artifact_plan_exact_bytes": true,
+    "artifact_report_exact_bytes": true,
+    "all_receipts_readback_complete": true,
+    "forced_pagination": true,
+    "pending_zero": true,
+    "same_authorized_owner": true,
+    "native_exact_session_resume": true,
+    "native_startup_resume_metadata": true,
+    "immutable_selected_policy": true,
+    "unchanged_stop_no_new_version": true
+  },
+  "pending_events": 0,
+  "raw_chat_reasoning_tool_payload_or_secrets_retained_in_probe_logs": false,
+  "native_host_owned_history_preserved_for_resume": true,
+  "history_rewritten": false,
+  "product_tests_lint_build_or_sut_executed_locally": false,
+  "evidence_sha256": {
+    "fresh-native-retry1.json": "8ffc7736f1d1c8a7eb2296ad353bb0f1e91ac376ace12cfc3363ecfd2cdac71b",
+    "resume-native.json": "585a756a856c49e7a0294031a1d994a09738eb861c5ddcfcbf2833cae4cdd661",
+    "verification-resume.json": "98fa62d2e761922aef6a94852d6f9f6a2e663be856141e0091cdc76177006380",
+    "native-events.jsonl": "cca03dd52e6b63847f8b63d074d9e6be27be7ff27bd35021c6d54a70e56f397b",
+    "artifact-source.json": "a90126ea0687148ec111beccc2317dc3ca32b67324c08d4c1a86a5daaa452419",
+    "policy-readback.json": "63725170060d47c0946212b27801559f22440427e7274043100e0fc1509d0b0c",
+    "fixture-digests.json": "66e3e5e9d871cebc2ae3d54aeb1ae45f0df285b243670a37dc4a55571ac0d8f8",
+    "doctor-before-model.json": "fd59dde455e5104dbea3888f3a4f13f862614928226a97048fec14010781bc4c",
+    "install-result.json": "4105896880f22b1b51399ee0db4dcde570bd9e209262d140baf395e390b99d0d",
+    "readback-fresh-v1.json": "80511dca00817cc6c63b9217e523c27f0cdf9f26fb932cf2ebce5d2f48c7856b",
+    "readback-fresh-v2.json": "aed80cd1cb39b65209dfe996bf58e25761430eb11b6a180d3d6c2e95b9f88eeb",
+    "readback-resume-v1.json": "80511dca00817cc6c63b9217e523c27f0cdf9f26fb932cf2ebce5d2f48c7856b",
+    "readback-resume-v2.json": "aed80cd1cb39b65209dfe996bf58e25761430eb11b6a180d3d6c2e95b9f88eeb",
+    "readback-resume-v3.json": "08a2f06e319a1094996db11bbf6443346c21b313ba93d57e3c865cceb91d6bcc",
+    "fresh-native.json": "0542f0bfd22c684bd6a4e6f44325b76a56796098c90c605bf8eb9efe8fc1427e",
+    "hook-trust-accepted.json": "3a16fb443b0ad7748e76c0cd0ccfb56cb2c6ebd3b2dea0da93f420e7e3d36411",
+    "invocation-safety.json": "01be8c0fdba06e01fa605218d3f8071a4ca98fbf6071537deacc36f1ad128d90",
+    "verification-fresh.json": "077739df02cb24b4115bfeadf592c293e9af4a2eea977c720493d6171ec9e255"
+  },
+  "limitations": [
+    "An initial CLI invocation exited before any session/native event; its stderr body was not retained. The subsequent successful invocation added the documented --skip-git-repo-check flag for the external non-Git fixture directory. The initial failure is preserved separately and its precise stderr cause is not independently recorded.",
+    "No child-agent boundary was newly exercised in this matrix; earlier R6 child evidence remains separate.",
+    "This confirms unchanged Stop callbacks did not add a version; no additional duplicate explicit full-snapshot submission was performed."
+  ]
+}

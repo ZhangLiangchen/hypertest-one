@@ -48,6 +48,38 @@ class Settings(BaseSettings):
     connector_allow_insecure_loopback: bool = False
     interactive_grant_ttl_seconds: int = Field(default=120, ge=10, le=120)
     interactive_bind_grace_seconds: int = Field(default=120, ge=10, le=300)
+    # ADR-019: independent opt-in Cloud worker; no Local authorization coupling.
+    cloud_enabled: bool = False
+    cloud_worker_enabled: bool = False
+    # Optional dedicated-service admission; empty preserves the existing CLI path.
+    cloud_service_release_sha256: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
+    cloud_runtime_root: str = "/var/lib/hypertest-cloud/runtime"
+    cloud_credential_key_file: str = "/run/secrets/hypertest-cloud-key"
+    cloud_credential_key_id: str = "primary"
+    cloud_model_key_file: str = "/run/secrets/hypertest-cloud-model-key"
+    cloud_model_base_url: str = "https://api.deepseek.com/anthropic"
+    cloud_model: str = "deepseek-flash"
+    cloud_model_max_tokens: int = Field(default=8192, ge=1, le=49152)
+    cloud_model_max_requests: int = Field(default=100, ge=1, le=10000)
+    # Conservative reserved cost per request, configured for the selected model;
+    # a non-positive or unknown rate disables execution instead of ignoring budget.
+    cloud_model_request_cost_microunits: int = Field(default=0, ge=0)
+    # Child model identities are cloud-only host capabilities; never Local logins.
+    cloud_codex_enabled: bool = False
+    cloud_codex_payload: str = "/opt/hypertest-cloud/delegates"
+    cloud_codex_payload_sha256: str = ""
+    cloud_codex_oauth_file: str = "/run/credentials/hypertest-cloud.service/codex-oauth"
+    cloud_codex_model: str = "gpt-5.6-sol"
+    cloud_codex_max_requests: int = Field(default=20, ge=1, le=10000)
+    cloud_codex_request_credits: int = Field(default=1, ge=1)
+    # Independent fixed SSH diagnostics. Never fall back to user SSH/PATH/auth.
+    cloud_ssh_enabled: bool = False
+    cloud_ssh_authority_key_file: str = "/run/credentials/hypertest-cloud.service/ssh-authority"
+    cloud_ssh_executable: str = "/usr/bin/ssh"
+    cloud_ssh_executable_sha256: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
+    cloud_attempt_timeout_seconds: int = Field(default=1800, ge=1, le=7200)
+    cloud_worker_lease_seconds: int = Field(default=90, ge=15, le=300)
+    cloud_worker_poll_seconds: float = Field(default=2.0, ge=0.1, le=60)
     # ADR-017 is independently enabled for explicitly approved Project keys.
     native_intake_enabled: bool = False
     native_project_keys: list[str] = Field(default_factory=list)

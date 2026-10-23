@@ -1,0 +1,271 @@
+{
+  "schema": "hypertest.local-native-acceptance-matrix/v1alpha1",
+  "run": "local-matrix-20261023-bcf53ca2",
+  "status": "PASS_WITH_EXPLICIT_LIMITS",
+  "scope": "Local management synchronization fixture acceptance; deliberate FAIL is not a business SUT outcome",
+  "release": {
+    "tag": "local-v0.1.0",
+    "source_commit": "874569fa566a137eba77ac4852caa6052cb04a17",
+    "local_source_sha256": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+    "wheel_sha256": "a226e64a64f9c93a705e0139c0218f61cd804a3a562225d5bdbdf44984bf41d3",
+    "runtime_changes": false,
+    "existing_release_manifest_and_20261022_proofs_rewritten": false
+  },
+  "target": {
+    "os": "Darwin",
+    "architecture": "arm64",
+    "python": "3.13.3",
+    "stable_target_id": "darwin-arm64-py313",
+    "linux_x86_64_py312": "CANDIDATE_ONLY"
+  },
+  "hosts": {
+    "claude-code": {
+      "status": "PASS",
+      "proof": "claude-code-matrix-20261023.json",
+      "proof_sha256": "e6a60ecbe7d3729d5836ba6ecece05ac5008610c23534c372cf09c3752e621f0",
+      "proof_generation_review_status": "PENDING_INDEPENDENT_REVIEW",
+      "independent_review": "PASS",
+      "independent_review_basis": "Original-key receipt queries and 512-character complete fixed-version readback matched frozen requests, owner/source, case fields, report bytes and pending=0; 39 private evidence member hashes checked across both hosts.",
+      "native_version": "2.1.218",
+      "provider": "claude_code",
+      "native_session_id": "1c616d85-c6ef-4048-8a36-036254d188da",
+      "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+      "versions": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "head_version": 4,
+      "task_status": "BLOCKED",
+      "reported_result": "FAIL",
+      "real_business_sut_execution": "NOT_RUN",
+      "raw_report_bytes": 792,
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "case_count": 1,
+      "report_count": 1,
+      "pending_events": 0,
+      "headless": "PASS",
+      "same_source_new_process_resume": "PASS",
+      "case_report_FAIL_preservation": "PASS",
+      "numeric_child_pid_recorded": false,
+      "process_boundary_basis": "Each actual native CLI subprocess was spawned and awaited to close before the next exact-ID resume invocation.",
+      "limitations": [
+        "The initial headless turn performed two artifact Writes and ZERO MCP calls. Actual case/task FAIL synchronization was completed in the first exact-session resume, not retroactively attributed to the initial turn.",
+        "The second exact-session resume modified only the plan, preserved case/report/task FAIL and completed with no permission denials.",
+        "No adapter permission defect was established from the first-turn model omission; the corrected narrow run specification included ToolSearch permission but the successful turn called MCP directly.",
+        "This confirms unchanged Stop/SessionEnd callbacks did not add a version; no additional duplicate explicit full-snapshot submission was performed."
+      ],
+      "backend": "Official DeepSeek Anthropic-compatible backend",
+      "independent_review_receipt": {
+        "sha256": "a64e8709d0460ccdfa5cbf27635248a0013600b9d238af3ee6d62b95251e9090",
+        "access": "PRIVATE_ALLOWLISTED_REVIEW_RECEIPT",
+        "reference": "claude-code-independent-review.json"
+      },
+      "independent_fixed_version_readback": [
+        {
+          "version": 1,
+          "limit_chars": 512,
+          "pages": 2,
+          "document_utf8_sha256": "4238d64a66350af4a7dd674a7b50fd78516e17dab582a1df2a66214c9fe454e3",
+          "frozen_request_sha256": "8c82f4238d02c5a4b86735fb2ba734f20a015afdb774041a977a788dc16bc0a5"
+        },
+        {
+          "version": 2,
+          "limit_chars": 512,
+          "pages": 5,
+          "document_utf8_sha256": "4bdd4f160779408cbf9f46a52c697669aa23fb58ac3344e071f6e025dfbc24cc",
+          "frozen_request_sha256": "dede1689ccda0765cb8b3947444324294f246a4290d1f64a1ebe79a5f97338bb"
+        },
+        {
+          "version": 3,
+          "limit_chars": 512,
+          "pages": 6,
+          "document_utf8_sha256": "ca5a4306b954a6446ad5f41615277a43941021d327877f15086755491d6603e9",
+          "frozen_request_sha256": "42b606dc2446d519f2649cf64d3b80dd07f47be2768b640f0878712d0b900ba4"
+        },
+        {
+          "version": 4,
+          "limit_chars": 512,
+          "pages": 6,
+          "document_utf8_sha256": "6381870527a2f6ad2bb11a1f7f1aae40e420976cda98a88486d52d1db57b17ee",
+          "frozen_request_sha256": "c08352a066ed646d92f82943cd95a78897b9a2cd6b8ff1c2e893792d9ecfbf3a"
+        }
+      ],
+      "independent_evidence_members_verified": 21
+    },
+    "codex": {
+      "status": "PASS",
+      "proof": "codex-matrix-20261023.json",
+      "proof_sha256": "e0f2f07816c329209eae07562ce99d47ad05b48d3df40c8144043047a454d85c",
+      "proof_generation_review_status": "PENDING_INDEPENDENT_REVIEW",
+      "independent_review": "PASS",
+      "independent_review_basis": "Original-key receipt queries and 512-character complete fixed-version readback matched frozen requests, owner/source, case fields, report bytes and pending=0; 39 private evidence member hashes checked across both hosts.",
+      "native_version": "0.144.6",
+      "provider": "codex",
+      "native_session_id": "01a166b0-24a4-7df2-a8dc-3266ed39165d",
+      "task_id": "01a166b0-867c-7adf-8c01-a900e38da65e",
+      "versions": [
+        1,
+        2,
+        3
+      ],
+      "head_version": 3,
+      "task_status": "BLOCKED",
+      "reported_result": "FAIL",
+      "real_business_sut_execution": "NOT_RUN",
+      "raw_report_bytes": 792,
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "case_count": 1,
+      "report_count": 1,
+      "pending_events": 0,
+      "headless": "PASS",
+      "same_source_new_process_resume": "PASS",
+      "case_report_FAIL_preservation": "PASS",
+      "numeric_child_pid_recorded": false,
+      "process_boundary_basis": "Each actual native CLI subprocess was spawned and awaited to close before the next exact-ID resume invocation.",
+      "limitations": [
+        "An initial CLI invocation exited before any session/native event; its stderr body was not retained. The subsequent successful invocation added the documented --skip-git-repo-check flag for the external non-Git fixture directory. The initial failure is preserved separately and its precise stderr cause is not independently recorded.",
+        "No child-agent boundary was newly exercised in this matrix; earlier R6 child evidence remains separate.",
+        "This confirms unchanged Stop callbacks did not add a version; no additional duplicate explicit full-snapshot submission was performed."
+      ],
+      "model": "gpt-5.6-sol",
+      "independent_review_receipt": {
+        "sha256": "c0bb34db7b0b68b80a644dc2ab5b0bbd55fb187310d4fe0adf9f36336df44d0d",
+        "access": "PRIVATE_ALLOWLISTED_REVIEW_RECEIPT",
+        "reference": "codex-independent-review.json"
+      },
+      "independent_fixed_version_readback": [
+        {
+          "version": 1,
+          "limit_chars": 512,
+          "pages": 5,
+          "document_utf8_sha256": "ea81008d24e4d4c548252cc625790e858d11c0ec1b1ede310231fd95ff22e77c",
+          "frozen_request_sha256": "6e3a4754176e5400fc17ce88ad878ef402c6bcfed80328fd1425f15ee73624c5"
+        },
+        {
+          "version": 2,
+          "limit_chars": 512,
+          "pages": 6,
+          "document_utf8_sha256": "4db4150d859c46660995093e626f7809db0f7525773d88024857617648b3012e",
+          "frozen_request_sha256": "885a894f2057fd4186df35463506b51cacea7ed8a33bb5367e0da52ad8047118"
+        },
+        {
+          "version": 3,
+          "limit_chars": 512,
+          "pages": 6,
+          "document_utf8_sha256": "3db869a2607077247e703ca0aa6a9e44c8004b903e2a1e7ff5b0687847031dbf",
+          "frozen_request_sha256": "ac9b9dacbe0390644f9010f37e29e860a1b0fb1c3400e5487345c5a2fdec52eb"
+        }
+      ],
+      "independent_evidence_members_verified": 18
+    },
+    "deepseek-harness": {
+      "status": "PASS_WITH_EXPLICIT_LIMITS",
+      "proof": "deepseek-native-matrix-20261023.json",
+      "proof_sha256": "01a5ba99f44601d63381f2bf9b382529c0a6dffd86cbc6013a7eb359c7322685",
+      "independent_review": "PASS_WITH_EXPLICIT_LIMITS",
+      "independent_review_receipt": {
+        "sha256": "253f3724644297ae8ec2e08408c4a5110558b2bb6fd142bc446b612c34783d68",
+        "access": "PRIVATE_ALLOWLISTED_REVIEW_RECEIPT",
+        "reference": "deepseek-harness-independent-review.json"
+      },
+      "independent_evidence_members_verified": 28,
+      "independent_fixed_version_readback": [
+        {
+          "version": 1,
+          "limit_chars": 512,
+          "pages": 3,
+          "document_utf8_sha256": "01c93eb2321407c4d8095df0509632204a21f7d0b4bbf8e535293a1142390317",
+          "frozen_request_sha256": "5f284be033596b76942615c6d34b2828c12e624b05e9e1ba14d8f1f8c1677d20"
+        },
+        {
+          "version": 2,
+          "limit_chars": 512,
+          "pages": 4,
+          "document_utf8_sha256": "d6aefe7e1564a8f83a1fe93e0460f4729d4763d5ec6e1d74246af73d7c58a916",
+          "frozen_request_sha256": "92634b38970794c0d9ed6d0b98e56dda31e89cf7bb9793c56e526cddec93c8f8"
+        },
+        {
+          "version": 3,
+          "limit_chars": 512,
+          "pages": 5,
+          "document_utf8_sha256": "19d459c03e653306a41125b6540c084742fc305888a7286645e55dac0e4ec3d9",
+          "frozen_request_sha256": "b6db5b365fcba9b90da30284c37100376645e22cd2fc837abf6851504f8a4473"
+        },
+        {
+          "version": 4,
+          "limit_chars": 512,
+          "pages": 5,
+          "document_utf8_sha256": "4799982cea821ddcb4b47413eb9e9d3e10cbaedf408106e4994bbef543eeb03f",
+          "frozen_request_sha256": "668525d7ec4885ddd89dffac5bca66d25c97a27d90be54acb129eb04b28a3c4f"
+        }
+      ],
+      "native_version": "0.1.5-rc.1",
+      "component_version": "0.1.5-rc.2",
+      "model_provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "provider": "deepseek_harness",
+      "native_session_id": "session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac",
+      "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+      "versions": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "head_version": 4,
+      "task_status": "IN_PROGRESS",
+      "reported_result": "FAIL",
+      "real_business_sut_execution": "NOT_RUN",
+      "raw_report_bytes": 339,
+      "raw_report_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80",
+      "case_count": 1,
+      "report_count": 1,
+      "pending_events": 0,
+      "headless": "PASS_OFFICIAL_HEADLESS_CLI",
+      "same_source_new_process_resume": "PASS_OFFICIAL_REGISTRY_API_BOUNDED_ACCEPTANCE_DRIVER",
+      "case_report_FAIL_preservation": "PASS",
+      "headless_pid": 14187,
+      "resume_pid": 23262,
+      "original_pid_exited_before_resume": true,
+      "numeric_child_pid_recorded": true,
+      "create_fallback": false,
+      "resume_cli_flag_or_sdk_wire_method_claimed": false,
+      "general_resume_cli_added": false,
+      "official_read_before_overwrite_retained": true,
+      "first_write_before_read_success_claimed": false,
+      "preserved_incomplete_resume_attempts": 4,
+      "limitations": [
+        "Only fixed Darwin arm64 CPython 3.13 / CLI 0.1.5-rc.1 and components 0.1.5-rc.2 were accepted.",
+        "Resume is official Registry API through a private reviewed bounded driver, not an existing headless CLI flag or SDK wire method. No installable general resume CLI was added.",
+        "Native turn-stopping events were observed; product Stop handler invocation counts were not independently instrumented.",
+        "Fixture FAIL and synchronization acceptance do not establish SUT execution, a product defect, canonical VERIFIED Evidence, task completion or RELEASE_READY.",
+        "UNKNOWN was not naturally encountered; no new active-fault UNKNOWN coverage is claimed.",
+        "The four preserved incomplete resume attempts are not rewritten as successes; actual filesystem failure codes were not captured and are not inferred retrospectively."
+      ]
+    }
+  },
+  "original_proof_status_policy": "Per-host generation-time PENDING_INDEPENDENT_REVIEW remains byte-identical; later independent qualification is recorded here, not backfilled into old observations.",
+  "privacy": {
+    "raw_chat_or_hidden_reasoning": false,
+    "raw_tool_payloads": false,
+    "secrets_or_private_absolute_paths": false
+  },
+  "deployment": {
+    "pr23_merge": "NOT_EXECUTED",
+    "production_web": "NOT_DEPLOYED",
+    "interactive_ui": "NOT_OBSERVED",
+    "external_https": "HEALTH_ONLY_OBSERVED_NOT_UI_ACCEPTANCE"
+  },
+  "caller_authentication_claim": false,
+  "required_dimensions": [
+    "real approved artifact Hook sync",
+    "actual native MCP complete case/task writes and raw report preservation",
+    "actual official headless entrypoint",
+    "same observed source new-process resume using the documented host-specific interface",
+    "all original-key receipts and complete fixed accepted-version readback",
+    "task/case/report FAIL and source-owner preservation",
+    "no new automatic version on unchanged final lifecycle callbacks"
+  ]
+}

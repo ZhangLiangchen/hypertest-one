@@ -1,0 +1,109 @@
+name: release-hypertest-local
+
+on:
+  push:
+    tags: ["local-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: targets
+        run: |
+          matrix=$(python scripts/plan-local-release.py --tag "$GITHUB_REF_NAME")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify actual target and selected tag
+        env:
+          EXPECTED_SYSTEM: ${{ matrix.system }}
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+          EXPECTED_PYTHON: ${{ matrix.python }}
+        run: |
+          python - <<'PY'
+          import os, platform, re, sys
+          assert os.environ['GITHUB_REPOSITORY'] == 'ZhangLiangchen/hypertest-one'
+          assert re.fullmatch(r'local-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?', os.environ['GITHUB_REF_NAME'])
+          assert platform.system() == os.environ['EXPECTED_SYSTEM']
+          assert platform.machine() == os.environ['EXPECTED_MACHINE']
+          assert f'{sys.version_info.major}.{sys.version_info.minor}' == os.environ['EXPECTED_PYTHON']
+          PY
+      - name: Download the exact reviewed dependency closure
+        run: python scripts/prepare-local-dependencies.py --output "$RUNNER_TEMP/local-inputs"
+      - name: Build offline from the tagged source
+        env:
+          LOCAL_TARGET: ${{ matrix.target }}
+          LOCAL_ACCEPTANCE_FILE: ${{ matrix.acceptance_file }}
+        run: |
+          args=()
+          if [ -n "$LOCAL_ACCEPTANCE_FILE" ]; then args+=(--acceptance-file "$LOCAL_ACCEPTANCE_FILE"); fi
+          if [[ "$GITHUB_REF_NAME" =~ ^local-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then args+=(--release); fi
+          python scripts/build-local-release.py --root "$GITHUB_WORKSPACE" \
+            --tag "$GITHUB_REF_NAME" --ref "$GITHUB_SHA" --require-tag \
+            --dependency-lock "$RUNNER_TEMP/local-inputs/dependencies.lock.json" \
+            --wheelhouse "$RUNNER_TEMP/local-inputs/wheelhouse" \
+            --output "$RUNNER_TEMP/local-release/assets" "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-${{ matrix.target }}
+          path: ${{ runner.temp }}/local-release/hypertest-local-v*.zip
+          if-no-files-found: error
+          retention-days: 14
+  draft:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: local-*
+          path: ${{ runner.temp }}/local-bundles
+          merge-multiple: true
+      - name: Generate fixed digest installation commands
+        run: |
+          python scripts/local-release-commands.py --bundles "$RUNNER_TEMP/local-bundles" \
+            --output "$RUNNER_TEMP/local-notes"
+          cp scripts/install-local-release.py "$RUNNER_TEMP/local-notes/install-local-release.py"
+      - name: Create a draft for serial review and publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --draft --latest=false \
+            --title "HyperTest Local $GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/local-notes/LOCAL_INSTALL.md" \
+            "$RUNNER_TEMP"/local-bundles/*.zip \
+            "$RUNNER_TEMP/local-notes/install-local-release.py" \
+            "$RUNNER_TEMP/local-notes/local-install-catalog.json" \
+            "$RUNNER_TEMP/local-notes/LOCAL_INSTALL.md"

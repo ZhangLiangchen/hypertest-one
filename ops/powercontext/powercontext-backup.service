@@ -1,0 +1,11 @@
+[Unit]
+Description=Consistent private PowerContext backup
+After=powercontext.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/opt/powercontext/backup.sh
+TimeoutStartSec=10min
+MemoryMax=128M
+CPUQuota=50%

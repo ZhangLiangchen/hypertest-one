@@ -1,0 +1,23 @@
+{
+  "schema_version": "hypertest.local-release-targets/v1",
+  "targets": [
+    {
+      "target": "linux-x86_64-py312",
+      "runner": "ubuntu-24.04",
+      "python": "3.12",
+      "system": "Linux",
+      "machine": "x86_64",
+      "publication": "CANDIDATE",
+      "acceptance_file": null
+    },
+    {
+      "target": "darwin-arm64-py313",
+      "runner": "macos-15",
+      "python": "3.13",
+      "system": "Darwin",
+      "machine": "arm64",
+      "publication": "CANDIDATE",
+      "acceptance_file": null
+    }
+  ]
+}

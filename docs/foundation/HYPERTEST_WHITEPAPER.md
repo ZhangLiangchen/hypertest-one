@@ -1,14 +1,53 @@
 # HyperTest 白皮书
 
-**版本：v1.6（Codex 会话任务管理；保留 v1.4 产品职责纠偏）**
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
+
+**版本：v1.8（Cloud 官方 Python SDK；Local Hooks + MCP 协调器及统一发行 / 安装设计）**
+**本次修订：2026-10-23，Asia/Singapore；云端部分实现、默认关闭、尚未更新测试服务器常驻Cloud服务。source-r23新独立Task已固定读回v20 COMPLETED / reported PASS，ANALYSIS与DESIGN均直接引用当前child原件；source-r24只读验收器对同v20严格PASS，独立只读重放8项与原件 / 实际文件 / host日志关联通过。旧source-r22 v17仍保留DESIGN直接引用NON_PASS，原RECOVERY / HELD历史不变；SSH固定诊断默认关闭，source30 Worker的r8 canonical专项PASS，source31对同v19固定快照strict重评PASS；旧source30 NON_PASS保留（不是新的current GET，精确证据见实现状态），故障矩阵与真实staging未验收；Claude占位，CI / 一般远端shell和生产未准入。source-r21所选535通过 / 1跳过、source-r22针对性169、source-r23所选201、source-r24所选231分别登记于[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)，不作为同轮全量结果；自动Hooks / 统一安装包的独立状态不由此更改。**
 **产品职责修订：2026-10-20，依据项目负责人明确的功能分层**
 **定位：Agent-native Autonomous Testing Platform**
 **架构角色：Autonomous Testing Control Plane**
 
-### 当前阶段：Codex 测试任务与产物管理（ADR-018 优先）
+### 两种产品模式：Cloud 云端模式与 Local 本地会话同步模式
+
+HyperTest One 面向两种产品模式：**Cloud 的项目创建、任务创建与任务执行都在云端完成；Local 将本地 Agent 会话任务、状态和正式测试产物同步到 HyperTest One。** Local 当前可用入口是 [ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 的 Codex MCP 同步；已接受 [ADR-020](../architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 的改进设计：Hooks 自动触发、MCP 显式提交与查询，共用一个本地同步协调器和现有私有客户端。Cloud 继续采用 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 的官方 Python SDK 设计。
+
+| 模式 | 任务与执行职责 | 状态 |
+| --- | --- | --- |
+| Cloud 云端模式（ADR-019，`cloud-harness-task/v1alpha1`） | 云端 Web / API 创建或复用 Project、配置资源并创建 CloudTask；云端 Python Worker 通过官方 Harness SDK 驱动 DeepSeek harness，自行参与或委派 Codex / Claude Code，调用项目原有框架 / CI | **部分实现 / 默认关闭 / 尚未更新测试服务器常驻Cloud服务**；HTTPS Git / 工作区fixture已有source-r18正式reported PASS及Codex原生推理 / 文本贡献，新source-r23 Task的直接双原件与六步已由source-r24严格验收并独立重放8项；旧v17直接引用NON_PASS / HELD保留；r8固定SSH专项PASS，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与staging待验收；Claude占位、CI不支持，P0未全退出；[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md) / [计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)分别记录 |
+| Local 本地会话同步模式（ADR-018 / ADR-020） | 一个真实本地 Agent 父会话对应一个 SessionTask，使用已有授权 Project；Hooks 提供自动触发时机，MCP 提供显式操作，统一协调器保存版本化任务、计划、用例、原始报告与 reported result | Codex MCP 同步保留；协调器、自动触发与 Claude Code / DeepSeek harness 适配、统一发行与安装均 **NOT IMPLEMENTED**，按[本地实施计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)分别验收 |
+
+**一个 SUT 对应一个长期 Project，同一 Project 可同时包含 CloudTask 和 SessionTask。** 项目不按模式拆分，也没有项目级二选一模式开关。项目内统一任务列表拟默认并列显示全部任务，提供 Cloud / Local 来源标签和模式筛选，详情保留各自操作与结果语义；这一共存视图随云端能力实施，不能据本文认定已上线。模式由任务类型派生且创建后不可变，不能把历史任务跨模式重标；项目共享不合并任务身份、写入权限或执行授权。
+
+Local 表示会话来源与协作方式，不证明测试发生在用户电脑：本地 Agent 仍可调用已获授权的远端环境或 CI。Local 不在本机创建另一套独立 Project，不自动接管本地 Agent，不要求配置云端仓库凭据或环境密钥；本地测试权限仍由实际工具链提供。
+
+Hooks 是 Local 的触发机制，不是第三种产品模式，也不产生新的服务端任务类型。关闭 Hooks 或云端执行，均不应影响现有 Codex MCP 同步、原 key 对账和历史读取。设计接受不安装全局 Hooks、不修改现有默认同步技能；未来经版本化 adapter 的受控启用才提供自动同步。
+
+[ADR-021](../architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) 将本地可靠同步设计提炼为 **TaskSyncCore**（共享库与 Cloud 接入已有增量源码，完整验收未完成）：两种模式复用正式资产清单、语义变化判定、请求冻结、幂等对账与接受版本读回能力。Local 由 LocalSyncCoordinator / LocalSyncAdapter 接入，Cloud 由 Worker 内的 CloudTaskReporter / CloudSyncAdapter 接入；共享的是库和同步语义，各自保留任务身份、权限、writer 与生命周期。
+
+**跨会话项目经验方向：** 用户已选择在独立云主机部署 PowerContext，使不同 Agent / 会话可复用经验。[ADR-022](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) 提议通过 HyperTest Memory Gateway 让 Cloud / Local 在同一授权 Project 内检索、贡献并经人工确认发布经验；**Gateway 与产品集成为 Proposed / NOT IMPLEMENTED**。独立服务部署与真实检索另见[服务运行记录](../POWERCONTEXT_SERVICE.md)，不能据服务可用认定已接入 HyperTest。
+
+### Local 的统一发行与一键安装
+
+MCP、私有客户端 / journal、同步协调器、三宿主适配与触发模板、安装 / doctor / 升级 / 卸载工具和最小使用资产，应作为**一个 HyperTest Local release** 交付。目标安装宿主为 Claude Code、Codex、DeepSeek harness；用户从项目页取得固定版本、非秘密的项目安装命令，交给当前 Agent 完成校验、隔离安装、所选宿主配置合并和项目授权检查。安装不得运行 SUT、启动新模型任务或上传历史聊天；缺少授权时明确等待安全授权，不自动签发 Operator key 或扩大权限。
+
+统一包固定其 TaskSyncCore 版本；Cloud 镜像可复用兼容版本的共享库，无需安装本地终端 bootstrap、宿主配置或完整 Local 包，也不以三宿主安装发行完成为云端交付前提。
+
+统一包不等于三宿主已经支持：MCP、真实父会话映射、自动事件和首个实际 ACK / 完整读回分别验收，未通过能力不得显示 READY 或静默降级。DeepSeek 本地父会话与云端指挥官保持不同任务身份；自动事件按实际 Harness 版本确认。安装配置就绪不等于同步成功，更不等于测试 PASS。
+
+固定发行应校验 bootstrap 与实际 payload，保留其他 MCP / Hooks、私有身份和未知 journal；升级、回退、卸载均不得丢弃未决写或用户会话 / 项目目录。具体安装信任、兼容矩阵与尚不可执行的一键命令契约见[统一发行与安装设计](../LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。现有 `mcp-v0.1.0` 保留原历史，不改称包含 Hooks 的新发行；本轮不创建 release 或实际安装。
+
+云端 one-shot 指用户提供完整输入并下发一次任务，由 Harness 推进分析、设计、代码和执行闭环；遇到授权、输入或环境缺口仍应等待或受阻。任务完成与测试通过分别记录，平台不承诺一次模型调用或全程无需人工介入。
+
+### 保留能力：Codex 测试任务与产物管理（ADR-018）
 
 **一个 Codex 会话对应一个测试任务。Codex 将生成的任务、计划、用例、原始测试报告及 reported result 同步到 HyperTest One；HyperTest 本身不承担测试执行。**
-当前优先交付持久管理与查询，不以执行材料准入、平台 Runner、独立 CI 证明或 Gate 为保存报告的前提。平台显示提交者报告的 PASS/FAIL 等及其来源；它们不自动成为正式发布判定，也不因没有平台执行而被强制改成 UNKNOWN。
+该同步入口提供持久管理与查询，不以执行材料准入、平台 Runner、独立 CI 证明或 Gate 为保存报告的前提。平台显示提交者报告的 PASS/FAIL 等及其来源；它们不自动成为正式发布判定，也不因没有平台执行而被强制改成 UNKNOWN。
 [ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md)明确共享 Project 的 SessionTask、用例/报告修订、幂等同步与旧版本保护；优先于下文对当前新入口的宽泛治理要求。ADR-017 与旧受管 Harness/Runner 的实现和历史结论继续保留，不作为本阶段同步的依赖。生产部署不包含在默认开发范围中。
 
 > **HyperTest One 管理测试项目、下发测试任务、记录测试结论。**
@@ -102,22 +141,105 @@ HyperTest 的核心链路为：
 
 ### 1.1 实际使用单位与工作归属
 
-- 一个 SUT（被测系统）对应一个长期 Project；同一系统的 feat / MR 和测试轮次在项目内组织。Project 是系统身份，仓库 URL 不替代它。
-- 一个确定变更版本的一次测试活动对应一个 TestRun。需求、源码版本、测试范围、Policy 及实际执行环境应有明确、可追溯的版本身份；改变输入或显式复测保留新轮次，不覆盖旧结论。
+- 一个 SUT（被测系统）对应一个长期 Project；同一系统的 feat / MR、CloudTask 与本地 SessionTask 在同一项目内组织。Project 是系统身份，仓库 URL 或任务模式不替代它，不为 Cloud / Local 分建项目。
+- 一次测试活动使用所选 profile 的任务身份：ADR-018 为 SessionTask，ADR-019 为 CloudTask / CloudAttempt，旧执行路径保留 TestRun。需求、源码版本、测试范围、Policy 及实际执行环境应有明确、可追溯的版本身份；云端同冻结输入显式复测追加 CloudAttempt，改变输入建立关联新 CloudTask，不覆盖旧结论。
 - HyperTest 管理测试计划、用例及覆盖关系，发布目标、范围、约束和验收要求，记录任务进度、执行出处与结论。Agent 完成分析、设计、实现、框架调用和失败诊断。
 - 测试代码优先留在被测项目自己的测试资产中，遵守该项目已有框架、fixtures、配置与启动方式。平台记录实现引用和版本，不把所有项目统一成平台指定的测试文件或语言。
 - 同一 Agent 会话可以连续完成任务，也可以由不同会话经过明确交接依次贡献。任务和测试资产的连续性由平台状态保障，原生聊天会话不再是产品层面的唯一连续性载体。
 - 接力必须关联原任务、输入、已接受产物、未决操作及贡献者，明确当前写入责任，隔离已失效授权。ADR-017 新 native profile 以私有 writer capability 与 generation 支持显式顺序贡献者交接；现有受管 Run 的单主会话约束和真实 Provider 身份保持原语义，不允许并发多写者。
 - 关键歧义、权限与外部副作用通过明确授权和持久问答处理。缺陷可关联项目既有问题单流程，提单不自动成为缺陷确认或质量结论。
 
-“本地 / 云端”应清楚说明 Agent、项目测试框架及被测环境的实际位置。Agent 可在拥有项目工具链
-的 Mac 上调用原生测试入口，也可使用已授权的远端环境或既有 CI；HyperTest 的部署位置不决定
-测试必须在哪里运行。认证留在实际使用方，连通平台不扩大 Git、问题单或执行权限。
+产品 Cloud / Local 表示上述两种协作流程；Agent、项目测试框架及被测环境的实际位置另行记录。
+Local Agent 可在拥有项目工具链的 Mac 上调用原生测试入口，也可使用已授权的远端环境或既有 CI；
+模式标签不构成执行地点或来源认证证明。认证留在实际使用方，连通平台不扩大 Git、问题单或执行权限。
 
-ADR-016 当前 `CLOUD / LOCAL` 只区分 Agent 的位置，测试仍走服务器 Runner；该旧含义及
+ADR-015 / ADR-016 历史 `CLOUD / LOCAL` 执行位置选择与本节产品模式分属不同 profile；旧模式测试仍走服务器 Runner，该旧含义及
 `harness_mode` / `execution_driver` 组合继续解释已有请求和历史，不能冒称已符合上述新目标。
 平台登记测试活动不应普遍要求上传全量源码或重建项目工作区；需要的版本、源码和产物验证范围
 由实际任务与后续证据契约确定。
+
+### 1.2 云端测试任务的六步流程（ADR-019，部分实现）
+
+本流程的项目创建、任务创建与执行调度均经云端 Web / API / Worker 完成；已有同一 SUT 的 Project 直接复用，可与其 Local 任务共存。
+
+| 步骤 | 用户输入与平台职责 | 持久交付 |
+| --- | --- | --- |
+| 1. 创建或复用项目并配置资源 | 在云端 Web 创建或选择已有 Project，手动添加被测对象 Git 仓库、测试框架 Git 仓库、仓库 token，以及测试环境私钥或 SSH 访问方式；两个仓库允许相同。资源可保存复用，分别关联项目授权 | 共享 Project、仓库 / 环境元数据、加密凭据引用及审计；秘密不进入普通配置和报告 |
+| 2. 创建测试任务 | 选择被测分支、feat、MR 或 SHA，提供 PRD、测试目标、基本流程；确定测试框架版本、环境和允许的操作 / 时间 / 费用范围。`feat/*` 可按分支解析，feature 需求标签须关联可解析源码引用 | 独立 CloudTask 草稿及版本；不创建伪造的 SessionTask |
+| 3. 下发任务 | Worker 侧解析 / 预检访问与环境连通性，接受执行 dispatch 前冻结 SUT 与框架精确 SHA、MR base/head 及实际测试的 head 或 merge SHA、PRD 版本、环境引用；API 引用已解析结果入队，准备独立工作区和执行尝试 | 不可变输入快照、CloudAttempt、预检记录；每轮观察实际部署身份，无法核实时明确 UNKNOWN / 缺口，禁止把仓库 SHA 当作部署证明 |
+| 4. 接取与分工 | Python Worker 通过官方 `deepseek-harness-sdk` 启动 `dsh --profile sdk`、提交任务并收集事件；DeepSeek 自行参与或委派 Codex / Claude Code | Attempt 内 Harness 身份、委派关联、进度与操作记录；主指挥官统一回写平台 |
+| 5. 保存测试产物 | 分阶段保存测试分析、设计、用例及自动化测试代码；代码落在测试框架仓库工作区，保留 commit 或完整 patch，push 受任务授权约束 | 带来源和版本的分析 / 设计 / 用例 / 代码资产；附件须真正上传并读回核验，单一 URI 不表示原件已保存 |
+| 6. 执行并汇报 | Agent 调用项目已有框架 / CI，逐轮保存结果、日志、原始报告、实际版本 / 环境出处与用例 actual / reported result | 各轮执行记录、原始报告和最终测试结论；第 5、6 步可迭代，原 FAIL、ERROR、BLOCKED 与未完成记录继续保留 |
+
+### 1.3 项目凭据与一次授权
+
+项目资源的名称、地址、连接参数和 credential reference 属于普通管理数据；Git token、环境私钥、SSH 密钥等秘密由加密存储或 Secret Store 持久管理，密钥与密文分离。用户可以录入一次并在后续任务中复用、轮换或撤销，任务快照固定非秘密引用和授权范围，运行时才向 Git helper、SSH agent 或实际使用的工具注入所需凭据。
+
+DeepSeek、Codex 和 Claude Code 的 Provider 身份由云端执行环境预配。用户为任务批准的项目资源范围可覆盖该任务的主代理和子代理，无需逐个子代理登录；模型服务身份与 Git / 测试环境授权仍分别配置、分别撤销。委派不能扩大网络、仓库写入、环境操作或费用范围，也不能从用户电脑静默复制既有登录和密钥。
+
+原文秘密不进入 Git URL、PRD、提示词、普通数据库字段、SDK 事件、报告、补丁、日志或产物附件。旧会话同步仍只接收管理产物，不要求上传源码、环境密钥或 Provider 登录。
+
+### 1.4 SDK 托管与结果边界
+
+采用的是官方 **Harness Python SDK**，不是 DeepSeek 模型 HTTP API SDK，HyperTest 与 DeepSeek harness 的此路径不采用 ACP。SDK 和 `dsh` runtime 配对版本须先固定并完成兼容探针；选择 SDK 是接入与维护决策，不据此宣称测试运行更快。
+
+每个 CloudAttempt 使用独立 runtime、workspace 和 `dsh_home`。首版按 SDK 当前限制设计：不能依赖单会话 cancel / close 或实时权限审批；Worker 执行预授权、预算与资源边界，超时 / 取消需终止该 Attempt 的完整进程树并核验清理。本地进程停止不证明远程 SSH / CI 或业务副作用停止，未决操作须保持待恢复并对账。缺少授权进入持久 `WAITING_INPUT`，不能默认放行；超出冻结授权或预算上限须创建关联新 CloudTask。恢复依据已保存输入和授权，由兼容探针确认安全恢复能力，不承诺原地 SDK 会话恢复。
+
+DeepSeek 是任务指挥官，Codex / Claude Code 是其子代理；仅有一个有效平台 writer。委派必须收尾并回收原件后才可完成，父会话 idle、模型一轮结束或 Worker 存活都不等于整个任务完成。执行中断、未知外部副作用和失答必须先查询原操作并对账，不能自动重发测试、CI 或写操作。
+
+云端任务进度与 `reported_result` 分开，reported PASS / FAIL 保留来源和原报告；它们不自动成为 legacy VERIFIED Evidence、FINAL Verdict 或 RELEASE_READY。平台保存与校验产物，项目框架产生执行结果；Hash、Agent 摘要、SDK 事件和进程退出码各自不能单独证明产品行为通过。当前 SessionTask 的 scope、幂等、expected-version、结果及 UNKNOWN 语义完整保留。
+
+规范字段由[领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)拥有，通信与回传由[TMP](../protocol/TEST_MISSION_PROTOCOL.md)拥有，运行与凭据边界由[技术架构](../architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)拥有。分阶段依赖和退出条件见[实施计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)；增量源码与隔离验收见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)，不据此宣称生产部署、真实凭据上传或 SUT 测试执行完成。
+
+### 1.4.1 固定 SSH 环境诊断的独立扩展
+
+[ADR-023](../architecture/ADR-023_CLOUD_SSH_FIXED_DIAGNOSTICS.md)增加默认关闭的固定SSH诊断设计；source30 Worker / source29 helper的r8 canonical专项已通过；source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与staging待验收。根 / 子代理只调用host窄代理，不得到SSH / 签名 / 平台密钥或一般网络；冻结精确目标与host key，只允许无参数、有限时间 / 输出的只读动作。远端操作单独持久登记和按原ID对账；本地停止或模型drain不能证明远端停止，未知继续RECOVERY_REQUIRED / HELD。该扩展不改变Local、项目框架归属或管理SSH访问。
+
+环境路由硬边界：XBlock staging需SSH / 服务器日志 / 操作的任务仅Local，由用户Mac经Workbench CLI访问；166dev内网自建链仅Local。纯Web / API可选Cloud仍需独立实现并验收HTTPS访问，网络可达不等于当前runtime支持；在本SSH小片之后另行接通。禁止Cloud直连受限环境、转发绕过 / 扩IP许可或复制Mac登录 / 本地环境秘密。通用SSH只在隔离fixture中实施，不改变Project共享双模式；见[执行环境路由](../CLOUD_LOCAL_ENVIRONMENT_ROUTING.md)。
+
+### 1.5 Local 自动同步流程（ADR-020，待实现）
+
+Local 保留 SessionTask 及现有 MCP / typed API / journal 契约，在客户端增加语义协调层：
+
+```text
+Harness Hooks：自动触发 ─┐
+                        ├→ 统一本地同步协调器 → 现有私有客户端 / typed HTTPS API / journal
+MCP：显式提交与查询 ────┘                                      ↓
+                                               同一 Project 下的 SessionTask 与版本历史
+```
+
+用户选择已有授权 Project，并取得真实 Provider / 父会话 ID。协调器仅收集用户选定的正式分析、设计、用例、原始报告和代码引用，不上传整段聊天、隐藏推理、任意工作区或认证目录。子代理交回父会话汇总，不为每次 Hook 或子代理另建任务；新父会话仍按 ADR-018 建立新任务并引用旧任务。
+
+Hooks 捕捉生命周期或正式资产变化的时机，减少阶段同步依赖模型主动记住调用工具；它们不替代业务判定。`Stop`、`SessionEnd`、工具成功或进程结束均不代表任务 COMPLETED 或测试 PASS。只有正式资产明确提供的任务进度与结果才可提交；本地 pending / dirty / coalesce 只描述待同步工作，不新增服务端状态。
+
+Hooks 和 MCP 共用同一会话写入责任：先完整读取固定版本基线，再合并本次明确变化，保留任务计划、结果和历史资产；自动触发在有实质变化时才形成新更新。现有同步会更新全部任务标量字段，不能用稀疏状态事件清空计划或覆盖 FAIL；显式 MCP 完整请求仍保留有意空值和原接受语义。写前冻结完整请求、稳定 key 与 expected version；已发送或 UNKNOWN 的操作只 GET 原 key，NOT_FOUND 不授权重发或换 key。确认同步成功需要有效接受回执与接受版本的完整分页读回。
+
+Hook 是 best-effort 触发，断线、退出或强制关闭没有上传完成保证。尚未发送的新意图与已发送未知操作分开保存和展示；前者经核验可以首次提交，后者只能对账，不能用后台队列盲目重试。关闭自动触发保留私有账本、正式资产和平台历史，MCP 继续可用。Codex、Claude Code、DeepSeek harness 的实际事件 / MCP handler 和真实父会话能力先分别探针，不从另一 Harness 或实验性 bridge 的存在推定已支持。
+
+本地设计、兼容探针、统一协调器、Codex / Claude Code / DeepSeek harness 独立适配和统一发行安装验收见[本地同步分阶段实施计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)。它与云端 P0–P4 独立推进，不以云端执行交付为前置条件。
+
+### 1.6 两种模式共享任务同步能力（ADR-021，Cloud 部分实现）
+
+云端任务同样需要在工作进行中保存进度和阶段产物，不能只在 SDK 最终返回后上传一段总结。TaskSyncCore 复用本地设计中形成的可靠同步规则：只处理选定的正式资产清单和明确语义进度，合并尚未冻结的局部意图，在各域操作范围内冻结请求 / 稳定 key / 版本条件，保留精简对账记录，校验 ACK 后完整读回其固定接受版本或检查点。已发送或可能已发送的 UNKNOWN 只按原 key 对账，NOT_FOUND 不授权重 POST；任务进度、测试结果和传输状态分别保存。
+
+| 模式接入 | 写入责任与目标 | 保持的边界 |
+| --- | --- | --- |
+| LocalSyncCoordinator + LocalSyncAdapter | Hooks / MCP 汇入真实父会话的唯一协调器，再走既有 SessionTask 同步 | 原 Provider / session、actor / Project、`task:sync`、完整请求及版本语义不变；本地协调锁不变成服务端 lease |
+| CloudTaskReporter + CloudSyncAdapter | DeepSeek 与子代理将结构化进度、正式资产 / 结果交给当前 CloudAttempt Worker，由持权 writer 持续报告 | 独立 CloudTask / Attempt、`cloud:work`、lease / fencing 和类型化操作；SDK 负责执行控制，子代理不获得平台凭据或各建 SessionTask |
+
+Cloud 的明确语义进度先落在现有 `SubmitCloudAssets` 的 `kind=REPORT` 非最终报告修订：用稳定 key 保存阶段、里程碑、阻塞与已接受资产引用，CloudAttempt 的现有 checkpoint 可引用该修订。它不自动改变 Task / Attempt 状态或 reported result，最终报告仍须明确指定并完成收尾；无需另加进度端点、profile、状态枚举或表。
+
+共享核心不统一 token、全局 journal、任务状态或后端端点；队列 / 账本按各自来源与 Attempt 隔离，由适配器决定合法变更与读回范围。Local 的完整 SessionTask snapshot 不能套给 Cloud 的所有进度事件，Cloud 附件上传能力也不隐式增加 Local 的二进制上传接口。SDK 活动通知只可触发核对，不能凭 idle、子代理回答或上传成功推定实质进度、测试 PASS 或产物交付完整。两种模式都只保存正式产物，不收集整聊天、隐藏推理或秘密；原 reported / VERIFIED 边界不变。
+
+共享契约与库供 Local L1、Cloud P2 / P3 分别接入和验收；两条产品路径独立发布，任一模式故障不得污染同 Project 的另一类任务。Cloud 不依赖本地 Hooks 或统一安装包，其运行镜像仅复用需要的共享组件。具体实施与故障验收见[云端计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)和[本地计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)。
+
+### 1.7 项目经验跨模式复用（ADR-022，Proposed）
+
+项目经验面向方法、排障和适用条件的复用。Canonical Testing State 保存任务与原报告；TaskSyncCore 管可靠同步；PowerContext 托管获准经验和检索索引。经验带固定接受修订 / 确切来源、适用代码 / 框架 / 环境版本、观察时间、限制与确认者。候选保留原 owner 权限，确认脱敏后才可 Project 共享；共享正文不开放不可读原报告，来源引用分别鉴权。历史经验和模型自述不证明当前环境可用、缺陷已修复或测试 PASS，检索结果也不成为指令或执行授权。
+
+固定评估基线 PowerContext 1.4.0 的静态 Bearer 共用 `admin`，Scope 不是项目授权；当前独立服务仅面向可信单操作者。拟议 Gateway 独立校验检索、候选与确认发布权限，既有 `task:sync` / `cloud:work` 不自动包含这些权限；根 / 子代理不取得服务管理员 token。Cloud 由 Worker broker 接入，Local 未来通过统一 release 的可选 adapter / 显式工具接入；memory 队列、版本和故障与任务同步账本分开，失效 / 停用不得阻断测试、同步或改写结果。
+
+首版 SQLite Basic / `fts` 不要求外部 Generation / Embedding；外部模型默认关闭，不安装原生自动记忆插件、不扫描历史会话，只提交显式受控 query 和获准经验。关闭 `CAPTURE_PROMPTS` 仍不能阻止上游 recall Hook 外发完整当前 prompt，不能据此承诺无采集。先完成独立服务，再评审 Gateway 隔离、双模式适配和经验修订 / 失效 / 撤回，见[分阶段集成计划](../POWERCONTEXT_INTEGRATION_PLAN.md)；本节不新增现有协议字段、scope 或任务状态。
 
 ---
 
@@ -284,17 +406,33 @@ Agent 摘要不自动成为事实；原始文件的 hash 证明完整性，身�
 flowchart TB
     UI[Web 工作台]
     HT[HyperTest One<br/>项目 / 计划 / 用例 / 任务 / 证据 / 结论 / 历史]
-    A[可替换 Agent 会话<br/>分析 / 设计 / 实现 / 框架调用 / 诊断]
+    SYNC[Local：现有 Codex MCP<br/>ADR-018 SessionTask 同步]
+    FUTURE[Local 未来触发适配<br/>Harness Hooks / MCP 显式操作]
+    COORD[未来统一本地同步协调器<br/>Hooks 与 MCP 共用唯一 writer]
+    CORE[TaskSyncCore 共享库 / 语义<br/>各模式独立实例，Cloud 部分实现]
+    W[Cloud 增量实现：云端 Python Worker<br/>独立 CloudTask / CloudAttempt]
+    REPORTER[CloudTaskReporter / CloudSyncAdapter<br/>当前 Attempt 持权报告]
+    D[DeepSeek harness<br/>官方 Harness Python SDK]
+    A[DeepSeek 自行参与 / Codex 或 Claude Code 子代理<br/>分析 / 设计 / 实现 / 框架调用 / 诊断]
     SUT[被测项目已有测试框架与 CI<br/>原生测试入口 / fixtures / 环境 / 报告]
     UI --> HT
-    HT -->|MCP / API：任务、约束、已有状态| A
-    A -->|Proposal、执行记录、原始产物引用| HT
+    SYNC -->|原 task:sync / 版本化管理产物| HT
+    FUTURE -.->|ADR-020 待实现| COORD
+    COORD -.->|复用私有客户端 / API / journal| HT
+    COORD -.->|LocalSyncAdapter 复用| CORE
+    HT -->|冻结输入、范围、资源引用| W
+    W -->|SDK 会话 / 事件| D
+    D --> A
+    A -->|分阶段产物 / 原始报告| W
+    W --> REPORTER
+    REPORTER -.->|复用同步能力| CORE
+    REPORTER -->|cloud:work / lease：校验、上传、回读| HT
     A -->|调用项目已有入口| SUT
     SUT -->|执行结果、日志、报告| A
     HT -->|经校验的质量状态与结论| UI
 ```
 
-测试执行留在 Agent 与项目工具链之间。HyperTest 的数据接入、校验和报告解析围绕真实项目
+两种模式汇入同一 Project，独立保留各类任务；图中表示完整目标；Cloud 链路、共存视图与共享库已有默认关闭的增量源码，完整运行和生产未验收，Local 组件另行记录。TaskSyncCore 的连线表示组件复用，不是两种模式共用一个进程、凭据或全局账本。Local 实线表示现有 Codex MCP 同步；未来适配后由协调器路径取代该客户端的直接提交，Hooks 和 MCP 不形成并发 writer。旧受管路径继续保留。测试执行留在 Agent 与项目工具链之间。HyperTest 的数据接入、校验和报告解析围绕真实项目
 需要建立；它不在这条链路中插入自有测试引擎。Agent 会话变化通过持久任务和可审计交接关联。
 
 ---
@@ -307,9 +445,12 @@ flowchart TB
 4. **Execution Record / Evidence Intake**：关联项目已有框架或 CI 的执行出处、版本、原始产物及其校验信息，维护证据链。
 5. **Verifier / Quality Governance**：校验 Proposal、权限、版本、完整性、覆盖和证据充分性，按策略记录质量结论。
 6. **History / Reporting**：保存 Finding、报告、Verdict 和历次贡献，供后续会话接力、审计与复测使用。
+7. **Cloud Task / Resource Access（ADR-019，部分实现）**：共享 Project 的仓库与环境配置、加密凭据引用、版本预检和 CloudTask / CloudAttempt 生命周期；独立 Python Worker 通过官方 SDK 托管 DeepSeek harness，收集阶段产物与原始结果。它不复制 Harness 的 Agent Loop 或项目框架。
+8. **Local Session Sync Coordinator（ADR-020，待实现）**：在客户端统一 Hooks 触发和 MCP 显式操作，完成正式资产选择、完整基线合并、单 writer、版本和原 key 对账；复用现有私有客户端与 typed API，不是新的 Agent Loop 或测试执行器。
+9. **TaskSyncCore / 模式适配（ADR-021，Cloud 部分实现）**：共享正式资产、语义进度、冻结提交、幂等对账及固定接受版本读回；LocalSyncAdapter 保留 SessionTask 契约，CloudSyncAdapter 由当前 Attempt writer 报告云端进度与产物，不合并两类任务的权限或执行控制。
 
 计划编译、覆盖检查和策略计算属于控制平面能力。自有 Runner、通用 Shell 和框架执行调度
-不列入目标核心组件。以上组件是产品职责划分，不要求新增六个独立服务。
+不列入目标核心组件。以上组件是产品职责划分，不要求按组件数量新增独立服务。
 
 ---
 
@@ -337,9 +478,13 @@ ADR-017 新 profile 独立定义材料接入 / 贡献者交接，旧约束及原
 Bridge、本地 WSS Connector 和交互式 stdio / HTTPS 各有既有协议与生命周期，不能混用或
 因新目标删除原会话、设备授权和历史。具体实际限制见 ADR-015 / ADR-016 和客户端说明。
 
-本机可用的 Git、模型和问题单授权留在使用它们的节点，不复制到平台镜像或任务上下文。
+ADR-015 / ADR-016 原模式中，本机可用的 Git、模型和问题单授权留在使用它们的节点，不复制到平台镜像或任务上下文。
 设备配对、项目权限、来源采集和问题单操作分别授权；已有登录不意味着任何平台动作都获准。
 ADR-017 新贡献与交接契约由真实框架场景约束，不从当前 Codex 适配推定所有 Agent / MCP 已支持。
+
+ADR-019 的项目凭据是用户单独录入并选择持久保存的云端资源，不改变上述本地授权归属。官方 Harness Python SDK 是首个云端适配；Codex / Claude Code 子代理由 DeepSeek harness 编排，不逐个绑定为旧 Run 的主会话，也不各自创建 SessionTask。
+
+ADR-020 的 Local provider adapter 分别适配身份与事件：当前 Codex MCP 已可用，不意味着 Codex 自动 Hooks 或 Claude Code 会话同步已交付。它们均使用原 integration actor / client / Project 授权和 `task:sync`，不从 Hook payload、session label 或当前目录推定写入权限。
 
 ---
 
@@ -359,7 +504,7 @@ ADR-017 / TMP v0.7 已明确首版材料接入的领取、顺序贡献交接、�
 
 ## 12. Agent Result Protocol
 
-Agent 的最终产出必须是 Machine-readable structured result。Markdown 总结可以保留，但只能作为 Human-readable Summary，不能替代 Canonical Domain State。
+Agent 的最终产出遵循所选 profile 的结构化管理契约。ADR-018 与 ADR-019 保留原始 Markdown 报告及其 reported result，代码、执行和附件各有可读取的版本与来源；Markdown 不替代结构化关系或正式执行证明。旧 Mission 的 Machine-readable result 要求保持原义。
 
 ---
 
@@ -406,6 +551,12 @@ MCP 不需要成为通用远程 Shell 或测试启动器。
 先查询原操作，不能盲目重复创建；设备、Git 或已有 MCP 登录不自动授予提单权限。
 
 > **Read shared testing state. Propose traceable contributions.**
+
+### 14.2 Local 自动触发与显式操作共用提交逻辑（ADR-020）
+
+Hooks 负责触发，MCP 保留主动提交与查询，两者进入同一本地语义协调器后再调用现有私有客户端和 typed HTTPS API。协调器覆盖从固定版本基线读取、正式资产合并、冻结新意图、提交到回执与完整分页读回的写入责任；不能把现有 IPC 锁等同于这段事务，也不能让 Hooks 与 MCP 各自抢版本。
+
+同步配置只保存非秘密映射和私有配置引用；现有授权 token 仍通过私有客户端通道使用，不写入 Hook 配置、参数、提示词或产物。失败和退出保留待同步意图及原 key 账本，不擅自换 Project、签发凭据、重跑测试或把同步 UNKNOWN 改写成测试 UNKNOWN。实施和回退条件见[本地计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)，当前操作仍见[Codex 会话同步指南](../CODEX_SESSION_TASK_SYNC.md)。
 
 ### 14.1 已发布交互 MCP 的实际边界与待迁移点
 
@@ -471,7 +622,7 @@ Evidence 使执行记录能够支撑质量结论。来源可以是 SUT 原生测
 
 证据应关联任务、用例 / 实现、实际源码和测试版本、执行环境、时间、执行出处及产物摘要。
 接入形式可采用受保护上传或可验证的外部引用，依真实场景决定；平台不读取任意路径 / URL，
-也不因接收结果而取得项目凭据。字段、大小限制、来源准入和事务边界需在后续契约中明确。
+也不因接收结果而取得额外项目权限。ADR-019 云端资源凭据须经独立配置与授权，不能夹入结果附件。字段、大小限制、来源准入和事务边界由各 profile 契约明确。
 
 Agent 自述、聊天截图中的结论或单个 PASS 字符串不自动成为正式 Evidence。接收文件、
 验证 hash、验证来源和确认足以支持质量结论是不同的检查。Hash 只证明相应内容完整性，
@@ -574,6 +725,10 @@ ADR-013～016 的 Job / lease / epoch / native 绑定继续约束旧 profile。A
 工作台围绕测试项目、计划、任务、用例、覆盖、执行记录、证据、Finding、质量结论与报告组织。
 用户应能看到：本轮测什么、谁在做、哪些用例已实现 / 执行、结果来自哪里、结论依据是什么，
 以及下一会话需要继续处理什么。Agent Activity 和聊天摘要是辅助信息。
+
+同一 Project 的任务列表拟默认显示 CloudTask 与 SessionTask，按 Cloud / Local 筛选并显示模式 / 来源；详情沿用各自状态、权限、结果和操作，不提供跨模式转换。该设计不增加 Local 同步的凭据或执行绑定前提。
+
+Local 的未来同步观察需分开显示本地待处理 / 同步未知 / 已确认读回与任务进度 / reported result；前者是客户端传输状态，不成为 SessionTask 新枚举。关闭自动触发不删除待处理账本或平台历史，也不影响 MCP 显式查询。
 
 任务位置展示应区分 Agent 所在位置、项目测试框架 / CI 的实际执行环境和 SUT 位置。
 “我的电脑”应能指导用户在已有工程环境的 Mac 上使用 MCP；平台不要求所有项目都迁移到
@@ -697,6 +852,8 @@ Agent 决定工程方法并调用已有工具完成工作。
 一个任务可以由同一会话持续推进，也可以经过明确交接顺序接力。质量状态由持久领域资产
 承载，不依赖某个 Provider 对话永久在线。既有单主会话实现仍按原 profile 运行；新 native 任务的贡献者交接按 ADR-017 执行，不通过伪造会话、修改旧绑定或丢弃历史迁移。
 
+ADR-019 云端任务由 DeepSeek harness 自行参与或分发工程子任务；子代理可按文件责任并行工作，但平台侧只有一个获授权主 writer，SDK/runtime 生命周期由 Python Worker 监督。是否并行和如何分工属于 Harness；HyperTest 不重新编写通用多代理推理循环。
+
 > **HyperTest manages testing missions; Agents perform the testing work.**
 
 ---
@@ -797,8 +954,11 @@ Software Testing Domain
 - **执行来源、版本、完整性和证据充分性分别核验，不以平台自有 Runner 为唯一事实通道。**
 - **任务下发与质量治理属于平台，工程动作与测试框架调用属于 Agent。**
 - **跨会话接力明确贡献、授权和当前写入责任，不推导并发多写者或重放未知副作用。**
-- **一个 SUT 一个 Project；输入变化、复测、执行记录和历史结论保持可追溯。**
-- **认证留在实际使用方，项目授权不扩大 Git、问题单或个人工程工具的权限。**
+- **一个 SUT 一个 Project，Cloud 与 Local 任务共存；模式属于任务来源，身份、权限及历史分别保留。**
+- **本地认证留在原节点；云端凭据由用户独立录入、加密持久保存并在运行时按范围注入，一次任务授权约束主代理和子代理。**
+- **保留 Local 的 ADR-018 Codex MCP 会话同步，新增 Cloud 的 ADR-019 CloudTask / CloudAttempt；云端实现状态与设计决定分别记录，不重标旧 LOCAL / CLOUD 执行历史。**
+- **Local 的 Hooks 自动触发与 MCP 显式操作共用一个同步协调器和 writer；生命周期事件不产生业务完成或 PASS，设计与实际交付分别记录。**
+- **Local Hooks、MCP 与协调器统一版本发行、一键安装；三宿主分别验收，安装 / 授权 / 同步 / 测试结果分别呈现，保全其他配置与未决账本。**
 - **原受管 Harness、Runner、Snapshot、协议及执行历史在明确迁移前保留原语义。**
 - **新产品边界与已实现能力分别说明，以真实 SUT 验收推动最小必要演进。**
 
