@@ -1,0 +1,19 @@
+# Worker-specific context; the root API whitelist excludes this wheel-pair lock.
+**
+!pyproject.toml
+!README.md
+!src/
+!src/**
+!requirements/
+!requirements/cloud-runtime.lock
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.env
+**/.env.*
+**/*.env
+**/*.key
+**/*.pem
+**/auth.json
+**/.codex
+**/.claude
