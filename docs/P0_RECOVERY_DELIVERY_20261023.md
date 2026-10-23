@@ -1,6 +1,6 @@
 # P0：Web 未决保全与 Cloud 安全收尾
 
-**范围：P0-1 / P0-2；功能验收由用户负责。** 本轮不创建线上验收项目、Task 或凭据，不触发真实模型或 SUT。真实 SDK 原会话续接、通用 HTTPS/SSH/CI、Cloud Claude、Local 新宿主绑定与 PowerContext 集成仍是独立待办。
+**P0-1 / P0-2 实现与部署完成；功能验收 PENDING / USER_OWNED，由用户负责。** 本轮未创建线上验收项目、Task 或凭据，未触发真实模型或 SUT。真实 SDK 原会话续接、通用 HTTPS/SSH/CI、Cloud Claude、Local 新宿主绑定与 PowerContext 集成仍是独立待办。
 
 ## 本轮开始时的实际环境
 
@@ -26,7 +26,25 @@ Worker 重启遇既存 runtime 不重放；超时、失租、取消与失答先�
 
 ## 回归、构建与部署
 
-实现及相关回归已完成，固定 Git 部署待执行。无新增领域表或 schema 迁移。相关规范同步见 TMP §45.4/§46.6–7、领域 §51.5/§53.2、架构 §45.6、ADR-019 §6 与 ADR-024 §4。
+实现、相关回归与固定 Git 部署均已完成。代码已推送 main，服务器 fetch 后固定完整 SHA `e6493b33e619abd7eadfa0d452cbc7903e439a52`，干净源码构建 API、Web 与独立 Cloud Worker。无新增领域表或 schema 迁移。相关规范同步见 TMP §45.4/§46.6–7、领域 §51.5/§53.2、架构 §45.6、ADR-019 §6 与 ADR-024 §4。
+
+| 部署项 | 固定身份 / 结果 |
+| --- | --- |
+| 应用部署 Git | `e6493b33e619abd7eadfa0d452cbc7903e439a52`；本记录部署后补充为纯文档变更，不重建镜像 |
+| API image | `sha256:b10a45b2e1461912f283a8f77b6dd62711e8e107bf7b8acb44384cb453342c5e` |
+| Web image | `sha256:15374e2ec59306994371987dd3c1871c1075ba826265b10ae547176e0d990adb` |
+| 独立 Cloud Worker image | `sha256:fbdd46c6e5e9884831b5c6c7e04a11e57e7a321036241ebf2daa247c42a506d7` |
+| Cloud Worker release | `/opt/hypertest-cloud/releases/e6493b33e619abd7eadfa0d452cbc7903e439a52`；manifest SHA-256 `86e1ffa092d94a342cdc8569bc850de03d3adfe226a66442a586bdd1377efd2f` |
+| legacy Worker | 保留 `55de50e` 来源及 image `sha256:ff650c8a9f59d311f51614a3183f4327bd1125f4d9e6edd511b8b7ff96e3bf4c` |
+| 构建 | API / Web / Cloud Worker 均成功；Web 正式 Next build 成功 |
+| 迁移 | 无；schema 保持 `0026_cloud_ssh_operations` |
+| 启动与健康 | 五个容器 healthy，独立 Cloud Worker active；API health、Web 根页 HTTP 200 |
+| 本次关键读取路径 | Web BFF → 既有严格 TLS Cloud API capabilities HTTP 200，核对 resume=false、reconcile=true、OPERATOR_ATTESTATION / KEEP_HELD |
+| 访问边界 | 既有 ingress guard protected；原 TLS、VPN/端口、SSH 访问及凭据路径保留 |
+
+本次仅停止和替换 API、Web、独立 Cloud Worker；PostgreSQL、legacy Worker、nginx 保持运行。仅更新 compose.env 的 API/Web image 键，保留数据库/卷、源产物、会话、私有 runtime 与 journal/key、历史和旧 releases；未执行清理或恢复演练。Worker 保持 Cloud/Codex 启用、固定 SSH 关闭，未改动 PowerContext 或其他服务。
+
+构建与部署回执：`/var/lib/hypertest-cloud/delivery/20261023-p0-e6493b33/build.json`、`deployment.json`，各组件构建日志在同目录；它们是部署检查，不是功能验收。组件镜像使用既有固定摘要 Python/Node/Docker CLI bases，精确值保留在 build.json。独立 Worker 经原启动准入后运行，没有运行真实模型或 SUT。
 
 | 检查范围 | 最终结果 |
 | --- | --- |

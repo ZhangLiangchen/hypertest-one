@@ -1,6 +1,6 @@
 # Cloud Git 集成与测试服务器交付记录（2026-10-23）
 
-> 后续实际基线已更新为 `55de50e`；P0-1/P0-2 的最新实现与部署见[独立交付记录](P0_RECOVERY_DELIVERY_20261023.md)。下文 C4/6d49 的 SHA、镜像及检查结果按原轮次保留，不是当前服务器巡检。
+> 最新 API/Web/独立 Cloud Worker 已按 `e6493b33e619abd7eadfa0d452cbc7903e439a52` 部署，legacy Worker 保留55de50e，schema保持0026；P0-1/P0-2 的实现、镜像与健康结果见[独立交付记录](P0_RECOVERY_DELIVERY_20261023.md)。下文 C4/6d49 的 SHA、镜像及检查结果按原轮次保留，不是当前服务器巡检。
 
 **部署状态：`DEPLOYED_AVAILABLE_FOR_USER`；用户验收：`PENDING / USER_OWNED`。** C4 API / Worker及后续6d49 Web已部署，可从[既有受控入口](https://155.138.206.106:8080)操作。功能验收由用户执行；除非用户明确要求，不擅自开展验收。必要构建、组件回归、doctor、迁移、基础健康及部署路由检查分别登记，不称为用户验收。本轮未创建用户验收业务数据、未启动新的模型或SUT执行；组件测试中的合成fixtures按各自回归范围记录。
 

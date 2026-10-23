@@ -1,6 +1,6 @@
 # 云端任务实现状态与接入入口
 
-**最新 P0 工作：** [Web 未决保全与 Cloud 安全收尾](P0_RECOVERY_DELIVERY_20261023.md)。本轮开始时实际部署为 `55de50e`，下文 C4/6d49 属于旧轮次；本次实现、回归和部署身份以新记录为准，用户功能验收仍由用户负责。SDK 原会话续接未实现，人工收尾不清 UNKNOWN、不释放 HELD。
+**最新 P0 已实现并部署：** [Web 未决保全与 Cloud 安全收尾](P0_RECOVERY_DELIVERY_20261023.md)，应用 Git `e6493b33e619abd7eadfa0d452cbc7903e439a52`，API/Web/独立 Cloud Worker 已更新、五容器健康、schema 保持0026。下文 C4/6d49 属于旧轮次；本次回归和镜像身份以新记录为准，用户功能验收仍由用户负责。SDK 原会话续接未实现，人工收尾不清 UNKNOWN、不释放 HELD。
 
 ## 正式 Git 集成与当前部署边界
 

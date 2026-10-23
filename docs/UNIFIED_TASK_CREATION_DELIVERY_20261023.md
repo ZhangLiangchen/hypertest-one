@@ -1,6 +1,6 @@
 # 统一任务创建入口：2026-10-23 实现与部署交付记录
 
-> 后续 Web 的 Cloud 与 Local CREATE 持久账本交付见[P0 恢复记录](P0_RECOVERY_DELIVERY_20261023.md)。本轮开始时实际部署为 `55de50e`；下文 C4/6d49 和 sessionStorage 时期的描述保留其历史轮次，不作为当前状态。
+> Web 的 Cloud 与 Local CREATE 持久账本已按 `e6493b33e619abd7eadfa0d452cbc7903e439a52` 部署，见[P0 恢复记录](P0_RECOVERY_DELIVERY_20261023.md)。下文 C4/6d49 和 sessionStorage 时期的描述保留其历史轮次，不作为当前状态。
 
 **功能验收：由用户执行，本轮未开展。**
 

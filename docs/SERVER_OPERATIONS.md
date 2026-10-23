@@ -57,7 +57,7 @@
 
 ### 2026-10-23 Cloud Git 交付
 
-后续环境核对已确认部署基线为 `55de50e`，最新 P0-1/P0-2 实现、回归及固定 SHA 部署见[P0 恢复交付记录](P0_RECOVERY_DELIVERY_20261023.md)。以下 C4/6d49 是原轮次历史，不能据此覆盖现有工作区或判断当前镜像。
+最新 API/Web/独立 Cloud Worker 已按 Git `e6493b33e619abd7eadfa0d452cbc7903e439a52` 部署，五容器 healthy、Cloud Worker active，schema保持0026；legacy Worker保留55de50e。P0-1/P0-2 实现、相关回归、镜像及最小健康检查见[P0 恢复交付记录](P0_RECOVERY_DELIVERY_20261023.md)。以下 C4/6d49 是原轮次历史，不能据此覆盖现有工作区或判断当前镜像。
 
 C4 `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署可供用户操作：当前库备份后向前升级至 `0026_cloud_ssh_operations`，原五角色健康；独立 `hypertest-cloud-worker.service` active-idle，Codex=true / SSH=false，未自动enable。旧Bridge、legacy Worker镜像、端口 / VPN和历史计数保留。严格TLS / CA / IP SAN及Cloud BFF typed读取已作部署路由检查，本轮未创建用户验收业务数据、未启动新的模型或SUT执行，用户验收为 `PENDING / USER_OWNED`。Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份；精确Git / images / 回执和既有失败见[Cloud交付记录](CLOUD_GIT_DELIVERY_20261023.md)。下方05:49等旧交付段落仍按其原轮次保存，不作为当前schema身份。
 
