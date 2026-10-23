@@ -1,5 +1,11 @@
 # Test Mission Protocol Specification
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
 **Version:** v0.8
@@ -1344,3 +1350,35 @@ MCP按会话读取返回有界 envelope `{task_id,version,format:'application/js
 默认列表、详情与by-session不返回已删除任务或已删除项目下的任务；Agent新同步拒绝已删除对象。原 `syncs/by-key` 在当前有效授权下仍可返回历史瘦回执，便于对账，不因软删除改写原version或自动恢复对象。`source=AGENT_REPORTED` 继续标识产物及reported result来源，人工字段变更另由management_history溯源。人工进度调整、软删除或恢复均无执行、取消执行、测试重跑或质量裁决语义。
 
 项目软删除同时约束旧入口的新资源准入：任务/源码创建、上传授权和接受、集成授权及Connector新采集的入队/投递检查项目仍未删除，保留只读历史与原key回执。该检查不改写原transfer或外部操作的状态，不将删除伪装为已确认取消。
+
+## 47. ADR-020 Local Hooks 与显式 MCP 协作
+
+
+本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
+统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
+Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
+真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、
+LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
+源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
+
+Local 客户端沿用 ADR-018、TMP §45 与领域 §50 的身份和同步契约；本分支人工管理增补另见领域 §50.4 / TMP §45.3。原 API/profile、task:sync、
+Project/actor owner、完整请求、expected_version 与历史语义不变；hypertest_sync_task 不是 PATCH。
+同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
+只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
+冻结后保留完整请求/key/version；SENT/UNKNOWN/失答及 NOT_FOUND 只 GET 原 key，不自动再次 POST。
+有效 ACK 后完整读回固定接受版本才确认本次同步；传输状态不重写 reported_result，Stop 不代表 PASS/COMPLETED。
+
+Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重标。
+安装只复用既有私有 Project 授权，不申请 Operator key、签发 grant 或复制模型登录；
+Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
+升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
+Cloud/Local 共享 Project 的设计与任何外部 Cloud 实施进度不由本 Local 源码分支声称已交付。
+
+## 48. ADR-021 共享同步语义的 Local 约束
+
+TaskSyncCore 是内部可复用库，LocalSyncAdapter 保留 SessionTask 的原请求、身份、权限与版本规则。
+共享语义是批准的结构化意图、完整基线、冻结请求、原 key 对账、回执验证与固定版本完整读回；
+不增加通用 Task/API、跨模式 token、全局 journal 或服务端 fencing 字段。
+Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态。
+只合并未冻结新意图；显式 MCP 完整请求的空值不被自动推断为 omitted，传输失败不修改业务报告。
+Cloud 消费方由独立 Cloud 设计/源码/验收拥有；本 Local 分支不包括或发布该实现。

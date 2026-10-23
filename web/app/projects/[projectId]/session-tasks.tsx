@@ -10,6 +10,7 @@ import { errorText, getProjectTasks } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
 import { SessionTaskActions } from "@/app/tasks/task-actions";
+import { LocalModeGuide } from "./local-mode-guide";
 
 export function ProjectSessionTasks({ projectId, projectDeleted = false }: { projectId: string; projectDeleted?: boolean }) {
   const { t, label, locale, formatDate } = useI18n();
@@ -24,11 +25,12 @@ export function ProjectSessionTasks({ projectId, projectDeleted = false }: { pro
   }, [tasks.data, page]);
   return <section className="session-task-section" aria-labelledby="session-tasks-heading">
     <div className="activity-heading">
-      <Typography.Title id="session-tasks-heading" level={2}>{t("Codex test tasks", "Codex 测试任务")}</Typography.Title>
+      <Typography.Title id="session-tasks-heading" level={2}>{t("Local session tasks", "本地会话任务")}</Typography.Title>
       <Space wrap><Checkbox checked={effectiveIncludeDeleted} disabled={projectDeleted} onChange={(event) => { setIncludeDeleted(event.target.checked); setPage(1); }}>{t("Include recycle bin tasks", "显示回收站任务")}</Checkbox><Button icon={<ReloadOutlined aria-hidden />} onClick={() => void tasks.refetch()} loading={tasks.isFetching}>{t("Refresh", "刷新")}</Button></Space>
     </div>
-    <Typography.Paragraph className="muted">{t("Each Codex session has one task. Codex performs the testing work and syncs its plan, cases and reports here.", "一个 Codex 会话对应一个任务。Codex 完成测试工作，将计划、用例和报告同步到此处。")}</Typography.Paragraph>
+    <Typography.Paragraph className="muted">{t("Each local Agent parent session has one task. The Agent performs the testing work and syncs its selected plan, cases and reports here.", "一个本地 Agent 父会话对应一个任务。Agent 完成测试工作，将选定的计划、用例和报告同步到此处。")}</Typography.Paragraph>
     {effectiveIncludeDeleted ? <Typography.Paragraph className="table-footnote">{t("Deleted tasks are shown alongside active tasks. Restore a task to continue using its original session and history.", "回收站任务与未删除任务一并显示。恢复后可继续使用原会话及历史。")}</Typography.Paragraph> : null}
+    <LocalModeGuide projectId={projectId} />
     {tasks.isError ? <Alert showIcon type="error" message={t("Task sync records could not be refreshed", "无法刷新任务同步记录")} description={errorText(tasks.error, locale)} action={<Button onClick={() => void tasks.refetch()}>{t("Retry", "重试")}</Button>} /> : null}
     {tasks.isLoading || tasks.data?.items.length || (tasks.data?.total || 0) > 0 ? <div className="data-surface"><Table
       rowKey="id" loading={tasks.isLoading} dataSource={tasks.data?.items || []} scroll={{ x: 1100 }}
@@ -36,13 +38,13 @@ export function ProjectSessionTasks({ projectId, projectDeleted = false }: { pro
       columns={[
         { title: t("Task", "任务"), key: "title", render: (_, task) => <><Link className="entity-title" href={`/tasks/${task.id}`}>{task.title}</Link>{task.deleted_at ? <Tag>{t("Deleted", "已删除")}</Tag> : null}<span className="session-table-source">{task.provider} · {task.session_id}</span></> },
         { title: t("Task status", "任务状态"), dataIndex: "status", width: 125, render: (status: string) => <Tag color={status === "BLOCKED" ? "gold" : status === "IN_PROGRESS" ? "blue" : undefined}>{label(status)}</Tag> },
-        { title: t("Codex reported result", "Codex 报告结果"), dataIndex: "reported_result", width: 160, render: (result) => <ReportedResultTag result={result} /> },
+        { title: t("Agent reported result", "Agent 报告结果"), dataIndex: "reported_result", width: 160, render: (result) => <ReportedResultTag result={result} /> },
         { title: t("Version", "版本"), dataIndex: "version", width: 80 },
         { title: t("Last synced", "最后同步"), dataIndex: "last_synced_at", width: 190, render: formatDate },
         { title: t("Last managed", "最近人工管理"), dataIndex: "last_managed_at", width: 190, render: (value?: string | null) => value ? formatDate(value) : "—" },
         { title: t("Actions", "操作"), key: "actions", width: 120, render: (_, task) => projectDeleted ? <Typography.Text className="muted">{t("Restore project first", "请先恢复项目")}</Typography.Text> : <SessionTaskActions task={task} compact /> },
       ]}
-    /></div> : tasks.data ? <div className="data-surface session-task-empty"><Empty description={effectiveIncludeDeleted ? t("No tasks or deleted tasks in this project.", "此项目暂无任务或回收站任务。") : t("No Codex tasks have been synced to this project.", "此项目尚未同步 Codex 测试任务。")} /><Typography.Paragraph className="muted">{t("Use hypertest_sync_task in the Codex session to sync the task, cases and original report.", "在 Codex 会话中使用 hypertest_sync_task，同步任务、用例和原始报告。")}</Typography.Paragraph></div> : null}
-    {tasks.data ? <Typography.Paragraph className="table-footnote">{t("Results are reported by Codex. Task status tracks progress; report revisions preserve earlier outcomes.", "结果来自 Codex 报告。任务状态表示进度，报告修订保留此前结果。")}</Typography.Paragraph> : null}
+    /></div> : tasks.data ? <div className="data-surface session-task-empty"><Empty description={effectiveIncludeDeleted ? t("No tasks or deleted tasks in this project.", "此项目暂无任务或回收站任务。") : t("No local session tasks have been synced to this project.", "此项目尚未同步本地会话任务。")} /><Typography.Paragraph className="muted">{t("Use hypertest_sync_task in your Agent session to sync the task, cases and original report.", "在 Agent 会话中使用 hypertest_sync_task，同步任务、用例和原始报告。")}</Typography.Paragraph></div> : null}
+    {tasks.data ? <Typography.Paragraph className="table-footnote">{t("Results are reported by the source Agent. Task status tracks progress; report revisions preserve earlier outcomes.", "结果来自来源 Agent 的报告。任务状态表示进度，报告修订保留此前结果。")}</Typography.Paragraph> : null}
   </section>;
 }

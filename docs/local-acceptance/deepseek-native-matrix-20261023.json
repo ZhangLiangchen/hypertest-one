@@ -1,0 +1,568 @@
+{
+  "record_type": "HyperTest Local DeepSeek native matrix acceptance evidence",
+  "record_version": 1,
+  "recorded_date": "2026-10-23",
+  "timezone": "Asia/Singapore",
+  "host": "deepseek-harness",
+  "overall_status": "ACCEPTED_WITH_EXPLICIT_LIMITS",
+  "scope": "Synthetic management fixture synchronization, actual headless CLI and official Registry API cross-process resume; no SUT execution",
+  "release": {
+    "version": "local-v0.1.0",
+    "source_commit": "874569fa566a137eba77ac4852caa6052cb04a17",
+    "documentation_followup_commit": "d253a2737a93cc92facaa5d6c446bb8a174baacf",
+    "runtime_source_digest_sha256": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+    "formal_wheel_sha256": "a226e64a64f9c93a705e0139c0218f61cd804a3a562225d5bdbdf44984bf41d3",
+    "installed_members_matched_before_and_after": 36,
+    "root_adapter_sha256": "c54d40f507cf8c9dc43eaf8bf0b6ebe89d8de21582d07f19ff36783db588ef97",
+    "product_source_changed": false,
+    "release_assets_or_tag_changed": false
+  },
+  "environment": {
+    "system": "Darwin",
+    "os_version": "26.5.1",
+    "machine": "arm64",
+    "python_version": "3.13.3",
+    "node_version": "26.8.1",
+    "harness_cli_version": "0.1.5-rc.1",
+    "component_version": "0.1.5-rc.2",
+    "model_provider": "deepseek-official",
+    "model": "deepseek-flash",
+    "reasoning": "off",
+    "per_request_max_tokens": 2048,
+    "per_process_timeout_seconds": 180,
+    "credentials": "Existing official read-only provider reference; no model-login copy or credential-writing tool"
+  },
+  "official_source_verification": {
+    "package_entries": [
+      {
+        "package": "@deepseek-ai/dsh-headless",
+        "version": "0.1.5-rc.2",
+        "official_tarball_url": "https://registry.npmjs.org/@deepseek-ai/dsh-headless/-/dsh-headless-0.1.5-rc.2.tgz",
+        "registry_integrity": "sha512-EJ0QCWo+0WCTq2SFFRZpbMcGwkSh/uBRNJmE6nx9Eh1Qlt4y3I4G3k+p2mn276ujPbGfEadaI5KLciLOHsZQXQ==",
+        "registry_integrity_verified": true,
+        "entries": [
+          {
+            "entry": "lib/index.js",
+            "sha256": "ef581ed89350c009943a94e61379eace98341877943da36916501e14244b185b",
+            "installed_bytes_match_public_tarball": true
+          },
+          {
+            "entry": "lib/startup.js",
+            "sha256": "1d93363af3f955b37a044cd1bd7b438881c9f842ef79c4ec222b082d3a65c157",
+            "installed_bytes_match_public_tarball": true
+          }
+        ]
+      },
+      {
+        "package": "@deepseek-ai/dsh-agent",
+        "version": "0.1.5-rc.2",
+        "official_tarball_url": "https://registry.npmjs.org/@deepseek-ai/dsh-agent/-/dsh-agent-0.1.5-rc.2.tgz",
+        "registry_integrity": "sha512-SlUL1riZmVLwMUR3jo9CP/R1cxov9dHkCJDh6JQW3fSZJVCIdPygBRlAweCUDvHxAEmPpFHxE/U3NmSUbX+vQQ==",
+        "registry_integrity_verified": true,
+        "entries": [
+          {
+            "entry": "lib/index.js",
+            "sha256": "b05aa36fce8e2f910596a682fb1d2b461eac2549e344360c92711a557d06b0bb",
+            "installed_bytes_match_public_tarball": true
+          },
+          {
+            "entry": "lib/types/index.d.ts",
+            "sha256": "f6aec10d76b2200ce1052900e7893149547cbc47d1a0230ea2f9d837666448e4",
+            "installed_bytes_match_public_tarball": true
+          }
+        ]
+      },
+      {
+        "package": "@deepseek-ai/dsh-agent-loop",
+        "version": "0.1.5-rc.2",
+        "official_tarball_url": "https://registry.npmjs.org/@deepseek-ai/dsh-agent-loop/-/dsh-agent-loop-0.1.5-rc.2.tgz",
+        "registry_integrity": "sha512-24wvqVlqFmdqJ2Bhcku/vKeNy+qWSmeEeN7lvcUB+WkhcF0/Ra2G3WwcVmnahJA4+w0AKdW3W7v+YYcO/jKJpg==",
+        "registry_integrity_verified": true,
+        "entries": [
+          {
+            "entry": "lib/index.js",
+            "sha256": "257eb83c00a05ee068e9f4ba80ca71ab94e3a1275d24b7a0cf5038ff23dd0fd8",
+            "installed_bytes_match_public_tarball": true
+          }
+        ]
+      },
+      {
+        "package": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+        "version": "0.1.5-rc.2",
+        "official_tarball_url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-jsonrpc-server/-/dsh-sdk-jsonrpc-server-0.1.5-rc.2.tgz",
+        "registry_integrity": "sha512-TRVkUngQPKlpHvqS5AZi63zwa+5eG0zp1NwZXzJjdiYhjV2LPICiWVM6EuSbmIRB6tUZMB1MXf4ZSj2OFQWn/Q==",
+        "registry_integrity_verified": true,
+        "entries": [
+          {
+            "entry": "lib/index.js",
+            "sha256": "7b19ef78260b4a9287b9712074d9df63271a67bae752e5a26deb1fd17067340e",
+            "installed_bytes_match_public_tarball": true
+          }
+        ]
+      },
+      {
+        "package": "@deepseek-ai/dsh-session-persistence",
+        "version": "0.1.5-rc.2",
+        "official_tarball_url": "https://registry.npmjs.org/@deepseek-ai/dsh-session-persistence/-/dsh-session-persistence-0.1.5-rc.2.tgz",
+        "registry_integrity": "sha512-0nDeM+H+3YR0CH/IVlhjNL9bDx2G4QbliaLekVxY0jdZHM7RqdN/fWPKjeCKbXcRq6qdn9QcmvXU3uWZdErlIw==",
+        "registry_integrity_verified": true,
+        "entries": [
+          {
+            "entry": "lib/index.js",
+            "sha256": "0dc2a1634e4b6ebb558aac214009da3dc00f54f315762a56a1841d12baf770d4",
+            "installed_bytes_match_public_tarball": true
+          }
+        ]
+      }
+    ],
+    "persistence_backend": {
+      "package": "@deepseek-ai/dsh-session-persistence-jsonl",
+      "version": "0.1.5-rc.2",
+      "official_tarball_url": "https://registry.npmjs.org/@deepseek-ai/dsh-session-persistence-jsonl/-/dsh-session-persistence-jsonl-0.1.5-rc.2.tgz",
+      "registry_integrity": "sha512-nkIXdb5oOV6a05Of+3Wywe3gEB77uQOH1U0M+/SRVziSLX4JkE+us7dbWczOOloZjuUsEV7Il8kZ3R9JLsGqjA==",
+      "registry_integrity_verified": true,
+      "entry": "lib/index.js",
+      "entry_sha256": "7d0640c9fc4be6c703b77605fdee6af519c542fae28a6cd4489353309812f062",
+      "installed_bytes_match_public_tarball": true,
+      "model_execution": false,
+      "platform_write": false
+    },
+    "fixed_api_semantics": {
+      "fresh_source": "startup",
+      "fresh_source_reference": "@deepseek-ai/dsh-agent-loop@0.1.5-rc.2 lib/index.js:1834",
+      "resume_source": "resume",
+      "resume_factory_reference": "@deepseek-ai/dsh-agent-loop@0.1.5-rc.2 lib/index.js:1876-1925",
+      "setup_contract_reference": "@deepseek-ai/dsh-headless@0.1.5-rc.2 lib/index.js:141-146; agent-loop lib/index.js:1856",
+      "headless_cli_resume_flag": "UNAVAILABLE_IN_FIXED_VERSION",
+      "sdk_wire_resume_method": "UNAVAILABLE_IN_FIXED_VERSION"
+    }
+  },
+  "identity": {
+    "project_id": "01a166a9-c5ca-78fc-8ef6-373a6f4ce2f0",
+    "provider": "deepseek_harness",
+    "parent_session_id": "session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac",
+    "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+    "same_authorized_profile_actor_client_project_task_across_processes": true,
+    "new_fresh_grant_for_this_matrix": true,
+    "old_revoked_grants_or_journals_reused": false
+  },
+  "headless": {
+    "status": "ACCEPTED",
+    "entry_surface": "Actual installed official headless CLI bundle / one invocation / one fresh native root turn; no SDK initialization turn",
+    "official_bundle": "@deepseek-ai/dsh-headless@0.1.5-rc.2",
+    "pid": 14187,
+    "runtime_exit_code": 0,
+    "elapsed_seconds": 24.377,
+    "native_source": "startup",
+    "final_session_seq": 39,
+    "official_flush_before_exit": true,
+    "analysis_write_sha256": "205c81e23a1e68105deffc51e269a13ebbf0d22719143153447aeb1bcf54f4e7",
+    "raw_report_write_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80",
+    "actual_tool_results": [
+      {
+        "name": "write",
+        "is_error": false,
+        "approved_slot": "TEST_PLAN",
+        "content_sha256": "205c81e23a1e68105deffc51e269a13ebbf0d22719143153447aeb1bcf54f4e7",
+        "contains_expected_marker": true
+      },
+      {
+        "name": "write",
+        "is_error": false,
+        "approved_slot": "TEST_REPORT",
+        "content_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80",
+        "contains_expected_marker": false
+      },
+      {
+        "name": "mcp__hypertest__hypertest_get_task",
+        "is_error": false,
+        "source_matches": true,
+        "returned_task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "returned_version": 2,
+        "case_fixture_matches": false,
+        "explicit_task_fail": false
+      },
+      {
+        "name": "mcp__hypertest__hypertest_sync_task",
+        "is_error": false,
+        "source_matches": true,
+        "expected_version": 2,
+        "idempotency_key": "dsh-mx-case-session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac",
+        "returned_task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "returned_version": 3,
+        "case_count": 1,
+        "report_count": 1,
+        "case_fixture_matches": true,
+        "explicit_task_fail": true,
+        "case_payload_sha256": "e48d60ce70f3f1ff45a02b9ab5374e18f57ea9933ca8e30b0459dfc1120249ed",
+        "report_markdown_sha256": [
+          "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80"
+        ]
+      },
+      {
+        "name": "mcp__hypertest__hypertest_get_task",
+        "is_error": false,
+        "source_matches": true,
+        "returned_task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "returned_version": 3,
+        "case_fixture_matches": false,
+        "explicit_task_fail": false
+      }
+    ],
+    "native_turn_stopping_events_observed": 1
+  },
+  "resume": {
+    "status": "ACCEPTED",
+    "entry_surface": "official Registry API cross-process resume; acceptance-only bounded driver over the same profile and product adapter",
+    "api": "agents.resume({resumeSessionId,agentOptions,setup})",
+    "headless_previous_pid": 14187,
+    "previous_process_exited": true,
+    "pid": 23262,
+    "runtime_exit_code": 0,
+    "elapsed_seconds": 10.845,
+    "native_source": "resume",
+    "session_id_preserved": true,
+    "restored_session_seq": 89,
+    "final_session_seq": 116,
+    "create_fallback": false,
+    "binding_bytes_unchanged": true,
+    "approved_policy_unchanged": true,
+    "successful_tool_sequence": "approved read -> approved write -> actual MCP source GET v4 -> actual MCP original-key GET v3",
+    "actual_tool_results": [
+      {
+        "name": "read",
+        "is_error": false
+      },
+      {
+        "name": "write",
+        "is_error": false,
+        "requested_path_absolute": true,
+        "approved_slot": "TEST_PLAN",
+        "content_sha256": "a18f2aafe5c87fba6a81d05227090544d5721ab09dea56ac1c1e497ed969d200",
+        "contains_expected_marker": true
+      },
+      {
+        "name": "mcp__hypertest__hypertest_get_task",
+        "is_error": false,
+        "source_matches": true,
+        "returned_task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "returned_version": 4,
+        "case_fixture_matches": false,
+        "explicit_task_fail": false
+      },
+      {
+        "name": "mcp__hypertest__hypertest_get_task",
+        "is_error": false,
+        "source_matches": true,
+        "idempotency_key": "dsh-mx-case-session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac",
+        "returned_task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "returned_version": 3,
+        "case_fixture_matches": false,
+        "explicit_task_fail": false
+      }
+    ],
+    "plan_bytes_match": true,
+    "plan_sha256": "a18f2aafe5c87fba6a81d05227090544d5721ab09dea56ac1c1e497ed969d200",
+    "official_filesystem_guard_retained": true,
+    "first_write_before_read_claimed": false,
+    "history_marker_proof": {
+      "separate_preserved_real_resume_attempt": 4,
+      "pid": 21441,
+      "first_tool_write_argument_contains_original_marker": true,
+      "new_prompt_contains_marker": false,
+      "argument_content_sha256": "a18f2aafe5c87fba6a81d05227090544d5721ab09dea56ac1c1e497ed969d200",
+      "write_failed": true,
+      "scope": "Restored-history continuity proof only. Final accepted file replacement uses official read-before-overwrite."
+    }
+  },
+  "domain_artifacts": {
+    "fixture_scope": "Explicit approved synthetic management data; reported FAIL is not an observed SUT test failure",
+    "case": {
+      "all_complete_fields_match": true,
+      "fixture": {
+        "key": "DSH-MGMT-FAIL-01",
+        "title": "Synthetic management FAIL fixture; no SUT",
+        "steps": [
+          "Preserve the approved structured fixture through native MCP synchronization"
+        ],
+        "expected": "Persist the complete approved case fields without interpreting execution",
+        "actual": "Approved synthetic FAIL value for sync preservation; SUT was not executed.",
+        "reported_result": "FAIL",
+        "implementation_ref": null
+      },
+      "revision_after_resume": 1
+    },
+    "report": {
+      "key": "DSH-MX-RAW-01",
+      "kind": "TEST_REPORT",
+      "original_utf8_bytes": 339,
+      "markdown_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80",
+      "reported_result": "FAIL",
+      "revision_before_resume": 1,
+      "revision_after_resume": 1,
+      "source_ref": "local-artifact:raw-report.md",
+      "exact_original_bytes_preserved": true
+    },
+    "task_status": "IN_PROGRESS",
+    "task_reported_result": "FAIL",
+    "task_FAIL_was_an_explicit_real_MCP_intent": true,
+    "automatic_plan_update_preserved_case_actual_and_case_report_task_FAIL": true
+  },
+  "accepted_versions_and_readback": {
+    "status": "ACK_AND_FIXED_VERSION_FULL_READBACK",
+    "every_original_key_queried": true,
+    "ipc_and_independent_typed_GET_match": true,
+    "historical_v1_v2_v3_bytes_unchanged_after_resume": true,
+    "page_limit": 512,
+    "versions": [
+      {
+        "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "version": 1,
+        "key": "hook-60114195ea6f42a5bfccc914cc9ab082",
+        "expected_version": 0,
+        "journal_state": "READBACK_COMPLETE",
+        "document_sha256": "01c93eb2321407c4d8095df0509632204a21f7d0b4bbf8e535293a1142390317",
+        "ipc_pages": 3,
+        "direct_pages": 3,
+        "task_reported_result": "NOT_RUN",
+        "case_count": 0,
+        "report_count": 0,
+        "case_revision": null,
+        "report_revision": null,
+        "raw_report_sha256": null
+      },
+      {
+        "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "version": 2,
+        "key": "hook-a8d547ce326b4bca9379581c693fad97",
+        "expected_version": 1,
+        "journal_state": "READBACK_COMPLETE",
+        "document_sha256": "d6aefe7e1564a8f83a1fe93e0460f4729d4763d5ec6e1d74246af73d7c58a916",
+        "ipc_pages": 4,
+        "direct_pages": 4,
+        "task_reported_result": "NOT_RUN",
+        "case_count": 0,
+        "report_count": 1,
+        "case_revision": null,
+        "report_revision": 1,
+        "raw_report_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80"
+      },
+      {
+        "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "version": 3,
+        "key": "dsh-mx-case-session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac",
+        "expected_version": 2,
+        "journal_state": "READBACK_COMPLETE",
+        "document_sha256": "19d459c03e653306a41125b6540c084742fc305888a7286645e55dac0e4ec3d9",
+        "ipc_pages": 5,
+        "direct_pages": 5,
+        "task_reported_result": "FAIL",
+        "case_count": 1,
+        "report_count": 1,
+        "case_revision": 1,
+        "report_revision": 1,
+        "raw_report_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80"
+      },
+      {
+        "task_id": "01a166b3-7569-7930-a7b4-09f1b148fa4b",
+        "version": 4,
+        "key": "hook-a975d2b2779b4ce687f6c8097b62a1c1",
+        "expected_version": 3,
+        "journal_state": "READBACK_COMPLETE",
+        "document_sha256": "4799982cea821ddcb4b47413eb9e9d3e10cbaedf408106e4994bbef543eeb03f",
+        "ipc_pages": 5,
+        "direct_pages": 5,
+        "task_reported_result": "FAIL",
+        "case_count": 1,
+        "report_count": 1,
+        "case_revision": 1,
+        "report_revision": 1,
+        "raw_report_sha256": "4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80"
+      }
+    ],
+    "latest_version": 4
+  },
+  "child_boundary": {
+    "session_id": "session-479fe038-1296-42ee-a9c9-f0cad85c64be",
+    "parent_session_id": "session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac",
+    "registry_owned_by_parent": true,
+    "child_in_roots": false,
+    "native_event_observed": true,
+    "native_root_at_start": false,
+    "native_parent_matches": true,
+    "model_request_count": 0,
+    "lookup_http_status": 404,
+    "child_binding_present": false,
+    "child_task_created": false,
+    "child_platform_writer": false
+  },
+  "probe_corrections_and_preserved_failures": {
+    "original_headless_observation_sha256": "b3988f2d533d90b355e6686090ef8b3d6da2bada8218aacb7aaa7aa9b1118821",
+    "original_headless_probe_status": "INCOMPLETE",
+    "headless_qualification_correction": {
+      "original_process_observation_sha256": "b3988f2d533d90b355e6686090ef8b3d6da2bada8218aacb7aaa7aa9b1118821",
+      "original_probe_status": "INCOMPLETE",
+      "reason": "Private probe incorrectly expected create; fixed official createAgent publishes startup at dsh-agent-loop/lib/index.js:1834. No native event or product source changed.",
+      "official_fresh_source": "startup"
+    },
+    "headless_was_not_rerun": true,
+    "resume_failed_attempts": [
+      {
+        "attempt": 1,
+        "process_observation_sha256": "ab693b4e8f7407c74bffe768555ffa87bde603dca8a27ad5a7d3a65d031f617b",
+        "driver_observation_sha256": "4267231d6a7c96097eae33abf35bb47b5419271033f9f9d7f0291ffe053c0bd0",
+        "observer_sha256": "f076db594dfc8a1f5ec12075c1ca1b741192ab6a8cde7f9378c5f444fc41d204",
+        "runtime_exit_code": 1,
+        "pid": 17861,
+        "status": "INCOMPLETE_PRESERVED",
+        "native_root_event_count": 0,
+        "create_fallback": false,
+        "stage": "NOT_CAPTURED",
+        "observed_error_type": "NOT_CAPTURED",
+        "reason": "Private setup callback implicitly returned a disposer; fixed glue uses the official void setup contract. No new prompt was submitted."
+      },
+      {
+        "attempt": 2,
+        "process_observation_sha256": "414e0cc17cf649d2c17a1a1af486f44ff2776b3eff4d69c4845773fcbf486778",
+        "driver_observation_sha256": "f9e7f77b2abc00fe1dcfd77e4fdb7efa2151fcc49c79451e3fb232e8922a2ac7",
+        "observer_sha256": "508fe607eb6eab5ffbd18b61dff99dafc9b34e50362030fb9321ab2a5f31f2dd",
+        "runtime_exit_code": 1,
+        "pid": 19045,
+        "status": "INCOMPLETE_PRESERVED",
+        "native_root_event_count": 0,
+        "create_fallback": false,
+        "stage": "REGISTRY_RESUME",
+        "observed_error_type": "TypeError",
+        "reason": "Private setup callback implicitly returned a disposer; fixed glue uses the official void setup contract. No new prompt was submitted."
+      },
+      {
+        "attempt": 3,
+        "process_observation_sha256": "c6a1db5f68bfc357736299562fb0f16f4cbc628cd4ae6972bb391d740bb97633",
+        "driver_observation_sha256": "08b3aaaeb9fad026f64d1e565c08dafc3d117762e32fe7fb66b0afec7c13c1e4",
+        "observer_sha256": "5562e1371859c94827ea43730a3b655b500cef0f7a048b73e4dd37eec7ce6be9",
+        "runtime_exit_code": 0,
+        "pid": 19593,
+        "status": "INCOMPLETE_PRESERVED",
+        "native_root_event_count": 1,
+        "create_fallback": false,
+        "native_source": "resume",
+        "restored_session_seq": 40,
+        "final_session_seq": 65,
+        "tool_name": "write",
+        "tool_is_error": true,
+        "observed_error_classification": "NOT_CAPTURED",
+        "observed_error_code": "NOT_CAPTURED",
+        "content_sha256": "a18f2aafe5c87fba6a81d05227090544d5721ab09dea56ac1c1e497ed969d200",
+        "task_version_observed": 3,
+        "root_cause": "NOT_ESTABLISHED_FROM_THE_CAPTURED_ERROR",
+        "static_run_spec_basis": "The fixed official filesystem guards require read-before-overwrite for a new live Agent. This is the revision basis, not a retrospectively observed error code.",
+        "observer_mapping_valid": false,
+        "observer_issue": "Cordis overlay replaces the whole config; missing mapping fields were corrected without changing the product."
+      },
+      {
+        "attempt": 4,
+        "process_observation_sha256": "7fd66a1dce29c55823ec94680d8b3f9864454878211f1a7cb2cd8f0f02504a22",
+        "driver_observation_sha256": "2685edcb05d6690c167f66c95835534a1413150e149008ad113aeec66be3037e",
+        "observer_sha256": "b798b3e9028f089753503985b3c6f6cf449c54a13c6d9411c25687ed8538a944",
+        "runtime_exit_code": 0,
+        "pid": 21441,
+        "status": "INCOMPLETE_PRESERVED",
+        "native_root_event_count": 1,
+        "create_fallback": false,
+        "native_source": "resume",
+        "restored_session_seq": 66,
+        "final_session_seq": 88,
+        "tool_name": "write",
+        "tool_is_error": true,
+        "observed_error_classification": "UNCLASSIFIED",
+        "observed_error_code": "NOT_CAPTURED",
+        "content_sha256": "a18f2aafe5c87fba6a81d05227090544d5721ab09dea56ac1c1e497ed969d200",
+        "task_version_observed": 3,
+        "root_cause": "NOT_ESTABLISHED_FROM_THE_CAPTURED_ERROR",
+        "static_run_spec_basis": "The fixed official filesystem guards require read-before-overwrite for a new live Agent. This is the revision basis, not a retrospectively observed error code.",
+        "observer_mapping_valid": true,
+        "approved_target_match": true,
+        "marker_present_before_any_read": true,
+        "resume_prompt_contains_marker": false
+      }
+    ],
+    "readback_probe_cleanup_correction": "First successful readback assertions were followed by private helper closing httpx on a new event loop. The helper was corrected to close on its original loop; verification repeated GET only and exited 0. No model or write was repeated for this correction.",
+    "no_failed_native_observation_overwritten": true
+  },
+  "final_state": {
+    "status": "PASS",
+    "formal_wheel_sha256": "a226e64a64f9c93a705e0139c0218f61cd804a3a562225d5bdbdf44984bf41d3",
+    "installed_members_matched": 36,
+    "root_adapter_sha256": "c54d40f507cf8c9dc43eaf8bf0b6ebe89d8de21582d07f19ff36783db588ef97",
+    "runtime_source_drift": false,
+    "journal_states": {
+      "READBACK_COMPLETE": 4
+    },
+    "pending_event_count": 0,
+    "root_binding_count": 1,
+    "daemon_running": false,
+    "synchronized_source_provider": "deepseek_harness",
+    "model_credentials_copied": false,
+    "product_source_changed": false,
+    "socket_bytes_including_nul": 71,
+    "socket_path_checked_from_loaded_client_config": true,
+    "former_daemon_pid_alive": false
+  },
+  "unknown_recovery": {
+    "status": "NOT_EXERCISED",
+    "new_fault_injection_performed": false,
+    "coverage_not_expanded": true,
+    "rule": "Natural SENT/UNKNOWN/lost response uses original-key GET only; NOT_FOUND never authorizes POST, replacement key, Task or identity."
+  },
+  "privacy_and_scope": {
+    "raw_chat_reasoning_or_tool_payload_persisted_by_probe": false,
+    "model_stdout_stderr_discarded": true,
+    "synchronization_only_selected_approved_artifacts": true,
+    "sut_shell_web_external_delegation_executed": false,
+    "model_requests_for_registry_child": 0,
+    "platform_source_or_authentication_contract_changed": false
+  },
+  "private_evidence_sha256": {
+    "acceptance-plan-v1-approved.md": "095a2e190de45dd609421159edceded788b71c7337a870d440e8bdc07a91e1b6",
+    "acceptance-plan-v2-official-fs-guard.md": "46264e3bf5e024df7296926def9bf25b163b212da6928768554e0a92b288d1eb",
+    "native-capability-preflight.json": "5ef343877aabe3ee75a73e4f8e79f45135b113fee58a150683ce499835983010",
+    "native-persistence-backend-preflight.json": "ab1edefddc3c95ee49a0029ece7464de9ce4c43218db250dfa33354819189079",
+    "run-preflight/source-proof.json": "c05bdb248830387e2f13ac6335194bf288b708bf73d56a52c962ad53b0ab5877",
+    "run-preflight/preflight-observation.json": "ba27376f17d3892a3f534851bdc44357857c1fcfdf3ed092000825321441182c",
+    "run-preflight/daemon-origin-observation.json": "9a546e2421a74ddfaa67939f216161a0e298d6b890ec9ed8b87b344d91e989a0",
+    "run-headless/process-observation.json": "b3988f2d533d90b355e6686090ef8b3d6da2bada8218aacb7aaa7aa9b1118821",
+    "run-headless/process-observation-qualified.json": "499a734b3b977fc793d34fc55fec7df3961107d9bc9f771651b4bc18a2360293",
+    "run-headless/observer.json": "42dfac3fc464556122f956b4efa528a9461dd98b4876ea282ed1a1a4f9e50004",
+    "run-headless/fixed-readback-observations.json": "246169826fec73dccbb3f4ed93da29d75fb44897013b37109753965da7b64dda",
+    "run-resume/process-observation.json": "e404a9fa87fd76bb0f920134b5771583129268cfc9944a7b79b5e87e95afdfcb",
+    "run-resume/driver-observation.json": "bbe9f5b6b572aa936721c813ff8402cfd720b07f82836ca46ca1a587c062a4ff",
+    "run-resume/observer.json": "4cdc9c7cfda775aa24eb07ec23d2096e3694d685b8a4949c52d3a269f2d8ddef",
+    "run-resume/fixed-readback-observations.json": "25f7647d19f75307bd9068ee28189533b4199458544151c7442e298533bee99d",
+    "final-source-and-state-proof.json": "ee1520173dad6d95f9dacf8f3bd9661136ac1acb90cf75815bdad939667452da",
+    "run-resume-attempt1/process-observation.json": "ab693b4e8f7407c74bffe768555ffa87bde603dca8a27ad5a7d3a65d031f617b",
+    "run-resume-attempt1/driver-observation.json": "4267231d6a7c96097eae33abf35bb47b5419271033f9f9d7f0291ffe053c0bd0",
+    "run-resume-attempt1/observer.json": "f076db594dfc8a1f5ec12075c1ca1b741192ab6a8cde7f9378c5f444fc41d204",
+    "run-resume-attempt2/process-observation.json": "414e0cc17cf649d2c17a1a1af486f44ff2776b3eff4d69c4845773fcbf486778",
+    "run-resume-attempt2/driver-observation.json": "f9e7f77b2abc00fe1dcfd77e4fdb7efa2151fcc49c79451e3fb232e8922a2ac7",
+    "run-resume-attempt2/observer.json": "508fe607eb6eab5ffbd18b61dff99dafc9b34e50362030fb9321ab2a5f31f2dd",
+    "run-resume-attempt3/process-observation.json": "c6a1db5f68bfc357736299562fb0f16f4cbc628cd4ae6972bb391d740bb97633",
+    "run-resume-attempt3/driver-observation.json": "08b3aaaeb9fad026f64d1e565c08dafc3d117762e32fe7fb66b0afec7c13c1e4",
+    "run-resume-attempt3/observer.json": "5562e1371859c94827ea43730a3b655b500cef0f7a048b73e4dd37eec7ce6be9",
+    "run-resume-attempt4/process-observation.json": "7fd66a1dce29c55823ec94680d8b3f9864454878211f1a7cb2cd8f0f02504a22",
+    "run-resume-attempt4/driver-observation.json": "2685edcb05d6690c167f66c95835534a1413150e149008ad113aeec66be3037e",
+    "run-resume-attempt4/observer.json": "b798b3e9028f089753503985b3c6f6cf449c54a13c6d9411c25687ed8538a944"
+  },
+  "historical_refs": [
+    "deepseek-native-20261022-r5.json",
+    "deepseek-native-20261022.json",
+    "local-v0.1.0-publication.json"
+  ],
+  "limitations": [
+    "Only fixed Darwin arm64 CPython 3.13 / CLI 0.1.5-rc.1 and components 0.1.5-rc.2 were accepted.",
+    "Resume is official Registry API through a private reviewed bounded driver, not an existing headless CLI flag or SDK wire method. No installable general resume CLI was added.",
+    "Native turn-stopping events were observed; product Stop handler invocation counts were not independently instrumented.",
+    "Fixture FAIL and synchronization acceptance do not establish SUT execution, a product defect, canonical VERIFIED Evidence, task completion or RELEASE_READY.",
+    "UNKNOWN was not naturally encountered; no new active-fault UNKNOWN coverage is claimed.",
+    "The four preserved incomplete resume attempts are not rewritten as successes; actual filesystem failure codes were not captured and are not inferred retrospectively."
+  ]
+}

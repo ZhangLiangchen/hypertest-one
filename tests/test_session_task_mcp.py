@@ -260,3 +260,67 @@ async def test_official_mcp_sdk_exposes_management_tools_without_binding(managem
         result = await client.call_tool("hypertest_sync_task", payload())
         assert result.structuredContent["status"] == "ACCEPTED" and not result.isError
     assert [call[1] for call in api.calls] == ["interactive/tasks/sync"]
+
+
+@pytest.mark.parametrize("host", [None, "codex", "deepseek-harness", "claude-code"])
+async def test_local_claude_advertises_compatible_schema_without_mutating_authority(management, host):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    from hypertest.api.task_schemas import GET_TASK_SCHEMA
+    from hypertest.interactive_client.mcp_server import create_server
+
+    _, api, _, service = management
+
+    class LocalBoundary:
+        async def exchange(self, operation, data):
+            if operation == "list":
+                return {"tools": await service.tools()}
+            return await service.call(data["name"], data["arguments"])
+
+    authoritative = deepcopy(await service.tools())
+    platform_schema_bytes = json.dumps(GET_TASK_SCHEMA, sort_keys=True).encode()
+    async with create_connected_server_and_client_session(
+            create_server(LocalBoundary(), local_host=host)) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+        schema = tools["hypertest_get_task"].inputSchema
+        if host == "claude-code":
+            assert not {"oneOf", "anyOf", "allOf"} & schema.keys()
+            description = tools["hypertest_get_task"].description
+            assert "exactly one selector" in description and "offset is greater than zero" in description
+            args = {"project_id": str(uuid4()), "provider": "claude_code", "session_id": "native-parent"}
+            result = await client.call_tool("hypertest_get_task", args)
+            assert not result.isError and result.structuredContent["version"] == 1
+            assert api.calls == [("GET", "interactive/tasks/by-session", {"params": args})]
+        else:
+            assert "oneOf" in schema and "allOf" in schema
+            assert not api.calls
+    assert await service.tools() == authoritative
+    assert json.dumps(GET_TASK_SCHEMA, sort_keys=True).encode() == platform_schema_bytes
+
+
+@pytest.mark.parametrize("selector", [
+    {}, {"provider": "claude_code"},
+    {"provider": "claude_code", "session_id": "native-parent", "idempotency_key": "original"},
+    {"idempotency_key": "original", "version": 1},
+    {"idempotency_key": "original", "offset": 0},
+    {"idempotency_key": "original", "limit": 10},
+    {"provider": "claude_code", "session_id": "native-parent", "offset": 1},
+])
+async def test_local_claude_projection_still_rejects_invalid_selectors_before_api(management, selector):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    from hypertest.interactive_client.mcp_server import create_server
+
+    _, api, _, service = management
+
+    class LocalBoundary:
+        async def exchange(self, operation, data):
+            if operation == "list":
+                return {"tools": await service.tools()}
+            return await service.call(data["name"], data["arguments"])
+
+    async with create_connected_server_and_client_session(
+            create_server(LocalBoundary(), local_host="claude-code")) as client:
+        result = await client.call_tool("hypertest_get_task", {"project_id": str(uuid4()), **selector})
+        assert result.isError and result.content[0].text == "INVALID_TOOL_ARGUMENTS"
+    assert not api.calls
