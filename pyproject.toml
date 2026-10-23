@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+native = [
+  "httpx>=0.28,<1.0",
+]
 interactive = [
   "mcp>=1.28,<2",
   "httpx>=0.28,<1.0",
@@ -30,6 +33,7 @@ dev = [
 
 [project.scripts]
 hypertest-interactive = "hypertest.interactive_client.__main__:main"
+hypertest-native = "hypertest.native_client:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -34,6 +34,53 @@ def host_identity(proof: dict) -> dict:
     return {key: value for key, value in proof.items() if key not in {"observed_at", "lifecycle"}}
 
 
+def validate_sync_receipt(result: dict, key: str, expected_version: int | None = None,
+                          prior_task_id: str | None = None, identity: dict | None = None) -> None:
+    """A JSON object alone is insufficient to acknowledge this management write."""
+    try:
+        task_id = str(UUID(result["task_id"]))
+        project_id = str(UUID(result["project_id"]))
+        version = result["version"]
+        identity = identity or {}
+        valid = (result.get("status") == "ACCEPTED" and result.get("idempotency_key") == key
+                 and result.get("profile") == "codex-session-task-sync/v1alpha1"
+                 and result.get("source") == "AGENT_REPORTED"
+                 and type(version) is int and version > 0
+                 and isinstance(result.get("provider"), str) and bool(result["provider"])
+                 and isinstance(result.get("session_id"), str) and bool(result["session_id"])
+                 and ("project_id" not in identity or project_id == str(UUID(identity["project_id"])))
+                 and all(result.get(field) == identity[field] for field in ("provider", "session_id") if field in identity)
+                 and (expected_version is None or version == expected_version + 1)
+                 and (prior_task_id is None or task_id == str(UUID(prior_task_id))))
+    except (ValueError, TypeError, KeyError, AttributeError):
+        valid = False
+    if not valid:
+        raise ApiError("INVALID_SYNC_RECEIPT")
+
+
+def validate_task_page(result: dict, arguments: dict) -> None:
+    """Bound a current/versioned JSON read without truncating report content."""
+    try:
+        UUID(result["task_id"])
+        offset, total, version = result["offset"], result["total_chars"], result["version"]
+        content, following = result["content"], result["next_offset"]
+        valid = (type(version) is int and version > 0
+                 and ("version" not in arguments or version == arguments["version"])
+                 and type(offset) is int and offset == arguments.get("offset", 0)
+                 and type(total) is int and total >= offset
+                 and isinstance(content, str) and 0 < len(content) <= min(arguments.get("limit", 24000), 24000)
+                 and offset + len(content) <= total
+                 and type(result["complete"]) is bool
+                 and result["complete"] == (offset + len(content) == total)
+                 and ((following is None and result["complete"])
+                      or (type(following) is int and following == offset + len(content) and not result["complete"]))
+                 and result.get("format") == "application/json" and result.get("source") == "AGENT_REPORTED")
+    except (ValueError, TypeError, KeyError, AttributeError):
+        valid = False
+    if not valid:
+        raise ClientError("INVALID_TASK_PAGE")
+
+
 class InteractiveService:
     def __init__(self, config: ClientConfig, api: ApiClient, journal: Journal,
                  host_adapter: HostAdapter):
@@ -74,6 +121,41 @@ class InteractiveService:
             jsonschema.validate(arguments, spec["inputSchema"])
         except (jsonschema.ValidationError, jsonschema.SchemaError) as exc:
             raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
+        if name == "hypertest_sync_task":
+            payload = dict(arguments)
+            payload.setdefault("provider", "codex")
+            lookup = {"project_id": payload["project_id"], "idempotency_key": payload["idempotency_key"]}
+            # Reports live on the platform. Keep only lookup identity plus the
+            # complete-request digest in this bounded local transport journal.
+            compact = {**lookup, "provider": payload["provider"], "session_id": payload["session_id"],
+                       "expected_version": payload["expected_version"]}
+            return public(await self._write(
+                "session-task:" + payload["project_id"], payload["idempotency_key"], payload,
+                "interactive/tasks/sync", "interactive/tasks/syncs/by-key",
+                lookup, identity=payload, journal_payload=compact,
+                receipt_validator=lambda result, intent: validate_sync_receipt(
+                    result, payload["idempotency_key"], payload["expected_version"],
+                    (intent.get("result") or {}).get("task_id"), payload),
+            ))
+        if name == "hypertest_get_task":
+            if "idempotency_key" in arguments:
+                kind, key = "session-task:" + arguments["project_id"], arguments["idempotency_key"]
+                intent = self.journal.get(kind, key)
+                try:
+                    result = await self.api.request("GET", "interactive/tasks/syncs/by-key", params=arguments)
+                    validate_sync_receipt(result, key,
+                                          intent["payload"].get("expected_version") if intent else None,
+                                          (intent.get("result") or {}).get("task_id") if intent else None,
+                                          intent["payload"] if intent else arguments)
+                except ApiError as exc:
+                    if intent:
+                        self.journal.mark(kind, key, "UNKNOWN", intent.get("result"))
+                    return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
+                self._observe(kind, key, result)
+            else:
+                result = await self.api.request("GET", "interactive/tasks/by-session", params=arguments)
+                validate_task_page(result, arguments)
+            return public(result)
         if name == "hypertest_submit_task":
             payload = dict(arguments)
             return public(await self._write("submission:" + payload["project_id"], payload["submission_key"], payload,
@@ -112,21 +194,30 @@ class InteractiveService:
 
     async def _write(self, kind: str, key: str, payload: dict, path: str,
                      query_path: str, query: dict, *, device=False, token=None,
-                     identity: dict | None = None, request_key: str | None = None) -> dict:
-        intent = self.journal.intent(kind, key, payload, identity=identity)
+                     identity: dict | None = None, request_key: str | None = None,
+                     journal_payload: dict | None = None, receipt_validator=None) -> dict:
+        intent = self.journal.intent(kind, key, journal_payload if journal_payload is not None else payload,
+                                     identity=identity)
         if intent["state"] != "PENDING":
             try:
                 result = await self.api.request("GET", query_path, params=query)
+                if receipt_validator is not None:
+                    receipt_validator(result, intent)
                 self._observe(kind, key, result)
                 return public(result)
             except ApiError as exc:
                 # NOT_FOUND is not evidence that the original POST did not run.
+                if receipt_validator is not None:
+                    self.journal.mark(kind, key, "UNKNOWN", intent.get("result"))
                 return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
         self.journal.mark(kind, key, "SENT")
         try:
-            result = await self.api.request("POST", path, payload=intent["payload"],
+            result = await self.api.request("POST", path,
+                                            payload=payload if journal_payload is not None else intent["payload"],
                                             device=device, execution_token=token,
                                             request_key=request_key)
+            if receipt_validator is not None:
+                receipt_validator(result, intent)
         except ApiError as exc:
             if 400 <= exc.status < 500 and exc.status != 408:
                 self.journal.mark(kind, key, "REJECTED", {"code": exc.code})

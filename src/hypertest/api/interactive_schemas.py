@@ -21,7 +21,7 @@ class RegisterIntegration(StrictInput):
     actor_ref: str = Field(min_length=1, max_length=128, pattern=r"\S")
     client_instance_id: UUID
     project_id: UUID
-    scopes: list[str] = Field(min_length=1, max_length=5)
+    scopes: list[str] = Field(min_length=1, max_length=6)
     expires_in_days: int = Field(default=30, ge=1, le=90)
 
     @field_validator("scopes")

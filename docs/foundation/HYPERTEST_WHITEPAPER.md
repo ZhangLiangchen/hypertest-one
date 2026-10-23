@@ -1,9 +1,15 @@
 # HyperTest 白皮书
 
-**版本：v1.4**
+**版本：v1.6（Codex 会话任务管理；保留 v1.4 产品职责纠偏）**
 **产品职责修订：2026-10-20，依据项目负责人明确的功能分层**
 **定位：Agent-native Autonomous Testing Platform**
 **架构角色：Autonomous Testing Control Plane**
+
+### 当前阶段：Codex 测试任务与产物管理（ADR-018 优先）
+
+**一个 Codex 会话对应一个测试任务。Codex 将生成的任务、计划、用例、原始测试报告及 reported result 同步到 HyperTest One；HyperTest 本身不承担测试执行。**
+当前优先交付持久管理与查询，不以执行材料准入、平台 Runner、独立 CI 证明或 Gate 为保存报告的前提。平台显示提交者报告的 PASS/FAIL 等及其来源；它们不自动成为正式发布判定，也不因没有平台执行而被强制改成 UNKNOWN。
+[ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md)明确共享 Project 的 SessionTask、用例/报告修订、幂等同步与旧版本保护；优先于下文对当前新入口的宽泛治理要求。ADR-017 与旧受管 Harness/Runner 的实现和历史结论继续保留，不作为本阶段同步的依赖。生产部署不包含在默认开发范围中。
 
 > **HyperTest One 管理测试项目、下发测试任务、记录测试结论。**
 > **Agent 执行测试分析、测试设计、测试实现，并调用被测对象已有的测试框架执行测试。**
@@ -12,10 +18,14 @@ HyperTest 持久管理计划、用例、执行记录、证据、缺陷与结论�
 会话中的质量保障工作串联起来。测试框架、测试环境与既有 CI 属于被测项目的工具链；
 HyperTest 不承担测试执行框架或通用执行引擎的产品职责。
 
-### 本次修订与现有实现的边界
+### v1.5 最小迁移决定与实施边界
 
-本次只修正白皮书的产品方向和架构职责，并提供[新 Mac 开发交接 Prompt](../handoffs/MAC_NATIVE_TEST_FRAMEWORK_HANDOFF_20261020.md)。
-**原生测试框架接入、跨会话接续及新的执行结果契约尚未实现。**
+[ADR-017](../architecture/ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)已根据本机真实 Blockchain / XBlock 原生入口接受最小治理切片，并同步技术架构 / TMP / 领域规范 v0.7 与 AGENTS。新 `native-framework-intake/v1alpha1` 保留 PostgreSQL、Proposal / Verifier / Gate，独立登记计划、用例、执行材料、保守结论及显式贡献者交接，不把旧 Runner 扩为 backend 矩阵。XBlock 17 项组件断言与 Blockchain 60 项 JUnit 断言的[原始结果](../acceptance/native-framework-20261021/NATIVE_RESULTS.json)已经取得；本地材料来源仍 UNVERIFIED，不产生正式 native PASS / RELEASE_READY。Web/MCP、独立可信 CI 核验、真实 Provider 会话交接和生产发布没有由此完成。
+
+下面记录 v1.4 于 2026-10-20 修订时的历史边界；其中“尚未实现 / 后续 ADR”是该时点的状态，不抹去 ADR-017 新切片，也不把目标能力全部宣称已交付。
+
+v1.4 当轮只修正白皮书的产品方向和架构职责，并提供[新 Mac 开发交接 Prompt](../handoffs/MAC_NATIVE_TEST_FRAMEWORK_HANDOFF_20261020.md)。
+**v1.4 修订时原生测试框架接入、跨会话接续及新的执行结果契约尚未实现。** ADR-017 随后定义的最小材料接入与贡献者交接不等于完整可信执行 / 原生会话接力已完成。
 [技术架构](../architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)、[TMP](../protocol/TEST_MISSION_PROTOCOL.md)、
 [领域模型](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)、`AGENTS.md`、代码及 schema
 仍包含旧 Runner / 单主会话约束。后续核心变更必须先用新的 ADR 明确替代范围，并在同一变更中
@@ -97,7 +107,7 @@ HyperTest 的核心链路为：
 - HyperTest 管理测试计划、用例及覆盖关系，发布目标、范围、约束和验收要求，记录任务进度、执行出处与结论。Agent 完成分析、设计、实现、框架调用和失败诊断。
 - 测试代码优先留在被测项目自己的测试资产中，遵守该项目已有框架、fixtures、配置与启动方式。平台记录实现引用和版本，不把所有项目统一成平台指定的测试文件或语言。
 - 同一 Agent 会话可以连续完成任务，也可以由不同会话经过明确交接依次贡献。任务和测试资产的连续性由平台状态保障，原生聊天会话不再是产品层面的唯一连续性载体。
-- 接力必须关联原任务、输入、已接受产物、未决操作及贡献者，明确当前写入责任，隔离已失效授权。这个目标不意味着允许并发多写者，也不改变现有库中的单主会话约束；具体迁移需后续 ADR / 领域规范落实。
+- 接力必须关联原任务、输入、已接受产物、未决操作及贡献者，明确当前写入责任，隔离已失效授权。ADR-017 新 native profile 以私有 writer capability 与 generation 支持显式顺序贡献者交接；现有受管 Run 的单主会话约束和真实 Provider 身份保持原语义，不允许并发多写者。
 - 关键歧义、权限与外部副作用通过明确授权和持久问答处理。缺陷可关联项目既有问题单流程，提单不自动成为缺陷确认或质量结论。
 
 “本地 / 云端”应清楚说明 Agent、项目测试框架及被测环境的实际位置。Agent 可在拥有项目工具链
@@ -313,7 +323,7 @@ HyperTest 向 Agent 提供测试任务、已有质量状态和验收标准；Age
 交接需保留贡献者、输入、已接受结果、未决副作用和当前写入责任，不能冒用旧会话或重发未知操作。
 
 ADR-013 的单持续主会话和 ADR-016 的当前会话绑定属于现有实现约束。其历史继续保留；
-解除这些约束需要协议和领域迁移，不因本节目标描述而自动发生。
+ADR-017 新 profile 独立定义材料接入 / 贡献者交接，旧约束及原生会话身份不被回写或静默解除。
 
 ---
 
@@ -329,7 +339,7 @@ Bridge、本地 WSS Connector 和交互式 stdio / HTTPS 各有既有协议与�
 
 本机可用的 Git、模型和问题单授权留在使用它们的节点，不复制到平台镜像或任务上下文。
 设备配对、项目权限、来源采集和问题单操作分别授权；已有登录不意味着任何平台动作都获准。
-新的通用贡献与交接契约需要按真实框架场景设计，不从当前 Codex 适配推定所有 Agent 已支持。
+ADR-017 新贡献与交接契约由真实框架场景约束，不从当前 Codex 适配推定所有 Agent / MCP 已支持。
 
 ---
 
@@ -338,11 +348,11 @@ Bridge、本地 WSS Connector 和交互式 stdio / HTTPS 各有既有协议与�
 TMP 表达 HyperTest 下发什么测试任务，以及 Agent 应提交哪些可验收结果。
 Mission 至少有任务身份、目标、范围、上下文引用、约束、验收标准和输出契约。
 
-任务可以包含测试分析、设计、实现、调用已有框架执行和失败诊断。框架、现有测试入口及
+任务可以包含测试分析、设计、实现、调用已有框架执行和失败诊断。ADR-017 接入契约按真实材料分层验收。框架、现有测试入口及
 产物格式来自 SUT 的实际工具链；平台提供治理约束，不把某种语言或通用 Shell 命令固定为所有任务的语义。
 
 Mission / Attempt 记录一次工作及其验收，不等同于新建或永久绑定一个 Agent 原生会话。
-后续协议需明确领取、顺序交接、幂等回传和迟到结果处理。现有 TMP wire / profile 继续解释
+ADR-017 / TMP v0.7 已明确首版材料接入的领取、顺序贡献交接、幂等回传和迟到写入拒绝；它不证明真实 Provider 会话恢复。现有 TMP wire / profile 继续解释
 已有请求和历史，新契约必须独立版本化并与领域规范一起实现。
 
 ---
@@ -515,7 +525,7 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 
 ## 20. 典型端到端工作流
 
-以下是纠偏后的目标流程，具体原生框架接入和跨会话写入契约尚待实现：
+以下是纠偏后的产品目标流程。ADR-017 已明确首版材料接入与顺序贡献者写入契约；完整语义覆盖、可信原生 CI 与正式 native PASS 仍需独立实现 / 验收：
 
 1. **项目与计划**：用户关联 SUT、需求、确定代码版本及已有框架 / 环境；HyperTest 管理测试计划、范围、用例和验收要求，创建可追溯测试任务。
 2. **任务下发**：HyperTest 经 MCP / API 向获授权的 Agent 提供任务与已有状态。Agent 领取职责、核对实际仓库和工具链；不要求平台先复制仓库或启动自有 Runner。
@@ -555,8 +565,7 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 实际停止、已完成结果和未决操作分别记录。改变需求、代码或测试环境后如何建立新轮次，
 继续依不可变输入和历史语义制定后续规范。
 
-现有 ADR-013～016 的 Job / lease / epoch / native 绑定和恢复约束尚未被本次修改替换。
-在实现新契约前，实际操作必须遵守旧准入并保留历史，不伪造会话来模拟目标接力。
+ADR-013～016 的 Job / lease / epoch / native 绑定继续约束旧 profile。ADR-017 在独立 native 轮次内采用新权限和交接，不把旧记录移入新身份，也不伪造原生会话来模拟接力。
 
 ---
 
@@ -571,8 +580,7 @@ BUGate 保持 Stateless；HyperTest 是 Stateful Runtime。
 统一 Runner 镜像。在线、已配对、命令结束、产物上传和质量通过是不同状态，必须分别表达。
 
 现有页面已经提供服务器 / 本地 Connector 的受管入口和 MCP 安装指引；该表单仍创建受管
-Harness Run。原生框架执行记录、顺序跨会话交接和相应新状态展示没有因本次白皮书修改上线，
-需随后以真实项目验证，不能从现有控件推定完成。
+Harness Run。原生框架材料、顺序贡献者交接和新状态页面没有由白皮书修订自动上线；ADR-017 首版 API / 本机客户端与旧 Web/MCP 分开验收，不能从现有控件推定完成。
 
 ---
 
@@ -597,7 +605,7 @@ Agent 运行在已经具备工程工具链和授权的本地或远端环境，�
 | 当前 Agent MCP | stdio / 私有 daemon / scoped HTTPS / 原 Job typed inbox；受控 Codex Desktop 绑定 |
 | 旧正式执行 | 平台 DockerRunner / Python / pytest、固定受控 API profiles；它是待迁移的旧执行路径 |
 
-本次没有变更任何部署、schema 或权限。后续演进保留现有数据、授权、两种受管模式、
+v1.4 修订当轮没有变更任何部署、schema 或权限。ADR-017 本机增量和验收另行记录，不包含生产发布 / 迁移。后续演进保留现有数据、授权、两种受管模式、
 TLS / SSH / VPN 边界和历史结果；不把旧容器化验证当作新原生框架流程的验收。
 精确镜像与访问状态由[服务器运维材料](../SERVER_OPERATIONS.md)及实际巡检维护。
 
@@ -642,8 +650,7 @@ Git 授权、Provider 凭据与项目秘密留在实际使用环境；文件 has
 证明的是旧路径，不替代真实私有 SUT、项目原生框架或跨会话接力验收。
 MCP 发行与安装验证也不证明这些目标已经完成。
 
-本轮只更新白皮书和交接材料。下一轮先记录新 ADR，同步技术架构、TMP、领域模型和
-Agent 指导中的冲突规则，再实现最小必要改动；具体框架、入口、报告和环境以新 Mac 实际盘点为准。
+v1.4 当轮只更新白皮书和交接材料。ADR-017 现已按新 Mac 真实盘点记录决定并同步技术架构、TMP、领域模型和 Agent 指导；代码及实际平台接入验收另行记录，不能把本机框架断言通过等同平台可信质量结论。
 
 ---
 
@@ -688,8 +695,7 @@ HyperTest 下发和管理 Testing Mission：测试分析、测试设计、测试
 Agent 决定工程方法并调用已有工具完成工作。
 
 一个任务可以由同一会话持续推进，也可以经过明确交接顺序接力。质量状态由持久领域资产
-承载，不依赖某个 Provider 对话永久在线。既有单主会话实现仍按原规范运行，
-其迁移不能通过伪造会话、修改旧绑定或丢弃历史完成。
+承载，不依赖某个 Provider 对话永久在线。既有单主会话实现仍按原 profile 运行；新 native 任务的贡献者交接按 ADR-017 执行，不通过伪造会话、修改旧绑定或丢弃历史迁移。
 
 > **HyperTest manages testing missions; Agents perform the testing work.**
 
