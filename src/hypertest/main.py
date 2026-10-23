@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from hypertest.api.cloud_routes import router as cloud_router
 from hypertest.api.connector_routes import router as connector_router
 from hypertest.api.delivery_routes import router as delivery_router
 from hypertest.api.harness_routes import router as harness_router
@@ -52,3 +53,4 @@ app.include_router(interactive_router, prefix=settings.api_prefix)
 
 app.include_router(native_router, prefix=settings.api_prefix)
 app.include_router(task_router, prefix=settings.api_prefix)
+app.include_router(cloud_router, prefix=settings.api_prefix)

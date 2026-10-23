@@ -8,6 +8,10 @@ PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上
 Codex 会话中的测试任务、计划、用例和原始报告可通过 [Session Task MCP 同步](docs/CODEX_SESSION_TASK_SYNC.md)保存到 HyperTest One。一个实际会话对应一个任务；Agent 使用被测项目已有框架执行测试，平台负责管理、读取和版本历史。该入口使用独立 `task:sync` 授权，保留已有受管执行路径与历史。
 
 
+## Cloud SDK + Codex 集成候选（默认关闭）
+
+Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。最终合并树、统一 Web 入口与测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；默认关闭。 两种模式共享 Project，但保留各自任务、授权和历史；Local 发行与已上线入口不变。完整六步、环境路由、分阶段交付与原件限制见[Cloud 实现状态](docs/CLOUD_IMPLEMENTATION_STATUS.md)和[实施计划](docs/CLOUD_TEST_IMPLEMENTATION_PLAN.md)。
+
 > **One Input. One Mission. One Complete Test Cycle.**
 
 HyperTest One is an autonomous testing control plane with a state-centered Web workbench. It governs the complete supported testing cycle:

@@ -558,6 +558,7 @@ class OutboxEvent(Base):
 
 
 # Register the remaining canonical chain on the shared declarative metadata.
+from hypertest.domain import cloud_tasks as cloud_task_models  # noqa: E402, F401
 from hypertest.domain import native as native_models  # noqa: E402, F401
 from hypertest.domain import session_tasks as session_task_models  # noqa: E402, F401
 from hypertest.domain.activity import MissionActivityEvent  # noqa: E402, F401

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Forced command only. Render fixed operator paths; never accept shell arguments.
+exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 \
+  PYTHONPATH=@HELPER_SOURCE_ROOT@ PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -m hypertest.cloud.ssh_remote serve \
+  --catalog /opt/hypertest-ssh/catalog.json \
+  --state-root @STATE_ROOT@ --runtime-directory /run/user/@FIXTURE_UID@

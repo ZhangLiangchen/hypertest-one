@@ -1,0 +1,50 @@
+# PREPARATION ONLY: render and review every @...@ value. Not installed or accepted.
+# No [Install], no automatic enable/restart; do not replace existing platform units.
+[Unit]
+Description=HyperTest dedicated Cloud Worker (explicit deployment required)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hypertest-cloud
+Group=hypertest-cloud
+UMask=0077
+RootDirectory=@ROOTFS_HOST@
+WorkingDirectory=/opt/hypertest-cloud
+EnvironmentFile=@CLOUD_ENV_HOST@
+Environment=PATH=/opt/hypertest-cloud/venv/bin:/usr/local/bin:/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 TMPDIR=/tmp
+Environment=PYTHONPATH=/opt/hypertest-cloud/source/src PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+Environment=HYPERTEST_CLOUD_RUNTIME_ROOT=/var/lib/hypertest-cloud/runtime
+Environment=HYPERTEST_CLOUD_SERVICE_RELEASE_SHA256=@RELEASE_MANIFEST_SHA256@
+# %d expands in a unit file. Do not use literal %d in systemd-run D-Bus argv.
+Environment=HYPERTEST_CLOUD_CREDENTIAL_KEY_FILE=%d/wrapping-key
+Environment=HYPERTEST_CLOUD_MODEL_KEY_FILE=%d/deepseek-key
+Environment=HYPERTEST_CLOUD_CODEX_ENABLED=false
+LoadCredential=wrapping-key:@WRAPPING_KEY_HOST@
+LoadCredential=deepseek-key:@DEEPSEEK_KEY_HOST@
+BindReadOnlyPaths=@SOURCE_HOST@:/opt/hypertest-cloud/source @VENV_HOST@:/opt/hypertest-cloud/venv @RELEASE_MANIFEST_HOST@:/opt/hypertest-cloud/release.json /sys/fs/cgroup:/sys/fs/cgroup @RESOLV_CONF_HOST@:/etc/resolv.conf
+# Existing canonical directory, hypertest-cloud owned 0700; retain across upgrades.
+BindPaths=@RUNTIME_HOST@:/var/lib/hypertest-cloud/runtime
+MountAPIVFS=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+# Only the host Worker uses DB/Git/model networking; each Agent remains unshare-all.
+PrivateNetwork=no
+ProtectControlGroups=yes
+TemporaryFileSystem=/tmp:rw,exec,nosuid,nodev,size=256M,mode=1777 /run:rw,noexec,nosuid,nodev,size=16M,mode=755
+ReadWritePaths=/var/lib/hypertest-cloud/runtime /tmp /run
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+MemoryMax=2G
+MemorySwapMax=0
+TasksMax=256
+Delegate=no
+KillMode=control-group
+TimeoutStartSec=180s
+TimeoutStopSec=15s
+Restart=no
+ExecStartPre=/opt/hypertest-cloud/venv/bin/python -m hypertest.cloud.worker_admission --release-sha256 @RELEASE_MANIFEST_SHA256@
+ExecStart=/opt/hypertest-cloud/venv/bin/python -m hypertest.cloud

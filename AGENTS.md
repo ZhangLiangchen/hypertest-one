@@ -22,7 +22,10 @@ When details conflict:
 
 ## Non-negotiable architecture principles
 
-- **Current stage: HyperTest One manages Codex testing tasks, cases and reports. One Codex session corresponds to one SessionTask; Codex performs testing and synchronizes its outputs. HyperTest does not execute tests.** [ADR-018](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) takes precedence for this management path.
+- **Local management path: HyperTest One manages session testing tasks, cases and reports. One real parent session corresponds to one SessionTask; the local Agent performs testing and synchronizes its outputs. This management API does not execute tests.** [ADR-018](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) takes precedence for this management path.
+- **Cloud and Local share one Project:** Cloud uses independent CloudTask / CloudAttempt identities and the official DeepSeek Harness Python SDK under [ADR-019](docs/architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md). The six steps are Project resources → frozen task inputs → dispatch → DeepSeek/Codex work → accepted artifacts → project-framework execution/reporting. Claude remains a placeholder. Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。最终合并树、统一 Web 入口与测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；默认关闭。 See [Cloud status](docs/CLOUD_IMPLEMENTATION_STATUS.md).
+- Cloud API processes do not run Agents or tests. Only the current fenced Worker broker writes Cloud reports; root / child Agents receive no platform token, DB access or Operator key. Cloud `cloud:work` and Local `task:sync`, identities, ledgers and UNKNOWN reconciliation remain separate. Model identities must be provisioned in the cloud; do not copy local logins. Cloud disablement or failure must not block Local synchronization or history.
+- [ADR-021](docs/architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) shares TaskSyncCore semantics / library through separate LocalSyncAdapter and CloudSyncAdapter, not a generic Task table, API, token or global journal. Activity, uploads and SDK idle are not completion or PASS. ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在本次 Cloud 交付中。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
 - Session sync shares Project, stores versioned plans/cases/raw reports and reported results with source metadata, and uses scoped authorization, idempotency receipts and expected-version checks. It does not require Job, Harness, Runner, execution binding, source transfer, independent CI proof or Gate. Reported PASS/FAIL is preserved and does not become legacy VERIFIED Evidence or RELEASE_READY automatically. Sync UNKNOWN is reconciled by original key and never rewrites a test result.
 - ADR-017 native intake and ADR-010/012/013/015/016 execution paths remain separate compatibility/history; do not apply their execution admission rules to current management sync or alter historical results.
 
@@ -98,10 +101,10 @@ boundary or authorization to run an unrelated SUT.
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
 
-本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](docs/local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](docs/local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已按 `b27c8c14c80dce46bc21a02c83daba7070cf8292` 上线，精确证据见[Local Web 历史部署记录](docs/LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。本次 Cloud 集成未重验或升级该 Local 包。
 
 
-本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
+本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
 Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
 真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、
@@ -119,4 +122,4 @@ Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重�
 安装只复用既有私有 Project 授权，不申请 Operator key、签发 grant 或复制模型登录；
 Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
 升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
-Cloud/Local 共享 Project 的设计与任何外部 Cloud 实施进度不由本 Local 源码分支声称已交付。
+Local 发行不包含 Cloud runtime；Cloud 实施进度与最终树验收按独立 Cloud 状态记录，不由 Local 发行成绩推定。

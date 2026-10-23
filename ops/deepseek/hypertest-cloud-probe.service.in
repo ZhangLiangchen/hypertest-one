@@ -1,0 +1,34 @@
+# Probe-only template. Render all @...@ values to approved absolute paths.
+# No [Install] section: copying this file does not enable or start a service.
+[Unit]
+Description=HyperTest dedicated non-root Cloud namespace protocol probe
+
+[Service]
+Type=oneshot
+RootDirectory=@ROOTFS@
+User=65534
+Group=65534
+UMask=0077
+WorkingDirectory=/validation/repo
+BindReadOnlyPaths=@VENV_HOST@:/validation/venv @SOURCE_HOST@:/validation/repo /sys/fs/cgroup:/sys/fs/cgroup
+MountAPIVFS=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectControlGroups=yes
+TemporaryFileSystem=/tmp:rw,exec,nosuid,nodev,size=256M,mode=1777 /run:rw,noexec,nosuid,nodev,size=16M,mode=755
+ReadWritePaths=/tmp /run
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+MemoryMax=2G
+MemorySwapMax=0
+TasksMax=256
+Delegate=no
+KillMode=control-group
+TimeoutStartSec=60s
+TimeoutStopSec=5s
+RuntimeMaxSec=60s
+Restart=no
+ExecStart=/usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 TMPDIR=/tmp PYTHONPATH=/validation/repo/src PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 /validation/venv/bin/python /validation/repo/ops/deepseek/probe_host_profile.py --allow-protocol-probe --timeout-seconds 30

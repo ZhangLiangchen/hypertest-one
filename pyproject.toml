@@ -16,6 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cloud = [
+  "cryptography>=44,<47",
+  "httpx>=0.28,<1.0",
+  "deepseek-harness-sdk==0.2.1rc2",
+  "deepseek-harness-runtime-bin==0.2.1rc2",
+]
 native = [
   "httpx>=0.28,<1.0",
 ]
@@ -32,6 +38,8 @@ dev = [
 ]
 
 [project.scripts]
+hypertest-deepseek = "hypertest.deepseek_probe:main"
+hypertest-cloud = "hypertest.cloud.__main__:main"
 hypertest-local = "hypertest.local_sync.__main__:main"
 hypertest-interactive = "hypertest.interactive_client.__main__:main"
 hypertest-native = "hypertest.native_client:main"
