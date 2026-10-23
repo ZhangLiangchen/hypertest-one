@@ -477,13 +477,15 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     elif op == "CANCEL_TASK":
         if task.status != "DRAFT" or task.latest_attempt_id is not None:
             raise HTTPException(409, "Task cancellation requires an undispatched DRAFT")
-        task.status = "CANCELLED"
         for resolution in await db.scalars(select(CloudInputResolution).where(
                 CloudInputResolution.task_id == task.id, CloudInputResolution.status.in_(["PENDING", "RESOLVING"]))):
             resolution.status = "RECOVERY_REQUIRED" if resolution.status == "RESOLVING" else "FAILED"
             for capability in await db.scalars(select(CloudWorkGrant).where(
                     CloudWorkGrant.resolution_id == resolution.id, CloudWorkGrant.revoked_at.is_(None))):
                 capability.revoked_at = await clock(db)
+        # Resolution/grant queries can autoflush. Enter the immutable draft
+        # terminal state only when all query-driven cancellation work is ready.
+        task.status = "CANCELLED"
     elif op == "CANCEL_ATTEMPT":
         if attempt.status in TERMINAL:
             raise HTTPException(409, "Terminal Attempts are immutable")
@@ -604,8 +606,11 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     else:
         raise HTTPException(422, "Unsupported Cloud operation")
     if task:
-        task.version = version
-        task.updated_at = await clock(db)
+        # clock() issues a SELECT; do not flush a terminal status or version
+        # before its full accepted state/version/timestamp update is assembled.
+        with db.no_autoflush:
+            task.updated_at = await clock(db)
+            task.version = version
     await db.flush()
     if worker is not None and op not in {"REQUEST_INPUT", "COMPLETE_ATTEMPT"} and attempt and attempt.status not in TERMINAL | {"RECOVERY_REQUIRED"}:
         await worker_authority(db, task, attempt, worker)
