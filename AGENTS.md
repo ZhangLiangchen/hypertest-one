@@ -50,6 +50,41 @@ Before changing a core domain entity, mission lifecycle, runner/evidence trust m
 
 The goal is for HyperTest One to remain agent-independent, model-independent, evidence-driven, auditable, reproducible, and replaceable at the harness layer.
 
+## HyperTest One development and test-server delivery
+
+The `hypertest-one` server is the user's **single-user dedicated test environment**,
+used to validate HyperTest One and cloud task execution. It is not a production or
+shared multi-user service. Service interruption and restart are allowed during
+development; a running test does not by itself impose a maintenance-window gate.
+This describes the deployment environment, not a change to the ADR-018 management
+boundary or authorization to run an unrelated SUT.
+
+- Default flow for HyperTest One code changes: edit locally → commit and push to
+  Git → fetch the specified branch/commit on the server and record its resolved
+  full SHA → build there, apply needed migrations and restart affected services
+  → run the relevant remote validation once. If a full suite is needed, run it
+  remotely. Do not default to a full local test suite or local production build;
+  quick local checks are optional debugging aids, not a mandatory preflight matrix.
+- Pure documentation changes only need static checks and commit/push. They do not
+  trigger a server build, migration, restart or functional regression run.
+- Deploy from pushed Git history. Do not package and upload an uncommitted local
+  worktree as the normal source-delivery path. Do not reset another checkout's
+  uncommitted work; fetch into a clean, separate server release when needed.
+- Routine authorized development does not require an extra deployment approval,
+  a formal maintenance window, a paired cold-backup/restore rehearsal or a fixed
+  15-minute observation. Choose additional checks for the actual change or an
+  explicitly requested validation goal, rather than treating old release records
+  as permanent gates.
+- Preserve projects, tasks, cases, reports, revisions, receipts, audit history,
+  credentials and persistent files. Permission to interrupt services is not
+  permission to reset the database, delete volumes, overwrite history or replay
+  an uncertain external operation. Back up according to migration/data risk;
+  restoration exercises are separate validation work, not an every-deploy default.
+- Record the deployed Git SHA and resulting image identities. For this server,
+  these current rules and the [default operations flow](docs/SERVER_OPERATIONS.md#当前环境与默认交付流程)
+  supersede older descriptions of a production environment and routine heavy
+  deployment gates. Historical commands, paths and evidence remain historical facts.
+
 ## Remote operations
 
 - Read [server operations](docs/SERVER_OPERATIONS.md#ssh-access) before connecting to the deployed server.

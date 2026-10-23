@@ -1,5 +1,75 @@
 # HyperTest One 服务器操作交付
 
+## 当前环境与默认交付流程
+
+**`hypertest-one` 是用户单人专用的测试服务器，用于 HyperTest One 开发及云端任务执行验证；
+不是生产环境，没有多人共用或生产可用性依赖，开发更新允许中断和重启服务。**
+这是2026-10-23由用户明确的环境定位。旧记录中的“生产”“正式上线”等人类语义不应继续
+用于判断该服务器的等级；`compose.production.yml`、`hypertest-production`、已有路径、
+镜像标签及日志字面是技术标识，保留原值，不据此把测试机当生产系统。
+
+默认流程适用于本项目的代码、依赖或部署配置变更：
+
+1. 本地修改并检查本次差异。按调试需要做轻量本地检查，不默认在本机跑全套测试、
+   完整前端回归或 production build，也不设固定的本地 preflight 矩阵。
+2. 将本次内容提交并 push 到明确的 Git 分支，记录完整 commit SHA。保护其他人的未提交
+   工作；普通交付不打包上传 dirty 工作树，不把源码未提交快照当默认发布来源。
+3. 默认复用服务器已有干净的 Git checkout，fetch 指定分支或 commit，解析并记录完整
+   SHA 后 checkout 该提交。首次准备或现有目录有未提交内容时才另建 checkout，不 reset 覆盖它。
+4. 在服务器构建受影响组件，按需要备份、执行新增迁移、切换相应镜像并通过既有受控入口
+   重启。允许本测试机中断；保留数据库、任务及报告历史、会话、持久文件和访问凭据。
+5. 在远端按改动范围执行一次相关测试和基本就绪检查；确需全量回归时，全量也在远端执行。
+   记录实际 SHA / image / migration 与测试结果，失败或未知结果如实保留，不重写为成功。
+
+**纯文档变更只做静态校验并 commit/push**，不触发服务器构建、迁移、重启或功能回归。
+日常已授权开发不再额外要求审批、正式维护窗口、每轮配对冷备及隔离恢复演练、全库逐行
+hash矩阵或固定15分钟观察。需要验证恢复、协议兼容或其他特定目标时，再明确选择对应
+检查；备份依据本次迁移和数据风险决定，保留历史不等于每次都做完整恢复演练。
+允许中断不等于允许清库、删卷、覆盖历史或盲目重放结果未知的外部操作。
+
+现有脚本不会自动完成 Git 更新。下面是复用已有干净 Git checkout 的示例，不表示已经
+在服务器执行或该示例路径已经存在；`release_checkout` 和 `target_ref` 需填为本次实际目标：
+
+```bash
+# 在服务器执行；不覆盖已有未提交内容。
+set -e
+release_checkout='/填写已有Git_checkout的绝对路径'
+target_ref='本次已push的分支或完整commit'
+cd "$release_checkout"
+if [ -n "$(git status --porcelain)" ]; then
+    printf '%s\n' '保留当前未提交内容，改用新checkout。' >&2
+    exit 1
+fi
+git fetch --no-tags origin "$target_ref"
+target_commit="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
+git checkout --detach "$target_commit"
+git rev-parse HEAD
+git status --porcelain
+```
+
+仅在首次准备或当前目录不能复用时，才用 `git clone --no-checkout` 从仓库远端建立新的
+checkout，再执行上面的 fetch/checkout；旧的非Git release和dirty目录保留，不每次重新clone。
+
+构建入口是所选 Git checkout 中的 `Dockerfile`、`web/Dockerfile` 和
+`ops/container/build-images.sh`。后者是全套构建工具，会构建 API/Worker/Web 并解析
+PG/nginx 镜像；仅改部分组件时可按同一 Dockerfile 目标构建所需组件，不能把输出
+`images.env` 全量覆盖现有配置而顺带升级无关组件。记录构建 SHA 与实际 image ID，
+仅更新本次目标 image 键；新增 migration 通过 maintenance profile 的 `migrate` 服务
+执行，API/Worker 启动不会自动迁移。Compose 操作沿用固定 ops 的 `compose_command`
+及其实际 overlays、env 和网络守卫；不要照抄缺少 TLS overlay 的裸 Compose 命令。
+
+既有运行入口为 `/opt/hypertest/ops-current` 的容器工具及
+`hypertest-container-stack` / `hypertest-harness-bridge` systemd 服务。
+`systemctl restart hypertest-container-stack` 是已有受控整栈重启入口，可能重启PG，
+并不是 Git 拉取、镜像构建或迁移命令；按本次变更选择组件更新或整栈重启，
+不为日常更新固定要求“PG启动时间不变”，也不绕过网络守卫。基本状态与就绪检查仍可用
+`stack.py ... status`、`readiness.py --env /etc/hypertest/container/compose.env` 或本机的
+`bash ops/check-remote.sh`。具体工具能力和数据边界见[容器部署材料](CONTAINERIZED_DEPLOYMENT.md)。
+
+以下访问保护继续有效；其后的带日期发布章节描述当时实际动作，旧高保障流程不是
+本测试服务器今后的默认门槛。与旧“生产发布”要求冲突时，以本节及项目 `AGENTS.md`
+的当前单人测试机流程为准；不修改旧日志、证据路径或当时已经执行的事实。
+
 ## 当前访问与巡检规则（2026-10-19 更新）
 
 Web 的唯一用户入口是既有跳板机出口对应的来源白名单入口。真实入口地址及唯一
@@ -8,7 +78,7 @@ IPv4 `/32` 来源保存在服务器受保护的 `compose.env`，分别由
 产品说明、白皮书和新的验收摘要不列出跳板机地址。配置升级必须沿用这些现值，
 不能照抄示例中的文档地址。原始历史证据保留其当时的真实内容。
 
-生产 nginx 的回环监听仅接受 `GET` / `HEAD /api/v1/health`，其余路径拒绝；
+测试服务器 nginx 的回环监听仅接受 `GET` / `HEAD /api/v1/health`，其余路径拒绝；
 它供容器与运维检查，不再提供备用 Web/API 入口。API、Web、数据库的内部回环
 映射仍保留，用于可信组件和运维。SSH 仅作管理与人工恢复，公钥、现有密码登录、
 SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用，不再建立 Web
@@ -22,7 +92,10 @@ SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用�
 访问异常时再针对故障检查。`bash ops/check-remote.sh` 保持按原 SSH 别名和严格
 公钥方式执行平台检查，不创建业务测试任务，也不检查备用隧道。
 
-## 项目与会话任务管理生产发布（2026-10-23）
+## 项目与会话任务管理测试环境部署（2026-10-23）
+
+本次当时采用了工作树归档、维护窗口、配对冷恢复和固定观察等过重流程；这些是实际
+已执行的历史事实，不是用户要求的默认交付策略。后续更新遵循本文开头的 Git 交付流程。
 
 当前业务已于 **2026-10-23 05:49:04.189567 UTC** 更新 API / Web，schema从0022
 向前迁移至 `0023_project_task_management`，提供编辑、人工状态调整、软删除、回收站及恢复。
@@ -37,20 +110,20 @@ SFTP 和主机密钥校验保留；标准 TCP / Unix socket / TUN 转发停用�
 不含 `__pycache__`，目录不比较size/mtime。线上fixture仅新增管理记录，最终任务v10、
 项目v7均软删除保留历史，9个人工修订及原FAIL用例/报告/回执未改，执行Canonical无新增。
 真实UI验证编辑、状态重开、冲突保留输入、删除/恢复及父子限制；软删后新来源同步写的
-负向场景仅隔离回归覆盖，未扩大生产凭据执行该写入。
+负向场景仅隔离回归覆盖，未扩大现有访问凭据执行该写入。
 
 两段有限观察共62点、实际15分30秒，全部服务健康、无重启、HTTP5xx为0；
 标准巡检重检exit0、readiness10/10。首次巡检发现昨日遗留的宿主nginx failed记账，
-核实无进程后仅reset-failed，原enabled、配置、监听和生产容器均未改；失败证据保留。
+核实无进程后仅reset-failed，原enabled、配置、监听和已部署容器均未改；失败证据保留。
 06:07:37 UTC末态复核确认巡检后的业务/Audit/Outbox/人工历史与D完全相同，
 仅追加成功CAPABILITIES控制，原PG/容器/策略保留、13类执行/UNKNOWN计数均0。
 06:09:58 UTC收尾确认有限monitor退出，仅清理本轮无持久挂载的测试PG容器及独立网络；
-生产五容器、配置与策略未改，原镜像、冷备、失败证据、恢复目录和生产验证库全部保留。
+服务器五容器、配置与策略未改，原镜像、冷备、失败证据、恢复目录和服务器内验证库全部保留。
 
 首次冷恢复reader权限失败、第二次独立冷备成功、精确镜像与证据及保全边界见
-[本轮生产发布记录](PROJECT_TASK_MANAGEMENT_PRODUCTION_20261023.md)。本次是管理功能验收，
+[本轮测试环境部署记录](PROJECT_TASK_MANAGEMENT_PRODUCTION_20261023.md)。保留原文件名以维持历史引用。本次是管理功能验收，
 不宣称新SUT执行周期或Connector执行验收。现在已有人工修订，恢复应使用兼容版本向前修复，
-不得直接回退旧API、降级schema或用dump覆盖生产库。发布登记在源码冻结后单独交付，
+不得直接回退旧API、降级schema或用dump覆盖现有库。发布登记在源码冻结后单独交付，
 不混入本轮镜像或源码manifest。
 
 ## MCP 安装发行与独立 Web 发布（2026-10-20）
@@ -244,7 +317,7 @@ ssh -o BatchMode=yes -o PreferredAuthentications=publickey -o ConnectTimeout=15 
 bash ops/check-remote.sh
 ```
 
-[健康检查脚本](../ops/check-remote.sh)检查 API、worker、生产 Web、nginx 的服务状态，PostgreSQL 容器健康与实际 SQL 查询，以及 API 健康响应、worker 心跳和 Web HTTP 状态。任一项失败返回非零退出码；SSH 认证失败同样返回失败，不进入密码交互。该结果只说明平台运行状况，不代表真实 Agent 测试周期已通过或获得 `RELEASE_READY`。
+[健康检查脚本](../ops/check-remote.sh)检查 API、worker、已部署 Web、nginx 的服务状态，PostgreSQL 容器健康与实际 SQL 查询，以及 API 健康响应、worker 心跳和 Web HTTP 状态。任一项失败返回非零退出码；SSH 认证失败同样返回失败，不进入密码交互。该结果只说明平台运行状况，不代表真实 Agent 测试周期已通过或获得 `RELEASE_READY`。
 
 2026-10-18 21:29（Asia/Singapore）已通过该脚本实测：四项 systemd 服务 active、数据库 healthy 且 `SELECT 1` 成功、API 直连和代理健康、worker 可用且 active_workers=1、Web 直连和代理均 HTTP 200。该次实际 release 为 `0a2af9c4f5034c118f1a19abd786290f0959a648`；以后仍以每次远端检查结果为准。
 

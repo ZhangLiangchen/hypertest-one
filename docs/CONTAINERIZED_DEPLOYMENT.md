@@ -1,14 +1,29 @@
 # ADR-013 容器化部署与恢复
 
+## 当前适用范围（2026-10-23）
+
+`hypertest-one` 是用户单人专用的测试服务器，用于云端任务执行验证；不是生产或多人
+共用环境，开发更新允许中断和重启。日常交付遵循[当前Git交付流程](SERVER_OPERATIONS.md#当前环境与默认交付流程)：
+本地修改并commit/push，服务器取指定commit/branch构建、按需迁移/重启，再按改动范围
+在远端验证一次。需要全量时也仅在远端执行；本地不默认全量测试或production build。
+纯文档只静态校验并commit/push，不触发服务器操作或功能测试。
+
+本文保留容器、权限、网络守卫、迁移和备份工具的真实能力；后面的首次切换、配对冷备、
+隔离恢复、全量数据比对及执行周期验收是特定目标的完整方案，不是日常发布的默认gate。
+不默认维护窗口、额外审批、每次冷恢复演练或固定15分钟观察；按变更实际数据风险选择
+备份和检查。项目/任务/报告/修订/回执历史、认证和持久文件仍须保留，不清库或删卷。
+旧事件的“生产”措辞与 `compose.production.yml`、`hypertest-production` 等技术标识保留原义，
+不据此改变当前测试环境定位。以下旧常规流程与当前规则冲突时，以上述Git交付流程为准。
+
 当前访问规则（2026-10-19）：用户 Web 仅走既有跳板机来源白名单；SSH 保留运维
 登录，停用转发与 Web 隧道。真实地址留在服务器受保护配置中，示例使用文档地址。
 首次启用或 ACL 变更做一次外部允许/拒绝验收；日常部署核对 ACL 有效与内部就绪，
 不反复进行手机/VPN 连通性检查。本文末尾首次切换记录保留当时边界，不能用其旧
 隧道步骤恢复另一用户入口。配置的实际激活结果须独立登记。
 
-本目录实现单 Linux 宿主的生产打包边界：nginx / Web / API / Task Worker /
+本目录实现单 Linux 宿主的部署打包边界：nginx / Web / API / Task Worker /
 PostgreSQL 使用固定镜像，Provider CLI、原生认证和 Host Harness Bridge 保留宿主。
-开发用 `docker-compose.yml` 继续独立；生产使用 `compose.production.yml`。
+开发用 `docker-compose.yml` 继续独立；该服务器的容器栈使用现有 `compose.production.yml`。
 本文是容器栈的操作材料。2026-10-19 的正式切换、实际应用/迁移/Bridge 版本、
 保全检查和真实测试周期另见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)，
 不能仅凭本文中的配置或命令推断某项验收已经完成。
@@ -51,9 +66,9 @@ web search，源码与领域事实经平台限定工具提供。Bridge 与 Provi
 ## 固定镜像和配置准备
 
 操作前使用 [服务器 SSH 约定](SERVER_OPERATIONS.md#ssh-access)。脚本不会自动修改
-UFW、执行 OAuth 登录或删除原数据；正式切换必须遵循后文的维护与保全步骤。
+UFW、执行 OAuth 登录或删除原数据；按当前Git交付流程及本次目标选择后文的操作与保全步骤。
 
-在经过测试的 release checkout 执行：
+在服务器取得的指定 Git commit checkout 中构建，相关验证按当前交付流程在远端执行：
 
 ```bash
 bash ops/container/build-images.sh /absolute/new/images.env
@@ -223,6 +238,9 @@ Include 顺序或 Match 规则导致效果不同则拒绝应用，不另行改�
 
 ## 首次切换与常规升级
 
+本节完整方案用于首次栈迁移、运维组件变更或显式选择的恢复验证；普通应用升级
+按[当前测试机流程](SERVER_OPERATIONS.md#当前环境与默认交付流程)，不默认逐项执行本节。
+
 维护操作共用 `/run/lock/hypertest-maintenance.lock`。backup.py 自动取得该排他锁；
 人工切换窗口使用 `flock` 持锁，并确保旧 backup timer/deploy 脚本使用同一把锁。
 在确认既有 timer 的锁路径前，不并行执行备份/迁移。
@@ -236,7 +254,8 @@ docker compose --env-file /absolute/compose.env -f compose.production.yml ps
 需要独立发布运维修复时，保持业务 `container-current`、Bridge 与运行镜像身份不变，
 把 `ops/container` 和所需 Compose 文件打包到
 `/opt/hypertest/ops-releases/<manifest-digest>`，保留每文件 SHA-256 与来源 provenance。
-运维包不含生产 env、OAuth 或密钥；未提交快照须明确记录，不能宣称来自 main。
+运维包不含运行 env、OAuth 或密钥；历史未提交快照须明确记录，不能宣称来自 main。
+今后的普通应用源码使用已push的Git提交，不沿用工作树打包上传；固定运维包是另一个组件。
 `ops-current` 原子指向固定包；stack 的 ExecStart/ExecStop、backup 的 ExecStart
 通过窄 drop-in 使用该入口，其余 unit 依赖、工作目录、维护锁和 timer 不变。
 `check-remote.sh` 优先用 `ops-current`，仅在此入口从未配置时兼容业务 release；
@@ -249,11 +268,15 @@ docker compose --env-file /absolute/compose.env -f compose.production.yml ps
 unit drop-in，再以原运维代码受控启动并核对就绪。原业务源码、镜像、数据库和
 历史文件均不回写，应用与运维身份分开登记。
 
-切换窗口必须有同一时间的配对备份、隔离恢复和新 image 的检查结果。现有服务器
+显式执行本节完整恢复验证时，使用同一时间的配对备份、隔离恢复和新 image 检查结果；
+这不要求每次普通应用更新都做冷备及恢复演练。现有服务器
 systemd API/Worker/Web/nginx 与生产端口不能并行争抢；原 PostgreSQL 容器也不能和
 Compose 同时挂载同一个 PGDATA。只停止明确核验的旧服务/容器，保留它们以供回退。
 
 ### 独立 Web image 更新的窄例外
+
+这是历史Web-only发布的保全范围说明，不表示API/schema更新就默认必须冷备恢复；
+当前测试机的备份与验证范围按具体变更决定。
 
 仅当变更不涉及 API / Worker、schema、Bridge、依赖、挂载、存储、ops 或访问策略，
 且现有 API 与新 Web 兼容时，可以登记独立 Web 发布。MCP 安装 CLI 的独立发行不等于
@@ -270,12 +293,12 @@ Web healthy 后可对原 nginx 执行 `nginx -t` / reload 以刷新上游；不�
 逐项核验 API / Worker / PostgreSQL / nginx 容器身份、启动 / 重启计数、完整挂载、
 历史行 / 文件、授权与访问规则未变；Mounts 按唯一 Destination 比较完整字典。
 节点只按已批准的连接观测规则比较，其余配置严格相同。失败只恢复原 Web image 并
-检查健康 / 守卫，不恢复生产数据库。涉及本段范围以外的变更仍遵循常规配对备份流程。
+检查健康 / 守卫，不恢复覆盖数据库。涉及本段范围以外的变更按当前交付规则选择备份和检查。
 [2026-10-20 MCP Web 发布](MCP_INSTALLATION_DELIVERY_20261020.md)记录了一次实际采用。
 
 ### 常规切换顺序
 
-顺序：
+下面是首次完整迁移/恢复验证方案的顺序，不是普通应用更新的必经步骤：
 
 1. 固定 Git SHA / 镜像 / Bridge package 版本与配置。核查源工作区 clean、测试/迁移
    结果、磁盘、Docker、UID、原卷和 Artifact 清单；记录原 systemd 服务及现有监听。
@@ -302,6 +325,9 @@ session/workspace，以及兼容代码/协议，停止 Provider 后才能做配�
 
 ## 就绪与数据核验
 
+日常更新先运行基本就绪及本次改动相关的远端测试；只有本次目标需要验证完整执行链路
+时才创建对应验收Run。纯文档不运行这些检查，不为普通管理功能更新默认新增SUT/Gate周期。
+
 `stack.py status` 返回 Compose 状态。API healthcheck 同时请求 /health 与执行真实
 `SELECT 1`；Worker healthcheck 检查**本容器 hostname**对应的数据库心跳，不能拿
 其他 Worker 的心跳掩盖失联实例。Web/入口分别检查 HTTP。Bridge 故障和 Runner
@@ -319,12 +345,14 @@ Docker 能力。隔离环境增加 `--bridge-service hypertest-adr013-staging-br
 Bridge systemd 环境与权限不包含平台数据库、GitLab 或 Docker 能力。记录真实
 Provider session 身份、跨 Mission 复用、等待/回答/重启及旧 owner 拒绝结果。
 
-升级前后逐项核对原业务行/关系/历史、所有 Artifact SHA 与 size、托管源码与暂停
+选择完整数据保全验证时，升级前后逐项核对原业务行/关系/历史、所有 Artifact SHA 与 size、托管源码与暂停
 副本存在、已发布 Verdict state/evidence hash、PG 卷身份、原 OAuth 只读 login status。
-就绪检查不应新建 Canonical 测试记录；另建明确的验收 Run 做真实 Provider → Docker
+就绪检查不应新建 Canonical 测试记录；若本次目标是执行链路验收，另建明确的验收 Run 做真实 Provider → Docker
 → Evidence → Gate 成功/失败/问答链路，其记录不能代替旧数据保全。
 
 ## 配对备份与隔离恢复
+
+仅在本次变更风险或专门恢复验证目标需要时选择本节；不是每轮部署的默认前置条件。
 
 `ops/container/backup.py` 只在 API/Worker/migrate 和 Bridge 都已停止、无正在执行/排队
 任务时生成新备份目录。它保留 WAITING_INPUT 的 DB、工作副本和 Bridge ledger；
