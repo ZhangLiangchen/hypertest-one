@@ -3,6 +3,7 @@ import hashlib
 import json
 import tomllib
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -67,6 +68,9 @@ def test_one_host_cannot_overwrite_another_hosts_shared_private_configuration(in
 
 def test_owned_source_upgrade_preserves_hooks_policy_credentials_and_pending_files(installation):
     args = installation
+    selected_config = json.loads(args["client_config"].read_text())
+    selected_config["local_sync"] = {"project_id": str(uuid4())}
+    args["client_config"].write_text(json.dumps(selected_config))
     workspace = args["directory"].parent / "approved-workspace"
     workspace.mkdir()
     hook_config = args["directory"].parent / "hooks.json"
