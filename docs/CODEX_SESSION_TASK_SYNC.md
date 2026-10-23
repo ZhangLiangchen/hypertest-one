@@ -13,6 +13,10 @@
 3. BIND填真实来源和writer owner并保留同Task ID；它不提交产物、不改变reported result，也不推进last_synced_at。绑定成功后用 `hypertest_get_task` 的 `{project_id,task_id}` 选择器读回当前/固定版本，再按实际版本同步。
 4. 绑定失答/UNKNOWN时只调用 `hypertest_get_task_binding`，参数为原 `{project_id,idempotency_key}`。NOT_FOUND仍不授权重POST或换key；CREATE失答由Operator按原创建key查询，也不能另建替代任务。
 
+本次新绑定入口还要求当前调用来自真实父会话。仅Codex CLI `0.144.6`接入宿主每次MCP调用注入的`_meta.threadId`，客户端将其与SessionStart私有root及所填来源核对；child即使填已知父ID也必须拒绝。不要把caller context加到工具arguments，它不是可由模型选择的输入。手动绑定Task的后续显式MCP新sync使用同一fence。缺context、错配或宿主未支持会明确报错，不能借CLI手填父ID或改key绕过。
+
+Claude Code / DeepSeek当前缺少已实现的逐调用caller适配，新MCP绑定和手动已绑定任务的显式新sync不可用；已确认auto任务的resume、授权GET及原key只读恢复仍独立保留。旧三宿主发行证明不覆盖此次新绑定fence，静态源代码或故障注入fixture也不构成真实原生E2E。该context仅作本地宿主归因，平台仍只按既有grant/actor/Project鉴权。
+
 新Local客户端首次产物前未绑定返回TASK_BINDING_REQUIRED，保留允许的本地材料，零sync POST。Hook和MCP共享一个root协调器/目标/账本。旧auto根可以继续原Task ID，若真实来源已经有另一Task，绑定返回409/SESSION_ALREADY_HAS_TASK（只向有权者返回existing_task_id），不能自动merge、改ID或搬历史。可以明确继续已有Task并删除未绑定草稿，或使用真实新会话。
 
 预创建任务的实际sync必须携task_id，同时匹配Project/provider/session/owner和version。已删除或未绑定目标、漏ID/错ID均不得退回自动创建。未发生其他管理写时创建v1→绑定v2→首个sync v3仅是示例；始终使用实际读回version。创建/绑定/管理的固定版本由对应快照读取；未发生真实sync的版本source可NULL，不应显示为Agent刚同步。

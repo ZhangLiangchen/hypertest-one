@@ -4,11 +4,14 @@
 
 [ADR-024](architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)新增的hypertest_bind_task、原key绑定查询、task_id选择及新会话首次产物门槛，必须使用与服务端匹配的客户端版本/源码。已公开local-v0.1.0资产不因新文档/服务端更新而变化，不能向旧发行补写新工具、tag或digest；安装Prompt需核对实际能力，缺工具时提示升级，不fallback自动建Task。旧已存在auto根、私有身份、journal及原未决key应原样保留。新能力的源码、远端验收、真实宿主和新发行分别记录，不沿用旧三宿主证明宣称通过。
 
+工具存在不代表当前宿主有caller资格。新BIND和手动已绑定Task的显式MCP新sync目前仅接入Codex CLI 0.144.6真实逐调用`_meta.threadId`与SessionStart root核对；Claude Code / DeepSeek尚无已实现caller适配，应明确unsupported。CLI `bind-task`也不能从自报session参数生成该context，当前不能代替原生父会话的MCP绑定；保留CLI原key查询、授权GET及已确认legacy auto恢复。缺context和child借父ID必须零POST；此本地归因不升级为平台独立原生身份。
+
 ### 本次绑定能力的项目私有源码安装与升级
 
-在发布新固定包前，使用本轮最终推送、服务端已部署的完整40位Git SHA建立独立私有venv；最终SHA由交付记录提供，不能使用旧tag或浮动branch冒充同版本。以下为参数模板：`local_source_sha`是该SHA，`local_source_venv`是新的绝对目录，`local_client_config`是既有私有配置路径。复用其Project授权、token、state_dir和SQLite journal；不再次setup、不签发grant、不复制模型登录。
+在发布新固定包前，本轮私有源码客户端固定为F2 `86f7659254cf2253de6376e64b287352e6df7f89`，须与提供ADR-024接口的服务端配合使用，不能使用旧tag或浮动branch冒充同版本。该提交的远端隔离验证不等于原服务器主栈已切换；结果见[本次绑定验证记录](LOCAL_TASK_BINDING_ACCEPTANCE_20261023.md)。以下为安装模板：`local_source_venv`是新的绝对目录，`local_client_config`是既有私有配置路径。复用其Project授权、token、state_dir和SQLite journal；不再次setup、不签发grant、不复制模型登录。
 
 ```sh
+local_source_sha='86f7659254cf2253de6376e64b287352e6df7f89'
 python3.13 -m venv "$local_source_venv"
 "$local_source_venv/bin/python" -m pip install \
   "hypertest-one[interactive] @ git+https://github.com/ZhangLiangchen/hypertest-one.git@$local_source_sha"
@@ -31,9 +34,9 @@ python3.13 -m venv "$local_source_venv"
 "$local_source_venv/bin/python" -m hypertest.local_sync capabilities --config "$local_client_config"
 ```
 
-`stop`只停止该私有transport；没有运行中daemon时保留配置/账本并按宿主流程重载，不删除状态来清除错误。`capabilities`通过同daemon读取实际服务端工具目录，必须同时包含`hypertest_bind_task`、`hypertest_get_task_binding`、`hypertest_sync_task`、`hypertest_get_task`；最后一个的schema须包含task_id选择器。缺失时定位服务端/daemon/宿主版本，不继续sync或自动建替代任务。`doctor`仅作既有安装诊断，不能替代工具能力检查；实际宿主中的MCP目录也应完成同样检查。
+`stop`只停止该私有transport；没有运行中daemon时保留配置/账本并按宿主流程重载，不删除状态来清除错误。`capabilities`通过同daemon读取实际服务端工具目录，必须同时包含`hypertest_bind_task`、`hypertest_get_task_binding`、`hypertest_sync_task`、`hypertest_get_task`；最后一个的schema须包含task_id选择器。还应检查daemon的`local_capabilities.explicit_task_binding`及`task_binding_callers`，当前仅Codex 0.144.6标记逐调用threadId路径，不能因服务器列出工具就接受旧daemon或未支持的宿主写入。缺失时定位服务端/daemon/宿主版本，不继续sync或自动建替代任务。`doctor`仅作既有安装诊断，不能替代工具能力检查；实际宿主中的MCP目录也应完成同样检查。
 
-新会话应由已选workspace/policy的SessionStart建立私有root，再按[同步说明](CODEX_SESSION_TASK_SYNC.md#先创建任务再绑定本地父会话)绑定平台Task ID。CLI的`bind-task --config … --project-id … --task-id … --provider … --session-id … --expected-version … --idempotency-key …`和`get-task-binding --config … --project-id … --idempotency-key …`调用同协调器，不能绕过root、授权或原key对账。记录配置reload、新会话来源、BIND原回执及固定接受版本完整读回；源码安装/能力列表成功不构成三宿主原生绑定E2E证明。旧未决操作必须先用其原key恢复，不能借新会话/新Task规避。
+新会话应由已选workspace/policy的SessionStart建立私有root，再按[同步说明](CODEX_SESSION_TASK_SYNC.md#先创建任务再绑定本地父会话)在支持的真实父会话MCP调用中绑定平台Task ID。CLI的`get-task-binding --config … --project-id … --idempotency-key …`走同协调器原key查询；`bind-task`入口保留但没有原生逐调用context时明确拒绝，不能绕过root、caller fence或授权。记录配置reload、新会话来源、BIND原回执及固定接受版本完整读回；源码安装/能力列表成功不构成三宿主原生绑定E2E证明。旧未决操作必须先用其原key恢复，不能借新会话/新Task规避。
 
 ## 2026-10-23 新增真实矩阵（已通过）
 

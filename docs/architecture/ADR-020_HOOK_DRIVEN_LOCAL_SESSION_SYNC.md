@@ -4,6 +4,8 @@
 
 [ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)要求新Local客户端首次资产上传前显式绑定平台Task ID；缺失时TASK_BINDING_REQUIRED且不POST/不自动建任务。已有确认原Task ID的auto根可resume，服务端legacy路径保留。真实native root仍由原Hook/宿主adapter建立，Hook/MCP共用同一协调器及绑定/同步账本，不接受任意session覆盖。该增补不修改下面固定local-v0.1.0资产、历史矩阵或其资格；新源码、远端验证及客户端发行另行记录。
 
+新BIND和手动已绑定Task的显式MCP新sync另需逐调用caller来源与所选root一致。当前仅Codex CLI 0.144.6的宿主`_meta.threadId`经独立私有IPC接入；模型arguments不提供caller context，child填已知父ID也须拒绝。Claude/DeepSeek对应适配未实现时明确unsupported，既有auto根resume、授权GET及原key只读恢复保留。此本地归因不成为平台独立原生身份证明；[本次验证记录](../LOCAL_TASK_BINDING_ACCEPTANCE_20261023.md)区分远端管理回归与尚未证明的原生E2E。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

@@ -6,6 +6,10 @@
 
 这是本次新增契约，不能由下面local-v0.1.0固定包、安装成功或旧三宿主矩阵推导已交付。新服务端/客户端源码、远端相关验证、真实宿主接入和发行版本分别记录；旧tag、资产摘要、原失败/FAIL保全与原生证明不重写。具体使用和兼容规则见[同步说明](CODEX_SESSION_TASK_SYNC.md#先创建任务再绑定本地父会话)。
 
+新绑定的caller fence仅实现Codex CLI 0.144.6的逐调用MCP `_meta.threadId`路径，仍需真实原生transport验证。Claude Code与DeepSeek的对应caller适配未实现，不能以旧root/安装/三宿主证明启用新MCP BIND或手动已绑定Task显式新sync；此类请求明确unsupported。既有auto任务resume、授权GET及未决原key只读恢复保持各自兼容边界。远端管理回归与原始失败补验记录见[本次绑定验收](LOCAL_TASK_BINDING_ACCEPTANCE_20261023.md)。
+
+私有源码客户端固定F2 `86f7659254cf2253de6376e64b287352e6df7f89`：F首轮128 PASS / 3 FAIL，F2对原3失败和14个相关边界定向复验17 PASS；F/F2按ID归并131个唯一用例最终均有PASS记录，未在F2全量重跑原128通过项。真实宿主parent/child绑定E2E仍NOT_OBSERVED，旧公开发行不重标。
+
 ## 2026-10-23 生产 Web 上线补记
 
 PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上线。实际 Web 源码为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`；内部真实浏览器六条命令及已有用例 / 原始报告、外部严格 CA HTTPS 已验证。文中“待合并 / 待最终 gate”属于下方验收冻结时点；精确 image、保全、补证顺序和临时授权清理见[生产部署记录](LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。原 `local-v0.1.0` 包 / tag / 三摘要与三宿主证明保持不变；本次后续纯文档提交不代表部署新 Web 源码。

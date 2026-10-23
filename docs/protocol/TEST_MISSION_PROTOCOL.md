@@ -1367,6 +1367,8 @@ MCP按会话读取返回有界 envelope `{task_id,version,format:'application/js
 
 创建时省略intended_actor_ref仅sole可用actor允许默认；显式NULL保持未授权，多/无候选不隐式认领。未授权UNBOUND不能BIND；Operator在UNBOUND同version设置/清除授权。creator_actor_ref、Task ID及root metadata都不是能力密钥，不以知道ID替代有效授权。
 
+MCP工具arguments及服务端TaskBind字段不增加caller自报项。Codex CLI 0.144.6由实际MCP request context的`_meta.threadId`生成私有IPC `native_caller_context={provider:'codex',session_id:threadId,transport:'codex-mcp-thread-id/v1'}`，daemon转交协调器核对已存在SessionStart root和拟写来源；不能从arguments选取、覆盖或把child归一成parent。该字段不上传平台，不进入冻结业务请求/幂等摘要。新BIND和手动已绑定Task的显式MCP新sync缺context返回`NATIVE_CALLER_CONTEXT_REQUIRED`，错配返回`NATIVE_CALLER_CONTEXT_MISMATCH`；无已实现宿主适配返回`NATIVE_CALLER_CONTEXT_UNSUPPORTED`，均不得POST或建立新target/intent/snapshot。当前Claude/DeepSeek及无原生metadata的CLI绑定属于未支持路径；授权GET、已确认legacy auto resume及未决原key只读对账保留。此合同仅提供正常宿主调用归因，不是服务端独立原生身份证明。
+
 BIND与CREATE/管理/sync共用version；一次事务填真实provider/session/owner、BOUND及bound_at，追加独立BIND回执/snapshot/Audit/Outbox，不产生SyncReceipt，不推进source/last_synced_at，不改status/result/用例/报告。Web `binding_history` 投影`{id,action:'BIND',actor_ref,task_version,task_snapshot,created_at}`，区别于人工管理与Agent同步历史。已绑定（包括软删除后）不可改绑，原来源唯一性不释放。
 
 CREATE的`creation_receipt`为`{status:'ACCEPTED',operation:'CREATE',project_id,task_id,version,idempotency_key}`。BIND回执为`{status:'ACCEPTED',operation:'BIND',profile:'codex-session-task-sync/v1alpha1',project_id,task_id,provider,session_id,actor_ref,binding_state:'BOUND',source:null,version,idempotency_key}`；version为本次expected_version+1。客户端校验原key、操作、来源与目标身份及接受版本，完整读回固定接受版本后才确认绑定；当前head变化不改写回执。

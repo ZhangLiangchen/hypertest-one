@@ -40,6 +40,10 @@ BIND 重新检查 integration actor/client/Project grant 的当前有效性，�
 
 Local MCP 必须已有受支持宿主建立的真实私有 native root context，核对 Project/provider/父会话/workspace/policy/artifact目录。模型传入的 provider/session 不能覆盖该上下文，子代理不能独立绑定。该上下文负责来源选择，不提升为当前调用者的宿主执行证明或新的安全能力。
 
+存在父root记录不足以授权当前调用写入。新BIND与手动已绑定Task的显式MCP同步，必须核对本次宿主提供的caller来源；不能先把child解析成parent后丢掉调用来源。当前源码仅对Codex CLI `0.144.6`接入宿主逐调用注入的`_meta.threadId`：MCP从request context读取，使用独立的私有IPC `native_caller_context`传至协调器，与所选SessionStart root及实际写入来源一致后才允许POST。模型arguments、环境自报session或CLI参数不能覆盖该字段，也不将它加入服务端请求、冻结业务载荷或幂等摘要。
+
+缺失、错配和未实现的宿主适配分别明确拒绝。Claude Code与DeepSeek当前没有已实现的可信逐调用caller适配；新MCP绑定及手动已绑定任务的显式MCP新写入应fail closed，不能沿旧三宿主自动任务证明宣称支持。CLI bind-task同样不能凭自报parentID取得caller资格。已有确认的legacy auto任务resume、授权GET及未决操作的原key只读对账保持兼容。该fence防止正常宿主中的child仅填父ID借用父任务，不防御任意同用户代码另造客户端，也不向平台引入签名、nonce、宿主凭据或独立身份认证。
+
 ### 4. 同一版本与独立回执
 
 CREATE、AUTHORIZE/其他管理、BIND 和实际 sync 共用 task.version。每个新接受变更递增；同值 AUTHORIZE/管理 PATCH 不制造版本。绑定和授权修改、删除、同步竞争时按聚合锁与 expected_version 串行接受，不用“最后写入覆盖”。数据库同时约束 UNBOUND/BOUND 字段组合、严格版本和全局 `(provider, session_id)` 唯一，防止两个任务抢同一来源或一个任务绑定两个来源。
