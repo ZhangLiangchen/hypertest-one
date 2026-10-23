@@ -1,5 +1,11 @@
 # Test Mission Protocol Specification
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
 **Version:** v0.8
@@ -1324,6 +1330,7 @@ MCP按会话读取返回有界 envelope `{task_id,version,format:'application/js
 同 key 同输入返回原回执，同 key 异输入冲突。发送前保存 journal intent；发送后失答/响应不可确认时保持同步 UNKNOWN，只 GET 原 key。404/NOT_FOUND 不证明原 POST 未执行；客户端不得自动 POST 重发、换key、重建任务或重新发放凭据。旧 expected version 不能覆盖当前状态，失答查询结果不改变报告原 reported result。测试事实、推断与待验证材料在来源和原始报告中分别说明，摘要/hash不产生执行证明。
 
 ## 47. ADR-020 Local Hooks 与显式 MCP 协作
+
 
 本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、

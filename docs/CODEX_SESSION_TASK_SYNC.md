@@ -144,4 +144,11 @@ Web 任务页查询这些管理记录，不显示启动测试、Runner 或 Gate 
 
 ## Local 统一发行与自动触发
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
+
 原管理步骤与契约保持不变。新增 Local 协调器、三宿主接入及固定摘要安装入口见 [Local 状态](LOCAL_MODE_IMPLEMENTATION_STATUS.md)与[发行构建](LOCAL_MODE_RELEASE_BUILD.md)。

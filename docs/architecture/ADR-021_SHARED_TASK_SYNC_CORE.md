@@ -1,8 +1,14 @@
 # ADR-021：本地与云端复用任务同步核心
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
 **Local 源码分支实现增补（2026-10-22）：Local 协调器、TaskSyncCore Local adapter、三宿主入口和统一发行工具已实现源码；真实宿主与发行状态见 LOCAL_MODE_IMPLEMENTATION_STATUS.md 及确切目标验收记录。下文为初始设计原文，其中 NOT IMPLEMENTED 是当时状态，不覆盖本段当前 Local 状态；本分支不包含 Cloud/Memory 的实现。**
 
-**状态：Accepted design；实现状态：NOT IMPLEMENTED（2026-10-22，Asia/Singapore）。**
+**决定时历史状态：Accepted design / NOT IMPLEMENTED（2026-10-22，Asia/Singapore）。当前 TaskSyncCore 与 Local adapter 已实现并随 Local 发行；Cloud 消费方不在此 Local 源码分支中交付。**
 
 **决定方：项目负责人确认本地任务的进度 / 产物同步设计应复用于云端任务。**
 
@@ -14,7 +20,7 @@
 
 决定抽取 **TaskSyncCore**，作为两种模式复用的同步语义与库。Local 使用 **LocalSyncCoordinator + LocalSyncAdapter**，Cloud 使用 Worker 内的 **CloudTaskReporter + CloudSyncAdapter**。两者复用领域意图整理、来源 / 产物清单、语义差异、完整请求固定、操作账本驱动、回执校验、原 key 对账与固定接受版本读回；各 adapter 保留自己所属 profile 的请求、身份、权限、版本与持久化规则。
 
-本决定是设计补充，不建立通用 Task 根实体、跨模式写入 API、服务端同步 daemon 或新授权 scope。不修改 ADR-018 原文、TMP §45、领域 §50；既有 Codex MCP 实现继续独立可用。TaskSyncCore、两个新 adapter 与 CloudTaskReporter 均未实现，不能把原 MCP 的验收记录扩写为这些组件已交付。
+本决定是设计补充，不建立通用 Task 根实体、跨模式写入 API、服务端同步 daemon 或新授权 scope。不修改 ADR-018 原文、TMP §45、领域 §50；既有 Codex MCP 实现继续独立可用。决定时 TaskSyncCore、两个新 adapter 与 CloudTaskReporter 均未实现；该历史不覆盖文首当前 Local 实现记录，也不能借 Local 结果推定 Cloud 消费方已交付。
 
 ## 2. 共享机制与模式边界
 

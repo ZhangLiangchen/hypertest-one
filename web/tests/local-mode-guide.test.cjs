@@ -161,7 +161,7 @@ test("the project guide is reachable without blocking existing task reads", () =
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(section.ProjectSessionTasks, { projectId })));
   assert.ok(html.includes("Set up local mode"));
   assert.ok(html.includes('aria-expanded="false"'));
-  assert.ok(html.includes("No Codex tasks"));
+  assert.ok(html.includes("No local session tasks"));
   assert.equal(html.includes("local_sync install"), false, "an unopened guide runs no setup");
 });
 

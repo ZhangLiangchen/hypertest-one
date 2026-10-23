@@ -1,5 +1,11 @@
 # HyperTest Local 统一发行与一键安装设计
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
 **日期：2026-10-22，Asia/Singapore。状态：local-v0.1.0 已公开 / 仅 Darwin arm64 CPython 3.13 / 三宿主精确版本 R6 原生接入已验收。**
 
 本地模式将 **MCP、Hooks 适配和同步协调器作为同一个 HyperTest Local release** 交付，用户可把项目页生成的一条非秘密安装命令交给 Claude Code、Codex 或 DeepSeek harness 执行。安装目标分别为 `claude-code`、`codex`、`deepseek-harness`；一个版本可以包含多个 OS 资产，所有组件复用同一提交链路 / 私有账本边界。
@@ -18,7 +24,7 @@
 
 [LOCAL_INSTALL.md](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.0/LOCAL_INSTALL.md) 提供 Claude Code `2.1.218`、Codex `0.144.6`、DeepSeek CLI `0.1.5-rc.1` 各自 MCP-only 与明确启用 Hooks 的命令，共六条。保留命令中的 tag、源码、三项摘要和宿主版本，只替换绝对路径及所选已有 profile。DeepSeek 的 **`--host-config` 必须是 `<DSH_HOME>/profiles/<profile>/cordis.patch.yml`**，须与 `--dsh-home` 和 `--profile` 一致；将发行示例里的通用 `/ABS/SELECTED/host-config` 替换为此确切路径，不能使用任意 YAML。项目页命令直接从选定 home/profile 生成该路径。
 
-DeepSeek 还要求组件 `0.1.5-rc.2`，实测范围仅为 SDK profile 双 turn；headless one-shot、resume 和独立 Stop handler 次数不在已验范围。Claude / Codex 的后端、子代理和产物限制继续以下节矩阵为准。Hooks 默认关闭；启用需明确 `--workspace` 或审核过的产物策略，保留已有 `task:sync` 配置，安装不签发 grant 或复制模型登录。
+DeepSeek 还要求组件 `0.1.5-rc.2`。首发R6只观察SDK profile双turn；2026-10-23新增官方 headless CLI和官方Registry API跨进程恢复见文首新记录，独立Stop handler次数仍未单独观察。Claude / Codex 的后端、子代理和产物限制继续以下节矩阵为准。Hooks 默认关闭；启用需明确 `--workspace` 或审核过的产物策略，保留已有 `task:sync` 配置，安装不签发 grant 或复制模型登录。
 
 [公开发行证据](local-acceptance/local-v0.1.0-publication.json)记录四个资产匿名 HTTP 200、完整字节摘要、旧 MCP release / tag 与旧 latest 保全；catalog 的 `publication=NOT_ASSERTED` 是构建时声明，公开事实由此独立记录证明。下载来源信任使用受信任发行渠道加预先确认的固定摘要，没有新增签名体系。公开 bootstrap 的新隔离安装结果见下段；任何新机器仍须重载并以真实父会话 ACK 和固定接受版本完整读回确认接入。
 
@@ -28,7 +34,7 @@ DeepSeek 还要求组件 `0.1.5-rc.2`，实测范围仅为 SDK profile 双 turn�
 
 仅对独立 Codex 配置完成合并与 doctor，结果为 `WRITTEN`；原私有授权 / policy / 宿主配置 / 用户配置 / state 文件摘要保全，3 个原 key 仍 `READBACK_COMPLETE`、pending 为 0，daemon 已停止。此步骤未启动模型、SUT 或新同步；新安装 `native_acceptance` / `real_sync` 仍为 `NOT_OBSERVED`，`automatic_trigger=CONFIGURED_UNACCEPTED`。它证明公开下载安装与配置保全，不追加三宿主原生 E2E 结论。[发行记录](local-acceptance/local-v0.1.0-publication.json)保存脱敏字段与原收据 SHA-256 `52b027831901ac6ae5cee27b462347f75072426533c43de32daeedc38e756271`。
 
-## R6 固定源码验收与发行资格（2026-10-22）
+## 历史：R6 固定源码验收与发行资格（2026-10-22）
 
 三宿主的真实 Local 接入均已完成，本提交固定 Darwin arm64 / CPython 3.13 的正式构建资格。[资格记录](local-acceptance/darwin-arm64-py313.json)绑定 R6 源码 `7aefe2878ffad4149d7e01bc18df69a6f090b0a6`、Local source digest `a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a` 和实装候选 wheel SHA-256 `dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40`。验收与公开资产发布分别记载；实际下载命令由固定资产生成并通过受信任的 [GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases) 分发，资产尚未出现时不使用占位 URL。
 
@@ -40,7 +46,7 @@ DeepSeek 还要求组件 `0.1.5-rc.2`，实测范围仅为 SDK profile 双 turn�
 
 本次实机为 macOS 26.5.1 / arm64 / Python 3.13.3。Linux x86_64 / CPython 3.12 仅有源码回归、固定依赖构建与离线安装证明，保留 CANDIDATE，稳定 tag 不发布该目标；其他 OS / 架构 / Python / 宿主版本未接受。`local-v*` 使用独立发行线，旧 `mcp-v*` 内容与适用范围保留。
 
-真实产物范围仅为批准的 analysis.md → TEST_PLAN，另有实际 MCP GET；case / raw report 为 0。用例、报告与 FAIL 保全已有 ASGI / 单元回归，不能扩大为三宿主全部产物类型的原生 E2E。状态来自批准策略；Stop、上传或 ACK 不推导 COMPLETED / PASS。R5 DSH 证明保留为[独立历史](local-acceptance/deepseek-native-20261022-r5.json)，当前资格来自新的 R6 运行。
+该次 R6 历史轮次的真实产物范围仅为批准的 analysis.md → TEST_PLAN，另有实际 MCP GET；case / raw report 为 0。用例、报告与 FAIL 保全已有 ASGI / 单元回归，不能扩大为三宿主全部产物类型的原生 E2E。状态来自批准策略；Stop、上传或 ACK 不推导 COMPLETED / PASS。R5 DSH 证明保留为[独立历史](local-acceptance/deepseek-native-20261022-r5.json)，当前资格来自新的 R6 运行。
 
 [CI #118](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39770913859) 已通过：后端 1180 passed / 21 skipped，Web 137 passed、typecheck 与 production build。R6 候选另通过隔离远端 168 项 Local / MCP / 旧客户端回归、focused Ruff、固定 29 依赖离线安装与 pip check。最终 evidence / target / 文档提交保持同一 Local source digest，另行执行发行专项与 CI。
 
@@ -59,7 +65,7 @@ DeepSeek 还要求组件 `0.1.5-rc.2`，实测范围仅为 SDK profile 双 turn�
 | 最小使用资产 | 对应宿主所需的命令说明 / 最小技能资产与正式产物 manifest 说明；不复制聊天或替换用户已有全局技能 |
 | 发行与兼容资产 | 固定源码、bootstrap、payload、manifest、摘要 / 签名、安装说明和逐宿主验收记录 |
 
-新发行线使用 `local-vMAJOR.MINOR.PATCH`，版本对应不可变源码 commit。源码分支为 `codex/local-mode-release-v0.1.0`，见 [draft PR #23](https://github.com/ZhangLiangchen/hypertest-one/pull/23)；尚未创建 Local tag 或公开 release。manifest 至少列出版本、源码 commit、所有资产的固定 URL / 大小 / SHA-256、bootstrap 与 payload 的验证方式、可信签名身份 / 证明引用、依赖闭包或锁定依赖、支持的 OS / 架构 / Python 与宿主版本、MCP 契约、journal 格式及可升级 / 可回退范围、各宿主各能力的状态和实际验收材料引用。不以 `latest`、`main`、浮动依赖或三个组件的任意版本拼装作为稳定发行。
+新发行线使用 `local-vMAJOR.MINOR.PATCH`，版本对应不可变源码 commit。源码分支为 `codex/local-mode-release-v0.1.0`，见 [PR #23](https://github.com/ZhangLiangchen/hypertest-one/pull/23)；`local-v0.1.0` 已公开，其不可变 tag / 资产与文首记录一致。后续分支提交不移动该 tag。manifest 至少列出版本、源码 commit、所有资产的固定 URL / 大小 / SHA-256、bootstrap 与 payload 的验证方式、可信签名身份 / 证明引用、依赖闭包或锁定依赖、支持的 OS / 架构 / Python 与宿主版本、MCP 契约、journal 格式及可升级 / 可回退范围、各宿主各能力的状态和实际验收材料引用。不以 `latest`、`main`、浮动依赖或三个组件的任意版本拼装作为稳定发行。
 
 manifest 同时固定 TaskSyncCore / LocalSyncAdapter 的版本与兼容关系。Cloud 运行镜像可独立固定兼容的共享库 / CloudSyncAdapter；**不执行本地 bootstrap、不安装完整 Local 包或宿主配置，也不等待三宿主发行验收**。Cloud 使用独立 `cloud:work`、CloudTask / Attempt 与 lease / fencing，复用库不复用 Local `task:sync` token、来源身份、状态或账本。云端报告通道不是把 SessionTask 安装到服务器上；两模式分别发布和验收。
 

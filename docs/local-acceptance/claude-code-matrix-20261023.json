@@ -1,0 +1,302 @@
+{
+  "schema": "hypertest.local-native-matrix-observation/v1",
+  "run": "local-matrix-20261023-bcf53ca2",
+  "host": "claude-code",
+  "harness_version": "2.1.218",
+  "os": "Darwin",
+  "architecture": "arm64",
+  "python_version": "3.13.3",
+  "published_release": "local-v0.1.0",
+  "runtime_source_commit": "874569fa566a137eba77ac4852caa6052cb04a17",
+  "runtime_source_digest": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+  "published_runtime_code_changed": false,
+  "review_status": "PENDING_INDEPENDENT_REVIEW",
+  "observed_checks_passed": true,
+  "project_id": "01a166a9-c5ca-78fc-8ef6-373a6f4ce2f0",
+  "provider": "claude_code",
+  "native_session_id": "1c616d85-c6ef-4048-8a36-036254d188da",
+  "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+  "head_version": 4,
+  "task_status": "BLOCKED",
+  "reported_result": "FAIL",
+  "real_business_sut_execution": "NOT_RUN",
+  "fixture_notice": "Management synchronization fixture only; FAIL is deliberately reported fixture data, not a business SUT execution result.",
+  "process_boundary_proven": true,
+  "process_boundary_basis": "Each actual native CLI subprocess was spawned and awaited to close before the next exact-ID resume invocation.",
+  "child_pid_recorded": false,
+  "session_persistence_enabled": true,
+  "fork_or_last_or_ephemeral_used": false,
+  "dangerous_approval_or_hook_bypass_used": false,
+  "source_metadata_is_caller_authentication": false,
+  "native_session_start_observations": [
+    {
+      "session_id": "1c616d85-c6ef-4048-8a36-036254d188da",
+      "source": "startup",
+      "observed_at": "2026-10-23T03:00:13.863275+00:00"
+    },
+    {
+      "session_id": "1c616d85-c6ef-4048-8a36-036254d188da",
+      "source": "resume",
+      "observed_at": "2026-10-23T03:02:34.878215+00:00"
+    },
+    {
+      "session_id": "1c616d85-c6ef-4048-8a36-036254d188da",
+      "source": "resume",
+      "observed_at": "2026-10-23T03:03:58.121394+00:00"
+    }
+  ],
+  "native_cli_stages": [
+    {
+      "stage": "FRESH_HEADLESS_CASE_REPORT",
+      "cli_exit_code": 0,
+      "timed_out": false,
+      "native_session_ids": [
+        "1c616d85-c6ef-4048-8a36-036254d188da"
+      ],
+      "requested_resume_session": null,
+      "resume_matches_observed": null,
+      "completed_mcp_calls": [],
+      "raw_output_retained": false
+    },
+    {
+      "stage": "RESUME_EXACT_MCP_CASE_COMPLETION",
+      "cli_exit_code": 0,
+      "timed_out": false,
+      "native_session_ids": [
+        "1c616d85-c6ef-4048-8a36-036254d188da"
+      ],
+      "requested_resume_session": "1c616d85-c6ef-4048-8a36-036254d188da",
+      "resume_matches_observed": true,
+      "completed_mcp_calls": [
+        {
+          "tool": "mcp__hypertest-local__hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+          "version": 2,
+          "idempotency_key": null,
+          "sync": null
+        },
+        {
+          "tool": "mcp__hypertest-local__hypertest_sync_task",
+          "is_error": false,
+          "result_status": "ACCEPTED",
+          "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+          "version": 3,
+          "idempotency_key": "matrix-claude-case-v1",
+          "sync": {
+            "state": "READBACK_COMPLETE",
+            "readback_complete": true,
+            "code": null
+          }
+        },
+        {
+          "tool": "mcp__hypertest-local__hypertest_get_task",
+          "is_error": false,
+          "result_status": "ACCEPTED",
+          "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+          "version": 3,
+          "idempotency_key": "matrix-claude-case-v1",
+          "sync": null
+        },
+        {
+          "tool": "mcp__hypertest-local__hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+          "version": 3,
+          "idempotency_key": null,
+          "sync": null
+        }
+      ],
+      "raw_output_retained": false
+    },
+    {
+      "stage": "RESUME_EXACT_HEADLESS_PLAN_REVISION",
+      "cli_exit_code": 0,
+      "timed_out": false,
+      "native_session_ids": [
+        "1c616d85-c6ef-4048-8a36-036254d188da"
+      ],
+      "requested_resume_session": "1c616d85-c6ef-4048-8a36-036254d188da",
+      "resume_matches_observed": true,
+      "completed_mcp_calls": [
+        {
+          "tool": "mcp__hypertest-local__hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+          "version": 3,
+          "idempotency_key": null,
+          "sync": null
+        },
+        {
+          "tool": "mcp__hypertest-local__hypertest_get_task",
+          "is_error": false,
+          "result_status": null,
+          "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+          "version": 4,
+          "idempotency_key": null,
+          "sync": null
+        }
+      ],
+      "raw_output_retained": false
+    }
+  ],
+  "versions": [
+    {
+      "version": 1,
+      "key": "hook-31cf8378b116433f8874a26f66e62448",
+      "expected_version": 0,
+      "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "IN_PROGRESS",
+      "task_result": "NOT_RUN",
+      "plan_sha256": "2c4dc550c1eb1c1a8be3a71827572e82954bf183bed1c1e71175b6ac25c6d7e1",
+      "case_count": 0,
+      "report_count": 0,
+      "case": null,
+      "raw_report_sha256": null,
+      "raw_report_result": null,
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 8,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    },
+    {
+      "version": 2,
+      "key": "hook-bf156177a7bf4f9684174b053214c7ed",
+      "expected_version": 1,
+      "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "IN_PROGRESS",
+      "task_result": "NOT_RUN",
+      "plan_sha256": "2c4dc550c1eb1c1a8be3a71827572e82954bf183bed1c1e71175b6ac25c6d7e1",
+      "case_count": 0,
+      "report_count": 1,
+      "case": null,
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "raw_report_result": "FAIL",
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 17,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    },
+    {
+      "version": 3,
+      "key": "matrix-claude-case-v1",
+      "expected_version": 2,
+      "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "BLOCKED",
+      "task_result": "FAIL",
+      "plan_sha256": "2c4dc550c1eb1c1a8be3a71827572e82954bf183bed1c1e71175b6ac25c6d7e1",
+      "case_count": 1,
+      "report_count": 1,
+      "case": {
+        "key": "matrix-fail-case",
+        "reported_result": "FAIL",
+        "revision": 1,
+        "task_version": 3
+      },
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "raw_report_result": "FAIL",
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 22,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    },
+    {
+      "version": 4,
+      "key": "hook-afaaf03127654626885678a0fdc28e23",
+      "expected_version": 3,
+      "task_id": "01a166b3-ca87-7502-84ff-596ad00968ab",
+      "owner_actor_ref": "interactive:01a166a9-c773-7bd9-b266-08230397229f",
+      "task_status": "BLOCKED",
+      "task_result": "FAIL",
+      "plan_sha256": "894790827cb70dafeaa728871f4f0048092481a63dad9ed83f006aeb0c056db7",
+      "case_count": 1,
+      "report_count": 1,
+      "case": {
+        "key": "matrix-fail-case",
+        "reported_result": "FAIL",
+        "revision": 1,
+        "task_version": 3
+      },
+      "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+      "raw_report_result": "FAIL",
+      "fixed_version_page_limit": 128,
+      "fixed_version_pages": 22,
+      "original_receipt_readback_complete": true,
+      "frozen_payload_match": true
+    }
+  ],
+  "raw_report_bytes": 792,
+  "raw_report_sha256": "0e1e7ab07e0914e31dbd957108dd59892eb6bdf3f5869b4c205654d38c7ab36b",
+  "raw_report_unicode_blank_lines_fences_end_marker_preserved": true,
+  "case_fields_verified": [
+    "key",
+    "title",
+    "steps",
+    "expected",
+    "actual",
+    "reported_result",
+    "implementation_ref"
+  ],
+  "checks": {
+    "one_source": true,
+    "same_task_all_versions": true,
+    "contiguous_versions": true,
+    "head_is_latest_accepted": true,
+    "head_task_fail": true,
+    "head_task_blocked": true,
+    "head_case_exact": true,
+    "head_report_exact_bytes": true,
+    "head_report_fail": true,
+    "head_plan_exact_bytes": true,
+    "artifact_plan_exact_bytes": true,
+    "artifact_report_exact_bytes": true,
+    "all_receipts_readback_complete": true,
+    "forced_pagination": true,
+    "pending_zero": true,
+    "same_authorized_owner": true,
+    "native_exact_session_resume": true,
+    "native_startup_resume_metadata": true,
+    "immutable_selected_policy": true,
+    "unchanged_stop_no_new_version": true
+  },
+  "pending_events": 0,
+  "raw_chat_reasoning_tool_payload_or_secrets_retained_in_probe_logs": false,
+  "native_host_owned_history_preserved_for_resume": true,
+  "history_rewritten": false,
+  "product_tests_lint_build_or_sut_executed_locally": false,
+  "evidence_sha256": {
+    "fresh-native.json": "c7b98dc7d55e8150bc457f0b45a196e86a008ca349cc8331e3b3377d8b0edb86",
+    "resume-mcp-native.json": "24d32f1b8c3d2f92fb37adf3e0b8d8afdb66e04218a298d223ad8e05e3425694",
+    "resume-plan-native.json": "d7e98ddfec0ef0721f5fe047ac5cb428f7b7a527491c8c3a44c017660bcf15f5",
+    "verification-resume-plan.json": "7224dd76a35991d2a779d13ecb1492a3a8540cce6f5de718cda28ed5466f2574",
+    "native-events.jsonl": "20e56c272aefc5562f4ab2075b7c2ff02f1a23e73e15304bbbaf7d645fe4c489",
+    "artifact-source.json": "ca3a504d23aea12d4bf9e180cdf5c7beb6d03ce427105e2f24dbfd53b2ae2697",
+    "policy-readback.json": "9bcc8d636e1e20ea161e650aa2678d96cd52edaba28d2defe2be6ad30ecc73ed",
+    "fixture-digests.json": "66e3e5e9d871cebc2ae3d54aeb1ae45f0df285b243670a37dc4a55571ac0d8f8",
+    "doctor-before-model.json": "c8cfaabecec57139a0b9dedbaf6df47932672b4d474f77a594c8a1aa1bc83a81",
+    "install-result.json": "68b5dfaeb6bdf5d7c27ba09b35697645b603969828b0f51cd6d9a806f97a2ffd",
+    "readback-fresh-before-case-v1.json": "98319a5eb454c220dc5257678d976738d8936ca38a5012e647b1d2fa79459aea",
+    "readback-fresh-before-case-v2.json": "e6818016d802f06c7706ff4ae1679ddcf74af7af00f22f3d314e2c18cec2103a",
+    "readback-resume-plan-v1.json": "98319a5eb454c220dc5257678d976738d8936ca38a5012e647b1d2fa79459aea",
+    "readback-resume-plan-v2.json": "e6818016d802f06c7706ff4ae1679ddcf74af7af00f22f3d314e2c18cec2103a",
+    "readback-resume-plan-v3.json": "019c8a26dafe5c9af297fde43a9c6309a2d337a5911f249d070b98c68c2f8f49",
+    "readback-resume-plan-v4.json": "e80400dde381ca02f40b5ea752c3cf958e707d222e36526dea7ad1fe267d589e",
+    "readback-resumed-mcp-v1.json": "98319a5eb454c220dc5257678d976738d8936ca38a5012e647b1d2fa79459aea",
+    "readback-resumed-mcp-v2.json": "e6818016d802f06c7706ff4ae1679ddcf74af7af00f22f3d314e2c18cec2103a",
+    "readback-resumed-mcp-v3.json": "019c8a26dafe5c9af297fde43a9c6309a2d337a5911f249d070b98c68c2f8f49",
+    "verification-fresh-before-case.json": "68ed71f935e7dd3107af854778a9421309419fa31378cb1ac1e64b94c01a44e6",
+    "verification-resumed-mcp.json": "cee86a4e832198762be7320b4f1669bddff0a1a656c157dee24a57fd489d5b28"
+  },
+  "limitations": [
+    "The initial headless turn performed two artifact Writes and ZERO MCP calls. Actual case/task FAIL synchronization was completed in the first exact-session resume, not retroactively attributed to the initial turn.",
+    "The second exact-session resume modified only the plan, preserved case/report/task FAIL and completed with no permission denials.",
+    "No adapter permission defect was established from the first-turn model omission; the corrected narrow run specification included ToolSearch permission but the successful turn called MCP directly.",
+    "This confirms unchanged Stop/SessionEnd callbacks did not add a version; no additional duplicate explicit full-snapshot submission was performed."
+  ]
+}

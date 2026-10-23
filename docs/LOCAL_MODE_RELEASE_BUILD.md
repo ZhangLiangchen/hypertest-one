@@ -1,5 +1,11 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
 ## 已公开发行（2026-10-22）
 
 [local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 已于 `2026-10-22T12:08:14Z` 正式公开，固定源码 `874569fa566a137eba77ac4852caa6052cb04a17`；本轮只发布 `darwin-arm64-py313`。三项可信摘要、三宿主六条安装命令和限制见[正式安装入口](LOCAL_MODE_RELEASE_AND_INSTALLATION.md#已公开的-local-v010)。[公开发行记录](local-acceptance/local-v0.1.0-publication.json)保留四个资产匿名 HTTP 200 与完整字节摘要核验；公开一键 bootstrap 已在 Mac 新隔离目录完成下载、校验、安装与 Codex 配置复验；新安装的真实 MCP / 自动同步仍未观察，详见该记录。R6 原始宿主证据保持不变。

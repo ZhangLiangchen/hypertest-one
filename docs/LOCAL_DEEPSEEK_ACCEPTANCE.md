@@ -1,5 +1,26 @@
 # DeepSeek Harness Local 接入验收
 
+## 2026-10-23：用例、原始报告、headless 与跨进程恢复补验
+
+固定公开 `local-v0.1.0` 的同一运行源码已完成本轮补验，未修改产品代码、发行资产或 tag。[新增原生矩阵证据](local-acceptance/deepseek-native-matrix-20261023.json)记录正式 wheel SHA-256 `a226e64a64f9c93a705e0139c0218f61cd804a3a562225d5bdbdf44984bf41d3`、前后 36 个实装成员比对及原生事件、实际 MCP 结果和完整读回。下文 R5 / R6 是 2026-10-22 的独立历史，原 JSON 字节保持不变；其当时未覆盖的用例、报告、headless / resume 不据本轮结果回填。
+
+本轮入口准确标记为 **headless CLI / official Registry API cross-process resume**：首次使用官方 `dsh-headless@0.1.5-rc.2` runner，一次 CLI 调用完成真实新父会话、产物及 MCP，然后 flush 并退出；后续新进程通过官方 `agents.resume` 加载该实际持久化会话。CLI 仍为 `0.1.5-rc.1`，组件为 `0.1.5-rc.2`；此版本 headless CLI 没有 resume flag，SDK wire 没有 `session/resume`。恢复由私有受控验收 driver 调用官方 API，不宣称新增了可安装的通用 resume CLI，也不以 SDK 两 turn 代替本轮入口。
+
+| 范围 | 本轮实际结果 |
+| --- | --- |
+| 真正 headless 首次运行 | PID `14187`，`24.377s`、exit `0`；官方分配 `session-8baf24e0-c2fa-496e-bd48-9c7aee7b73ac`，真实 `SessionStart` / `PostToolUse`，批准 analysis 与报告先后自动保存为 v1 / v2 |
+| 完整用例及显式结果 | 同一父会话真实 MCP GET v2 后，以固定 key 和 `expected_version=2` 完整提交用例 actual / FAIL、报告原文和 task FAIL，接受 v3；不是把 Hook 当 PATCH，也未运行 SUT |
+| 跨进程恢复 | 原进程退出后，新 PID `23262` 的官方 factory 发出 `source=resume`，恢复原 ID / profile / workspace / policy / binding；事件序列 `89 → 116`，`10.845s`、exit `0`，无 `agents.create` 回退 |
+| 合法恢复后修改 | 先读取唯一批准的 analysis，再覆盖同一文件，保留官方读版本保护；真实 Hooks 以 `expected_version=3` 接受 v4，实际 MCP GET 返回原 Task v4，原 key GET 仍返回 v3 |
+| 同一 Task 与失败保全 | Task `01a166b3-7569-7930-a7b4-09f1b148fa4b`；case actual / FAIL、report 原字节 / FAIL、task FAIL 均保留，状态为 `IN_PROGRESS`；case / report revision 仍为 `1` |
+| 原文与历史读回 | v1–v4 每个原 key 及固定版本均由 IPC 和独立 typed GET 完整读回，分页上限 512，各为 3 / 4 / 5 / 5 页；两路原文与 canonical JSON SHA 一致，v1–v3 历史摘要未变 |
+| 报告字节与最终文档 | 原始报告 SHA-256 `4ce6c6745487352e8aa70e48ddd2c70221fe8cfd22be35d4d3c34138d58cdf80`；最终完整文档 SHA-256 `4799982cea821ddcb4b47413eb9e9d3e10cbaedf408106e4994bbef543eeb03f` |
+| child / 收尾 | 真实 registry child 的原生事件已观察、0 次模型请求、无 binding / Task，GET 为 404；最终 4 个 `READBACK_COMPLETE`、1 个父 binding、0 pending，专用 daemon 正常停止 |
+
+四个未完成的恢复尝试及私有 probe 修订独立保留：两次在 setup callback 准备阶段失败，随后修正为官方要求的 void setup；两次恢复已真实完成但文件写工具失败，未将进程 exit `0` 当作产物同步通过。未捕获的文件错误码继续标记未知；官方“新 live Agent 先读再覆盖”的静态契约只作为修订依据，不倒填为已观察到的错误码。一次失败写入的真实参数在任何 read 之前已包含原 continuity marker，且新 prompt 未提供它；这单独证明恢复历史连续性。最终成功路径明确是 read → write。
+
+所有 FAIL 均为明确批准的合成管理验收输入，用于核对结果保全，不表示 SUT 失败或测试执行通过。原生 turn-stopping 已观察，但未单独统计产品 Stop handler 调用次数。没有自然发生 UNKNOWN，本轮记 `NOT_EXERCISED`，不扩大故障覆盖；自然失答仍只查询原 key。未扫描会话日志、聊天或推理，不复制模型登录，原 R5 / R6、旧 Task 和旧 journal 不改写。
+
 ## 正式发行追加记录（2026-10-22）
 
 [local-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.0) 已正式公开，仅 `darwin-arm64-py313`，tag 源码 `874569fa566a137eba77ac4852caa6052cb04a17`；Local source digest 与下文 R6 相同。公开三项摘要、SDK-profile 限制和安装命令见[统一安装入口](LOCAL_MODE_RELEASE_AND_INSTALLATION.md#已公开的-local-v010)，公开下载证据见[发行记录](local-acceptance/local-v0.1.0-publication.json)。DeepSeek `--host-config` 必须严格对应 `<DSH_HOME>/profiles/<profile>/cordis.patch.yml`；六条发行示例仅替换绝对路径 / 所选 profile，保留版本和摘要。公开包已在新隔离目录完成安装与 Codex 配置 / 保全复验，未进行新的模型或原生同步；该结果不扩大 DeepSeek SDK profile 既有验收范围。R5 / R6 原始 JSON 及其来源不变。

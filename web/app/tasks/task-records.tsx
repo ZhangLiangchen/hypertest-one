@@ -17,7 +17,7 @@ function CaseContent({ item }: { item: SessionCaseRevision }) {
     <Typography.Title level={5}>{t("Steps", "测试步骤")}</Typography.Title>
     {item.steps.length ? <ol>{item.steps.map((step, index) => <li key={index}>{step}</li>)}</ol> : <p className="muted">{t("No steps supplied.", "未提供步骤。")}</p>}
     <Typography.Title level={5}>{t("Expected result", "预期结果")}</Typography.Title><p className="session-literal">{item.expected || t("Not supplied", "未提供")}</p>
-    <Typography.Title level={5}>{t("Codex reported observation", "Codex 报告观察")}</Typography.Title><p className="session-literal">{item.actual || t("Not supplied", "未提供")}</p>
+    <Typography.Title level={5}>{t("Agent reported observation", "Agent 报告观察")}</Typography.Title><p className="session-literal">{item.actual || t("Not supplied", "未提供")}</p>
     {item.implementation_ref ? <p>{t("Test implementation reference", "测试实现引用")}: <span className="session-literal">{item.implementation_ref}</span></p> : null}
   </div>;
 }
@@ -39,15 +39,15 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
     <section className="data-surface session-record" aria-label={t("Task and session", "任务与会话")}>
       <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} layout="vertical" items={[
         { key: "status", label: t("Task status", "任务状态"), children: <Tag color={task.status === "IN_PROGRESS" ? "blue" : task.status === "BLOCKED" ? "gold" : undefined}>{label(task.status)}</Tag> },
-        { key: "result", label: t("Codex reported result", "Codex 报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
+        { key: "result", label: t("Agent reported result", "Agent 报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
         { key: "sync", label: t("Last synced", "最后同步"), children: formatDate(task.last_synced_at) },
-        { key: "session", label: t("Codex session", "Codex 会话"), children: <span className="entity-key">{task.session_id}</span> },
+        { key: "session", label: t("Agent session", "Agent 会话"), children: <span className="entity-key">{task.session_id}</span> },
         { key: "source", label: t("Sync source", "同步来源"), children: `${task.provider} · ${task.source}` },
         { key: "version", label: t("Task version", "任务版本"), children: task.version },
       ]} />
       <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
       <p className="session-literal">{task.objective}</p>
-      <Typography.Paragraph className="muted">{t("Synced from the Codex session. Codex performs the testing work; this page manages its records and reported results.", "内容同步自 Codex 会话。测试工作由 Codex 完成，此页面管理任务记录与报告结果。")}</Typography.Paragraph>
+      <Typography.Paragraph className="muted">{t("Synced from the source Agent session. The Agent performs the testing work; this page manages its records and reported results.", "内容同步自来源 Agent 会话。测试工作由 Agent 完成，此页面管理任务记录与报告结果。")}</Typography.Paragraph>
     </section>
     <section className="data-surface session-record" aria-labelledby="task-plan-heading">
       <Typography.Title id="task-plan-heading" level={2}>{t("Test plan", "测试计划")}</Typography.Title>
@@ -60,7 +60,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         expandRowByClick: true,
       }} columns={[
         { title: t("Case", "用例"), key: "case", render: (_, item) => <><span className="entity-key">{item.key}</span><div>{item.title}</div></> },
-        { title: t("Codex reported result", "Codex 报告结果"), dataIndex: "reported_result", width: 180, render: (result) => <ReportedResultTag result={result} /> },
+        { title: t("Agent reported result", "Agent 报告结果"), dataIndex: "reported_result", width: 180, render: (result) => <ReportedResultTag result={result} /> },
         { title: t("Revision", "修订"), dataIndex: "revision", width: 80 },
         { title: t("Synced", "同步时间"), dataIndex: "created_at", width: 190, render: formatDate },
       ]} locale={{ emptyText: t("No cases have been synced.", "尚未同步测试用例。") }} /></div>

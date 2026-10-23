@@ -1,5 +1,11 @@
 # 本地会话同步分阶段实施计划
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
 **日期：2026-10-22，Asia/Singapore。当前：local-v0.1.0 已公开，Darwin arm64 / CPython 3.13 的三宿主精确版本接入已验收；下文 L0–L4 保留原分阶段设计与退出条件，不表示所有矩阵已完成。**
 
 本计划交付 [ADR-020](architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 的 Local 改进：**Harness Hooks / 已核验事件自动触发，MCP 显式提交与查询，统一本地同步协调器复用现有私有客户端、typed HTTPS API 和 journal；统一 HyperTest Local release 提供一键安装。** [ADR-018](architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 的 Codex MCP 同步继续可用。协调器、自动触发、三宿主 adapter 与统一发行已经交付；正式目标、固定摘要命令和未观察范围见[当前实现状态](LOCAL_MODE_IMPLEMENTATION_STATUS.md)及[公开发行记录](local-acceptance/local-v0.1.0-publication.json)。发行与安装契约见[统一指南](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。
