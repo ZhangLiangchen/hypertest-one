@@ -417,3 +417,32 @@ The historical VPN entry **http://155.138.206.106:8080** was active in the Stage
 The first production file-import Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` correctly stopped **BLOCKED**: 10 Requirements, 6 Risks and 8 Cases included two erroneous Runner-infrastructure cases. The real implementation Agent returned PARTIAL with 6 proposals; verification rejected them (`RESULT_NOT_COMPLETED`), leaving **0 Canonical Implementations / Executions / Evidence / Verdicts**. [preserved failed-run record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-first-attempt-2026-10-17.json). HTTP Project/Run/Job creation and the exact edited 605-byte PRD/hash were verified; this is not a complete passing cycle.
 
 **Stage 2** changes backend runtime context and Codex guidance to distinguish the application's requirements from instructions about testing it. Authoritative scope is clarified in [domain §12](docs/domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement) and [TMP §9](docs/protocol/TEST_MISSION_PROTOCOL.md#9-mission-context). This stage is no longer backend-identical to d20/302. Its new freeze passed **303 backend tests / 3 warnings (48.70s)**, Ruff, test-DB Alembic head 0008 and a fresh independent **20-test Web/typecheck/build/audit-0** verification. Source-input manifest is `4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`; it includes uncommitted changes above 73d and is not that commit SHA. The final release SHA/deployment and a fresh-Project real-model cycle using the same PRD/source/configuration/Policy content belong to the [latest delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md). No prior accepted state is rewritten, PARTIAL is not accepted, and Gate rules are not relaxed.
+
+## HyperTest Local
+
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](docs/local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
+
+本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
+统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
+Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
+真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、
+LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
+源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
+
+原 ADR-018 全文、TMP §45 与领域 §50 保持本分支基线原文。原 API/profile、task:sync、
+Project/actor owner、完整请求、expected_version 与历史语义不变；hypertest_sync_task 不是 PATCH。
+同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
+只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
+冻结后保留完整请求/key/version；SENT/UNKNOWN/失答及 NOT_FOUND 只 GET 原 key，不自动再次 POST。
+有效 ACK 后完整读回固定接受版本才确认本次同步；传输状态不重写 reported_result，Stop 不代表 PASS/COMPLETED。
+
+Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重标。
+安装只复用既有私有 Project 授权，不申请 Operator key、签发 grant 或复制模型登录；
+Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
+升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
+Cloud/Local 共享 Project 的设计与任何外部 Cloud 实施进度不由本 Local 源码分支声称已交付。

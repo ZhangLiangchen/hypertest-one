@@ -1,0 +1,102 @@
+{
+  "schema_version": "hypertest.local-host-acceptance/v1",
+  "release_tag": "local-v0.1.0",
+  "local_source_sha256": "a5db7a7cc5058bd5fc9162c056f2b8d93c41bf18d6975879a334bbc611d56d8a",
+  "target": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "python": "3.13"
+  },
+  "qualification_status": "SOURCE_QUALIFIED_PUBLICATION_SEPARATE",
+  "source_candidate_commit": "7aefe2878ffad4149d7e01bc18df69a6f090b0a6",
+  "native_candidate_wheel_sha256": "dd88a810e43eea70bf669f7c3fde2929d77e7035b6cdf87a48c735951e47ac40",
+  "hosts": {
+    "claude-code": {
+      "versions": [
+        "2.1.218"
+      ],
+      "native_acceptance": "ACCEPTED",
+      "mcp": "ACCEPTED",
+      "automatic_trigger": "ACCEPTED",
+      "sync_proof": "ACK_AND_FIXED_VERSION_FULL_READBACK",
+      "evidence_refs": [
+        "docs/local-acceptance/claude-code-native-20261022.json"
+      ],
+      "evidence_sha256": "e87edfbb8723486971f71ee87f538e6d84014eb04d2c3f6967143cf3ae2c6bea",
+      "private_receipt_sha256": "be6cf99c871daf98f5baff4cc4efb0909b5f0fe64ae634f19e91c6d494e65136",
+      "observed_capabilities": [
+        "native SessionStart binding",
+        "formal analysis.md -> TEST_PLAN",
+        "native Write/PostToolUse/Stop automatic synchronization",
+        "actual hypertest_get_task with successful native tool result",
+        "native Agent SubagentStart/SubagentStop; child source lookup NOT_FOUND"
+      ],
+      "limitations": [
+        "Darwin arm64 CPython 3.13.3 / Claude Code 2.1.218 with official DeepSeek Anthropic-compatible backend only",
+        "Approved analysis.md -> TEST_PLAN; DRAFT / NOT_RUN; cases and raw reports not natively exercised",
+        "Source selection gate is not current MCP caller authentication"
+      ]
+    },
+    "deepseek-harness": {
+      "versions": [
+        "0.1.5-rc.1"
+      ],
+      "native_acceptance": "ACCEPTED",
+      "mcp": "ACCEPTED",
+      "automatic_trigger": "ACCEPTED",
+      "sync_proof": "ACK_AND_FIXED_VERSION_FULL_READBACK",
+      "evidence_refs": [
+        "docs/local-acceptance/deepseek-native-20261022.json"
+      ],
+      "evidence_sha256": "d222e206f00382013ce0f85b8a9c4e6a6d28b60b47993cf44cdfe9c563dedc65",
+      "observed_capabilities": [
+        "Real SessionStart root binding",
+        "Real PostToolUse approved-artifact checkpoint to accepted receipt and fixed complete readback",
+        "Actual native MCP get_task result",
+        "Real registry child event without child Task; child lookup 404"
+      ],
+      "component_version": "0.1.5-rc.2",
+      "limitations": [
+        "SDK-profile two-turn acceptance only; headless one-shot and resume not separately accepted",
+        "Root Stop handler was not independently instrumented; two completed turn/end observations do not expand the accepted trigger scope",
+        "macOS acceptance state used a shorter owner-only socket path; existing state bytes and original authorization were preserved",
+        "This evidence does not certify other hosts, cloud execution, business tests, publication or a release-ready verdict",
+        "Approved analysis.md -> TEST_PLAN; explicit acceptance policy IN_PROGRESS / NOT_RUN; cases and raw reports not natively exercised"
+      ]
+    },
+    "codex": {
+      "versions": [
+        "0.144.6"
+      ],
+      "native_acceptance": "ACCEPTED",
+      "mcp": "ACCEPTED",
+      "automatic_trigger": "ACCEPTED",
+      "sync_proof": "ACK_AND_FIXED_VERSION_FULL_READBACK",
+      "evidence_refs": [
+        "docs/local-acceptance/codex-native-20261022.json"
+      ],
+      "evidence_sha256": "ee28da27975ee4c89d54258c7160421c2b18cf5684470b654accb48492b5d3ce",
+      "private_receipt_sha256": "75ee3ef720e8c4f74da3b0e7601a7e0441dd18ebe46eda664b5a640c8d55489e",
+      "observed_capabilities": [
+        "native SessionStart binding",
+        "formal analysis.md -> TEST_PLAN",
+        "native apply_patch/PostToolUse/Stop automatic synchronization",
+        "actual hypertest_get_task completed for this same parent",
+        "separate R6 parent native spawn_agent child lifecycle; child GET NOT_FOUND and no child binding"
+      ],
+      "limitations": [
+        "Darwin arm64 CPython 3.13.3 / Codex CLI 0.144.6, gpt-5.6-sol only",
+        "Automatic artifact sync and actual MCP get_task succeeded for the same final parent; native child lifecycle/filtering was independently observed on a different real R6 parent with the same wheel and CLI",
+        "Final automatic+GET turn recorded 3 spawn PreToolUse attempts and no child lifecycle events; these attempts are not claimed as successful delegation",
+        "Standard project/Hook trust and explicit approval of hypertest_get_task are required; acceptance used one CLI-only per-tool read approval, without persistent user configuration or sandbox changes",
+        "Approved analysis.md -> TEST_PLAN; DRAFT / NOT_RUN; cases and raw reports not natively exercised"
+      ]
+    }
+  },
+  "limitations": [
+    "Source-qualified Local synchronization only; no SUT or business-test PASS proof",
+    "Published target limited to Darwin arm64 CPython 3.13; Linux x86_64 CPython 3.12 remains candidate-only",
+    "Default workspace initial status DRAFT / NOT_RUN; DeepSeek acceptance used its explicitly approved IN_PROGRESS / NOT_RUN policy",
+    "Formal publication and generated trusted download commands are tracked separately from this source acceptance record"
+  ]
+}

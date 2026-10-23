@@ -32,6 +32,7 @@ dev = [
 ]
 
 [project.scripts]
+hypertest-local = "hypertest.local_sync.__main__:main"
 hypertest-interactive = "hypertest.interactive_client.__main__:main"
 hypertest-native = "hypertest.native_client:main"
 

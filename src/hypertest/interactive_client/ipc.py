@@ -79,6 +79,12 @@ class LocalServer:
                     if set(payload) != {"name", "arguments"}:
                         raise ClientError("LOCAL_REQUEST_REJECTED")
                     value = await self.service.call(payload["name"], payload["arguments"], peer_pid=pid)
+                elif request["operation"] == "local-hook":
+                    value = await self.service.local_hook(request["payload"])
+                elif request["operation"] == "local-manifest":
+                    value = await self.service.local_manifest(request["payload"])
+                elif request["operation"] == "local-source":
+                    value = await self.service.local_source(request["payload"])
                 else:
                     raise ClientError("LOCAL_OPERATION_UNSUPPORTED")
             result = {"ok": True, "result": value}
