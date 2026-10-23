@@ -21,7 +21,7 @@ from hypertest.application.services import create_project
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CredentialVersion
+from hypertest.domain.cloud_tasks import CloudTask, CloudWorkGrant, CredentialVersion
 from hypertest.domain.session_tasks import SessionTask
 from hypertest.main import app
 
@@ -172,6 +172,57 @@ async def test_freeze_idempotency_and_fixed_version_readback(cloud_context):
                             attempt_id=accepted["attempt_id"], reason="Explicit fixture cleanup")
     assert cancelled.status_code == 200
     assert (await read_all(context, task_id, accepted["version"])) == frozen
+
+
+@pytest.mark.parametrize("resolution_status", [None, "PENDING", "RESOLVING"])
+async def test_draft_cancel_atomically_accepts_terminal_version_and_retains_history(cloud_context, resolution_status):
+    context = cloud_context
+    created = await draft(context)
+    task_id, version = created["task_id"], created["version"]
+    if resolution_status is not None:
+        requested = await post(context, "RESOLVE_INPUTS", version, task_id=task_id)
+        assert requested.status_code == 200, requested.text
+        version = requested.json()["version"]
+        if resolution_status == "RESOLVING":
+            async with AsyncSessionLocal() as db:
+                claim = await service.claim_resolution(db, "fixture-resolver", project_id=UUID(context["project_id"]))
+            assert claim["resolution"]["id"] == requested.json()["resolution_id"]
+    original = await read_all(context, task_id, version)
+    operation_key = "cancel-draft-" + uuid4().hex
+    fields = {"task_id": task_id, "reason": "Synthetic undispatched cancellation"}
+    cancelled = await post(context, "CANCEL_TASK", version, operation_key=operation_key, **fields)
+    assert cancelled.status_code == 200, cancelled.text
+    accepted = cancelled.json()
+    assert accepted["version"] == version + 1
+    final = await read_all(context, task_id, accepted["version"])
+    assert final["task"]["status"] == "CANCELLED"
+    assert final["task"]["version"] == version + 1
+    assert final["task"]["reported_result"] == "NOT_RUN"
+    assert final["task"]["latest_attempt_id"] is None
+    assert final["task"]["frozen_manifest"] is None
+    assert final["attempts"] == []
+    if resolution_status is not None:
+        assert final["resolutions"][0]["status"] == (
+            "RECOVERY_REQUIRED" if resolution_status == "RESOLVING" else "FAILED")
+    if resolution_status == "RESOLVING":
+        async with AsyncSessionLocal() as db:
+            grants = list(await db.scalars(select(CloudWorkGrant).where(
+                CloudWorkGrant.resolution_id == UUID(requested.json()["resolution_id"]))))
+            assert len(grants) == 1 and grants[0].revoked_at is not None
+    replay = await post(context, "CANCEL_TASK", version, operation_key=operation_key, **fields)
+    assert replay.status_code == 200 and replay.json() == accepted
+    assert (await read_all(context, task_id, version)) == original
+    denied = await post(context, "CANCEL_TASK", accepted["version"], **fields)
+    assert denied.status_code == 409
+    # Keep the database guard itself effective: even a later version-only edit
+    # must not mutate the accepted cancelled draft.
+    async with AsyncSessionLocal() as db:
+        row = await db.get(CloudTask, UUID(task_id))
+        row.version += 1
+        with pytest.raises(DBAPIError, match="cancelled draft is terminal"):
+            await db.flush()
+        await db.rollback()
+    assert (await read_all(context, task_id, accepted["version"])) == final
 
 
 async def test_secret_roundtrip_is_encrypted_scoped_and_binds_idempotency(cloud_context):
