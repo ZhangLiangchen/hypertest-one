@@ -80,6 +80,22 @@ class Settings(BaseSettings):
     cloud_attempt_timeout_seconds: int = Field(default=1800, ge=1, le=7200)
     cloud_worker_lease_seconds: int = Field(default=90, ge=15, le=300)
     cloud_worker_poll_seconds: float = Field(default=2.0, ge=0.1, le=60)
+    # ADR-022: optional Gateway. Only the API role mounts the upstream secret.
+    memory_enabled: bool = False
+    memory_powercontext_origin: str = "https://powercontext.invalid:8443"
+    memory_powercontext_token_file: str = "/run/hypertest-memory/powercontext-token"
+    memory_powercontext_ca_file: str | None = None
+    memory_timeout_seconds: float = Field(default=4.0, ge=0.1, le=5.0)
+    memory_max_response_bytes: int = Field(default=1048576, ge=16384, le=2097152)
+    # A separately granted integration token, never the PowerContext admin key.
+    cloud_memory_enabled: bool = False
+    cloud_memory_api_url: str = "https://hypertest.invalid/api/v1"
+    cloud_memory_api_socket: str | None = None
+    cloud_memory_token_file: str = "/run/credentials/hypertest-cloud.service/memory-integration"
+    cloud_memory_token_directory: str | None = None
+    cloud_memory_ca_file: str | None = None
+    cloud_memory_allow_insecure_loopback: bool = False
+    cloud_memory_timeout_seconds: float = Field(default=5.0, ge=0.1, le=5.0)
     # ADR-017 is independently enabled for explicitly approved Project keys.
     native_intake_enabled: bool = False
     native_project_keys: list[str] = Field(default_factory=list)

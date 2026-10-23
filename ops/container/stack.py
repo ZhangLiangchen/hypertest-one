@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parents[2]
 IMAGE_KEYS = [f"HYPERTEST_{name}_IMAGE" for name in ("API", "WORKER", "WEB", "POSTGRES", "NGINX")]
@@ -87,6 +88,8 @@ def validate(values: dict[str, str], *, live: bool) -> None:
         validate_tls(values, live=live)
     if cloud_web_enabled(values):
         validate_cloud_web(values, live=live)
+    if memory_gateway_enabled(values):
+        validate_memory_gateway(values, live=live)
     if live:
         subprocess.run(["docker", "volume", "inspect", values["HYPERTEST_POSTGRES_VOLUME"]], check=True, stdout=subprocess.DEVNULL)
         platform = read_env(Path(values["HYPERTEST_PLATFORM_ENV_FILE"]))
@@ -119,6 +122,8 @@ def compose_command(env_file: Path, *args: str) -> list[str]:
         command.extend(["-f", str(REPO / "ops/container/compose.tls.yml")])
     if env_file.exists() and cloud_web_enabled(read_env(env_file)):
         command.extend(["-f", str(REPO / "ops/container/compose.cloud.yml")])
+    if env_file.exists() and memory_gateway_enabled(read_env(env_file)):
+        command.extend(["-f", str(REPO / "ops/container/compose.memory.yml")])
     return [*command, *args]
 
 
@@ -136,51 +141,64 @@ def cloud_web_enabled(values: dict[str, str]) -> bool:
     return mode == "enabled"
 
 
-def validate_cloud_web(values: dict[str, str], *, live: bool) -> None:
-    if not ingress_tls_enabled(values):
-        raise ValueError("Cloud Web requires existing protected HTTPS ingress")
-    name = values.get("HYPERTEST_TLS_SERVER_NAME", values["HYPERTEST_PUBLIC_IP"])
-    port = values["HYPERTEST_INGRESS_PORT"]
-    origin = "https://" + name + (":" + port if port != "443" else "")
-    if values.get("HYPERTEST_CLOUD_API_ORIGIN") != origin:
-        raise ValueError("Cloud origin must match the existing canonical TLS listener")
-    for key in ("HYPERTEST_CLOUD_WORKER_ENABLED", "HYPERTEST_CLOUD_CODEX_ENABLED"):
-        if values.get(key, "false" if key.endswith("CODEX_ENABLED") else "") not in {"true", "false"}:
-            raise ValueError(f"{key} requires the actual explicit Worker configuration")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", values.get("HYPERTEST_CLOUD_CREDENTIAL_KEY_ID", "")):
-        raise ValueError("explicit existing Cloud wrapping key id required")
-    keys = ("HYPERTEST_CLOUD_WEB_SOCKET_DIR", "HYPERTEST_CLOUD_API_CA_FILE",
-            "HYPERTEST_CLOUD_API_WRAPPING_KEY_FILE", "HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE")
+def memory_gateway_enabled(values: dict[str, str]) -> bool:
+    mode = values.get("HYPERTEST_MEMORY_GATEWAY", "disabled")
+    if mode not in {"enabled", "disabled"}:
+        raise ValueError("HYPERTEST_MEMORY_GATEWAY must be enabled or disabled")
+    return mode == "enabled"
+
+
+def _private_paths(values: dict[str, str], keys: tuple[str, ...], *, live: bool) -> None:
     for key in keys:
-        path = Path(values.get(key, ""))
-        if (not path.is_absolute() or not re.fullmatch(r"/[A-Za-z0-9_./-]+", str(path))
+        raw = values.get(key, "")
+        path = Path(raw)
+        if (not path.is_absolute() or raw != str(path) or not re.fullmatch(r"/[A-Za-z0-9_./-]+", raw)
                 or ".." in path.parts or path == Path("/")):
             raise ValueError(f"{key} requires an explicit normalized absolute path")
         if live and (path.resolve(strict=True) != path or path.is_symlink()):
             raise ValueError(f"{key} must be canonical")
     if len({values[key] for key in keys}) != len(keys):
-        raise ValueError("Cloud socket, CA and private credentials must be separate")
+        raise ValueError("Socket, CA and private credentials must be separate")
+
+
+def _private_file(path: Path, uid: int, gid: int, key: str) -> None:
+    info = path.stat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+            or (info.st_uid, info.st_gid) != (uid, gid)
+            or stat.S_IMODE(info.st_mode) not in (0o400, 0o600)):
+        raise ValueError(f"{key} requires its service-owned private regular file")
+
+
+def _socket_directory(path: Path, gid: int, label: str) -> None:
+    info = path.stat()
+    if (not stat.S_ISDIR(info.st_mode) or (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode))
+            != (101, gid, 0o710)):
+        raise ValueError(f"{label} socket directory requires nginx101/clientgroup{gid} mode0710")
+    for entry in path.iterdir():
+        if entry.name != "api.sock" or not stat.S_ISSOCK(entry.lstat().st_mode):
+            raise ValueError(f"unexpected entry in {label} socket directory")
+
+
+def validate_web_facade(values: dict[str, str], *, live: bool) -> None:
+    """Strict existing Web HTTPS transport, independent of Cloud enablement."""
+    if not ingress_tls_enabled(values):
+        raise ValueError("Web facade requires existing protected HTTPS ingress")
+    name = values.get("HYPERTEST_TLS_SERVER_NAME", values["HYPERTEST_PUBLIC_IP"])
+    port = values["HYPERTEST_INGRESS_PORT"]
+    origin = "https://" + name + (":" + port if port != "443" else "")
+    if values.get("HYPERTEST_CLOUD_API_ORIGIN") != origin:
+        raise ValueError("Web facade origin must match the existing canonical TLS listener")
+    keys = ("HYPERTEST_CLOUD_WEB_SOCKET_DIR", "HYPERTEST_CLOUD_API_CA_FILE",
+            "HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE")
+    _private_paths(values, keys, live=live)
     if not live:
         return
-    directory = Path(values[keys[0]])
-    info = directory.stat()
-    if (not stat.S_ISDIR(info.st_mode) or (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode))
-            != (101, 1000, 0o710)):
-        raise ValueError("Cloud socket directory requires nginx101/Webgroup1000 mode0710")
-    for entry in directory.iterdir():
-        if entry.name != "api.sock" or not stat.S_ISSOCK(entry.lstat().st_mode):
-            raise ValueError("unexpected entry in Cloud socket directory")
-    for key, uid, gid in ((keys[2], int(values["HYPERTEST_UID"]), int(values["HYPERTEST_GID"])),
-                          (keys[3], 1000, 1000)):
-        info = Path(values[key]).stat()
-        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                or (info.st_uid, info.st_gid) != (uid, gid)
-                or stat.S_IMODE(info.st_mode) not in (0o400, 0o600)):
-            raise ValueError(f"{key} requires its service-owned private regular file")
+    _socket_directory(Path(values[keys[0]]), 1000, "Web")
+    _private_file(Path(values[keys[2]]), 1000, 1000, keys[2])
     ca = Path(values[keys[1]])
     info = ca.stat()
     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-        raise ValueError("Cloud public CA must be root-owned and immutable to services")
+        raise ValueError("Web facade public CA must be root-owned and immutable to services")
     ssl.create_default_context(cafile=str(ca))
     try:
         ipaddress.ip_address(name)
@@ -189,6 +207,46 @@ def validate_cloud_web(values: dict[str, str], *, live: bool) -> None:
         verify_name = ["-verify_hostname", name]
     subprocess.run(["openssl", "verify", "-CAfile", str(ca), *verify_name,
                     values["HYPERTEST_TLS_CERT_FILE"]], check=True, capture_output=True, timeout=10)
+
+
+def validate_cloud_web(values: dict[str, str], *, live: bool) -> None:
+    validate_web_facade(values, live=live)
+    for key in ("HYPERTEST_CLOUD_WORKER_ENABLED", "HYPERTEST_CLOUD_CODEX_ENABLED"):
+        if values.get(key, "false" if key.endswith("CODEX_ENABLED") else "") not in {"true", "false"}:
+            raise ValueError(f"{key} requires the actual explicit Worker configuration")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", values.get("HYPERTEST_CLOUD_CREDENTIAL_KEY_ID", "")):
+        raise ValueError("explicit existing Cloud wrapping key id required")
+    keys = ("HYPERTEST_CLOUD_API_WRAPPING_KEY_FILE", "HYPERTEST_CLOUD_WEB_SOCKET_DIR",
+            "HYPERTEST_CLOUD_API_CA_FILE", "HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE")
+    _private_paths(values, keys, live=live)
+    if live:
+        _private_file(Path(values[keys[0]]), int(values["HYPERTEST_UID"]), int(values["HYPERTEST_GID"]), keys[0])
+
+
+def validate_memory_gateway(values: dict[str, str], *, live: bool) -> None:
+    validate_web_facade(values, live=live)
+    origin = values.get("HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN", "")
+    try:
+        parsed = urlsplit(origin)
+        if (not re.fullmatch(r"https://(?:[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?|\[[0-9a-fA-F:]+\])(?::[1-9][0-9]{0,4})?/?", origin)
+                or parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+                or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+                or origin != origin.strip() or any(char in origin for char in "\r\n\x00")
+                or parsed.port is not None and not 1 <= parsed.port <= 65535):
+            raise ValueError("invalid origin")
+    except ValueError:
+        raise ValueError("Memory PowerContext origin requires explicit credential-free HTTPS without a path") from None
+    keys = ("HYPERTEST_MEMORY_POWERCONTEXT_TOKEN_FILE", "HYPERTEST_MEMORY_WORKER_SOCKET_DIR",
+            "HYPERTEST_CLOUD_WEB_SOCKET_DIR", "HYPERTEST_CLOUD_API_CA_FILE", "HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE")
+    _private_paths(values, keys, live=live)
+    if values.get("HYPERTEST_CLOUD_API_WRAPPING_KEY_FILE") == values[keys[0]]:
+        raise ValueError("Memory upstream and Cloud wrapping credentials must be separate")
+    worker, web = Path(values[keys[1]]), Path(values[keys[2]])
+    if worker in web.parents or web in worker.parents:
+        raise ValueError("Memory Worker and Web socket directories must be separate and non-nested")
+    if live:
+        _private_file(Path(values[keys[0]]), int(values["HYPERTEST_UID"]), int(values["HYPERTEST_GID"]), keys[0])
+        _socket_directory(worker, 988, "Memory Worker")
 
 
 def validate_tls(values: dict[str, str], *, live: bool) -> None:
@@ -273,9 +331,15 @@ def render_nginx(values: dict[str, str]) -> str:
         ssl_protocols TLSv1.2 TLSv1.3;
         error_page 497 =308 https://{name}:{port}$request_uri;"""
     rendered = prefix + tls + public
-    if cloud_web_enabled(values):
+    cloud, memory = cloud_web_enabled(values), memory_gateway_enabled(values)
+    if cloud:
         validate_cloud_web(values, live=False)
+    if memory:
+        validate_memory_gateway(values, live=False)
+    if cloud or memory:
         rendered = rendered.rsplit("}", 1)[0] + _cloud_web_listener(values) + "}\n"
+    if memory:
+        rendered = rendered.rsplit("}", 1)[0] + _memory_worker_listener(values) + "}\n"
     return rendered
 
 
@@ -293,6 +357,17 @@ def _cloud_web_listener(values: dict[str, str]) -> str:
             proxy_set_header Forwarded "";
             proxy_read_timeout 60s;
 """
+    routes = f"""        location /api/v1/cloud/ {{
+{forwarding}        }}
+        location ~ "^/api/v1/projects/[0-9a-f-]{{36}}/task-directory$" {{
+            limit_except GET HEAD {{ deny all; }}
+{forwarding}        }}
+""" if cloud_web_enabled(values) else ""
+    if memory_gateway_enabled(values):
+        routes += f"""        location /api/v1/memory/ {{
+            client_max_body_size 128k;
+{forwarding}        }}
+"""
     return f"""
     # Private filesystem transport. Same TLS identity, no additional TCP port.
     server {{
@@ -304,11 +379,38 @@ def _cloud_web_listener(values: dict[str, str]) -> str:
         access_log off;
         if ($http_host != "{authority}") {{ return 444; }}
         client_max_body_size 10m;
-        location /api/v1/cloud/ {{
-{forwarding}        }}
-        location ~ "^/api/v1/projects/[0-9a-f-]{{36}}/task-directory$" {{
-            limit_except GET HEAD {{ deny all; }}
-{forwarding}        }}
+{routes}        location / {{ return 404; }}
+    }}
+"""
+
+
+def _memory_worker_listener(values: dict[str, str]) -> str:
+    """A distinct path-limited TLS socket; no Operator/admin credential mount."""
+    name = values.get("HYPERTEST_TLS_SERVER_NAME", values["HYPERTEST_PUBLIC_IP"])
+    port = values["HYPERTEST_INGRESS_PORT"]
+    authority = name + (":" + port if port != "443" else "")
+    return f"""
+    # Private Memory Worker transport. Parent directory restricts client access.
+    server {{
+        listen unix:/run/hypertest-memory-worker/api.sock ssl;
+        server_name {name};
+        ssl_certificate /run/hypertest-tls/server.crt;
+        ssl_certificate_key /run/hypertest-tls/server.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        access_log off;
+        if ($http_host != "{authority}") {{ return 444; }}
+        client_max_body_size 128k;
+        location /api/v1/memory/ {{
+            proxy_pass http://127.0.0.1:{values['HYPERTEST_API_PORT']};
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Host $http_host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Forwarded "";
+            proxy_read_timeout 60s;
+        }}
         location / {{ return 404; }}
     }}
 """

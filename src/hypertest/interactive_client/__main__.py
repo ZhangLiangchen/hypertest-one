@@ -37,6 +37,7 @@ async def daemon(config: ClientConfig):
         await stopping.wait()
     finally:
         await server.close()
+        service.close_memory()
         await api.close()
         journal.close()
 

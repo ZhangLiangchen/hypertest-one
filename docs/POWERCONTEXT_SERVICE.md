@@ -1,6 +1,6 @@
 # PowerContext 共享记忆服务部署与运维
 
-核验日期：2026-10-22（Asia/Singapore）。这是独立服务的实际部署记录；HyperTest 的 Memory Broker、Project 授权映射以及 Cloud / Local Agent 接入仍待实现。本轮没有安装 Host 插件、启用聊天捕获或导入已有会话。
+核验日期：2026-10-22（Asia/Singapore）。这是独立服务的历史部署记录；后续2026-10-23 Gateway、Project授权映射与显式Cloud/Local源码适配已实现，实际部署见[集成交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。本记录原服务/合成原件保持；后续集成没有安装上游自动Hooks、启用聊天捕获或导入会话，不以本记录推定HyperTest功能验收。
 
 ## 当前部署
 

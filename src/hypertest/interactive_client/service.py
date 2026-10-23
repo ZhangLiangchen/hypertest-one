@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
@@ -92,6 +93,7 @@ class InteractiveService:
         self._grants: dict[str, dict] = {}
         self._content: dict[str, dict] = {}
         self.coordinator = None
+        self.memory = None
         self.local_capabilities = {
             "explicit_task_binding": bool(config.local_sync.get("enabled")
                 and config.local_sync.get("host") == "codex"
@@ -128,6 +130,10 @@ class InteractiveService:
                     "action": {"type": "string", "enum": ["bind", "continue"], "default": "bind"},
                     "continuation_key": {"type": "string", "minLength": 1, "maxLength": 128},
                 })
+        if self.config.memory_enabled:
+            from hypertest.interactive_client.memory import tool_schemas
+            for spec in tool_schemas():
+                self._tools[spec["name"]] = spec
         return list(self._tools.values())
 
     async def call(self, name: str, arguments: dict, *, peer_pid: int | None = None,
@@ -140,6 +146,9 @@ class InteractiveService:
             jsonschema.validate(arguments, spec["inputSchema"])
         except (jsonschema.ValidationError, jsonschema.SchemaError) as exc:
             raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
+        from hypertest.interactive_client.memory import MEMORY_TOOLS
+        if name in MEMORY_TOOLS:
+            return public(await self._memory_call(name, arguments, native_caller_context))
         if name == "hypertest_sync_task":
             payload = dict(arguments)
             payload.setdefault("provider", "codex")
@@ -225,6 +234,41 @@ class InteractiveService:
         if name in {"hypertest_read_evidence", "hypertest_read_report"}:
             self._verify_content(result, requested_cursor=arguments.get("cursor"))
         return public(result)
+
+    async def _memory_call(self, name, arguments, native_caller_context):
+        from hypertest.interactive_client.memory import MemoryClient
+        if not self.config.memory_enabled:
+            raise ClientError("MEMORY_DISABLED")
+        if self.memory is None:
+            try:
+                self.memory = MemoryClient(self.api.request, self.config.state_dir / "memory.sqlite3",
+                    timeout_seconds=self.config.memory_timeout_seconds)
+            except (ClientError, OSError, sqlite3.Error):
+                return {"status": "UNAVAILABLE", "code": "MEMORY_STORAGE_UNAVAILABLE", "task_sync_unaffected": True}
+        if name == "hypertest_get_memory_operation":
+            return await self.memory.recover(arguments["project_id"], arguments["operation_key"])
+        payload = {"project_id": arguments["project_id"]}
+        if name == "hypertest_propose_memory":
+            payload["source"] = {"mode": "LOCAL", **{field: arguments[field] for field in ("task_id", "task_version", "report_id")}}
+            payload.update(operation="CREATE_CANDIDATE", expected_version=0,
+                **{field: arguments[field] for field in ("operation_key", "title", "content")})
+            previous = self.memory.journal.get("memory:" + arguments["project_id"], arguments["operation_key"])
+            if previous:
+                # Recovery remains original-key-only even if the native host is
+                # no longer available. Digest validation still rejects changes.
+                return await self.memory.propose(payload)
+        if self.coordinator is None:
+            raise ClientError("LOCAL_COORDINATOR_REQUIRED")
+        identity = {field: arguments[field] for field in ("project_id", "provider", "session_id")}
+        self.coordinator._require_native_caller(identity, native_caller_context)
+        await self.coordinator._target(identity, supplied_task_id=arguments["task_id"])
+        if name == "hypertest_query_memory":
+            return await self.memory.query({**payload, "query": arguments["query"], "limit": arguments.get("limit", 5)})
+        return await self.memory.propose(payload)
+
+    def close_memory(self):
+        if self.memory is not None:
+            self.memory.close()
 
     async def local_hook(self, payload: dict) -> dict:
         """Private local IPC operation, deliberately absent from MCP tools/API."""

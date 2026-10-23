@@ -22,7 +22,7 @@
 
 Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
-Cloud 通过独立 SDK Worker 完成六步；API 不运行 Agent/测试，Local 的现有 MCP/Hooks 和人工管理路径保持。ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在本次 Cloud 交付中。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。 创建入口/Local 绑定按管理规范集成，不以 Cloud 文档改写其字段。
+Cloud 通过独立 SDK Worker 完成六步；API 不运行 Agent/测试，Local 的现有 MCP/Hooks 和人工管理路径保持。ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。 创建入口/Local 绑定按管理规范集成，不以 Cloud 文档改写其字段。
 
 ### v0.8 Local 入口：Codex 会话任务同步（ADR-018 优先）
 
@@ -1197,3 +1197,11 @@ Cloud 中途进度以 SubmitCloudAssets 的非最终 REPORT 修订保存，可�
 ### 47.3 独立交付与兼容
 
 Cloud 从自己的固定镜像/runtime 引用 TaskSyncCore，不要求安装面向用户的 Local 包或 Hooks，不共享凭据/全局锁/journal，不添加通用 Task/API。Local 原契约、管理增补及 release/matrix 历史保持；两种任务共享 Project 的查询不合并其授权或状态。最终Git的组件回归与部署检查按[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)分轮保留，用户验收由用户执行；此前Cloud fixture与Local资格不替代本轮验收，也不因此升级真实native bind结论。
+
+## 48. ADR-022 可选 Memory Gateway
+
+Gateway在API管理角色内独立实现授权、Project映射、私有候选、人工发布/修订/撤回、当前可见目录与持久意图；只调用固定PowerContext 1.4.0显式remember/FTS/固定revision读取，不启动Agent/测试。仅该角色只读挂载PowerContext管理key；独立服务的SQLite/模型关闭配置/备份保持，平台仅增加0027的四个Memory目录表及独立scope约束，不合并测试状态。
+
+Web经现严格TLS/CA/UDS、服务端Operator身份访问Gateway；独立Memory overlay/开关不依赖Cloud执行启用。Cloud Worker有专用memory-only TLS UDS与逐Project独立memory grant文件，源lease/work proof仅私有HTTP header；namespace只得到显式意图/安全结果，不得到服务或平台凭据。Local复用私有HTTPS传输但须memory显式scope与父caller，私有memory账本和TaskSyncCore分开。旧Local发行保持历史，当前源码能力不推定新发行/真实宿主验收。
+
+网络I/O前提交SENT/释放源与权限行锁，返回后重新鉴权/fence与核当前可见集。无后台自动重发SENT/UNKNOWN，发布固定原件完整读回后接受；撤回不依赖索引删除，迟到结果不可重新激活。外部故障≤5秒降级，不占Cloud/Local报告journal、不改结果/HELD。当前合同见TMP§49、领域§54及[ADR-022 §0](ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)。

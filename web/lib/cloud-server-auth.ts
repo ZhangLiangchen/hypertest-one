@@ -1,4 +1,4 @@
-/** Cloud BFF only: authenticated HTTPS over the explicitly configured Unix socket. */
+/** Server-only authenticated HTTPS over the explicitly configured Unix socket. */
 import { readFile } from "node:fs/promises";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
@@ -34,10 +34,11 @@ export async function cloudServerTransportReady(): Promise<boolean> {
   try { await transport(); return true; } catch { return false; }
 }
 
-export async function cloudServerRequest(path: string, key: string, init?: { method?: "GET" | "POST"; body?: string }): Promise<Response> {
+export async function trustedServerRequest(path: string, key: string, init: { method?: "GET" | "POST"; body?: string } | undefined, domain: "cloud" | "memory"): Promise<Response> {
   try {
     const settings = await transport();
-    if (!key || /[\r\n]/.test(key) || !/^(?:cloud|projects)\//.test(path) || path.includes("\\") || /[\0\r\n#]/.test(path)
+    const allowedPath = domain === "memory" ? /^memory\// : /^(?:cloud|projects)\//;
+    if (!key || /[\r\n]/.test(key) || !allowedPath.test(path) || path.includes("\\") || /[\0\r\n#]/.test(path)
       || path.split("?")[0].split("/").some((part) => part === "." || part === "..")
       || (init?.body !== undefined && (init.method !== "POST" || Buffer.byteLength(init.body) > 12 * 1024 * 1024))) throw unavailable();
 
@@ -84,4 +85,8 @@ export async function cloudServerRequest(path: string, key: string, init?: { met
       request.end(init?.body);
     });
   } catch { throw unavailable(); }
+}
+
+export function cloudServerRequest(path: string, key: string, init?: { method?: "GET" | "POST"; body?: string }): Promise<Response> {
+  return trustedServerRequest(path, key, init, "cloud");
 }

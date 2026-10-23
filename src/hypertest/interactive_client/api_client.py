@@ -33,7 +33,9 @@ class ApiClient:
     async def request(self, method: str, path: str, *, payload=None, params=None,
                       device: bool = False, execution_token: str | None = None,
                       request_key: str | None = None) -> dict:
-        if not path.startswith("interactive/") or ".." in path or ":" in path:
+        memory_route = (path in {"memory/query", "memory/operations", "memory/operations/by-key"}
+                        or re.fullmatch(r"memory/entries/[0-9a-f-]{36}", path))
+        if (not path.startswith("interactive/") and not memory_route) or ".." in path or ":" in path:
             raise ApiError("INVALID_API_ROUTE")
         headers = {"Authorization": "Bearer " + self._integration,
                    "X-Hypertest-Interactive-Profile": PROFILE}

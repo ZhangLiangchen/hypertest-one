@@ -25,6 +25,9 @@ class ClientConfig(BaseModel):
     # Opt-in client orchestration only. No server field, grant or execution
     # permission changes; old private profiles retain their transport contract.
     local_sync: dict = Field(default_factory=dict)
+    # Explicit tools only; existing task:sync grants acquire no memory scope.
+    memory_enabled: bool = Field(default=False, strict=True)
+    memory_timeout_seconds: float = Field(default=5, gt=0, le=5)
 
     @field_validator("local_sync")
     @classmethod

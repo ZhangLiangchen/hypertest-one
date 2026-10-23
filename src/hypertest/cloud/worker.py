@@ -245,6 +245,8 @@ class CloudWorker:
         ssh_deadline = None
         writes_suspended = False
         safety_fence_done = asyncio.Event()
+        memory_bridge = None
+        memory_task = None
         models = ExitStack()
 
         async def safety_fence(reason, metadata=None):
@@ -361,6 +363,16 @@ class CloudWorker:
         try:
             await reporter.recover()
             await broker.assert_current()
+            if getattr(self.settings, "cloud_memory_enabled", False):
+                try:
+                    from .memory import CloudMemoryBridge, CloudMemoryTransport
+                    memory_transport = CloudMemoryTransport(broker, self.settings)
+                    memory_bridge = CloudMemoryBridge(broker, memory_transport, root / "memory", workspace,
+                        timeout_seconds=self.settings.cloud_memory_timeout_seconds)
+                except Exception:
+                    # Independent optional credentials/configuration failure
+                    # never changes the mission admission or reported result.
+                    memory_bridge = None
             manifest = task["frozen_manifest"]
             if not manifest or digest(manifest) != task["input_digest"] or task["input_digest"] != attempt["input_digest"]:
                 raise CloudBlocked("FROZEN_INPUT_MISMATCH", "Attempt does not match its frozen task input")
@@ -453,6 +465,8 @@ class CloudWorker:
                 "codex": {"enabled": native_enabled, "configured": native_enabled,
                           "observed": False, "model": self.settings.cloud_codex_model if native_enabled else None},
                 "claude_code": "PLACEHOLDER"}
+            metadata["capabilities"]["memory"] = {"configured": memory_bridge is not None,
+                "requires_separate_project_grant": True, "human_publication_required": True}
             model_broker = ModelBroker(root / "model.sock", base_url=self.settings.cloud_model_base_url,
                 api_key=read_model_key(self.settings.cloud_model_key_file), model=self.settings.cloud_model,
                 max_requests=requests, max_tokens=policy.max_tokens, deadline=started + seconds)
@@ -476,7 +490,8 @@ class CloudWorker:
                              "request_limits": limits})
             await broker.assert_current()
             require_cloud_environment_route(environment)
-            prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile)
+            prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile,
+                memory_enabled=memory_bridge is not None)
             configuration = {"workspace": "/workspace", "dsh_home": "/home/agent/dsh",
                 "session_id": session_id, "model": self.settings.cloud_model,
                 "max_tokens": policy.max_tokens, "timeout_seconds": seconds, "prompt": prompt}
@@ -492,6 +507,8 @@ class CloudWorker:
                     "request_limits": [{"scope": item["scope"], "max_requests": item["max_requests"]} for item in limits]}})
             prompt_sent = True
             process = await sandbox.start(configuration)
+            if memory_bridge is not None:
+                memory_task = asyncio.create_task(memory_bridge.run())
             stdout_reader = asyncio.create_task(self.consume_runtime(process, delegations=delegations,
                 diagnostics=runtime_diagnostics))
             deadline = started + seconds
@@ -627,6 +644,14 @@ class CloudWorker:
                 raise
             raise primary_failure from None
         finally:
+            if memory_task is not None:
+                memory_task.cancel()
+                await asyncio.gather(memory_task, return_exceptions=True)
+            if memory_bridge is not None:
+                try:
+                    await memory_bridge.close()
+                except Exception:
+                    pass  # Independent memory cleanup cannot rewrite a result.
             models.close()
             finished.set()
             monitor.cancel()

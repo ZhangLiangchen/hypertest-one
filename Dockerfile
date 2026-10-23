@@ -24,7 +24,7 @@ FROM base AS api
 # API credential management needs encryption, not the execution SDK/runtime.
 # Keep model/Agent dependencies in the independently built Cloud Worker image.
 USER root
-RUN pip install --no-cache-dir '.[cloud-crypto]'
+RUN pip install --no-cache-dir '.[cloud-crypto,memory]'
 USER 999:999
 EXPOSE 8000
 CMD ["uvicorn", "hypertest.main:app", "--host", "0.0.0.0", "--port", "8000"]

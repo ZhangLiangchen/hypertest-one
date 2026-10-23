@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import stat
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from hypertest.interactive_client import MAX_MESSAGE, PROFILE
@@ -21,6 +22,19 @@ class LocalServer:
         self.server = None
         self._lock = asyncio.Lock()
         self._lock_fd = None
+
+    @asynccontextmanager
+    async def _request_lock(self, request):
+        from hypertest.interactive_client.memory import MEMORY_TOOLS
+        payload = request.get("payload")
+        if (request.get("operation") == "call" and isinstance(payload, dict)
+                and payload.get("name") in MEMORY_TOOLS):
+            # Memory has its own atomic durable claims. A slow optional query
+            # must never hold the task coordinator's transport serial slot.
+            yield
+        else:
+            async with self._lock:
+                yield
 
     async def start(self):
         path = self.config.socket_path
@@ -71,7 +85,7 @@ class LocalServer:
                     or not isinstance(request["token"], str)
                     or not hmac.compare_digest(request["token"], self.token)):
                 raise ClientError("LOCAL_AUTHORIZATION_REJECTED")
-            async with self._lock:
+            async with self._request_lock(request):
                 if request["operation"] == "list":
                     value = {"tools": await self.service.tools()}
                     if hasattr(self.service, "local_capabilities"):

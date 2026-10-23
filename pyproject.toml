@@ -19,6 +19,9 @@ dependencies = [
 cloud-crypto = [
   "cryptography>=44,<47",
 ]
+memory = [
+  "httpx>=0.28,<1.0",
+]
 cloud = [
   "cryptography>=44,<47",
   "httpx>=0.28,<1.0",

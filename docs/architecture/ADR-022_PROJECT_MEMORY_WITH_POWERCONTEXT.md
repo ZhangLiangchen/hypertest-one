@@ -1,6 +1,22 @@
 # ADR-022：以 PowerContext 托管跨模式项目经验
 
-**状态：Proposed（2026-10-22，Asia/Singapore）。** 用户已确定云端共享经验方向，并单独授权独立云主机上的 PowerContext 服务部署；本 ADR 提议 HyperTest Memory Gateway 的集成边界，具体接口、授权与数据模型尚未确认或实现。服务部署 / 验收单独见[服务运行记录](../POWERCONTEXT_SERVICE.md)，服务可用不表示 HyperTest 已集成。
+**状态：Accepted / 实现于2026-10-23；功能验收由用户负责。** 用户明确要求本轮完成集成。下列实施决定拥有当前接口、权限与目录合同；后文原2026-10-22提案保留为设计历史，其中 Proposed / NOT IMPLEMENTED 不再描述本轮实现。独立服务历史仍见[服务记录](../POWERCONTEXT_SERVICE.md)，最新实现/部署见[集成交付](../POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。
+
+## 0. 本轮实施决定
+
+Gateway 是 HyperTest API 角色内的独立可选服务层，不在 API 启动 SDK、Agent 或测试。仅 API Gateway 挂载上游 admin secret；Web BFF 复用既有服务端 Operator 身份，Cloud Worker 使用逐 Project 独立 Memory integration bearer，加当前私有 Worker lease/work proof。Agent 及其 namespace 不持有上述秘密。独立 PowerContext 服务保持1.4.0固定版本，SQLite Basic/FTS，不升级或导入聊天，不调用context/prepare或外部Generation/Embedding。
+
+新增 `memory:read`（仅已发布可见经验）、`memory:propose`（私有候选）、`memory:publish`（管理范围）；CONFIGURE/PUBLISH/REVISE/RETRACT还必须是人工Operator。现grant不自动增scope，`task:sync`/`cloud:work`不授Memory权。源引用按其原模式核验：Local候选须当前owner/BOUND、固定SyncReceipt与确切ReportRevision；Cloud候选须同Project/Task/Attempt、固定Cloud receipt内的asset及当前fenced Worker。Operator可审核，其他actor不可读取私有候选或来源原文；共享投影只给opaque provenance，不附私有task/session/URL/报告内容。
+
+schema `0027_project_memory`仅增加四表：`memory_project_mappings`（Project/服务端namespace/scope/开关/版本）、`memory_entries`（稳定身份、owner、冻结source、当前状态/版本）、`memory_revisions`（不可变内容、适用条件/时效、人工确认/撤回原因、精确upstream ref）、`memory_operations`（独立原key/request/digest/version/state/回执及持久发送意图）。Project、scope与namespace唯一，操作Project/entry有composite FK，revision及接受回执不可改写。扩展integration scope约束不授予旧grant权限；不改Task/Attempt/result/TaskSyncCore表或历史。
+
+Typed HTTPS前缀 `/api/v1/memory`：`POST /operations`接受CONFIGURE、CREATE_CANDIDATE、PUBLISH、REVISE、RETRACT；`GET /operations/by-key?project_id&operation_key`仅原key恢复；`GET /projects/{id}`有界目录、`GET /projects/{id}/configuration?version=N`与`GET /entries/{id}?project_id&version=N`固定接受版本；`POST /query`只接显式query及受控context。请求profile为 `hypertest-project-memory/v1alpha1`，每mutation固定key/expected_version；scope、候选/entry版本独立于Task版本。query≤1000字符、结果≤20；候选正文≤16000字符，发布渲染正文经NFC/strip后≤8192 UTF-8字节以匹配固定上游。
+
+首次CONFIGURE由Operator单次创建独立scope；namespace由Project UUID生成，不信调用者scope。先提交SENT事务后才单次上游POST；网络I/O不持任务/授权锁。候选只保存在Gateway，人工确认的脱敏正文才通过remember传上游。ACK后GET原artifact固定revision并核正文、scope、family、digest后才接受；失答/UNKNOWN只查原Gateway key，再按原ID或marker只读FTS定位及固定GET，不重remember。上游FTS按协议使用只读POST，不是重复写入。未匹配、歧义或NOT_FOUND保留未决。撤回立即从Gateway可见集剔除，旧索引/迟到发布响应不能重新激活；旧修订和upstream原件保留。
+
+检索只返回当前PUBLISHED、未过期、上游精确ref仍匹配的Gateway可见集；旧revision标SUPERSEDED，未发布/待对账/撤回/过期不参加常规召回。不能用空结果推断没有历史。检索前后复核当前权限、Project/映射和Cloud fence；独立故障≤5秒降级，不占任务同步槽。已知服务/Operator/当前请求认证秘密与项目凭据入库/外发前拒绝，错误不回显原HTTP对象或凭据。
+
+Local新增显式 `hypertest_query_memory`、`hypertest_propose_memory`、`hypertest_get_memory_operation`，私有profile显式 `memory_enabled=true`，使用独立memory.sqlite3。查询无需新报告，仍核真实Codex父caller/Task绑定；候选固定来源不放宽。现新写仅已实现Codex可信caller，其他宿主拒绝，原key恢复保留。Cloud使用独立memory-ready/responses及后台broker，query context由Worker注入原claim Task/Attempt/接受版本，不需先产生asset；候选必须引用固定asset。记忆内容是历史参考，不是指令、执行授权或测试事实。旧local-v0.1.0及MCP发行不重标；源码适配不冒称真实宿主或新发行验收。
 
 ## 1. 背景与目标
 

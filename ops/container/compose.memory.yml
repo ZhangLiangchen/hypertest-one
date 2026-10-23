@@ -1,0 +1,55 @@
+# Independent Memory Gateway opt-in. Cloud enablement is not a prerequisite.
+# The API Gateway alone receives the PowerContext service secret.
+services:
+  api:
+    environment:
+      HYPERTEST_MEMORY_ENABLED: "true"
+      HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN: ${HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN:?explicit HTTPS upstream origin required}
+      HYPERTEST_MEMORY_POWERCONTEXT_TOKEN_FILE: /run/hypertest-memory/powercontext-token
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_MEMORY_POWERCONTEXT_TOKEN_FILE:?API-owned private upstream token file required}
+        target: /run/hypertest-memory/powercontext-token
+        read_only: true
+        bind: {create_host_path: false}
+  web:
+    user: "1000:1000"
+    environment:
+      HYPERTEST_MEMORY_WEB_ENABLED: "true"
+      # Names preserve the existing trusted platform HTTPS transport contract;
+      # they do not turn on Cloud Web or issue Cloud permissions.
+      HYPERTEST_CLOUD_WEB_ORIGIN: ${HYPERTEST_CLOUD_API_ORIGIN}
+      HYPERTEST_CLOUD_API_ORIGIN: ${HYPERTEST_CLOUD_API_ORIGIN:?canonical existing HTTPS origin required}
+      HYPERTEST_CLOUD_API_SOCKET: /run/hypertest-cloud-web/api.sock
+      HYPERTEST_CLOUD_API_CA_FILE: /run/hypertest-cloud-web-ca/ca.crt
+      HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE: /run/hypertest-cloud-web-auth/operator-key
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_SOCKET_DIR:?private nginx-owned Web socket directory required}
+        target: /run/hypertest-cloud-web
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_API_CA_FILE:?trusted public issuer CA required}
+        target: /run/hypertest-cloud-web-ca/ca.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE:?Web-owned private Operator file required}
+        target: /run/hypertest-cloud-web-auth/operator-key
+        read_only: true
+        bind: {create_host_path: false}
+  nginx:
+    # Socket permissions survive recreation. Parent 0710 directories restrict
+    # access to Web group1000 and independent host Worker group988 respectively.
+    entrypoint: [/bin/sh, -c]
+    command: ["umask 000; exec nginx -g 'daemon off;'"]
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_SOCKET_DIR}
+        target: /run/hypertest-cloud-web
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_MEMORY_WORKER_SOCKET_DIR:?private nginx-owned Memory Worker socket directory required}
+        target: /run/hypertest-memory-worker
+        bind: {create_host_path: false}

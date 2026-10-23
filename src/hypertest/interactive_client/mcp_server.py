@@ -54,7 +54,7 @@ def create_server(client: LocalClient, *, local_host: str | None = None) -> Serv
     async def call_tool(name: str, arguments: dict):
         try:
             payload = {"name": name, "arguments": arguments}
-            if local_host == "codex" and name in {"hypertest_bind_task", "hypertest_sync_task"}:
+            if local_host == "codex" and name in {"hypertest_bind_task", "hypertest_sync_task", "hypertest_query_memory", "hypertest_propose_memory"}:
                 # Codex 0.144.6 overwrites this per invocation with the actual
                 # calling thread. Tool arguments never provide this context.
                 try:

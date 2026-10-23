@@ -1594,3 +1594,22 @@ CloudSyncAdapter 仅构造 §46 对应 typed operation，不把 CloudTask 转为
 SENT/UNKNOWN/失答及NOT_FOUND只查询原key，不重POST、不换generation改写旧请求或自动重跑；有效ACK之后还须完整读回该操作承诺的固定版本/原件。取消与lease丢失先阻止旧writer，领域接受、在途上传、模型/子进程和远端操作分别对账，未确认则保持恢复态及历史；不能跨过未决直接完成。
 
 Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的一方不得阻断另一方同步、原key查询和获授权历史。既有Cloud fixture及Local真实矩阵保持各自身份；最终Git的组件回归和部署检查见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，用户验收由用户执行，不从这些检查推定真实native bind通过。
+
+## 49. ADR-022 显式项目经验协议
+
+独立profile为 `hypertest-project-memory/v1alpha1`；实体和状态由领域§54拥有，[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)定义本轮接口/信任边界。服务端前缀 `/api/v1/memory`，与任务sync/Cloud operation无共享key、版本、journal或成功判定。
+
+| 接口 | 契约 |
+| --- | --- |
+| POST /operations | `{operation,project_id,operation_key,expected_version,...}`，操作为CONFIGURE/CREATE_CANDIDATE/PUBLISH/REVISE/RETRACT；原key同输入返回原回执，异输入409；候选版本0，entry/映射修改匹配其独立版本 |
+| GET /operations/by-key | `project_id,operation_key`；当前独立memory权限及原actor/Operator核验，只查原key；SENT/UNKNOWN/NOT_FOUND不重POST、不换key |
+| GET /projects/{id} | status/offset/limit有界目录，候选限owner/Operator，当前共享与独立未决操作投影 |
+| GET /projects/{id}/configuration?version=N | 固定接受的映射配置版本，当前开关与历史分开 |
+| GET /entries/{id}?project_id&version=N | 完整固定经验修订；旧版另标SUPERSEDED/EXPIRED等当前处置，不改原revision_status |
+| POST /query | `{project_id,query,limit?,source?,context?}`，query≤1000字符/limit≤20；显式最小query，固定来源与Cloud claim context互斥；没有自动prompt/聊天采集 |
+
+独立scope为memory:read/propose/publish，配置/发布/修订/撤回还必须人工Operator。Local候选source为 `{mode:LOCAL,task_id,task_version,report_id}`，核当前BOUND owner、固定SyncReceipt和ReportRevision；Cloud候选source为 `{mode:CLOUD,task_id,task_version,attempt_id,asset_revision_id}`，核同Project/Attempt固定接受资产及当前Worker。Cloud私有HTTP headers携worker_id/lease_token/generation/work_token，不能进入业务请求摘要、账本、SDK/Agent或报告。独立memory bearer不替代fence，cloud:work不替代memory授权。Local查询无需报告，但私有MCP核真实父caller/绑定；Cloud查询context为原claim `{mode:CLOUD,task_id,attempt_id,task_version}`，Worker注入且Gateway前后核验，不需asset。共享读取只给opaque provenance，源报告另按原权限读取。
+
+Local显式工具为hypertest_query_memory/propose_memory/get_memory_operation，默认关闭、memory.sqlite3独立；目前新调用仅Codex可信caller，其他宿主明确拒绝，原key恢复保留。Cloud使用独立memory-ready JSON与memory-responses，后台optional broker不占正式report同步槽。Web独立IndexedDB只保留lookup metadata，写前事务占据流，ACK完整读回固定修订后按原key结算；跨页响应不得清后续记录。
+
+Gateway发布先持久SENT，再单次上游remember；ACK后GET原artifact固定revision并核完整正文/digest后接受。UNKNOWN仅原ID查询，或原marker只读FTS定位后GET确切原件；上游FTS协议的只读POST不重发remember。撤回立即从当前可见集剔除，旧索引/迟到响应不能复活。独立网络阶段≤5秒，故障只降级memory，不改测试结果/Cloud HELD、不阻原任务同步。命中是历史参考，不能授权外部动作或代替当前执行证据；Generation/Embedding及自动Hooks关闭。

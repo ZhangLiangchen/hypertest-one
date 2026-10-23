@@ -10,7 +10,7 @@
 
 API 镜像只安装 `cloud-crypto` extra（cryptography）处理项目凭据的加密与解密；不安装官方 Harness SDK/runtime，不加载模型身份或执行 Agent。受控 Worker 独立安装 `cloud` extra。Cloud 写入持有与人工 DELETE 冲突的 Project 共享行锁，拒绝已删除项目；保留任意 CloudTask（包括 CANCELLED）时禁止删除 Project，归档不删除任务。旧 key 回执仍在当前授权和原提交者约束下只读。混合目录隐藏已删除 Local 任务；integration actor 只见 BOUND owner 或 UNBOUND 精确 intended actor 对应的记录，未绑定和首次同步前的来源与同步时间保持 null。
 
-ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在本次 Cloud 交付中。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
+ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
 
 ### 能力响应：实现支持、配置与准入分别读取
 

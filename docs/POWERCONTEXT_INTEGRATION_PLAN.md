@@ -1,6 +1,6 @@
 # PowerContext 项目经验集成计划
 
-**日期：2026-10-22，Asia/Singapore。集成状态：Proposed / NOT IMPLEMENTED。** 用户已确定独立云主机并授权服务部署；本计划不把独立服务的部署或检索成功写成 HyperTest 集成验收。P0 实际构建、配置与结果由[服务运行记录](POWERCONTEXT_SERVICE.md)拥有；拟议集成边界见 [ADR-022](architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)。
+**2026-10-23：Gateway/API/Web与显式Cloud/Local源码适配已实现，本轮部署与用户验收状态见[集成交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。** 用户明确将集成加入本轮；现行合同为[ADR-022 §0](architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)。下列2026-10-22分阶段提案保留设计历史，不将源码/组件回归/部署健康改称用户验收，也不重标旧Local发行。独立服务P0历史仍由[服务记录](POWERCONTEXT_SERVICE.md)拥有。
 
 ## 1. 目标与固定边界
 

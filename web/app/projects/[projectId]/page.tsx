@@ -327,7 +327,7 @@ export default function ProjectPage() {
           <Tag icon={<BranchesOutlined aria-hidden />}>{project.data.default_branch}</Tag>
           {project.data.repository_url ? <Tag style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{project.data.repository_url}</Tag> : null}
         </Space>
-        <Typography.Paragraph style={{ marginTop: 16, marginBottom: 0 }}><Link href={`/projects/${params.projectId}/cloud?tab=tasks`}>{t("Cloud and Local task directory", "云端与本地任务目录")}</Link></Typography.Paragraph>
+        <Space wrap style={{ marginTop: 16 }}><Link href={`/projects/${params.projectId}/cloud?tab=tasks`}>{t("Cloud and Local task directory", "云端与本地任务目录")}</Link><Link href={`/projects/${params.projectId}/memory`}>{t("Project experience", "项目经验")}</Link></Space>
       </div>
 
       {project.data.deleted_at ? <Alert type="warning" showIcon message={t("This project is in the recycle bin", "此项目已移入回收站")} description={t("History remains readable. Restore the project to edit it or continue task synchronization.", "历史仍可查看。请先恢复项目，再编辑或继续同步任务。") } style={{ marginBottom: 20 }} /> : null}

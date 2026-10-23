@@ -2481,3 +2481,13 @@ Web 未决请求使用浏览器 IndexedDB 事务持久账本，Cloud 与 Local C
 正式阶段资产及非最终 REPORT 可以持续追加，版本、原件和来源必须可读回；SDK活动或子代理回答不成为业务进度和PASS。冻结后的完整请求/key/expected_version/适用generation不因重启、文件变化或换owner修改。SENT/UNKNOWN/NOT_FOUND只查原key；有效接受后按该固定版本完整分页/分块读回。安全取消或失租不删除未决请求；在途上传、领域接受、子进程/模型与远端动作分开对账，未知仍保留，不能自动重放或释放HELD。
 
 Cloud模型与子代理不持有平台writer/DB/Operator凭据，子贡献回到原CloudTask；Cloud不依赖终端Local安装器，也不向Local新增附件上传、lease或scope。新Cloud规范不改 §50/§52 的Local管理、绑定及发行历史；最终Git组件回归与部署检查见[独立交付记录](../CLOUD_GIT_DELIVERY_20261023.md)；用户验收仍由用户执行。
+
+## 54. ADR-022 独立项目经验目录
+
+本节拥有Memory的持久字段与状态，不属于Canonical测试事实链。`0027_project_memory`新增MemoryProjectMapping、MemoryEntry、MemoryRevision、MemoryOperation，精确列/约束见[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)与迁移；不改变SessionTask、CloudTask/Attempt、reported_result、SyncReceipt或CloudOperationReceipt。
+
+Mapping按Project唯一，服务端namespace及上游scope分别唯一；version>0，status=PENDING/READY/UNKNOWN，enabled单独控制使用。Entry固定Project、owner及经服务端核验的source，version>0，status=CANDIDATE/PENDING/PUBLISHED/RETRACTED；每(entry_id,version)唯一的Revision不可修改/删除，保留内容、适用条件、观察/到期时间、人工确认/撤回原因、content_digest与upstream固定ref。历史投影另派生SUPERSEDED/EXPIRED，不回写旧revision。MemoryOperation按(Project,原key)唯一，保存完整批准请求与input_digest、原actor/grant、expected_version、target_version=expected+1、SENT/UNKNOWN/ACCEPTED、marker、原upstream ref与冻结回执；Project/entry复合FK拒绝跨域关系。接受回执与历史不可变，downgrade有记录时拒绝破坏性删除。
+
+候选仅owner/Operator可读，来源冻结Local固定SyncReceipt/ReportRevision或Cloud固定receipt/同Attempt asset，不能自报owner/来源成为可读权。发布/修订/撤回只由人工Operator执行。每次新写核当前独立memory grant与Project，并重新检查Cloud Worker lease/token/generation；memory:read/propose/publish不从task:sync/cloud:work推导。只查询Project共享的当前已发布/未过期可见集，非owner只返回opaque provenance，不能反向解引用私有报告。
+
+独立Memory意图先事务SENT，再单次上游调用；未知不重写或替换key。固定上游版本完整读回匹配后才接受，撤回当前可见性不等待索引删除；迟到ACK不能复活已撤回记录。不会因Memory成功/失败改Task结果、释放Cloud HELD、覆盖报告或阻塞TaskSyncCore。Local/Cloud/private Memory账本分别保存，外部Generation/Embedding与聊天捕获关闭。源码客户端/部署/用户验收是不同事实。
