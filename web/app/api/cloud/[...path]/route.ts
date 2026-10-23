@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { NextRequest, NextResponse } from "next/server";
+import { cloudServerRequest, cloudServerTransportReady } from "@/lib/cloud-server-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,10 +47,8 @@ function trustedWebOrigin(request: NextRequest): string | null {
   } catch { return null; }
 }
 
-async function upstream(path: string, key: string, init?: RequestInit): Promise<Response> {
-  const origin = process.env.HYPERTEST_CLOUD_API_ORIGIN || process.env.HYPERTEST_API_ORIGIN || "http://127.0.0.1:8000";
-  return fetch(`${origin}/api/v1/${path}`, { ...init, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(30_000),
-    headers: { "Content-Type": "application/json", "X-Hypertest-Operator-Key": key } });
+async function upstream(path: string, key: string, init?: { method: "POST"; body: string }): Promise<Response> {
+  return cloudServerRequest(path, key, init);
 }
 
 type Page = { profile: string; project_id: string; task_id: string; version: number; offset: number; next_offset: number; total_characters: number; complete: boolean; content: string; sha256: string };
@@ -109,7 +108,7 @@ async function completeReadback(path: string, query: URLSearchParams, key: strin
 export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   const key = await operatorKey();
-  if (path === "setup") return NextResponse.json({ configured: key !== null }, { headers: { "Cache-Control": "no-store" } });
+  if (path === "setup") return NextResponse.json({ configured: key !== null && await cloudServerTransportReady() }, { headers: { "Cache-Control": "no-store" } });
   if (!key) return safeError(503, "Cloud Web access is not configured. Ask the deployment operator to enable it.");
   if (!GET_PATH.test(path)) return safeError(404, "Cloud route not found.");
   const query = new URLSearchParams(request.nextUrl.searchParams);
