@@ -24,6 +24,12 @@ FORBIDDEN_ENV = {"CREDENTIALS_DIRECTORY", "HYPERTEST_CLOUD_SERVICE_RELEASE_SHA25
     "HYPERTEST_CLOUD_MODEL_KEY_FILE", "HYPERTEST_CLOUD_CODEX_ENABLED",
     "HYPERTEST_CLOUD_CODEX_OAUTH_FILE", "HYPERTEST_CLOUD_CODEX_PAYLOAD",
     "HYPERTEST_CLOUD_CODEX_PAYLOAD_SHA256", "HYPERTEST_CLOUD_SSH_ENABLED"}
+ALLOWED_ENV = {"HYPERTEST_ENV", "HYPERTEST_DATABASE_URL", "HYPERTEST_LOG_LEVEL",
+    "HYPERTEST_CLOUD_ENABLED", "HYPERTEST_CLOUD_WORKER_ENABLED", "HYPERTEST_CLOUD_CREDENTIAL_KEY_ID",
+    "HYPERTEST_CLOUD_MODEL_BASE_URL", "HYPERTEST_CLOUD_MODEL", "HYPERTEST_CLOUD_MODEL_MAX_TOKENS",
+    "HYPERTEST_CLOUD_MODEL_MAX_REQUESTS", "HYPERTEST_CLOUD_MODEL_REQUEST_COST_MICROUNITS",
+    "HYPERTEST_CLOUD_ATTEMPT_TIMEOUT_SECONDS", "HYPERTEST_CLOUD_WORKER_LEASE_SECONDS",
+    "HYPERTEST_CLOUD_WORKER_POLL_SECONDS"}
 
 
 def safe_path(value: Path) -> str:
@@ -46,7 +52,7 @@ def private_env(path: Path) -> dict:
             continue
         key, separator, value = line.partition("=")
         if (not separator or not re.fullmatch(r"[A-Z][A-Z0-9_]*", key)
-                or key in values or key in FORBIDDEN_ENV
+                or key in values or key in FORBIDDEN_ENV or key not in ALLOWED_ENV
                 or any(char in value for char in "\r\n\x00$`\"'")):
             raise ValueError("worker environment overrides a controlled field or has unsupported syntax")
         values[key] = value
@@ -134,6 +140,10 @@ def doctor(directory: Path) -> dict:
     record = json.loads((directory / "render.json").read_text())
     if record.get("profile") != "hypertest-cloud-service-render/v1":
         raise ValueError("unknown render profile")
+    actual = {path.relative_to(directory).as_posix() for path in directory.rglob("*")
+              if path.is_file() or path.is_symlink()}
+    if actual != {*record["files"], "render.json"}:
+        raise ValueError("rendered unit fileset changed")
     for name, expected in record["files"].items():
         path = directory / name
         if (Path(name).is_absolute() or ".." in Path(name).parts or path.is_symlink()

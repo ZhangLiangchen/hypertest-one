@@ -48,6 +48,8 @@ def extract_image(archive: Path, destination: Path) -> None:
         members = source.getmembers()
         paths = {}
         for member in members:
+            if member.name in (".", "./") and member.isdir():
+                continue
             name = PurePosixPath(member.name)
             if name.is_absolute() or ".." in name.parts or not name.parts:
                 raise ValueError("archive path refused")

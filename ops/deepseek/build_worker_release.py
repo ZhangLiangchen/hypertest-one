@@ -37,6 +37,9 @@ def build(args: argparse.Namespace) -> dict:
         raise ValueError("release preparation requires the authorized Linux host operator")
     regular_directory(args.checkout)
     regular_directory(args.output.parent)
+    if any(path.stat().st_uid != 0 or path.stat().st_mode & 0o022
+           for path in (args.output.parent, *args.output.parent.parents)):
+        raise ValueError("persistent release parent and ancestors must be root-owned and non-writable to others")
     if (not HEX40.fullmatch(args.commit) or not DIGEST_IMAGE.fullmatch(args.python_image)
             or args.output.name != args.commit or args.output.exists() or args.output.is_symlink()):
         raise ValueError("require exact commit, digest-qualified base and a new release named by commit")
@@ -64,7 +67,7 @@ def build(args: argparse.Namespace) -> dict:
     archive = args.output / "source.tar"
     with archive.open("xb") as stream:
         subprocess.run(["git", "archive", "--format=tar", args.commit], cwd=args.checkout,
-                       stdout=stream, check=True)
+                       stdout=stream, check=True, timeout=60)
     context = args.output / "source"
     context.mkdir(mode=0o755)
     extract_image(archive, context)
@@ -75,7 +78,7 @@ def build(args: argparse.Namespace) -> dict:
         "--build-arg", "SOURCE_COMMIT=" + args.commit,
         "--build-arg", "CLOUD_UID=" + str(identity.pw_uid),
         "--build-arg", "CLOUD_GID=" + str(identity.pw_gid),
-        "-f", str(context / "ops/deepseek/Dockerfile.worker"), str(context)], check=True)
+        "-f", str(context / "ops/deepseek/Dockerfile.worker"), str(context)], check=True, timeout=1800)
     image = iid_file.read_text().strip()
     if not image.startswith("sha256:") or not HEX64.fullmatch(image[7:]):
         raise ValueError("builder did not return an immutable local image ID")
@@ -85,10 +88,10 @@ def build(args: argparse.Namespace) -> dict:
     rootfs_archive = args.output / "rootfs.tar"
     try:
         with rootfs_archive.open("xb") as stream:
-            subprocess.run(["docker", "export", container], stdout=stream, check=True)
+            subprocess.run(["docker", "export", container], stdout=stream, check=True, timeout=180)
     finally:
         # This exact, never-started build container only; no service containers.
-        subprocess.run(["docker", "rm", container], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["docker", "rm", container], check=True, stdout=subprocess.DEVNULL, timeout=30)
     rootfs = args.output / "rootfs"
     rootfs.mkdir(mode=0o755)
     extract_image(rootfs_archive, rootfs)
@@ -98,7 +101,7 @@ def build(args: argparse.Namespace) -> dict:
     regular_directory(venv)
     venv_archive = args.output / "venv.tar"
     subprocess.run(["tar", "--sort=name", "--mtime=@0", "--owner=0", "--group=0",
-                    "-cf", str(venv_archive), "-C", str(venv), "."], check=True)
+                    "-cf", str(venv_archive), "-C", str(venv), "."], check=True, timeout=180)
     if args.codex_payload:
         if any(path.is_symlink() or path.stat().st_mode & 0o022 for path in args.codex_payload.rglob("*")):
             raise ValueError("delegate closure must contain only immutable directories/files")
@@ -138,7 +141,7 @@ def main() -> int:
     try:
         print(json.dumps(build(args), indent=2))
         return 0
-    except (ValueError, OSError, KeyError, subprocess.CalledProcessError):
+    except (ValueError, OSError, KeyError, subprocess.SubprocessError):
         print("Cloud release preparation failed; preserve the output for diagnosis.", file=sys.stderr)
         return 1
 

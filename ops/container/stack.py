@@ -85,6 +85,8 @@ def validate(values: dict[str, str], *, live: bool) -> None:
         raise ValueError("the authorized VPN allowlist requires one explicit IPv4 /32")
     if tls_enabled:
         validate_tls(values, live=live)
+    if cloud_web_enabled(values):
+        validate_cloud_web(values, live=live)
     if live:
         subprocess.run(["docker", "volume", "inspect", values["HYPERTEST_POSTGRES_VOLUME"]], check=True, stdout=subprocess.DEVNULL)
         platform = read_env(Path(values["HYPERTEST_PLATFORM_ENV_FILE"]))
@@ -115,6 +117,8 @@ def compose_command(env_file: Path, *args: str) -> list[str]:
         command.extend(["-f", str(REPO / "ops/container/compose.gitlab.yml")])
     if env_file.exists() and ingress_tls_enabled(read_env(env_file)):
         command.extend(["-f", str(REPO / "ops/container/compose.tls.yml")])
+    if env_file.exists() and cloud_web_enabled(read_env(env_file)):
+        command.extend(["-f", str(REPO / "ops/container/compose.cloud.yml")])
     return [*command, *args]
 
 
@@ -123,6 +127,68 @@ def ingress_tls_enabled(values: dict[str, str]) -> bool:
     if mode not in {"enabled", "disabled"}:
         raise ValueError("HYPERTEST_INGRESS_TLS must be enabled or disabled")
     return mode == "enabled"
+
+
+def cloud_web_enabled(values: dict[str, str]) -> bool:
+    mode = values.get("HYPERTEST_CLOUD_WEB", "disabled")
+    if mode not in {"enabled", "disabled"}:
+        raise ValueError("HYPERTEST_CLOUD_WEB must be enabled or disabled")
+    return mode == "enabled"
+
+
+def validate_cloud_web(values: dict[str, str], *, live: bool) -> None:
+    if not ingress_tls_enabled(values):
+        raise ValueError("Cloud Web requires existing protected HTTPS ingress")
+    name = values.get("HYPERTEST_TLS_SERVER_NAME", values["HYPERTEST_PUBLIC_IP"])
+    port = values["HYPERTEST_INGRESS_PORT"]
+    origin = "https://" + name + (":" + port if port != "443" else "")
+    if values.get("HYPERTEST_CLOUD_API_ORIGIN") != origin:
+        raise ValueError("Cloud origin must match the existing canonical TLS listener")
+    for key in ("HYPERTEST_CLOUD_WORKER_ENABLED", "HYPERTEST_CLOUD_CODEX_ENABLED"):
+        if values.get(key, "false" if key.endswith("CODEX_ENABLED") else "") not in {"true", "false"}:
+            raise ValueError(f"{key} requires the actual explicit Worker configuration")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", values.get("HYPERTEST_CLOUD_CREDENTIAL_KEY_ID", "")):
+        raise ValueError("explicit existing Cloud wrapping key id required")
+    keys = ("HYPERTEST_CLOUD_WEB_SOCKET_DIR", "HYPERTEST_CLOUD_API_CA_FILE",
+            "HYPERTEST_CLOUD_API_WRAPPING_KEY_FILE", "HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE")
+    for key in keys:
+        path = Path(values.get(key, ""))
+        if (not path.is_absolute() or not re.fullmatch(r"/[A-Za-z0-9_./-]+", str(path))
+                or ".." in path.parts or path == Path("/")):
+            raise ValueError(f"{key} requires an explicit normalized absolute path")
+        if live and (path.resolve(strict=True) != path or path.is_symlink()):
+            raise ValueError(f"{key} must be canonical")
+    if len({values[key] for key in keys}) != len(keys):
+        raise ValueError("Cloud socket, CA and private credentials must be separate")
+    if not live:
+        return
+    directory = Path(values[keys[0]])
+    info = directory.stat()
+    if (not stat.S_ISDIR(info.st_mode) or (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode))
+            != (101, 1000, 0o710)):
+        raise ValueError("Cloud socket directory requires nginx101/Webgroup1000 mode0710")
+    for entry in directory.iterdir():
+        if entry.name != "api.sock" or not stat.S_ISSOCK(entry.lstat().st_mode):
+            raise ValueError("unexpected entry in Cloud socket directory")
+    for key, uid, gid in ((keys[2], int(values["HYPERTEST_UID"]), int(values["HYPERTEST_GID"])),
+                          (keys[3], 1000, 1000)):
+        info = Path(values[key]).stat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or (info.st_uid, info.st_gid) != (uid, gid)
+                or stat.S_IMODE(info.st_mode) not in (0o400, 0o600)):
+            raise ValueError(f"{key} requires its service-owned private regular file")
+    ca = Path(values[keys[1]])
+    info = ca.stat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise ValueError("Cloud public CA must be root-owned and immutable to services")
+    ssl.create_default_context(cafile=str(ca))
+    try:
+        ipaddress.ip_address(name)
+        verify_name = ["-verify_ip", name]
+    except ValueError:
+        verify_name = ["-verify_hostname", name]
+    subprocess.run(["openssl", "verify", "-CAfile", str(ca), *verify_name,
+                    values["HYPERTEST_TLS_CERT_FILE"]], check=True, capture_output=True, timeout=10)
 
 
 def validate_tls(values: dict[str, str], *, live: bool) -> None:
@@ -206,7 +272,46 @@ def render_nginx(values: dict[str, str]) -> str:
         ssl_certificate_key /run/hypertest-tls/server.key;
         ssl_protocols TLSv1.2 TLSv1.3;
         error_page 497 =308 https://{name}:{port}$request_uri;"""
-    return prefix + tls + public
+    rendered = prefix + tls + public
+    if cloud_web_enabled(values):
+        validate_cloud_web(values, live=False)
+        rendered = rendered.rsplit("}", 1)[0] + _cloud_web_listener(values) + "}\n"
+    return rendered
+
+
+def _cloud_web_listener(values: dict[str, str]) -> str:
+    name = values.get("HYPERTEST_TLS_SERVER_NAME", values["HYPERTEST_PUBLIC_IP"])
+    port = values["HYPERTEST_INGRESS_PORT"]
+    authority = name + (":" + port if port != "443" else "")
+    forwarding = f"""            proxy_pass http://127.0.0.1:{values['HYPERTEST_API_PORT']};
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Host $http_host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Forwarded "";
+            proxy_read_timeout 60s;
+"""
+    return f"""
+    # Private filesystem transport. Same TLS identity, no additional TCP port.
+    server {{
+        listen unix:/run/hypertest-cloud-web/api.sock ssl;
+        server_name {name};
+        ssl_certificate /run/hypertest-tls/server.crt;
+        ssl_certificate_key /run/hypertest-tls/server.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        access_log off;
+        if ($http_host != "{authority}") {{ return 444; }}
+        client_max_body_size 10m;
+        location /api/v1/cloud/ {{
+{forwarding}        }}
+        location ~ "^/api/v1/projects/[0-9a-f-]{{36}}/task-directory$" {{
+            limit_except GET HEAD {{ deny all; }}
+{forwarding}        }}
+        location / {{ return 404; }}
+    }}
+"""
 
 
 def _connector_locations(values: dict[str, str]) -> str:
