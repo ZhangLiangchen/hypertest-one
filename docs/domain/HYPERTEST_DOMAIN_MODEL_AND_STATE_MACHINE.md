@@ -2261,13 +2261,13 @@ Local MCP在发送BIND前核对受支持宿主SessionStart建立的私有root co
 
 CREATE/BIND写前冻结完整请求/key/version；同key同输入返回固定接受Task与版本，同key异输入冲突。SENT/UNKNOWN/失答甚至原keyNOT_FOUND只继续原key GET，不重POST、换key、另建Task或发新凭据。原回执在当前有效授权下可查询，软删除/版本前进不改原接受记录。绑定回执与sync回执是不同操作，不能混用查询身份。Web binding_history仅投影BIND的{id,action,actor_ref,task_version,task_snapshot,created_at}。
 
-## 51. 云端测试任务模型（ADR-019，部分实现、默认关闭）
+## 51. 云端测试任务模型（ADR-019，部分实现、代码默认关闭）
 
-本节定义完整 `cloud-harness-task/v1alpha1` 目标；协议见 TMP §46，运行边界见 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)。HyperTest 管理项目资源、任务、隔离工作区、执行尝试与产物；云端 DeepSeek harness 通过官方 Python SDK 接收任务，自行工作或委派 Codex / Claude Code，并调用项目已有框架 / CI。Worker 是任务运行宿主，不是新测试引擎。当前表 / API / SDK Worker / 凭据 / 产物已有默认关闭、尚未更新测试服务器常驻Cloud服务的增量实现，准入支持HTTPS Git / 工作区内框架及显式opt-in隔离fixture固定SSH诊断，不授一般网络 / 远端SUT执行。source-r18受控六步Task已固定读回v14 COMPLETED / reported PASS、根工作及Codex原生推理 / 文本贡献；source-r21所选回归535通过 / 1跳过、source-r22针对性169通过；source-r22新native16任务已固定读回v17 COMPLETED / reported PASS、接受子原件 / 资产 / Run并独立重放9项；DESIGN仅通过ANALYSIS传递关联原件，未完全满足本次PRD直接引用要求，偏差与旧RECOVERY / HELD保留；后续r8固定SSH专项PASS，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与staging待验收；Claude占位、CI不支持，详见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。本节不因首片限制删除原不变量。
+本节定义完整 `cloud-harness-task/v1alpha1` 目标；协议见 TMP §46，运行边界见 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)。HyperTest 管理项目资源、任务、隔离工作区、执行尝试与产物；云端 DeepSeek harness 通过官方 Python SDK 接收任务，自行工作或委派 Codex / Claude Code，并调用项目已有框架 / CI。Worker 是任务运行宿主，不是新测试引擎。当前表 / API / SDK Worker / 凭据 / 产物已随C4 Git部署，当前库升级至0026；代码默认关闭，测试服务器显式启用Cloud / Codex并保持SSH关闭，用户验收未执行。实现准入支持HTTPS Git / 工作区内框架及显式opt-in固定SSH诊断，既有SSH证明限隔离fixture，不授一般网络 / 远端SUT执行。source-r18受控六步Task已固定读回v14 COMPLETED / reported PASS、根工作及Codex原生推理 / 文本贡献；source-r21所选回归535通过 / 1跳过、source-r22针对性169通过；source-r22新native16任务已固定读回v17 COMPLETED / reported PASS、接受子原件 / 资产 / Run并独立重放9项；DESIGN仅通过ANALYSIS传递关联原件，未完全满足本次PRD直接引用要求，偏差与旧RECOVERY / HELD保留；后续r8固定SSH专项PASS，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与staging待验收；Claude占位、CI不支持，详见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。本节不因首片限制删除原不变量。
 
 最新严格验收状态：source-r23新独立Task已固定读回v20 COMPLETED / reported PASS，ANALYSIS与DESIGN均直接引用当前child原件；source-r24只读验收器对同v20严格PASS，独立只读重放8项与原件 / 实际文件 / host日志关联通过。旧source-r22 v17仍保留DESIGN直接引用NON_PASS，原RECOVERY / HELD历史不变；SSH固定诊断默认关闭，source30 Worker的r8 canonical专项PASS，source31对同v19固定快照strict重评PASS；旧source30 NON_PASS保留（不是新的current GET，精确证据见实现状态），故障矩阵与真实staging未验收；Claude占位，CI / 一般远端shell和生产未准入。source-r23所选201 / source-r24所选231通过与各自Ruff独立登记，未覆盖其余P0；[当前证据](../CLOUD_IMPLEMENTATION_STATUS.md)。
 
-Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。最终合并树、统一 Web 入口及测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；Cloud 默认关闭，精确轮次见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。
+Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
 ### 51.1 身份、实体与关系
 
@@ -2432,7 +2432,7 @@ WAITING_INPUT 必须先保存问题、已接受产物和 checkpoint，再停止�
 
 以上为完整验收要求；混合查询与云端执行已有部分源码，源码存在不替代上述各项验收。source-r18受控六步Task的reported PASS、根工作和Codex原生推理 / 文本贡献已正式接受，source-r22新native16任务的子原件 / 资产 / Run及独立重放9项已核验，DESIGN直接原件引用的精确PRD偏差、旧引用拒绝 / RECOVERY / HELD历史与上述其余验收仍分别跟踪，当前证明边界见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。
 
-本次 Cloud 集成的项目与混合目录必须遵循已存在的 Project/SessionTask 软删除、owner/provider/type 读取边界；不覆盖 §50 的人工管理历史。统一创建入口与 Local 预建 Task/绑定由管理路径及其 ADR-024 拥有，本节不引入另一套 Local 身份或绕过该路径。最终集成兼容性验证尚未执行。
+本次 Cloud 集成的项目与混合目录必须遵循已存在的 Project/SessionTask 软删除、owner/provider/type 读取边界；不覆盖 §50 的人工管理历史。统一创建入口与 Local 预建 Task/绑定由管理路径及其 ADR-024 拥有，本节不引入另一套 Local 身份或绕过该路径。本次相关组件回归与部署检查分别记入[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不称为用户验收，也不证明新的真实native bind。
 
 Cloud 配置、凭据及任务写入先取得 Project 共享行锁并持续到提交，与人工 DELETE 的排他 Project 行锁互斥；锁后重新读取 deleted_at，已删除项目不接受新写。Project 保留任意 CloudTask 时拒绝 DELETE，包括已取消 / 已终结任务；归档不删除原任务或回执。原 operation key 的只读对账不因 Project 墓碑失效，仍核当前授权及原提交者。普通混合目录排除已删除 SessionTask；integration actor 的 Local 行限于 BOUND owner 或 UNBOUND 精确 intended actor，未授权 UNBOUND 不进入结果或计数。绑定状态、真实 session_id、source 和 last_synced_at 按原值投影；首次实际同步前不补造来源或同步时间，排序使用真实创建 / 管理 / 同步时间。
 
@@ -2476,4 +2476,4 @@ CloudTaskReporter 只在当前 fenced Worker 内，经 CloudSyncAdapter 使用�
 
 正式阶段资产及非最终 REPORT 可以持续追加，版本、原件和来源必须可读回；SDK活动或子代理回答不成为业务进度和PASS。冻结后的完整请求/key/expected_version/适用generation不因重启、文件变化或换owner修改。SENT/UNKNOWN/NOT_FOUND只查原key；有效接受后按该固定版本完整分页/分块读回。安全取消或失租不删除未决请求；在途上传、领域接受、子进程/模型与远端动作分开对账，未知仍保留，不能自动重放或释放HELD。
 
-Cloud模型与子代理不持有平台writer/DB/Operator凭据，子贡献回到原CloudTask；Cloud不依赖终端Local安装器，也不向Local新增附件上传、lease或scope。新Cloud规范不改 §50/§52 的Local管理、绑定及发行历史；最终合并树验证另行记录。
+Cloud模型与子代理不持有平台writer/DB/Operator凭据，子贡献回到原CloudTask；Cloud不依赖终端Local安装器，也不向Local新增附件上传、lease或scope。新Cloud规范不改 §50/§52 的Local管理、绑定及发行历史；最终Git组件回归与部署检查见[独立交付记录](../CLOUD_GIT_DELIVERY_20261023.md)；用户验收仍由用户执行。

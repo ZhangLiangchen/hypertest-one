@@ -1377,9 +1377,9 @@ CREATE的`creation_receipt`为`{status:'ACCEPTED',operation:'CREATE',project_id,
 
 新Local客户端在首次asset上传前未绑定返回TASK_BINDING_REQUIRED，零sync POST；Hooks/MCP共用同一真实root、目标ID、协调器及未决账本。旧已确认auto根保留原ID兼容resume；服务端旧无task_id自动创建仅为legacy兼容，不作为新客户端fallback。新手动绑定任务的每次sync强校验task_id、Project/provider/session/owner/BOUND及当前version；不匹配不得另建任务。来源已属于另一Task时409，错误code为SESSION_ALREADY_HAS_TASK，仅对有权读取者给existing_task_id，不自动合并或改ID/历史。
 
-## 46. 云端测试任务 profile（ADR-019，部分实现、默认关闭）
+## 46. 云端测试任务 profile（ADR-019，部分实现、代码默认关闭）
 
-Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。最终合并树、统一 Web 入口及测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；Cloud 默认关闭，精确轮次见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。
+Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
 ### 能力响应：实现支持、配置与准入分别读取
 
@@ -1393,7 +1393,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ### 46.1 版本、模式与六步职责
 
-新增业务 profile 为 **`cloud-harness-task/v1alpha1`**。它定义 HyperTest 的完整云端任务协作契约，不是 DeepSeek SDK wire version，也不是 §45 同步请求的可选执行开关。当前typed HTTP / schema / Worker / Web已有默认关闭、尚未更新测试服务器常驻Cloud服务的增量源码，实际准入支持HTTPS Git / 工作区内框架及显式opt-in隔离fixture固定SSH诊断，不授一般网络 / 远端SUT执行。source-r18受控六步Task已正式接受v14 COMPLETED / reported PASS、根工作和Codex原生推理 / 文本贡献；source-r21所选535通过 / 1跳过、source-r22针对性169通过；source-r22新native16任务已固定读回v17 COMPLETED / reported PASS、接受子原件 / 资产 / Run并独立重放9项；DESIGN仅通过ANALYSIS传递关联原件，未完全满足本次PRD直接引用要求，偏差与旧RECOVERY / HELD保留；后续r8固定SSH专项PASS，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与staging待验收；Claude占位、CI不支持，参见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。以下操作概念不等同 SDK method 或新增 MCP 工具；字段/关系/状态的最终约束以领域 §51 为准。
+新增业务 profile 为 **`cloud-harness-task/v1alpha1`**。它定义 HyperTest 的完整云端任务协作契约，不是 DeepSeek SDK wire version，也不是 §45 同步请求的可选执行开关。当前typed HTTP / schema / Worker / Web已随C4 Git部署；代码默认关闭，测试服务器显式启用Cloud / Codex并保持SSH关闭，用户验收未执行。实现准入支持HTTPS Git / 工作区内框架及显式opt-in固定SSH诊断，既有SSH证明限隔离fixture，不授一般网络 / 远端SUT执行。source-r18受控六步Task已正式接受v14 COMPLETED / reported PASS、根工作和Codex原生推理 / 文本贡献；source-r21所选535通过 / 1跳过、source-r22针对性169通过；source-r22新native16任务已固定读回v17 COMPLETED / reported PASS、接受子原件 / 资产 / Run并独立重放9项；DESIGN仅通过ANALYSIS传递关联原件，未完全满足本次PRD直接引用要求，偏差与旧RECOVERY / HELD保留；后续r8固定SSH专项PASS，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与staging待验收；Claude占位、CI不支持，参见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。以下操作概念不等同 SDK method 或新增 MCP 工具；字段/关系/状态的最终约束以领域 §51 为准。
 
 | 用户流程 | HyperTest / 云端 Worker | Harness / 项目工具链 |
 | --- | --- | --- |
@@ -1583,4 +1583,4 @@ CloudSyncAdapter 仅构造 §46 对应 typed operation，不把 CloudTask 转为
 
 SENT/UNKNOWN/失答及NOT_FOUND只查询原key，不重POST、不换generation改写旧请求或自动重跑；有效ACK之后还须完整读回该操作承诺的固定版本/原件。取消与lease丢失先阻止旧writer，领域接受、在途上传、模型/子进程和远端操作分别对账，未确认则保持恢复态及历史；不能跨过未决直接完成。
 
-Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的一方不得阻断另一方同步、原key查询和获授权历史。当前Cloud fixture及Local真实矩阵分别记载；最终新集成树的相关验证尚未运行。
+Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的一方不得阻断另一方同步、原key查询和获授权历史。既有Cloud fixture及Local真实矩阵保持各自身份；最终Git的组件回归和部署检查见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，用户验收由用户执行，不从这些检查推定真实native bind通过。

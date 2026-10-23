@@ -20,7 +20,7 @@
 
 ### Cloud 增量与当前交付边界
 
-Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。最终合并树、统一 Web 入口及测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；Cloud 默认关闭，精确轮次见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。
+Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
 Cloud 通过独立 SDK Worker 完成六步；API 不运行 Agent/测试，Local 的现有 MCP/Hooks 和人工管理路径保持。ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在本次 Cloud 交付中。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。 创建入口/Local 绑定按管理规范集成，不以 Cloud 文档改写其字段。
 
@@ -1001,11 +1001,11 @@ NativeTestRun / Plan 当前一对一，以新表 / profile 与旧 TestRun ID 分
 
 本轮原生材料仅在本机明确配置的隔离 PostgreSQL / Artifact Store 保存；不默认上传源代码、JAR 或认证。独立来源核验、可信 CI 接入、native PASS、Web/MCP 和生产部署仍需后续实现及单独验收；验收要求由 ADR-017 §8 约束。旧 Runner 只承担 legacy 兼容与历史职责，不继续扩展 Kubernetes/SSH/backend 矩阵来替代原生项目工具链。
 
-## 45. ADR-019 云端测试任务与 Python SDK 架构（部分实现、默认关闭）
+## 45. ADR-019 云端测试任务与 Python SDK 架构（部分实现、代码默认关闭）
 
 本节定义独立 CloudTask / CloudAttempt，与 ADR-018 Local 及旧 execution_mode 历史保持边界。
 
-Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。最终合并树、统一 Web 入口及测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；Cloud 默认关闭，精确轮次见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。
+Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
 ### 45.1 六步流程与组件归属
 
@@ -1192,4 +1192,4 @@ Cloud 中途进度以 SubmitCloudAssets 的非最终 REPORT 修订保存，可�
 
 ### 47.3 独立交付与兼容
 
-Cloud 从自己的固定镜像/runtime 引用 TaskSyncCore，不要求安装面向用户的 Local 包或 Hooks，不共享凭据/全局锁/journal，不添加通用 Task/API。Local 原契约、管理增补及 release/matrix 历史保持；两种任务共享 Project 的查询不合并其授权或状态。最终合并树的相关回归尚未运行，不将此前 Cloud fixture 或 Local 资格写成此次上线通过。
+Cloud 从自己的固定镜像/runtime 引用 TaskSyncCore，不要求安装面向用户的 Local 包或 Hooks，不共享凭据/全局锁/journal，不添加通用 Task/API。Local 原契约、管理增补及 release/matrix 历史保持；两种任务共享 Project 的查询不合并其授权或状态。最终Git的组件回归与部署检查按[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)分轮保留，用户验收由用户执行；此前Cloud fixture与Local资格不替代本轮验收，也不因此升级真实native bind结论。
