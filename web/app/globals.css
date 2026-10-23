@@ -372,6 +372,9 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .session-task-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-top: 18px; }
 .session-task-title h1.ant-typography { margin: 0; overflow-wrap: anywhere; }
 .session-task-title .ant-btn { flex-shrink: 0; }
+.session-task-title > .ant-space { flex-shrink: 0; }
+.management-subject { overflow-wrap: anywhere; }
+.management-version.ant-typography { margin-block: 20px 0; font-size: 12px; }
 .session-record { padding: 24px; margin-block: 20px; min-width: 0; }
 .session-record .ant-descriptions-item-content { overflow-wrap: anywhere; }
 .session-record .ant-descriptions-item-label { color: var(--ht-muted); }
@@ -393,4 +396,6 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
   .session-record { padding: 20px 16px; }
   .session-task-title { flex-direction: column; gap: 16px; }
   .session-task-section .activity-heading { align-items: center; }
+  .session-task-section .activity-heading { flex-wrap: wrap; }
+  .session-task-title > .ant-space { max-width: 100%; }
 }

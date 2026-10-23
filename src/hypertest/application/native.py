@@ -49,7 +49,7 @@ async def project_scope(db, project_id, *, lock=False):
     if not settings.native_intake_enabled:
         raise HTTPException(503, "Native intake is not enabled")
     project = await db.get(Project, project_id, with_for_update=lock)
-    if not project or project.key not in settings.native_project_keys:
+    if not project or project.deleted_at is not None or project.key not in settings.native_project_keys:
         raise HTTPException(403, "Native project scope is not authorized")
     return project
 

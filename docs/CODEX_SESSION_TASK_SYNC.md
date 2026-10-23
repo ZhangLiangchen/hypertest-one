@@ -130,6 +130,21 @@ daemon 在发送前持久保存查询身份与完整请求 digest（不在 journ
 
 同 key 不同内容拒绝；expected version 过期拒绝。先读取当前任务和原回执，再根据操作者真实新意图形成下一次更新，不能覆盖另一个会话/客户端已经提交的状态。没有收到授权不能重新签发 token 或改变任务所有者。
 
+## Web人工管理与回收站
+
+项目和任务的管理入口支持编辑、手动状态调整、软删除与恢复。这是本分支的管理能力；实际目标环境是否已部署仍需核验，操作不会启动测试。
+
+- 在项目列表编辑名称、说明、仓库和默认分支，或在ACTIVE/ARCHIVED之间调整状态。项目key保持固定；配置变化不改变历史任务的来源、源码快照或报告。
+- 在任务列表或详情编辑标题、目标、计划和进度。可将COMPLETED/CANCELLED任务重新设为IN_PROGRESS继续管理工作；reported result、用例和报告保持原样。例如FAIL任务改为COMPLETED后仍显示FAIL，重开不表示执行过一次新测试。
+- 删除后记录进入回收站，原ID、会话身份、用例、报告、同步回执及人工修改历史保留。项目中有未删除会话任务或任何旧受管/原生测试轮次时不能删除；可先归档，或处理会话任务。旧测试轮次不会被连带删除。
+- 显式显示已删除记录后可恢复原对象。任务所属项目已删除时须先恢复项目；恢复不自动改变任务进度或结果。相同session不能通过再同步新建替代任务。
+
+已删除项目不能接收新任务、源码传输、上传或新的集成授权，也不能继续下发新的源码采集请求。旧记录和原回执保留供核对；删除本身不表示已经取消此前发出的外部操作。
+
+人工写入带当前项目row_version或任务version；实际保存、删除或恢复后版本递增，同值任务编辑不制造新版本。其他页面或Agent已更新时服务器返回409，先刷新并核对当前值，再按真实意图提交。人工修改版本可在任务的管理历史中追溯，固定旧版本仍可读取；最近人工管理时间与最近Agent同步时间分别保存，不会伪造新的同步、case/report修订或重写原SyncReceipt。网络失答时先刷新确认已保存状态，不盲目重复写入。
+
+普通查询隐藏已删除对象；Agent新同步会拒绝已删除项目或任务。原key对账在当前有效授权下继续返回原接受回执，不能把该旧回执当作对象仍未删除的证明。新的有意同步先读当前版本；人工操作与Agent共享版本保护。管理API、前置条件与状态含义见[TMP§45.3](protocol/TEST_MISSION_PROTOCOL.md#453-operator-项目与任务管理-api2026-10-23)和[领域规范§50.4](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#504-人工编辑进度调整与软删除2026-10-23)。
+
 ## HTTP 对照与页面
 
 | 用途 | 入口 |
@@ -139,5 +154,9 @@ daemon 在发送前持久保存查询身份与完整请求 digest（不在 journ
 | scoped 原 key 对账 | `GET /api/v1/interactive/tasks/syncs/by-key?project_id=…&idempotency_key=…` |
 | 管理任务列表/详情 | `GET /api/v1/tasks?project_id=…`、`GET /api/v1/tasks/{task_id}` |
 | 版本/原始报告读取 | `GET /api/v1/tasks/{task_id}?version=N`、`GET /api/v1/tasks/{task_id}/reports/{report_id}` |
+| 人工编辑任务 | `PATCH /api/v1/tasks/{task_id}`，`{expected_version,title?,objective?,plan_markdown?,status?}` |
+| 软删除/恢复任务 | `DELETE /api/v1/tasks/{task_id}?expected_version=N`、`POST /api/v1/tasks/{task_id}/restore`，恢复body为`{expected_version}` |
+| 项目编辑/删除/恢复 | `PATCH /api/v1/projects/{id}`、`DELETE /api/v1/projects/{id}?expected_version=N`、`POST /api/v1/projects/{id}/restore`；写入匹配项目row_version |
+| 回收站列表 | `GET /api/v1/projects?include_deleted=true`、`GET /api/v1/tasks?project_id=…&include_deleted=true` |
 
 Web 任务页查询这些管理记录，不显示启动测试、Runner 或 Gate 操作。旧 Run 页面与旧数据继续保留为历史兼容入口。开发检查、远端测试验收、真实测试资产同步和发布的完成范围由各自记录注明；本文管理命令不会执行 SUT 测试。

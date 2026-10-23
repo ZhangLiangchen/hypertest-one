@@ -26,6 +26,14 @@
 
 版本号、业务 key 与内容摘要用于去重、完整性和历史关联；不把 hash 或摘要解释为执行证明。
 
+## 人工管理补充（2026-10-23）
+
+Web / Operator 可编辑项目资料并设置 ACTIVE / ARCHIVED，也可编辑SessionTask的标题、目标、计划和五种进度状态，包含显式重开。项目key、任务Project/provider/session/owner保持固定。人工操作不能修改reported result、用例或报告，不启动、恢复、取消或重跑测试，不改变旧受管生命周期。
+
+项目与任务删除采用可恢复的 `deleted_at` 标记，不 hard delete、不级联清理、不释放唯一键。存在未删除会话任务或任何legacy/native测试轮次时拒绝删除项目。所有人工写入受expected version保护；任务写入追加独立TaskManagementRevision冻结快照并与Audit/Outbox原子提交，既有SyncReceipt不变。固定版本读取覆盖两类快照，保留Agent与人工贡献的区别。
+
+默认读取隐藏已删除对象，回收站显式列出并允许恢复。新同步拒绝已删除项目或任务；原同步key查询在当前有效授权下仍可对账，不因删除自动签发凭据或复活任务。字段和生命周期由领域§8.1/§50.4拥有，HTTP与权限契约由TMP§45.3拥有。此补充仍是管理功能，开发验收与部署分别记录。
+
 ## 结果与治理语义
 
 管理平台接受并显示 Codex 提交的 PASS、FAIL、BLOCKED 等 reported result，并明确来源。

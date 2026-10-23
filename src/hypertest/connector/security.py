@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.config import get_settings
 from hypertest.domain.connector import HarnessDeviceGrant, HarnessNode, NodeProjectCapability
+from hypertest.domain.models import Project
 from hypertest.harness_bridge.protocol import BridgeError
 
 
@@ -46,6 +47,12 @@ async def authenticate_device(db: AsyncSession, token: str, node_id: UUID | None
 
 async def require_capability(db: AsyncSession, node_id: UUID, project_id: UUID,
                              capability: str) -> NodeProjectCapability:
+    # New dispatch/upload acceptance and final delivery share this admission
+    # boundary. Cleanup and original receipt queries use their management paths.
+    project = await db.scalar(select(Project).where(Project.id == project_id)
+                              .with_for_update(read=True).execution_options(populate_existing=True))
+    if project is None or project.deleted_at is not None:
+        raise BridgeError('PROJECT_CAPABILITY_REJECTED')
     scope = await db.scalar(select(NodeProjectCapability).where(
         NodeProjectCapability.node_id == node_id, NodeProjectCapability.project_id == project_id,
         NodeProjectCapability.capability == capability, NodeProjectCapability.status == 'ACTIVE').execution_options(populate_existing=True))

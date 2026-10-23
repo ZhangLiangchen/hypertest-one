@@ -11,7 +11,13 @@ from hypertest.api.task_schemas import PROFILE
 from hypertest.application.services import canonical_json_sha256
 from hypertest.common.ids import uuid7
 from hypertest.domain.models import AuditEvent, OutboxEvent, Project
-from hypertest.domain.session_tasks import CaseRevision, ReportRevision, SessionTask, SyncReceipt
+from hypertest.domain.session_tasks import (
+    CaseRevision,
+    ReportRevision,
+    SessionTask,
+    SyncReceipt,
+    TaskManagementRevision,
+)
 
 
 def public(row):
@@ -24,9 +30,14 @@ def public(row):
     return {column.name: convert(getattr(row, column.name)) for column in row.__table__.columns}
 
 
-async def project(db, project_id):
-    if not await db.get(Project, project_id):
+async def project(db, project_id, *, include_deleted=False, lock=False):
+    query = select(Project).where(Project.id == project_id)
+    if lock:
+        query = query.with_for_update(read=True).execution_options(populate_existing=True)
+    row = await db.scalar(query)
+    if row is None or (row.deleted_at is not None and not include_deleted):
         raise HTTPException(404, "Project not found")
+    return row
 
 
 async def prior_receipt(db, project_id, actor_ref, key):
@@ -47,7 +58,9 @@ def receipt_projection(row):
 
 
 async def receipt_view(db, project_id, actor_ref, key):
-    await project(db, project_id)
+    # Original accepted receipts remain queryable for UNKNOWN reconciliation,
+    # including after a task or its Project was soft deleted.
+    await project(db, project_id, include_deleted=True)
     row = await prior_receipt(db, project_id, actor_ref, key)
     if row is None:
         raise HTTPException(404, "Sync receipt not found; this does not authorize replay")
@@ -56,7 +69,7 @@ async def receipt_view(db, project_id, actor_ref, key):
 
 async def sync_task(db, payload, actor_ref, *, operator=False,
                     authorization_check: Callable[[], Awaitable[None]] | None = None):
-    await project(db, payload.project_id)
+    parent = await project(db, payload.project_id, include_deleted=True, lock=True)
     original = payload.model_dump(mode="json")
     digest = canonical_json_sha256(original)
     # The provider/session identity is global. This transaction-scoped DB lock
@@ -76,11 +89,15 @@ async def sync_task(db, payload, actor_ref, *, operator=False,
         if old.input_digest != digest:
             raise HTTPException(409, "Sync idempotency key conflicts with original input")
         return receipt_projection(old)
+    if parent.deleted_at is not None:
+        raise HTTPException(404, "Project not found")
     task = await db.scalar(select(SessionTask).where(
         SessionTask.provider == payload.provider, SessionTask.session_id == payload.session_id
-    ).with_for_update())
+    ).with_for_update().execution_options(populate_existing=True))
     clock = await db.scalar(select(func.clock_timestamp()))
     if task:
+        if task.deleted_at is not None:
+            raise HTTPException(409, "Session task is deleted; restore it explicitly before synchronization")
         if task.project_id != payload.project_id:
             raise HTTPException(409, "Session is already assigned to another Project")
         if not operator and task.owner_actor_ref != actor_ref:
@@ -138,27 +155,43 @@ async def sync_task(db, payload, actor_ref, *, operator=False,
     return response
 
 
-async def list_tasks(db, project_id, *, limit=50, offset=0):
-    await project(db, project_id)
-    where = SessionTask.project_id == project_id
-    total = await db.scalar(select(func.count()).select_from(SessionTask).where(where))
-    rows = await db.scalars(select(SessionTask).where(where).order_by(
-        SessionTask.last_synced_at.desc(), SessionTask.id).limit(limit).offset(offset))
+async def list_tasks(db, project_id, *, limit=50, offset=0, include_deleted=False):
+    await project(db, project_id, include_deleted=include_deleted)
+    where = [SessionTask.project_id == project_id]
+    if not include_deleted:
+        where.append(SessionTask.deleted_at.is_(None))
+    total = await db.scalar(select(func.count()).select_from(SessionTask).where(*where))
+    rows = await db.scalars(select(SessionTask).where(*where).order_by(
+        func.greatest(SessionTask.last_synced_at, SessionTask.last_managed_at).desc(),
+        SessionTask.id).limit(limit).offset(offset))
     return {"items": [public(row) for row in rows], "total": total, "limit": limit, "offset": offset}
 
 
-async def get_task(db, task_id, *, version=None, project_id=None, actor_ref=None, operator=False):
+async def version_snapshot(db, task_id, version):
+    for model in (SyncReceipt, TaskManagementRevision):
+        row = await db.scalar(select(model).where(model.task_id == task_id, model.task_version == version))
+        if row is not None:
+            return row.task_snapshot
+    raise HTTPException(404, "Task version not found")
+
+
+async def get_task(db, task_id, *, version=None, project_id=None, actor_ref=None, operator=False,
+                   include_deleted=False):
     task = await db.get(SessionTask, task_id)
-    if task is None or (project_id is not None and task.project_id != project_id):
+    if (task is None or (task.deleted_at is not None and not include_deleted)
+            or (project_id is not None and task.project_id != project_id)):
         raise HTTPException(404, "Session task not found in Project")
+    await project(db, task.project_id, include_deleted=include_deleted)
     if actor_ref is not None and not operator and task.owner_actor_ref != actor_ref:
         raise HTTPException(403, "Session task belongs to another actor")
     selected = task.version if version is None else version
     receipts = list(await db.scalars(select(SyncReceipt).where(
         SyncReceipt.task_id == task.id, SyncReceipt.task_version <= selected
     ).order_by(SyncReceipt.task_version)))
-    if not receipts or receipts[-1].task_version != selected:
-        raise HTTPException(404, "Task version not found")
+    snapshot = await version_snapshot(db, task.id, selected)
+    management = list(await db.scalars(select(TaskManagementRevision).where(
+        TaskManagementRevision.task_id == task.id, TaskManagementRevision.task_version <= selected
+    ).order_by(TaskManagementRevision.task_version)))
     histories = []
     currents = []
     for model in (CaseRevision, ReportRevision):
@@ -168,8 +201,9 @@ async def get_task(db, task_id, *, version=None, project_id=None, actor_ref=None
         latest = {row.key: public(row) for row in rows}
         histories.append([public(row) for row in rows])
         currents.append(list(latest.values()))
-    return {"task": receipts[-1].task_snapshot, "cases": currents[0], "reports": currents[1],
+    return {"task": snapshot, "cases": currents[0], "reports": currents[1],
         "case_history": histories[0], "report_history": histories[1],
+        "management_history": [public(row) for row in management],
         "sync_history": [{key: value for key, value in public(row).items()
                           if key not in {"request_payload", "response", "input_digest"}} for row in receipts]}
 
@@ -183,14 +217,12 @@ async def by_session(db, project_id, provider, session_id, actor_ref, *, operato
         SessionTask.project_id == project_id, SessionTask.provider == provider, SessionTask.session_id == session_id))
     if task is None:
         raise HTTPException(404, "Session task not found in Project")
+    if task.deleted_at is not None:
+        raise HTTPException(404, "Session task not found in Project")
     if not operator and task.owner_actor_ref != actor_ref:
         raise HTTPException(403, "Session task belongs to another actor")
     selected = task.version if version is None else version
-    receipt = await db.scalar(select(SyncReceipt).where(
-        SyncReceipt.task_id == task.id, SyncReceipt.task_version == selected))
-    if receipt is None:
-        raise HTTPException(404, "Task version not found")
-    document = {"task": receipt.task_snapshot}
+    document = {"task": await version_snapshot(db, task.id, selected)}
     # Select one latest revision per key at the pinned version. Do not assemble
     # the unbounded Web history (or duplicate current reports) for MCP transport.
     for model, key in ((CaseRevision, "cases"), (ReportRevision, "reports")):
@@ -209,7 +241,48 @@ async def by_session(db, project_id, provider, session_id, actor_ref, *, operato
 
 
 async def read_report(db, task_id, report_id):
+    task = await db.get(SessionTask, task_id)
+    if task is None or task.deleted_at is not None:
+        raise HTTPException(404, "Session task not found in Project")
+    await project(db, task.project_id)
     report = await db.get(ReportRevision, report_id)
     if report is None or report.task_id != task_id:
         raise HTTPException(404, "Report revision not found in task")
     return public(report)
+
+
+async def manage_task(db, task_id, expected_version, *, changes=None, action="UPDATE"):
+    from hypertest.application.management import record_change
+
+    candidate = await db.get(SessionTask, task_id)
+    if candidate is None:
+        raise HTTPException(404, "Session task not found in Project")
+    # Project -> task is also the synchronization lock order. The shared parent
+    # lock prevents restore/new writes racing a Project deletion.
+    await project(db, candidate.project_id, lock=True)
+    task = await db.scalar(select(SessionTask).where(SessionTask.id == task_id)
+                           .with_for_update().execution_options(populate_existing=True))
+    if task.deleted_at is not None and action != "RESTORE":
+        raise HTTPException(404, "Session task not found in Project")
+    if task.version != expected_version:
+        raise HTTPException(409, "Task version is stale; refresh before changing it")
+    if action == "RESTORE" and task.deleted_at is None:
+        raise HTTPException(409, "Session task is not deleted")
+    before = public(task)
+    clock = await db.scalar(select(func.clock_timestamp()))
+    if action == "UPDATE":
+        changes = changes or {}
+        if all(getattr(task, key) == value for key, value in changes.items()):
+            return await get_task(db, task.id)
+        for key, value in changes.items():
+            setattr(task, key, value)
+    if action in {"DELETE", "RESTORE"}:
+        task.deleted_at = clock if action == "DELETE" else None
+    task.version += 1
+    task.last_managed_at = clock
+    await db.flush()
+    actor = record_change(db, task, before, action, version=task.version)
+    db.add(TaskManagementRevision(task_id=task.id, task_version=task.version,
+        action=action, actor_ref=actor, task_snapshot=public(task), created_at=clock))
+    await db.commit()
+    return await get_task(db, task.id, include_deleted=action == "DELETE")

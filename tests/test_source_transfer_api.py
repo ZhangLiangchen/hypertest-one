@@ -207,3 +207,27 @@ async def test_device_revoked_during_verification_cannot_accept_cached_identity(
     async with AsyncSessionLocal() as db:
         transfer=await db.get(SourceBundleTransfer,f['row_id'])
         assert transfer.status == "REJECTED" and transfer.server_workspace is None and transfer.accepted_at is None
+
+
+@pytest.mark.parametrize("grant_before_delete", [False, True])
+async def test_deleted_project_rejects_existing_source_mutations_but_retains_readback(
+        transfer_fixture, grant_before_delete):
+    f = transfer_fixture
+    operator = {"X-Hypertest-Operator-Key": "test-source-operator"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://localhost") as client:
+        grant = await authorize(client, f) if grant_before_delete else None
+        if grant is not None:
+            assert grant.status_code == 200
+        deleted = await client.delete(f"/api/v1/projects/{f['project_id']}", params={"expected_version": 1})
+        assert deleted.status_code == 200, deleted.text
+        rejected = await authorize(client, f)
+        assert rejected.status_code == 403, rejected.text
+        dispatch = await client.post(f"/api/v1/source-transfers/{f['row_id']}/dispatch", headers=operator)
+        assert dispatch.status_code == 403, dispatch.text
+        if grant is not None:
+            upload = await client.put(f"/api/v1/source-transfers/{f['row_id']}/content", content=f["content"],
+                headers={"Authorization": "Bearer " + f["token"],
+                         "X-Source-Upload-Token": grant.json()["upload_token"]})
+            assert upload.status_code == 403, upload.text
+        original = await client.get(f"/api/v1/source-transfers/{f['row_id']}", headers=operator)
+        assert original.status_code == 200 and original.json()["status"] == "UPLOADING"

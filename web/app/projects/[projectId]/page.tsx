@@ -23,6 +23,7 @@ import { compileFormPolicy, defaultPolicyValues, PolicyFields, PolicyReview } fr
 import type { PolicyFormValues } from "./policy-fields";
 import { HarnessFields } from "./harness-fields";
 import { ProjectSessionTasks } from "./session-tasks";
+import { ProjectActions } from "../project-actions";
 
 type RunFormValues = PolicyFormValues & EnvironmentFormValues & {
   harness_mode?: "SERVER_HOST" | "LOCAL_CONNECTOR";
@@ -148,11 +149,12 @@ export default function ProjectPage() {
   }, [locale, form, createOpen]);
   const project = useQuery({
     queryKey: ["project", params.projectId],
-    queryFn: () => getProject(params.projectId),
+    queryFn: () => getProject(params.projectId, true),
   });
   const runs = useQuery({
     queryKey: ["project-runs", params.projectId],
     queryFn: () => getProjectRuns(params.projectId),
+    enabled: Boolean(project.data && !project.data.deleted_at),
   });
   const creation = useMutation({
     mutationFn: (payload: RunCreate) => createRun(params.projectId, payload),
@@ -315,7 +317,7 @@ export default function ProjectPage() {
     <main>
       <div className="page-heading">
         <Link href="/"><ArrowLeftOutlined aria-hidden /> {t("Projects", "项目")}</Link>
-        <Typography.Title level={1} style={{ margin: "18px 0 0" }}>{project.data.name}</Typography.Title>
+        <div className="session-task-title"><Typography.Title level={1}>{project.data.name}</Typography.Title><ProjectActions project={project.data} /></div>
         <Typography.Paragraph className="muted" style={{ marginTop: 8 }}>
           {project.data.description || t("Project testing workspace", "项目测试工作台")}
         </Typography.Paragraph>
@@ -326,6 +328,8 @@ export default function ProjectPage() {
           {project.data.repository_url ? <Tag style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{project.data.repository_url}</Tag> : null}
         </Space>
       </div>
+
+      {project.data.deleted_at ? <Alert type="warning" showIcon message={t("This project is in the recycle bin", "此项目已移入回收站")} description={t("History remains readable. Restore the project to edit it or continue task synchronization.", "历史仍可查看。请先恢复项目，再编辑或继续同步任务。") } style={{ marginBottom: 20 }} /> : null}
 
       {project.error ? <Alert type="warning" showIcon message={t("Project refresh failed", "项目刷新失败")} description={t("Previously loaded project details and your draft remain available. Retry to get the latest state.", "已加载的项目资料和草稿仍会保留，请重试获取最新状态。")} action={<Button onClick={() => void project.refetch()} loading={project.isFetching}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 20 }} /> : null}
 
@@ -340,7 +344,7 @@ export default function ProjectPage() {
         style={{ marginBottom: 20 }}
       /> : null}
 
-      <ProjectSessionTasks projectId={params.projectId} />
+      <ProjectSessionTasks projectId={params.projectId} projectDeleted={Boolean(project.data.deleted_at)} />
 
       <details className="session-legacy-history" open={fromRun ? true : undefined}>
         <summary>{t("Managed test run history", "受管测试运行历史")}</summary>
@@ -349,7 +353,7 @@ export default function ProjectPage() {
           <Typography.Title level={3} style={{ margin: 0 }}>{t("Test runs", "测试运行")}</Typography.Title>
           <Typography.Text className="muted">{t("Each run fixes the source, requirements and policy for a reproducible test cycle.", "每次运行固定代码版本、需求和策略，形成可复现的完整测试周期。")}</Typography.Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{createLabel}</Button>
+        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate} disabled={Boolean(project.data.deleted_at)}>{createLabel}</Button>
       </Space>
       {runs.isLoading ? (
         <Spin />
@@ -372,7 +376,7 @@ export default function ProjectPage() {
       ) : (
         <Card className="section-card">
           <Empty description={t("Create a test run to analyze requirements and build test coverage.", "创建测试运行，开始分析需求并建立测试覆盖。")}>
-            <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{createLabel}</Button>
+            <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate} disabled={Boolean(project.data.deleted_at)}>{createLabel}</Button>
           </Empty>
         </Card>
       )}

@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.operation_guard import guard_manual_mission_mutation, guard_synchronous_operation
 from hypertest.api.schemas import (
+    ManagementVersion,
     MissionCreate,
     MissionExecuteRequest,
     MissionExecutionRead,
@@ -14,6 +15,7 @@ from hypertest.api.schemas import (
     PolicySnapshotRead,
     ProjectCreate,
     ProjectRead,
+    ProjectUpdate,
     RequirementRead,
     RiskRead,
     SourceSnapshotCreate,
@@ -24,6 +26,7 @@ from hypertest.api.schemas import (
     TestRunRead,
 )
 from hypertest.application.coverage import get_test_run_coverage
+from hypertest.application.management import manage_project
 from hypertest.application.planner import plan_next_mission
 from hypertest.application.runtime import MissionRuntimeError, execute_mission
 from hypertest.application.services import (
@@ -75,14 +78,32 @@ async def post_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db
 
 
 @router.get("/projects", response_model=list[ProjectRead])
-async def read_projects(db: AsyncSession = Depends(get_db)):
-    return await list_projects(db)
+async def read_projects(include_deleted: bool = False, db: AsyncSession = Depends(get_db)):
+    return await list_projects(db, include_deleted=include_deleted)
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectRead)
+async def patch_project(project_id: UUID, payload: ProjectUpdate, db: AsyncSession = Depends(get_db)):
+    return await manage_project(db, project_id, payload.expected_version,
+        changes=payload.model_dump(exclude_unset=True, exclude={"expected_version"}))
+
+
+@router.delete("/projects/{project_id}", response_model=ProjectRead)
+async def delete_project(project_id: UUID, expected_version: int = Query(ge=1),
+                         db: AsyncSession = Depends(get_db)):
+    return await manage_project(db, project_id, expected_version, action="DELETE")
+
+
+@router.post("/projects/{project_id}/restore", response_model=ProjectRead)
+async def restore_project(project_id: UUID, payload: ManagementVersion,
+                          db: AsyncSession = Depends(get_db)):
+    return await manage_project(db, project_id, payload.expected_version, action="RESTORE")
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)
-async def read_project(project_id: UUID, db: AsyncSession = Depends(get_db)):
+async def read_project(project_id: UUID, include_deleted: bool = False, db: AsyncSession = Depends(get_db)):
     try:
-        return await get_project(db, project_id)
+        return await get_project(db, project_id, include_deleted=include_deleted)
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc
 

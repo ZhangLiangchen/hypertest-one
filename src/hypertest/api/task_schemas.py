@@ -63,6 +63,21 @@ class SessionTaskSync(TaskInput):
         return self
 
 
+class SessionTaskUpdate(TaskInput):
+    expected_version: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=512, pattern=r"\S")
+    objective: str | None = Field(default=None, max_length=16000)
+    status: TaskStatus | None = None
+    plan_markdown: str | None = Field(default=None, max_length=262144)
+
+    @model_validator(mode="after")
+    def non_null_fields(self):
+        for key in self.model_fields_set - {"expected_version"}:
+            if getattr(self, key) is None:
+                raise ValueError(f"{key} cannot be null")
+        return self
+
+
 GET_TASK_SCHEMA = {
     "type": "object",
     "properties": {

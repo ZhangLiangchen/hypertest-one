@@ -74,14 +74,19 @@ async def create_project(session: AsyncSession, payload: ProjectCreate) -> Proje
     return project
 
 
-async def list_projects(session: AsyncSession) -> list[Project]:
-    result = await session.scalars(select(Project).order_by(Project.updated_at.desc()))
+async def list_projects(session: AsyncSession, *, include_deleted: bool = False) -> list[Project]:
+    query = select(Project).order_by(Project.updated_at.desc())
+    if not include_deleted:
+        query = query.where(Project.deleted_at.is_(None))
+    result = await session.scalars(query)
     return list(result)
 
 
-async def get_project(session: AsyncSession, project_id: UUID) -> Project:
-    project = await session.get(Project, project_id)
-    if project is None:
+async def get_project(session: AsyncSession, project_id: UUID, *, include_deleted: bool = False) -> Project:
+    project = await session.scalar(select(Project).where(Project.id == project_id)
+                                   .with_for_update(read=True)
+                                   .execution_options(populate_existing=True))
+    if project is None or (project.deleted_at is not None and not include_deleted):
         raise NotFoundError("project not found")
     return project
 

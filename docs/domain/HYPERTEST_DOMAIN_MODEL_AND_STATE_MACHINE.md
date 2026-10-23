@@ -218,6 +218,7 @@ description         text
 repository_url      text
 default_branch      varchar(255)
 status              varchar(32)
+deleted_at          timestamptz nullable
 created_at          timestamptz
 updated_at          timestamptz
 row_version         bigint
@@ -228,6 +229,16 @@ row_version         bigint
 Project 不以 repository URL 为唯一键，长期允许 multi-repo。
 
 **v0.4 目标：** Project 对应一个稳定被测系统（SUT），用于组织其多个 feat / MR 测试轮次。新增 feat、MR、commit 或重测不创建另一个 Project。repository 是该 SUT 的源引用，不代替 SUT 身份；此产品约定不新增 `UNIQUE(repository_url)` 或假定当前已有独立 SUT 表。
+
+### 8.1 项目人工管理（2026-10-23）
+
+Operator 可编辑 `name / description / repository_url / default_branch`，并将项目状态设为 `ACTIVE / ARCHIVED`；`id / key` 固定。修改仓库或默认分支只影响项目配置，不改写已有 SourceSnapshot、任务来源、冻结输入或测试历史。归档是项目管理状态，不取消任务、不停止执行，也不生成质量结论。
+
+编辑、软删除和恢复都必须提供与当前 `row_version` 匹配的 `expected_version`，在同一事务中更新项目、递增版本并写入 Audit / Outbox。旧版本拒绝，不以最后写入覆盖并发修改。
+
+删除只设置 `deleted_at`，不 hard delete 项目、不释放 `key` 唯一性、不级联删除测试资产。存在任何未软删除 SessionTask、任何 legacy TestRun 或任何 NativeTestRun 时拒绝删除。检查子记录与项目写入共享项目聚合锁；新 SessionTask 的创建同样检查项目未删除，避免并发创建产生隐藏的活动任务。恢复清除 `deleted_at` 并保留原项目状态与身份。默认项目列表及普通详情隐藏已删除项目；回收站显式读取包含已删除项的列表以发起恢复。
+
+已删除项目拒绝新任务、源码快照、源码传输、上传授权及新的集成/节点能力授权。源码上传的最终接受与Connector采集请求的入队、投递均重新检查项目未删除，不能借删除前的transfer或capability继续新写入或新采集。已有来源记录及原回执保留只读核对；删除不回写旧transfer为取消，也不宣称已经取消发出的外部操作。
 
 ---
 
@@ -2183,12 +2194,13 @@ NativeConclusion.UNKNOWN 是质量证据不足；NativeOperation.UNKNOWN 是副�
 
 | 对象 | 规范字段/关系与不变量 |
 | --- | --- |
-| SessionTask | UUID、Project FK、provider、session_id、固定actor owner、title/objective/status/plan_markdown/reported_result、严格递增version、created/updated；`(provider,session_id)`全局唯一，首次Project与owner不变 |
+| SessionTask | UUID、Project FK、provider、session_id、固定actor owner、title/objective/status/plan_markdown/reported_result、nullable deleted_at/last_managed_at、last_synced_at、严格递增version、created/updated；`(provider,session_id)`全局唯一，首次Project与owner不变，软删除不释放唯一性 |
 | CaseRevision | Task FK、稳定case key、递增revision、接受该修订的task version、完整case内容与来源；task/key/revision唯一，不覆写旧版本 |
 | ReportRevision | Task FK、稳定report key、递增revision、接受该修订的task version、标题、PostgreSQL保存的原始Markdown原文、可选artifact_uri/source_ref来源元数据、原reported result；task/key/revision唯一，不覆写旧报告 |
 | SyncReceipt | Project/Task、actor_ref、稳定idempotency key、原请求摘要/原提交、接受version、冻结task_snapshot和结果引用；actor/项目/key唯一，异输入拒绝，历史回执不可变；client只在当前授权链核验 |
+| TaskManagementRevision | UUID、Task FK、严格唯一的task version、人工管理action（UPDATE/DELETE/RESTORE）、actor_ref、冻结task_snapshot、created_at；与任务及Audit/Outbox同事务追加，不修改SyncReceipt或用例/报告修订 |
 
-Task mutable字段经同步事务更新；Case/Report/Receipt为append-only。相同case/report key内容不变时复用现有修订，内容变化才递增revision；省略某key保留既有资产，禁止以“全量同步”名义删除失败历史。Task version严格每次成功新同步递增；版本快照与关联case/report修订可重建当时状态，不从最新字段拼装过去。
+Task mutable字段经同步事务或§50.4人工管理事务更新；Case/Report/Receipt/TaskManagementRevision为append-only。相同case/report key内容不变时复用现有修订，内容变化才递增revision；省略某key保留既有资产，禁止以“全量同步”名义删除失败历史。Task version在接受新同步或人工管理变更时严格递增；SyncReceipt与TaskManagementRevision的冻结快照共同覆盖可读版本，关联该版本以前已接受的case/report修订重建当时状态，不从最新字段拼装过去。
 
 任务状态为 DRAFT/IN_PROGRESS/BLOCKED/COMPLETED/CANCELLED，表示会话任务进度，不是平台执行状态。reported result为NOT_RUN/PASS/FAIL/ERROR/SKIPPED/UNKNOWN/BLOCKED，表示提交者报告的测试结果；进行中任务可以FAIL。新报告PASS不删除原FAIL；不同判定口径分别保存来源和报告key，不伪造用例重跑或把业务复核覆盖自动断言。
 
@@ -2207,3 +2219,15 @@ Report原Markdown直接保存在PostgreSQL ReportRevision.markdown，读接口�
 管理保存不要求独立CI证明，不生成UNVERIFIED→UNKNOWN强制转换，也不产生legacy VERIFIED Evidence、FINAL Verdict或RELEASE_READY。Proposal/Verifier原则在本节表现为管理输入接受，Gate不进入同步事务。旧路径保留其正式质量判定职责与历史。
 
 同步UNKNOWN表示客户端不能确认该写是否接受，和reported_result.UNKNOWN不同。保持原journal/key，只查询原Receipt；NOT_FOUND不授权自动重发、换key或替代任务。原始失败、历史结果、撤权记录与既有两种受管模式均保留；本机开发与验收不授权生产schema迁移或部署。
+
+### 50.4 人工编辑、进度调整与软删除（2026-10-23）
+
+Operator 可编辑 `title / objective / plan_markdown / status`，使用当前任务 `version` 作为 `expected_version`。人工PATCH在版本匹配且字段与当前值相同时为no-op，不增加版本或管理历史。五种任务进度状态之间允许人工调整，包括从 COMPLETED / CANCELLED 重新设为 IN_PROGRESS；这是管理记录的重开，不恢复原生会话、不启动或重跑测试，也不改变 legacy Run / Job / Session 的状态机。人工入口禁止更改 Project、provider、session_id、owner、reported_result、case/report及来源身份。
+
+软删除设置 `deleted_at`，恢复清除该字段，两者均递增任务版本并追加 TaskManagementRevision 和 Audit / Outbox。删除不自动将状态改为 CANCELLED；恢复保留删除前的进度、reported result及全部产物。恢复要求所属 Project 未删除。已删除任务的 session 唯一键继续占用，新同步不能隐式恢复任务、创建替代任务或把原记录改到其他项目。
+
+普通列表、详情及按会话查询隐藏已删除任务；回收站列表和带 `include_deleted=true` 的管理详情显式包含已删除记录。已删除项目也使其任务从普通读取隐藏。原 key 回执查询在当前有效 actor/client/project授权下仍返回原接受记录，确保删除后可以对账 UNKNOWN；它不恢复对象、不改写原回执或原接受版本，也不绕过撤权。
+
+人工管理与Agent同步使用同一任务版本并串行接受；发生并发修改时旧版本拒绝，客户端先读取当前记录再根据真实新意图提交。历史版本读取从两类不可变快照重建，Web详情提供 `management_history` 区分人工修改的版本、动作、actor与时间。`source=AGENT_REPORTED` 继续说明用例、报告及reported result的来源；人工管理历史不能被标为新的Agent测试结果或执行证明。
+
+人工变更只更新 `last_managed_at`，不更新代表Agent实际同步时间的 `last_synced_at`。页面将最近同步与最近人工管理分别展示，不能把修改标题、删除或恢复显示成一次新的产物同步。

@@ -1322,3 +1322,25 @@ MCP按会话读取返回有界 envelope `{task_id,version,format:'application/js
 首次固定 Project 和 actor owner，同项目的其他 actor 不得凭知道 session ID 覆盖任务；新 client 仍需同 actor 的有效项目授权。认证 scope 由现有 integration actor/client/project链核验，`task:sync` 不授予 `run:execute` 或设备控制。管理型 Operator 操作保留其独立权限；token只在本机私有文件/daemon保管，不进入模型工具参数。
 
 同 key 同输入返回原回执，同 key 异输入冲突。发送前保存 journal intent；发送后失答/响应不可确认时保持同步 UNKNOWN，只 GET 原 key。404/NOT_FOUND 不证明原 POST 未执行；客户端不得自动 POST 重发、换key、重建任务或重新发放凭据。旧 expected version 不能覆盖当前状态，失答查询结果不改变报告原 reported result。测试事实、推断与待验证材料在来源和原始报告中分别说明，摘要/hash不产生执行证明。
+
+### 45.3 Operator 项目与任务管理 API（2026-10-23）
+
+以下入口沿用管理 Web / Operator 的独立访问边界，不扩充 `task:sync` scope，也不新增 MCP工具或执行权限。路径均以 `/api/v1` 为前缀。
+
+| HTTP入口 | 请求与行为 |
+| --- | --- |
+| `PATCH /projects/{id}` | `{expected_version, name?, description?, repository_url?, default_branch?, status?}`；`expected_version`匹配项目row_version，状态仅ACTIVE/ARCHIVED；id/key固定 |
+| `DELETE /projects/{id}?expected_version=N` | 软删除项目；存在未删除SessionTask或任何legacy/native测试轮次时409，不级联删除 |
+| `POST /projects/{id}/restore` | `{expected_version}`；清除软删除标记并保留原状态 |
+| `GET /projects?include_deleted=true` | 显式读取包含已删除项目的回收站列表，返回row_version与deleted_at |
+| `PATCH /tasks/{id}` | `{expected_version, title?, objective?, plan_markdown?, status?}`；匹配任务version，状态为§45.1五值，允许人工重开；不得写reported_result、cases/reports、身份或归属 |
+| `DELETE /tasks/{id}?expected_version=N` | 软删除任务，保留session唯一性、同步回执和全部历史 |
+| `POST /tasks/{id}/restore` | `{expected_version}`；项目未删除时恢复原任务 |
+| `GET /tasks?project_id=…&include_deleted=true` | 显式读取包含已删除任务的回收站列表，返回version与deleted_at |
+| `GET /projects/{id}?include_deleted=true`、`GET /tasks/{id}?include_deleted=true` | 管理回收站详情，显式读取已删除对象；任务仍可用version选择固定历史 |
+
+写入校验字段白名单及当前版本；版本过期或删除/恢复前置条件冲突返回409，未知/非法字段返回422，不存在或已从普通入口隐藏的对象返回404。任务管理写返回任务详情，包含独立 `management_history`，每条有id/task_version/action/actor_ref/created_at；action为UPDATE/DELETE/RESTORE。项目写返回项目投影。人工变更原子递增对应版本并写Audit/Outbox；同值任务PATCH在版本匹配时为no-op，不制造版本或历史。任务另存冻结TaskManagementRevision，原SyncReceipt与case/report不变。任务任一固定版本可由同步或人工快照读取，不将新进度套用到旧报告。
+
+默认列表、详情与by-session不返回已删除任务或已删除项目下的任务；Agent新同步拒绝已删除对象。原 `syncs/by-key` 在当前有效授权下仍可返回历史瘦回执，便于对账，不因软删除改写原version或自动恢复对象。`source=AGENT_REPORTED` 继续标识产物及reported result来源，人工字段变更另由management_history溯源。人工进度调整、软删除或恢复均无执行、取消执行、测试重跑或质量裁决语义。
+
+项目软删除同时约束旧入口的新资源准入：任务/源码创建、上传授权和接受、集成授权及Connector新采集的入队/投递检查项目仍未删除，保留只读历史与原key回执。该检查不改写原transfer或外部操作的状态，不将删除伪装为已确认取消。

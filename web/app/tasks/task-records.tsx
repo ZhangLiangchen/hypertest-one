@@ -34,20 +34,21 @@ function ReportContent({ item }: { item: SessionReportRevision }) {
 
 export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
   const { t, label, formatDate } = useI18n();
-  const { task, cases, reports, case_history, report_history, sync_history } = detail;
+  const { task, cases, reports, case_history, report_history, sync_history, management_history = [] } = detail;
   return <>
     <section className="data-surface session-record" aria-label={t("Task and session", "任务与会话")}>
       <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} layout="vertical" items={[
         { key: "status", label: t("Task status", "任务状态"), children: <Tag color={task.status === "IN_PROGRESS" ? "blue" : task.status === "BLOCKED" ? "gold" : undefined}>{label(task.status)}</Tag> },
         { key: "result", label: t("Codex reported result", "Codex 报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
         { key: "sync", label: t("Last synced", "最后同步"), children: formatDate(task.last_synced_at) },
+        { key: "managed", label: t("Last managed", "最近人工管理"), children: task.last_managed_at ? formatDate(task.last_managed_at) : "—" },
         { key: "session", label: t("Codex session", "Codex 会话"), children: <span className="entity-key">{task.session_id}</span> },
         { key: "source", label: t("Sync source", "同步来源"), children: `${task.provider} · ${task.source}` },
         { key: "version", label: t("Task version", "任务版本"), children: task.version },
       ]} />
       <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
       <p className="session-literal">{task.objective}</p>
-      <Typography.Paragraph className="muted">{t("Synced from the Codex session. Codex performs the testing work; this page manages its records and reported results.", "内容同步自 Codex 会话。测试工作由 Codex 完成，此页面管理任务记录与报告结果。")}</Typography.Paragraph>
+      <Typography.Paragraph className="muted">{t("Codex performs the testing work. This page manages its records and reported results; manual edits appear separately in management history.", "测试工作由 Codex 完成。此页面管理任务记录与报告结果，手动修改单独记录在管理历史中。")}</Typography.Paragraph>
     </section>
     <section className="data-surface session-record" aria-labelledby="task-plan-heading">
       <Typography.Title id="task-plan-heading" level={2}>{t("Test plan", "测试计划")}</Typography.Title>
@@ -74,6 +75,14 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
       <details className="session-history"><summary>{t("Report revision history", "报告修订历史")} ({report_history.length})</summary>
         {report_history.map((item) => <details key={item.id} className="session-revision"><summary>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /></summary><ReportContent item={item} /></details>)}
       </details>
+    </section>
+    <section className="session-task-section" aria-labelledby="task-management-heading">
+      <Typography.Title id="task-management-heading" level={2}>{t("Management history", "管理历史")}</Typography.Title>
+      {management_history.length ? <ol className="session-sync-history">{management_history.map((entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
+        <Space wrap><strong>{label(entry.action)}</strong><span>{t("Task version", "任务版本")} {entry.task_version}</span><span>{formatDate(entry.created_at)}</span></Space>
+        <p className="session-literal muted">{t("Managed by", "管理来源")}: {entry.actor_ref}</p>
+        <details><summary>{t("Task after this change", "修改后的任务内容")}</summary><pre className="artifact-content">{JSON.stringify(entry.task_snapshot, null, 2)}</pre></details>
+      </li>)}</ol> : <Typography.Paragraph className="muted">{t("No manual changes recorded.", "暂无手动修改记录。")}</Typography.Paragraph>}
     </section>
     <section className="session-task-section" aria-labelledby="task-sync-heading">
       <Typography.Title id="task-sync-heading" level={2}>{t("Sync history", "同步历史")}</Typography.Title>

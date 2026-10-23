@@ -6,6 +6,8 @@ export type Project = {
   repository_url?: string | null;
   default_branch: string;
   status: string;
+  row_version: number;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -26,6 +28,8 @@ export type SessionTask = {
   source: string;
   created_at: string;
   last_synced_at: string;
+  last_managed_at?: string | null;
+  deleted_at?: string | null;
 };
 export type SessionCaseRevision = {
   id: string;
@@ -72,6 +76,30 @@ export type SessionTaskDetail = {
   case_history: SessionCaseRevision[];
   report_history: SessionReportRevision[];
   sync_history: SessionSyncReceipt[];
+  management_history?: SessionManagementRecord[];
+};
+export type SessionManagementRecord = {
+  id?: string;
+  action: string;
+  actor_ref: string;
+  task_version: number;
+  task_snapshot: SessionTask;
+  created_at: string;
+};
+export type ProjectUpdate = {
+  expected_version: number;
+  name?: string;
+  description?: string | null;
+  repository_url?: string | null;
+  default_branch?: string;
+  status?: "ACTIVE" | "ARCHIVED";
+};
+export type SessionTaskUpdate = {
+  expected_version: number;
+  title?: string;
+  objective?: string;
+  plan_markdown?: string;
+  status?: SessionTaskStatus;
 };
 export type SessionTaskList = { items: SessionTask[]; total: number; limit: number; offset: number };
 

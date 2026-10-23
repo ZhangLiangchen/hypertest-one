@@ -11,6 +11,18 @@ ADR-014 and ADR-015 are included in the deployed application. Strict external TL
 the online local-Connector core E2E is verified. Separate historical acceptance remains linked
 from [the current production record](ADR015_PRODUCTION_DEPLOYMENT.md).
 
+## 项目与会话任务管理（本分支）
+
+本节针对ADR-018的Project / SessionTask管理入口；下文legacy Run、后台Job与质量门禁的状态机保持原义。功能在目标环境可用的前提是已部署本次API、Web及数据库迁移，源码变更本身不代表生产已更新。
+
+1. 在项目列表的“管理”菜单选择“编辑”，修改名称、说明、仓库或默认分支；选择“修改状态”可切换ACTIVE或ARCHIVED。项目详情也提供这些按钮，项目key不可修改。归档只整理项目，不停止任务，也不改写已固定的源码或历史结论。
+2. 在会话任务列表的“管理”菜单或任务详情选择“编辑”修改标题、目标与计划；选择“修改状态”调整DRAFT/IN_PROGRESS/BLOCKED/COMPLETED/CANCELLED进度。任务可手动重开；这只调整工作进度，不重开模型会话或运行测试。reported result单独展示且不能在此编辑；将失败任务设为COMPLETED仍保留FAIL。
+3. 删除前核对对象；删除将记录移入回收站并保留用例、报告、同步回执、人工管理历史及原ID。项目仍有未删除会话任务或任何旧受管/原生测试轮次时会拒绝删除；可选择归档，不会级联清除历史。
+4. 在项目状态筛选选择“回收站”，或在任务列表勾选“显示回收站任务”，再选择“恢复”。恢复任务前，先确保其所属项目已经恢复；恢复保留原状态和结果。已删除session仍属于原任务，不能用再次同步创建替代记录。
+5. 保存、删除与恢复都按当前版本提交，旧页面遇到409时先刷新并核对。网络失答时先查看最新记录再决定下一步；人工管理历史可追溯改动版本与动作，原用例/报告修订不变。
+
+人工管理不授予Agent新的Operator权限，不触发Job、Harness、Runner或Gate。原MCP同步失答仍只按原key查询；已删除对象的原接受回执可在有效授权下对账，但不代表对象目前可见。完整管理/API说明见[会话任务同步](CODEX_SESSION_TASK_SYNC.md#web人工管理与回收站)。
+
 ## 结果复核与修复后复测 / Result review and retest
 
 PR #10 的实现与隔离真实验收见[结果复核与新轮次验收](WEB_RESULT_REVIEW_RETEST_ACCEPTANCE.md)。

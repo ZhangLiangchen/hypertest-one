@@ -2,7 +2,7 @@ import type {
   RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingHistory, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
   MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
   SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
-  SessionTaskDetail, SessionTaskList, SessionReportRevision,
+  SessionTaskDetail, SessionTaskList, SessionReportRevision, ProjectUpdate, SessionTaskUpdate,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 
@@ -27,6 +27,12 @@ export function errorText(error: unknown, locale: Locale): string {
   if (detail.includes("repository origin is not a valid credential-free Git address")) {
     return "仓库源地址格式无效。请检查 origin 地址，并在 Worker 主机配置 Git 访问授权。";
   }
+  if (/^Project cannot be deleted:/i.test(detail)) {
+    return "此项目仍有关联数据，无法删除。有未删除任务时，请先在任务列表删除；有受管或原生测试运行历史时，请改为归档项目。";
+  }
+  if (/version is stale/i.test(detail)) {
+    return "记录已被其他操作更新，当前输入已保留。请刷新记录并核对最新版本，再重新打开编辑窗口。";
+  }
   const known: Record<string, string> = {
     "controlled environment unavailable; build the configured profile on this host": "受控环境当前不可用。请在执行主机准备与所选配置匹配的可信镜像，再刷新环境可用性；当前草稿会保留。",
     "ASGI application module must be tracked in the pinned source": "ASGI 应用模块必须是固定源码中已跟踪的文件。请核对应用对象路径与提交 SHA。",
@@ -39,6 +45,10 @@ export function errorText(error: unknown, locale: Locale): string {
     "persistent or queued missions are controlled by their background task; use task controls": "此运行的阶段由后台任务统一控制。请在后台任务中操作，或检查持续会话状态。",
     "persistent missions are controlled by their background task; use task controls": "此运行使用持续会话。请通过后台任务继续，避免单独启动新的阶段会话。",
     "project not found": "项目不存在，请返回项目列表刷新后重试。",
+    "Project not found": "项目不存在或已删除，请返回项目列表或回收站核对后重试。",
+    "Project is not deleted": "此项目已经恢复或尚未删除。请刷新查看当前状态。",
+    "Session task is not deleted": "此任务已经恢复或尚未删除。请刷新查看当前状态。",
+    "Session task is deleted; restore it explicitly before synchronization": "此任务已删除。请先从项目的任务回收站恢复，再继续同步。",
     "project key already exists": "项目标识已存在。请打开已有项目，或使用其他标识。",
     "cannot resolve repository revision; verify the branch/tag, configured Git access and network availability": "无法解析仓库版本。请检查分支或标签是否存在，以及主机上的 Git 访问授权和网络。",
     "revision is missing or ambiguous; use an explicit refs/heads/branch or refs/tags/tag": "版本不存在或分支、标签同名。请明确填写 refs/heads/分支 或 refs/tags/标签。",
@@ -98,20 +108,34 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export const getProjects = () => api<Project[]>("/projects");
+export const getProjects = (includeDeleted = false) => api<Project[]>(`/projects${includeDeleted ? "?include_deleted=true" : ""}`);
 export const createProject = (payload: ProjectCreate) =>
   api<Project>("/projects", { method: "POST", body: JSON.stringify(payload) });
+export const updateProject = (projectId: string, payload: ProjectUpdate) =>
+  api<Project>(`/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+export const deleteProject = (projectId: string, expectedVersion: number) =>
+  api<Project>(`/projects/${encodeURIComponent(projectId)}?expected_version=${expectedVersion}`, { method: "DELETE" });
+export const restoreProject = (projectId: string, expectedVersion: number) =>
+  api<Project>(`/projects/${encodeURIComponent(projectId)}/restore`, { method: "POST", body: JSON.stringify({ expected_version: expectedVersion }) });
 export const createRun = (projectId: string, payload: RunCreate) =>
   api<TestRun>(`/projects/${projectId}/runs/bootstrap`, { method: "POST", body: JSON.stringify(payload) });
 export const resolveSource = (payload: { repository_url: string; revision: string }) =>
   api<SourceResolution>("/sources/resolve", { method: "POST", body: JSON.stringify(payload) });
-export const getProject = (projectId: string) => api<Project>(`/projects/${projectId}`);
+export const getProject = (projectId: string, includeDeleted = false) => api<Project>(`/projects/${encodeURIComponent(projectId)}${includeDeleted ? "?include_deleted=true" : ""}`);
 export const getProjectRuns = (projectId: string) =>
   api<TestRun[]>(`/projects/${projectId}/test-runs`);
-export const getProjectTasks = (projectId: string, offset = 0, limit = 20) =>
-  api<SessionTaskList>(`/tasks?project_id=${encodeURIComponent(projectId)}&limit=${limit}&offset=${offset}`);
-export const getSessionTask = (taskId: string, version?: number) =>
-  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}${version === undefined ? "" : `?version=${version}`}`);
+export const getProjectTasks = (projectId: string, offset = 0, limit = 20, includeDeleted = false) =>
+  api<SessionTaskList>(`/tasks?project_id=${encodeURIComponent(projectId)}&limit=${limit}&offset=${offset}${includeDeleted ? "&include_deleted=true" : ""}`);
+export const getSessionTask = (taskId: string, version?: number, includeDeleted = false) => {
+  const query = [version === undefined ? "" : `version=${version}`, includeDeleted ? "include_deleted=true" : ""].filter(Boolean).join("&");
+  return api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}${query ? `?${query}` : ""}`);
+};
+export const updateSessionTask = (taskId: string, payload: SessionTaskUpdate) =>
+  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+export const deleteSessionTask = (taskId: string, expectedVersion: number) =>
+  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}?expected_version=${expectedVersion}`, { method: "DELETE" });
+export const restoreSessionTask = (taskId: string, expectedVersion: number) =>
+  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}/restore`, { method: "POST", body: JSON.stringify({ expected_version: expectedVersion }) });
 export const getSessionReport = (taskId: string, revisionId: string) =>
   api<SessionReportRevision>(`/tasks/${encodeURIComponent(taskId)}/reports/${encodeURIComponent(revisionId)}`);
 export const getRun = (runId: string) => api<TestRun>(`/test-runs/${runId}`);

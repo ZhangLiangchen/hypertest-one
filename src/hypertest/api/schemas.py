@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hypertest.common.repositories import validate_repository_origin
 from hypertest.domain.enums import (
@@ -59,6 +59,32 @@ class ProjectRead(ORMModel):
     created_at: datetime
     updated_at: datetime
     row_version: int
+    deleted_at: datetime | None = None
+
+
+class ManagementVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    expected_version: int = Field(ge=1)
+
+
+class ProjectUpdate(ManagementVersion):
+    name: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"\S")
+    description: str | None = Field(default=None, max_length=16000)
+    repository_url: str | None = None
+    default_branch: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"\S")
+    status: ProjectStatus | None = None
+
+    @field_validator("repository_url")
+    @classmethod
+    def credential_free_repository(cls, value: str | None) -> str | None:
+        return validate_repository_origin(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def non_null_fields(self):
+        for key in self.model_fields_set & {"name", "default_branch", "status"}:
+            if getattr(self, key) is None:
+                raise ValueError(f"{key} cannot be null")
+        return self
 
 
 class SourceSnapshotCreate(BaseModel):

@@ -190,7 +190,7 @@ async def submit_task(db: AsyncSession, token: str, payload: SubmitTask):
     await db.commit()
     # The Project lock serializes both receipt identity and bootstrap dedup.
     if not await db.scalar(
-        select(Project).where(Project.id == payload.project_id).with_for_update()
+        select(Project).where(Project.id == payload.project_id, Project.deleted_at.is_(None)).with_for_update()
     ):
         raise NotFoundError("Project not found")
     grant = await authenticate(db, token, "task:submit", project_id=payload.project_id)

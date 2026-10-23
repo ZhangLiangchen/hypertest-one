@@ -16,6 +16,8 @@
 
 新入口保留 reported result 与原始报告，版本保护和幂等回执保障同步一致性；缺少独立 CI 证明不阻止管理保存、不改写报告结果。正式质量门禁与 legacy VERIFIED Evidence 保持原义。[ADR-018](ADR-018_CODEX_SESSION_TASK_SYNC.md)优先于下文把新入口视为执行材料准入的描述；§43 ADR-017 切片及旧受管模式继续作为独立历史保留。模型与协议分别由领域 §50、TMP §45 拥有。
 
+Web / Operator的项目编辑、任务进度调整、软删除及恢复复用同一API与PostgreSQL，不经过Worker/Harness/Runner。项目使用row_version，SessionTask的人工管理与Agent同步共享version；人工TaskManagementRevision与原SyncReceipt分别保存冻结历史，Audit/Outbox与写入同事务提交。默认隐藏删除标记，回收站显式恢复，禁止级联删除或修改测试结果。字段、前置条件及权限分别见领域§8.1/§50.4与TMP§45.3；访问边界仍为既有可信Operator工作台，不宣称新增Login/RBAC。
+
 ### v0.7 原生框架接入与兼容范围（ADR-017）
 
 [ADR-017](ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)保留历史 `native-framework-intake/v1alpha1` 的材料治理与顺序贡献者交接。该兼容 profile 不增加平台执行引擎，不自动提升材料可信度；当前 Codex 任务、用例及报告管理按 ADR-018 同步，私有执行与验收原件不随产品源码分发。

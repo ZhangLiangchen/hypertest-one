@@ -203,7 +203,8 @@ async def register(
 ):
     import secrets
 
-    if not await db.get(Project, payload.project_id):
+    if not await db.scalar(select(Project).where(Project.id == payload.project_id, Project.deleted_at.is_(None))
+                           .with_for_update(read=True).execution_options(populate_existing=True)):
         raise NotFoundError("Project not found")
     actor = await db.scalar(
         select(InteractiveActorIdentity)

@@ -121,7 +121,7 @@ async def prepare_bootstrap_inputs(
     """
     if session.new or session.dirty or session.deleted:
         raise ValueError("bootstrap preparation requires a session without pending domain writes")
-    if await session.scalar(select(Project.id).where(Project.id == project_id)) is None:
+    if await session.scalar(select(Project.id).where(Project.id == project_id, Project.deleted_at.is_(None))) is None:
         raise NotFoundError("project not found")
     environment_definition = None
     if payload.environment is not None:
@@ -181,7 +181,8 @@ async def bootstrap_run(
     if prepared.input_digest != _preparation_digest(payload):
         raise ConflictError("prepared inputs do not match the requested immutable bootstrap inputs")
     environment_definition = prepared.environment_definition
-    project = await session.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    project = await session.scalar(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+                                   .with_for_update().execution_options(populate_existing=True))
     if project is None:
         raise NotFoundError("project not found")
     # Serialize same-key requests after resolution. A racing request may have

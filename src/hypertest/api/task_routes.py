@@ -6,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.interactive_routes import bearer, controlled_errors
-from hypertest.api.task_schemas import SessionTaskSync
+from hypertest.api.schemas import ManagementVersion
+from hypertest.api.task_schemas import SessionTaskSync, SessionTaskUpdate
 from hypertest.application import interactive
 from hypertest.application import session_tasks as service
 from hypertest.connector.security import require_operator
@@ -92,14 +93,34 @@ async def receipt(request: Request, project_id: UUID, idempotency_key: str,
 # deployment access controls. They never expose the Operator or grant token.
 @router.get("/tasks")
 async def tasks(project_id: UUID, limit: int = Query(default=50, ge=1, le=100),
-                offset: int = Query(default=0, ge=0), db: AsyncSession = Depends(get_db)):
-    return await service.list_tasks(db, project_id, limit=limit, offset=offset)
+                offset: int = Query(default=0, ge=0), include_deleted: bool = False,
+                db: AsyncSession = Depends(get_db)):
+    return await service.list_tasks(db, project_id, limit=limit, offset=offset,
+                                    include_deleted=include_deleted)
 
 
 @router.get("/tasks/{task_id}")
 async def detail(task_id: UUID, version: int | None = Query(default=None, ge=1),
+                 include_deleted: bool = False,
                  db: AsyncSession = Depends(get_db)):
-    return await service.get_task(db, task_id, version=version)
+    return await service.get_task(db, task_id, version=version, include_deleted=include_deleted)
+
+
+@router.patch("/tasks/{task_id}")
+async def patch_task(task_id: UUID, payload: SessionTaskUpdate, db: AsyncSession = Depends(get_db)):
+    return await service.manage_task(db, task_id, payload.expected_version,
+        changes=payload.model_dump(exclude_unset=True, exclude={"expected_version"}))
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_task(task_id: UUID, expected_version: int = Query(ge=1),
+                      db: AsyncSession = Depends(get_db)):
+    return await service.manage_task(db, task_id, expected_version, action="DELETE")
+
+
+@router.post("/tasks/{task_id}/restore")
+async def restore_task(task_id: UUID, payload: ManagementVersion, db: AsyncSession = Depends(get_db)):
+    return await service.manage_task(db, task_id, payload.expected_version, action="RESTORE")
 
 
 @router.get("/tasks/{task_id}/reports/{report_id}")

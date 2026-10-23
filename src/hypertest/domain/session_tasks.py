@@ -51,6 +51,23 @@ class SessionTask(TaskRow, Base):
     source: Mapped[str] = mapped_column(String(32), default="AGENT_REPORTED")
     version: Mapped[int] = mapped_column(BigInteger)
     last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_managed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TaskManagementRevision(TaskRow, Base):
+    """Human management snapshots, never represented as Agent sync receipts."""
+    __tablename__ = "session_task_management_revisions"
+    __table_args__ = (
+        UniqueConstraint("task_id", "task_version", name="uq_session_management_version"),
+        CheckConstraint("task_version > 0"),
+        CheckConstraint("action IN ('UPDATE','DELETE','RESTORE')"),
+    )
+    task_id: Mapped[UUID] = mapped_column(ForeignKey("session_tasks.id", ondelete="RESTRICT"))
+    task_version: Mapped[int] = mapped_column(BigInteger)
+    action: Mapped[str] = mapped_column(String(16))
+    actor_ref: Mapped[str] = mapped_column(String(255))
+    task_snapshot: Mapped[dict] = mapped_column(JSONB)
 
 
 class CaseRevision(TaskRow, Base):

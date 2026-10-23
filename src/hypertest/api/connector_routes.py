@@ -129,7 +129,9 @@ async def node_capabilities(node_id: UUID,db: AsyncSession = Depends(get_db)):
 @router.post('/harness-nodes/{node_id}/capabilities',status_code=201)
 async def grant_capability(node_id: UUID,payload: CapabilityRequest,operator: str = Depends(require_operator),db: AsyncSession = Depends(get_db)):
     node=await db.get(HarnessNode,node_id)
-    if node is None or node.registration_status!='ACTIVE' or not await db.get(Project,payload.project_id):
+    if node is None or node.registration_status!='ACTIVE' or not await db.scalar(
+        select(Project).where(Project.id==payload.project_id, Project.deleted_at.is_(None))
+        .with_for_update(read=True).execution_options(populate_existing=True)):
         raise HTTPException(409,'Active node and existing Project required')
     if len(canonical(payload.constraints)) > 32768:
         raise HTTPException(422,'Capability constraints too large')

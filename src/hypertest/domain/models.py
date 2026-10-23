@@ -80,6 +80,7 @@ class Project(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
     row_version: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     source_snapshots: Mapped[list[SourceSnapshot]] = relationship(back_populates="project")
     policy_snapshots: Mapped[list[PolicySnapshot]] = relationship(back_populates="project")

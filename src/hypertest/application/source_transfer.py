@@ -122,7 +122,8 @@ async def source_scope(db, row):
 
 
 async def create_transfer(db: AsyncSession, project_id: UUID, payload: SourceTransferCreate):
-    project = await db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    project = await db.scalar(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+                             .with_for_update().execution_options(populate_existing=True))
     if project is None:
         raise NotFoundError("project not found")
     scope = await require_capability(db, payload.node_id, project_id, "source_acquisition")
