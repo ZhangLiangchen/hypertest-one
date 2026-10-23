@@ -3,6 +3,9 @@
 DDL compiled remotely with PostgreSQL dialect from frozen domain SHA
 4ed24fd1567681fa263507aab2b010cb6e18b0cd1f64df413d69bfd4f4bfc657.
 Compiler output SHA7e860c9e4ac2b2b255e14b52541160829816a0bfb4ea46f2a322fea6cb799ec4.
+
+Formal integration changes only revision/parent and source whitespace formatting;
+the original isolated migration and accepted source pins remain unchanged.
 """
 import sqlalchemy as sa
 
