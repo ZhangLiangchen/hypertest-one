@@ -156,6 +156,7 @@ test("the project guide is reachable without blocking existing task reads", () =
       : name === "@tanstack/react-query" ? { useQuery: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }) }
       : name === "@/lib/api" ? {}
       : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
+      : name === "@/app/tasks/task-actions" ? { SessionTaskActions: () => null }
       : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) }
       : require(name) });
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(section.ProjectSessionTasks, { projectId })));
