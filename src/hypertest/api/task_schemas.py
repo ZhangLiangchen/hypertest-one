@@ -41,6 +41,7 @@ class TaskReport(TaskInput):
 
 class SessionTaskSync(TaskInput):
     project_id: UUID
+    task_id: UUID | None = None
     idempotency_key: str = Field(pattern=KEY)
     expected_version: int = Field(ge=0)
     provider: str = Field(default="codex", pattern=r"^[a-z][a-z0-9_-]{0,63}$")
@@ -78,10 +79,41 @@ class SessionTaskUpdate(TaskInput):
         return self
 
 
+class LocalTaskCreate(TaskInput):
+    idempotency_key: str = Field(pattern=KEY)
+    title: str = Field(min_length=1, max_length=512, pattern=r"\S")
+    objective: str = Field(default="", max_length=16000)
+    plan_markdown: str = Field(default="", max_length=262144)
+    intended_actor_ref: str | None = Field(default=None, max_length=255)
+
+
+class TaskBindingAuthorization(TaskInput):
+    expected_version: int = Field(ge=1)
+    intended_actor_ref: str | None = Field(max_length=255)
+
+
+class TaskBind(TaskInput):
+    project_id: UUID
+    task_id: UUID
+    provider: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    session_id: str = Field(min_length=1, max_length=512, pattern=r"\S")
+    expected_version: int = Field(ge=1)
+    idempotency_key: str = Field(pattern=KEY)
+
+
+TASK_BINDING_QUERY_SCHEMA = {
+    "type": "object", "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "idempotency_key": {"type": "string", "pattern": KEY},
+    }, "required": ["project_id", "idempotency_key"], "additionalProperties": False,
+}
+
+
 GET_TASK_SCHEMA = {
     "type": "object",
     "properties": {
         "project_id": {"type": "string", "format": "uuid"},
+        "task_id": {"type": "string", "format": "uuid"},
         "provider": {"type": "string", "minLength": 1, "maxLength": 64},
         "session_id": {"type": "string", "minLength": 1, "maxLength": 512},
         "idempotency_key": {"type": "string", "pattern": KEY},
@@ -91,9 +123,10 @@ GET_TASK_SCHEMA = {
     },
     "required": ["project_id"],
     "oneOf": [
-        {"required": ["provider", "session_id"], "not": {"required": ["idempotency_key"]}},
+        {"required": ["provider", "session_id"], "not": {"anyOf": [{"required": ["idempotency_key"]}, {"required": ["task_id"]}]}},
+        {"required": ["task_id"], "not": {"anyOf": [{"required": ["idempotency_key"]}, {"required": ["provider"]}, {"required": ["session_id"]}]}},
         {"required": ["idempotency_key"], "not": {"anyOf": [
-            {"required": ["provider"]}, {"required": ["session_id"]},
+            {"required": ["provider"]}, {"required": ["session_id"]}, {"required": ["task_id"]},
             {"required": ["version"]}, {"required": ["offset"]}, {"required": ["limit"]},
         ]}},
     ],

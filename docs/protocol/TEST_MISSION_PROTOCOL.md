@@ -1305,11 +1305,11 @@ create / 各写 envelope 的 `idempotency_key` 必须匹配 `^[A-Za-z0-9][A-Za-z
 
 | MCP / typed HTTPS | 契约 |
 | --- | --- |
-| `hypertest_sync_task` / `POST /interactive/tasks/sync` | `project_id, idempotency_key, expected_version, provider, session_id, title, objective, status, plan_markdown, reported_result, cases, reports`；权限 `task:sync` |
+| `hypertest_sync_task` / `POST /interactive/tasks/sync` | `project_id, task_id?, idempotency_key, expected_version, provider, session_id, title, objective, status, plan_markdown, reported_result, cases, reports`；权限 `task:sync`；§45.4手动绑定任务强制task_id，缺省仅保留legacy自动路径 |
 | `hypertest_get_task` / `GET /interactive/tasks/by-session` | `project_id, provider, session_id, version?, offset?, limit?`；分页读取固定版本当前任务/用例/原报告，权限 `task:sync` |
 | `hypertest_get_task` / `GET /interactive/tasks/syncs/by-key` | `project_id, idempotency_key`；只查询原同步回执，权限 `task:sync` |
 
-get 工具两组参数互斥，未知字段拒绝。所有字段按服务端 typed schema 校验；schema 标识不引入新的执行生命周期。Case 是 `{key,title,steps:list[str],expected,actual,reported_result,implementation_ref?}`；Report 是 `{key,title,markdown,artifact_uri?,source_ref?,reported_result}`。`artifact_uri` 与 `source_ref` 是引用元数据，平台不得执行命令或自动访问任意本机路径/URL。`markdown` 原文由平台存储并可读回。
+get工具原两组参数与§45.4新增task_id选择器互斥，未知字段拒绝。所有字段按服务端 typed schema 校验；schema 标识不引入新的执行生命周期。Case 是 `{key,title,steps:list[str],expected,actual,reported_result,implementation_ref?}`；Report 是 `{key,title,markdown,artifact_uri?,source_ref?,reported_result}`。`artifact_uri` 与 `source_ref` 是引用元数据，平台不得执行命令或自动访问任意本机路径/URL。`markdown` 原文由平台存储并可读回。
 
 状态为 `DRAFT | IN_PROGRESS | BLOCKED | COMPLETED | CANCELLED`，表示任务进度。任务/用例/报告的 `reported_result` 为 `NOT_RUN | PASS | FAIL | ERROR | SKIPPED | UNKNOWN | BLOCKED`，表示提交者报告的结果。平台校验管理一致性后保存，不要求独立 CI 才能记录 PASS，也不把来源不足统一转换为 UNKNOWN；旧 Evidence/FINAL/RELEASE_READY 权限不随此扩展。
 
@@ -1317,13 +1317,13 @@ get 工具两组参数互斥，未知字段拒绝。所有字段按服务端 typ
 
 成功同步与原key查询只返回瘦回执 `status=ACCEPTED, profile, task_id, project_id, provider, session_id, version, idempotency_key, source=AGENT_REPORTED`，不夹带snapshot或历史原文。客户端核对原key、Project/provider/session、task UUID、expected version+1与契约标识，已接受回执的后续查询继续固定原task ID；不匹配时保留UNKNOWN并只查询，不误ACK。
 
-MCP按会话读取返回有界 envelope `{task_id,version,format:'application/json',offset,total_chars,next_offset,content,complete,source:'AGENT_REPORTED'}`。content是固定版本current-only `{task,cases,reports}` JSON原文分片；不重复附带全history。offset/limit按Unicode字符计算，limit默认/最大24,000；首片offset=0可省version取得当前版，续片offset>0必须携首片version。每片核对固定task/version/total和next_offset连续性，拼接后JSON解析并核对Project/provider/session及原文；不截断报告、不把通道1MiB上限无限调大。原版本由冻结同步快照及对应修订重建；省略history不删除它们。
+MCP按会话读取返回有界 envelope `{task_id,version,format:'application/json',offset,total_chars,next_offset,content,complete,source}`，实际同步版本source为AGENT_REPORTED；§45.4未同步的预建/仅绑定版本source可NULL。content是固定版本current-only `{task,cases,reports}` JSON原文分片；不重复附带全history。offset/limit按Unicode字符计算，limit默认/最大24,000；首片offset=0可省version取得当前版，续片offset>0必须携首片version。每片核对固定task/version/total和next_offset连续性，拼接后JSON解析并核对Project/provider/session及原文；不截断报告、不把通道1MiB上限无限调大。原版本由冻结同步、管理、绑定快照及对应修订重建；省略history不删除它们。
 
 管理 Web 查询用 `/tasks?project_id=…`、`/tasks/{id}`、`/tasks/{id}?version=N` 与 `/tasks/{id}/reports/{report_id}`，其详情可提供历史投影；沿用平台读取边界，不使客户端获得Operator权限。
 
 ### 45.2 接受、身份与原 key 对账
 
-权限、schema、唯一性、owner、expected version、稳定 key 和引用一致性构成管理 Proposal/Verifier 接受边界。首次 `expected_version=0`；后续必须与当前任务版本匹配。一个同步原子保存任务更新、case/report新修订、冻结回执及 Audit/Outbox；失败不留下已接受的部分任务。用例/报告 key 稳定，同内容不伪造新修订，变更追加历史；省略不代表删除。
+权限、schema、唯一性、owner、expected version、稳定 key 和引用一致性构成管理 Proposal/Verifier 接受边界。legacy自动首次同步用expected_version=0；§45.4预建任务首个实际sync使用绑定后的当前version。后续必须与当前任务版本匹配。一个同步原子保存任务更新、case/report新修订、冻结回执及 Audit/Outbox；失败不留下已接受的部分任务。用例/报告 key 稳定，同内容不伪造新修订，变更追加历史；省略不代表删除。
 
 首次固定 Project 和 actor owner，同项目的其他 actor 不得凭知道 session ID 覆盖任务；新 client 仍需同 actor 的有效项目授权。认证 scope 由现有 integration actor/client/project链核验，`task:sync` 不授予 `run:execute` 或设备控制。管理型 Operator 操作保留其独立权限；token只在本机私有文件/daemon保管，不进入模型工具参数。
 
@@ -1345,11 +1345,35 @@ MCP按会话读取返回有界 envelope `{task_id,version,format:'application/js
 | `GET /tasks?project_id=…&include_deleted=true` | 显式读取包含已删除任务的回收站列表，返回version与deleted_at |
 | `GET /projects/{id}?include_deleted=true`、`GET /tasks/{id}?include_deleted=true` | 管理回收站详情，显式读取已删除对象；任务仍可用version选择固定历史 |
 
-写入校验字段白名单及当前版本；版本过期或删除/恢复前置条件冲突返回409，未知/非法字段返回422，不存在或已从普通入口隐藏的对象返回404。任务管理写返回任务详情，包含独立 `management_history`，每条有id/task_version/action/actor_ref/created_at；action为UPDATE/DELETE/RESTORE。项目写返回项目投影。人工变更原子递增对应版本并写Audit/Outbox；同值任务PATCH在版本匹配时为no-op，不制造版本或历史。任务另存冻结TaskManagementRevision，原SyncReceipt与case/report不变。任务任一固定版本可由同步或人工快照读取，不将新进度套用到旧报告。
+写入校验字段白名单及当前版本；版本过期或删除/恢复前置条件冲突返回409，未知/非法字段返回422，不存在或已从普通入口隐藏的对象返回404。任务管理写返回任务详情，包含独立 `management_history`，每条有id/task_version/action/actor_ref/created_at；原UPDATE/DELETE/RESTORE及§45.4 CREATE/AUTHORIZE分别保存。项目写返回项目投影。人工变更原子递增对应版本并写Audit/Outbox；同值任务PATCH在版本匹配时为no-op，不制造版本或历史。任务另存冻结TaskManagementRevision，原SyncReceipt与case/report不变。任务任一固定版本可由同步、人工或绑定快照读取，不将新进度套用到旧报告。
 
 默认列表、详情与by-session不返回已删除任务或已删除项目下的任务；Agent新同步拒绝已删除对象。原 `syncs/by-key` 在当前有效授权下仍可返回历史瘦回执，便于对账，不因软删除改写原version或自动恢复对象。`source=AGENT_REPORTED` 继续标识产物及reported result来源，人工字段变更另由management_history溯源。人工进度调整、软删除或恢复均无执行、取消执行、测试重跑或质量裁决语义。
 
 项目软删除同时约束旧入口的新资源准入：任务/源码创建、上传授权和接受、集成授权及Connector新采集的入队/投递检查项目仍未删除，保留只读历史与原key回执。该检查不改写原transfer或外部操作的状态，不将删除伪装为已确认取消。
+
+### 45.4 统一创建与Local显式绑定（ADR-024）
+
+统一创建UI选择Cloud/Local但调用独立领域API；task_kind不可转型。下表Local路径以`/api/v1`为前缀，Operator key不进入MCP或Agent，integration调用仍使用当前task:sync grant。
+
+| 接口/工具 | 请求与接受行为 |
+| --- | --- |
+| `GET /projects/{id}/local-task-actors` | Operator读取`{items:[{actor_ref,label}],total}`，仅当前有效Project task:sync actor去重列表，不含token |
+| `POST /projects/{id}/local-tasks` | Operator提交`{idempotency_key,title,objective?,plan_markdown?,intended_actor_ref?}`；返回固定接受version的SessionTaskDetail（`.task.id`为稳定ID）及creation_receipt；v1/UNBOUND/DRAFT/NOT_RUN |
+| `GET /projects/{id}/local-tasks/by-key?idempotency_key=…` | Operator仅查原CREATE key，返回原接受版本detail+creation_receipt，不跟随当前head；软删后仍可对账，不授权replay |
+| `PATCH /tasks/{id}/binding-authorization` | Operator提交`{expected_version,intended_actor_ref:string|null}`，仅UNBOUND；返回detail，变更保存AUTHORIZE，同值no-op |
+| `hypertest_bind_task` / `POST /interactive/tasks/bind` | `{project_id,task_id,provider,session_id,expected_version,idempotency_key}`，实际来源必须匹配私有native root；当前grant actor必须精确等于intended_actor_ref |
+| `hypertest_get_task_binding` / `GET /interactive/tasks/bindings/by-key` | `{project_id,idempotency_key}`原BIND key只读对账，查询原绑定回执，不查询SyncReceipt、不改目标或重发 |
+| `hypertest_get_task`的task_id选择器 / `GET /interactive/tasks/{task_id}` | `project_id,task_id,version?,offset?,limit?`；有界固定版本读取，仅UNBOUND intended actor或BOUND owner，source在首次实际sync前可NULL |
+
+创建时省略intended_actor_ref仅sole可用actor允许默认；显式NULL保持未授权，多/无候选不隐式认领。未授权UNBOUND不能BIND；Operator在UNBOUND同version设置/清除授权。creator_actor_ref、Task ID及root metadata都不是能力密钥，不以知道ID替代有效授权。
+
+BIND与CREATE/管理/sync共用version；一次事务填真实provider/session/owner、BOUND及bound_at，追加独立BIND回执/snapshot/Audit/Outbox，不产生SyncReceipt，不推进source/last_synced_at，不改status/result/用例/报告。Web `binding_history` 投影`{id,action:'BIND',actor_ref,task_version,task_snapshot,created_at}`，区别于人工管理与Agent同步历史。已绑定（包括软删除后）不可改绑，原来源唯一性不释放。
+
+CREATE的`creation_receipt`为`{status:'ACCEPTED',operation:'CREATE',project_id,task_id,version,idempotency_key}`。BIND回执为`{status:'ACCEPTED',operation:'BIND',profile:'codex-session-task-sync/v1alpha1',project_id,task_id,provider,session_id,actor_ref,binding_state:'BOUND',source:null,version,idempotency_key}`；version为本次expected_version+1。客户端校验原key、操作、来源与目标身份及接受版本，完整读回固定接受版本后才确认绑定；当前head变化不改写回执。
+
+同key同输入返回原接受身份/版本，同key异输入拒绝；CREATE/BIND失答、SENT/UNKNOWN或GET原key NOT_FOUND只继续对应key GET，不自动重POST、换key或另建Task。幂等匹配在当前版本检查之前，回执读取仍要求当前有效授权。两种操作不能混用key查询。普通404不证明之前写入未接受。
+
+新Local客户端在首次asset上传前未绑定返回TASK_BINDING_REQUIRED，零sync POST；Hooks/MCP共用同一真实root、目标ID、协调器及未决账本。旧已确认auto根保留原ID兼容resume；服务端旧无task_id自动创建仅为legacy兼容，不作为新客户端fallback。新手动绑定任务的每次sync强校验task_id、Project/provider/session/owner/BOUND及当前version；不匹配不得另建任务。来源已属于另一Task时409，错误code为SESSION_ALREADY_HAS_TASK，仅对有权读取者给existing_task_id，不自动合并或改ID/历史。
 
 ## 47. ADR-020 Local Hooks 与显式 MCP 协作
 
@@ -1361,7 +1385,7 @@ Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud
 LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
 源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
 
-Local 客户端沿用 ADR-018、TMP §45 与领域 §50 的身份和同步契约；本分支人工管理增补另见领域 §50.4 / TMP §45.3。原 API/profile、task:sync、
+Local 客户端沿用 ADR-018、TMP §45 与领域 §50 的身份和同步契约；人工管理见§45.3/领域§50.4，ADR-024预建绑定与新会话前置门槛见§45.4/领域§50.5。legacy API/profile、task:sync、
 Project/actor owner、完整请求、expected_version 与历史语义不变；hypertest_sync_task 不是 PATCH。
 同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
 只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
@@ -1379,6 +1403,6 @@ Cloud/Local 共享 Project 的设计与任何外部 Cloud 实施进度不由本 
 TaskSyncCore 是内部可复用库，LocalSyncAdapter 保留 SessionTask 的原请求、身份、权限与版本规则。
 共享语义是批准的结构化意图、完整基线、冻结请求、原 key 对账、回执验证与固定版本完整读回；
 不增加通用 Task/API、跨模式 token、全局 journal 或服务端 fencing 字段。
-Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态。
+Source binding、事件队列、snapshot 与 checkpoint 均为私有客户端记录，不是新的业务状态；不等同§45.4的服务端Task绑定字段/回执。新增TaskID选择仍进入同一root协调器，不增加writer或授权。
 只合并未冻结新意图；显式 MCP 完整请求的空值不被自动推断为 omitted，传输失败不修改业务报告。
 Cloud 消费方由独立 Cloud 设计/源码/验收拥有；本 Local 分支不包括或发布该实现。

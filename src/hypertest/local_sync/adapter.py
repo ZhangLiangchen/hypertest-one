@@ -36,26 +36,32 @@ class LocalSyncAdapter:
         validate_sync_receipt(receipt, intent.key, intent.expected_version,
                               prior_task_id, intent.target)
 
-    async def baseline(self, identity: dict, *, version=None) -> dict | None:
+    async def baseline(self, identity: dict, *, version=None, allow_unsynced=False) -> dict | None:
         from hypertest.interactive_client.service import validate_task_page
         source = {field: identity[field] for field in ("project_id", "provider", "session_id")}
         observed = {}
 
         async def fetch(arguments):
-            page = await self.api.request("GET", "interactive/tasks/by-session",
-                                          params={**source, **arguments})
+            task_id = identity.get("task_id")
+            path = "interactive/tasks/" + task_id if task_id else "interactive/tasks/by-session"
+            params = {"project_id": source["project_id"]} if task_id else source
+            page = await self.api.request("GET", path, params={**params, **arguments})
             observed.update(task_id=page.get("task_id"), version=page.get("version"))
             return page
 
         try:
             document = await read_fixed_pages(fetch, validate_task_page, version=version)
         except ApiError as exc:
-            if exc.status == 404 and version is None:
+            if exc.status == 404 and version is None and not identity.get("task_id"):
                 return None
             raise
         task = document.get("task", {})
         if (any(task.get(field) != value for field, value in source.items())
-                or task.get("source") != "AGENT_REPORTED"
+                or (task.get("source") != "AGENT_REPORTED" and not (
+                    allow_unsynced and task.get("source") is None
+                    and task.get("binding_state") == "BOUND"
+                    and task.get("last_synced_at") is None))
+                or (identity.get("task_id") is not None and task.get("id") != identity["task_id"])
                 or task.get("id") != observed.get("task_id")
                 or task.get("version") != observed.get("version")
                 or type(task.get("version")) is not int

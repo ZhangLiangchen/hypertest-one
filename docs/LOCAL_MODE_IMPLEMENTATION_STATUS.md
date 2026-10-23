@@ -1,5 +1,11 @@
 # HyperTest Local 实现与发行状态
 
+## ADR-024预创建/绑定增量的状态边界
+
+项目负责人已接受[ADR-024](architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)：统一Cloud/Local创建入口，Local预创建同UUID的UNBOUND任务，真实root按intended actor一次绑定；新Local客户端首次产物前必须绑定明确TaskID，缺失时TASK_BINDING_REQUIRED且不POST。CREATE/BIND使用独立原key回执，旧auto根可resume但不与新草稿合并。
+
+这是本次新增契约，不能由下面local-v0.1.0固定包、安装成功或旧三宿主矩阵推导已交付。新服务端/客户端源码、远端相关验证、真实宿主接入和发行版本分别记录；旧tag、资产摘要、原失败/FAIL保全与原生证明不重写。具体使用和兼容规则见[同步说明](CODEX_SESSION_TASK_SYNC.md#先创建任务再绑定本地父会话)。
+
 ## 2026-10-23 生产 Web 上线补记
 
 PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上线。实际 Web 源码为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`；内部真实浏览器六条命令及已有用例 / 原始报告、外部严格 CA HTTPS 已验证。文中“待合并 / 待最终 gate”属于下方验收冻结时点；精确 image、保全、补证顺序和临时授权清理见[生产部署记录](LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。原 `local-v0.1.0` 包 / tag / 三摘要与三宿主证明保持不变；本次后续纯文档提交不代表部署新 Web 源码。

@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from hypertest.api.task_schemas import SessionTaskSync, TaskCase, TaskReport
+from hypertest.api.task_schemas import SessionTaskSync, TaskBind, TaskCase, TaskReport
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.security import private_create, private_directory, private_read
 from hypertest.local_sync.adapter import SCALARS, LocalSyncAdapter, task_document_payload
@@ -33,6 +33,9 @@ class LocalSyncCoordinator:
         self.snapshots = SnapshotStore(self.directory / "approved-snapshots")
         self.adapter = LocalSyncAdapter(api, journal)
         self.core = TaskSyncCore(JournalLedger(journal), self.adapter)
+        from hypertest.local_sync.binding import LocalBindingAdapter
+        self.binding_adapter = LocalBindingAdapter(api)
+        self.binding_core = TaskSyncCore(JournalLedger(journal), self.binding_adapter)
         self._locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
@@ -69,15 +72,15 @@ class LocalSyncCoordinator:
         # The existing Journal remains the only transmission ledger. Full
         # approved payload snapshots are not duplicated into this compact row.
         rows = self.journal.db.execute(
-            "SELECT kind,key,payload FROM intents WHERE kind LIKE 'session-task:%' "
+            "SELECT kind,key,payload FROM intents WHERE (kind LIKE 'session-task:%' OR kind LIKE 'task-bind:%') "
             "AND state NOT IN ('READBACK_COMPLETE','LEGACY_ACCEPTED_READBACK','REJECTED') ORDER BY rowid").fetchall()
         return [(kind, key) for kind, key, raw in rows
                 if all(json.loads(raw).get(field) == identity[field]
                        for field in ("provider", "session_id"))]
 
-    async def _settle_pending(self, identity: dict, *, current_key=None) -> dict | None:
+    async def _settle_pending(self, identity: dict, *, current_key=None, current_namespace=None) -> dict | None:
         for namespace, key in self._pending(identity):
-            if key == current_key:
+            if key == current_key and namespace == current_namespace:
                 continue
             try:
                 original = self.snapshots.load(namespace, key)
@@ -89,9 +92,11 @@ class LocalSyncCoordinator:
                 if blocked:
                     return blocked
                 continue
-            outcome = await self.core.deliver(original)
+            outcome = await (self.binding_core if namespace.startswith("task-bind:") else self.core).deliver(original)
             if not outcome.synced and outcome.state != "REJECTED":
                 return self._projection(outcome, key)
+            if outcome.synced and namespace.startswith("task-bind:"):
+                self._remember_target(original.target)
             if outcome.synced and original.target.get("checkpoint_digest"):
                 self._mark_checkpoint(identity, original.target["checkpoint_digest"], key,
                                       outcome.receipt["version"])
@@ -169,6 +174,109 @@ class LocalSyncCoordinator:
         except (KeyError, TypeError, ValueError) as exc:
             raise ClientError("LOCAL_NATIVE_SOURCE_CONFIGURATION_REQUIRED") from exc
 
+    def _target_path(self, identity):
+        source = {field: identity[field] for field in ("provider", "session_id")}
+        return self.directory / (digest(source) + ".task.json")
+
+    def _remember_target(self, identity):
+        selected = {field: identity[field] for field in ("project_id", "provider", "session_id", "task_id")}
+        path = self._target_path(identity)
+        try:
+            private_create(path, canonical_json(selected).encode())
+        except FileExistsError:
+            if json.loads(private_read(path)) != selected:
+                raise ClientError("LOCAL_TARGET_TASK_CONFLICT") from None
+
+    async def _target(self, identity, *, supplied_task_id=None):
+        path = self._target_path(identity)
+        if path.exists():
+            target = json.loads(private_read(path))
+            if (any(target[field] != identity[field] for field in ("project_id", "provider", "session_id"))
+                    or (supplied_task_id is not None and target["task_id"] != supplied_task_id)):
+                raise ClientError("LOCAL_TARGET_TASK_CONFLICT")
+            return target
+        # A current scoped server read confirms an existing legacy source.
+        # Missing new fields mean a historical BOUND auto-task, never a new root.
+        baseline = await self.adapter.baseline(identity, allow_unsynced=True)
+        if baseline is None:
+            raise ClientError("TASK_BINDING_REQUIRED")
+        task = baseline["task"]
+        if task.get("binding_required", False):
+            raise ClientError("TASK_BINDING_REQUIRED")
+        if supplied_task_id is not None and task["id"] != supplied_task_id:
+            raise ClientError("LOCAL_TARGET_TASK_CONFLICT")
+        target = {**{field: identity[field] for field in ("project_id", "provider", "session_id")},
+                  "task_id": task["id"]}
+        self._remember_target(target)
+        return target
+
+    async def bind_task(self, arguments):
+        from hypertest.local_sync.sources import require_native_root
+        try:
+            payload = TaskBind.model_validate(arguments).model_dump(mode="json")
+        except ValidationError as exc:
+            raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
+        # Source metadata supplied by the model can only select an existing
+        # private SessionStart context; it cannot create or override one.
+        require_native_root(self.config, payload)
+        async with self.writer(payload):
+            blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"],
+                                                 current_namespace="task-bind:" + payload["project_id"])
+            if blocked:
+                return blocked
+            path = self._target_path(payload)
+            if path.exists() and json.loads(private_read(path))["task_id"] != payload["task_id"]:
+                raise ClientError("LOCAL_TARGET_TASK_CONFLICT")
+            target = {field: payload[field] for field in ("project_id", "provider", "session_id", "task_id")}
+            intent = FrozenIntent("task-bind:" + payload["project_id"], payload["idempotency_key"],
+                                  target, payload, payload["expected_version"])
+            self.snapshots.save(intent)
+            previous = self.journal.get(intent.namespace, intent.key)
+            if previous and previous["state"] == "READBACK_COMPLETE":
+                return await self._binding_query(intent)
+            outcome = await self.binding_core.deliver(intent)
+            if outcome.synced:
+                self._remember_target(target)
+            return self._projection(outcome, intent.key)
+
+    async def get_binding(self, arguments):
+        from hypertest.interactive_client.api_client import ApiError
+        from hypertest.local_sync.binding import validate_binding_receipt
+        namespace, key = "task-bind:" + arguments["project_id"], arguments["idempotency_key"]
+        record = self.journal.get(namespace, key)
+        if record is not None:
+            original = self.snapshots.load(namespace, key)
+            async with self.writer(original.target):
+                # Explicit GET always queries the original receipt with current
+                # authorization, even for a cached ACK or definitive rejection.
+                try:
+                    receipt = await self.binding_adapter.reconcile(original)
+                    self.binding_adapter.validate_receipt(original, receipt)
+                except ApiError as exc:
+                    if record["state"] != "READBACK_COMPLETE":
+                        self.journal.mark(namespace, key, "UNKNOWN", record.get("result"))
+                    return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
+                self.journal.mark(namespace, key, "ACKED", receipt)
+                outcome = await self.binding_core.deliver(original)
+                if outcome.synced:
+                    self._remember_target(original.target)
+                return self._projection(outcome, key)
+        try:
+            receipt = await self.adapter.api.request("GET", "interactive/tasks/bindings/by-key", params=arguments)
+            validate_binding_receipt(receipt, key, payload=arguments)
+        except ApiError as exc:
+            return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
+        return receipt
+
+    async def _binding_query(self, intent):
+        from hypertest.interactive_client.api_client import ApiError
+        try:
+            receipt = await self.binding_adapter.reconcile(intent)
+            self.binding_adapter.validate_receipt(intent, receipt)
+        except ApiError as exc:
+            return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
+        return {**receipt, "_sync": {"state": "READBACK_COMPLETE", "readback_complete": True, "code": None}}
+
     async def submit_full(self, payload: dict) -> dict:
         # Preserve the caller's exact body, empty strings, original key/version
         # and no-op acceptance. This is never interpreted as PATCH or rebased.
@@ -181,11 +289,39 @@ class LocalSyncCoordinator:
         # Before writer admission, snapshots, journal records or API calls.
         self._require_native_source(payload)
         async with self.writer(payload):
-            blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"])
+            blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"],
+                                                 current_namespace="session-task:" + payload["project_id"])
             if blocked:
                 return blocked
+            namespace, key = "session-task:" + payload["project_id"], payload["idempotency_key"]
+            known = self.journal.get(namespace, key)
+            if known is not None:
+                try:
+                    frozen = self.snapshots.load(namespace, key)
+                except (ClientError, ValueError, KeyError):
+                    if known["payload"].get("snapshot_schema"):
+                        return {"status": "BLOCKED", "code": "ORIGINAL_APPROVED_SNAPSHOT_REQUIRED",
+                                "idempotency_key": key, "query_required": True}
+                    # Historical compact records cannot be refrozen from a new
+                    # caller body. Reconcile the original key and pinned view.
+                    blocked = await self._reconcile_compact_legacy(namespace, key)
+                    if blocked:
+                        return blocked
+                    return {**self.journal.get(namespace, key)["result"], "_sync": {
+                        "state": "LEGACY_ACCEPTED_READBACK", "readback_complete": True,
+                        "original_request_comparison": "UNAVAILABLE_LEGACY_COMPACT"}}
+                if canonical_json(frozen.payload) != canonical_json(payload):
+                    raise ClientError("IDEMPOTENCY_CONFLICT")
+                return self._projection(await self.core.deliver(frozen), key)
+            target = await self._target(payload, supplied_task_id=payload.get("task_id"))
+            # The explicit full body is never silently changed after freezing.
+            # New manually bound tasks require the caller's exact target ID.
+            if payload.get("task_id") is None:
+                document = await self.adapter.baseline(target, allow_unsynced=True)
+                if document["task"].get("binding_required", False):
+                    raise ClientError("TASK_ID_REQUIRED")
             intent = FrozenIntent("session-task:" + payload["project_id"], payload["idempotency_key"],
-                                  {field: payload[field] for field in ("project_id", "provider", "session_id")},
+                                  target,
                                   payload, payload["expected_version"])
             self.snapshots.save(intent)
             return self._projection(await self.core.deliver(intent), intent.key)
@@ -206,12 +342,13 @@ class LocalSyncCoordinator:
             blocked = await self._settle_pending(identity)
             if blocked:
                 return blocked
+            target = await self._target(identity)
             completed = self.directory / ("checkpoint-" + digest([identity, checkpoint_digest]) + ".json")
             if completed.exists():
                 previous = json.loads(private_read(completed))
                 return {"status": "UNCHANGED", "version": previous["version"],
                         "readback_complete": True, "checkpoint_already_synced": True}
-            baseline = await self.adapter.baseline(identity)
+            baseline = await self.adapter.baseline(target, allow_unsynced=True)
             actual_version = baseline["task"]["version"] if baseline else 0
             if base_version is not None and base_version != actual_version:
                 raise ClientError("LOCAL_BASE_VERSION_CONFLICT")
@@ -257,14 +394,14 @@ class LocalSyncCoordinator:
                 return {"status": "UNCHANGED", "version": actual_version, "readback_complete": True}
             # Partial additions needn't repeat old revisions. Wire omissions
             # preserve them; explicit complete task scalars always remain.
-            payload = {**identity, **{field: merged[field] for field in SCALARS},
+            payload = {**target, **{field: merged[field] for field in SCALARS},
                        **submitted_groups, "expected_version": actual_version,
                        "idempotency_key": "hook-" + uuid4().hex}
             try:
                 payload = SessionTaskSync.model_validate(payload).model_dump(mode="json")
             except ValidationError as exc:
                 raise ClientError("INVALID_APPROVED_MANIFEST") from exc
-            target = {**identity, "checkpoint_digest": checkpoint_digest}
+            target = {**target, "checkpoint_digest": checkpoint_digest}
             if baseline:
                 target["task_id"] = baseline["task"]["id"]
             intent = FrozenIntent("session-task:" + identity["project_id"], payload["idempotency_key"],

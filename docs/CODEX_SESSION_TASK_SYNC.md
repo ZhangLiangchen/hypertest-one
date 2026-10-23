@@ -4,6 +4,23 @@
 
 本文针对 [ADR-018](architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 新入口。旧受管任务、原生材料准入、Runner、Gate、源码传输或设备执行绑定均不是同步准备条件。实际部署版本、授权与验收环境由操作者核验；源码存在不证明目标环境已经升级。
 
+## 先创建任务，再绑定本地父会话
+
+[ADR-024](architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)的项目页“创建测试任务”选择Cloud或Local。同一Project允许二者共存；Cloud创建/下发由独立云端流程处理，Local创建不会运行Agent或测试。
+
+1. 选择Local，填写标题/目标/计划，并选择已授权的Local integration actor。只有一个有效actor可默认选中；显式不选时任务可以保存，但不能绑定。平台返回稳定Task ID，初始UNBOUND/DRAFT/NOT_RUN，provider/session/owner/同步时间为空，创建者不是Agent owner。
+2. 在有真实native root context的匹配版本Local客户端调用 `hypertest_bind_task`，携Project/Task ID、真实provider/session、当前expected_version和固定idempotency_key。宿主root选择必须与私有Project/workspace/policy/artifact上下文一致；不能手填占位session或用子代理身份。
+3. BIND填真实来源和writer owner并保留同Task ID；它不提交产物、不改变reported result，也不推进last_synced_at。绑定成功后用 `hypertest_get_task` 的 `{project_id,task_id}` 选择器读回当前/固定版本，再按实际版本同步。
+4. 绑定失答/UNKNOWN时只调用 `hypertest_get_task_binding`，参数为原 `{project_id,idempotency_key}`。NOT_FOUND仍不授权重POST或换key；CREATE失答由Operator按原创建key查询，也不能另建替代任务。
+
+新Local客户端首次产物前未绑定返回TASK_BINDING_REQUIRED，保留允许的本地材料，零sync POST。Hook和MCP共享一个root协调器/目标/账本。旧auto根可以继续原Task ID，若真实来源已经有另一Task，绑定返回409/SESSION_ALREADY_HAS_TASK（只向有权者返回existing_task_id），不能自动merge、改ID或搬历史。可以明确继续已有Task并删除未绑定草稿，或使用真实新会话。
+
+预创建任务的实际sync必须携task_id，同时匹配Project/provider/session/owner和version。已删除或未绑定目标、漏ID/错ID均不得退回自动创建。未发生其他管理写时创建v1→绑定v2→首个sync v3仅是示例；始终使用实际读回version。创建/绑定/管理的固定版本由对应快照读取；未发生真实sync的版本source可NULL，不应显示为Agent刚同步。
+
+下文旧 `expected_version=0` 自动创建及原两种get选择器作为legacy兼容保留。新客户端不以此绕过绑定。固定发行local-v0.1.0不因本次文档改变而具有新工具；安装或升级前核对本次客户端的实际版本/源码，缺工具明确提示升级，不修改旧tag、digest或既有宿主证明。
+
+新固定包发布前的完整Git SHA私有venv、原配置/账本复用、同daemon能力检查与项目重载步骤见[本次源码安装与升级](LOCAL_MODE_RELEASE_AND_INSTALLATION.md#本次绑定能力的项目私有源码安装与升级)。该路径的安装记录与原公开release分开；必须用新真实SessionStart绑定后再提交产物。
+
 ## 客户端安装与私有配置
 
 在此仓库的 Python 3.12+ 虚拟环境安装当前源码：
@@ -37,7 +54,9 @@ python3 -m venv .venv
 
 把输出用于操作者指定的 Codex MCP 配置。运行命令为当前源码解释器的 `-m hypertest.interactive_client stdio --config <私有配置路径> --autostart`；独立本机 daemon 保存 scoped token 和 SQLite journal，stdout 只承载 MCP。不要把 token 放入 MCP 参数、环境示例、聊天或仓库。既有个人 MCP 配置的修改与重启须根据当前操作者环境处理，不假定此聊天工具目录会热加载。
 
-## 两个工具
+## 原同步/读取工具与绑定扩展
+
+显式绑定使用上节hypertest_bind_task及hypertest_get_task_binding；它们的请求、原key查询和权限见[TMP§45.4](protocol/TEST_MISSION_PROTOCOL.md#454-统一创建与local显式绑定adr-024)。下面原完整sync示例用于legacy兼容；新预创建任务另携实际task_id，并用绑定后读回version替代0。
 
 `hypertest_sync_task` 接受一次原子更新：
 
@@ -70,9 +89,9 @@ python3 -m venv .venv
 
 真实 session reference 从当前可用的宿主上下文或已授权会话查询取得；不编造旧会话身份，不上传整段对话或隐藏推理。它只作来源关联，项目授权由私有 token 确定。
 
-新建用 `expected_version: 0`；后续有意更新先读取当前版本，再用新的稳定幂等 key 和该版本。修改相同 case/report key 会追加 revision；未提交的旧 key 保留。原始失败历史不能被后续通过结果覆盖删除。不同判定口径（如自动断言与独立业务复核）使用不同 report key 并写清来源，不伪造用例执行历史。`status` 是任务进度，不等于测试通过；进行中的任务可以已经报告 FAIL。
+仅legacy自动创建用expected_version=0；预创建/已绑定Task的首个实际sync和后续有意更新均先读当前版本，再用新的稳定幂等key和该版本。修改相同case/report key会追加revision；未提交的旧key保留。原始失败历史不能被后续通过结果覆盖删除。不同判定口径（如自动断言与独立业务复核）使用不同report key并写清来源，不伪造用例执行历史。status是任务进度，不等于测试通过；进行中的任务可以已经报告FAIL。
 
-`hypertest_get_task` 有两种互斥查询：
+`hypertest_get_task`的来源查询、原sync key查询与新增task_id查询互斥；绑定key使用独立hypertest_get_task_binding，不混用SyncReceipt。原两组请求为：
 
 ```json
 {"project_id":"PROJECT_UUID","provider":"codex","session_id":"ACTUAL_SESSION_ID"}

@@ -2,6 +2,8 @@
 
 **状态：Accepted（2026-10-21，Asia/Singapore）；实现与验收单独记录。**
 
+**2026-10-23增补：[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)接受Operator预创建UNBOUND SessionTask、同UUID显式绑定和新Local会话首次产物前TaskID门槛。绑定后仍是一真实父会话一任务；未绑定记录没有session/owner/Agent来源，旧自动任务的ID与历史保留。该增补按领域§50.5/TMP§45.4替代下面仅由首次sync创建的适用范围，不把绑定当同步或执行。**
+
 ## 决定
 
 现阶段 HyperTest One 是 Codex 的测试任务、测试用例与测试报告管理平台。

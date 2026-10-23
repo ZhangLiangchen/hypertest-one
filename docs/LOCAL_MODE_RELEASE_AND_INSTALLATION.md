@@ -1,5 +1,40 @@
 # HyperTest Local 统一发行与一键安装设计
 
+## ADR-024绑定能力与发行兼容
+
+[ADR-024](architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)新增的hypertest_bind_task、原key绑定查询、task_id选择及新会话首次产物门槛，必须使用与服务端匹配的客户端版本/源码。已公开local-v0.1.0资产不因新文档/服务端更新而变化，不能向旧发行补写新工具、tag或digest；安装Prompt需核对实际能力，缺工具时提示升级，不fallback自动建Task。旧已存在auto根、私有身份、journal及原未决key应原样保留。新能力的源码、远端验收、真实宿主和新发行分别记录，不沿用旧三宿主证明宣称通过。
+
+### 本次绑定能力的项目私有源码安装与升级
+
+在发布新固定包前，使用本轮最终推送、服务端已部署的完整40位Git SHA建立独立私有venv；最终SHA由交付记录提供，不能使用旧tag或浮动branch冒充同版本。以下为参数模板：`local_source_sha`是该SHA，`local_source_venv`是新的绝对目录，`local_client_config`是既有私有配置路径。复用其Project授权、token、state_dir和SQLite journal；不再次setup、不签发grant、不复制模型登录。
+
+```sh
+python3.13 -m venv "$local_source_venv"
+"$local_source_venv/bin/python" -m pip install \
+  "hypertest-one[interactive] @ git+https://github.com/ZhangLiangchen/hypertest-one.git@$local_source_sha"
+```
+
+这是源码候选安装，不是local-v0.1.0发行资产或新的公开release。`local_install_directory`和`local_host`取既有安装回执的directory与harness；使用新增`upgrade-owned`复用该回执的host/client/hook配置、Hooks启用状态、harness版本及DeepSeek home/profile/bridge，产物策略仍取同一私有client config。安装器以原回执和已拥有配置片段作并发/冲突检查；冲突时保留原件并拒绝，不覆盖他人修改。
+
+```sh
+"$local_source_venv/bin/python" -m hypertest.local_sync upgrade-owned \
+  --directory "$local_install_directory" --harness "$local_host" \
+  --version "local-v0.1.0-source.$local_source_sha" --python "$local_source_venv/bin/python"
+```
+
+该私有version标识符合安装器格式，仅作本地安装记录，不创建/改写同名Git tag。新机器没有原安装回执时，按既有`install`入口显式选择宿主和workspace/artifact-source；已有安装优先`upgrade-owned`，不要遗漏原`upgrade`参数而停用Hooks或切换来源策略。
+
+配置修改后，停止使用旧解释器的既有transport daemon，再让项目重新加载MCP/Hook配置并开启真实新父会话。使用原client config停止daemon和检查新能力：
+
+```sh
+"$local_source_venv/bin/python" -m hypertest.interactive_client stop --config "$local_client_config"
+"$local_source_venv/bin/python" -m hypertest.local_sync capabilities --config "$local_client_config"
+```
+
+`stop`只停止该私有transport；没有运行中daemon时保留配置/账本并按宿主流程重载，不删除状态来清除错误。`capabilities`通过同daemon读取实际服务端工具目录，必须同时包含`hypertest_bind_task`、`hypertest_get_task_binding`、`hypertest_sync_task`、`hypertest_get_task`；最后一个的schema须包含task_id选择器。缺失时定位服务端/daemon/宿主版本，不继续sync或自动建替代任务。`doctor`仅作既有安装诊断，不能替代工具能力检查；实际宿主中的MCP目录也应完成同样检查。
+
+新会话应由已选workspace/policy的SessionStart建立私有root，再按[同步说明](CODEX_SESSION_TASK_SYNC.md#先创建任务再绑定本地父会话)绑定平台Task ID。CLI的`bind-task --config … --project-id … --task-id … --provider … --session-id … --expected-version … --idempotency-key …`和`get-task-binding --config … --project-id … --idempotency-key …`调用同协调器，不能绕过root、授权或原key对账。记录配置reload、新会话来源、BIND原回执及固定接受版本完整读回；源码安装/能力列表成功不构成三宿主原生绑定E2E证明。旧未决操作必须先用其原key恢复，不能借新会话/新Task规避。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

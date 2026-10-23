@@ -47,8 +47,12 @@ def selected_trigger(config, event: dict):
         raise ClientError("MANIFEST_HOST_PROVIDER_MISMATCH")
     if str(manifest.identity.project_id) != settings.get("project_id"):
         raise ClientError("MANIFEST_PARENT_PROJECT_MISMATCH")
-    return parse_trigger(host, event, selected_parent=manifest.identity.parent_session_id,
-                         bridge=settings.get("event_bridge"))
+    trigger = parse_trigger(host, event, selected_parent=manifest.identity.parent_session_id,
+                            bridge=settings.get("event_bridge"))
+    if trigger is not None and trigger.event == "SessionStart":
+        from hypertest.local_sync.sources import manifest_root
+        manifest_root(config, event, create=True)
+    return trigger
 
 
 async def handle_hook(config, coordinator, payload: dict) -> dict:
@@ -87,6 +91,8 @@ async def handle_hook(config, coordinator, payload: dict) -> dict:
                 path.unlink(missing_ok=True)
         return result
     settings = config.local_sync
+    if trigger.event == "SessionStart":
+        return {"status": "CONTEXT_READY", "business_sync": "NOT_TRIGGERED"}
     identity = {"project_id": settings["project_id"], "provider": trigger.provider,
                 "session_id": trigger.parent_session_id}
     pending = pending or persist_trigger(config, trigger)

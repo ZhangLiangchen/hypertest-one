@@ -11,7 +11,7 @@ from hypertest.interactive_client.config import ClientConfig
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.ipc import LocalClient
 from hypertest.local_sync.hosts import HOST_PROVIDERS
-from hypertest.local_sync.installer import doctor, install, recover_install, rollback, uninstall
+from hypertest.local_sync.installer import doctor, install, recover_install, rollback, uninstall, upgrade_owned
 
 
 async def hook(config_path: Path):
@@ -74,8 +74,44 @@ def main():
     child = commands.add_parser("drain-source", help="Recover one existing native source without creating a Hook event")
     child.add_argument("--config", required=True, type=Path)
     child.add_argument("--session-id", required=True)
+    child = commands.add_parser("upgrade-owned", help="Upgrade runtime using the existing owned receipt, preserving hooks and artifact policy")
+    child.add_argument("--directory", required=True, type=Path)
+    child.add_argument("--harness", required=True, choices=tuple(HOST_PROVIDERS))
+    child.add_argument("--version", required=True)
+    child.add_argument("--python", required=True, type=Path)
+    for name in ("bind-task", "get-task-binding", "capabilities"):
+        child = commands.add_parser(name)
+        child.add_argument("--config", required=True, type=Path)
+        if name != "capabilities":
+            child.add_argument("--project-id", required=True)
+            child.add_argument("--idempotency-key", required=True)
+        if name == "bind-task":
+            child.add_argument("--task-id", required=True)
+            child.add_argument("--provider", required=True)
+            child.add_argument("--session-id", required=True)
+            child.add_argument("--expected-version", required=True, type=int)
     args = parser.parse_args()
     try:
+        if args.command in {"bind-task", "get-task-binding", "capabilities"}:
+            from hypertest.interactive_client.__main__ import ensure_daemon
+            config = ClientConfig.load(args.config, validate_credentials=False)
+            async def call_binding():
+                await ensure_daemon(config, args.config)
+                client = LocalClient(config.socket_path, config.local_token_file)
+                if args.command == "capabilities":
+                    return await client.exchange("list", {})
+                arguments = {"project_id": args.project_id, "idempotency_key": args.idempotency_key}
+                if args.command == "bind-task":
+                    arguments.update(task_id=args.task_id, provider=args.provider, session_id=args.session_id,
+                                     expected_version=args.expected_version)
+                return await client.exchange("call", {
+                    "name": "hypertest_bind_task" if args.command == "bind-task" else "hypertest_get_task_binding",
+                    "arguments": arguments})
+            result = asyncio.run(call_binding())
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            if result.get("status") in {"UNKNOWN", "BLOCKED", "REJECTED"}:
+                raise SystemExit(1)
+            return
         if args.command == "hook":
             result = asyncio.run(hook(args.config))
             if result.get("_hook_context"):
@@ -109,7 +145,10 @@ def main():
             if result.get("status") in {"UNKNOWN", "BLOCKED", "REJECTED"}:
                 raise SystemExit(1)
             return
-        if args.command == "recover-install":
+        if args.command == "upgrade-owned":
+            result = upgrade_owned(directory=args.directory, host=args.harness,
+                                   version=args.version, python=args.python)
+        elif args.command == "recover-install":
             result = recover_install(directory=args.directory)
         elif args.command in {"install", "upgrade"}:
             result = install(directory=args.directory, host=args.harness,

@@ -1,5 +1,9 @@
 # ADR-020：Hooks 驱动的本地会话任务同步
 
+## ADR-024预创建与绑定增补（2026-10-23）
+
+[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)要求新Local客户端首次资产上传前显式绑定平台Task ID；缺失时TASK_BINDING_REQUIRED且不POST/不自动建任务。已有确认原Task ID的auto根可resume，服务端legacy路径保留。真实native root仍由原Hook/宿主adapter建立，Hook/MCP共用同一协调器及绑定/同步账本，不接受任意session覆盖。该增补不修改下面固定local-v0.1.0资产、历史矩阵或其资格；新源码、远端验证及客户端发行另行记录。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

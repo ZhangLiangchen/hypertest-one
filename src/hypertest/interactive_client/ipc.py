@@ -74,6 +74,8 @@ class LocalServer:
             async with self._lock:
                 if request["operation"] == "list":
                     value = {"tools": await self.service.tools()}
+                    if hasattr(self.service, "local_capabilities"):
+                        value["local_capabilities"] = self.service.local_capabilities
                 elif request["operation"] == "call":
                     payload = request["payload"]
                     if set(payload) != {"name", "arguments"}:

@@ -36,8 +36,8 @@ class VersionedApi:
                 raise ApiError("VERSION_CONFLICT", 409)
             version = expected + 1
             baseline = deepcopy(self.documents.get(expected, {"cases": [], "reports": []}))
-            baseline["task"] = {key: value for key, value in payload.items()
-                                if key not in {"cases", "reports", "idempotency_key", "expected_version"}}
+            baseline.setdefault("task", {}).update({key: value for key, value in payload.items()
+                                if key not in {"cases", "reports", "idempotency_key", "expected_version"}})
             baseline["task"].update(id=self.task_id, version=version, source="AGENT_REPORTED")
             for group in ("cases", "reports"):
                 items = {item["key"]: item for item in baseline[group]}
@@ -91,8 +91,28 @@ def local(tmp_path):
     journal.close()
 
 
+@pytest.fixture
+def bound_local(local):
+    """Start coordinator merge/delivery tests after a confirmed explicit BIND.
+
+    These are transport fixtures; real CREATE/BIND and fixed readback are
+    exercised independently in test_local_task_binding.py.
+    """
+    config, api, journal, coordinator, identity = local
+    identity = {**identity, "task_id": api.task_id}
+    task = {**identity, "id": api.task_id, "version": 2, "title": "Approved Local task",
+            "objective": "", "status": "DRAFT", "plan_markdown": "",
+            "reported_result": "NOT_RUN", "binding_state": "BOUND", "binding_required": True,
+            "owner_actor_ref": "interactive:" + str(uuid4()), "bound_at": "2026-10-23T00:00:00+00:00",
+            "source": None, "last_synced_at": None}
+    api.documents[1] = {"task": {**task, "version": 1, "binding_state": "UNBOUND"}, "cases": [], "reports": []}
+    api.documents[2] = {"task": task, "cases": [], "reports": []}
+    coordinator._remember_target(identity)
+    return config, api, journal, coordinator, identity
+
+
 def full(identity):
-    return {**identity, "idempotency_key": "explicit-first", "expected_version": 0,
+    return {**identity, "idempotency_key": "explicit-first", "expected_version": 2 if "task_id" in identity else 0,
             "title": "Test existing framework", "objective": "Original objective",
             "status": "IN_PROGRESS", "plan_markdown": "Original plan",
             "reported_result": "FAIL", "cases": [], "reports": [{"key": "run-one",
@@ -100,19 +120,19 @@ def full(identity):
                 "reported_result": "FAIL"}]}
 
 
-async def test_partial_status_preserves_plan_failure_original_report_and_duplicate_checkpoint(local):
-    _, api, journal, coordinator, identity = local
+async def test_partial_status_preserves_plan_failure_original_report_and_duplicate_checkpoint(bound_local):
+    _, api, journal, coordinator, identity = bound_local
     assert (await coordinator.submit_full(full(identity)))["_sync"]["readback_complete"]
     updated = await coordinator.submit_partial(identity, {"status": "BLOCKED"},
-                                               base_version=1, checkpoint_digest="checkpoint-one")
-    assert updated["version"] == 2 and updated["_sync"]["readback_complete"]
-    current = api.documents[2]
+                                               base_version=3, checkpoint_digest="checkpoint-one")
+    assert updated["version"] == 4 and updated["_sync"]["readback_complete"]
+    current = api.documents[4]
     assert current["task"]["plan_markdown"] == "Original plan"
     assert current["task"]["reported_result"] == "FAIL"
     assert current["reports"][0]["markdown"] == "Original complete failure report"
     before = len(api.calls)
     duplicate = await coordinator.submit_partial(identity, {"status": "BLOCKED"},
-                                                base_version=1, checkpoint_digest="checkpoint-one")
+                                                base_version=3, checkpoint_digest="checkpoint-one")
     assert duplicate["status"] == "UNCHANGED" and len(api.calls) == before
     rows = journal.db.execute("SELECT payload,state FROM intents").fetchall()
     assert all("Original plan" not in row[0] and "failure report" not in row[0] for row in rows)
@@ -121,54 +141,54 @@ async def test_partial_status_preserves_plan_failure_original_report_and_duplica
     assert all("version" in page for page in pages if page.get("offset", 0))
 
 
-async def test_explicit_complete_empty_values_and_new_key_noop_still_create_versions(local):
-    _, api, _, coordinator, identity = local
+async def test_explicit_complete_empty_values_and_new_key_noop_still_create_versions(bound_local):
+    _, api, _, coordinator, identity = bound_local
     original = full(identity)
     await coordinator.submit_full(original)
-    empty = {**original, "idempotency_key": "explicit-empty", "expected_version": 1,
+    empty = {**original, "idempotency_key": "explicit-empty", "expected_version": 3,
              "plan_markdown": "", "objective": ""}
     await coordinator.submit_full(empty)
-    assert api.documents[2]["task"]["plan_markdown"] == ""
-    await coordinator.submit_full({**empty, "idempotency_key": "explicit-noop", "expected_version": 2})
-    assert len(api.documents) == 3
+    assert api.documents[4]["task"]["plan_markdown"] == ""
+    await coordinator.submit_full({**empty, "idempotency_key": "explicit-noop", "expected_version": 4})
+    assert len(api.documents) == 5
 
 
-async def test_lost_send_blocks_new_key_not_found_never_reposts_after_restart(local):
-    config, api, journal, coordinator, identity = local
+async def test_lost_send_blocks_new_key_not_found_never_reposts_after_restart(bound_local):
+    config, api, journal, coordinator, identity = bound_local
     api.lose_post = True
     first = await coordinator.submit_full(full(identity))
     assert first["status"] == "UNKNOWN"
     api.hide_receipt = True
     restarted = LocalSyncCoordinator(config, api, journal)
     second = await restarted.submit_partial(identity, {"status": "BLOCKED"},
-                                           base_version=1, checkpoint_digest="later")
+                                           base_version=3, checkpoint_digest="later")
     assert second["status"] == "UNKNOWN"
     third = await restarted.submit_full({**full(identity), "idempotency_key": "do-not-bypass"})
     assert third["status"] == "UNKNOWN"
     assert [call[0] for call in api.calls] == ["POST", "GET", "GET"]
 
 
-async def test_accepted_readback_failure_never_reposts_and_clear_is_explicit(local):
-    _, api, _, coordinator, identity = local
+async def test_accepted_readback_failure_never_reposts_and_clear_is_explicit(bound_local):
+    _, api, _, coordinator, identity = bound_local
     api.readback_fails = True
     first = await coordinator.submit_full(full(identity))
     assert first["status"] == "ACCEPTED" and not first["_sync"]["readback_complete"]
     api.readback_fails = False
     await coordinator.submit_partial(identity, {}, clear_fields=["plan_markdown"],
-                                     base_version=1, checkpoint_digest="explicit-clear")
-    assert api.documents[2]["task"]["plan_markdown"] == ""
-    assert api.documents[2]["task"]["reported_result"] == "FAIL"
+                                     base_version=3, checkpoint_digest="explicit-clear")
+    assert api.documents[4]["task"]["plan_markdown"] == ""
+    assert api.documents[4]["task"]["reported_result"] == "FAIL"
     assert len([call for call in api.calls if call[0] == "POST"]) == 2
 
 
-async def test_source_lock_rejects_cross_project_and_serializes_two_new_partial_intents(local):
-    _, api, _, coordinator, identity = local
+async def test_source_lock_rejects_cross_project_and_serializes_two_new_partial_intents(bound_local):
+    _, api, _, coordinator, identity = bound_local
     await coordinator.submit_full(full(identity))
     results = await asyncio.gather(
-        coordinator.submit_partial(identity, {"status": "BLOCKED"}, base_version=1, checkpoint_digest="A"),
-        coordinator.submit_partial(identity, {"objective": "later"}, base_version=1, checkpoint_digest="B"),
+        coordinator.submit_partial(identity, {"status": "BLOCKED"}, base_version=3, checkpoint_digest="A"),
+        coordinator.submit_partial(identity, {"objective": "later"}, base_version=3, checkpoint_digest="B"),
         return_exceptions=True)
-    assert len(api.documents) == 2
+    assert len(api.documents) == 4
     assert len([value for value in results if isinstance(value, ClientError)]) == 1
     with pytest.raises(ClientError, match="LOCAL_SOURCE_PROJECT_CONFLICT"):
         await coordinator.submit_full({**full(identity), "project_id": str(uuid4())})
@@ -197,11 +217,11 @@ def configure_artifact_source(config, identity):
     return {"session_id": identity["session_id"], "hook_event_name": "SessionStart", "cwd": str(workspace)}
 
 
-async def test_native_start_binds_two_real_sources_without_post_or_shared_manifest(local):
+async def test_native_start_binds_two_real_sources_without_post_or_shared_manifest(bound_local):
     from hypertest.local_sync.hooks import handle_hook
     from hypertest.local_sync.sources import source_binding
 
-    config, api, _, coordinator, identity = local
+    config, api, _, coordinator, identity = bound_local
     event = configure_artifact_source(config, identity)
     first = await handle_hook(config, coordinator, {"event": event})
     second_event = {**event, "session_id": "another-native-parent"}
@@ -215,11 +235,11 @@ async def test_native_start_binds_two_real_sources_without_post_or_shared_manife
         await handle_hook(config, coordinator, {"event": {**event, "cwd": "/another/workspace"}})
 
 
-async def test_native_file_events_hash_without_manifest_and_preserve_reported_failure(local):
+async def test_native_file_events_hash_without_manifest_and_preserve_reported_failure(bound_local):
     from hypertest.local_sync.hooks import handle_hook
     from hypertest.local_sync.sources import source_binding
 
-    config, api, _, coordinator, identity = local
+    config, api, _, coordinator, identity = bound_local
     event = configure_artifact_source(config, identity)
     await handle_hook(config, coordinator, {"event": event})
     post = {**event, "hook_event_name": "PostToolUse", "tool_name": "write_file"}
@@ -229,28 +249,28 @@ async def test_native_file_events_hash_without_manifest_and_preserve_reported_fa
     artifact = directory / "analysis.md"
     artifact.write_text("Formal approved analysis A")
     accepted = await handle_hook(config, coordinator, {"event": post})
-    assert accepted["_sync"]["readback_complete"] and api.documents[1]["task"]["plan_markdown"].endswith("A")
+    assert accepted["_sync"]["readback_complete"] and api.documents[3]["task"]["plan_markdown"].endswith("A")
     failed = full(identity)
-    failed.update(expected_version=1, idempotency_key="explicit-failure")
+    failed.update(expected_version=3, idempotency_key="explicit-failure")
     await coordinator.submit_full(failed)
     artifact.write_text("Formal approved analysis B")
     updated = await handle_hook(config, coordinator, {"event": post})
-    assert updated["version"] == 3 and updated["_sync"]["readback_complete"]
-    assert api.documents[3]["task"]["reported_result"] == "FAIL"
-    assert api.documents[3]["reports"][0]["markdown"] == "Original complete failure report"
+    assert updated["version"] == 5 and updated["_sync"]["readback_complete"]
+    assert api.documents[5]["task"]["reported_result"] == "FAIL"
+    assert api.documents[5]["reports"][0]["markdown"] == "Original complete failure report"
     duplicate = await handle_hook(config, coordinator, {"event": {**post, "hook_event_name": "Stop"}})
-    assert duplicate["status"] == "UNCHANGED" and len(api.documents) == 3
+    assert duplicate["status"] == "UNCHANGED" and len(api.documents) == 5
     artifact.write_text("Formal approved analysis A")
     reverted = await handle_hook(config, coordinator, {"event": post})
-    assert reverted["version"] == 4 and api.documents[4]["task"]["plan_markdown"].endswith("A")
+    assert reverted["version"] == 6 and api.documents[6]["task"]["plan_markdown"].endswith("A")
     assert not list((config.state_dir / "local-sync" / "pending-events").glob("*.json"))
 
 
-async def test_native_auto_source_lost_send_keeps_original_key_and_pending_event(local):
+async def test_native_auto_source_lost_send_keeps_original_key_and_pending_event(bound_local):
     from hypertest.local_sync.hooks import handle_hook
     from hypertest.local_sync.sources import source_binding
 
-    config, api, _, coordinator, identity = local
+    config, api, _, coordinator, identity = bound_local
     event = configure_artifact_source(config, identity)
     await handle_hook(config, coordinator, {"event": event})
     artifact = source_binding(config, event)[2] / "analysis.md"
@@ -278,11 +298,11 @@ def test_native_source_binding_does_not_silently_reassign_policy(local):
         source_binding(config, event, create=True)
 
 
-async def test_native_report_file_edit_preserves_later_explicit_result_title_and_source(local):
+async def test_native_report_file_edit_preserves_later_explicit_result_title_and_source(bound_local):
     from hypertest.local_sync.hooks import handle_hook
     from hypertest.local_sync.sources import source_binding
 
-    config, api, _, coordinator, identity = local
+    config, api, _, coordinator, identity = bound_local
     event = configure_artifact_source(config, identity)
     config.local_sync["artifact_source"]["artifacts"] = [{"kind": "TEST_REPORT", "path": "report.md",
         "key": "run-one", "title": "Install-time title", "reported_result": "NOT_RUN"}]
@@ -292,26 +312,26 @@ async def test_native_report_file_edit_preserves_later_explicit_result_title_and
     post = {**event, "hook_event_name": "PostToolUse"}
     await handle_hook(config, coordinator, {"event": post})
     explicit = full(identity)
-    explicit.update(expected_version=1, idempotency_key="explicit-failed-report")
+    explicit.update(expected_version=3, idempotency_key="explicit-failed-report")
     explicit["reports"][0].update(title="Later explicit failure title", source_ref="explicit-failure-source",
                                   artifact_uri="https://artifact.invalid/failure")
     await coordinator.submit_full(explicit)
     artifact.write_text("New formal report Markdown")
     await handle_hook(config, coordinator, {"event": post})
-    actual = api.documents[3]["reports"][0]
+    actual = api.documents[5]["reports"][0]
     assert actual["markdown"] == "New formal report Markdown"
     assert actual["reported_result"] == "FAIL" and actual["title"] == "Later explicit failure title"
     assert actual["source_ref"] == "explicit-failure-source"
     assert actual["artifact_uri"] == "https://artifact.invalid/failure"
-    assert api.documents[2]["reports"][0]["markdown"] == "Original complete failure report"
+    assert api.documents[4]["reports"][0]["markdown"] == "Original complete failure report"
 
 
-async def test_hook_event_reference_uses_one_durable_record_and_drain_recovers_a_full_queue(local):
+async def test_hook_event_reference_uses_one_durable_record_and_drain_recovers_a_full_queue(bound_local):
     from hypertest.local_sync.hooks import drain_source, handle_hook, persist_trigger
     from hypertest.local_sync.hosts import parse_trigger
     from hypertest.local_sync.sources import source_binding
 
-    config, api, _, coordinator, identity = local
+    config, api, _, coordinator, identity = bound_local
     event = configure_artifact_source(config, identity)
     await handle_hook(config, coordinator, {"event": event})
     artifact = source_binding(config, event)[2] / "analysis.md"
@@ -377,17 +397,17 @@ async def test_artifact_source_explicit_mcp_rejects_unbound_or_foreign_sources_b
     assert not list(coordinator.snapshots.directory.glob("*.json"))
 
 
-async def test_artifact_source_explicit_mcp_accepts_existing_root_complete_snapshot(local):
+async def test_artifact_source_explicit_mcp_accepts_existing_root_complete_snapshot(bound_local):
     from hypertest.local_sync.hooks import handle_hook
 
-    config, api, _, coordinator, identity = local
+    config, api, _, coordinator, identity = bound_local
     event = configure_artifact_source(config, identity)
     await handle_hook(config, coordinator, {"event": event})
     payload = {**full(identity), "plan_markdown": "", "objective": ""}
     result = await coordinator.submit_full(payload)
     assert result["_sync"]["readback_complete"]
-    assert api.documents[1]["task"]["plan_markdown"] == ""
-    assert api.documents[1]["task"]["reported_result"] == "FAIL"
+    assert api.documents[3]["task"]["plan_markdown"] == ""
+    assert api.documents[3]["task"]["reported_result"] == "FAIL"
     assert [call[0] for call in api.calls].count("POST") == 1
 
 
@@ -465,6 +485,30 @@ async def test_upgrade_old_compact_receipt_without_snapshot_reconciles_original_
     assert len([call for call in api.calls if call[0] == "POST"]) == 1
 
 
+async def test_v010_native_context_without_target_field_resumes_original_auto_task(local):
+    from hypertest.local_sync.sources import source_binding
+    config, api, journal, coordinator, identity = local
+    event = configure_artifact_source(config, identity)
+    _, original_context, _ = source_binding(config, event, create=True)
+    assert "task_id" not in original_context and "binding_required" not in original_context
+    original = full(identity)
+    legacy = await api.request("POST", "interactive/tasks/sync", payload=original)
+    original_snapshot = deepcopy(api.documents[1])
+    api.calls.clear()
+    # Neither a target file nor binding journal exists in the v0.1 profile.
+    assert not list(coordinator.directory.glob("*.task.json"))
+    resumed = await coordinator.submit_full({**original, "idempotency_key": "explicit-legacy-resume",
+                                            "expected_version": 1, "status": "BLOCKED"})
+    assert resumed["task_id"] == legacy["task_id"] and resumed["version"] == 2
+    assert resumed["_sync"]["readback_complete"] is True
+    assert api.documents[1] == original_snapshot
+    assert api.documents[2]["task"]["reported_result"] == "FAIL"
+    assert api.documents[2]["reports"] == original_snapshot["reports"]
+    assert source_binding(config, event)[1] == original_context
+    assert not journal.db.execute("SELECT key FROM intents WHERE kind LIKE 'task-bind:%'").fetchall()
+    assert len([call for call in api.calls if call[0] == "POST"]) == 1
+
+
 async def test_old_unknown_receipt_not_found_stays_blocked_without_reposting(local):
     _, api, journal, coordinator, identity = local
     original = full(identity)
@@ -480,8 +524,21 @@ async def test_old_unknown_receipt_not_found_stays_blocked_without_reposting(loc
     assert [call[0] for call in api.calls] == ["GET", "GET"]
 
 
-async def test_new_frozen_missing_snapshot_never_downgrades_to_legacy_or_bypasses_unknown(local):
-    _, api, _, coordinator, identity = local
+async def test_same_old_unknown_sync_key_never_looks_up_current_source_or_posts(local):
+    _, api, journal, coordinator, identity = local
+    original = full(identity)
+    namespace = "session-task:" + identity["project_id"]
+    journal.intent(namespace, original["idempotency_key"], {**identity, "expected_version": 0,
+        "idempotency_key": original["idempotency_key"]}, identity=original)
+    journal.mark(namespace, original["idempotency_key"], "UNKNOWN")
+    api.hide_receipt = True
+    result = await coordinator.submit_full(original)
+    assert result["status"] == "BLOCKED" and result["code"] == "NOT_FOUND"
+    assert [call[:2] for call in api.calls] == [("GET", "interactive/tasks/syncs/by-key")]
+
+
+async def test_new_frozen_missing_snapshot_never_downgrades_to_legacy_or_bypasses_unknown(bound_local):
+    _, api, _, coordinator, identity = bound_local
     api.lose_post = True
     await coordinator.submit_full(full(identity))
     for path in coordinator.snapshots.directory.glob("*.json"):
@@ -492,14 +549,14 @@ async def test_new_frozen_missing_snapshot_never_downgrades_to_legacy_or_bypasse
     assert len(api.calls) == before
 
 
-async def test_later_queued_observation_survives_first_checkpoint_completion(local):
+async def test_later_queued_observation_survives_first_checkpoint_completion(bound_local):
     from hypertest.interactive_client.security import private_create
     from hypertest.local_sync.hooks import persist_trigger, submit_manifest
     from hypertest.local_sync.hosts import Trigger
-    config, _, _, coordinator, identity = local
+    config, _, _, coordinator, identity = bound_local
     manifest_path = config.state_dir / "approved-manifest.json"
     private_create(manifest_path, json.dumps({"identity": {"project_id": identity["project_id"],
-        "provider": "codex", "parent_session_id": identity["session_id"]}, "base_version": 0,
+        "provider": "codex", "parent_session_id": identity["session_id"]}, "base_version": 2,
         "set": {key: full(identity)[key] for key in ("title", "objective", "status", "plan_markdown", "reported_result")}}).encode())
     config.local_sync.update(host="codex", project_id=identity["project_id"],
                              manifest_file=str(manifest_path), allowed_roots=[])

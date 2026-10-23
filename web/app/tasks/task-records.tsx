@@ -34,21 +34,28 @@ function ReportContent({ item }: { item: SessionReportRevision }) {
 
 export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
   const { t, label, formatDate } = useI18n();
-  const { task, cases, reports, case_history, report_history, sync_history, management_history = [] } = detail;
+  const { task, cases, reports, case_history, report_history, sync_history, management_history = [], binding_history = [] } = detail;
   return <>
     <section className="data-surface session-record" aria-label={t("Task and session", "任务与会话")}>
       <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} layout="vertical" items={[
+        { key: "id", label: t("Task ID", "任务 ID"), children: <Typography.Text code copyable>{task.id}</Typography.Text> },
+        { key: "mode", label: t("Execution mode", "执行方式"), children: t("Local Agent", "本地执行") },
+        { key: "binding", label: t("Session binding", "会话绑定"), children: <Tag color={task.binding_state === "UNBOUND" ? "gold" : "green"}>{task.binding_state === "UNBOUND" ? t("Awaiting binding", "待绑定") : t("Bound", "已绑定")}</Tag> },
+        { key: "bound", label: t("Bound at", "绑定时间"), children: formatDate(task.bound_at) },
         { key: "status", label: t("Task status", "任务状态"), children: <Tag color={task.status === "IN_PROGRESS" ? "blue" : task.status === "BLOCKED" ? "gold" : undefined}>{label(task.status)}</Tag> },
         { key: "result", label: t("Agent reported result", "Agent 报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
         { key: "sync", label: t("Last synced", "最后同步"), children: formatDate(task.last_synced_at) },
         { key: "managed", label: t("Last managed", "最近人工管理"), children: task.last_managed_at ? formatDate(task.last_managed_at) : "—" },
-        { key: "session", label: t("Agent session", "Agent 会话"), children: <span className="entity-key">{task.session_id}</span> },
-        { key: "source", label: t("Sync source", "同步来源"), children: `${task.provider} · ${task.source}` },
+        { key: "session", label: t("Agent session", "Agent 会话"), children: task.session_id ? <span className="entity-key">{task.session_id}</span> : t("Not bound yet", "尚未绑定") },
+        { key: "source", label: t("Record source", "记录来源"), children: [task.provider, task.source].filter(Boolean).join(" · ") || t("No Agent sync received", "尚未收到 Agent 同步") },
         { key: "version", label: t("Task version", "任务版本"), children: task.version },
       ]} />
       <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
       <p className="session-literal">{task.objective}</p>
-      <Typography.Paragraph className="muted">{t("Synced from the source Agent session. The Agent performs the testing work; this page manages its records and reported results. Manual edits appear separately in management history.", "内容同步自来源 Agent 会话。测试工作由 Agent 完成，此页面管理任务记录与报告结果；手动修改单独记录在管理历史中。")}</Typography.Paragraph>
+      <Typography.Paragraph className="muted">{task.binding_state === "UNBOUND"
+        ? t("This task was created on the platform. Bind the intended local Agent session before synchronizing its work. Creating or binding a task does not execute tests.", "此任务由平台创建。请先绑定获准的本地 Agent 会话，再同步测试产物。创建或绑定任务不会执行测试。")
+        : !task.last_synced_at ? t("The session is bound, but no Agent work has been synced yet. Binding time and sync time are separate; results remain Not run until the Agent explicitly reports otherwise.", "会话已绑定，尚未收到 Agent 同步的测试产物。绑定时间与同步时间分别记录；结果保持尚未运行，直到 Agent 明确报告。")
+          : t("Synced from the source Agent session. The Agent performs the testing work; this page manages its records and reported results. Manual edits appear separately in management history.", "内容同步自来源 Agent 会话。测试工作由 Agent 完成，此页面管理任务记录与报告结果；手动修改单独记录在管理历史中。")}</Typography.Paragraph>
     </section>
     <section className="data-surface session-record" aria-labelledby="task-plan-heading">
       <Typography.Title id="task-plan-heading" level={2}>{t("Test plan", "测试计划")}</Typography.Title>
@@ -76,6 +83,14 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         {report_history.map((item) => <details key={item.id} className="session-revision"><summary>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /></summary><ReportContent item={item} /></details>)}
       </details>
     </section>
+    {binding_history.length ? <section className="session-task-section" aria-labelledby="task-binding-history-heading">
+      <Typography.Title id="task-binding-history-heading" level={2}>{t("Binding history", "会话绑定历史")}</Typography.Title>
+      <ol className="session-sync-history">{binding_history.map((entry) => <li key={entry.id}>
+        <Space wrap><strong>{t("Session bound", "已绑定会话")}</strong><span>{t("Task version", "任务版本")} {entry.task_version}</span><span>{formatDate(entry.created_at)}</span></Space>
+        <p className="session-literal muted">{t("Bound by", "绑定客户端")}: {entry.actor_ref}</p>
+        <details><summary>{t("Task after binding", "绑定后的任务记录")}</summary><pre className="artifact-content">{JSON.stringify(entry.task_snapshot, null, 2)}</pre></details>
+      </li>)}</ol>
+    </section> : null}
     <section className="session-task-section" aria-labelledby="task-management-heading">
       <Typography.Title id="task-management-heading" level={2}>{t("Management history", "管理历史")}</Typography.Title>
       {management_history.length ? <ol className="session-sync-history">{management_history.map((entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
