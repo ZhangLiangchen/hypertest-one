@@ -1,14 +1,20 @@
 # ADR-021：本地与云端复用任务同步核心
 
+## Cloud 消费方集成增补（2026-10-23）
+
+Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。最终合并树、统一 Web 入口与测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；默认关闭。
+
+CloudTaskReporter + CloudSyncAdapter 已在独立 fenced Worker 源码中接入共享核心；运行中 REPORT / checkpoint、原件 / 完整固定版本读回按 Cloud typed contract 验证。Cloud `cloud:work`、lease / generation 与 Attempt 私有账本不进入 Local wire；Local 原 `task:sync`、完整请求 / 原 key / actor owner 和单父 writer 不变。Local 发行不携带 Cloud SDK / Worker，Cloud 不依赖终端安装器或三宿主发行；共享 Project 不合并任务身份或模型身份。下列决定时 NOT IMPLEMENTED 及 Local 冻结时点记录为历史，本增补不以 Local 成绩推导 Cloud 最终树验收。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
 
 本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
 
-**Local 源码分支实现增补（2026-10-22）：Local 协调器、TaskSyncCore Local adapter、三宿主入口和统一发行工具已实现源码；真实宿主与发行状态见 LOCAL_MODE_IMPLEMENTATION_STATUS.md 及确切目标验收记录。下文为初始设计原文，其中 NOT IMPLEMENTED 是当时状态，不覆盖本段当前 Local 状态；本分支不包含 Cloud/Memory 的实现。**
+**Local 源码分支实现增补（2026-10-22）：Local 协调器、TaskSyncCore Local adapter、三宿主入口和统一发行工具已实现源码；真实宿主与发行状态见 LOCAL_MODE_IMPLEMENTATION_STATUS.md 及确切目标验收记录。下文为初始设计原文，其中 NOT IMPLEMENTED 是当时状态，不覆盖本段当前 Local 状态；Local 发行不包含 Cloud / Memory runtime；Cloud 消费方按文首当前集成增补单独记录，Memory Gateway 仍未实现。**
 
-**决定时历史状态：Accepted design / NOT IMPLEMENTED（2026-10-22，Asia/Singapore）。当前 TaskSyncCore 与 Local adapter 已实现并随 Local 发行；Cloud 消费方不在此 Local 源码分支中交付。**
+**决定时历史状态：Accepted design / NOT IMPLEMENTED（2026-10-22，Asia/Singapore）。当前 TaskSyncCore 与 Local adapter 已实现并随 Local 发行；Cloud 消费方不随 Local 发行交付，当前独立源码进展见文首增补。**
 
 **决定方：项目负责人确认本地任务的进度 / 产物同步设计应复用于云端任务。**
 
@@ -16,7 +22,7 @@
 
 ## 1. 背景与决定
 
-[ADR-020](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md)为 Local 设计了完整基线合并、单 writer、幂等提交、UNKNOWN 对账和接受版本读回。ADR-019（独立设计参考，本 Local 源码分支未包含该文档）的 Cloud 也需要在运行过程中保存进度、阶段产物与结果，而不能等最终答复再回收。两条路径各自实现上述机制容易形成不同的失答处理、修订保全和完成判断。
+[ADR-020](ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md)为 Local 设计了完整基线合并、单 writer、幂等提交、UNKNOWN 对账和接受版本读回。[ADR-019](ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)的 Cloud 也需要在运行过程中保存进度、阶段产物与结果，而不能等最终答复再回收。两条路径各自实现上述机制容易形成不同的失答处理、修订保全和完成判断。
 
 决定抽取 **TaskSyncCore**，作为两种模式复用的同步语义与库。Local 使用 **LocalSyncCoordinator + LocalSyncAdapter**，Cloud 使用 Worker 内的 **CloudTaskReporter + CloudSyncAdapter**。两者复用领域意图整理、来源 / 产物清单、语义差异、完整请求固定、操作账本驱动、回执校验、原 key 对账与固定接受版本读回；各 adapter 保留自己所属 profile 的请求、身份、权限、版本与持久化规则。
 
@@ -103,7 +109,7 @@ Agent、子代理或 collector 并行产出不意味着多个平台 writer；Clo
 
 HyperTest Local 发行可以携带 TaskSyncCore 的固定兼容版本及 Local adapter；Cloud 镜像 / Worker 以自身受控依赖 manifest 固定同源共享库与 Cloud adapter。两者不需要同一物理安装或强制同步升级，必须记录实际 core / adapter 版本及契约兼容性。Cloud 不安装用户终端 Local bootstrap、不复用本地授权 setup，也不依赖三宿主 Local release 发布后才能实施。
 
-本地 L1 与 Cloud P2 / P3 消费同一共享设计和可复用库：P2 先完成中途 REPORT 的最小接受、checkpoint 绑定与读回，P3 扩展完整产物 / 执行结果。按[本地计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)与云端计划（独立设计参考，本 Local 源码分支未包含该文档）分别交付、分别开关与验收。共享组件变更须覆盖两个 adapter 的契约回归；一个模式未安装、停用或故障，不阻断另一模式写入、原 key 对账与历史读取。
+本地 L1 与 Cloud P2 / P3 消费同一共享设计和可复用库：P2 先完成中途 REPORT 的最小接受、checkpoint 绑定与读回，P3 扩展完整产物 / 执行结果。按[本地计划](../LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)与[云端计划](../CLOUD_TEST_IMPLEMENTATION_PLAN.md)分别交付、分别开关与验收。共享组件变更须覆盖两个 adapter 的契约回归；一个模式未安装、停用或故障，不阻断另一模式写入、原 key 对账与历史读取。
 
 | 备选方案 | 取舍 |
 | --- | --- |

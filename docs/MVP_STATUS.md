@@ -1,5 +1,11 @@
 # HyperTest One MVP status
 
+## Cloud SDK + Codex 集成状态（2026-10-23）
+
+Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。最终合并树、统一 Web 入口与测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；默认关闭。
+
+正式候选迁移为管理 `0024_local_task_binding` 后的 `0025_cloud_tasks` → `0026_cloud_ssh_operations`；旧隔离 fixture 编号与历史通过记录不改。capabilities 的 supported 仅表示实现支持，当前配置与每 Attempt Worker 准入另列。Local 包、既有会话同步、FAIL / UNKNOWN / 幂等读回契约与项目管理历史保持；当前未把新树或 Web 声称为已部署。详见[Cloud 状态](CLOUD_IMPLEMENTATION_STATUS.md)。以下旧发布记录各保留原时点身份。
+
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
 ## Current increment: current-Agent MCP execution in production

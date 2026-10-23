@@ -1,0 +1,9 @@
+{
+  "name": "hypertest-fixed-official-codex-payload",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh-subagent-codex": "0.2.1-rc.2",
+    "@openai/codex": "0.153.4"
+  }
+}
