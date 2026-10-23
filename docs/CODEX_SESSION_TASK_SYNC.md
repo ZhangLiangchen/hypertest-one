@@ -1,8 +1,17 @@
 # Codex 会话测试任务同步
 
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
+
 现阶段，一个 Codex 会话对应 HyperTest One 中一个测试任务。Codex 继续使用真实 SUT 的已有框架进行测试，通过 MCP 同步任务、计划、用例和原始报告；平台提供持久管理、查询和版本历史，不执行测试。
 
 本文针对 [ADR-018](architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 新入口。旧受管任务、原生材料准入、Runner、Gate、源码传输或设备执行绑定均不是同步准备条件。实际部署版本、授权与验收环境由操作者核验；源码存在不证明目标环境已经升级。
+
+**当前操作边界：** 下列安装、`hypertest_sync_task` / `hypertest_get_task` 和私有客户端流程继续有效。[ADR-020](architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 已接受 Hooks 自动触发与 MCP 共用同步协调器的设计；该协调器、自动触发、Claude Code / DeepSeek harness 适配及统一发行 / 安装均 **NOT IMPLEMENTED**，见文末设计章节、[本地实施计划](LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)与[统一发行安装设计](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。本次文档修订不安装 Hooks、不修改全局默认技能、不启动上传；现有 XBlock 流程继续只使用已授权的原生同步 / 查询工具。
 
 ## 客户端安装与私有配置
 
@@ -141,3 +150,61 @@ daemon 在发送前持久保存查询身份与完整请求 digest（不在 journ
 | 版本/原始报告读取 | `GET /api/v1/tasks/{task_id}?version=N`、`GET /api/v1/tasks/{task_id}/reports/{report_id}` |
 
 Web 任务页查询这些管理记录，不显示启动测试、Runner 或 Gate 操作。旧 Run 页面与旧数据继续保留为历史兼容入口。开发检查、远端测试验收、真实测试资产同步和发布的完成范围由各自记录注明；本文管理命令不会执行 SUT 测试。
+
+## 未来设计：Hooks 自动触发与 MCP 共用协调器（ADR-020，未实现）
+
+本节描述未来受控启用后的行为，**不是现有安装步骤**。Local 仍是 ADR-018 SessionTask，Cloud 仍按 ADR-019 六步流程与官方 Python SDK 独立推进；同一 Project 可同时保存两类任务，Hooks 不增加第三种模式。
+
+```text
+Harness Hooks（自动触发） ─┐
+                          ├→ 统一本地同步协调器 → 既有私有客户端 / typed API / journal
+MCP（显式提交与查询） ─────┘
+```
+
+协调器作为唯一语义 writer 收集本次正式资产、合并基线、冻结请求并核对读回。未来 Hooks 不直接构造 POST，也不和 MCP 各起一个提交进程抢版本；现有 IPC 锁只覆盖既有请求处理，不能据此认定跨基线读取与提交的协调已经实现。客户端协调锁 / generation 不成为新的服务端 lease 或 wire 字段，服务端保留原 owner、事务锁和 expected-version 规则。
+
+### 身份、产物与状态
+
+- 使用真实 Provider / 父 session ID 和已授权的既有 Project；未取得身份或 Project 映射时保留缺口，不从 cwd、Hook 次数、子代理 ID 或聊天标题猜测。子代理交回父会话，由父协调器统一汇总；新父会话按前述接续流程建立自己的 SessionTask。
+- 只读取用户选定正式清单中的分析、设计、用例、原始报告和代码引用；不把整个聊天、隐藏推理、任意工作区或认证目录变成同步资产。`source_ref` / `artifact_uri` 仍是引用元数据，不自动上传附件或让服务端抓取路径。
+- `Stop`、`SessionEnd`、工具成功和进程结束只表示触发时机，不设置任务 COMPLETED 或测试 PASS。进度和 reported result 来自正式内容的明确声明；pending / dirty / coalesce 是本地观察，不增加 SessionTask 状态。同步 UNKNOWN 不改变报告原 PASS / FAIL。
+
+### 完整合并与一次意图
+
+现有 `sync` 会更新任务全部标量字段。协调器必须固定版本完整分页读取基线，再合并本次明确变化；局部 Hook 意图区分“字段缺省”与“显式清除”，缺省保留计划与 reported result，显式 CLEAR 经授权和校验后物化为原有完整请求。既有 MCP 完整 payload 的显式空值仍保留原含义；不得改写已冻结的 payload / key / version。旧 case / report key 与原 FAIL 历史保留；自动触发没有实质变化不创建新版本，显式 MCP 新 key 完整请求仍按原契约接受。
+
+重复触发可合并尚未发送的新意图；发送前固定完整请求、稳定 key 与 expected version，并由私有客户端保存查询身份和 digest。正式来源快照需要时单独私有保留，journal 不反复复制计划 / 报告正文。请求一旦已发送或可能已发送，只 GET 原 key；NOT_FOUND、网络恢复、Hook 重跑和用户再次调用同一意图都不授权重 POST / 换 key / 建替代任务。未决操作未解决时，同任务后续写入暂停，明确保留新的变化。
+
+有效 ACK 与接受版本完整分页读回均完成后才显示同步成功。ACK 后读取中断继续读取原接受版本，不能重新上传或把最新版本冒充原接受版本。expected-version 确定拒绝后先读新基线，再按明确新意图准备更新；不同于 UNKNOWN 时绕过原 key 重试。
+
+### 能力、退出与兼容
+
+Hook 为 best-effort，断线、退出或强制关闭不保证上传完成；后台队列不能成为重试已发送未知请求的理由。配置只保留非秘密映射和私有配置引用，token 继续通过原客户端通道使用，不进入 Hook 参数、提示词或报告。
+
+未来禁用自动触发保留 MCP 显式提交 / 查询、私有账本、待发送正式来源和已接受历史；不自动取消测试、删除任务或丢弃未知 key。Cloud 关闭 / 不可用也不影响本地 MCP。当前 Codex MCP 仍可使用，Codex 自动触发以及 Claude Code / DeepSeek harness 的 provider、MCP 与事件适配必须按各自实际版本独立探针、实现和验收；不能因另一宿主具有某种 Hook 就假定本机已支持。DeepSeek 本地真实父会话只同步自己的 SessionTask，云端指挥官或子代理不能借此另建本地任务。
+
+后续交付按 [L0–L4 本地实施计划](LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)推进，先收口可靠协调器，再启用 provider Hooks。设计接受不修改现有 XBlock 默认技能中“只用原生工具、不新建 Hook / 上传进程”的操作边界；只有受控启用已验收新版 adapter 后才调整默认策略。本轮不提供新 Hook 配置或可执行安装命令。
+
+## 未来复用：本地设计反哺云端报告（ADR-021，未实现）
+
+[TaskSyncCore](architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) 将正式资产清单、明确语义进度、尚未冻结意图处理、请求冻结、幂等对账与固定接受版本读回做成共享库。LocalSyncCoordinator / LocalSyncAdapter 保留上文 ADR-018 的实际身份、actor / Project、`task:sync`、完整 snapshot / 有意空值和分页语义；本次不修改任何现有命令、请求字段或默认技能。
+
+CloudTaskReporter / CloudSyncAdapter 则由当前 CloudAttempt Worker 持权报告进度与产物，使用独立 CloudTask / Attempt、`cloud:work`、lease / fencing 和领域 typed 操作。主 / 子 Agent 只交付结构化内容，SDK 继续负责执行控制；共享核心不把云端任务改成 SessionTask，也不普遍套用 Local 完整请求 / 版本递增规则。两种模式不共用 token、全局 journal 或状态；Cloud 镜像可复用兼容库，无需本地 bootstrap、三宿主配置或完整 Local release。计划分别由 Local L1、Cloud P2 / P3 接入，任一模式验收不替代另一模式的真实报告验证。
+
+## 未来交付：统一 release 与一键安装（未实现、未发布）
+
+MCP、私有客户端 / journal、SyncCoordinator、三个宿主的来源 / 事件 adapter、安装 / doctor / 升级 / 卸载工具及最小使用资产统一版本发行。项目页未来生成固定 bootstrap / payload、可校验、只含非秘密 Project / API / 宿主上下文的一条安装命令；已有目标 Harness、满足 manifest 依赖基线的机器可选择 `claude-code`、`codex` 或 `deepseek-harness` 安装本包。入口由已发布资产生成，不能把尚未安装的 CLI 或虚构 URL 当作现有一键命令。
+
+发行 manifest 同时固定 TaskSyncCore / LocalSyncAdapter 版本与兼容边界；它是 Local 包内的共享库，并不把云端运行或授权装进终端。
+
+安装器只合并所选宿主本包拥有的 MCP / Hook 配置，保留其他项目、MCP、Hooks 与技能；不强退当前会话，不承诺热加载。缺项目 `task:sync` 授权时明确受阻并安全引导，不要求 Agent 获取 Operator key。旧 setup 的设备配对 / 受管执行 scope 不是本地管理同步的授权捷径，旧 `mcp-v0.1.0` 发行仍按其原验收范围解释。
+
+配置 / 项目授权检查和真实父会话首次 ACK / 固定接受版本完整读回分别报告；安装不会创建假会话或上传历史聊天。升级 / 回退 / 卸载保留 client 身份、未知请求账本、正式来源、用户会话、项目目录和平台历史；未知请求仍只查询原 key。具体支持矩阵、bootstrap 信任、OS 边界与验收见[统一发行与安装设计](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。上文现有 Codex MCP 可执行步骤保持不变。
+
+## 2026-10-22 源码候选实现补充
+
+本轮已在源码增加 `hypertest.sync_core`、`hypertest.local_sync` 与 Project 页“接入本地模式”引导；安装、诊断和私有 manifest 的具体命令见[Local 实现状态与候选操作](LOCAL_MODE_IMPLEMENTATION_STATUS.md)。它补充上文既有 MCP 流程，不改两个工具的完整请求 / 幂等语义，也不修改原可执行安装正文。上文“未来设计 / 未实现”章节保留原设计记录；本补充只说明已出现源码的范围，未完成部分仍按实现状态页分项列明。
+
+默认不启用 Hooks。已有私有 `task:sync` 配置的操作者可审阅源码后运行 `python -m hypertest.local_sync install` / `doctor`，再通过 `submit-manifest --config <私有配置>` 显式提交所选正式产物；该提交复用同一私有 IPC、来源 coordinator 与 journal，不伪造宿主事件或父 session，不启动模型或测试。私有配置的变更须由正确 daemon 实例重读，单独重载宿主不会自动刷新已经运行的 daemon。
+
+统一正式 release、一键 bootstrap、真实三宿主 / 自动事件 / 首次同步验收仍未完成；候选安装收据和 doctor 不代表在线授权或同步已通过。本次不自动安装当前机器、修改全局技能或接入 PowerContext admin token。

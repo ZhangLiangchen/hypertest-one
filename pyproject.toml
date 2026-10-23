@@ -24,6 +24,12 @@ interactive = [
   "httpx>=0.28,<1.0",
   "jsonschema>=4.20,<5",
 ]
+cloud = [
+  "cryptography>=44,<47",
+  "httpx>=0.28,<1.0",
+  "deepseek-harness-sdk==0.2.1rc2",
+  "deepseek-harness-runtime-bin==0.2.1rc2",
+]
 dev = [
   "pytest>=8.3,<9.0",
   "pytest-asyncio>=0.24,<1.0",
@@ -32,8 +38,11 @@ dev = [
 ]
 
 [project.scripts]
+hypertest-deepseek = "hypertest.deepseek_probe:main"
 hypertest-interactive = "hypertest.interactive_client.__main__:main"
 hypertest-native = "hypertest.native_client:main"
+hypertest-local = "hypertest.local_sync.__main__:main"
+hypertest-cloud = "hypertest.cloud.__main__:main"
 
 [build-system]
 requires = ["hatchling"]

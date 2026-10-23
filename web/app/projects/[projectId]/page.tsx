@@ -324,6 +324,7 @@ export default function ProjectPage() {
           <Tag color="blue">{label(project.data.status)}</Tag>
           <Tag icon={<BranchesOutlined aria-hidden />}>{project.data.default_branch}</Tag>
           {project.data.repository_url ? <Tag style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{project.data.repository_url}</Tag> : null}
+          <Link href={`/projects/${encodeURIComponent(params.projectId)}/cloud`}>{t("Cloud tests", "云端测试")} <ArrowRightOutlined aria-hidden /></Link>
         </Space>
       </div>
 

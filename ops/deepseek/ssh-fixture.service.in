@@ -1,0 +1,19 @@
+[Unit]
+Description=Explicit loopback SSH diagnostic fixture (not production)
+
+[Service]
+Type=exec
+ExecStart=/usr/sbin/sshd -D -e -f @FIXTURE_ROOT@/sshd_config
+Restart=no
+RuntimeMaxSec=1800
+KillMode=control-group
+TimeoutStopSec=5
+# The daemon authenticates and drops into the dedicated fixture account.
+# SSH diagnostic workloads use that account's independently bounded user manager.
+NoNewPrivileges=yes
+PrivateTmp=yes
+BindPaths=@FIXTURE_ROOT@
+StandardOutput=null
+StandardError=append:@FIXTURE_ROOT@/sshd.stderr
+
+# Deliberately no Install section, daemon-reload, enable or start action.

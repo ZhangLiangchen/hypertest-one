@@ -1,15 +1,88 @@
 # Web 工作台操作指南 / Web workbench guide
 
-当前生产应用为 `63bd6cc`，原 Host Bridge 为 `95e92c5`，数据库为
+## Cloud 云端模式与 Local 本地会话同步模式
+
+**一个 SUT 对应一个长期 Project，同一 Project 可同时包含 CloudTask 与 SessionTask。** 产品提供两种模式，不按模式拆项目，也不在项目级切换二选一：
+
+| 模式 | 用户入口和职责 | 实现边界 |
+| --- | --- | --- |
+| Cloud 云端模式 | 云端 Web / API 创建或复用 Project、配置资源、创建任务；云端 Worker 通过官方 Python SDK 驱动 DeepSeek 和项目工具链执行 | [ADR-019](architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 设计已接受，CloudTask / CloudAttempt 及下述共存视图**尚未实现** |
+| Local 本地会话同步模式 | 本地 Agent 选择已有授权 Project，同步会话任务、状态和正式测试产物；目标设计为 Hooks 自动触发、MCP 显式操作共用协调器及统一发行 / 安装 | 保留 [ADR-018 Codex MCP 同步](CODEX_SESSION_TASK_SYNC.md)；[ADR-020](architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 协调器、自动触发、Claude Code / DeepSeek harness 适配及统一发行**尚未实现** |
+
+项目内任务列表拟默认显示全部任务，并列标记 Cloud / Local 与来源，支持按模式筛选；详情按任务类型显示原状态、结果、报告和操作。模式由任务类型派生且创建后不可变，不能把 SessionTask 转成 CloudTask、换标签重写历史或用相同裸 ID 混淆两类详情。共享 Project 不合并同步与云端执行权限；列表 / 筛选 / 查看不会发起任务执行。这些共存 UI 是待实施设计，分阶段交付与验收见[实施计划](CLOUD_TEST_IMPLEMENTATION_PLAN.md)。
+
+## Local 本地会话同步流程（当前仅 Codex）
+
+1. 在本地 Agent 中配置已有 MCP 接入，选择平台上已有且获授权的 Project；需要项目时在云端创建，不在本机建立另一套独立项目。
+2. 本地 Codex 使用项目已有工具链完成工作，经 `hypertest_sync_task` 保存版本化计划、用例、原始 Markdown 报告及 reported result；一个真实会话对应一个 SessionTask。
+3. 经 `hypertest_get_task` 完整分页读回被接受版本，在平台查看任务与报告；保留原 scope、幂等、expected-version 和失答只查询原 key 的语义。
+
+同步不启动或接管本地 Agent，不要求 Project 配置云端 token / SSH 密钥，也不要求执行绑定。Local 表示会话来源与协作流程，Agent 可调用已获授权的远端环境或 CI；它不证明测试物理位置或执行来源可信。云端执行关闭或不可用时，现有 Local 同步和历史读取仍独立可用。
+
+## Local 自动同步目标流程（ADR-020，尚未实现）
+
+以下是未来经受控发布并启用 adapter 后的流程，不提供现有可执行 Hook 配置或一键命令，不改变上面的 Codex MCP 操作步骤：
+
+1. 选择已有授权 Project，核对真实 Provider / 父会话来源，选定正式分析、设计、用例、报告和代码引用清单；不选择整聊天、隐藏推理或认证目录。一个父会话保留一个 SessionTask，子代理结果由父会话汇总。
+2. Harness Hooks / 已核验事件在生命周期或资产变化时机通知本地同步协调器，MCP 继续提供显式提交与查询；两个入口共用一个 writer、私有客户端、typed API 与 journal，不各自上传。Codex / Claude Code / DeepSeek harness 的事件和父会话能力按实际版本独立验收，未支持项不显示为可启用。
+3. 协调器完整读取固定版本基线，合并本次明确变化，防止稀疏事件清空计划 / FAIL；仅自动触发无实质变化时不新增版本。显式 MCP 完整请求保留原空值语义。尚未发送的新局部意图可合并；冻结请求、key 和 expected version 后不再改写。
+4. 显示本地“待同步 / 同步未知 / 已接受待读回 / 已确认读回”等传输观察，任务进度与测试结果单独保留。它们不是服务端新状态；`Stop` / `SessionEnd` / 成功工具 / 退出均不能显示业务已完成或测试 PASS。已发送或 UNKNOWN 只查询原 key，NOT_FOUND 不自动重发、换 key 或建新任务。
+5. 有效回执与该接受版本的全部分页核对完成后才显示同步成功。退出或断线不保证上传完成；再次打开后先对账，保留未发送意图与原 key。禁用自动触发保留 MCP、私有账本、正式资产和历史，不取消业务测试或删除任务。
+
+Hooks 是 Local 触发机制，不是第三模式；同 Project 的 CloudTask 与 SessionTask 身份、权限和生命周期保持独立。关闭 Hooks 与关闭云端运行分别验收，均不得阻断当前 Codex MCP。当前 XBlock 默认技能继续只调用现有原生管理工具；这次文档变更不安装 Hook、不修改全局技能、不开始上传。交付和退出条件见[本地 L0–L4 计划](LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)，与[云端 P0–P4 计划](CLOUD_TEST_IMPLEMENTATION_PLAN.md)独立推进。
+
+上述正式资产清单、明确进度、幂等提交和固定接受版本读回也适用于云端任务，按 [ADR-021 TaskSyncCore](architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) 由两种模式分别适配。未来页面应分别显示“Agent 当前活动”“已接受的语义进度 / 资产检查点”“仍待对账或读回的提交”及“测试结果”；SDK 活动、子代理回答或传输成功不能代替业务完成和 PASS。这是待实现的报告能力，不改变当前 MCP 操作。
+
+## Local 统一发行与一键接入目标（尚未实现、未发布）
+
+项目页拟增加 **本地模式接入**：选择 `claude-code`、`codex` 或 `deepseek-harness`，显示固定 HyperTest Local release、实际支持版本与能力，并复制一条不含秘密的项目安装命令。MCP、Hooks 适配、协调器、私有客户端及安装管理工具同包发行，不让用户分别拼装。这里是新入口设计；现有 **Create test run → My computer** 继续属于旧受管 Run 安装流程，`mcp-v0.1.0` 不改称已支持新 SessionTask / Hooks。
+
+1. 将项目生成的命令交给当前 Agent，校验固定 bootstrap 与 payload 后，在用户私有目录隔离安装，仅合并所选宿主本包拥有的配置，保留其他 MCP / Hooks / 技能。实际发行尚不存在时不提供可运行命令，不显示“安装成功”。
+2. 检查已有项目 `task:sync` 授权 profile；缺失则显示等待安全授权，不把 token 放进命令 / 聊天，也不要求 Agent 获取 Operator key。需要宿主重载时提示用户按宿主方式操作，不强退当前会话或声称热加载。DeepSeek 需明确所选 home / profile。
+3. doctor 分别展示发行校验、宿主配置、项目授权、真实父会话映射和自动触发状态；MCP-only 必须明确标记。安装不会创建示例 Task、伪造 session 或自动上传历史聊天。
+4. 当前真实父会话产生正式测试产物后，取得有效 ACK 并完整读回固定接受版本，另行标记本次同步已核验。配置就绪不等于同步成功，任一成功不等于任务完成或测试 PASS。
+
+三宿主分别验收；不能用 Codex 成功填充 Claude / DeepSeek 的支持状态。升级 / 回退保留原 client 与未知 journal；卸载只移除本包拥有配置，不删用户会话、项目目录、其他 MCP / Hooks 或平台历史。发布资产、可信校验、兼容矩阵与分阶段安装验收见[统一发行与安装设计](LOCAL_MODE_RELEASE_AND_INSTALLATION.md)。本节不执行安装、发布或历史上传。
+
+## 云端测试六步流程（设计已接受，尚未实现）
+
+以下项目创建、任务创建和执行都在云端 Web / API / Worker 链路内完成；不能据本节寻找现成 Cloud 按钮或上传真实凭据。
+
+| 步骤 | 计划提供的用户流程 | 需要显示和保存的结果 |
+| --- | --- | --- |
+| 1. 创建或复用项目并配置资源 | 在云端 Web 创建 Project，或复用同一 SUT 已有 Project；添加 SUT Git 与测试框架 Git（允许同仓），录入并选择持久保存仓库 token、环境私钥或 SSH 连接方式 | 共享 Project、资源元数据、加密凭据引用、权限与可用性；不回显秘密 |
+| 2. 创建测试任务 | 选被测 branch / feat / MR / SHA、测试框架版本和环境，提供 PRD、测试目标、基本流程与操作 / 预算范围；`feat/*` 可按分支解析，需求标签需关联源码 | 独立 CloudTask 草稿与版本；不冒用 Codex session ID |
+| 3. 核对并下发 | Worker 先解析 / 预检；用户核对精确双 SHA、MR base/head 和实际 head / merge SHA、PRD 版本、环境引用和授权后接受 dispatch | 冻结输入、队列与 CloudAttempt；预检受理 / 连通不等于实际测试，环境部署身份逐轮观察 |
+| 4. 接取与分工 | Python Worker 通过官方 Harness Python SDK 驱动 DeepSeek harness，自行参与或委派 Codex / Claude Code | 当前阶段、委派状态、预算、待答与失败原因；子代理不逐个索取项目登录 |
+| 5. 查看阶段产物 | 逐阶段阅读分析、设计、用例及自动化代码；查看框架仓库 commit 或完整 patch | 原文与历史修订、代码出处、附件上传并读回后的实际内容；push 按任务授权 |
+| 6. 执行并复核 | Agent 调用项目已有框架 / CI，查看每轮用例 actual / result、原始日志 / 报告及最终结论；允许与第 5 步迭代 | 实际代码 / 测试版本、环境出处和执行来源；旧 FAIL / ERROR / BLOCKED 不被后续重跑覆盖 |
+
+用户选择一次任务资源授权，约束 DeepSeek 指挥官及其子代理；Provider 身份由云端预配，Git / SSH 凭据运行时按范围注入。缺少新授权时进入持久 `WAITING_INPUT`。每个 Attempt 独立 runtime / 工作区 / `dsh_home`，取消需由 Worker 停止整个受管进程树；父会话 idle 或 SDK 一轮结束不能显示任务已完成，须等待外部委派终态并回收原件。
+
+云端在执行中通过 CloudTaskReporter / CloudSyncAdapter 复用 TaskSyncCore，持续将明确阶段进度和选定产物检查点交给平台；用户不必等待最终 SDK 回答才看到正式产物。主 / 子 Agent 结构化交付给当前持权 Attempt Worker，只有该 writer 使用云端 typed 接口、`cloud:work` 与 lease / fencing 写入。Cloud 不伪造本地 session、不使用 Local `task:sync` 或全局账本，也无需安装终端 Local 全包；本地协调器仍按原 SessionTask 契约独立运行。
+
+阶段进度通过现有 `SubmitCloudAssets` 保存为非最终 `kind=REPORT` 修订，以稳定 key 保留阶段、里程碑、阻塞和已接受资产引用；现有 Attempt checkpoint 可关联该修订。进度报告不自动改变任务状态或测试结果，最终报告仍单独明确指定，不能拿一次中途检查点充作任务已完成。
+
+进度 / 资产提交失答时仅对账原 key，ACK 后读回固定接受版本 / 检查点才显示对应内容已确认；未读全保留缺口，不用最新修订替代原接受内容。取消时分别展示受管进程 / 远端 CI 或 SSH 的停止观察，以及在途报告的接受 / 读回结果；传输结束不代表测试已停止。两类任务共用 Project 列表，各自 UNKNOWN、权限错误或取消不能改写另一类任务的状态 / 结果。
+
+任务状态与 reported result 分开：工作完成可以有 FAIL 或 BLOCKED，报告 PASS 不自动成为 legacy VERIFIED / RELEASE_READY。相同冻结输入的显式复测追加 Attempt，修改输入建立关联新 CloudTask；待恢复 / UNKNOWN 的原操作先对账，不能点击重试重复执行。会话同步的旧入口仍只保存管理产物，不因新增云端模式转为执行入口。
+
+Cloud creates projects / tasks and executes through cloud Web / API / Worker; its six-step flow is accepted design, **not implemented**. Local currently uses Codex MCP source support; ADR-020's automatic events and explicit MCP will share one coordinator and one future HyperTest Local release, with separate Claude Code / Codex / DeepSeek acceptance. The unified package and one-command bootstrap are not implemented or published. The planned combined task list keeps immutable kinds, mode labels, filters, separate permissions and actions. Local is a collaboration mode, not proof of where tests ran. Cloud uses the official Harness Python SDK rather than ACP or the model HTTP SDK. The steps below retain legacy Run operating instructions and acceptance history; ADR-015 / ADR-016 `CLOUD / LOCAL` execution choices are not these new product modes.
+
+## 历史交付基线与既有工作台
+
+以下基线来自 ADR-015 当次交付；本次文档修订未巡检服务器。后续交付见 [ADR-016 生产记录](ADR016_PRODUCTION_DEPLOYMENT.md)及[安装发行记录](MCP_INSTALLATION_DELIVERY_20261020.md)，实际运维以[服务器文档](SERVER_OPERATIONS.md)及对应发布记录为准。
+
+ADR-015 当次生产应用为 `63bd6cc`，原 Host Bridge 为 `95e92c5`，数据库为
 `0018_harness_selection`。ADR-014 的 CLOSED 后治理与 ADR-015 双模式均已包含在发布中；
 各自隔离验收仍独立保留。严格外部 TLS 已核验，线上本地 Connector 核心周期已通过。
-当前发布和限制见[生产部署记录](ADR015_PRODUCTION_DEPLOYMENT.md)，历史治理结果见
+该次发布和限制见[生产部署记录](ADR015_PRODUCTION_DEPLOYMENT.md)，历史治理结果见
 [会话关闭后 Gate 验收](POST_SESSION_GATE_ACCEPTANCE.md)。
 
-Production uses application `63bd6cc`, the retained Host Bridge `95e92c5` and schema0018.
+The historical ADR-015 delivery used application `63bd6cc`, the retained Host Bridge `95e92c5` and schema0018.
 ADR-014 and ADR-015 are included in the deployed application. Strict external TLS is verified;
 the online local-Connector core E2E is verified. Separate historical acceptance remains linked
-from [the current production record](ADR015_PRODUCTION_DEPLOYMENT.md).
+from [that production record](ADR015_PRODUCTION_DEPLOYMENT.md).
 
 ## 结果复核与修复后复测 / Result review and retest
 

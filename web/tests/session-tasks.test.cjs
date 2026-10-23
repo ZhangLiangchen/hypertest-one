@@ -8,9 +8,9 @@ const load = require("./load-helper.cjs");
 const i18n = load("lib/i18n.tsx", { require });
 const { SessionTaskRecords } = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
 
-function fixture() {
+function fixture(provider = "codex") {
   const at = "2026-10-21T04:00:00+00:00";
-  const task = { id: "task-1", project_id: "project-1", provider: "codex", session_id: "session-long-reference", title: "Provider integration", objective: "Real SUT objective", status: "IN_PROGRESS", plan_markdown: "# Plan\nPreserve the raw source", reported_result: "PASS", version: 2, source: "AGENT_REPORTED", created_at: at, last_synced_at: at };
+  const task = { id: "task-1", project_id: "project-1", provider, session_id: "session-long-reference", title: "Provider integration", objective: "Real SUT objective", status: "IN_PROGRESS", plan_markdown: "# Plan\nPreserve the raw source", reported_result: "PASS", version: 2, source: "AGENT_REPORTED", created_at: at, last_synced_at: at };
   const item = { id: "case-1", task_id: task.id, key: "UC-TX-18-01", title: "Preserved case", steps: ["Call project test", "Inspect result"], expected: "The expected response", actual: "Observed response", reported_result: "PASS", revision: 2, task_version: 2, source: "AGENT_REPORTED", created_at: at };
   const report = { id: "report-1", task_id: task.id, key: "original", title: "Original report", markdown: "# Original\n<script>UNTRUSTED()</script>\nResult: PASS", source_ref: "repo/report.md", reported_result: "PASS", revision: 2, task_version: 2, source: "AGENT_REPORTED", created_at: at };
   return { task, cases: [item], reports: [report], case_history: [{ ...item, id: "case-old", revision: 1, reported_result: "FAIL", actual: "Historical failure" }, item], report_history: [{ ...report, id: "report-old", revision: 1, reported_result: "FAIL", markdown: "# Historical failure\nDo not overwrite" }, report], sync_history: [{ id: "sync-1", task_version: 2, actor_ref: "codex:client", created_at: at, task_snapshot: task }] };
@@ -21,11 +21,13 @@ function render(detail, locale) {
 }
 
 test("session task separates progress and reported result and preserves previous failures in both languages", () => {
-  for (const locale of ["en", "zh"]) {
-    const html = render(fixture(), locale);
+  for (const provider of ["codex", "claude_code", "deepseek_harness"]) for (const locale of ["en", "zh"]) {
+    const html = render(fixture(provider), locale);
+    assert.ok(html.includes(provider), "the actual source provider remains visible");
+    assert.equal(html.includes("Codex reported"), false, "generic labels do not misattribute another provider");
     for (const text of ["session-long-reference", "AGENT_REPORTED", "Historical failure", "Do not overwrite", "The expected response", "Call project test", "Observed response", "codex:client"]) assert.ok(html.includes(text), text);
     assert.ok(html.includes(locale === "en" ? "In progress" : "进行中"));
-    assert.ok(html.includes(locale === "en" ? "Codex reported result" : "Codex 报告结果"));
+    assert.ok(html.includes(locale === "en" ? "Agent reported result" : "Agent 报告结果"));
     assert.ok(html.includes(locale === "en" ? "Pass" : "通过"));
     assert.ok(html.includes(locale === "en" ? "Fail" : "未通过"));
     assert.equal(html.includes(locale === "en" ? ">Unknown<" : ">未知<"), false);
@@ -79,9 +81,9 @@ test("project task reads show loading, empty and refresh errors without discardi
   for (const locale of ["en", "zh"]) {
     for (const state of ["loading", "empty", "error", "stale"]) {
       const query = { isLoading: state === "loading", isFetching: false, isError: state === "error" || state === "stale", error: new Error("Read failed"), refetch() {}, data: state === "stale" ? { items: [fixture().task], total: 1 } : state === "empty" ? { items: [], total: 0 } : undefined };
-      const component = load("app/projects/[projectId]/session-tasks.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@tanstack/react-query" ? { useQuery: () => query } : name === "@/lib/api" ? { errorText: (error) => error.message } : name === "@/app/tasks/task-records" ? load("app/tasks/task-records.tsx", { require: (n) => n === "@/lib/i18n" ? i18n : require(n) }) : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
+      const component = load("app/projects/[projectId]/session-tasks.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "./local-mode-guide" ? { LocalModeGuide: () => null } : name === "@tanstack/react-query" ? { useQuery: () => query } : name === "@/lib/api" ? { errorText: (error) => error.message } : name === "@/app/tasks/task-records" ? load("app/tasks/task-records.tsx", { require: (n) => n === "@/lib/i18n" ? i18n : require(n) }) : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
       const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.ProjectSessionTasks, { projectId: "project-1" })));
-      if (state === "empty") assert.ok(html.includes(locale === "en" ? "No Codex tasks" : "尚未同步 Codex 测试任务"));
+      if (state === "empty") assert.ok(html.includes(locale === "en" ? "No local session tasks" : "尚未同步本地会话任务"));
       if (query.isError) assert.ok(html.includes(locale === "en" ? "Task sync records could not be refreshed" : "无法刷新任务同步记录"));
       if (state === "stale") assert.ok(html.includes("Provider integration"));
       else assert.equal(html.includes("Provider integration"), false);

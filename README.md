@@ -1,6 +1,35 @@
 # HyperTest One
 
-Codex 会话中的测试任务、计划、用例和原始报告可通过 [Session Task MCP 同步](docs/CODEX_SESSION_TASK_SYNC.md)保存到 HyperTest One。一个实际会话对应一个任务；Agent 使用被测项目已有框架执行测试，平台负责管理、读取和版本历史。该入口使用独立 `task:sync` 授权，保留已有受管执行路径与历史。
+## 2026-10-23 生产 Web 上线补记
+
+PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上线。实际 Web 源码为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`；内部真实浏览器六条命令及已有用例 / 原始报告、外部严格 CA HTTPS 已验证。文中“待合并 / 待最终 gate”属于下方验收冻结时点；精确 image、保全、补证顺序和临时授权清理见[生产部署记录](docs/LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。原 `local-v0.1.0` 包 / tag / 三摘要与三宿主证明保持不变；本次后续纯文档提交不代表部署新 Web 源码。
+
+
+## 2026-10-23 新增真实矩阵（已通过）
+
+`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
+
+本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](docs/local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+
+
+HyperTest One 面向两种产品模式，**同一 SUT 的同一 Project 可同时管理云端任务和本地会话任务**，不按模式拆项目或在项目级二选一切换。Cloud与共存视图已有默认关闭的增量实现，受控六步和固定SSH已有实证；全P0与测试服务器常驻Cloud服务更新尚未完成；Local 保留现有 Codex MCP 同步，新增 Hooks 自动触发与 MCP 共用协调器的设计。
+
+| 产品模式 | 流程与当前状态 |
+| --- | --- |
+| **Cloud 云端模式** | [ADR-019](docs/architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md)的独立CloudTask / CloudAttempt、资源 / 凭据、双仓冻结、官方SDK Worker、报告和Web已有部分实现，默认关闭、常驻测试服务器Cloud服务尚未更新。真实DeepSeek / Codex子原件 / 工作区框架及隔离fixture固定SSH已观察；source31对r8同v19固定接受快照的SNAPSHOT_REASSESSMENT strict PASS，无新的current GET或模型 / SSH / SUT执行。旧source30 NON_PASS、旧UNKNOWN / HELD保留，非独立writer / legacy VERIFIED / 全P0；Claude占位、CI / 通用远端shell不支持。见[实现状态](docs/CLOUD_IMPLEMENTATION_STATUS.md)与[阶段计划](docs/CLOUD_TEST_IMPLEMENTATION_PLAN.md)。 |
+| **Local 本地会话同步模式** | 本地 Agent 在已有授权 Project 内同步任务、状态和正式测试产物，一个真实父会话对应一个 SessionTask。当前 [Codex MCP 同步](docs/CODEX_SESSION_TASK_SYNC.md)保留；[ADR-020](docs/architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) 设计 Hooks + MCP 共用协调器；协调器、自动触发、Claude Code / DeepSeek harness 适配及统一发行 / 安装均 **NOT IMPLEMENTED**。原 `task:sync`、版本与 reported result 语义保持。 |
+
+Project 是长期 SUT 身份，任务类型及其 Cloud / Local 来源创建后不可互改。新增默认关闭的 Cloud 页面并列展示获授权任务、提供模式标签 / 筛选并保留各自详情与操作；该共存视图尚未部署生产，查询不合并两类任务的写入或执行权限。Local 不在本机建立另一套 Project，不自动接管 Agent，也不要求云端凭据；它表示会话协作方式，测试可由本地 Agent 调用已授权的远端环境或 CI。
+
+云端按 [P0–P4 计划](docs/CLOUD_TEST_IMPLEMENTATION_PLAN.md)、本地改进按 [L0–L4 计划](docs/LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md)独立推进；先收口可靠协调器，再受控启用各 Harness Hooks。Hooks 是 Local 的触发机制，不是第三种模式；生命周期结束或工具成功不等于业务完成或测试 PASS。只同步用户选定正式资产，已发送未知请求只 GET 原 key，成功须有效回执和固定版本完整读回。关闭 Hooks 或云端执行均保留现有 MCP 与历史，本次不安装 Hook 或修改全局技能。
+
+**共享进度 / 产物同步设计：** [ADR-021 TaskSyncCore](docs/architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) 将本地设计中的正式资产清单、语义变化、请求冻结、幂等对账与接受版本读回复用于云端。LocalSyncCoordinator / LocalSyncAdapter 保留原 SessionTask / `task:sync`；CloudTaskReporter / CloudSyncAdapter 由当前 CloudAttempt Worker 持权持续报告，独立于 SDK 执行控制，主 / 子 Agent 不另持平台凭据。共享库供 Local L1 与 Cloud P2 / P3 接入，各自任务、版本操作、lease、授权和账本保持独立。共享核心与 Cloud reporter / adapter 已有增量源码，完整契约验收未完成；Local 交付另记。Cloud 镜像可复用兼容库，无需本地 bootstrap 或完整 Local release。
+
+**共享项目经验方向：** 已确定独立云主机部署 PowerContext；[服务运行记录](docs/POWERCONTEXT_SERVICE.md)单独记录其实际部署 / 检索验收。[ADR-022](docs/architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) 提议未来经 Memory Gateway 让 Cloud Worker broker 和 Local 可选 adapter 显式检索 / 提交获准经验，人工确认脱敏后 Project 共享；**Gateway / HyperTest 集成为 Proposed / NOT IMPLEMENTED**。服务静态 Bearer 共用 admin、Scope 不提供授权隔离，不向 Agent 分发服务 key。记忆故障不阻断任务 / 同步，历史命中不证明当前测试事实；首版不装自动 memory 插件、不扫聊天，外部模型默认关闭。阶段与边界见[集成计划](docs/POWERCONTEXT_INTEGRATION_PLAN.md)。
+
+云端使用官方Harness Python SDK，不是模型HTTP API SDK，不采用ACP。受控任务、固定SSH、独立只读重放和版本化checker结果按各自source记录；默认关闭、尚未更新常驻测试服务器Cloud服务。[SDK无模型探针](docs/DEEPSEEK_HARNESS_SDK.md)本身不证明模型 / 委派或测试PASS。ADR-015 / ADR-016的旧Run执行位置与Cloud / Local产品模式保持独立语义。
+
+**Local 统一安装目标：** 将 MCP、Hooks 适配、协调器与私有客户端打成一个 HyperTest Local release；项目页提供一条固定版本、可校验且不含秘密的安装命令，由 Claude Code、Codex 或 DeepSeek harness 为所选宿主安装。三者按版本独立验收 MCP、父会话身份、自动触发及真实同步；配置就绪与首次 ACK / 全量读回分开。升级 / 卸载保留其他 MCP / Hooks、用户会话、项目目录和未决 journal。该统一包及一键命令**尚未实现或发布**，见[统一发行与安装设计](docs/LOCAL_MODE_RELEASE_AND_INSTALLATION.md)；当前仍使用现有 Codex MCP 指南，旧 `mcp-v0.1.0` 不重标为新 Hooks 发行。
 
 
 > **One Input. One Mission. One Complete Test Cycle.**
@@ -11,7 +40,7 @@ HyperTest One is an autonomous testing control plane with a state-centered Web w
 Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding → Verdict
 ```
 
-**Agent produces intelligence. Runner produces facts. HyperTest produces decisions.**
+**Agent performs testing work. Project test tools produce execution results. HyperTest manages testing state and conclusions.** Legacy Runner profiles retain their original facts and Gate semantics.
 
 Agents submit proposals; HyperTest validates and commits canonical state. PostgreSQL owns traceability, snapshots, audit, and transactional outbox records. Legacy Runs use per-Mission sessions. ADR-013 introduces a persistent native session per Run; conversation remains separate from canonical testing state.
 
@@ -26,13 +55,21 @@ Read these before changing the architecture or domain:
 
 [Current MVP status](docs/MVP_STATUS.md) records implemented capabilities, trust boundaries, verification, and the secondary roadmap.
 
+[Cloud test implementation plan](docs/CLOUD_TEST_IMPLEMENTATION_PLAN.md) records the accepted SDK-based six-step design, dependencies, delivery / acceptance exit criteria, compatibility checks and rollback boundaries. It adds no execution behavior to [ADR-018 session synchronization](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md).
+
+[Local session sync implementation plan](docs/LOCAL_SESSION_SYNC_IMPLEMENTATION_PLAN.md) records the accepted [ADR-020](docs/architecture/ADR-020_HOOK_DRIVEN_LOCAL_SESSION_SYNC.md) design: Hooks trigger automatically; explicit MCP operations share one semantic coordinator, private client, typed API and journal. The coordinator and provider Hook adapters are not implemented. Existing Codex MCP instructions remain valid; enabling or disabling either future feature must preserve explicit sync, original-key reconciliation and history.
+
+[Local release and installation design](docs/LOCAL_MODE_RELEASE_AND_INSTALLATION.md) specifies one versioned package and a future Project-generated one-command bootstrap for `claude-code`, `codex` and `deepseek-harness`, with fixed artifacts, scoped authorization, per-host acceptance and safe upgrade / uninstall. No unified release or runnable bootstrap is provided by this documentation update.
+
+[Shared TaskSyncCore decision](docs/architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) reuses reliable progress / asset reporting across both modes through separate domain adapters. Local keeps its existing SessionTask protocol; Cloud reports through the current fenced Attempt writer. The common library is planned, with independent delivery and credentials per mode.
+
 [First-phase acceptance](docs/FIRST_PHASE_ACCEPTANCE.md) records actual checks and live
 integration evidence. [Server operations](docs/SERVER_OPERATIONS.md) contains the
 deployed release, SSH access, service management, and paired backup/recovery steps.
 
 The current product targets **one trusted operator** in a controlled development/test environment. Application login, tenant isolation, RBAC, and hardened public deployment are future work.
 
-The current production API/Worker core is **`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`** (PR #17), with schema **`0020_interactive_tool_inbox`**. That release's PR and main CI passed with 967 tests passed and 21 skipped. The [ADR-016 production record](docs/ADR016_PRODUCTION_DEPLOYMENT.md) records the real current-Agent MCP cycle, explicit same-identity recovery and historical preservation. Web onboarding from **`980f27ab2341f1d62b2ee4896a321a240555548b`** was deployed on **2026-10-20 at 08:29:06 UTC**, with 35 preservation checks passed and platform health 10/10; the API/Worker core, schema, Bridge, operations package, existing data/authorization and access boundary remain. The [MCP installation delivery record](docs/MCP_INSTALLATION_DELIVERY_20261020.md) separates that Web rollout and distribution verification from the earlier testing cycle.
+The recorded **2026-10-20** production API/Worker core was **`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`** (PR #17), with schema **`0020_interactive_tool_inbox`**. That release's PR and main CI passed with 967 tests passed and 21 skipped. The [ADR-016 production record](docs/ADR016_PRODUCTION_DEPLOYMENT.md) records the real current-Agent MCP cycle, explicit same-identity recovery and historical preservation. Web onboarding from **`980f27ab2341f1d62b2ee4896a321a240555548b`** was deployed on **2026-10-20 at 08:29:06 UTC**, with 35 preservation checks passed and platform health 10/10; that rollout preserved the API/Worker core, schema, Bridge, operations package, existing data/authorization and access boundary. The [MCP installation delivery record](docs/MCP_INSTALLATION_DELIVERY_20261020.md) separates that Web rollout and distribution verification from the earlier testing cycle. These are historical delivery identities, not a fresh server inspection or acceptance of ADR-019.
 
 The historical production baseline was read-only verified on 2026-10-19 at merged main **`4d597d4`** (PR #12 Web, PR #11 API/Worker), with Host Harness Bridge build **`95e92c5`** and database **`0014_harness_operations`**. Its containers, restricted access and existing data/session/artifact hashes matched that delivery. The later ADR-015 release and schema `0018` are recorded in [ADR-015 production deployment](docs/ADR015_PRODUCTION_DEPLOYMENT.md); those records retain their own source identities and acceptance limits.
 
@@ -49,6 +86,8 @@ The deployed Web provides a Project-specific installation prompt under **Create 
 The production Web entry accepts only the configured jump-host egress allowlist. Connection details live in protected operator configuration; this README does not publish the jump-host address. SSH is for administration and manual recovery, with forwarding disabled; there is no supported Web tunnel. Routine releases inspect the access rules and internal readiness without repeating connectivity probes from each external network. Initial activation or an access-boundary change requires separate access validation. See [the access guide](docs/WEB_PRODUCT_WORKFLOW.md#白名单-web-入口--allowlisted-web-access).
 
 ## Use the Web workbench
+
+The steps below describe the existing managed Run workbench. ADR-019 Cloud pages have default-off source at `/projects/{projectId}/cloud`. The [implementation status](docs/CLOUD_IMPLEMENTATION_STATUS.md) distinguishes controlled SDK/Codex/SSH execution, same-version snapshot strict acceptance, remaining reliability gaps and the pending resident test-server Cloud update.
 
 The workbench supports **中文 / English** switching in the top-right corner, with
 the choice preserved across navigation and reloads. It includes guided project/run

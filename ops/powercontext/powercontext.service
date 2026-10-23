@@ -1,0 +1,35 @@
+[Unit]
+Description=PowerContext explicit shared memory service (1.4.0)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=powercontext
+Group=powercontext
+EnvironmentFile=/etc/powercontext/server.env
+WorkingDirectory=/var/lib/powercontext
+ExecStart=/opt/powercontext/releases/1.4.0/venv/bin/powercontext server run --no-env-file
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/powercontext
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryHigh=300M
+MemoryMax=420M
+MemorySwapMax=256M
+CPUQuota=60%
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

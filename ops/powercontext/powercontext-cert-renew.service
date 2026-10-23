@@ -1,0 +1,12 @@
+[Unit]
+Description=Renew PowerContext short-lived IP certificate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/flock /run/powercontext-maintenance.lock /opt/powercontext/certbot/5.8.0/venv/bin/certbot renew --no-random-sleep-on-renew --config-dir /etc/powercontext/acme --work-dir /var/lib/powercontext-acme --logs-dir /var/log/powercontext/acme --non-interactive --deploy-hook /opt/powercontext/deploy-certificate.py
+TimeoutStartSec=15min
+MemoryMax=192M
+CPUQuota=50%

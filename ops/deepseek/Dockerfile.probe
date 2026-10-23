@@ -1,0 +1,9 @@
+# Supply the existing disposable validation image with the pinned cloud extra.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends bubblewrap ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+# Runtime flags stay network=none, read-only, cap-drop=ALL and no-new-privileges.
+# Do not add privileged, SYS_ADMIN, seccomp-unconfined or a host credential mount.

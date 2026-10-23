@@ -1,0 +1,13 @@
+# OPTIONAL EXPLICIT OPT-IN, preparation only. Not enabled by the base unit.
+# Render into a reviewed drop-in for the exact same Worker unit, after independent
+# native capability, cloud identity and Task request-credit authorization checks.
+[Service]
+Environment=HYPERTEST_CLOUD_CODEX_ENABLED=true
+Environment=HYPERTEST_CLOUD_CODEX_MODEL=gpt-5.6-sol
+Environment=HYPERTEST_CLOUD_CODEX_PAYLOAD=/opt/hypertest-cloud/delegates
+Environment=HYPERTEST_CLOUD_CODEX_PAYLOAD_SHA256=@CODEX_PAYLOAD_MANIFEST_SHA256@
+Environment=HYPERTEST_CLOUD_CODEX_OAUTH_FILE=%d/codex-oauth
+Environment=HYPERTEST_CLOUD_CODEX_MAX_REQUESTS=8
+Environment=HYPERTEST_CLOUD_CODEX_REQUEST_CREDITS=1
+LoadCredential=codex-oauth:@CODEX_OAUTH_HOST@
+BindReadOnlyPaths=@CODEX_PAYLOAD_HOST@:/opt/hypertest-cloud/delegates
