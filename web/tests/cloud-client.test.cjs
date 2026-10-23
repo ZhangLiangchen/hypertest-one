@@ -169,6 +169,73 @@ test("Completed task progress never supplies the test-result success tone", () =
   assert.equal(cloudProgressTone("RECOVERY_REQUIRED"), "gold");
 });
 
+function taskPage(status, options = {}) {
+  const projectId = "00000000-0000-4000-8000-000000000001", taskId = "00000000-0000-4000-8000-000000000002";
+  const attempt = status === "DRAFT" ? null : { id: "attempt-1", attempt_no: 1, status, checkpoint: {}, reason: "MODEL_KEY_UNAVAILABLE" };
+  const document = { task: { id: taskId, project_id: projectId, version: 1, config_id: "config-1", title: "Task",
+    latest_attempt_id: attempt?.id ?? null, status, reported_result: options.result || "NOT_RUN", inputs: {} },
+    attempts: attempt ? [attempt] : [], resolutions: [], questions: [], answers: [], assets: [{ markdown: "Original FAIL" }], runs: [], run_cases: [], artifacts: [], delegations: [] };
+  const live = { ...document.task, current_attempt: attempt, resolutions: [], observed_at: "2026-10-23T00:00:00Z" };
+  const values = { "cloud-web-setup": { configured: true }, "cloud-capabilities": { enabled: true, worker_enabled: true },
+    "cloud-config": { items: [{ id: "config-1", configuration: { environment: { connection: "NONE" }, sut: { url: "https://git.invalid/sut" }, framework: { url: "https://git.invalid/framework" } } }] },
+    "cloud-task": document, "cloud-task-live": options.missingLive ? undefined : options.foreignLive ? { ...live, project_id: "other-project" } : live };
+  const ui = Object.fromEntries(["Alert", "Button", "Checkbox", "Descriptions", "Space", "Spin", "Steps", "Table", "Tabs", "Tag"].map((name) => [name, name]));
+  Object.assign(ui, { Form: { Item: "Form.Item" }, Input: { TextArea: "Input.TextArea" }, Typography: { Title: "Title", Text: "Text", Paragraph: "Paragraph" } });
+  let writes = 0;
+  const jsx = (type, props) => ({ type, props });
+  const original = JSON.stringify(document);
+  const page = load("app/cloud-tasks/[taskId]/page.tsx", { require: (name) => {
+    if (name === "react") return { useState: (initial) => [initial, () => {}], useEffect() {} };
+    if (name === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
+    if (name === "antd") return ui;
+    if (name === "@ant-design/icons") return { ArrowLeftOutlined: "ArrowLeftOutlined", ReloadOutlined: "ReloadOutlined" };
+    if (name === "next/link") return "Link";
+    if (name === "next/navigation") return { useParams: () => ({ taskId }), useSearchParams: () => new URLSearchParams({ projectId }) };
+    if (name === "@tanstack/react-query") return { useQuery: ({ queryKey }) => ({ data: values[queryKey[0]], refetch() {}, isError: false }) };
+    if (name === "@/lib/cloud") return helpers();
+    if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit() { writes++; throw new Error("render must not write"); } }) };
+    if (name === "@/lib/i18n") return { useI18n: () => ({ t: (en) => en, label: (value) => value }) };
+    if (name === "@/app/tasks/task-records") return { ReportedResultTag: "ReportedResultTag" };
+    if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice" };
+    if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
+    return require(name);
+  } });
+  const tree = page.default();
+  const nodes = (value) => !value || typeof value !== "object" ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children)];
+  const rendered = nodes(tree);
+  assert.equal(JSON.stringify(document), original, "a progress projection cannot rewrite accepted history");
+  assert.equal(writes, 0);
+  return { steps: rendered.find((node) => node.type === "Steps").props,
+    result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
+    unknown: rendered.some((node) => node.type === "Paragraph" && String(node.props.children).includes("Phase completion is unknown")) };
+}
+
+test("Missing live identity and early terminal states show no inferred completed Harness phase", () => {
+  for (const [status, options] of [["DRAFT", { missingLive: true }], ["COMPLETED", { foreignLive: true }], ["FAILED", {}], ["CANCELLED", {}], ["RECOVERY_REQUIRED", {}]]) {
+    const page = taskPage(status, options);
+    assert.equal(page.steps.current, -1);
+    assert.equal(page.unknown, true);
+    assert.equal(page.result, "NOT_RUN");
+  }
+});
+
+test("In-flight work stays on Harness work instead of marking it finished without a delivered result", () => {
+  for (const status of ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"]) {
+    const page = taskPage(status);
+    assert.equal(page.steps.items[page.steps.current].title, "Harness work");
+    assert.equal(page.unknown, false);
+    assert.equal(page.result, "NOT_RUN");
+  }
+  assert.ok(taskPage("DRAFT").steps.current < taskPage("RUNNING").steps.current);
+});
+
+test("A delivered task can reach execution/report while retaining its original reported FAIL", () => {
+  const page = taskPage("COMPLETED", { result: "FAIL" });
+  assert.equal(page.steps.items[page.steps.current].title, "Execution and report");
+  assert.equal(page.result, "FAIL");
+  assert.equal(page.unknown, false);
+});
+
 test("Browser reconciliation only reads the original key and retains the pending stream", () => {
   const source = fs.readFileSync(path.join(__dirname, "../lib/cloud-operation.ts"), "utf8");
   const reconciliation = source.slice(source.indexOf("async function reconcile"));

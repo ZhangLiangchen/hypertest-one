@@ -60,7 +60,11 @@ export default function CloudTaskPage() {
   const blocked = operation.blocked || !enabled || !operational.valid;
   const answered = new Set(detail.answers.map((row) => row.question_id));
   const questions = detail.questions.filter((row) => !answered.has(row.id));
-  const step = status === "DRAFT" ? accepted ? 2 : 1 : ["QUEUED", "PREPARING"].includes(status || "") ? 3 : status === "COMPLETED" ? 5 : 4;
+  // State identifies current work, not a history of completed business phases.
+  // Unknown/recovery/failed/cancelled states cannot establish how far work got.
+  const step = status === "DRAFT" ? accepted ? 2 : 1
+    : ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"].includes(status || "") ? 3
+      : status === "COMPLETED" ? 5 : -1;
   return <main>
     <div className="page-heading"><Link href={`/projects/${projectId}/cloud`}><ArrowLeftOutlined aria-hidden /> {t("Project cloud tasks", "项目云端任务")}</Link>
       <div className="workbench-heading"><div><Typography.Title level={1}>{task.title}</Typography.Title><Space wrap><Tag>Cloud · DeepSeek</Tag><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag><Typography.Text>{t("Reported test result", "报告的测试结果")}: <ReportedResultTag result={task.reported_result} /></Typography.Text><Typography.Text type="secondary">{t("Accepted version", "接受版本")}: {task.version}</Typography.Text></Space></div>
@@ -72,6 +76,7 @@ export default function CloudTaskPage() {
       description={t("Accepted artifacts remain unchanged. Controls wait for matching Project, Task, Attempt and version observations; refresh both views to continue.", "已接受产物保持原样；控制操作等待 Project、Task、Attempt 和版本一致的观察，请刷新两类视图后继续。 ")} /> : null}
     <CloudOperationNotice operation={operation} />
     <Steps current={step} size="small" responsive style={{ marginBottom: 28 }} items={[t("Project resources", "项目资源"), t("Task inputs", "任务输入"), t("Resolve and freeze", "解析与冻结"), t("Harness work", "Harness 工作"), t("Test artifacts", "测试产物"), t("Execution and report", "执行与汇报")].map((title) => ({ title }))} />
+    {step < 0 ? <Typography.Paragraph className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</Typography.Paragraph> : null}
     <Tabs animated={false} items={[
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <Space direction="vertical" size={24} style={{ width: "100%" }}>
         <section className="overview-section"><Typography.Title level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
