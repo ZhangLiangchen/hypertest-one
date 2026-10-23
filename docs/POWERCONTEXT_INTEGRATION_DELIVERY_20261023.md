@@ -1,5 +1,7 @@
 # PowerContext 集成交付（2026-10-23）
 
+后续受控HTTPS开发已将API/独立Worker更新到76edb01、schema0028，Web仍为本记录的e28d23c；Memory权限/功能边界保持，当前镜像与容量见[最新跟进](FOLLOWUP_DELIVERY_20261023.md)。下方保留Memory初次交付的固定身份。
+
 **实现与部署完成；功能验收 PENDING / USER_OWNED。** 用户本轮明确授权集成；本记录与[P0-1/P0-2交付](P0_RECOVERY_DELIVERY_20261023.md)及独立[PowerContext服务历史](POWERCONTEXT_SERVICE.md)分开。本轮未创建线上验收Project/Task/经验fixture或验收grant，未触发真实模型/SUT，未导入聊天、推理、raw tool payload或认证目录。
 
 ## 已实现范围

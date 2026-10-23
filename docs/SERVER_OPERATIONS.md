@@ -57,7 +57,7 @@
 
 ### 2026-10-23 Cloud Git 交付
 
-最新 API/Web/独立 Cloud Worker 已按 Git `e28d23cd58cd868a9a672be9f9ab6f608416c5c7` 部署，包含P0-1/P0-2及追加的PowerContext集成，五容器healthy、Cloud Worker active，schema为0027；legacy Worker保留55de50e。镜像、增量迁移和最小健康检查见[Memory集成交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)，先前[P0交付记录](P0_RECOVERY_DELIVERY_20261023.md)保留原轮次身份。以下 C4/6d49 是原轮次历史，不能据此覆盖现有工作区或判断当前镜像。
+最新API/独立Cloud Worker为Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增默认关闭的受控公开HTTPS首片/框架冻结；Web保留e28d23c，schema0028，五容器healthy、Cloud Worker active，legacy Worker保留55de50e。镜像、迁移与健康见[最新跟进交付](FOLLOWUP_DELIVERY_20261023.md)，[Memory](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)与[P0](P0_RECOVERY_DELIVERY_20261023.md)原记录保留。根盘仅余约0.5GiB，后续构建前应明确扩容或可清理范围；本轮未删历史，仅共享本轮新增的4个完全相同只读payload文件。以下C4/6d49是原轮次历史，不能据此覆盖工作区或判断当前镜像。
 
 C4 `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署可供用户操作：当前库备份后向前升级至 `0026_cloud_ssh_operations`，原五角色健康；独立 `hypertest-cloud-worker.service` active-idle，Codex=true / SSH=false，未自动enable。旧Bridge、legacy Worker镜像、端口 / VPN和历史计数保留。严格TLS / CA / IP SAN及Cloud BFF typed读取已作部署路由检查，本轮未创建用户验收业务数据、未启动新的模型或SUT执行，用户验收为 `PENDING / USER_OWNED`。Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份；精确Git / images / 回执和既有失败见[Cloud交付记录](CLOUD_GIT_DELIVERY_20261023.md)。下方05:49等旧交付段落仍按其原轮次保存，不作为当前schema身份。
 

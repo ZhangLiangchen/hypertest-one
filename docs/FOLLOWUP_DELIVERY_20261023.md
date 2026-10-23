@@ -24,4 +24,21 @@ DB定向开发首次12通过/1失败，发现合法OBSERVED的lease字段误用�
 
 ## 部署
 
-固定Git、API/Cloud Worker镜像、schema及最小健康结果在本轮部署完成后补充；Web与legacy Worker保持各自现有镜像身份。新HTTPS开关保持false，不改变VPN/SSH/访问限制或Memory权限。新目标启用、新凭据/扩权及新版Local公开发行都需具体授权，不能以常规测试服务器部署代替。
+代码已推送main，服务器fetch后固定完整SHA `76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，从干净源码构建API和Cloud Worker；本记录部署后补充为纯文档变更，不重建镜像。Web与legacy Worker保持各自现有镜像身份。
+
+| 项目 | 固定身份 / 结果 |
+| --- | --- |
+| API | `sha256:070fabb665246d108c33091ddb0f76bdaf5c761ed6e39044edcfbaaacd1b0b19`；revision为上述76edb01完整SHA |
+| Cloud Worker | `sha256:2ec7dc863f544fe64ea41cdb6ef65c010218b96ace85704998f01eb62473adc3`；release `/opt/hypertest-cloud/releases/76edb01a985b484bb1d1e1a88fcadd44b7a3532b`；manifest SHA-256 `4b9b66788657c19830ccae71bad8c556b9640bfd75f6fd92cb5c5454817d43ff` |
+| Web | 保留`e28d23cd58cd868a9a672be9f9ab6f608416c5c7`，image `sha256:0e534f0f93c8029087216a948538804544692484f2d9c4d03c0d9e2dbe9f0d16` |
+| legacy Worker | 保留`55de50e215961ee4a1061b32f86670bd23259324`，image `sha256:ff650c8a9f59d311f51614a3183f4327bd1125f4d9e6edd511b8b7ff96e3bf4c` |
+| 迁移与保全 | 线上0027→0028成功；迁移前`pg_dump -Fc`为1,650,580 bytes；新HTTP两表均0行，未创建线上fixture |
+| 健康 / 关键只读路径 | 五容器healthy、独立Worker active；API health、Web根页、Memory setup及Cloud BFF capabilities均HTTP200 |
+| 能力展示与开关 | API/BFF implemented HTTPS=true，但configured=false；运行Worker进程的HTTPS开关false；resume_supported=false、reconcile_supported=true |
+| 访问边界 | ingress guard protected；原TLS/VPN/SSH及Memory配置、grant目录保持；没有新目标授权、新凭据或真实模型/SUT执行 |
+
+本轮停止并替换API/Cloud Worker，重启nginx刷新上游解析；Web、PostgreSQL与legacy Worker保持运行。Worker经原启动准入，运行进程所见release manifest的source_commit已核对。新HTTPS开关保持false，不改变VPN/SSH/访问限制或Memory权限。新目标启用、新凭据/扩权及新版Local公开发行都需具体授权，不能以常规测试服务器部署代替。
+
+构建后磁盘曾仅余约90MiB。仅对本轮新release中4个与原只读Codex payload逐文件摘要相同的大文件改用硬链接共享，释放458,379,264 bytes；原文件路径、内容和manifest摘要全部保留，旧release/镜像/源archive/数据库/卷/会话/未决journal均未删除，准入校验仍通过。剩余约0.5GiB，**后续构建前需决定扩容或明确可清理范围**；本轮不擅自扩容、付费或清理历史。
+
+部署回执目录为 `/var/lib/hypertest-cloud/delivery/20261023-followup-76edb01a`，含build/deployment JSON、构建/migration日志、before-0028.dump与payload-sharing.json。回归tmpfs数据库仅清理了本轮精确owner容器。基础健康检查已通过，无具体未解决的本轮实现故障后停止，不追加用户验收或恢复演练。

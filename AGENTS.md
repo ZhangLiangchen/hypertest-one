@@ -6,7 +6,7 @@
 
 ## 当前测试服务器：开发与部署规则（2026-10-23）
 
-最新 API/Web/独立 Cloud Worker 已按 Git `e28d23cd58cd868a9a672be9f9ab6f608416c5c7` 部署，包含 P0-1/P0-2 及本轮追加的 PowerContext 集成，schema为0027，legacy Worker保留55de50e。见[Memory集成交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0恢复交付原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文 C4/6d49 和各旧验收结果保留历史来源，不替代最新部署身份或用户验收。
+最新API/独立Cloud Worker已按Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b` 部署，新增默认关闭的受控公开HTTPS首片与框架冻结；Web保留`e28d23cd58cd868a9a672be9f9ab6f608416c5c7`，schema0028，legacy Worker保留55de50e。P0/Memory能力与独立权限保持，见[最新跟进交付](docs/FOLLOWUP_DELIVERY_20261023.md)、[Memory原交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文C4/6d49等保留历史，不替代最新部署身份或用户验收。根盘仅余约0.5GiB，后续构建前应先明确容量处置，不自行删除历史。
 
 本服务器是内部测试环境，允许服务中断，没有零停机要求。Compose、容器、目录和历史文档中的 `production` / “生产”命名不代表当前环境的可用性要求。
 

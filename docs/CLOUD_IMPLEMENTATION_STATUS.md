@@ -1,6 +1,6 @@
 # 云端任务实现状态与接入入口
 
-**最新实现已部署：** 应用 Git `e28d23cd58cd868a9a672be9f9ab6f608416c5c7`，包含[Web未决保全与Cloud安全收尾](P0_RECOVERY_DELIVERY_20261023.md)及用户追加的[PowerContext集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。API/Web/独立Cloud Worker已更新、五容器健康、schema为0027。Memory独立权限不自动继承，Cloud逐Project grant须显式配置。下文 C4/6d49 属于旧轮次；本次回归和镜像身份以新记录为准，用户功能验收仍由用户负责。SDK原会话续接未实现，人工收尾不清UNKNOWN、不释放HELD。
+**最新实现已部署：** API/独立Cloud Worker的Git为`76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增[受控公开HTTPS首片/框架冻结](FOLLOWUP_DELIVERY_20261023.md)，开关保持false，schema0028；Web保留e28d23c，五容器健康。既有[Web未决保全与Cloud安全收尾](P0_RECOVERY_DELIVERY_20261023.md)及[PowerContext集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)保留；Memory逐Project grant仍须独立显式配置。完整剩余范围见[当前TODO](TODO.md)，P1整体及P2执行能力未因此标完成。下文C4/6d49属于旧轮次，不替代新镜像或用户验收。SDK原会话续接未实现，人工收尾不清UNKNOWN、不释放HELD。
 
 ## 正式 Git 集成与当前部署边界
 
