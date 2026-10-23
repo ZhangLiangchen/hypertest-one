@@ -41,6 +41,16 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
   }, [rotationId, selectedCredential, rotationBaseline?.id]);
 
   useEffect(() => {
+    const accepted = operation.receipt;
+    // Original-key reconciliation may finish after saveCredential returned UNKNOWN.
+    // A receipt alone is insufficient: the pending stream clears only after full readback.
+    if (rotationId && rotationBaseline && !operation.pending && !operation.busy && !operation.issue && accepted?.operation === "STORE_CREDENTIAL"
+      && accepted.credential_id === rotationId && rotationBaseline.id === rotationId && accepted.version > rotationBaseline.version) {
+      setRotationBaseline({ id: rotationId, version: accepted.version }); onSaved();
+    }
+  }, [operation.receipt, operation.pending, operation.busy, operation.issue, rotationId, rotationBaseline, onSaved]);
+
+  useEffect(() => {
     if (!latest || loaded !== null || draftTouched) return;
     const config = latest.configuration;
     form.setFieldsValue({ sut_url: config.sut.url, sut_ref: config.sut.default_selector.value, sut_kind: config.sut.default_selector.kind,
@@ -88,7 +98,12 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
     // Clear raw material from the form on first send, including uncertain writes.
     fileGeneration.current++; credentialForm.setFieldValue("secret", ""); setFileName("");
     const result = await operation.submit(request);
-    if (result) onSaved();
+    if (result) {
+      // submit resolves only after the matching ACK and complete accepted readback.
+      // Advance this local intention, never an unrelated externally refreshed version.
+      if (credential && result.credential_id === credential.id) setRotationBaseline({ id: credential.id, version: result.version });
+      onSaved();
+    }
   }
 
   return <Space direction="vertical" size={28} style={{ width: "100%" }}>

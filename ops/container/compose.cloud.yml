@@ -1,0 +1,49 @@
+# Explicit Cloud control-plane opt-in. No SDK in API/Web or new TCP listener.
+# New host-systemd Cloud Worker is separate from the legacy Compose worker.
+services:
+  api:
+    environment:
+      HYPERTEST_CLOUD_ENABLED: "true"
+      # This reports the independently deployed host Worker configuration;
+      # the API never starts it. Both configurations use the same reviewed flag.
+      HYPERTEST_CLOUD_WORKER_ENABLED: ${HYPERTEST_CLOUD_WORKER_ENABLED:?explicit host Worker configuration required}
+      HYPERTEST_CLOUD_CODEX_ENABLED: ${HYPERTEST_CLOUD_CODEX_ENABLED:-false}
+      HYPERTEST_CLOUD_CREDENTIAL_KEY_FILE: /run/hypertest-cloud-api/wrapping-key
+      HYPERTEST_CLOUD_CREDENTIAL_KEY_ID: ${HYPERTEST_CLOUD_CREDENTIAL_KEY_ID:?existing wrapping key id required}
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_API_WRAPPING_KEY_FILE:?API-owned private same-key copy required}
+        target: /run/hypertest-cloud-api/wrapping-key
+        read_only: true
+        bind: {create_host_path: false}
+  web:
+    user: "1000:1000"
+    environment:
+      HYPERTEST_CLOUD_WEB_ENABLED: "true"
+      HYPERTEST_CLOUD_WEB_ORIGIN: ${HYPERTEST_CLOUD_API_ORIGIN}
+      HYPERTEST_CLOUD_API_ORIGIN: ${HYPERTEST_CLOUD_API_ORIGIN:?canonical existing HTTPS origin required}
+      HYPERTEST_CLOUD_API_SOCKET: /run/hypertest-cloud-web/api.sock
+      HYPERTEST_CLOUD_API_CA_FILE: /run/hypertest-cloud-web-ca/ca.crt
+      HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE: /run/hypertest-cloud-web-auth/operator-key
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_SOCKET_DIR:?private nginx-owned socket directory required}
+        target: /run/hypertest-cloud-web
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_API_CA_FILE:?trusted public issuer CA required}
+        target: /run/hypertest-cloud-web-ca/ca.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE:?Web-owned private operator file required}
+        target: /run/hypertest-cloud-web-auth/operator-key
+        read_only: true
+        bind: {create_host_path: false}
+  nginx:
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_SOCKET_DIR}
+        target: /run/hypertest-cloud-web
+        bind: {create_host_path: false}

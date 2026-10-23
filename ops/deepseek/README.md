@@ -1,5 +1,7 @@
 # DeepSeek Cloud 隔离验收
 
+常驻服务的 pushed-Git 构建、持久 release、同身份凭据副本、renderer/doctor 与 HTTPS UDS 接线见 [PERSISTENT_DEPLOYMENT.md](PERSISTENT_DEPLOYMENT.md)。这些准备工具不自动安装或启动服务，历史隔离验收不作为新部署证明。
+
 本目录包含无模型的协议 / 隔离探针、需要另行显式授权的模型连通探针，以及只访问独立验收 API / 数据库的 CloudTask 控制器；均不安装或启动生产服务。无模型入口不读模型身份、不提交 prompt；模型探针不创建平台 Task，测试结果为 `NOT_RUN`；`cloud_acceptance.py` 可在明确授权的独立环境创建 / 下发真实 CloudTask，但不加载 SDK、不执行模型或框架。实际执行仅由另行运行的 Worker 负责，入口间的授权不互相派生。SDK 与 runtime 固定为 `0.2.1rc2`，wire 固定为 `0.0.1`；初始化、模型连通和完整任务分别验收。
 
 ## 两种部署边界

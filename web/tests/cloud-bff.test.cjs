@@ -7,9 +7,21 @@ const { NextRequest } = require("next/server");
 const project = "00000000-0000-4000-8000-000000000001";
 const task = "00000000-0000-4000-8000-000000000002";
 const canary = "synthetic-server-only-operator-key";
-function moduleFor(fetch, enabled = true, cloudOrigin, webOrigin) {
+function moduleFor(fetch, enabled = true, cloudOrigin, webOrigin, transportReady = true) {
   return load("app/api/cloud/[...path]/route.ts", {
-    require: (name) => name === "next/server" ? { NextResponse: { json: (value, init) => new Response(JSON.stringify(value), init) } } : require(name),
+    require: (name) => {
+      if (name === "next/server") return { NextResponse: { json: (value, init) => new Response(JSON.stringify(value), init) } };
+      if (name === "@/lib/cloud-server-auth") return {
+        cloudServerTransportReady: async () => transportReady,
+        cloudServerRequest: async (path, key, init) => {
+          if (!transportReady) throw new Error(canary);
+          return fetch(`${cloudOrigin || "https://cloud-api.example.invalid"}/api/v1/${path}`, {
+            ...init, headers: { "X-Hypertest-Operator-Key": key },
+          });
+        },
+      };
+      return require(name);
+    },
     process: { env: { HYPERTEST_CLOUD_WEB_ENABLED: enabled ? "true" : "false", HYPERTEST_CLOUD_WEB_OPERATOR_KEY: canary, HYPERTEST_API_ORIGIN: "http://isolated-api", HYPERTEST_CLOUD_API_ORIGIN: cloudOrigin, HYPERTEST_CLOUD_WEB_ORIGIN: webOrigin } },
     fetch, Buffer, AbortSignal, TextDecoder, URLSearchParams, URL,
   });
@@ -38,7 +50,7 @@ test("Cloud BFF forwards only declared paths and requires same-origin JSON mutat
   assert.equal(calls.length, 0);
   const response = await routes.POST(request("http://web/api/cloud/operations", { method: "POST", headers: { origin: "http://web", "content-type": "application/json" }, body: JSON.stringify({ operation: "CONFIGURE", operation_key: "original" }) }), context("operations"));
   assert.equal(response.status, 200);
-  assert.equal(calls[0].url, "http://isolated-api/api/v1/cloud/operations");
+  assert.equal(calls[0].url, "https://cloud-api.example.invalid/api/v1/cloud/operations");
   assert.equal(calls[0].options.headers["X-Hypertest-Operator-Key"], canary);
   assert.equal((await response.text()).includes(canary), false);
 });
@@ -96,6 +108,22 @@ test("Cloud may use its own trusted HTTPS origin without changing legacy API rew
   const response = await routes.GET(request("http://web/api/cloud/capabilities"), context("capabilities"));
   assert.equal(response.status, 200);
   assert.equal(calls[0], "https://cloud-api.example.invalid/api/v1/cloud/capabilities?");
+});
+
+test("Cloud setup requires the HTTPS transport and its failure keeps the original write uncertain", async () => {
+  let calls = 0;
+  const routes = moduleFor(async () => { calls++; return new Response("{}"); }, true, undefined, undefined, false);
+  assert.deepEqual(await (await routes.GET(request("http://web/api/cloud/setup"), context("setup"))).json(), { configured: false });
+  const response = await routes.POST(request("http://web/api/cloud/operations", {
+    method: "POST", headers: { origin: "http://web", "content-type": "application/json" },
+    body: JSON.stringify({ operation: "STORE_CREDENTIAL", operation_key: "original", secret: "synthetic-private-value" }),
+  }), context("operations"));
+  const content = await response.text();
+  assert.equal(response.status, 502);
+  assert.ok(content.includes("original operation key"));
+  assert.equal(content.includes(canary), false);
+  assert.equal(content.includes("synthetic-private-value"), false);
+  assert.equal(calls, 0);
 });
 
 test("Fixed-version task readback counts unicode code points, pins continuation and verifies SHA", async () => {
