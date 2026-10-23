@@ -4,7 +4,7 @@
 
 ## 当前测试服务器：开发与部署规则（2026-10-23）
 
-最新 P0-1/P0-2 的浏览器持久账本、运行能力及安全收尾已按 Git `e6493b33e619abd7eadfa0d452cbc7903e439a52` 部署，见[恢复交付记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。API/Web/独立 Cloud Worker 为该来源，legacy Worker 保留55de50e，schema保持0026；下文 C4/6d49 和各旧验收结果保留历史来源，不替代最新部署身份或用户验收。
+最新 API/Web/独立 Cloud Worker 已按 Git `e28d23cd58cd868a9a672be9f9ab6f608416c5c7` 部署，包含 P0-1/P0-2 及本轮追加的 PowerContext 集成，schema为0027，legacy Worker保留55de50e。见[Memory集成交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0恢复交付原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文 C4/6d49 和各旧验收结果保留历史来源，不替代最新部署身份或用户验收。
 
 本服务器是内部测试环境，允许服务中断，没有零停机要求。Compose、容器、目录和历史文档中的 `production` / “生产”命名不代表当前环境的可用性要求。
 

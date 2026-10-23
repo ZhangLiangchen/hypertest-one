@@ -1,6 +1,6 @@
 # P0：Web 未决保全与 Cloud 安全收尾
 
-**P0-1 / P0-2 实现与部署完成；功能验收 PENDING / USER_OWNED，由用户负责。** 本轮未创建线上验收项目、Task 或凭据，未触发真实模型或 SUT。真实 SDK 原会话续接、通用 HTTPS/SSH/CI、Cloud Claude、Local 新宿主绑定与 PowerContext 集成仍是独立待办。
+**P0-1 / P0-2 实现与部署完成；功能验收 PENDING / USER_OWNED，由用户负责。** 本轮未创建线上验收项目、Task 或凭据，未触发真实模型或 SUT。用户随后追加的PowerContext已在[独立集成交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)完成，当前应用SHA与schema见该记录；本文下方保留P0初次部署身份。真实SDK原会话续接、通用HTTPS/SSH/CI、Cloud Claude、Local新宿主绑定仍是独立待办。
 
 ## 本轮开始时的实际环境
 

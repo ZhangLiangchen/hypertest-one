@@ -1,6 +1,6 @@
 # PowerContext 集成交付（2026-10-23）
 
-**实现完成，部署待执行；功能验收 PENDING / USER_OWNED。** 用户本轮明确授权集成；本记录与[P0-1/P0-2交付](P0_RECOVERY_DELIVERY_20261023.md)及独立[PowerContext服务历史](POWERCONTEXT_SERVICE.md)分开。本轮不创建线上验收Project/Task/经验fixture或验收grant，不触发真实模型/SUT，不导入聊天、推理、raw tool payload或认证目录。
+**实现与部署完成；功能验收 PENDING / USER_OWNED。** 用户本轮明确授权集成；本记录与[P0-1/P0-2交付](P0_RECOVERY_DELIVERY_20261023.md)及独立[PowerContext服务历史](POWERCONTEXT_SERVICE.md)分开。本轮未创建线上验收Project/Task/经验fixture或验收grant，未触发真实模型/SUT，未导入聊天、推理、raw tool payload或认证目录。
 
 ## 已实现范围
 
@@ -39,4 +39,26 @@ API内可选Memory Gateway为唯一上游admin持有者。Project配置映射、
 | Memory/Cloud ops overlay与listener | 25 passed，含实际Compose合并；Cloud-only/默认禁用输出保持，Memory-only不依赖Cloud执行配置 |
 | 类型检查、改动文件Ruff、差异检查 | 通过；机械UI检测7文件无finding（regex-only，非浏览器验收） |
 
-相关故障回归使用合成fixtures，数据库为本轮专用tmpfs容器，已清理该精确测试容器，无线上数据库/真实PowerContext写入。最终Git/镜像/schema及基础健康在部署后补充；这些结果不是线上功能验收、真实模型或SUT执行。
+相关故障回归使用合成fixtures，数据库为本轮专用tmpfs容器，已清理该精确测试容器，无线上数据库/真实PowerContext写入。这些结果不是线上功能验收、真实模型或SUT执行。
+
+## 固定 Git 部署与基础健康
+
+实现提交 `eb2be1da6222f1475cbebcbc2d3dd66410d37672`，包含最终迁移的应用部署 SHA 为 `e28d23cd58cd868a9a672be9f9ab6f608416c5c7`，均已推送 main，服务器 fetch 后核对完整 SHA，以干净源码构建。该版本包含先前已交付的 P0-1/P0-2；本记录的部署后补充为纯文档变更，不重建镜像。
+
+| 部署项 | 固定身份 / 结果 |
+| --- | --- |
+| API image | `sha256:fa7c89fc41ffd5cf4b61ea2667f20f69e4dd78bff0e5575e40e8d5073b70e45e`；revision 为上述完整应用 SHA |
+| Web image | `sha256:0e534f0f93c8029087216a948538804544692484f2d9c4d03c0d9e2dbe9f0d16`；revision 为上述完整应用 SHA |
+| 独立 Cloud Worker image | `sha256:9e373b35b2033d063c4a653fe46eb68a8162017e011a1afc04987ad4d3491e3e` |
+| Cloud Worker release | `/opt/hypertest-cloud/releases/e28d23cd58cd868a9a672be9f9ab6f608416c5c7`；manifest SHA-256 `f690be4144f2df13010e549befc8ab8cafe771564d57a0dcaa12a475726ccd5e`；运行进程所见 manifest 的 source_commit 已核对 |
+| legacy Worker | 保留 `55de50e215961ee4a1061b32f86670bd23259324`，image `sha256:ff650c8a9f59d311f51614a3183f4327bd1125f4d9e6edd511b8b7ff96e3bf4c` |
+| 构建 / 迁移 | API、Web、Cloud Worker 成功；Web 正式 Next build 成功；当前库 `0026_cloud_ssh_operations` → `0027_project_memory` 成功 |
+| 启动与健康 | 五容器 healthy；独立 Cloud Worker active；API health、Web 根页 HTTP 200 |
+| 新增只读路径 | Web Memory setup、BFF → Gateway 既有 Project configuration 均 HTTP 200；尚未配置状态 UNCONFIGURED，未创建上游 scope |
+| 上游连接 | 在实际 API 用户内经 Gateway adapter 严格 CA/IP SAN TLS 读取 PowerContext capabilities 成功，ready=true |
+| Worker 私有连接 | 在实际运行 Worker 的 mount/root namespace 中以 UID997，经专用 UDS 严格 TLS 读取；无 grant 返回预期 HTTP 401，未签发测试凭据 |
+| 访问边界 | 原 ingress guard protected；原 TLS、VPN/端口、SSH及其他服务配置保留 |
+
+迁移前已有数据库的私有 `pg_dump -Fc` 为 `before-0027.dump`（1,634,688 bytes），与构建日志、`build.json`、`migration.log`、`deployment.json`同存 `/var/lib/hypertest-cloud/delivery/20261023-memory-e28d23cd`。仅向前增量迁移，未清库、删卷或改写历史，未进行恢复演练。部署停止并更新 API/Web/nginx/独立 Cloud Worker，PostgreSQL与legacy Worker保持运行；旧release、runtime、会话、源产物、凭据和未决journal/key保留。
+
+独立Memory overlay已启用，Web入口可用；管理token只读挂载到API。Worker经原启动准入，以Cloud/Codex启用、固定SSH关闭运行；新增私有grant目录为空，未创建或自动升级任何Project grant。Local与Cloud需按上文显式授权后使用；本轮未发布新的Local安装包或完成真实宿主功能验收。PowerContext服务本身未升级、重启或执行写操作，Generation保持关闭。
