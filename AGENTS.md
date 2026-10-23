@@ -2,6 +2,18 @@
 
 > **One Input. One Mission. One Complete Test Cycle.**
 
+## 当前测试服务器：开发与部署规则（2026-10-23）
+
+本服务器是内部测试环境，允许服务中断，没有零停机要求。Compose、容器、目录和历史文档中的 `production` / “生产”命名不代表当前环境的可用性要求。
+
+- 用户要求部署时，已授权停止旧服务、原地构建、执行必要的非破坏性迁移并重启，无需为服务中断再次确认。默认流程为：本地修改 → commit/push → 服务器 fetch 并固定完整 Git SHA → 停止受影响服务 → 在服务器构建新版本 → 迁移（需要时）→ 启动 → 最小冒烟检查；不要求先建隔离环境。
+- 日常部署不默认要求蓝绿切换、影子环境、冷备、隔离恢复演练、逐表逐文件 hash 保全、独立复核或历史生产 Gate。PR 合并、正式发行资格也不是测试服务器部署的默认前置条件；用户明确要求的发行流程及强制 CI 检查仍适用。
+- 验证与改动范围相称：文档修改只检查文档差异；局部代码修改只做相关检查；部署后检查服务启动、健康接口及本次变更的一条关键路径。相关检查通过且无具体未解决问题后立即结束，不自行扩大到全量回归、多宿主矩阵、反复健康采样或额外审查。
+- 只有用户明确要求、强制检查要求或具体故障需要时，才扩大验证。不得为普通开发任务额外建设验收、证明或保全体系。
+- 允许中断不等于允许丢失数据。保留数据库与数据卷、源产物、历史记录、未决同步 key / journal、凭据及宿主配置；清库、删卷、破坏性迁移或不可逆覆盖须有明确授权。迁移确有数据风险时，只做与该风险相称的数据保护，不自动升级为整套生产发布流程。
+- 保留现有 SSH 访问、主机密钥校验、密码人工恢复、TLS、VPN 白名单及其他访问限制；不泄露或复制凭据到仓库、日志或交付物，不改动无关服务。
+- 本节取代旧运维文档及历史发布记录对本测试服务器的可用性与发布流程约束。历史验收记录仅供追溯，不作为每次开发的执行清单；产品领域、授权、幂等、证据真实性和历史语义不变量继续适用，不把产品证据规则扩展为开发部署 Gate。
+
 This repository is governed by four foundational documents. Any implementation, refactor, protocol change, schema change, or architecture decision MUST remain consistent with them unless an explicit Architecture Decision supersedes the relevant rule.
 
 ## Required reading
@@ -66,9 +78,11 @@ boundary or authorization to run an unrelated SUT.
 
 - Default flow for HyperTest One code changes: edit locally → commit and push to
   Git → fetch the specified branch/commit on the server and record its resolved
-  full SHA → build there, apply needed migrations and restart affected services
-  → run the relevant remote validation once. If a full suite is needed, run it
-  remotely. Do not default to a full local test suite or local production build;
+  full SHA → stop affected services, build there, apply needed migrations and
+  start the updated services → run the relevant remote checks once. Stop after
+  those checks pass with no concrete unresolved issue; expand validation only for
+  an explicit user request, mandatory checks or a specific failure. Run a needed
+  full suite remotely. Do not default to a full local test suite or local production build;
   quick local checks are optional debugging aids, not a mandatory preflight matrix.
 - Default scope is implementation and deployment, including necessary builds,
   migrations, restarts and basic service health checks. Functional acceptance is
@@ -100,6 +114,7 @@ boundary or authorization to run an unrelated SUT.
 ## Remote operations
 
 - Read [server operations](docs/SERVER_OPERATIONS.md#ssh-access) before connecting to the deployed server.
+- When already running on the test server, operate locally; do not require the Mac-only SSH alias or provision its private key. Follow the test-server deployment and minimal-verification rules above.
 - On the configured local Mac, use `ssh hypertest-one` for interactive access. Automated checks must use the same alias with `BatchMode=yes` and `PreferredAuthentications=publickey`; use `bash ops/check-remote.sh` for platform health checks.
 - Keep the existing password login available for manual recovery. Automated checks must fail on key authentication errors rather than depend on a temporary `SSH_ASKPASS` helper or prompt for a password.
 - The alias and private key are local to this Mac, not provisioned in CI or cloud executors. Preserve host-key verification, existing server access, and the VPN allowlist.
