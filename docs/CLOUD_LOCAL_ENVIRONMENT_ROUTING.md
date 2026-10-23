@@ -11,7 +11,7 @@
 | 166dev内网及自建链相关任务 | **仅Local**。不从云端直连内网环境或自建链；实际远端执行仍须本机已有工具和本次授权 |
 | 通用Cloud固定SSH诊断 | 只在独立隔离sshd / manager fixture内开发验收，默认关闭。为未来另行批准、云端可达的目标准备，不用于绕过上述两类环境限制，不宣称真实staging已可用 |
 
-环境资源可保存`cloud_access_policy=LOCAL_ONLY|WEB_ONLY|None`：XBlock staging的SSH资源与166dev为LOCAL_ONLY，staging纯Web / API资源为WEB_ONLY。None按旧序列化省略，保持历史冻结digest。LOCAL_ONLY在Cloud创建 / 解析 / 下发及Worker执行前拒绝并提示另行授权Local；WEB_ONLY只允许HTTPS连接，但不启用尚未实现的HTTPSruntime。Worker还会在真正prompt前复核冻结限制，不能靠重新分类、改Project模式或将CloudTask转换SessionTask绕过。当前只加入通用限制能力，未实际更改XBlock / 166dev Project配置或使用本地秘密。
+环境资源可保存`cloud_access_policy=LOCAL_ONLY|WEB_ONLY|None`：XBlock staging的SSH资源与166dev为LOCAL_ONLY，staging纯Web / API资源为WEB_ONLY。None按旧序列化省略，保持历史冻结digest。LOCAL_ONLY在Cloud创建 / 解析 / 下发及Worker执行前拒绝并提示另行授权Local；WEB_ONLY只允许HTTPS连接，本字段不启用runtime。[ADR-025](architecture/ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)新增默认关闭的公开GET/HEAD目录adapter，须另有精确目标/IP/路径/方法/期限授权及框架冻结；不支持认证/写API或浏览器，不代表任何真实staging准入。Worker还会在真正prompt前复核冻结限制，不能靠重新分类、改Project模式或将CloudTask转换SessionTask绕过。未实际更改XBlock / 166dev Project配置或使用本地秘密。
 
 禁止为Cloud建立转发 / 代理 / 隧道绕过源IP或内网限制、扩大IP许可，或复制用户Mac登录、Workbench身份、个人SSH目录和环境秘密。管理HyperTest服务器的本机SSH alias / key / VPN规则与测试环境访问分别保留，不互相授予执行权。不得以“已有远端连接”推导部署 / 写入权限。
 

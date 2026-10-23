@@ -38,6 +38,8 @@ async def ensure_remote_closed(db, *, task_id, attempt_id=None):
         query = query.where(CloudRemoteOperation.attempt_id == attempt_id)
     if await db.scalar(query.limit(1)):
         reject("SSH_REMOTE_OPERATIONS_UNRECONCILED")
+    from .cloud_http import ensure_http_closed
+    await ensure_http_closed(db, task_id=task_id, attempt_id=attempt_id)
 
 
 async def terminal_results(db, task_id):
@@ -57,6 +59,9 @@ async def live_operations(db, attempt_id):
 
 
 def exact_target(environment):
+    if environment.get("connection") == "HTTPS" and environment.get("https_access") is not None:
+        from hypertest.cloud.http_profile import validate_profile
+        return validate_profile(environment).target
     if environment.get("connection") == "SSH" and environment.get("ssh_access") is not None:
         from hypertest.cloud.ssh_profile import validate_profile
         return validate_profile(environment).target

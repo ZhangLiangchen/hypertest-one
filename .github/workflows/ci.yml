@@ -35,11 +35,54 @@ jobs:
       - name: Install
         run: pip install -e '.[dev,interactive,cloud]'
       - name: Lint
-        run: ruff check src tests alembic
+        run: ruff check src tests alembic ops/container/stack.py
+      - name: Inspect installed Cloud SDK metadata without starting a runtime
+        run: |
+          python - <<'PY'
+          from hypertest.cloud.sdk import SDK_VERSION, inspect_sdk
+          observed = inspect_sdk()
+          assert observed["sdk_version"] == observed["runtime_version"] == SDK_VERSION
+          assert observed["sdk_resume_api_available"] is True
+          assert observed["supports_resume"] is False
+          assert observed["model_started"] is False
+          print("Pinned SDK metadata checked; platform resume remains unsupported; no runtime started.")
+          PY
       - name: Migrate
         run: alembic upgrade head
       - name: Test
+        # This already discovers Cloud/Memory/P0 fixtures; do not run them twice.
         run: pytest -q
+  memory-api-profile:
+    runs-on: ubuntu-latest
+    env:
+      # Import-only boundary: no database service, credential, model or Task.
+      HYPERTEST_DATABASE_URL: postgresql+asyncpg://fixture:fixture@127.0.0.1:1/fixture
+      HYPERTEST_MEMORY_ENABLED: "false"
+      HYPERTEST_CLOUD_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the API Memory dependency profile
+        # Mirrors Dockerfile's API extras, without dev/interactive/Cloud SDK.
+        run: pip install '.[cloud-crypto,memory]'
+      - name: Check the API imports without Agent runtimes
+        run: |
+          python - <<'PY'
+          import importlib.util
+          from hypertest.main import app
+          from hypertest.memory.powercontext import PowerContextAdapter
+          assert any(route.path == "/api/v1/memory/operations" for route in app.routes)
+          assert PowerContextAdapter.__name__ == "PowerContextAdapter"
+          assert importlib.util.find_spec("deepseek_harness") is None
+          assert importlib.util.find_spec("deepseek_harness_runtime") is None
+          assert importlib.util.find_spec("mcp") is None
+          print("API Memory profile imports without SDK/MCP; no lifespan, network or execution started.")
+          PY
   web:
     runs-on: ubuntu-latest
     defaults:

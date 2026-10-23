@@ -1,5 +1,7 @@
 # 云端测试任务分阶段实施计划
 
+**当前增补：** P0与PowerContext已独立实现/部署，受控公开HTTPS首片与框架冻结按[ADR-025](architecture/ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)开发，默认关闭；最新剩余范围由[当前TODO](TODO.md)拥有。下文“候选/待部署/Memory Proposed”是原Cloud轮次冻结计划，保留历史，不替代当前交付或USER_OWNED验收。
+
 ## 当前交付范围与集成顺序
 
 本候选正式迁移文件已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写。ADR-024 平台预建 Local ID / MCP 绑定已合入当前候选；新空库升级及现有管理 `0023` 库向前升级到 `0026`、最终合并树和统一入口仍待相关远端验证，本段不声明已迁移或部署。服务器是允许中断的单人专用测试环境，按本地修改 → Git commit/push → 服务器拉固定完整 SHA 构建、向前迁移、重启 → 一次相关远端验证交付；纯文档变更只做静态检查，不额外要求生产维护窗口或恢复演练。

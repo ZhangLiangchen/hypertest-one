@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     cloud_codex_request_credits: int = Field(default=1, ge=1)
     # Independent fixed SSH diagnostics. Never fall back to user SSH/PATH/auth.
     cloud_ssh_enabled: bool = False
+    # Independent bounded public HTTPS reads, opt-in only after target authorization.
+    cloud_https_enabled: bool = False
     cloud_ssh_authority_key_file: str = "/run/credentials/hypertest-cloud.service/ssh-authority"
     cloud_ssh_executable: str = "/usr/bin/ssh"
     cloud_ssh_executable_sha256: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")

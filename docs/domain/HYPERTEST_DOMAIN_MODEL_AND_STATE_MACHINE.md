@@ -2491,3 +2491,13 @@ Mapping按Project唯一，服务端namespace及上游scope分别唯一；version
 候选仅owner/Operator可读，来源冻结Local固定SyncReceipt/ReportRevision或Cloud固定receipt/同Attempt asset，不能自报owner/来源成为可读权。发布/修订/撤回只由人工Operator执行。每次新写核当前独立memory grant与Project，并重新检查Cloud Worker lease/token/generation；memory:read/propose/publish不从task:sync/cloud:work推导。只查询Project共享的当前已发布/未过期可见集，非owner只返回opaque provenance，不能反向解引用私有报告。
 
 独立Memory意图先事务SENT，再单次上游调用；未知不重写或替换key。固定上游版本完整读回匹配后才接受，撤回当前可见性不等待索引删除；迟到ACK不能复活已撤回记录。不会因Memory成功/失败改Task结果、释放Cloud HELD、覆盖报告或阻塞TaskSyncCore。Local/Cloud/private Memory账本分别保存，外部Generation/Embedding与聊天捕获关闭。源码客户端/部署/用户验收是不同事实。
+
+## 55. ADR-025 受控 HTTPS 读取操作
+
+`0028_cloud_http_operations`新增CloudHttpOperation与CloudHttpObservation，均为append-only；不改SSH表、原回执、旧终态或测试结果。Operation固定Project/Task/Attempt/config/work grant/worker/generation/原key/resource/target/request/digest/SENT/sent_at/hard_deadline，(attempt,key)唯一；Project/Task/Attempt/config复合FK拒绝跨域关系。请求完整绑定`hypertest-https-controlled-api/v1`、原operation UUID、Task/Attempt、generation、target、catalog摘要、完整资源及deadline，写前commit。
+
+Observation固定原Operation与request digest、原worker/generation、OBSERVED/UNKNOWN、完整非秘密响应metadata/摘要；复合FK核原Project/Task/Attempt/Operation/digest。原始body不进该表、Task snapshot、审计或异常；由host私有原件保存，经项目秘密扫描与当前fence接受后才返回namespace。每Operation最多一个OBSERVED，历史不可修改/删除；直接SQL约束metadata完整字段、状态/数值/时间和原owner，OBSERVED还须RUNNING的当前generation/lease。UNKNOWN只有零正文/空hash/无HTTP状态，不伪造停止或业务结果。
+
+QUERY可用原key或原operation UUID，由原work grant身份只读；不能刷新发送许可。未有OBSERVED的HTTP intent统一纳入既有远端未决检查，阻止COMPLETE/结算/RETRY/RESUME/RECONCILE；声明不改变UNKNOWN或HELD。OBSERVED也只表示已观察的HTTP响应，不代表测试PASS、独立来源或已部署版本。旧固定Task快照不加入后来响应，新的快照独立投影http_operation_results。
+
+HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architecture/ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)及TMP§50拥有。默认关闭，显式目标授权和USER_OWNED验收不能由源码/组件回归代替。

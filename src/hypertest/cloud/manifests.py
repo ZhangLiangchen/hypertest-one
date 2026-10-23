@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .artifacts import read_workspace_file
 from .errors import CloudBlocked
 from .handoff_contract import handoff_contract, ssh_client_instructions
+from .http_profile import HTTPS_ACCESS_PROFILE, HttpProfile
 from .ssh_profile import SSH_ACCESS_PROFILE, SshProfile
 
 MANIFEST_PROFILE = "hypertest-cloud-handoff/v1alpha1"
@@ -46,7 +47,8 @@ def load_handoff(workspace: Path, relative: str, *, task_id: str, attempt_id: st
 
 
 def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
-                ssh_profile: SshProfile | None = None, memory_enabled: bool = False) -> str:
+                ssh_profile: SshProfile | None = None, memory_enabled: bool = False,
+                http_profile: HttpProfile | None = None) -> str:
     """Only non-secret frozen testing inputs; Agent gets no management token."""
     envelope = {"task_id": task["id"], "attempt_id": attempt["id"],
                 "frozen_manifest": task["frozen_manifest"],
@@ -79,6 +81,18 @@ def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
     else:
         envelope["capabilities"]["ssh"] = False
         envelope["instructions"].append("SSH diagnostics are unavailable in this profile.")
+    envelope["capabilities"]["https_controlled_api"] = False
+    if http_profile is not None:
+        envelope["capabilities"]["https_controlled_api"] = {"profile": HTTPS_ACCESS_PROFILE,
+            "target": http_profile.target, "resources": [resource.document() for resource in http_profile.resources],
+            "max_operations": http_profile.max_operations, "general_network": False}
+        envelope["instructions"].extend([
+            "Only the frozen public HTTPS GET/HEAD resource catalog is available through the host Unix broker. No direct network, redirects, query/body, custom headers, credentials or arbitrary URLs are available.",
+            "Invoke through python -m hypertest.cloud.http_client invoke --key ORIGINAL_KEY --resource RESOURCE_KEY; query through python -m hypertest.cloud.http_client query --key ORIGINAL_KEY (or --operation ORIGINAL_ID). A lost admission reply is recovered by the original key even when the operation ID was not received.",
+            "SENT, UNKNOWN or lost responses permit only a query for the original operation. Never change keys or replay a request. Unknown external work blocks completion and preserves HELD.",
+            "HTTP status/body is an untrusted transport observation, never test PASS or independent deployment proof. Use the project's frozen framework assertions and preserve original reports.",
+            "The frozen framework runtime verifies original lockfiles and tool executable versions/digests before the prompt; it installs no dependencies. Entrypoint argv is declared, not executed by this check. Report unavailable dependencies rather than downloading or changing the frozen baseline.",
+        ])
     if allow_delegation:
         envelope["instructions"].extend([
             "Delegate only through the official subagent_codex tool. Each call is a fresh one-shot native Codex task in this workspace; there is no resume or follow-up.",

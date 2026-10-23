@@ -2,6 +2,8 @@
 
 > **One Input. One Mission. One Complete Test Cycle.**
 
+剩余工作统一看[当前TODO](docs/TODO.md)与[本轮跟进](docs/FOLLOWUP_DELIVERY_20261023.md)；实现、部署和USER_OWNED验收分别记录，不从历史候选状态重复安排已完成工作。
+
 ## 当前测试服务器：开发与部署规则（2026-10-23）
 
 最新 API/Web/独立 Cloud Worker 已按 Git `e28d23cd58cd868a9a672be9f9ab6f608416c5c7` 部署，包含 P0-1/P0-2 及本轮追加的 PowerContext 集成，schema为0027，legacy Worker保留55de50e。见[Memory集成交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0恢复交付原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文 C4/6d49 和各旧验收结果保留历史来源，不替代最新部署身份或用户验收。

@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import CloudBlocked
+from .http_profile import HTTPS_SOCKET, HttpProfile
+from .http_profile import validate_profile as validate_http_profile
 from .resources import inspect_resource_envelope
 from .ssh_profile import SSH_SOCKET, SshProfile, validate_profile
 
@@ -48,6 +50,7 @@ class SandboxPolicy:
     aggregate_memory_bytes: int = 4 * 1024 * 1024 * 1024
     aggregate_processes: int = 256
     ssh_profile: SshProfile | None = None
+    http_profile: HttpProfile | None = None
 
     def resource_metadata(self, observed: dict) -> dict:
         """Separate configured ceilings from the actual inspected cgroup limits."""
@@ -68,10 +71,10 @@ class SandboxPolicy:
         authorization = inputs["authorization"]
         if not {"git:read", "framework:execute"} <= set(authorization["permitted_actions"]):
             raise CloudBlocked("ACTION_AUTHORIZATION_REQUIRED", "Workspace execution requires explicit Git read and framework execution authorization")
-        if authorization.get("network_targets") and self.ssh_profile is None:
+        if authorization.get("network_targets") and self.ssh_profile is None and self.http_profile is None:
             raise CloudBlocked("REMOTE_NETWORK_UNSUPPORTED", "This runtime supports workspace-local fixtures; remote SUT/CI/SSH is unavailable")
         allowed = {"git:read", "framework:execute"}
-        if self.ssh_profile is not None:
+        if self.ssh_profile is not None or self.http_profile is not None:
             allowed.add("environment:read")
         unsupported = set(authorization["permitted_actions"]) - allowed
         if unsupported:
@@ -82,6 +85,13 @@ class SandboxPolicy:
                     or authorization.get("network_targets") != [self.ssh_profile.target]
                     or self.ssh_profile.target not in authorization.get("targets", [])):
                 raise CloudBlocked("SSH_AUTHORIZATION_MISMATCH", "Fixed SSH diagnostics require the exact frozen environment target and read authorization")
+        elif self.http_profile is not None:
+            if (validate_http_profile(environment) != self.http_profile
+                    or "environment:read" not in authorization["permitted_actions"]
+                    or authorization.get("network_targets") != [self.http_profile.target]
+                    or self.http_profile.target not in authorization.get("targets", [])
+                    or inputs.get("framework_runtime") is None):
+                raise CloudBlocked("HTTPS_AUTHORIZATION_MISMATCH", "HTTPS reads require the exact frozen target, framework and read authorization")
         elif environment.get("connection", "NONE") != "NONE":
             raise CloudBlocked("ENVIRONMENT_CAPABILITY_UNSUPPORTED", "Remote environment access needs an independently enforced adapter")
         if environment.get("require_matching_deployment"):
@@ -92,11 +102,12 @@ class SandboxPolicy:
             raise CloudBlocked("MODEL_LIMITS_INVALID", "Model request/token limits are outside the supported profile")
 
 
-def capability_report(*, ssh_admitted: bool = False) -> dict:
+def capability_report(*, ssh_admitted: bool = False, https_admitted: bool = False) -> dict:
     return {"isolation": "linux-bubblewrap-namespaces", "general_network": False,
             "remote_sut": False, "ssh": ssh_admitted, "ssh_fixed_diagnostics": ssh_admitted,
             "ssh_profile": "SSH_FIXED_DIAGNOSTICS_V1" if ssh_admitted else None,
             "ci": False, "git_write": False,
+            "https_controlled_api": https_admitted,
             "external_cli_delegation": False, "workspace_local_framework": True,
             "model_only_broker": True, "native_addon_temp_exec_required": True,
             "aggregate_resource_envelope": "FINITE_CGROUP_V2_REQUIRED"}
@@ -120,12 +131,13 @@ class BubblewrapSandbox:
     def __init__(self, *, workspace: Path, dsh_home: Path, broker_socket: Path,
                  policy: SandboxPolicy, delegate_payload: Path | None = None,
                  delegate_sockets: dict[str, Path] | None = None,
-                 ssh_socket: Path | None = None):
+                 ssh_socket: Path | None = None, http_socket: Path | None = None):
         self.workspace, self.dsh_home = workspace.absolute(), dsh_home.absolute()
         self.broker_socket, self.policy = broker_socket.absolute(), policy
         self.delegate_payload = delegate_payload.absolute() if delegate_payload is not None else None
         self.delegate_sockets = dict(delegate_sockets or {})
         self.ssh_socket = ssh_socket.absolute() if ssh_socket is not None else None
+        self.http_socket = http_socket.absolute() if http_socket is not None else None
         self.process = None
         self.stop_observation = None
 
@@ -168,6 +180,18 @@ class BubblewrapSandbox:
         except (OSError, ValueError):
             raise CloudBlocked("DELEGATE_MOUNT_INVALID", "Delegation requires canonical readonly payload and Unix broker socket paths") from None
 
+    def http_mounts(self) -> list[str]:
+        if self.http_socket is None and self.policy.http_profile is None:
+            return []
+        try:
+            if (self.http_socket is None or self.policy.http_profile is None
+                    or self.http_socket.resolve(strict=True) != self.http_socket
+                    or not stat.S_ISSOCK(self.http_socket.lstat().st_mode)):
+                raise ValueError
+            return ["--ro-bind", str(self.http_socket), HTTPS_SOCKET]
+        except (OSError, ValueError):
+            raise CloudBlocked("HTTPS_SOCKET_UNAVAILABLE", "HTTPS reads require the admitted canonical Unix broker socket") from None
+
     def command(self) -> list[str]:
         if platform.system() != "Linux":
             raise CloudBlocked("OS_SANDBOX_UNAVAILABLE", "Cloud execution requires Linux namespaces and bubblewrap")
@@ -188,6 +212,7 @@ class BubblewrapSandbox:
                    "--ro-bind", str(self.broker_socket), "/run/model.sock"]
         command.extend(self.delegate_mounts())
         command.extend(self.ssh_mounts())
+        command.extend(self.http_mounts())
         # Preserve standard absolute interpreter paths and shebangs in the empty
         # root. On merged-/usr hosts these are aliases of the same readonly tools.
         for path in ("/bin", "/sbin", "/lib", "/lib64"):

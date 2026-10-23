@@ -243,6 +243,9 @@ class CloudWorker:
         ssh_cleanup_attempted = False
         ssh_observation = None
         ssh_deadline = None
+        http_broker = None
+        http_authority = None
+        http_deadline = None
         writes_suspended = False
         safety_fence_done = asyncio.Event()
         memory_bridge = None
@@ -291,6 +294,8 @@ class CloudWorker:
             save_once(root / "ssh-observations.json", ssh_observation)
 
         async def remote_operations_closed() -> bool:
+            if http_broker is not None:
+                return http_broker.drained and (await http_authority.remote_closed()) is True
             if ssh_broker is None:
                 return True  # Only the admitted workspace-local profile.
             return bool(ssh_observation and ssh_observation["closed"]
@@ -393,6 +398,12 @@ class CloudWorker:
             environment = manifest.get("configuration", {}).get("environment", {})
             require_cloud_environment_route(environment)
             ssh_profile = None
+            http_profile = None
+            if environment.get("connection", "NONE") == "HTTPS":
+                if not getattr(self.settings, "cloud_https_enabled", False):
+                    raise CloudBlocked("HTTPS_DISABLED", "Controlled HTTPS reads require an explicit Worker opt-in")
+                from .http_profile import validate_profile as validate_http_profile
+                http_profile = validate_http_profile(environment)
             if environment.get("connection", "NONE") == "SSH":
                 if not getattr(self.settings, "cloud_ssh_enabled", False):
                     raise CloudBlocked("SSH_DISABLED", "Fixed SSH diagnostics require a separate explicit Worker opt-in")
@@ -405,7 +416,7 @@ class CloudWorker:
                 inspect_ssh_client(self.settings)
             policy = SandboxPolicy(seconds, requests, self.settings.cloud_model_max_tokens,
                 memory_bytes=NATIVE_CODEX_ADDRESS_SPACE_BYTES if native_enabled else ROOT_ADDRESS_SPACE_BYTES,
-                ssh_profile=ssh_profile)
+                ssh_profile=ssh_profile, http_profile=http_profile)
             policy.validate(manifest)
             metadata = inspect_sdk()
             payload_root = None
@@ -437,6 +448,15 @@ class CloudWorker:
                     ssh_executable=Path(self.settings.cloud_ssh_executable),
                     ssh_executable_sha256=self.settings.cloud_ssh_executable_sha256)
                 del ssh_key, signing_key
+            if http_profile is not None:
+                from hypertest.application.cloud_http import WorkerHttpAuthority
+
+                from .http_broker import HttpBroker
+                http_authority = WorkerHttpAuthority(self.sessions, task_id=broker.task_id,
+                    attempt_id=broker.attempt_id, identity=broker.identity)
+                http_deadline = int(time.time() + max(0, started + seconds - time.monotonic()))
+                http_broker = HttpBroker(root / "https.sock", profile=http_profile, authority=http_authority,
+                    private_root=root / "https", deadline=http_deadline)
             for role in ("sut", "framework"):
                 await broker.assert_current()
                 async with asyncio.timeout(max(0.01, started + seconds - time.monotonic())):
@@ -448,6 +468,12 @@ class CloudWorker:
                         preparing = None
             credentials.clear()
             await broker.assert_current()
+            framework_runtime = None
+            if manifest["inputs"].get("framework_runtime") is not None:
+                from .framework_runtime import inspect_framework_runtime
+                framework_runtime = await inspect_framework_runtime(workspace / "framework",
+                    manifest["inputs"]["framework_runtime"], manifest["inputs"]["framework_entrypoints"])
+                save_once(root / "framework-runtime.json", framework_runtime)
             if time.monotonic() - started >= seconds:
                 raise CloudBlocked("RUNTIME_BUDGET_EXHAUSTED", "Input preparation exhausted the remaining task time budget")
             if ssh_profile is not None and time.time() >= ssh_deadline:
@@ -455,7 +481,12 @@ class CloudWorker:
             session_id = "cloud-" + attempt["id"]
             metadata = {key: value for key, value in metadata.items()
                 if key not in {"launch_executable", "launch_paths", "model_started"}}
-            metadata.update(capabilities=capability_report(ssh_admitted=ssh_profile is not None), native_session_id=session_id)
+            metadata.update(capabilities=capability_report(ssh_admitted=ssh_profile is not None,
+                https_admitted=http_profile is not None), native_session_id=session_id)
+            if framework_runtime is not None:
+                metadata["framework_runtime"] = framework_runtime
+            if http_profile is not None:
+                metadata["https"] = {"profile": "HTTPS_CONTROLLED_API_V1", "hard_deadline_epoch": http_deadline}
             if ssh_profile is not None:
                 metadata["ssh"] = {"profile": "SSH_FIXED_DIAGNOSTICS_V1",
                     "hard_deadline_epoch": ssh_deadline}
@@ -480,10 +511,13 @@ class CloudWorker:
                 sockets["codex"] = root / "codex.sock"
             if ssh_broker is not None:
                 await ssh_broker.start()
+            if http_broker is not None:
+                await http_broker.start()
             sandbox = BubblewrapSandbox(workspace=workspace, dsh_home=home,
                 broker_socket=root / "model.sock", policy=policy,
                 delegate_payload=payload_root, delegate_sockets=sockets,
-                ssh_socket=root / "ssh.sock" if ssh_broker is not None else None)
+                ssh_socket=root / "ssh.sock" if ssh_broker is not None else None,
+                http_socket=root / "https.sock" if http_broker is not None else None)
             sandbox.command()  # Fail admission before recording a prompt intent.
             await host_transition("RUNNING", "Pinned SDK runtime admitted", metadata,
                 reservation={"accounting_unit": accounting_unit, "reserved_seconds": seconds,
@@ -491,7 +525,7 @@ class CloudWorker:
             await broker.assert_current()
             require_cloud_environment_route(environment)
             prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile,
-                memory_enabled=memory_bridge is not None)
+                memory_enabled=memory_bridge is not None, http_profile=http_profile)
             configuration = {"workspace": "/workspace", "dsh_home": "/home/agent/dsh",
                 "session_id": session_id, "model": self.settings.cloud_model,
                 "max_tokens": policy.max_tokens, "timeout_seconds": seconds, "prompt": prompt}
@@ -556,6 +590,8 @@ class CloudWorker:
             if not all(item.observation()["drained"] for item in scope_brokers.values()):
                 raise CloudBlocked("MODEL_DRAIN_UNCONFIRMED", "Model requests remain in flight; keep the original budget reservation and reconcile")
             await close_ssh()
+            if http_broker is not None:
+                await http_broker.close()
             if not await remote_operations_closed():
                 raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "Canonical remote operations are not all observed stopped; retain the original reservation")
             usage = int(time.monotonic() - started)
@@ -612,6 +648,11 @@ class CloudWorker:
                 except (Exception, asyncio.CancelledError) as secondary:
                     secondary_failure("NAMESPACE_STOP", secondary)
             persist_runtime_diagnostics()
+            if http_broker is not None:
+                try:
+                    await http_broker.close()
+                except (Exception, asyncio.CancelledError) as secondary:
+                    secondary_failure("HTTPS_BROKER_CLOSE", secondary)
             try:
                 await close_ssh()
             except (Exception, asyncio.CancelledError) as secondary:
@@ -644,6 +685,13 @@ class CloudWorker:
                 raise
             raise primary_failure from None
         finally:
+            if http_broker is not None:
+                try:
+                    await http_broker.close()
+                except (Exception, asyncio.CancelledError) as secondary:
+                    if primary_failure is None:
+                        raise
+                    secondary_failure("HTTPS_BROKER_CLOSE", secondary)
             if memory_task is not None:
                 memory_task.cancel()
                 await asyncio.gather(memory_task, return_exceptions=True)

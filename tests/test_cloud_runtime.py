@@ -391,7 +391,8 @@ async def test_idle_without_terminal_handoff_preserves_recovery_and_never_replay
 
 
 @pytest.mark.parametrize("fault", ["timeout", "cancel", "lease_response_lost", "report_response_lost"])
-async def test_runtime_fault_fences_before_process_and_model_cleanup_preserving_original_intent(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize("remote_mode", ["NONE", "HTTPS"])
+async def test_runtime_fault_fences_before_process_and_model_cleanup_preserving_original_intent(tmp_path, monkeypatch, fault, remote_mode):
     from hypertest.cloud import worker as module
 
     timeline, submitted = [], []
@@ -472,10 +473,46 @@ async def test_runtime_fault_fences_before_process_and_model_cleanup_preserving_
     settings = SimpleNamespace(cloud_runtime_root=str(tmp_path / "runtime"), cloud_worker_lease_seconds=0.03,
         cloud_attempt_timeout_seconds=60, cloud_model_request_cost_microunits=1, cloud_model_max_requests=1,
         cloud_model_max_tokens=1024, cloud_model_base_url="https://model.invalid", cloud_model="fixture",
-        cloud_model_key_file="never-read", cloud_codex_enabled=False)
+        cloud_model_key_file="never-read", cloud_codex_enabled=False, cloud_https_enabled=remote_mode == "HTTPS")
     manifest = {"inputs": {"authorization": {"network_targets": [], "permitted_actions": ["git:read", "framework:execute"]},
         "budgets": {"total_seconds": 60}}, "configuration": {"environment": {"connection": "NONE"}},
         "resolution": {"repositories": {"sut": {}, "framework": {}}}}
+    if remote_mode == "HTTPS":
+        from hypertest.application import cloud_http
+        from hypertest.cloud import framework_runtime, http_broker
+        from hypertest.cloud.http_profile import digest as http_digest
+
+        class HttpAuthority:
+            def __init__(self, *args, **kwargs):
+                pass
+            async def remote_closed(self):
+                return False
+
+        class Http:
+            drained = False
+            def __init__(self, *args, **kwargs):
+                assert kwargs["deadline"] == 2060
+            async def start(self):
+                timeline.append("https-started")
+            async def close(self):
+                timeline.append("https-closed")
+
+        async def inspect(*args):
+            return {"profile": "FRAMEWORK_LOCKED_V1", "entrypoint_execution": "NOT_RUN"}
+
+        monkeypatch.setattr(cloud_http, "WorkerHttpAuthority", HttpAuthority)
+        monkeypatch.setattr(http_broker, "HttpBroker", Http)
+        monkeypatch.setattr(framework_runtime, "inspect_framework_runtime", inspect)
+        target = "https://api.example.test:443"
+        access = {"profile": "HTTPS_CONTROLLED_API_V1", "allowed_addresses": ["1.1.1.1"],
+            "resources": [{"key": "status", "method": "GET", "path": "/status", "timeout_seconds": 5,
+                           "response_limit_bytes": 1024}], "max_operations": 2}
+        access["catalog_sha256"] = http_digest({**access, "target": target})
+        manifest["configuration"]["environment"] = {"connection": "HTTPS", "host": "api.example.test",
+            "port": 443, "https_access": access}
+        manifest["inputs"].update(framework_runtime={}, framework_entrypoints=["fixture"])
+        manifest["inputs"]["authorization"].update(network_targets=[target], targets=[target],
+            permitted_actions=["git:read", "framework:execute", "environment:read"])
     claim = {"task": {"id": str(uuid4()), "project_id": str(uuid4()), "frozen_manifest": manifest,
                       "input_digest": digest(manifest)},
              "attempt": {"id": str(uuid4()), "input_digest": digest(manifest), "checkpoint": {}},
@@ -497,6 +534,8 @@ async def test_runtime_fault_fences_before_process_and_model_cleanup_preserving_
     assert submitted == ["RUNNING"]
     assert timeline.index("writes-sealed") < timeline.index("server-fenced") < timeline.index("namespace-stopped")
     assert timeline.index("server-fenced") < timeline.index("model-closed")
+    if remote_mode == "HTTPS":
+        assert timeline.index("server-fenced") < timeline.index("https-closed")
     root = Path(settings.cloud_runtime_root) / ("attempt-" + claim["attempt"]["id"])
     intent = json.loads((root / "prompt-intent.json").read_bytes())
     assert intent["state"] == "SENT" and intent["generation"] == 1

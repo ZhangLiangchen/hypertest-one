@@ -111,10 +111,18 @@ class Environment(Input):
     expected_deployment: str = Field(default="UNKNOWN", max_length=512)
     require_matching_deployment: bool = False
     ssh_access: SshDiagnosticAccess | None = None
+    https_access: dict | None = None
     cloud_access_policy: Literal["LOCAL_ONLY", "WEB_ONLY"] | None = None
 
     @model_validator(mode="after")
     def ssh_identity(self):
+        if self.https_access is not None:
+            from hypertest.cloud.errors import CloudBlocked
+            from hypertest.cloud.http_profile import validate_profile
+            try:
+                validate_profile(self.model_dump(mode="json"))
+            except CloudBlocked:
+                raise ValueError("HTTPS access requires the exact bounded public read profile") from None
         if self.connection == "SSH" and not (self.host and self.user and self.host_key):
             raise ValueError("SSH requires host, user and pinned host key")
         if self.ssh_access is not None:
@@ -145,6 +153,8 @@ class Environment(Input):
             result.pop("ssh_access", None)
         if self.cloud_access_policy is None:
             result.pop("cloud_access_policy", None)
+        if self.https_access is None:
+            result.pop("https_access", None)
         return result
 
 
@@ -188,8 +198,30 @@ class TaskInputs(Input):
     test_scope: str = Field(min_length=1, max_length=16000)
     expected_outputs: list[Literal["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"]] = Field(default_factory=lambda: ["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"], min_length=1, max_length=5)
     framework_entrypoints: list[str] = Field(min_length=1, max_length=32)
+    framework_runtime: dict | None = None
     authorization: Authorization
     budgets: Budgets
+
+    @model_validator(mode="after")
+    def frozen_framework(self):
+        if self.framework_runtime is not None:
+            from hypertest.cloud.errors import CloudBlocked
+            from hypertest.cloud.framework_runtime import validate_runtime_spec
+            try:
+                self.framework_runtime = validate_runtime_spec(self.framework_runtime)
+            except CloudBlocked:
+                raise ValueError("Invalid frozen framework runtime specification") from None
+            if (len(self.framework_entrypoints) != len(set(self.framework_entrypoints))
+                    or {entry["key"] for entry in self.framework_runtime["entrypoints"]} != set(self.framework_entrypoints)):
+                raise ValueError("Runtime entrypoint keys must exactly match the task entrypoints")
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_serialization(self, handler):
+        result = handler(self)
+        if self.framework_runtime is None:
+            result.pop("framework_runtime", None)
+        return result
 
 
 class Mutation(Input):

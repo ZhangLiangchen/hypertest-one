@@ -1,5 +1,7 @@
 # HyperTest Local 实现与发行状态
 
+**当前增补：** [2026-10-23 caller源码核对](LOCAL_CALLER_FOLLOWUP_20261023.md)没有放宽新写入宿主列表，真实Codex绑定E2E仍NOT_OBSERVED。PowerContext的可选Local源码接入已由[独立集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)交付；本文件下方原发行时“Memory未实现”保持历史边界，不表示当前Gateway缺失，也不把旧local-v0.1.0重标为包含新工具。
+
 ## ADR-024预创建/绑定增量的状态边界
 
 项目负责人已接受[ADR-024](architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)：统一Cloud/Local创建入口，Local预创建同UUID的UNBOUND任务，真实root按intended actor一次绑定；新Local客户端首次产物前必须绑定明确TaskID，缺失时TASK_BINDING_REQUIRED且不POST。CREATE/BIND使用独立原key回执，旧auto根可resume但不与新草稿合并。

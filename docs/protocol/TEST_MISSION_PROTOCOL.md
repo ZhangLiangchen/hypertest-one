@@ -1613,3 +1613,13 @@ Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的�
 Local显式工具为hypertest_query_memory/propose_memory/get_memory_operation，默认关闭、memory.sqlite3独立；目前新调用仅Codex可信caller，其他宿主明确拒绝，原key恢复保留。Cloud使用独立memory-ready JSON与memory-responses，后台optional broker不占正式report同步槽。Web独立IndexedDB只保留lookup metadata，写前事务占据流，ACK完整读回固定修订后按原key结算；跨页响应不得清后续记录。
 
 Gateway发布先持久SENT，再单次上游remember；ACK后GET原artifact固定revision并核完整正文/digest后接受。UNKNOWN仅原ID查询，或原marker只读FTS定位后GET确切原件；上游FTS协议的只读POST不重发remember。撤回立即从当前可见集剔除，旧索引/迟到响应不能复活。独立网络阶段≤5秒，故障只降级memory，不改测试结果/Cloud HELD、不阻原任务同步。命中是历史参考，不能授权外部动作或代替当前执行证据；Generation/Embedding及自动Hooks关闭。
+
+## 50. ADR-025 Cloud 受控 HTTPS 与框架冻结
+
+本节只扩展Cloud profile，不改Local协议。`environment.https_access`使用HTTPS_CONTROLLED_API_V1，固定目录与profile字段见[ADR-025](../architecture/ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)。任务须有FRAMEWORK_LOCKED_V1的inputs.framework_runtime、精确framework_entrypoints与origin读授权；省略新字段的旧请求序列化不增加null。API capabilities区分implemented支持、API配置开关与每Attempt准入；默认关闭不因WEB_ONLY或host可达而变为执行许可。
+
+namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,resource_key}`；只读恢复为互斥的`{verb:QUERY,key}`或`{verb:QUERY,operation_id}`。CLI为`python -m hypertest.cloud.http_client invoke --key K --resource R`及`query --key K`/`query --operation UUID`。原key先持久化SENT后单次发送，失答/UNKNOWN/NOT_FOUND不再INVOKE，不换key。缺UUID时仍按key查询，不借prepare_start恢复发送。
+
+响应status为OBSERVED或UNKNOWN，response使用hypertest-https-response/v1：原operation_id/request_digest/state/http_status/body_base64/body_sha256/byte_count/reason/observed_at。OBSERVED必须完整原件/摘要与canonical metadata一致，并经当前fence/秘密扫描；UNKNOWN不含body/HTTP状态，只用固定reason。HTTP状态与正文不是reported_result。REFUSED/UNKNOWN或丢响应不能推导未执行。
+
+框架冻结检查只读锁文件并对固定Python/Node执行--version，不自动安装、联网或执行声明argv，不声称依赖闭包或限制了任意SDK shell语义。一般凭据HTTP/写操作/浏览器/CI不通过本profile准入；UNKNOWN阻止收尾并保持原预算及历史。

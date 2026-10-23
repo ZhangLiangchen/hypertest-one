@@ -1205,3 +1205,9 @@ Gateway在API管理角色内独立实现授权、Project映射、私有候选、
 Web经现严格TLS/CA/UDS、服务端Operator身份访问Gateway；独立Memory overlay/开关不依赖Cloud执行启用。Cloud Worker有专用memory-only TLS UDS与逐Project独立memory grant文件，源lease/work proof仅私有HTTP header；namespace只得到显式意图/安全结果，不得到服务或平台凭据。Local复用私有HTTPS传输但须memory显式scope与父caller，私有memory账本和TaskSyncCore分开。旧Local发行保持历史，当前源码能力不推定新发行/真实宿主验收。
 
 网络I/O前提交SENT/释放源与权限行锁，返回后重新鉴权/fence与核当前可见集。无后台自动重发SENT/UNKNOWN，发布固定原件完整读回后接受；撤回不依赖索引删除，迟到结果不可重新激活。外部故障≤5秒降级，不占Cloud/Local报告journal、不改结果/HELD。当前合同见TMP§49、领域§54及[ADR-022 §0](ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)。
+
+## 49. ADR-025 可选受控 HTTPS 读取
+
+Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，仅只读挂载专用UDS。host按冻结目录与当前fence发一次GET/HEAD：公开IP全结果核验并pin连接、原hostname的严格TLS、零redirect/proxy/retry、整段deadline及有界流输出。无鉴权首片不给Agent任何网络身份或平台token，不读本机秘密，不绕过LOCAL_ONLY环境限制。
+
+平台0028两张不可变表保存原SENT与非秘密OBSERVED/UNKNOWN；原HTTP正文留host私有原件，须scan与当前fence接受才能返回。原key只读恢复不再发送，HTTP未知统一阻止原生命周期收尾/预算结算，不能由Operator声明消除。与SSH的远端签名/helper/终态协议保持独立。运行前核FRAMEWORK_LOCKED_V1的锁文件和固定工具身份；既有入口准入继续，离线检查不承担依赖安装或新的测试引擎职责。精确边界见[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)、TMP§50与领域§55。

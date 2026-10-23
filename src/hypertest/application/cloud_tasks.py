@@ -205,6 +205,11 @@ def _authorize_input_reads(task_inputs, configuration, now):
     """Apply the original DRAFT grant before even narrow Git preflight I/O."""
     authorize_cloud_environment(configuration)
     authorization = task_inputs["authorization"]
+    if configuration["environment"].get("https_access") is not None:
+        from types import SimpleNamespace
+
+        from .cloud_http import authorize_environment
+        authorize_environment(SimpleNamespace(inputs=task_inputs), configuration["environment"], now)
     targets = set(authorization["targets"])
     required_targets = {configuration[role]["url"] for role in ("sut", "framework")}
     if configuration["environment"].get("host"):
@@ -280,6 +285,8 @@ async def _snapshot(db, task):
     result["delegation_assets"] = [public(row) for row in await db.scalars(select(CloudDelegationAsset).where(CloudDelegationAsset.delegation_id.in_(delegation_ids)))] if delegation_ids else []
     from .cloud_ssh import terminal_results
     result["remote_operation_results"] = await terminal_results(db, task.id)
+    from .cloud_http import terminal_results as http_results
+    result["http_operation_results"] = await http_results(db, task.id)
     return result
 
 
@@ -1023,15 +1030,18 @@ async def task_summary(db, task_id, *, project_id=None):
                       "accepted_task_version": row.accepted_task_version} for row in resolutions])
     from .cloud_ssh import live_operations
     result["remote_operations"] = await live_operations(db, attempt.id) if attempt else []
+    from .cloud_http import live_operations as http_operations
+    result["http_operations"] = await http_operations(db, attempt.id) if attempt else []
     if attempt:
         from .cloud_ssh import ensure_remote_closed
         remote_closed = True
         try:
             await ensure_remote_closed(db, task_id=task.id)
         except HTTPException as error:
-            if error.detail != "SSH_REMOTE_OPERATIONS_UNRECONCILED":
+            if error.detail not in {"SSH_REMOTE_OPERATIONS_UNRECONCILED", "HTTPS_REMOTE_OPERATIONS_UNRECONCILED"}:
                 raise
             remote_closed = False
+            remote_blocking = error.detail
         fenced = await _owner_fenced(db, attempt)
         pending = attempt.checkpoint.get("pending_operation_keys", [])
         blocking = []
@@ -1042,7 +1052,7 @@ async def task_summary(db, task_id, *, project_id=None):
         if pending:
             blocking.append("PENDING_ORIGINAL_OPERATIONS")
         if not remote_closed:
-            blocking.append("SSH_REMOTE_OPERATIONS_UNRECONCILED")
+            blocking.append(remote_blocking)
         if await _delegations_unresolved(db, attempt):
             blocking.append("DELEGATIONS_UNRECONCILED")
         cancellation = attempt.checkpoint.get("cancellation_requested") is True

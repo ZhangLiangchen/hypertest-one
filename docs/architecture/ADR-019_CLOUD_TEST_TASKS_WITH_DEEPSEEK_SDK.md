@@ -1,5 +1,7 @@
 # ADR-019：通过官方 Python SDK 托管云端测试任务
 
+**当前增补：** P0、Memory已按各自记录部署，受控公开HTTPS首片与框架冻结按[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)独立交付且默认关闭。当前剩余工作见[TODO](../TODO.md)。下方“NOT DEPLOYED/Memory Proposed”等原轮次描述保留历史，不替代最新部署身份、用户验收或SDK续接仍不支持的事实。
+
 ## 当前交付限定（2026-10-23）
 
 本次正式候选只交付 DeepSeek Harness + Codex，Claude Code 保持占位；下文提及 Claude 的可替换 worker 目标不构成具体实现、当前能力或本轮验收要求。
