@@ -36,7 +36,7 @@ API内可选Memory Gateway为唯一上游admin持有者。Project配置映射、
 | PowerContext真实协议adapter（MockTransport） | 13 passed，覆盖scope、固定读回/digest、FTS、丢ACK查询、HTTPS/重定向/体积/秘密错误边界 |
 | Memory Web/BFF/持久账本 | 18 passed |
 | 既有Cloud服务端auth/TLS transport | 15 passed |
-| Memory/Cloud ops overlay与listener | 23 passed，Cloud-only/默认禁用输出保持，Memory-only不依赖Cloud执行配置 |
+| Memory/Cloud ops overlay与listener | 25 passed，含实际Compose合并；Cloud-only/默认禁用输出保持，Memory-only不依赖Cloud执行配置 |
 | 类型检查、改动文件Ruff、差异检查 | 通过；机械UI检测7文件无finding（regex-only，非浏览器验收） |
 
 相关故障回归使用合成fixtures，数据库为本轮专用tmpfs容器，已清理该精确测试容器，无线上数据库/真实PowerContext写入。最终Git/镜像/schema及基础健康在部署后补充；这些结果不是线上功能验收、真实模型或SUT执行。
