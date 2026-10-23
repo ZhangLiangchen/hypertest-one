@@ -1,0 +1,24 @@
+{
+  "operation": "STATIC_PROCESS_INVENTORY_AND_AUTHORIZED_OLD_DEV_CLEANUP",
+  "target_api": "http://127.0.0.1:8101/api/v1",
+  "old_dev_matches": [
+    {
+      "pid": 55116,
+      "uid": 501,
+      "interpreter": "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+      "config": "/Users/zhangliangchen/.local/share/hypertest/session-sync-dev-20261021/mcp-config.json",
+      "api_url": "http://127.0.0.1:8101/api/v1",
+      "signal": "SIGTERM",
+      "post_signal_pid_present": false
+    }
+  ],
+  "other_daemons_untouched": 0,
+  "new_management_started": false,
+  "old_state_and_journal_preserved": true,
+  "checked_at": "2026-10-21T10:08:36.561001+00:00",
+  "old_interactive_socket_exists": false,
+  "new_management_state_files": [],
+  "post_signal_checked_at": "2026-10-21T10:08:52.590998+00:00",
+  "old_state_dir": "/Users/zhangliangchen/.local/share/hypertest/session-sync-dev-20261021/mcp-state",
+  "old_journal_exists": true
+}

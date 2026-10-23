@@ -1,0 +1,7 @@
+{
+  "observed_at": "2026-10-21T06:57:38.992876+00:00",
+  "kind": "ACCEPTANCE_HARNESS_EXPECTATION_ERROR",
+  "expected_unauthenticated_status": 403,
+  "observed_unauthenticated_status": 401,
+  "explanation": "Service correctly required Operator authentication; pure-GET script expectation corrected to 401. No SUT or platform write was retried."
+}

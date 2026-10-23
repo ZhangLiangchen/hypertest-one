@@ -1,0 +1,204 @@
+{
+  "original_body_source": "/Users/zhangliangchen/.local/share/hypertest/session-sync-dev-20261021/local-direct-mcp-20261021/before.json ->receipts[].request_payload",
+  "phase": "sync",
+  "started_at": "2026-10-21T10:37:50.364097+00:00",
+  "invocation": "Local Codex tool launches official MCP SDK, not native tool hotload",
+  "official_version": "0.2.0",
+  "sdk_version": "1.30.0",
+  "wheel_sha256": "d7e7bfdbb5a5a25bab343bf695185cc9587c745605c667ba28a9d23d336a6dd3",
+  "sdk_pid": 58031,
+  "sdk_executable": "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/venv/bin/python",
+  "stock_profile_command": "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/venv/bin/python",
+  "stock_profile_args": [
+    "-I",
+    "-m",
+    "hypertest.interactive_client",
+    "stdio",
+    "--config",
+    "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/config.json",
+    "--autostart"
+  ],
+  "stock_profile_cwd": "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021",
+  "api_url": "https://155.138.206.106:8080/api/v1",
+  "ca_file": "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/server-ca.crt",
+  "default_transport": true,
+  "TLS_verification": true,
+  "HTTP_fallback": false,
+  "api_transport_public_https_tcp": true,
+  "remote_TLS_UDS": false,
+  "SSH_or_forwarding": false,
+  "local_stock_stdio_daemon_UDS": true,
+  "sys_platform": "darwin",
+  "uid": 501,
+  "sdk_ppid": 92407,
+  "sdk_ancestors": [
+    {
+      "pid": 58031,
+      "ppid": 92407,
+      "comm": "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python"
+    },
+    {
+      "pid": 92407,
+      "ppid": 92294,
+      "comm": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+    },
+    {
+      "pid": 92294,
+      "ppid": 1,
+      "comm": "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT"
+    }
+  ],
+  "ca_original_file": "/Users/zhangliangchen/.local/share/hypertest/session-sync-dev-20261021/server-trust/ingress-ca.crt",
+  "ca_resolved_file": "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/server-ca.crt",
+  "ca_der_sha256": "9b3cf1b792fc14bec884034757cb7dda95ab8cba0e946cd236cb9a531a1d67e6",
+  "source_bundle_sha256": "278f5003a287746b5abba528eed1f04f2d1f31122f0b8fea5e39c37601662f3c",
+  "source_session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+  "request_digest": "a3be2c5222fb7ac223297bc25f9907da60d1f06de2194d9a1453dd508395d10f",
+  "journal_before": {
+    "file_exists": true,
+    "intent": null
+  },
+  "management_tools_called": [
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-before-receipt"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-before-page-0"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-before-page-24000"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-before-page-48000"
+    },
+    {
+      "tool": "hypertest_sync_task",
+      "label": "sync-original-key-result"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-after-receipt"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-after-page-0"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-after-page-24000"
+    },
+    {
+      "tool": "hypertest_get_task",
+      "label": "sync-after-page-48000"
+    }
+  ],
+  "sut_tests_executed": 0,
+  "native_tools_hotload_verified": false,
+  "server_info": {
+    "name": "hypertest-interactive",
+    "title": null,
+    "version": "0.2.0",
+    "websiteUrl": null,
+    "icons": null
+  },
+  "advertised_tools": [
+    "ask_user",
+    "complete_mission",
+    "evaluate_gate",
+    "get_issue",
+    "get_state",
+    "hypertest_bind_execution",
+    "hypertest_get_execution",
+    "hypertest_get_progress",
+    "hypertest_get_submission",
+    "hypertest_get_task",
+    "hypertest_list_evidence",
+    "hypertest_list_reports",
+    "hypertest_read_evidence",
+    "hypertest_read_report",
+    "hypertest_submit_task",
+    "hypertest_sync_task",
+    "request_execution",
+    "request_gitlab_issue",
+    "request_mission",
+    "submit_report"
+  ],
+  "original_receipt": {
+    "status": "ACCEPTED",
+    "profile": "codex-session-task-sync/v1alpha1",
+    "task_id": "01a15de5-9aca-76b4-bd57-c673112f2e92",
+    "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+    "provider": "codex",
+    "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+    "version": 1,
+    "idempotency_key": "uc18-real-session-current-20261021-v1",
+    "source": "AGENT_REPORTED"
+  },
+  "before_readback": {
+    "pages": 3,
+    "chars": 61137,
+    "task_fields_exact": true,
+    "all_case_fields_exact": true,
+    "all_report_fields_exact": true,
+    "report_markdown_bytes_exact": true,
+    "case_results": {
+      "PASS": 10,
+      "FAIL": 2,
+      "UNKNOWN": 3
+    },
+    "task_created_at": "2026-10-21T09:58:10.890320+00:00",
+    "task_last_synced_at": "2026-10-21T09:58:10.890320+00:00"
+  },
+  "process_chain_before_sync": [
+    {
+      "pid": 50014,
+      "ppid": 1,
+      "argv": [
+        "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+        "-m",
+        "hypertest.interactive_client",
+        "daemon",
+        "--config",
+        "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/config.json"
+      ],
+      "tcp_connections": [
+        "COMMAND   PID           USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME",
+        "Python  50014 zhangliangchen   10u  IPv4 0xf99cf506e08d268c      0t0  TCP 198.18.0.1:52546->155.138.206.106:8080 (ESTABLISHED)"
+      ]
+    },
+    {
+      "pid": 58045,
+      "ppid": 58031,
+      "argv": [
+        "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+        "-I",
+        "-m",
+        "hypertest.interactive_client",
+        "stdio",
+        "--config",
+        "/Users/zhangliangchen/.local/share/hypertest/codex-session-management-20261021/config.json",
+        "--autostart"
+      ]
+    }
+  ],
+  "journal_after_read": {
+    "file_exists": true,
+    "intent": null
+  },
+  "sync_call_sent": true,
+  "sync_result": {
+    "status": "ACCEPTED",
+    "profile": "codex-session-task-sync/v1alpha1",
+    "task_id": "01a15de5-9aca-76b4-bd57-c673112f2e92",
+    "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+    "provider": "codex",
+    "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+    "version": 1,
+    "idempotency_key": "uc18-real-session-current-20261021-v1",
+    "source": "AGENT_REPORTED"
+  }
+}

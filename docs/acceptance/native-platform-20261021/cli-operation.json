@@ -1,0 +1,29 @@
+{
+  "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+  "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+  "idempotency_key": "xblock-handoff-A-to-B",
+  "kind": "HANDOFF",
+  "input_digest": "2279e32136335b9feeae4884e2f7fbf3474678f2d7907f4a08372770f092a489",
+  "payload": {
+    "reason": "Explicit sequential contribution handoff between independent HTTP client processes; no claim of native Provider resume",
+    "generation": 1,
+    "contributor_id": "01a15d34-35d9-7388-ae47-427e178ada8e",
+    "remaining_work": [
+      "Independent provenance remains UNVERIFIED; native CI/PASS/Web/MCP are pending"
+    ],
+    "idempotency_key": "xblock-handoff-A-to-B",
+    "successor_session_ref": "acceptance-client-B"
+  },
+  "status": "SUCCEEDED",
+  "result": {
+    "run_id": "01a15d34-35d5-7199-8b78-4d6327053b4b",
+    "generation": 2,
+    "handoff_id": "01a15d34-51ae-77ae-abcf-7b07559356ce",
+    "state_digest": "529045c3724a6a5be6619189ee07e0d80fec5cc569ffae01bb322d1ec4db1475",
+    "contributor_id": "01a15d34-51ae-7fb1-81d6-06cf6accd903",
+    "state_artifact_uri": "sha256:529045c3724a6a5be6619189ee07e0d80fec5cc569ffae01bb322d1ec4db1475"
+  },
+  "reconciled_material_id": null,
+  "id": "01a15d34-51b1-7ea2-b476-8c67bc0cc958",
+  "created_at": "2026-10-21T06:44:32.305131+00:00"
+}

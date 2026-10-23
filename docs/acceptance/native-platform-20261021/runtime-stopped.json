@@ -1,0 +1,17 @@
+{
+  "completed_at": "2026-10-21T06:58:55.556802+00:00",
+  "api_pid": 29428,
+  "api_stop": "SIGTERM exact verified PID",
+  "api_8097_listener_after_stop": false,
+  "container_name": "/hypertest-native-qa16-20261021",
+  "container_id": "fc2b840384f8568faed302bac2bdafda201a86442713cbcbab06ec8fe9bf0d1f",
+  "container_status": "exited",
+  "container_stop": "docker stop exact verified ID",
+  "container_removed": false,
+  "mounts_retained": true,
+  "persistent_private_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021",
+  "persistent_artifacts_present": true,
+  "original_temporary_directory_retained": true,
+  "other_resources_stopped": false,
+  "data_deleted": false
+}

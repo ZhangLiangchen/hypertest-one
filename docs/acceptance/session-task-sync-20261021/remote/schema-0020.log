@@ -1,0 +1,22 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_foundation, foundation control-plane schema
+INFO  [alembic.runtime.migration] Running upgrade 0001_foundation -> 0002_agent_canonical_loop, agent to canonical write loop
+INFO  [alembic.runtime.migration] Running upgrade 0002_agent_canonical_loop -> 0003_risk_planner, risk canonical state and planner support
+INFO  [alembic.runtime.migration] Running upgrade 0003_risk_planner -> 0004_test_design, Canonical test cases and relational risk test coverage.
+INFO  [alembic.runtime.migration] Running upgrade 0004_test_design -> 0005_delivery, Complete the canonical delivery, evidence, finding, and verdict chain.
+INFO  [alembic.runtime.migration] Running upgrade 0005_delivery -> 0006_immutable_contracts, Protect immutable input snapshots and dispatched Mission contracts.
+INFO  [alembic.runtime.migration] Running upgrade 0006_immutable_contracts -> 0007_durable_jobs, Durable operational jobs, fenced worker leases, and worker liveness.
+INFO  [alembic.runtime.migration] Running upgrade 0007_durable_jobs -> 0008_job_ownership, Bind attempts and executions to their durable request without clock inference.
+INFO  [alembic.runtime.migration] Running upgrade 0008_job_ownership -> 0009_mission_inputs, Durable clarification and paused job reservations, without rewriting history.
+INFO  [alembic.runtime.migration] Running upgrade 0009_mission_inputs -> 0010_mission_activity, Bounded safe mission activity observations.
+INFO  [alembic.runtime.migration] Running upgrade 0010_mission_activity -> 0011_execution_environments, Freeze controlled Runner environments without reinterpreting old inputs.
+INFO  [alembic.runtime.migration] Running upgrade 0011_execution_environments -> 0012_api_environment_v2, Admit the isolated HTTP-test profile without changing existing bindings.
+INFO  [alembic.runtime.migration] Running upgrade 0012_api_environment_v2 -> 0013_run_bindings, Persistent Run ownership and dual-scope questions; never backfill old sessions.
+INFO  [alembic.runtime.migration] Running upgrade 0013_run_bindings -> 0014_harness_operations, Operational persistent Harness calls, reports and runtime dispatch. No historical backfill.
+INFO  [alembic.runtime.migration] Running upgrade 0014_harness_operations -> 0015_connector_nodes, ADR-015 device identity, fixed placement and durable connector dispatch; no history backfill.
+INFO  [alembic.runtime.migration] Running upgrade 0015_connector_nodes -> 0016_source_transfer, ADR-015 immutable acquisition requests, bounded transfer and source receipts.
+INFO  [alembic.runtime.migration] Running upgrade 0016_source_transfer -> 0017_issue_executor, ADR-015 immutable Issue executor selection; no historical backfill.
+INFO  [alembic.runtime.migration] Running upgrade 0017_issue_executor -> 0018_harness_selection, Freeze local admission before establishing the one persistent Run binding.
+INFO  [alembic.runtime.migration] Running upgrade 0018_harness_selection -> 0019_interactive_mcp, ADR-016 registered interactive identities and immutable execution admission.
+INFO  [alembic.runtime.migration] Running upgrade 0019_interactive_mcp -> 0020_interactive_tool_inbox, Durable typed interactive transport inbox; execution stays in the original Worker.

@@ -1,0 +1,109 @@
+{
+  "captured_at": "2026-10-21T06:25:00.619453+00:00",
+  "gitlab": {
+    "host": "gitlab.charprotocol.com",
+    "authenticated_username": "zhangliangchen",
+    "authenticated_user_id": 115,
+    "authentication_storage": "keyring",
+    "tls": "HTTPS default verification succeeded; no TLS bypass",
+    "project_metadata_read": [
+      {
+        "id": 231,
+        "path_with_namespace": "blockchain/blockchain",
+        "default_branch": "dev"
+      },
+      {
+        "id": 127,
+        "path_with_namespace": "xblock/xblock-service-asset",
+        "default_branch": "dev"
+      }
+    ],
+    "write_authorization": "NOT_CHECKED",
+    "platform_native_actor_authorization": "NOT_CHECKED"
+  },
+  "asset_historical_commit": {
+    "resolved_gitlab_commit": "cdb9686ec1c743143a285eae748bb46e7980a841",
+    "jar_to_commit_attestation": "UNVERIFIED"
+  },
+  "main_framework": {
+    "root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure",
+    "branch": "master",
+    "commit": "83a1568905a9ac73852bd4749eeeea540b91b0b5",
+    "dirty": " M .claude/skills/staging-order-forensics/scripts/log_grep.sh\n?? .agents/skills/dev166-order-forensics/\n?? .agents/skills/staging-order-forensics/\n?? .agents/skills/xblock-api-doc/\n?? .codex/environments/\n?? c8a-4-order-by-coid.json\n?? c8a-4-submit-resp.json\n?? c8a-4-with-details.json\n?? deploy/vault/vault\n?? docs/evidence/.DS_Store\n?? docs/evidence/asset-retry-rca-20260916/\n?? docs/evidence/dev166-test-validity-extrapolation/\n?? docs/evidence/dev166-vault-binary-swap-20261012/\n?? docs/evidence/env-ledger-gap-20260915/\n?? docs/evidence/eth-dex-live-20260918/\n?? docs/evidence/staging-ledger-trace-rca-20260918/\n?? docs/evidence/tron-dex-energy-live-20260917/\n?? docs/evidence/tron-dex-energy-whitebox-20260917/\n?? docs/evidence/usdt-native-dex-acceptance-20260920/\n?? python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_helpers_unit.py\n?? python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_io_unit.py\n?? python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py\n?? python/tests/scenario_driven/transaction_flow/uc_tx_18_multi_energy_helpers.py\n?? python/tests/scenario_driven/transaction_flow/uc_tx_18_multi_energy_io.py\n",
+    "worktrees": "worktree /Users/zhangliangchen/PycharmProjects/hypervise_pure\nHEAD 83a1568905a9ac73852bd4749eeeea540b91b0b5\nbranch refs/heads/master\n\nworktree /Users/zhangliangchen/.codex/worktrees/b2a8/hypervise_pure\nHEAD 83a1568905a9ac73852bd4749eeeea540b91b0b5\ndetached\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/166dev-vault-new-chain-test-a89633\nHEAD 85dc026da2bb6ec45fda6651f2687e3a1e802c39\nbranch refs/heads/claude/166dev-vault-new-chain-test-a89633\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/amazing-darwin-ee8c55\nHEAD 3d9586642644876a16fbe54d808550010837892f\nbranch refs/heads/claude/ledger-data-recovery-29e7c5\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/asset-service-regression-tests-495665\nHEAD 2e388084f2793113f57be0a60645519e67fa99a4\nbranch refs/heads/claude/xblock-multi-strategy-testing-5c370d\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/blockchain-phase3-config-check-edc873\nHEAD 7a2439ca9a9a099c8ea9c0d210b9666b1cd31870\nbranch refs/heads/claude/glab-cicd-gate-failures-21827c\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/blockchain-phase3-requirements-b1212d\nHEAD 2e388084f2793113f57be0a60645519e67fa99a4\nbranch refs/heads/claude/risk-address-token-swap-test-812305\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/heuristic-wright-6496d7\nHEAD c1a60e32430b1f4f64c24fad42cd98537d276541\nbranch refs/heads/claude/heuristic-wright-6496d7\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/model-strategy-sorting-test-61b04a\nHEAD 50c6829acc965e4965205295d996cdad73d89c38\nbranch refs/heads/claude/model-strategy-sorting-test-61b04a\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/peaceful-mclean-4219b4\nHEAD cb377c64c5f07ab52e6136e433be72e81d75a9c4\nbranch refs/heads/claude/peaceful-mclean-4219b4\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/pharos-block-speed-check-edfde2\nHEAD d113627dfd3e714d3325fd0cad7917e9692ae631\nbranch refs/heads/claude/xblock-balance-alert-review-028f96\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/tron-energy-api-handoff-158a29\nHEAD eb201ed4b9dafffd1afaa4a96152a24a550f7db2\nbranch refs/heads/claude/hypervise-withdraw-signature-fix-2ccf07\n\nworktree /Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9\nHEAD d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584\nbranch refs/heads/claude/xblock-async-energy-vendor-d7fefe\n\n"
+  },
+  "tools": [
+    {
+      "argv": [
+        "git",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "git version 2.49.0\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "glab",
+        "version"
+      ],
+      "exit_code": 0,
+      "stdout": "glab 1.106.0 (fc1869c7)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "v26.8.1\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.venv/bin/python",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "Python 3.13.3\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.venv/bin/python",
+        "-m",
+        "pytest",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "pytest 9.0.2\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/Applications/PyCharm.app/Contents/jbr/Contents/Home/bin/java",
+        "-version"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "openjdk version \"21.0.10\" 2026-01-20\nOpenJDK Runtime Environment JBR-21.0.10+7-1163.108-jcef (build 21.0.10+7-b1163.108)\nOpenJDK 64-Bit Server VM JBR-21.0.10+7-1163.108-jcef (build 21.0.10+7-b1163.108, mixed mode, sharing)\n"
+    },
+    {
+      "argv": [
+        "/Applications/PyCharm.app/Contents/jbr/Contents/Home/bin/javac",
+        "-version"
+      ],
+      "exit_code": 0,
+      "stdout": "javac 21.0.10\n",
+      "stderr": ""
+    }
+  ],
+  "provider_executable_presence": {
+    "codex": true,
+    "claude": true
+  },
+  "provider_authenticated_access": "NOT_CHECKED",
+  "ssh_or_production_access": "NOT_CHECKED",
+  "environment_variable_names_present": []
+}

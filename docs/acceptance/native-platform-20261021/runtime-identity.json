@@ -1,0 +1,25 @@
+{
+  "pid": 29428,
+  "started_at": "2026-10-21T06:55:15.831043+00:00",
+  "api_url": "http://127.0.0.1:8097/api/v1",
+  "schema": "0021_native_intake",
+  "database": "isolated hypertest_native_qa on 127.0.0.1:55439",
+  "artifact_root": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021/artifacts",
+  "source_files": {
+    "src/hypertest/native_protocol.py": "3a1a00dbd3695f5dfc4b6b472542024b39c6a03a26ed9d5a482fb56bc2b51f6f",
+    "src/hypertest/native_client.py": "6956c1a0c0d06471b99ec42afc13c9ea01e4d410feb716e62293727197164495",
+    "src/hypertest/domain/native.py": "3f8e28c2d9ab0b7603098f20e575fcc0183f4dcd6b7b6680f2ce4aab016f66ce",
+    "src/hypertest/application/native.py": "ea90cded212866ea788884bdad3bcce1a77152544fd71f20cc1867d79a993ab7",
+    "src/hypertest/application/native_verifier.py": "2e34990ca26425f588a610271c7756f1b9c080a430a2c59e04c80c9a9706c358",
+    "src/hypertest/api/native_routes.py": "717bcfefbbcb6b5597add564cf94e1694368329c154759639c92d03c13d690a3",
+    "src/hypertest/main.py": "d32d1033e4a37f30296479385c3270c83635266ef94078347b8948f9cf674635",
+    "src/hypertest/config.py": "6cee29fd6b77abbf3bb8ebd4521e04a774498eb7ade2fd99afe508a856578da6",
+    "src/hypertest/domain/models.py": "83c14289edb04dd90ca38a742b61a5330d7d9dbe59b1057630feb47a0950bfbc",
+    "alembic/versions/0021_native_intake.py": "c2deec856cd9a60b3ffaecf24354c71019ace82cc68ad994880e7862a7db80f9",
+    "pyproject.toml": "ac0ddad40ad3dac98441b279361ef5e3bfaa783223fed0d17a78ce6100149c9d"
+  },
+  "runtime_note": "Source hashes identify this loaded runtime; they do not prove SUT execution.",
+  "configuration_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021",
+  "predecessor_pid": 27312,
+  "migration": "Same final source and database; persistent private Artifact/config copy verified"
+}

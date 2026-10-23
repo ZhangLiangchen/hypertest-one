@@ -1,0 +1,48 @@
+{
+  "run_id": "xblock-consumer-parity-20261021-01",
+  "argv": [
+    "bash",
+    "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/deploy/localchain/tronsave-mock/consumer-parity/run.sh",
+    "local",
+    "scenarios",
+    "--only",
+    "happy_inline_fill,deferred_short_budget_then_query,create_400_cannot_fulfilled,create_401_invalid_key,create_429_rate_limited,create_missing_order_id,create_close_socket,min_amount_boundary,duplicate_guard_must_wait_previous,create_balance_too_low_natural,balance_debit_after_purchase_exact,split_two_delegates,wrong_id_echo,activation_state_2_already_active,activation_state_4_invalid_address,balance_401_invalid_key,local_gate_chain_tron_test",
+    "--jar",
+    "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9/.tronsave-work/asset-jar/app.jar",
+    "--cache-dir",
+    "/Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/parity-cache"
+  ],
+  "cwd": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/.claude/worktrees/zealous-williams-51bed9",
+  "started_at": "2026-10-21T06:23:47.440767+00:00",
+  "timezone": "UTC",
+  "environment_variable_names": [
+    "JAVA_HOME",
+    "TMPDIR",
+    "TRONSAVE_PARITY_APIKEY",
+    "TRONSAVE_PARITY_APIKEY2",
+    "TRONSAVE_PARITY_ADMIN_TOKEN",
+    "TRONSAVE_PARITY_ACCOUNT",
+    "PARITY_LOCAL_URL"
+  ],
+  "secret_source": "ephemeral local fake-server, consumed by existing wrapper; no shared credentials",
+  "material_status": "PENDING_VERIFICATION",
+  "framework_commit": "d4bd46e5daee8f5b4906deb5c8a2aadc7f34e584",
+  "sut_source_commit": "UNKNOWN",
+  "stdout": "xblock-scenarios.stdout.jsonl",
+  "stderr": "xblock-scenarios.stderr.log",
+  "ended_at": "2026-10-21T06:24:26.730339+00:00",
+  "exit_code": 0,
+  "duration_seconds": 39.29,
+  "artifacts": [
+    {
+      "path": "xblock-scenarios.stdout.jsonl",
+      "bytes": 15309,
+      "sha256": "7fe0121990dc646b60fb78fe461c94f89d02aeb938adb628a4922a300c1ba324"
+    },
+    {
+      "path": "xblock-scenarios.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

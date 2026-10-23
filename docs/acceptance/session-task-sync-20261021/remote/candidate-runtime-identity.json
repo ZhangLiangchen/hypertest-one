@@ -1,0 +1,85 @@
+{
+  "observed_at": "2026-10-21T08:12:18.941797+00:00",
+  "source": {
+    "source_dir": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150",
+    "source_archive_sha256": "4036ba150bf743db317bf51b13ae28363c46b49c5eae5098576ee6e703e50f4b",
+    "files": 325,
+    "base_commit": "5a68dd1bd6375fad0b271b2b86af48bdf857fe31",
+    "uncommitted_source_snapshot": true
+  },
+  "package": {
+    "name": "hypertest-one",
+    "version": "0.1.0",
+    "direct_url": {
+      "dir_info": {
+        "editable": true
+      },
+      "url": "file:///opt/hypertest/candidates/session-sync-20261021/final-4036ba150"
+    },
+    "distribution_path": "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages",
+    "release_status": "UNCOMMITTED_EDITABLE_CANDIDATE_NOT_OFFICIAL_MCP_WHEEL"
+  },
+  "runtime_versions": {
+    "fastapi": "0.146.0",
+    "uvicorn": "0.54.0",
+    "sqlalchemy": "2.1.5",
+    "asyncpg": "0.32.0",
+    "alembic": "1.20.0",
+    "pydantic": "2.14.1",
+    "pydantic-settings": "2.16.0",
+    "websockets": "17.2",
+    "pytest": "8.4.2",
+    "pytest-asyncio": "0.26.0",
+    "httpx": "0.28.1",
+    "mcp": "1.30.0"
+  },
+  "node": "v22.23.3",
+  "next": "15.5.28",
+  "processes": {
+    "api": {
+      "pid": 3551094,
+      "cwd": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150",
+      "executable": "/opt/hypertest/python/cpython-3.12.15-linux-x86_64-gnu/bin/python3.12",
+      "command_observed": [
+        "/opt/hypertest/candidates/session-sync-20261021/.venv/bin/python",
+        "-m",
+        "uvicorn",
+        "hypertest.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "18101"
+      ],
+      "uid_status": "Uid:\t999\t999\t999\t999",
+      "gid_status": "Gid:\t989\t989\t989\t989",
+      "safe_runtime_environment": {
+        "HOME": "/var/lib/hypertest-session-sync-candidate-20261021/home",
+        "XDG_CACHE_HOME": "/var/lib/hypertest-session-sync-candidate-20261021/cache"
+      }
+    },
+    "web": {
+      "pid": 3553680,
+      "cwd": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/web",
+      "executable": "/opt/hypertest/node-v22.23.3-linux-x64/bin/node",
+      "command_observed": [
+        "next-server (v15.5.28)"
+      ],
+      "uid_status": "Uid:\t999\t999\t999\t999",
+      "gid_status": "Gid:\t989\t989\t989\t989",
+      "safe_runtime_environment": {
+        "HYPERTEST_API_ORIGIN": "http://127.0.0.1:18101",
+        "HOME": "/var/lib/hypertest-session-sync-candidate-20261021/home",
+        "XDG_CACHE_HOME": "/var/lib/hypertest-session-sync-candidate-20261021/cache"
+      }
+    }
+  },
+  "candidate_listen_addresses": [
+    "127.0.0.1:18101",
+    "127.0.0.1:13101"
+  ],
+  "source_files_changed_by_build": [
+    "web/tsconfig.tsbuildinfo"
+  ],
+  "api_package_source": "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/src/hypertest",
+  "web_build_id": "KaWP3J0XFrLF0YqbgaUHW"
+}

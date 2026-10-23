@@ -1,0 +1,24 @@
+{
+  "copied_at": "2026-10-21T06:54:42.830015+00:00",
+  "source_directory": "/tmp/hypertest-native-dev-20261021",
+  "destination_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021",
+  "files_verified": 16,
+  "bytes_verified": 355320,
+  "all_files_bytewise_equal_before_config_update": true,
+  "private_dirs_mode": "0700",
+  "private_files_mode": "0600",
+  "config_changes": {
+    "HYPERTEST_ARTIFACT_ROOT": {
+      "before": "/tmp/hypertest-native-dev-20261021/artifacts",
+      "after": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021/artifacts"
+    }
+  },
+  "original_temporary_directory_retained": true,
+  "scope": "Only this run-owned directory copied; no other persistent files replaced",
+  "client_state_copy": {
+    "destination_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021/acceptance-client",
+    "files_verified_bytewise": 11,
+    "source_retained": true,
+    "mode": "0700 directories / 0600 files"
+  }
+}

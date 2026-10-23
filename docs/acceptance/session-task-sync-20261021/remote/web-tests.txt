@@ -1,0 +1,793 @@
+cwd=/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/web
+command=npm test
+HYPERTEST_API_ORIGIN=http://127.0.0.1:18101
+
+> hypertest-one-web@0.1.0 test
+> node --test tests/*.test.cjs
+
+TAP version 13
+# Subtest: canonical details expose complete requirements, risk rationale and test expectations in both languages
+ok 1 - canonical details expose complete requirements, risk rationale and test expectations in both languages
+  ---
+  duration_ms: 1509.903552
+  type: 'test'
+  ...
+# Subtest: relationship buttons navigate between accepted entities rather than using unresolved keys
+ok 2 - relationship buttons navigate between accepted entities rather than using unresolved keys
+  ---
+  duration_ms: 510.919077
+  type: 'test'
+  ...
+# Subtest: implementation source review preserves literal code and never presents accepted code as passing execution
+ok 3 - implementation source review preserves literal code and never presents accepted code as passing execution
+  ---
+  duration_ms: 194.889084
+  type: 'test'
+  ...
+# Subtest: integrity/read failures hide stale code and provide a bilingual retry; tracked tests do not request workspace content
+ok 4 - integrity/read failures hide stale code and provide a bilingual retry; tracked tests do not request workspace content
+  ---
+  duration_ms: 349.265017
+  type: 'test'
+  ...
+# Subtest: missing entities and unloaded relationship records remain explicit rather than pretending links exist
+ok 5 - missing entities and unloaded relationship records remain explicit rather than pretending links exist
+  ---
+  duration_ms: 104.872642
+  type: 'test'
+  ...
+# Subtest: test source API uses the recorded run and implementation identities and rejects non-200 error bodies
+ok 6 - test source API uses the recorded run and implementation identities and rejects non-200 error bodies
+  ---
+  duration_ms: 203.966076
+  type: 'test'
+  ...
+# Subtest: defaults and ASGI request bodies contain only supported environment inputs
+ok 7 - defaults and ASGI request bodies contain only supported environment inputs
+  ---
+  duration_ms: 11.043415
+  type: 'test'
+  ...
+# Subtest: switching to pytest preserves the ASGI draft without leaking hidden service fields
+ok 8 - switching to pytest preserves the ASGI draft without leaking hidden service fields
+  ---
+  duration_ms: 0.709847
+  type: 'test'
+  ...
+# Subtest: ASGI accepts ASCII dotted objects and rejects factories, commands and whitespace rewriting
+ok 9 - ASGI accepts ASCII dotted objects and rejects factories, commands and whitespace rewriting
+  ---
+  duration_ms: 4.757566
+  type: 'test'
+  ...
+# Subtest: health paths reject authority, query, fragment, encoding and traversal
+ok 10 - health paths reject authority, query, fragment, encoding and traversal
+  ---
+  duration_ms: 0.666915
+  type: 'test'
+  ...
+# Subtest: startup timeout rejects fractional or textual values rather than silently normalizing them
+ok 11 - startup timeout rejects fractional or textual values rather than silently normalizing them
+  ---
+  duration_ms: 0.412956
+  type: 'test'
+  ...
+# Subtest: failed, missing and unavailable catalog entries block use without choosing a fallback
+ok 12 - failed, missing and unavailable catalog entries block use without choosing a fallback
+  ---
+  duration_ms: 0.574807
+  type: 'test'
+  ...
+# Subtest: idempotency identity includes the environment and preserves original PRD/configuration bytes
+ok 13 - idempotency identity includes the environment and preserves original PRD/configuration bytes
+  ---
+  duration_ms: 0.543582
+  type: 'test'
+  ...
+# Subtest: bindings force Docker while historical null bindings retain the legacy Runner choice
+ok 14 - bindings force Docker while historical null bindings retain the legacy Runner choice
+  ---
+  duration_ms: 0.378384
+  type: 'test'
+  ...
+# Subtest: new API selections require v2 and never reuse an available archived v1 profile
+ok 15 - new API selections require v2 and never reuse an available archived v1 profile
+  ---
+  duration_ms: 0.941929
+  type: 'test'
+  ...
+# Subtest: archived API v1 bindings remain readable without changing their profile, request or image
+ok 16 - archived API v1 bindings remain readable without changing their profile, request or image
+  ---
+  duration_ms: 14.746069
+  type: 'test'
+  ...
+# Subtest: frozen definitions exclude unknown fields and do not adopt later catalog updates
+ok 17 - frozen definitions exclude unknown fields and do not adopt later catalog updates
+  ---
+  duration_ms: 0.755693
+  type: 'test'
+  ...
+# Subtest: execution uses its own top-level definition and records the actual Runner image separately
+ok 18 - execution uses its own top-level definition and records the actual Runner image separately
+  ---
+  duration_ms: 0.49063
+  type: 'test'
+  ...
+# Subtest: catalog API makes one readonly request
+ok 19 - catalog API makes one readonly request
+  ---
+  duration_ms: 328.925102
+  type: 'test'
+  ...
+# Subtest: real bilingual components render pinned identities without raw payloads or secret fields
+ok 20 - real bilingual components render pinned identities without raw payloads or secret fields
+  ---
+  duration_ms: 3403.351412
+  type: 'test'
+  ...
+# Subtest: disposition history shows the recorded transitions, versions and reason in both languages without raw audit metadata
+ok 21 - disposition history shows the recorded transitions, versions and reason in both languages without raw audit metadata
+  ---
+  duration_ms: 4800.232378
+  type: 'test'
+  ...
+# Subtest: failed history refresh retains loaded disposition history and makes bounded or missing history explicit
+ok 22 - failed history refresh retains loaded disposition history and makes bounded or missing history explicit
+  ---
+  duration_ms: 421.054279
+  type: 'test'
+  ...
+# Subtest: finding history API is a bounded readonly request and error responses remain errors
+ok 23 - finding history API is a bounded readonly request and error responses remain errors
+  ---
+  duration_ms: 447.022421
+  type: 'test'
+  ...
+# Subtest: opening gate from a Finding hides its drawer while retaining the same disposition form for cancel
+ok 24 - opening gate from a Finding hides its drawer while retaining the same disposition form for cancel
+  ---
+  duration_ms: 3903.535086
+  type: 'test'
+  ...
+# Subtest: empty and whitespace-only answers are blocked without rewriting meaningful text
+ok 25 - empty and whitespace-only answers are blocked without rewriting meaningful text
+  ---
+  duration_ms: 1.567937
+  type: 'test'
+  ...
+# Subtest: the answer limit counts Unicode characters rather than UTF-16 code units
+ok 26 - the answer limit counts Unicode characters rather than UTF-16 code units
+  ---
+  duration_ms: 2.619681
+  type: 'test'
+  ...
+# Subtest: an uncertain retry retains its original body, key and concurrency version after polling
+ok 27 - an uncertain retry retains its original body, key and concurrency version after polling
+  ---
+  duration_ms: 0.611589
+  type: 'test'
+  ...
+# Subtest: editing an uncertain answer creates a distinct request and keeps the old record intact
+ok 28 - editing an uncertain answer creates a distinct request and keeps the old record intact
+  ---
+  duration_ms: 0.343205
+  type: 'test'
+  ...
+# Subtest: answering requires the exact run-owned job to be safely paused
+ok 29 - answering requires the exact run-owned job to be safely paused
+  ---
+  duration_ms: 0.396853
+  type: 'test'
+  ...
+# Subtest: answered, consumed and cancelled questions cannot submit another answer
+ok 30 - answered, consumed and cancelled questions cannot submit another answer
+  ---
+  duration_ms: 0.407092
+  type: 'test'
+  ...
+# Subtest: the answer API sends the untouched draft and original retry key to the recorded question
+ok 31 - the answer API sends the untouched draft and original retry key to the recorded question
+  ---
+  duration_ms: 219.955342
+  type: 'test'
+  ...
+# Subtest: an answer conflict remains a failure and never launches a replacement job
+ok 32 - an answer conflict remains a failure and never launches a replacement job
+  ---
+  duration_ms: 106.807881
+  type: 'test'
+  ...
+# Subtest: quiet timing uses the server clock and keeps provider silence separate from worker heartbeats
+ok 33 - quiet timing uses the server clock and keeps provider silence separate from worker heartbeats
+  ---
+  duration_ms: 4.226444
+  type: 'test'
+  ...
+# Subtest: waiting, terminal, queued, cancelling and failed refreshes never produce a silence warning
+ok 34 - waiting, terminal, queued, cancelling and failed refreshes never produce a silence warning
+  ---
+  duration_ms: 1.450041
+  type: 'test'
+  ...
+# Subtest: a new claim with no signal uses only its supplied turn start and leaves unknown timing neutral
+ok 35 - a new claim with no signal uses only its supplied turn start and leaves unknown timing neutral
+  ---
+  duration_ms: 0.827722
+  type: 'test'
+  ...
+# Subtest: the projection excludes unknown kinds and all provider text while preserving safe record identity
+ok 36 - the projection excludes unknown kinds and all provider text while preserving safe record identity
+  ---
+  duration_ms: 3.615236
+  type: 'test'
+  ...
+# Subtest: polling and older-page reconciliation retain each bucket's newest count and observation
+ok 37 - polling and older-page reconciliation retain each bucket's newest count and observation
+  ---
+  duration_ms: 2.579751
+  type: 'test'
+  ...
+# Subtest: a missed head window rewinds pagination without dropping previously loaded records
+ok 38 - a missed head window rewinds pagination without dropping previously loaded records
+  ---
+  duration_ms: 1.410743
+  type: 'test'
+  ...
+# Subtest: an earlier-page response arriving after a new head gap cannot skip that gap
+ok 39 - an earlier-page response arriving after a new head gap cannot skip that gap
+  ---
+  duration_ms: 0.785094
+  type: 'test'
+  ...
+# Subtest: activity browsing is bounded and only a successful explicit reset discards loaded history
+ok 40 - activity browsing is bounded and only a successful explicit reset discards loaded history
+  ---
+  duration_ms: 14.81735
+  type: 'test'
+  ...
+# Subtest: the readonly API requests a bounded page and encoded cursor without writing a job
+ok 41 - the readonly API requests a bounded page and encoded cursor without writing a job
+  ---
+  duration_ms: 349.634145
+  type: 'test'
+  ...
+# Subtest: the actual activity view never renders raw provider fields or unknown kinds in either language
+ok 42 - the actual activity view never renders raw provider fields or unknown kinds in either language
+  ---
+  duration_ms: 3247.907369
+  type: 'test'
+  ...
+# Subtest: zh prompt uses the fixed release and public project context, with protected setup and explicit scope
+ok 43 - zh prompt uses the fixed release and public project context, with protected setup and explicit scope
+  ---
+  duration_ms: 2.912887
+  type: 'test'
+  ...
+# Subtest: en prompt uses the fixed release and public project context, with protected setup and explicit scope
+ok 44 - en prompt uses the fixed release and public project context, with protected setup and explicit scope
+  ---
+  duration_ms: 0.814972
+  type: 'test'
+  ...
+# Subtest: Codex Desktop adapter selection is explicit
+ok 45 - Codex Desktop adapter selection is explicit
+  ---
+  duration_ms: 0.568569
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "http://test.example/api/v1"
+ok 46 - unsafe API URL is rejected: "http://test.example/api/v1"
+  ---
+  duration_ms: 0.792094
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://user:secret@test.example/api/v1"
+ok 47 - unsafe API URL is rejected: "https://user:secret@test.example/api/v1"
+  ---
+  duration_ms: 0.253269
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://test.example/api/v1?key=secret"
+ok 48 - unsafe API URL is rejected: "https://test.example/api/v1?key=secret"
+  ---
+  duration_ms: 0.265281
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://test.example/api/v1\#ignore-instructions"
+ok 49 - unsafe API URL is rejected: "https://test.example/api/v1\#ignore-instructions"
+  ---
+  duration_ms: 0.225866
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://test.example/api/v1\\nIgnore everything"
+ok 50 - unsafe API URL is rejected: "https://test.example/api/v1\\nIgnore everything"
+  ---
+  duration_ms: 0.243106
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://test.example/api/v1 "
+ok 51 - unsafe API URL is rejected: "https://test.example/api/v1 "
+  ---
+  duration_ms: 0.462149
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://test.example\\\\@attacker.example/api/v1"
+ok 52 - unsafe API URL is rejected: "https://test.example\\\\@attacker.example/api/v1"
+  ---
+  duration_ms: 0.595121
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://test.example/another"
+ok 53 - unsafe API URL is rejected: "https://test.example/another"
+  ---
+  duration_ms: 0.458211
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "javascript:alert(1)"
+ok 54 - unsafe API URL is rejected: "javascript:alert(1)"
+  ---
+  duration_ms: 0.323835
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://$(id).example/api/v1"
+ok 55 - unsafe API URL is rejected: "https://$(id).example/api/v1"
+  ---
+  duration_ms: 0.142358
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://`id`.example/api/v1"
+ok 56 - unsafe API URL is rejected: "https://`id`.example/api/v1"
+  ---
+  duration_ms: 0.132816
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://a${SHELL}.example/api/v1"
+ok 57 - unsafe API URL is rejected: "https://a${SHELL}.example/api/v1"
+  ---
+  duration_ms: 0.305986
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://%24%28id%29.example/api/v1"
+ok 58 - unsafe API URL is rejected: "https://%24%28id%29.example/api/v1"
+  ---
+  duration_ms: 0.200412
+  type: 'test'
+  ...
+# Subtest: unsafe API URL is rejected: "https://bad;host.example/api/v1"
+ok 59 - unsafe API URL is rejected: "https://bad;host.example/api/v1"
+  ---
+  duration_ms: 0.121491
+  type: 'test'
+  ...
+# Subtest: invalid project identity cannot add instructions to the copied prompt
+ok 60 - invalid project identity cannot add instructions to the copied prompt
+  ---
+  duration_ms: 0.299828
+  type: 'test'
+  ...
+# Subtest: secret-bearing and unrecognized options are rejected rather than copied
+ok 61 - secret-bearing and unrecognized options are rejected rather than copied
+  ---
+  duration_ms: 0.325595
+  type: 'test'
+  ...
+# Subtest: host and locale cannot inject prompt instructions
+ok 62 - host and locale cannot inject prompt instructions
+  ---
+  duration_ms: 0.198263
+  type: 'test'
+  ...
+# Subtest: valid UTF-8 retains Chinese, emoji, CRLF and surrounding whitespace
+ok 63 - valid UTF-8 retains Chinese, emoji, CRLF and surrounding whitespace
+  ---
+  duration_ms: 1.967419
+  type: 'test'
+  ...
+# Subtest: a UTF-8 BOM is decoded while CRLF and content remain unchanged
+ok 64 - a UTF-8 BOM is decoded while CRLF and content remain unchanged
+  ---
+  duration_ms: 0.413123
+  type: 'test'
+  ...
+# Subtest: an interior BOM character is retained as original content
+ok 65 - an interior BOM character is retained as original content
+  ---
+  duration_ms: 0.22836
+  type: 'test'
+  ...
+# Subtest: the documented maximum decoded length is accepted
+ok 66 - the documented maximum decoded length is accepted
+  ---
+  duration_ms: 13.664766
+  type: 'test'
+  ...
+# Subtest: empty file is rejected without replacement draft content
+ok 67 - empty file is rejected without replacement draft content
+  ---
+  duration_ms: 0.761704
+  type: 'test'
+  ...
+# Subtest: whitespace is rejected without replacement draft content
+ok 68 - whitespace is rejected without replacement draft content
+  ---
+  duration_ms: 0.303146
+  type: 'test'
+  ...
+# Subtest: BOM only is rejected without replacement draft content
+ok 69 - BOM only is rejected without replacement draft content
+  ---
+  duration_ms: 0.45328
+  type: 'test'
+  ...
+# Subtest: BOM and whitespace is rejected without replacement draft content
+ok 70 - BOM and whitespace is rejected without replacement draft content
+  ---
+  duration_ms: 0.228796
+  type: 'test'
+  ...
+# Subtest: repeated BOMs is rejected without replacement draft content
+ok 71 - repeated BOMs is rejected without replacement draft content
+  ---
+  duration_ms: 0.880487
+  type: 'test'
+  ...
+# Subtest: UTF-16 is rejected instead of silently replacing characters
+ok 72 - UTF-16 is rejected instead of silently replacing characters
+  ---
+  duration_ms: 0.955433
+  type: 'test'
+  ...
+# Subtest: malformed UTF-8 is rejected instead of silently replacing characters
+ok 73 - malformed UTF-8 is rejected instead of silently replacing characters
+  ---
+  duration_ms: 0.399571
+  type: 'test'
+  ...
+# Subtest: truncated UTF-8 is rejected instead of silently replacing characters
+ok 74 - truncated UTF-8 is rejected instead of silently replacing characters
+  ---
+  duration_ms: 0.207969
+  type: 'test'
+  ...
+# Subtest: embedded NUL is rejected without replacement draft content
+ok 75 - embedded NUL is rejected without replacement draft content
+  ---
+  duration_ms: 0.296353
+  type: 'test'
+  ...
+# Subtest: content beyond the decoded length limit is rejected
+ok 76 - content beyond the decoded length limit is rejected
+  ---
+  duration_ms: 11.773494
+  type: 'test'
+  ...
+# Subtest: copied round retains exact UTF-8 text, empty context and every policy field, but copies only an environment request
+ok 77 - copied round retains exact UTF-8 text, empty context and every policy field, but copies only an environment request
+  ---
+  duration_ms: 6.118274
+  type: 'test'
+  ...
+# Subtest: a cross-project run is rejected before reading any input content
+ok 78 - a cross-project run is rejected before reading any input content
+  ---
+  duration_ms: 1.61427
+  type: 'test'
+  ...
+# Subtest: malformed run links cannot become arbitrary API paths
+ok 79 - malformed run links cannot become arbitrary API paths
+  ---
+  duration_ms: 0.90675
+  type: 'test'
+  ...
+# Subtest: a saved input failing server integrity validation never produces a partial copied draft
+ok 80 - a saved input failing server integrity validation never produces a partial copied draft
+  ---
+  duration_ms: 0.862939
+  type: 'test'
+  ...
+# Subtest: snapshot identity mismatch cannot populate a copied draft
+ok 81 - snapshot identity mismatch cannot populate a copied draft
+  ---
+  duration_ms: 0.864396
+  type: 'test'
+  ...
+# Subtest: unbound, archived and incomplete API environments need explicit new configuration
+ok 82 - unbound, archived and incomplete API environments need explicit new configuration
+  ---
+  duration_ms: 1.994766
+  type: 'test'
+  ...
+# Subtest: actual input API readers preserve a leading U+FEFF, CRLF and empty text byte-for-byte
+ok 83 - actual input API readers preserve a leading U+FEFF, CRLF and empty text byte-for-byte
+  ---
+  duration_ms: 766.619256
+  type: 'test'
+  ...
+# Subtest: input API readers reject invalid UTF-8 and error responses instead of copying replacement text
+ok 84 - input API readers reject invalid UTF-8 and error responses instead of copying replacement text
+  ---
+  duration_ms: 318.972525
+  type: 'test'
+  ...
+# Subtest: terminal session main actions create a reviewed new round and never offer start, answer or retry
+ok 85 - terminal session main actions create a reviewed new round and never offer start, answer or retry
+  ---
+  duration_ms: 3894.223502
+  type: 'test'
+  ...
+# Subtest: recovery, answer, running task and durable retry guidance have distinct actions after a reload
+ok 86 - recovery, answer, running task and durable retry guidance have distinct actions after a reload
+  ---
+  duration_ms: 569.802312
+  type: 'test'
+  ...
+# Subtest: retry guidance opens the exact latest failed task rather than creating a cycle
+ok 87 - retry guidance opens the exact latest failed task rather than creating a cycle
+  ---
+  duration_ms: 81.565368
+  type: 'test'
+  ...
+# Subtest: overview exposes saved reports while retaining the canonical final verdict as the decision
+ok 88 - overview exposes saved reports while retaining the canonical final verdict as the decision
+  ---
+  duration_ms: 2597.091375
+  type: 'test'
+  ...
+# Subtest: a stale cycle dialog cannot bypass the original task retry after session recovery
+ok 89 - a stale cycle dialog cannot bypass the original task retry after session recovery
+  ---
+  duration_ms: 410.858808
+  type: 'test'
+  ...
+# Subtest: fresh terminal binding blocks a new cycle even when the UI previously read ACTIVE
+ok 90 - fresh terminal binding blocks a new cycle even when the UI previously read ACTIVE
+  ---
+  duration_ms: 178.807809
+  type: 'test'
+  ...
+# Subtest: lost submission responses still recover the exact recorded job when its session has since closed
+ok 91 - lost submission responses still recover the exact recorded job when its session has since closed
+  ---
+  duration_ms: 145.362435
+  type: 'test'
+  ...
+# Subtest: finding changes are explained as preserving final decision and report history in both languages
+ok 92 - finding changes are explained as preserving final decision and report history in both languages
+  ---
+  duration_ms: 47.937076
+  type: 'test'
+  ...
+# Subtest: a failed cycle before binding creation points to its recorded task while unrelated legacy failures keep the start action
+ok 93 - a failed cycle before binding creation points to its recorded task while unrelated legacy failures keep the start action
+  ---
+  duration_ms: 280.771601
+  type: 'test'
+  ...
+# Subtest: fresh cycle submission preserves pre-binding retry lineage, uncertain response recovery and unrelated legacy operations
+ok 94 - fresh cycle submission preserves pre-binding retry lineage, uncertain response recovery and unrelated legacy operations
+  ---
+  duration_ms: 367.585862
+  type: 'test'
+  ...
+# Subtest: independent gate admission uses the fresh closed session, accepted report and absence of active work
+ok 95 - independent gate admission uses the fresh closed session, accepted report and absence of active work
+  ---
+  duration_ms: 1192.475638
+  type: 'test'
+  ...
+# Subtest: gate submission preserves failed-task retry lineage and recovers an already-recorded request
+ok 96 - gate submission preserves failed-task retry lineage and recovers an already-recorded request
+  ---
+  duration_ms: 296.806878
+  type: 'test'
+  ...
+# Subtest: closed session main actions expose independent gate progress and exact failed-gate retry
+ok 97 - closed session main actions expose independent gate progress and exact failed-gate retry
+  ---
+  duration_ms: 229.419159
+  type: 'test'
+  ...
+# Subtest: recovery requests carry only the expected binding epoch and version, never host paths or session credentials
+ok 98 - recovery requests carry only the expected binding epoch and version, never host paths or session credentials
+  ---
+  duration_ms: 457.691646
+  type: 'test'
+  ...
+# Subtest: report reads propagate failed integrity checks rather than treating the error body as report text
+ok 99 - report reads propagate failed integrity checks rather than treating the error body as report text
+  ---
+  duration_ms: 288.492472
+  type: 'test'
+  ...
+# Subtest: the real bilingual session panel keeps native fields private and offers recovery only for the recorded recovery state
+ok 100 - the real bilingual session panel keeps native fields private and offers recovery only for the recorded recovery state
+  ---
+  duration_ms: 5108.105191
+  type: 'test'
+  ...
+# Subtest: a newly loaded recovered ACTIVE session still points to its original failed task without mutation-local success state
+ok 101 - a newly loaded recovered ACTIVE session still points to its original failed task without mutation-local success state
+  ---
+  duration_ms: 194.450506
+  type: 'test'
+  ...
+# Subtest: reports retain their original decision while a newer formal verdict is presented separately
+ok 102 - reports retain their original decision while a newer formal verdict is presented separately
+  ---
+  duration_ms: 200.459174
+  type: 'test'
+  ...
+# Subtest: historical failed tasks in ended sessions direct both languages to a new run
+ok 103 - historical failed tasks in ended sessions direct both languages to a new run
+  ---
+  duration_ms: 7477.895572
+  type: 'test'
+  ...
+# Subtest: retry is offered only after binding recovery or for legacy unbound runs
+ok 104 - retry is offered only after binding recovery or for legacy unbound runs
+  ---
+  duration_ms: 1058.228713
+  type: 'test'
+  ...
+# Subtest: retry rechecks fresh binding state before sending any mutation
+ok 105 - retry rechecks fresh binding state before sending any mutation
+  ---
+  duration_ms: 221.768003
+  type: 'test'
+  ...
+# Subtest: only independent gate retries remain available in a closed session with an accepted report
+ok 106 - only independent gate retries remain available in a closed session with an accepted report
+  ---
+  duration_ms: 2746.058506
+  type: 'test'
+  ...
+# Subtest: a closed gate retry rechecks admission and preserves the exact prior job relationship
+ok 107 - a closed gate retry rechecks admission and preserves the exact prior job relationship
+  ---
+  duration_ms: 340.867601
+  type: 'test'
+  ...
+# Subtest: missing or non-formal run decisions remain unknown
+ok 108 - missing or non-formal run decisions remain unknown
+  ---
+  duration_ms: 1.858312
+  type: 'test'
+  ...
+# Subtest: newer draft, revoked and narrow-scope passes cannot replace a formal blocked run verdict
+ok 109 - newer draft, revoked and narrow-scope passes cannot replace a formal blocked run verdict
+  ---
+  duration_ms: 0.315019
+  type: 'test'
+  ...
+# Subtest: chooses the greatest formal run sequence without changing history order
+ok 110 - chooses the greatest formal run sequence without changing history order
+  ---
+  duration_ms: 0.225306
+  type: 'test'
+  ...
+# Subtest: session task separates progress and reported result and preserves previous failures in both languages
+ok 111 - session task separates progress and reported result and preserves previous failures in both languages
+  ---
+  duration_ms: 326.063959
+  type: 'test'
+  ...
+# Subtest: untrusted original Markdown remains literal readable text, including report history
+ok 112 - untrusted original Markdown remains literal readable text, including report history
+  ---
+  duration_ms: 67.122025
+  type: 'test'
+  ...
+# Subtest: empty synchronized task does not invent results, cases or reports
+ok 113 - empty synchronized task does not invent results, cases or reports
+  ---
+  duration_ms: 35.278849
+  type: 'test'
+  ...
+# Subtest: task management reads only task APIs without credentials or execution mutations
+ok 114 - task management reads only task APIs without credentials or execution mutations
+  ---
+  duration_ms: 183.706434
+  type: 'test'
+  ...
+# Subtest: project task reads show loading, empty and refresh errors without discarding loaded records
+ok 115 - project task reads show loading, empty and refresh errors without discarding loaded records
+  ---
+  duration_ms: 3730.829056
+  type: 'test'
+  ...
+# Subtest: source failure details show bilingual stage, category and recovery without rendering raw error or backend prose
+ok 116 - source failure details show bilingual stage, category and recovery without rendering raw error or backend prose
+  ---
+  duration_ms: 6930.826237
+  type: 'test'
+  ...
+# Subtest: source retry uses the original failed job and creates the existing retry relationship
+ok 117 - source retry uses the original failed job and creates the existing retry relationship
+  ---
+  duration_ms: 273.989826
+  type: 'test'
+  ...
+# Subtest: retry remains fenced by fresh session state and recovery is offered before retry
+ok 118 - retry remains fenced by fresh session state and recovery is offered before retry
+  ---
+  duration_ms: 952.520696
+  type: 'test'
+  ...
+# Subtest: invalid fixed input and checkout integrity direct operators to a reviewed new round
+ok 119 - invalid fixed input and checkout integrity direct operators to a reviewed new round
+  ---
+  duration_ms: 641.563957
+  type: 'test'
+  ...
+# Subtest: historical failures and incompatible diagnostics show an honest bounded fallback
+ok 120 - historical failures and incompatible diagnostics show an honest bounded fallback
+  ---
+  duration_ms: 1596.008616
+  type: 'test'
+  ...
+# Subtest: only controlled primitive metadata is projected and output capture limits are explicit
+ok 121 - only controlled primitive metadata is projected and output capture limits are explicit
+  ---
+  duration_ms: 152.213349
+  type: 'test'
+  ...
+# Subtest: all diagnostic categories and stages have actionable Chinese and English copy
+ok 122 - all diagnostic categories and stages have actionable Chinese and English copy
+  ---
+  duration_ms: 2.10249
+  type: 'test'
+  ...
+# Subtest: the overview uses the same controlled summary and opens the exact failed task
+ok 123 - the overview uses the same controlled summary and opens the exact failed task
+  ---
+  duration_ms: 153.296712
+  type: 'test'
+  ...
+# Subtest: native randomUUID is preferred and called with its Crypto receiver
+ok 124 - native randomUUID is preferred and called with its Crypto receiver
+  ---
+  duration_ms: 94.128914
+  type: 'test'
+  ...
+# Subtest: HTTP fallback sets RFC v4 and variant bits for random byte 0
+ok 125 - HTTP fallback sets RFC v4 and variant bits for random byte 0
+  ---
+  duration_ms: 16.221244
+  type: 'test'
+  ...
+# Subtest: HTTP fallback sets RFC v4 and variant bits for random byte 255
+ok 126 - HTTP fallback sets RFC v4 and variant bits for random byte 255
+  ---
+  duration_ms: 15.26801
+  type: 'test'
+  ...
+# Subtest: HTTP fallback produces distinct standard UUIDs with real WebCrypto
+ok 127 - HTTP fallback produces distinct standard UUIDs with real WebCrypto
+  ---
+  duration_ms: 47.648863
+  type: 'test'
+  ...
+# Subtest: missing Crypto provider fails instead of using insecure randomness
+ok 128 - missing Crypto provider fails instead of using insecure randomness
+  ---
+  duration_ms: 16.504543
+  type: 'test'
+  ...
+# Subtest: missing random methods fails instead of using insecure randomness
+ok 129 - missing random methods fails instead of using insecure randomness
+  ---
+  duration_ms: 11.750697
+  type: 'test'
+  ...
+1..129
+# tests 129
+# suites 0
+# pass 129
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 83999.222015
+
+exit_code=0

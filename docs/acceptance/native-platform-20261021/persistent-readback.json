@@ -1,0 +1,124 @@
+{
+  "completed_at": "2026-10-21T06:57:39.116475+00:00",
+  "client_pid": 30622,
+  "runtime_pid": 29428,
+  "runtime_process_observation": "29428 92407 Wed Oct 21 14:55:15 2026     /opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python -",
+  "configuration_directory": "/Users/zhangliangchen/.local/share/hypertest/native-dev-20261021",
+  "pure_get_requests": 21,
+  "materials_verified": 11,
+  "original_execution_materials": 10,
+  "control_readback_materials": 1,
+  "handoff_snapshots_verified": 2,
+  "source_files_match_runtime_start_manifest": true,
+  "unauthenticated_read_rejected": true,
+  "unknown_operation_retained": true,
+  "new_runs_or_executions": 0,
+  "observations": [
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/materials/01a15d34-35f7-7742-b96f-c327f0964e74",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/materials/01a15d34-35f7-7e6b-ac46-1f4cc5155918",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/materials/01a15d34-35f7-7ea5-831d-e693911d2706",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/materials/01a15d3b-8598-7261-9e0c-a6b8a2d0054a",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/handoffs/01a15d34-51ae-77ae-abcf-7b07559356ce/state",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/submissions/01a15d34-358c-71f3-8d91-05a8d5ca4251/xblock-native-retrospective-20261021",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/operations/xblock-handoff-A-to-B",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-7fef-a527-50f9a89079b6",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-72dd-a2c0-1459ea03b8d2",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-7c7f-ad1c-ab122e7a4e94",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-7d99-8ac3-0419f2c14cb5",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-74d4-9ebb-ea15371b60aa",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-78b1-bf04-dbcb8ed1855f",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/materials/01a15d34-364c-7b38-929e-2c2181ecbe99",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/handoffs/01a15d34-51f9-7a44-a38e-a18fd77ad333/state",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/submissions/01a15d34-3630-7656-938a-0ec893e41352/blockchain-native-retrospective-20261021",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-3637-7b59-9057-5bebc5ccc4fc/operations/blockchain-handoff-A-to-B",
+      "http_status": 200,
+      "authorized": true
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b",
+      "http_status": 401,
+      "authorized": false
+    },
+    {
+      "path": "/native-runs/01a15d34-35d5-7199-8b78-4d6327053b4b/operations/control-only-unknown",
+      "http_status": 200,
+      "authorized": true
+    }
+  ],
+  "formal_evidence": false
+}

@@ -1,0 +1,414 @@
+{
+  "schema": "0020_interactive_tool_inbox",
+  "tables": {
+    "agent_sessions": {
+      "count": 28,
+      "row_digest_multiset_md5": "8da0d0fc3695e4beb776b46d37e46bd4"
+    },
+    "alembic_version": {
+      "count": 1,
+      "row_digest_multiset_md5": "90e1b744e5ae1da16bb1dd1e9b9e9cfe"
+    },
+    "audit_events": {
+      "count": 895,
+      "row_digest_multiset_md5": "13c68cb5112c1af7450d01aa5d8031d3"
+    },
+    "connector_requests": {
+      "count": 347,
+      "row_digest_multiset_md5": "149fba0e3d2e44e266c7c04d22f0f23f"
+    },
+    "durable_jobs": {
+      "count": 20,
+      "row_digest_multiset_md5": "2e9e24b374e5e6673cd0da43cdc7dfc2"
+    },
+    "evidence": {
+      "count": 51,
+      "row_digest_multiset_md5": "3530803709c6af0153dfeb6409c546e5"
+    },
+    "execution_evidence": {
+      "count": 51,
+      "row_digest_multiset_md5": "594eea524cee535ca024fd803ce9c1cf"
+    },
+    "execution_test_cases": {
+      "count": 77,
+      "row_digest_multiset_md5": "b66cf6767ffc8be99186221cdf28acfc"
+    },
+    "finding_evidence": {
+      "count": 7,
+      "row_digest_multiset_md5": "c7d9598b24652b2279939a31aa8b3cef"
+    },
+    "finding_requirements": {
+      "count": 2,
+      "row_digest_multiset_md5": "593ad9a4f9bd4dfcca00e060e54f3b6a"
+    },
+    "finding_risks": {
+      "count": 3,
+      "row_digest_multiset_md5": "48d69614f5b6adfc1f953cbc27f44a25"
+    },
+    "finding_test_cases": {
+      "count": 8,
+      "row_digest_multiset_md5": "dd6a6fab5d98f5bd58dca3b1eab97c0c"
+    },
+    "findings": {
+      "count": 3,
+      "row_digest_multiset_md5": "70a980592d6a7b9d3385470dacce8816"
+    },
+    "gitlab_issue_operation_executors": {
+      "count": 0,
+      "row_digest_multiset_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "gitlab_issue_operations": {
+      "count": 0,
+      "row_digest_multiset_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "harness_device_grants": {
+      "count": 2,
+      "row_digest_multiset_md5": "43f1ad2f41fbca695555351e7fd40515"
+    },
+    "harness_dispatch_grants": {
+      "count": 340,
+      "row_digest_multiset_md5": "e397939c4138d90185ff5da05f6bcb4f"
+    },
+    "harness_nodes": {
+      "count": 2,
+      "row_digest_multiset_md5": "b4fc6efb9f0eb443cfa76ea67cb40acb"
+    },
+    "implementation_test_cases": {
+      "count": 77,
+      "row_digest_multiset_md5": "f18aa003b8a2bf91a21cb481b4f89d0d"
+    },
+    "interactive_actor_identities": {
+      "count": 1,
+      "row_digest_multiset_md5": "050722f9bf918a50f6f347b5924ca4b7"
+    },
+    "interactive_client_registrations": {
+      "count": 1,
+      "row_digest_multiset_md5": "adedbf3f673f5002ea64f5a5af4ac972"
+    },
+    "interactive_execution_bindings": {
+      "count": 1,
+      "row_digest_multiset_md5": "3f1c0358562726604e8d5ee48d2a3be0"
+    },
+    "interactive_execution_grants": {
+      "count": 4,
+      "row_digest_multiset_md5": "1a98bfc3786852d728e3dc756723acb9"
+    },
+    "interactive_integration_grants": {
+      "count": 1,
+      "row_digest_multiset_md5": "7afe7870e8d3fe504408e7272ffdba44"
+    },
+    "interactive_submission_receipts": {
+      "count": 1,
+      "row_digest_multiset_md5": "441bc957d035eddfabfe19464e2c6177"
+    },
+    "interactive_tool_requests": {
+      "count": 17,
+      "row_digest_multiset_md5": "afb5e71b431e2fb06d94bb3c1ffa638d"
+    },
+    "mission_activity_events": {
+      "count": 96,
+      "row_digest_multiset_md5": "146b64bce43f3572fa82a7fb1850f733"
+    },
+    "mission_attempts": {
+      "count": 54,
+      "row_digest_multiset_md5": "2235cc064a0fefffe496c029c8f5f453"
+    },
+    "mission_input_requests": {
+      "count": 2,
+      "row_digest_multiset_md5": "5e4a59fbb6991f35ebe148b8f9899a69"
+    },
+    "mission_proposals": {
+      "count": 268,
+      "row_digest_multiset_md5": "e4529ecbfbf2e8ac89001eef829ddc67"
+    },
+    "missions": {
+      "count": 52,
+      "row_digest_multiset_md5": "9923d517d07334a71d5731e25d36908d"
+    },
+    "node_project_capabilities": {
+      "count": 5,
+      "row_digest_multiset_md5": "43e38fce2ab1f06944114024e8a7bbe5"
+    },
+    "outbox_events": {
+      "count": 890,
+      "row_digest_multiset_md5": "d395d7b4853a6780cbd071c11790ee9b"
+    },
+    "policy_snapshots": {
+      "count": 10,
+      "row_digest_multiset_md5": "ea87fdd342a319562145bbf765cbc01e"
+    },
+    "projects": {
+      "count": 11,
+      "row_digest_multiset_md5": "a0861edc992606914621d03c0a19f1c2"
+    },
+    "requirement_risks": {
+      "count": 89,
+      "row_digest_multiset_md5": "0dd8a586b2376d221d37cd056169d627"
+    },
+    "requirements": {
+      "count": 58,
+      "row_digest_multiset_md5": "07ec4d00b28ad08371336e8641df6066"
+    },
+    "risk_test_cases": {
+      "count": 98,
+      "row_digest_multiset_md5": "1d647f7b46f1e70739c3b8c8dcd39323"
+    },
+    "risks": {
+      "count": 62,
+      "row_digest_multiset_md5": "cdb6c168712f1655bb7987c6f7416b07"
+    },
+    "run_execution_bindings": {
+      "count": 7,
+      "row_digest_multiset_md5": "63ae86d54de66f69ccc1a154f690bf8f"
+    },
+    "run_execution_selections": {
+      "count": 1,
+      "row_digest_multiset_md5": "2ed7c2b7179acd8997e73a4952e9ce0f"
+    },
+    "run_harness_placements": {
+      "count": 2,
+      "row_digest_multiset_md5": "9bb768376b1024d2ae75a97d28dda225"
+    },
+    "run_harness_selections": {
+      "count": 2,
+      "row_digest_multiset_md5": "aa9b8aa57f909bc8a6bba8a777df4ac4"
+    },
+    "run_harness_states": {
+      "count": 7,
+      "row_digest_multiset_md5": "37f35a136f4ea2ca1fd6586ecb262717"
+    },
+    "run_input_requests": {
+      "count": 1,
+      "row_digest_multiset_md5": "53bcc6967a9dd50c12f9aaf3a0b1e4b6"
+    },
+    "run_reports": {
+      "count": 7,
+      "row_digest_multiset_md5": "dccde9eb9513083974ea0d1550ffaf69"
+    },
+    "run_tool_calls": {
+      "count": 107,
+      "row_digest_multiset_md5": "2e90a3108f3defedf9760be204d3c15f"
+    },
+    "runtime_control_requests": {
+      "count": 3808,
+      "row_digest_multiset_md5": "5fdf07276e167200a3ef6c3fef0745e0"
+    },
+    "source_acquisition_requests": {
+      "count": 3,
+      "row_digest_multiset_md5": "54a209b31dbd658619278d774d18bd19"
+    },
+    "source_bundle_transfers": {
+      "count": 3,
+      "row_digest_multiset_md5": "c50e58bf6ac109805baea5b5503d07a3"
+    },
+    "source_snapshots": {
+      "count": 13,
+      "row_digest_multiset_md5": "2039ef5f74a98c4233d09ba1b1428275"
+    },
+    "source_transfer_snapshots": {
+      "count": 2,
+      "row_digest_multiset_md5": "13670c89594faca3db5b8bd4487cc65d"
+    },
+    "source_upload_grants": {
+      "count": 3,
+      "row_digest_multiset_md5": "9d8181adb5cee612a02004909dd6a1c8"
+    },
+    "test_cases": {
+      "count": 85,
+      "row_digest_multiset_md5": "db3558e92d1818559d2242e8184defa3"
+    },
+    "test_executions": {
+      "count": 11,
+      "row_digest_multiset_md5": "e0a8d6a8a07b89c08ad054e531763968"
+    },
+    "test_implementations": {
+      "count": 50,
+      "row_digest_multiset_md5": "6bb67f077cb1c1a81b4761d9ba2c70f8"
+    },
+    "test_runs": {
+      "count": 13,
+      "row_digest_multiset_md5": "f818241b104f6e48730ef0e4ede16795"
+    },
+    "verdict_evidence": {
+      "count": 51,
+      "row_digest_multiset_md5": "8f28237de83d405843f44358da934786"
+    },
+    "verdict_findings": {
+      "count": 3,
+      "row_digest_multiset_md5": "c06d2e0e1b311aaeb752896d4942f7f8"
+    },
+    "verdicts": {
+      "count": 12,
+      "row_digest_multiset_md5": "d08fdb77431d9a6b5c3e76b327fbb6e6"
+    },
+    "worker_heartbeats": {
+      "count": 44,
+      "row_digest_multiset_md5": "dd64595b94011290bb1a321c0983a1f9"
+    }
+  },
+  "containers": {
+    "postgres": {
+      "id": "8f44eab535de6c1c810e6583fb5a86d5e257a7f8fb61bd84f3bf61d96478431e",
+      "image": "sha256:327daa8fae7178d61f93142f146b098467b345e10997b9eb79f63bd58e5c8f3c",
+      "started_at": "2026-10-21T03:39:07.856986475Z",
+      "restart_count": 0,
+      "mounts": [
+        {
+          "Type": "volume",
+          "Name": "hypertest_pgdata",
+          "Source": "/var/lib/docker/volumes/hypertest_pgdata/_data",
+          "Destination": "/var/lib/postgresql/data",
+          "Driver": "local",
+          "Mode": "rw",
+          "RW": true,
+          "Propagation": ""
+        }
+      ]
+    },
+    "api": {
+      "id": "f811f90f80ef71a102586f8ba33fcb1d3152c2810a26d172da658a9e655166a1",
+      "image": "sha256:8cfc764b1ccacc97ff3faf2b23b61b937bfdf0b1f29afda3349b3dd954d25a33",
+      "started_at": "2026-10-21T03:39:13.925016212Z",
+      "restart_count": 0,
+      "mounts": [
+        {
+          "Type": "bind",
+          "Source": "/var/lib/hypertest/workspaces",
+          "Destination": "/var/lib/hypertest/workspaces",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/var/lib/hypertest/artifacts",
+          "Destination": "/var/lib/hypertest/artifacts",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        }
+      ]
+    },
+    "worker": {
+      "id": "a827da746c8c6a12b514c82afc07818b99a68ec86fdfe0ca297cbd2e7665a7da",
+      "image": "sha256:7796433173907d7b4d3aa62f55a24dedc49af8ac91f959b3b1999a13a1c47f60",
+      "started_at": "2026-10-21T03:39:13.97025267Z",
+      "restart_count": 0,
+      "mounts": [
+        {
+          "Type": "bind",
+          "Source": "/var/lib/hypertest/artifacts",
+          "Destination": "/var/lib/hypertest/artifacts",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/var/lib/hypertest/workspaces",
+          "Destination": "/var/lib/hypertest/workspaces",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/run/hypertest-harness",
+          "Destination": "/run/hypertest-harness",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/etc/hypertest/container/bridge-execution.key",
+          "Destination": "/run/secrets/bridge-execution.key",
+          "Mode": "",
+          "RW": false,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/etc/hypertest/container/bridge-management.key",
+          "Destination": "/run/secrets/bridge-management.key",
+          "Mode": "",
+          "RW": false,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/var/run/docker.sock",
+          "Destination": "/var/run/docker.sock",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+        }
+      ]
+    },
+    "web": {
+      "id": "0e7099e714f53b65545536d66bf9053c8a20fc39568a1d846051478eed44fd5d",
+      "image": "sha256:07ad4852ac16a270bf8ed832c495eaff3ed9936006bed8f9d85547be34a9705b",
+      "started_at": "2026-10-21T03:39:07.808463908Z",
+      "restart_count": 0,
+      "mounts": []
+    },
+    "nginx": {
+      "id": "c39103b8111514b724b74c6dff8371b2b6130ad6064d343506145cb95697d9df",
+      "image": "sha256:8f59ff5046a70e421d35ed7d1e862a963215c9689b36cb8f64a6c42f9cf2955d",
+      "started_at": "2026-10-21T03:39:27.112008146Z",
+      "restart_count": 0,
+      "mounts": [
+        {
+          "Type": "bind",
+          "Source": "/opt/hypertest/deployments/adr015-forward-20261019/nginx.tls.conf",
+          "Destination": "/etc/nginx/nginx.conf",
+          "Mode": "",
+          "RW": false,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/opt/hypertest/deployments/adr015-forward-20261019/tls/server.crt",
+          "Destination": "/run/hypertest-tls/server.crt",
+          "Mode": "",
+          "RW": false,
+          "Propagation": "rprivate"
+        },
+        {
+          "Type": "bind",
+          "Source": "/opt/hypertest/deployments/adr015-forward-20261019/tls/server.key",
+          "Destination": "/run/hypertest-tls/server.key",
+          "Mode": "",
+          "RW": false,
+          "Propagation": "rprivate"
+        }
+      ]
+    }
+  },
+  "protected_config_metadata": {
+    "/etc/hypertest/container/compose.env": {
+      "sha256": "ac08d7e3ab950892f32d792ccee864934f1d75eb335cf82100937bc6db2b5169",
+      "mode": "0o640",
+      "uid": 0,
+      "gid": 0
+    },
+    "/etc/hypertest/container/platform.env": {
+      "sha256": "af37f4fbed99d6a8599b1ac8ff5dbf0b6e83422f1ac495d82b9a014d8d0074bf",
+      "mode": "0o640",
+      "uid": 0,
+      "gid": 989
+    },
+    "/etc/hypertest/postgres.env": {
+      "sha256": "e801e05ef099332ed096bdcfde487e52428b16bf70efc60526d4737ad43f0236",
+      "mode": "0o600",
+      "uid": 0,
+      "gid": 0
+    }
+  },
+  "current_targets": {
+    "container-current": "/opt/hypertest/releases/c7cd43ad6346d8ce6c85564f7838afbb017f2da4",
+    "ops-current": "/opt/hypertest/ops-releases/61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d",
+    "bridge-current": "/opt/hypertest/bridge-releases/95e92c584897ff18bc1a0006823891ca45a619be",
+    "current": "/opt/hypertest/releases/0a2af9c4f5034c118f1a19abd786290f0959a648"
+  }
+}

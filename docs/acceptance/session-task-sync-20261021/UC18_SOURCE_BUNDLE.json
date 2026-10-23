@@ -1,0 +1,326 @@
+{
+  "metadata": {
+    "source_session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+    "source_session_title": "xblock异步接口能量购买供应商接入",
+    "source_session_state_at_capture": "ACTIVE_REPORTED_BY_PARENT",
+    "captured_at": "2026-10-21T15:33:54.750222+08:00",
+    "source_root": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/usecases/UC-TX-18-dev166-multi-energy-provider-routing",
+    "scope": "Existing assets only; no SUT command, transaction, CI or test executed by this acceptance",
+    "inventory_total": 15,
+    "selected_executed_case_count": 12,
+    "not_imported_inventory_keys": [
+      "CASE-013",
+      "CASE-014",
+      "CASE-015"
+    ],
+    "files": [
+      {
+        "path": "01_business_brief.md",
+        "bytes": 7457,
+        "sha256": "34fd65f20623d6a75eeec43739a02ee99364319ba53998e0c7402167f84910f2"
+      },
+      {
+        "path": "03_inventory.yaml",
+        "bytes": 21168,
+        "sha256": "63fbb10a2025bbd08107fdd4dffc1d8ff94fbd8dc4b50cf391921dced1a20cba"
+      },
+      {
+        "path": "03a_test_cases.md",
+        "bytes": 14259,
+        "sha256": "089936af51b69ea35d7252b77be1a1f53d55264fbcaa800c3bb90a32aea06837"
+      },
+      {
+        "path": "04_execution_report.md",
+        "bytes": 18926,
+        "sha256": "483e6628d9c5af79c20f448aa060bcbeefd9b52b4f805e762ca604b0c30bd55e"
+      },
+      {
+        "path": "completion.json",
+        "bytes": 2453,
+        "sha256": "982106b6582d0befe16d653ae2afcb6d009e20ee524051441618e4a6306adc81"
+      },
+      {
+        "path": "00_multiview/regression-independent-20261021.md",
+        "bytes": 14402,
+        "sha256": "a54f4753061cce4f3d8f4462f97fb818d5f8f5b6790151b3504c9f32727b3ee7"
+      }
+    ],
+    "automatic_results": {
+      "PASS": 10,
+      "FAIL": 2
+    },
+    "independent_business_results": {
+      "PASS": 11,
+      "FAIL": 1
+    },
+    "hash_semantics": "Captured content integrity only; not proof of test execution"
+  },
+  "task": {
+    "provider": "codex",
+    "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+    "title": "xblock异步接口能量购买供应商接入",
+    "objective": "管理 UC-TX-18 dev166 多能源供应商路由的既有测试任务、12个用例与原始报告；不重跑测试。",
+    "status": "IN_PROGRESS",
+    "plan_markdown": "# UC18 测试任务资产快照\n\n来源会话 `01a143f4-4ec0-7451-ab23-8e59c6deb223`；captured_at `2026-10-21T15:33:54.750222+08:00`。\n捕获时源会话仍在工作；本任务保持 IN_PROGRESS，本快照不宣称聊天或全部测试工作完成。\n自动断言10 PASS/2 FAIL，独立业务复核11 PASS/1 FAIL；两种口径分别保存，自动失败不改写。\n本同步不执行或重跑SUT测试，原执行/恢复/UNKNOWN与未完成项以原报告为准。\n\n---\ngate: layer1_business_brief\ngate_status: passed\nuc_id: UC-TX-18\nsut_profile: hypervise_pure\ncreated_at: 2026-10-19\nreview_method: codex_subagents\n---\n\n# Business Brief — dev166 多供应商购能\n\n## Scope\n钱包2/166_test，objectId2026072301，TRON_TEST/TRON_TESTUSDT，现有模型2和既有地址/密钥。用户已批准完成自动化、BUGate后166dev实跑、先TRONSAVE优先再APITRX优先、双向故障切换及异步等待并恢复；当轮批准Codex独立子代理替代Claude CLI。禁止对外真实供应商请求、创建钱包/地址、修改SUT业务代码或数据库。普通会员withdraw触发购买，不直接购买代替xBlock。\n主流程12个提币步骤，每笔不超过1USDT，总提交不超过12USDT；另有不增加提币的恢复验收和离线安全/反例测试。设计扩展组MV08/09/10/11/12不属于本轮主流程分母，保持NOT_RUN。\n\n## Canonical Business Flows\n0 只读预检、候选与资源/资金检查、快照、钱包与mock管理互斥/Memory Bus占用、稳定部署指纹；源与外部收款地址不同。\n1 完整PUT钱包更新为T1/A2，回读其他字段及原Key不变。\n2 TA01正常、TA02同地址资源复用、TA03 T明确拒单一次切A、TA04新需求回T、TA05 T已受理异步等待、TA06双拒按T/A轮回耗尽。\n3 上一单与平台/链上操作均已收敛，回收已归属租约、清理自有故障，再PUT为A1/T2并回读。\n4 AT01正常、AT02资源复用、AT03 A明确拒单切T、AT04新需求回A、AT05 A拒后T异步等待原orderId、AT06双拒按A/T轮回耗尽。\n5 finally恢复原平台配置、Key及其他字段、mock设置/自有规则/租约，独立验证清理并释放占用。严禁未知受理后继续付款或换路由。\n\n## Clarification Gate\n| dimension | status | open question |\n|---|---|---|\n| objective | clear | 用户批准的十二步主流程与双向切换/异步等待 |\n| done criteria | clear | 逐例业务与链/账本证据，完整恢复；FAIL不被兼容PASS抵消 |\n| scope | clear | 固定钱包2、本地真实链mock，不含公开供应商或扩展组 |\n| constraints | clear | 12笔上限、单笔1U、只读取证、幂等提交、稳定部署、全字段保真 |\n| environment | discoverable | 每次实跑前重新预检与回读，不固定历史镜像摘要 |\n| safety | clear | 用户已批准方案内写操作和必要清理；未知结果只查原CID/txid |\n\n## Propositions\n| id | proposition | priority | verifiability | evidence_label | source |\n|---|---|---|---|---|---|\n| P-001 | 每个新购能需求从配置首位开始；首位成功不调用次位；配置反转后相应反转 | P0 | verifiable | fact | 用户确认的方案和界面 |\n| P-002 | 明确未受理后按顺序切换；两家明确拒单有序轮回并受预算约束 | P0 | verifiable | fact | 用户确认方案；current-execution-contract.json |\n| P-003 | 已有T订单号则查询同一订单，不把pending或暂缺txid当作重复购买许可 | P0 | verifiable | fact | 用户确认的异步等待契约 |\n| P-004 | 资源充分不新增购买；不足时购买真实交付并消耗能量完成代币提币 | P0 | verifiable | fact | 用户确认方案；实际链回执与资源查询 |\n| P-005 | 请求最多提交一次；故障和委托清理只作用于本轮；恢复不覆盖外来修改 | P0 | verifiable | fact | 用户确认方案；独立评审ADV-001至ADV-005 |\n| P-006 | 精确报告严格/兼容模式、失败/阻塞、费用/流水和最终恢复，零观察不得冒充不可读 | P0 | verifiable | fact | 用户完整报告要求；业务独立评审补充 |\n\n## Assertions That Follow From Business\n首选不是跨母单轮询；余额查询、激活和query不是新购买。相同BuyEnergy明细的issued BUY_ENERGY尝试按epoch/attempt事实排序。母单Completed不足以证明购能、正确供应商或能量被使用。amount、单位、调用类型、sender/receiver/token、原始整数值和来源必须匹配。\n\n## Business Oracles\n| id | oracle | observable evidence | evidence_label |\n|---|---|---|---|\n| O-001 | 保存顺序和Key/其他钱包字段无损，actual issued购买顺序符合该明细配置 | PUT与双GET；DB Key digest仅内存比较；detail/epoch/provider_code/request_issued/operation | fact |\n| O-002 | 明确拒单首位零购能扣费/零委托；次位只创建一次订单和真实ENERGY交付 | 双mock增量、fault命中、平台orderId、DelegateResourceContract及receipt | fact |\n| O-003 | T同步窗外pending查询原orderId且只购买一次，不轮回到其他平台重买 | T orders/polls、xBlock query与BUY_ENERGY分类、原orderId/txid | fact |\n| O-004 | 正确TRC20 Transfer、成功确认、energy_usage_total>0且受控条件energy_fee=0；复用零新购买 | 主明细与tx receipt/Transfer、发送方资源、租约来源、余额差 | fact |\n| O-005 | 十二步唯一CID/checkpoint最多一次POST，账本与订单相符，故障和资源仅清理本轮 | checkpoint状态/POST计数、原ID查询、ledger字段、租约/规则所有权及链回收 | fact |\n| O-006 | 所有初始配置/Key/设置恢复并回读；无未决操作/外来覆盖；严格失败不会被兼容结果洗白 | 初末快照、Key相等布尔、非目标配置一致、残留清单、逐例profile和状态 | fact |\n\n## Boundaries\n首轮只验证普通提币、供应商路由、双向拒单与异步等待。配置过滤/UNKNOWN/超长迟到处理属于扩展NOT_RUN，不编造当前产品处理策略。SQL只读并超时，日志不写凭据、签名、Key digest。已知业务违反记FAIL，前置或观测缺失记BLOCKED；未执行记NOT_RUN。安全状态可清理后继续独立case；未知受理/外来并发/指纹变化停止新写。\n\n## Assumptions\n候选来自实时wallet2模型/余额全集，非固定唯一sender；只读基线十个候选全部零能量、无入站委托，三个有币。通过每个候选各一条地址限次规则隔离；事后actual sender在集合、无归集腿、总命中恰1。资源复用须同实际sender且能量足够，否则BLOCKED。钱包锁/远端mock管理锁和Memory Bus为合作互斥，不声称服务端CAS；发现冲突拒绝写。\n当前部署两个平台时maxRetries=max(3,n-1)=3，总购买尝试4；同步轮询12秒/1秒，当前配置中心供给等待90秒、资源15秒、检查5秒，计划T延迟20秒。见current-execution-contract.json；每次归因当前指纹，不能断言等于历史build。\n\n## Open Questions\nQ-001 公开供应商最低量及长期故障补偿的生产合规不在本轮验收；明确deferred，不将兼容结果用于生产结论。\nQ-002 当前小额xBlock请求是否作T合法最小量适配由严格TA01实测，不把被测功能尚未通过当成不能编写测试的循环前提。readonly估算12642不是实际购买量。\n\n## Predeclared strict and routing-only branch\nTA01最初保持T原min_energy_exclusive=64000。仅当实际请求<=64000且确因门槛拒单时，TA01严格FAIL保留；原单/重试/委托收敛后，剩余计划步骤可将QA mock此设置显式改为0并标routing-only，不额外补跑TA01、不超12笔、不改SUT。请求合法则全程原设置。若TA01由A交付，TA02最多证明A来源复用；无租约则BLOCKED。最后恢复精确原值、回读；严格FAIL导致整轮不能全PASS。该分流获独立业务评审补充接受，见00_multiview/codex_business_profile_addendum.md。\n\n\n---\ngate: readable_test_cases\ngate_status: passed\nsut_profile: hypervise_pure\nsource_inventory_sha256: 63fbb10a2025bbd08107fdd4dffc1d8ff94fbd8dc4b50cf391921dced1a20cba\n---\n\n# Test Cases\n\n## CASE-001\n\n- Intent: 严格原下限的TronSave首选成功\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: issued新购买仅TRONSAVE, 一次真实交付、主提币及流水收敛\n- Proposition refs: P-001, P-004, P-006\n- Oracle refs: O-001, O-002, O-004, O-006\n- Evidence anchor: probes/<campaign>/TA01.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-001\n\n## CASE-002\n\n- Intent: 同实际sender足额能量复用、两家零新增购买\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: 两家新购买均0且没有新BuyEnergy, 同实际sender有足额本轮lease且真实消费能量\n- Proposition refs: P-004\n- Oracle refs: O-004, O-005\n- Evidence anchor: probes/<campaign>/TA02.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-002\n\n## CASE-003\n\n- Intent: TronSave明确拒单一次后APITRX成功\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: TRONSAVE明确未受理→APITRX受理交付, 拒单本轮总命中1、零扣费零委托；次位一次购买、提币真实完成\n- Proposition refs: P-002\n- Oracle refs: O-001, O-002, O-004\n- Evidence anchor: probes/<campaign>/TA03.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-003\n\n## CASE-004\n\n- Intent: 新需求重新从TronSave首位开始\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: 新需求重置首选为TRONSAVE, 零次位购买、真实交付与提币\n- Proposition refs: P-001\n- Oracle refs: O-001, O-002, O-004\n- Evidence anchor: probes/<campaign>/TA04.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-004\n\n## CASE-005\n\n- Intent: TronSave已受理等待原平台订单、不重买\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: T create一次、后续poll同一orderId、无A新购买, 20s交付延迟跨12s同步窗，在90s等待内完成；无重复付费\n- Proposition refs: P-003\n- Oracle refs: O-001, O-003, O-004\n- Evidence anchor: probes/<campaign>/TA05.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-005\n\n## CASE-006\n\n- Intent: 双拒单按T/A/T/A四次耗尽并账本收敛\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: issued购买精确TRONSAVE/APITRX/TRONSAVE/APITRX, 双方零交付/购能扣费、无主转账、终态与失败账本收敛\n- Proposition refs: P-002, P-005\n- Oracle refs: O-001, O-002, O-005\n- Evidence anchor: probes/<campaign>/TA06.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-006\n\n## CASE-007\n\n- Intent: API反转后APITRX首选正常购买\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: issued新购买仅APITRX, 一次真实交付、主提币及流水收敛\n- Proposition refs: P-001\n- Oracle refs: O-001, O-002, O-004\n- Evidence anchor: probes/<campaign>/AT01.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-007\n\n## CASE-008\n\n- Intent: APITRX阶段同sender足额资源复用\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: 两家新购买均0且没有新BuyEnergy, 同实际sender有足额本轮lease且真实消费能量\n- Proposition refs: P-004\n- Oracle refs: O-004, O-005\n- Evidence anchor: probes/<campaign>/AT02.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-008\n\n## CASE-009\n\n- Intent: APITRX明确拒单一次后TronSave成功\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: APITRX明确未受理→TRONSAVE受理交付, 拒单本轮总命中1、零扣费零委托；次位一次购买、提币真实完成\n- Proposition refs: P-002\n- Oracle refs: O-001, O-002, O-004\n- Evidence anchor: probes/<campaign>/AT03.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-009\n\n## CASE-010\n\n- Intent: 新需求重新从APITRX首位开始\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: 新需求重置首选为APITRX, 零次位购买、真实交付与提币\n- Proposition refs: P-001\n- Oracle refs: O-001, O-002, O-004\n- Evidence anchor: probes/<campaign>/AT04.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-010\n\n## CASE-011\n\n- Intent: APITRX拒后TronSave已受理异步等待，不再轮回购买\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: A明确拒单→T create一次、后续poll原id、不再购买A, 20s交付延迟跨12s同步窗，在90s等待内完成；无重复付费\n- Proposition refs: P-002, P-003\n- Oracle refs: O-001, O-002, O-003, O-004\n- Evidence anchor: probes/<campaign>/AT05.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-011\n\n## CASE-012\n\n- Intent: 双拒单按A/T/A/T四次耗尽并账本收敛\n- Layer: e2e\n- Preconditions: env=dev, identity=internal_166_test, admin_identity=internal_admin, wallet_id=2, object_id=2026072301, chain=TRON_TEST, coin_code=TRON_TESTUSDT, model_id=2\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: issued购买精确APITRX/TRONSAVE/APITRX/TRONSAVE, 双方零交付/购能扣费、无主转账、终态与失败账本收敛\n- Proposition refs: P-002, P-005\n- Oracle refs: O-001, O-002, O-005\n- Evidence anchor: probes/<campaign>/AT06.json with CID,parent,detail,attempts,vendor,chain,ledger\n- Side effect: irreversible\n- Skip/Xfail/Block: block: unknown external effect, incomplete evidence, foreign changes, source\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-012\n\n## CASE-013\n\n- Intent: 整轮finally恢复与残留核对\n- Layer: e2e\n- Preconditions: env=dev, wallet_id=2, chain=TRON_TEST\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py`\n- Expected observations: 原平台元数据/Key/其他字段及mock原min恢复, 自有规则与lease无残留，未决或冲突不得PASS\n- Proposition refs: P-005, P-006\n- Oracle refs: O-001, O-005, O-006\n- Evidence anchor: probes/<campaign>/restoration.json\n- Side effect: irreversible\n- Skip/Xfail/Block: —\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-013\n\n## CASE-014\n\n- Intent: 断电恢复、配置保真、外来规则与租约拒绝离线验证\n- Layer: contract\n- Preconditions: env=offline, wallet_id=2, chain=TRON_TEST\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_helpers_unit.py`\n- Expected observations: 恢复SUBMITTING绝不二次POST, 外来资源/配置不被清理或覆盖、Key/alert/intent语义保留\n- Proposition refs: P-005\n- Oracle refs: O-005, O-006\n- Evidence anchor: offline-unit-tests-and-mutation-results\n- Side effect: read_only\n- Skip/Xfail/Block: —\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-014\n\n## CASE-015\n\n- Intent: 真实业务oracle的字段级反例拒绝\n- Layer: contract\n- Preconditions: env=offline, wallet_id=2, chain=TRON_TEST\n- Action: execute the SUT-profile-owned implementation target `python/tests/scenario_driven/transaction_flow/test_uc18_multi_energy_helpers_unit.py`\n- Expected observations: 错token/from/to/amount/status/Transfer/energy_fee/委托类型必须拒绝, 轮询混入购买、重复/倒序购买和漏测不能通过\n- Proposition refs: P-001, P-003, P-004, P-006\n- Oracle refs: O-001, O-003, O-004, O-005\n- Evidence anchor: offline-unit-tests-and-mutation-results\n- Side effect: read_only\n- Skip/Xfail/Block: —\n- Oracle contract (derived violation predicates, full API evidence plan, coverage policy): see 03_inventory.yaml case CASE-015\n\n## Common execution contract\nAll cases include 01/02/03b submission, bounded candidate and ownership guards. Preserve strict TA01 FAIL and explicitly label routing-only. Restoration adds no withdrawal. Extended scenarios remain NOT_RUN.\n",
+    "reported_result": "FAIL"
+  },
+  "cases": [
+    {
+      "key": "CASE-001",
+      "title": "TA01：严格原下限的TronSave首选成功",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 TA01；scenario=normal；first_provider=TRONSAVE"
+      ],
+      "expected": "issued新购买仅TRONSAVE\n一次真实交付、主提币及流水收敛",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| TA01 / CASE-001 | 正常购能 | PASS | 1773910397812768 / Completed | T | [TA01](probes/20261021-r1/TA01-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-002",
+      "title": "TA02：同实际sender足额能量复用、两家零新增购买",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 TA02；scenario=reuse；first_provider=TRONSAVE"
+      ],
+      "expected": "两家新购买均0且没有新BuyEnergy\n同实际sender有足额本轮lease且真实消费能量",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| TA02 / CASE-002 | 余能复用 | FAIL | 1773910534127648 / Completed | T | [TA02](probes/20261021-r1/TA02-evidence.json) |",
+      "reported_result": "FAIL",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-003",
+      "title": "TA03：TronSave明确拒单一次后APITRX成功",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 TA03；scenario=failover；first_provider=TRONSAVE"
+      ],
+      "expected": "TRONSAVE明确未受理→APITRX受理交付\n拒单本轮总命中1、零扣费零委托；次位一次购买、提币真实完成",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| TA03 / CASE-003 | 明确拒单后切换 | PASS | 1773910754328608 / Completed | T→A | [TA03](probes/20261021-r1/TA03-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-004",
+      "title": "TA04：新需求重新从TronSave首位开始",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 TA04；scenario=recovery；first_provider=TRONSAVE"
+      ],
+      "expected": "新需求重置首选为TRONSAVE\n零次位购买、真实交付与提币",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| TA04 / CASE-004 | 故障解除后恢复首位 | PASS | 1773911020666912 / Completed | T | [TA04](probes/20261021-r1/TA04-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-005",
+      "title": "TA05：TronSave已受理等待原平台订单、不重买",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 TA05；scenario=async；first_provider=TRONSAVE"
+      ],
+      "expected": "T create一次、后续poll同一orderId、无A新购买\n20s交付延迟跨12s同步窗，在90s等待内完成；无重复付费",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| TA05 / CASE-005 | TronSave异步等待 | PASS | 1773911194730528 / Completed | T | [TA05](probes/20261021-r1/TA05-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-006",
+      "title": "TA06：双拒单按T/A/T/A四次耗尽并账本收敛",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 TA06；scenario=both_reject；first_provider=TRONSAVE"
+      ],
+      "expected": "issued购买精确TRONSAVE/APITRX/TRONSAVE/APITRX\n双方零交付/购能扣费、无主转账、终态与失败账本收敛",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| TA06 / CASE-006 | 双方拒单有限重试耗尽 | PASS | 1773911446388768 / Failed | T→A→T→A | [TA06](probes/20261021-r1/TA06-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-007",
+      "title": "AT01：API反转后APITRX首选正常购买",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 AT01；scenario=normal；first_provider=APITRX"
+      ],
+      "expected": "issued新购买仅APITRX\n一次真实交付、主提币及流水收敛",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| AT01 / CASE-007 | 正常购能 | PASS | 1773911821778976 / Completed | A | [AT01](probes/20261021-r1/AT01-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-008",
+      "title": "AT02：APITRX阶段同sender足额资源复用",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 AT02；scenario=reuse；first_provider=APITRX"
+      ],
+      "expected": "两家新购买均0且没有新BuyEnergy\n同实际sender有足额本轮lease且真实消费能量",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| AT02 / CASE-008 | 余能复用 | PASS | 1773912243306528 / Completed | 无采购 | [AT02](probes/20261021-r1/AT02-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-009",
+      "title": "AT03：APITRX明确拒单一次后TronSave成功",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 AT03；scenario=failover；first_provider=APITRX"
+      ],
+      "expected": "APITRX明确未受理→TRONSAVE受理交付\n拒单本轮总命中1、零扣费零委托；次位一次购买、提币真实完成",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| AT03 / CASE-009 | 明确拒单后切换 | FAIL | 1773912404787232 / Completed | A→T | [AT03](probes/20261021-r1/AT03-evidence.json) |",
+      "reported_result": "FAIL",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-010",
+      "title": "AT04：新需求重新从APITRX首位开始",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 AT04；scenario=recovery；first_provider=APITRX"
+      ],
+      "expected": "新需求重置首选为APITRX\n零次位购买、真实交付与提币",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| AT04 / CASE-010 | 故障解除后恢复首位 | PASS | 1773927047102496 / Completed | A | [AT04](probes/20261021-r1/AT04-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-011",
+      "title": "AT05：APITRX拒后TronSave已受理异步等待，不再轮回购买",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 AT05；scenario=async；first_provider=APITRX"
+      ],
+      "expected": "A明确拒单→T create一次、后续poll原id、不再购买A\n20s交付延迟跨12s同步窗，在90s等待内完成；无重复付费",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| AT05 / CASE-011 | TronSave异步等待 | PASS | 1773927225360416 / Completed | A→T | [AT05](probes/20261021-r1/AT05-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    },
+    {
+      "key": "CASE-012",
+      "title": "AT06：双拒单按A/T/A/T四次耗尽并账本收敛",
+      "steps": [
+        "原设计前置：env=dev",
+        "原设计前置：identity=internal_166_test",
+        "原设计前置：admin_identity=internal_admin",
+        "原设计前置：wallet_id=2",
+        "原设计前置：object_id=2026072301",
+        "原设计前置：chain=TRON_TEST",
+        "原设计前置：coin_code=TRON_TESTUSDT",
+        "原设计前置：model_id=2",
+        "原设计前置：all scoped evidence readable; no unknown external effects; approved campaign budget and ownership guards",
+        "既有逻辑步骤 AT06；scenario=both_reject；first_provider=APITRX"
+      ],
+      "expected": "issued购买精确APITRX/TRONSAVE/APITRX/TRONSAVE\n双方零交付/购能扣费、无主转账、终态与失败账本收敛",
+      "actual": "原自动化报告结果（保留中断后 oracle 局限，业务独立复核见独立报告）：\n| AT06 / CASE-012 | 双方拒单有限重试耗尽 | PASS | 1773927527350304 / Failed | A→T→A→T | [AT06](probes/20261021-r1/AT06-evidence.json) |",
+      "reported_result": "PASS",
+      "implementation_ref": "python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py"
+    }
+  ],
+  "reports": [
+    {
+      "key": "uc18-20261021-r1-automatic",
+      "title": "UC18 原始执行报告：自动10 PASS / 2 FAIL",
+      "markdown": "---\ngate: execution_report\ngate_status: failed\nsut_profile: hypervise_pure\n---\n\n# Execution Report\n\n## Command\n\n2026-10-21，campaign `20261021-r1`。用户明确授权完整回归，并在人工中断后答复“继续剩余场景”。首次进程提交9笔后退出；恢复只查询AT03原CID，后只允许AT04/AT05/AT06三笔新POST，全程每CID最多一次。中断段原CP/log/manifest见[interrupted-1](probes/20261021-r1/interrupted-1/checkpoint.json)，禁止重发旧CID。\n\n```bash\nPYTHONUNBUFFERED=1 RUN=1 XBLOCK_ENV=dev UC18_CAMPAIGN_ID=20261021-r1 UC18_USER_AUTHORIZATION=20261021-r1 PYTHONPATH=python .venv/bin/python -m pytest -o addopts= -q python/tests/scenario_driven/transaction_flow/test_uc_tx_18_dev166_multi_energy_provider_routing.py\n```\n\n最终进程退出码和治理闭环记录见本节后续补充及[manifest](probes/20261021-r1/manifest.json)。这是1个pytest驱动中的12个逻辑用例，不是12个独立pytest测试。报告生成时间（UTC+8）：2026-10-21T13:12:58.199682+08:00。\n\n## Environment\n\n- 166dev钱包2/166_test，objectId2026072301，链TRON_TEST，币种TRON_TESTUSDT，6位精度。既有会员/源地址/接收地址，无新增钱包、地址、充值或关闭意图验签。\n- Token `TWqkd2vwBmBWFVbonBEZjp1WwaYLg8bzg3`；既有Account2接收方 `TFcgn1AH6TQYTofgL8Fu7Vz1ZoVcvPSazA`。\n- T=TronSave（170:8096），A=APITRX（170:8095），均为本地mock；TRON full/solidity为170的8090/8091。没有请求公网供应商。\n- 每笔普通会员提币1USDT；实际累计POST=12，每CID计数见索引。先T优先，后A优先，finally恢复本轮fresh原快照。更新API保留既有Key，报告不含Key或摘要。\n- 首次预检166PASS/4WARN/0CRIT、RPC模式BLOCKCHAIN_SERVICE。恢复曾在180秒截止处超时且新增POST=0；独立完整诊断随后111.184秒返回166PASS/4WARN/0CRIT，无跳项。恢复wrapper另有fresh预检，最终读取[preflight](probes/20261021-r1/preflight.json)。超时与诊断证据完整保留，不用旧预检代替当前准入。\n- 本轮前置BUGate语义门通过，离线harness161PASS/1默认live入口SKIP；五个自动化源码未因本轮回归修改。extended及正式Wave8未运行，不以治理结构通过代替业务通过。\n\n部署指纹：\n\n```json\n{\n  \"image\": \"git.quanketech.com:5050/xblock/xblock-service-asset:dev\",\n  \"image_digest\": \"sha256:c4defe5d92a9e313a07b1e1c4f8e6c4314fe1a111215a46c37a0bd2b483a73c4\",\n  \"started_at\": \"2026-10-20T11:46:34.346413344Z\",\n  \"restart_count\": 0\n}\n```\n\nGitLab源码dev `a2c1a36b`含修复提交`95a4a075`。当前部署class的purchase pc5–37只做chain/address非空及amount边界检查，pc72可调用client.buyEnergy，已移除原精确`TRON`条件；新增源码用例`purchase_shouldSubmitTronTestToConfiguredProvider`。这证明方法与修复一致，不宣称整个镜像逐文件等于某源码提交。见[部署就绪证据](probes/20261021-readiness/deployed/deployment-readiness.json)及独立报告。\n\n## Result\n\n**本轮自动化整体FAIL：逻辑结果 {\"PASS\": 10, \"FAIL\": 2}；12笔实际订单终态 {\"Completed\": 10, \"Failed\": 2}。** 提币Completed与用例PASS分别判断。#130原兼容阻断的修复回归、余能复用缺陷及中断后的oracle局限分别裁定，见下。\n\n所有CID均为`UC18-20261021-r1-<step>`；T/A只计真正发出的BUY_ENERGY，不把查询、轮询、激活、余额或未发出的候选算采购。\n\n| step / CASE | 场景 | 自动结果 | 母单 / 业务终态 | 实际发出的购能顺序 | 证据 |\n|---|---|---|---|---|---|\n| TA01 / CASE-001 | 正常购能 | PASS | 1773910397812768 / Completed | T | [TA01](probes/20261021-r1/TA01-evidence.json) |\n| TA02 / CASE-002 | 余能复用 | FAIL | 1773910534127648 / Completed | T | [TA02](probes/20261021-r1/TA02-evidence.json) |\n| TA03 / CASE-003 | 明确拒单后切换 | PASS | 1773910754328608 / Completed | T→A | [TA03](probes/20261021-r1/TA03-evidence.json) |\n| TA04 / CASE-004 | 故障解除后恢复首位 | PASS | 1773911020666912 / Completed | T | [TA04](probes/20261021-r1/TA04-evidence.json) |\n| TA05 / CASE-005 | TronSave异步等待 | PASS | 1773911194730528 / Completed | T | [TA05](probes/20261021-r1/TA05-evidence.json) |\n| TA06 / CASE-006 | 双方拒单有限重试耗尽 | PASS | 1773911446388768 / Failed | T→A→T→A | [TA06](probes/20261021-r1/TA06-evidence.json) |\n| AT01 / CASE-007 | 正常购能 | PASS | 1773911821778976 / Completed | A | [AT01](probes/20261021-r1/AT01-evidence.json) |\n| AT02 / CASE-008 | 余能复用 | PASS | 1773912243306528 / Completed | 无采购 | [AT02](probes/20261021-r1/AT02-evidence.json) |\n| AT03 / CASE-009 | 明确拒单后切换 | FAIL | 1773912404787232 / Completed | A→T | [AT03](probes/20261021-r1/AT03-evidence.json) |\n| AT04 / CASE-010 | 故障解除后恢复首位 | PASS | 1773927047102496 / Completed | A | [AT04](probes/20261021-r1/AT04-evidence.json) |\n| AT05 / CASE-011 | TronSave异步等待 | PASS | 1773927225360416 / Completed | A→T | [AT05](probes/20261021-r1/AT05-evidence.json) |\n| AT06 / CASE-012 | 双方拒单有限重试耗尽 | PASS | 1773927527350304 / Failed | A→T→A→T | [AT06](probes/20261021-r1/AT06-evidence.json) |\n\n异步实测：\n\n- TA05: {\"order_id\": \"6ad82a95f772e2dd492d1c0e\", \"elapsed_seconds\": 23.21499991416931, \"polls\": 15}\n- AT05: {\"order_id\": \"6ad84890475012d2bfdbd0cb\", \"elapsed_seconds\": 22.996000051498413, \"polls\": 16}\n\nAT05的异步主体是TronSave：先让A明确拒单，再等待T原orderId；不宣称APITRX支持异步poll。正常/切换订单的单一交付、订单/attempt绑定、主交易及账本必须互证；双拒单母单Failed是预期结果，须实际完整T/A/T/A或A/T/A/T有限序列、零交付费用和完整解冻。\n\n供应商本轮新增订单（含无扣费的拒单审计记录；内部mock账，不外推真实商业计费）：总费用SUN={\"TRONSAVE\": 35100000, \"APITRX\": 11700000}。\n\n| step | 供应商 | 平台订单 | 内部费用 SUN | 委托 txid |\n|---|---|---|---|---|\n| TA01 | T | 6ad8291b8cadd35258d97ee8 | 5850000 | 8a7907e70e3eabedbfcb1b39b5b1907945c85100c2944c129f5853bb5f1bfa8d |\n| TA02 | T | 6ad8295b192fbaf9decd1f67 | 5850000 | 9b5cae3bf5e83f1035cb40edebf04f8622eb8dd9cfd07e290330410f38c2c3ef |\n| TA03 | A | a2daa814-5034-4547-8e91-b49984047798 | 3900000 | 509c85dde9896f28e9997a0b5377d0734527c5cbe9abe82bb8be69c13de4592e |\n| TA04 | T | 6ad82a422b913975982730cd | 5850000 | ab998cd519e66ef22ab77185ba06cc697502abb50cb7a2d2bb76d1b51b1bcd4f |\n| TA05 | T | 6ad82a95f772e2dd492d1c0e | 5850000 | 2439b019d2c763bce16dabf176548d2da6047ef599ad4c3a6324f33bda3520ba |\n| TA06 | A | eabeb87c-c441-4b6f-8edb-d315712eafe9 | 0 |  |\n| TA06 | A | b5b862a2-fa5d-42a2-a720-153c17111894 | 0 |  |\n| AT01 | A | 56e299d5-8a10-43bb-a958-db554766698d | 3900000 | 630b9b616579c676b4de4b3c841b65df7375c8bcad6759fd1fc241f25684f934 |\n| AT03 | T | 6ad82cf4580946f1650661aa | 5850000 | b03a7e5cfe489b5f648740d8a908136ee51bfb3df9fd442055e740cc142cb37c |\n| AT03 | A | 02ce3c53-a463-4f60-8a7d-799ab5e19ef4 | 0 |  |\n| AT04 | A | 17b5a748-74fe-4c9d-8ac0-a62c8a562bd3 | 3900000 | 89acb524632e4fb79077da785df64ab7f6c1c3dbd9c64166e00f50dda18e9bec |\n| AT05 | T | 6ad84890475012d2bfdbd0cb | 5850000 | 55c41b3700eec02bb10c7e865fee38d495bab87fa780e4436b99c48c09dd1246 |\n| AT05 | A | 0ead43ac-9fe6-424d-91bb-c71400f258e7 | 0 |  |\n| AT06 | A | c17d37a3-a86c-4737-9049-e610dcfefb1f | 0 |  |\n| AT06 | A | d589c495-ab04-4575-852f-04fbfa469cc6 | 0 |  |\n\n主转账与token账本索引：\n\n| step | 主转账 txid | token账本行 |\n|---|---|---|\n| TA01 | e9ba6fa4b9dda3ccb9d4a46a58bb08f9dbc3060455daa0a11b1ab11a4abd4b21 | 62906, 62907 |\n| TA02 | a3849e34f89ab2379f05c6adc5d4784a9d2989bed3c73ea59eb237ea57dd4516 | 62908, 62909 |\n| TA03 | ceef63c18dc215806ced05f475cf7d698a32708d5d937151d27b1980667e16f6 | 62910, 62911 |\n| TA04 | 4dc518e8971e754e7080c070f7348068b0cbdca135ea83db184b1fae26c2fd9c | 62912, 62913 |\n| TA05 | 885eb546328a54437775b9333361b02c15f82005330adef5ba8b91bd1f6b60bd | 62914, 62915 |\n| TA06 | 无，预期失败解冻 | 62916, 62917 |\n| AT01 | 0d5cb533b850de3fbd5d2364401219ec15e388895f792a62c817c84df785c089 | 62918, 62919 |\n| AT02 | 393516c73a5c54473a6b7cf3353fc8859edb0f72aa8221447feb59cf368486d8 | 62920, 62921 |\n| AT03 | 272b67f1ec8a32f16d086c02aa839e6c74c1ba9a015bc2b0d01c17c07a4ae75a | 62922, 62923 |\n| AT04 | b27debfa7012c1adca51f2d0a421d74e3047bce0f7c141ff2c2646d26bbf2bfb | 62924, 62925 |\n| AT05 | c81829cc1f4ae5a3b99cc2f375e19028de0b3d0572de41d8d090c913a58934a5 | 62926, 62927 |\n| AT06 | 无，预期失败解冻 | 62928, 62929 |\n\n## FailureClassification\n\n自动非PASS原值保留：\n\n- TA02: FAIL — duplicate/missing provider delivery\n- AT03: FAIL — rejected provider charged or delegated\n\n**TA02为已确认的业务失败。** TA01与TA02实际sender相同，均`TAE9mXX78r8PaYfKDuqdLftvWPNrjMrBKB`。TA02提交前现场可用能量894804，估算12642，原T租约未回收，却新增T平台单`6ad8295b192fbaf9decd1f67`、购65000能量并扣内部5850000SUN（5.85TRX）。独立DB、平台订单、full/solidity委托和转账、原租约回收块顺序互证。TA02母单1773910534127648虽Completed，仍违反余能复用oracle，保留FAIL。AT02同sender无新采购并Completed，实际PASS。不得泛化为所有APITRX或所有复用时序均失败。\n\n独立详证：[TA02-investigation.md](probes/20261021-r1/independent/TA02-investigation.md)与[safe.json](probes/20261021-r1/independent/TA02-investigation.safe.json)。既有[asset#38](https://gitlab.charprotocol.com/xblock/xblock-service-asset/-/issues/38)/[TAPD415](https://www.tapd.cn/58155307/bugtrace/bugs/view/1158155307001000415)是同类现象关联线索；本轮尚未证明当前SUT缓存因果，不能直接照搬旧根因。\n\nAT03已出现`rejected provider charged or delegated`自动FAIL：中断后延迟取证时租约已自动过期，断言只把active算交付。下方原delegate→转账→expiry时序证实历史业务成功；这是观察时机导致的harness失败，自动记录不变，不归成SUT故障。\n\n## Regression Cases\n\nR01 / [GitLab#130](https://gitlab.charprotocol.com/xblock/xblock-service-asset/-/issues/130) / [TAPD502](https://www.tapd.cn/58155307/bugtrace/bugs/view/1158155307001000502)：具名回归TA03、TA06、AT01、AT03、AT04、AT05、AT06。以A真实request_issued=1及平台/链/账本闭环证明原TRON_TEST HTTP前拒绝已消除，不能只凭源码或问题单状态。\n\nP-004 / CASE-002（TA02）：FAIL，真实重复购能；CASE-008（AT02）：PASS，同sender充足余能下无新购买。其余12逻辑结果见上表，均保留实际CID和母单。\n\n| defect / incident id | named regression case | proposition / oracle | status |\n|---|---|---|---|\n| R01 / asset#130 / TAPD502 | TA03 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动PASS，业务裁定见独立审计 |\n| R01 / asset#130 / TAPD502 | TA06 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动PASS，业务裁定见独立审计 |\n| R01 / asset#130 / TAPD502 | AT01 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动PASS，业务裁定见独立审计 |\n| R01 / asset#130 / TAPD502 | AT03 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动FAIL，业务裁定见独立审计 |\n| R01 / asset#130 / TAPD502 | AT04 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动PASS，业务裁定见独立审计 |\n| R01 / asset#130 / TAPD502 | AT05 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动PASS，业务裁定见独立审计 |\n| R01 / asset#130 / TAPD502 | AT06 | P-001, P-002 / O-001, O-002, O-004, O-005 | 自动PASS，业务裁定见独立审计 |\n| asset#38 / TAPD415 关联观察 | TA02 / CASE-002 | P-004 / O-004, O-005 | FAIL，实际重复购能；当前缓存根因未证 |\n| H04 中断后的过期租约oracle | AT03 / CASE-009 | P-002 / O-002, O-004 | 自动结果保留；独立回看原交易时序 |\n\n## RerunOrRepairDecision\n\n新场景提交预算至12截止，不增发证明单，不重发旧CID。修复重复购能后需重新授权新的campaign，对同sender、相邻时间间隔、资源读时刻与缓存行为做针对性回归；本轮不修改SUT。\n\n本轮优先级配置检查记录（布尔，不含Key）：\n\n- {\"tag\": \"AT\", \"keys_unchanged\": true, \"other_fields_unchanged\": true, \"double_get\": true}\n- {\"tag\": \"restore\", \"keys_unchanged\": true, \"other_fields_unchanged\": true, \"double_get\": true}\n\n自动cleanup原值：\n\n```json\n{\n  \"status\": \"BLOCKED\",\n  \"cleanup_pending\": true,\n  \"reason\": \"pre-crash Key anchor cannot be proved from a nonsecret disk checkpoint\"\n}\n```\n\n**全程原Key连续性：False。** 原进程终止后RAM锚丢失，恢复实现显式置false，禁止从非secret磁盘checkpoint伪造证明。finally的物理恢复先执行，最后连续性检查仍可BLOCKED；物理RESTORED、当前Key可用及全程原Key连续性是不同结论。最终原钱包/provider/settings/验签和fault/lease/unresolved/pending清零，由独立审计回读确认。\n\n## Evidence Links\n\n- [本轮白名单索引](probes/20261021-r1/main-final-evidence-index.json)、[manifest](probes/20261021-r1/manifest.json)、[恢复核对](probes/20261021-r1/reconciliation.json)。\n- [独立最终报告](00_multiview/regression-independent-20261021.md)、[部署独立就绪](probes/20261021-readiness/deployed/deployed-readiness.md)。\n- [完整健康诊断](probes/20261021-readiness/env-health-diagnostic.log)、[离线harness](probes/20261021-readiness/offline-harness.log)、[前置语义门](probes/20261021-readiness/pre-code-gate.log)。\n- [2026-10-19历史报告](probes/20261021-readiness/prior-20261019-canonical/04_execution_report.md)，历史失败没有被本轮结果覆盖。\n\n最终独立裁定、外部回写和治理闭环附于下方。\n\n\n## 2026-10-21 最终独立裁定与治理闭环\n\n**原#130兼容缺陷：修复已部署并验证。SUT业务用例11PASS/1FAIL（TA02）；原自动驱动保持10PASS/2FAIL（另含AT03 H04误报），整轮仍FAIL。** 不以独立分类覆写自动结果。\n\nAT03历史闭环已独立full/solidity证明，母单1773912404787232，账本62922/62923为Freeze→Decrease，1000000，frozen_after=0：\n\n| 动作 | 原txid | 块 |\n|---|---|---|\n| T委托 | b03a7e5cfe489b5f648740d8a908136ee51bfb3df9fd442055e740cc142cb37c | 2769112 |\n| 1USDT主转账 | 272b67f1ec8a32f16d086c02aa839e6c74c1ba9a015bc2b0d01c17c07a4ae75a | 2769116 |\n| 约1小时后自动回收 | 38396e69e1c5fe59608f10daab562b04f26d4aeb217c61c20b0a510520b42b68 | 2770313 |\n\n三笔均确认成功，委托/回收provider、sender、ENERGY/1000000SUN精确绑定；转账token/receiver/1000000、Transfer及energy_usage_total12642均正确。A明确拒单→T接受的原attempt有序，先交付和转账、后回收；不能按事后expired状态否定原交付。该证据不改变TA02真实重复采购的独立结论。\n\n独立终态实际数：12唯一母单，10Completed/2预期Failed；23明细；24token ledger，operation_key唯一；9次有偿委托及9次回收、10次主转账合计28原txid均full/solidity确认。成功扣减合计10000000，失败解冻合计2000000，最终冻结0。9次交付之外的6条A拒单审计记录均未扣费；不能把其cost_sun报价误加为实付。\n\n**功能配置恢复RESTORED**：原T1/A2、双方enabled和100TRX阈值、7条fee alert链/币/阈值配置、钱包其他可写字段、TRON_TEST验签以及T原settings/floor64000均一致；fault/lease/unresolved/pending均0，原部署指纹稳定。当前Key保留有恢复进程内比较与真实采购证明；**全程原Key身份连续性仍UNPROVEN，cleanup BLOCKED/cleanup_pending=true原值不变**。\n\n独立collector第一次直接比较feeResourceAlertConfigs行，因API附带configured/precision/symbol三个只读派生字段报false。归档首次结果后，仅在collector独立投影chain/feeCoinCode/thresholdMinUnit重读核验，7条配置均一致；没有修改SUT以满足审计。详见[最终只读证据](probes/20261021-r1/independent/final-readback.safe.json)和[首次原始比较](probes/20261021-r1/independent/final-readback.initial-raw-comparison.safe.json)。\n\n补充供应商服务持久日志：[supplier-journals.safe.json](probes/20261021-r1/supplier-journals.safe.json)，T49条/A36条本轮order/fault/operation白名单事件，15个新增平台记录的create日志均找到；只取本轮owned订单/定向规则，未复制全量历史state。结合20条SUT issued购买attempt、真实平台记录及链上交付核对优先级；未声称逐HTTP网络抓包。\n\n本轮最后wrapper退出1（508.50秒）；恢复fresh预检166P/4W/0CRIT，RPC模式BLOCKCHAIN_SERVICE。当前4WARN为启动标记可能轮转、TRON_TEST/PROS_TEST分区结构、Trace一条ERROR日志，未绕过core CRIT。official post-run exit0；默认方言与显式v1.3的scope-all结构校验均PASS，日志见[默认闭环](probes/20261021-readiness/final-closure.log)和[canonical闭环](probes/20261021-readiness/final-canonical-closure.log)。五个自动化源码SHA与本轮前置完全一致。\n\n自动self_healing原值仍unknown_failure、sut_defect_admissible=false，仅识别pytest失败摘要；本文基于定点独立证据作人工分类，不冒充自动门禁已识别SUT缺陷。04/05保持failed，正式Wave8和extended仍NOT_RUN。\n\n\n归属补充：CP active-only owned数组实际为8笔（T5/A3），其中未登记已过期AT03 T单；独立证据完整归属9笔已付租约。平台记录总计15条（T6、A9含6拒单），服务journal按完整case来源的15 ID取证，不以CP active-only列表缩减历史范围；CP未改。\n\n\n## 外部回写完成（2026-10-21T14:10:12.170136+08:00）\n\n- 原兼容缺陷[GitLab#130回归评论](https://gitlab.charprotocol.com/xblock/xblock-service-asset/-/issues/130#note_24121)已核对全文与附件，issue已closed；[TAPD502](https://www.tapd.cn/58155307/bugtrace/bugs/view/1158155307001000502)已写回评论1158155307001003008并标记verified（QA已验证）。仅指原HTTP前链名拒绝根因，不代表整轮验收通过。\n- 真实余能失败补到既有[GitLab#38](https://gitlab.charprotocol.com/xblock/xblock-service-asset/-/issues/38#note_24123)及[TAPD415](https://www.tapd.cn/58155307/bugtrace/bugs/view/1158155307001000415)评论1158155307001003009；两者仍opened/new，当前缓存因果未证。没有新建重复缺陷。\n- [46文件脱敏证据包](https://gitlab.charprotocol.com/-/project/127/uploads/6491a6d7a60b356963411eb8fbf884a5/UC18-20261021-r1-regression-evidence.zip)，SHA256 `e5e6459444760d50717bf3d10b2c7fe7f62ccd89efce0ce60b7e575eb7b9ffb7`；完整报告和供应商journal均有单独附件。发布包是测试结果快照，本地报告本节另补回写记录。\n- GitLab两条评论及TAPD两条评论均回读验证，最终状态再GET核对。详情见[回写记录](../../incidents/uc18-regression-20261021/filing-state.json)。本轮未再发业务请求。\n",
+      "source_ref": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/usecases/UC-TX-18-dev166-multi-energy-provider-routing/04_execution_report.md",
+      "reported_result": "FAIL"
+    },
+    {
+      "key": "uc18-20261021-r1-independent",
+      "title": "UC18 独立业务复核：11 PASS / 1 FAIL",
+      "markdown": "# UC-TX-18 最终独立审计 — 20261021-r1\n\n**自动结果：10 PASS / 2 FAIL，cleanup BLOCKED。独立业务结果：11 PASS / 1 FAIL，唯一真实业务FAIL为TA02余能复用；AT03历史业务PASS，其自动FAIL归为H04延迟观察的oracle误判。整轮业务仍有失败。** 未改自动结果、CP、canonical04/05，未执行任何SUT/链/fixture/配置/故障/清理写，也未发外部消息。\n\nEND授权后正式live取证为2026-10-21T05:12:13.041654Z→05:12:23.110835Z，随后对wallet配置、provider原回收operation和部署class做有限只读补核；最终评审时间2026-10-21T05:21:36.085232+00:00。实际数与原始证据见probes/20261021-r1/independent/final-readback.safe.json、final-review.safe.json。\n\n## 实际数量与精确归属\n\n- 12个CID各唯一母单，12次POST每CID一次均来自driver持久记录；数据库实际 **10 Completed / 2 Failed**。TA06/AT06的Failed是四次明确拒单后的预期业务结果。\n- **23条明细**：12 Withdraw、11 BuyEnergy，AT02没有BuyEnergy。**24条token账本**，每单一对：10 Freeze→Decrease，2 Freeze→Unfreeze。精确金额均1,000,000原子量，operation_key无重复，balance=frozen+available，最终冻结均0。\n- **20次issued BUY_ENERGY**：T11/A9；9 ACCEPTED、11 NOT_ACCEPTED；另10 SIGN和10 BROADCAST，均有对应成功主转账。APITRX本轮无旧guard式NOT_ISSUED/INVALID_PARAMETER。\n- **9笔历史付费租约**：T6/A3；T内部mock扣费35,100,000 SUN，A11,700,000 SUN，合计46,800,000 SUN（46.8 TRX），与用户token账本分列。A拒单记录中的cost_sun是报价，charged=false时不计扣费。\n- **28笔原交易full/solidity均确认**：9 DelegateResource、9 UnDelegateResource、10 TRC20转账。逐笔txID/id、SUCCESS、区块一致；9对委托/回收均同provider→actual sender、ENERGY、精确1,000,000 SUN；10转账均核当前token/actual sender/Account2/请求金额及唯一Transfer日志。\n- CP owned数组只有8项（T5/A3）；历史已付租约是9项。缺的AT03 T单在恢复观察时已expired，未进入active-only归属追加分支；本审计已用accepted reference、vendor原单及delegate/transfer/expiry硬证独立归属，不把9笔压成8笔，也不伪改CP。\n\n| case | 母单 | 实际终态 | 自动 | 独立业务 | issued购能序列 | ledger IDs |\n|---|---|---|---|---|---|---|\n| TA01 | 1773910397812768 | Completed | PASS | PASS | T | 62906,62907 |\n| TA02 | 1773910534127648 | Completed | FAIL | FAIL | T | 62908,62909 |\n| TA03 | 1773910754328608 | Completed | PASS | PASS | T→A | 62910,62911 |\n| TA04 | 1773911020666912 | Completed | PASS | PASS | T | 62912,62913 |\n| TA05 | 1773911194730528 | Completed | PASS | PASS | T | 62914,62915 |\n| TA06 | 1773911446388768 | Failed | PASS | PASS | T→A→T→A | 62916,62917 |\n| AT01 | 1773911821778976 | Completed | PASS | PASS | A | 62918,62919 |\n| AT02 | 1773912243306528 | Completed | PASS | PASS | 0 | 62920,62921 |\n| AT03 | 1773912404787232 | Completed | FAIL | PASS | A→T | 62922,62923 |\n| AT04 | 1773927047102496 | Completed | PASS | PASS | A | 62924,62925 |\n| AT05 | 1773927225360416 | Completed | PASS | PASS | A→T | 62926,62927 |\n| AT06 | 1773927527350304 | Failed | PASS | PASS | A→T→A→T | 62928,62929 |\n\n每个CID为`UC18-20261021-r1-<case>`；实际sender均`TAE9mXX78r8PaYfKDuqdLftvWPNrjMrBKB`。完整主转账txid、details、全部attempts及每个独立检查条件保存在final-review.safe.json。表中PASS以明确场景契约判断，未以Completed代替业务断言。\n\n## AT03：历史业务PASS，自动H04 FAIL保留\n\n唯一母单1773912404787232；issued A明确NOT_ACCEPTED，A订单02ce3c53-a463-4f60-8a7d-799ab5e19ef4为charged=false、txid=null、delegated_sun=0；随后T ACCEPTED，原reference=`6ad82cf4580946f1650661aa`，真实扣费5,850,000 SUN且只交付一次。\n\n| 事件 | 区块 | UTC时间 | 原完整txid |\n|---|---|---|---|\n| delegate | 2769112 | 2026-10-21T03:09:44.670000+00:00 | b03a7e5cfe489b5f648740d8a908136ee51bfb3df9fd442055e740cc142cb37c |\n| withdraw | 2769116 | 2026-10-21T03:09:56.670000+00:00 | 272b67f1ec8a32f16d086c02aa839e6c74c1ba9a015bc2b0d01c17c07a4ae75a |\n| expiry | 2770313 | 2026-10-21T04:09:47.670000+00:00 | 38396e69e1c5fe59608f10daab562b04f26d4aeb217c61c20b0a510520b42b68 |\n\n三笔均独立full/solidity确认，委托/回收的provider、sender、ENERGY和1,000,000 SUN相同；原主转账token/Account2/1,000,000原子量与Transfer日志准确；ledger62922/62923为正确Freeze→Decrease。租约deadline为04:09:45.256Z，原回收在04:09:47.670Z，晚于03:09:56.670Z主转账约一小时。恢复后driver最后观察为05:04:54.105715Z，原单已expired。\n\n源码_business仅active算交付，expired分支套用“拒单必须debit=0”，于是已付费且已交付的原单触发`rejected provider charged or delegated`。本轮硬证足以把**历史业务PASS**与**自动H04 FAIL**分列；没有预改结果洗绿，也没有将它归为SUT购能失败。\n\n## TA02真FAIL与AT02真PASS的对照\n\n| 项目 | TA01→TA02 | AT01→AT02 |\n|---|---|---|\n| 同实际sender | 是 | 是 |\n| 两次提交间隔 | 64.843818s | 200.790321s |\n| 资源采样距第二次提交 | 12.422358s | 46.055531s |\n| 提交前现场余能 / 估算 | 894,804 / 12,642 | 894,819 / 12,642 |\n| 原lease | T 6ad8291b8cadd35258d97ee8 | A 56e299d5-8a10-43bb-a958-db554766698d |\n| 原delegate / 第二次transfer / 原expiry区块 | 2768784 / 2768809 / 2768817 | 2769009 / 2769076 / 2769086 |\n| 第二次issued BUY_ENERGY / 新付费单 | 1 / 1 | 0 / 0 |\n| 独立业务 | FAIL：多买65,000且新增委托 | PASS：无新BuyEnergy、无新平台单，原lease被消费 |\n\n两侧历史余能值与采样时间是driver现场capture，**不是本审计重读历史RPC**；两侧原委托、主转账及其后回收时序由独立链证佐证。TA02原租约在第二次转账后才回收，不能被AT03的H04到期观察机制解释掉。A侧单次较长间隔成功不证明A所有时序无bug；当前SUT读到的资源值、缓存命中或失效因果均未证，不强套#38旧根因。\n\n## 原#130兼容回归与状态裁决建议\n\n本轮结束补读部署目标class，与本会话起始已验证“移除精确TRON guard”的12,348字节class逐字节一致；前后fingerprint均匹配campaign启动，started_at=2026-10-20T11:46:34.346413344Z、restart=0，摘要不输出。此前运行时独立旁证为TRON_TEST.enabled=true、vmType=TRON、energyPurchaseEnabled=true；配置中心端点A=170:8095、T=170:8096并与进程生效来源对应。\n\n原7named回归：**TA03、TA06、AT01、AT03、AT04、AT05、AT06，独立业务全部PASS**；其中AT03自动H04 FAIL如实保留。A本轮9次确实发出的调用及两向fallback/四次耗尽，进一步证明旧的HTTP前链名阻断已消失。\n\n供主控裁决：可将#130原兼容缺陷的本轮具名业务回归判通过；整体UC保留TA02失败。余能失败与既有#38/TAPD415可独立关联跟踪，但这里只证明现象，未证明同一缓存因果，不强行合并。问题单当前open/new信息来自主控，本审计未访问或修改GitLab/TAPD。\n\n## 最终恢复与证据限制\n\n**functional RESTORED；global原Key连续性UNPROVEN；自动cleanup仍BLOCKED。**\n\n- fresh原wallet业务字段、链币模型、status/name、验签映射均一致，TRON_TEST意图验签为true；平台恢复T priority1/A priority2，enabled均true、threshold均100.00000000，apiKeyConfigured均true；T settings所有字段含min_energy_exclusive=64000与原值一致。\n- 首次审计器将feeResourceAlertConfigs完整DTO与启动三字段行直接比对，唯一false来自派生configured/precision/symbol。**缺失原字段0项**；未据此认定SUT失败。首次rawfalse已归档final-readback.initial-raw-comparison.safe.json。另一次fresh GET独立只投影chain/feeCoinCode/thresholdMinUnit，7/7行严格相等，原null保留，其他原字段原样严格相等；修正证据wallet-restoration-correction.safe.json。没有调用被测helper oracle或修改阈值。\n- 最终两家faults=0、active marker/租约=0、unresolved=0、reconciliation clean；钱包全域母单pending=0、明细pending=0；两provider→实际sender的链上委托余额均0，有full/solid正高度对照。\n- 历史相位API写与double-GET记录来自driver（AT/restore的keys_unchanged、other_fields_unchanged、double_get均true）；独立DB实际issued序列验证相位路由，最终优先级为fresh独立读取。\n- 原RAM Key锚丢失，CP continuity=false。只能独立确认configured布尔，不能推出跨进程key身份没变；未读取或输出keys/digests。cleanup实现先physical恢复、最后卡连续性，因此功能RESTORED与自动BLOCKED可以同时成立，不伪造true。\n- APITRX回收operation按地址聚合，使用related_order_ids列表、singular related_order_id为null。已fresh按3个原expiry txid读取并核列表成员、provider/sender/SUN与链；未把列表形态误当原交易无归属。补核见APITRX-original-expiry-operations.safe.json。\n\n## 9笔历史付费租约原交易绑定\n\n| case | provider | 原vendor order | 原delegate txid | 原expiry txid | SUN |\n|---|---|---|---|---|---|\n| TA01 | TRONSAVE | 6ad8291b8cadd35258d97ee8 | 8a7907e70e3eabedbfcb1b39b5b1907945c85100c2944c129f5853bb5f1bfa8d | 5cf3fb2d11a67d7e9a8b0cf0f47b8d6f0772826d96b3130b45550fb94dbf491b | 1000000 |\n| TA02 | TRONSAVE | 6ad8295b192fbaf9decd1f67 | 9b5cae3bf5e83f1035cb40edebf04f8622eb8dd9cfd07e290330410f38c2c3ef | 6bd08b15811248426dac10780ca886474536d538c9eeabe7709e06f2acd447d1 | 1000000 |\n| TA03 | APITRX | a2daa814-5034-4547-8e91-b49984047798 | 509c85dde9896f28e9997a0b5377d0734527c5cbe9abe82bb8be69c13de4592e | 9e9f9d68fa4e72daf9c131d69f670ff3e0de14b952baa2fa0dd1372ae679864d | 1000000 |\n| TA04 | TRONSAVE | 6ad82a422b913975982730cd | ab998cd519e66ef22ab77185ba06cc697502abb50cb7a2d2bb76d1b51b1bcd4f | 6fc2db909a3e836b0521dafc29b0e26518ccd424ae545fdaf73fcf4182324613 | 1000000 |\n| TA05 | TRONSAVE | 6ad82a95f772e2dd492d1c0e | 2439b019d2c763bce16dabf176548d2da6047ef599ad4c3a6324f33bda3520ba | d7242494724ea1c442fb795199bb1e6e86d3e8db06d69b07b12230f56d8dda95 | 1000000 |\n| AT01 | APITRX | 56e299d5-8a10-43bb-a958-db554766698d | 630b9b616579c676b4de4b3c841b65df7375c8bcad6759fd1fc241f25684f934 | bc25d0f63a3fae8fc580924f1892d639f88064fb175b68f184b1b8e6ff695791 | 1000000 |\n| AT03 | TRONSAVE | 6ad82cf4580946f1650661aa | b03a7e5cfe489b5f648740d8a908136ee51bfb3df9fd442055e740cc142cb37c | 38396e69e1c5fe59608f10daab562b04f26d4aeb217c61c20b0a510520b42b68 | 1000000 |\n| AT04 | APITRX | 17b5a748-74fe-4c9d-8ac0-a62c8a562bd3 | 89acb524632e4fb79077da785df64ab7f6c1c3dbd9c64166e00f50dda18e9bec | 79985f65bda944baea1d6405cb1a8ba9a0e42777b9e50842021377d11e8be1a7 | 1000000 |\n| AT05 | TRONSAVE | 6ad84890475012d2bfdbd0cb | 55c41b3700eec02bb10c7e865fee38d495bab87fa780e4436b99c48c09dd1246 | d18b06ec0f162924c52bc5f0a2e1b3f95c3be6f82df415e4f1ae7f50377ab8b4 | 1000000 |\n\n## 可复核只读命令\n\n```sh\nPYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python .venv/bin/python docs/usecases/UC-TX-18-dev166-multi-energy-provider-routing/probes/20261021-r1/independent/audit_after_end.py --controller-end END --end-at 2026-10-21T05:12:05Z\n```\n\n原仓Uc18IO仅用于查询。mock只GET /admin/state；链每笔均对170:8090 /wallet/gettransactionbyid、gettransactioninfobyid与170:8091 /walletsolidity/gettransactionbyid、gettransactioninfobyid传对应原txid。事务控制阳性为@@SESSION.transaction_read_only=1与1 AS positive_control=1；SQL原文及时间全部保存在final-readback.safe.json。如下为本轮执行SQL，凭据没有进入证据。\n\n```sql\nSELECT @@SESSION.transaction_read_only AS session_readonly,1 AS positive_control,NOW() AS db_time;\n```\n\n```sql\nSHOW COLUMNS FROM transaction_order;\n```\n\n```sql\nSHOW COLUMNS FROM transaction_order_detail;\n```\n\n```sql\nSHOW COLUMNS FROM transaction_chain_attempt;\n```\n\n```sql\nSHOW COLUMNS FROM address_balance_ledger;\n```\n\n```sql\nSELECT id,order_no,client_order_id,wallet_id,status,transaction_type,created_at,updated_at FROM transaction_order WHERE wallet_id=2 AND client_order_id LIKE 'UC18-20261021-r1-%' ORDER BY created_at,id;\n```\n\n```sql\nSELECT detail_no,order_no,transaction_type,status,from_address,to_address,amount,from_coin_code,from_chain,tx_hash,execution_epoch,settlement_state,retry_count,waiting_reason,created_at,updated_at FROM transaction_order_detail WHERE wallet_id=2 AND order_no IN ('1773910397812768','1773910534127648','1773910754328608','1773911020666912','1773911194730528','1773911446388768','1773911821778976','1773912243306528','1773912404787232','1773927047102496','1773927225360416','1773927527350304') ORDER BY order_no,detail_no;\n```\n\n```sql\nSELECT detail_no,execution_epoch,attempt_type,attempt_status,provider_code,provider_reference,request_issued,acceptance_conclusion,operation,dependency_type,attempt_no,quota_attempt_no,max_attempts,tx_hash,error_code,created_at,updated_at FROM transaction_chain_attempt WHERE detail_no IN ('1773910397812768-1','1773910397812768-2','1773910534127648-1','1773910534127648-2','1773910754328608-1','1773910754328608-2','1773911020666912-1','1773911020666912-2','1773911194730528-1','1773911194730528-2','1773911446388768-1','1773911446388768-2','1773911821778976-1','1773911821778976-2','1773912243306528-1','1773912404787232-1','1773912404787232-2','1773927047102496-1','1773927047102496-2','1773927225360416-1','1773927225360416-2','1773927527350304-1','1773927527350304-2') ORDER BY created_at,execution_epoch,attempt_no;\n```\n\n```sql\nSELECT id,wallet_id,coin_code,address,change_type,change_amount,balance_after,frozen_after,available_after,business_type,order_no,detail_no,operation_key,created_at FROM address_balance_ledger WHERE wallet_id=2 AND order_no IN ('1773910397812768','1773910534127648','1773910754328608','1773911020666912','1773911194730528','1773911446388768','1773911821778976','1773912243306528','1773912404787232','1773927047102496','1773927225360416','1773927527350304') ORDER BY id;\n```\n\n```sql\nSELECT COUNT(*) AS n FROM transaction_order WHERE wallet_id=2 AND (status IS NULL OR status NOT IN ('Completed','Failed','Fail','Cancelled','Timeout'));\n```\n\n```sql\nSELECT COUNT(*) AS n FROM transaction_order_detail WHERE wallet_id=2 AND (status IS NULL OR status NOT IN ('Success','Fail','Failed','Cancelled','Timeout'));\n```\n",
+      "source_ref": "/Users/zhangliangchen/PycharmProjects/hypervise_pure/docs/usecases/UC-TX-18-dev166-multi-energy-provider-routing/00_multiview/regression-independent-20261021.md",
+      "reported_result": "FAIL"
+    }
+  ],
+  "destination": "Unbound: resolve the authorized target Project and latest task version before any non-local sync"
+}

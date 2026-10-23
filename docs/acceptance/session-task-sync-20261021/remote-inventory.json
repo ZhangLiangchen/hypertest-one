@@ -1,0 +1,30 @@
+{
+  "observed_at": "2026-10-21T07:50:20.344740+00:00",
+  "hostname": "vultr",
+  "production_schema": "0020_interactive_tool_inbox",
+  "production_task_endpoints_available": false,
+  "production_task_tool_count": 9,
+  "production_business_tables": 61,
+  "existing_python": "/opt/hypertest/python/cpython-3.12.15-linux-x86_64-gnu/bin/python3.12",
+  "candidate_python": "Python 3.12.15",
+  "candidate_dependencies": {
+    "fastapi": "0.146.0",
+    "uvicorn": "0.54.0",
+    "sqlalchemy": "2.1.5",
+    "asyncpg": "0.32.0",
+    "alembic": "1.20.0",
+    "pydantic": "2.14.1",
+    "pydantic-settings": "2.16.0",
+    "websockets": "17.2",
+    "pytest": "8.4.2",
+    "pytest-asyncio": "0.26.0",
+    "httpx": "0.28.1",
+    "mcp": "1.30.0"
+  },
+  "candidate_database": "hypertest_session_sync_candidate_20261021",
+  "candidate_role": "hypertest_session_sync_qa_20261021",
+  "candidate_source_status": "PRELIMINARY_ONLY_NOT_STARTED",
+  "migration_status": "NOT_STARTED",
+  "production_configuration_changed": false,
+  "production_services_restarted": false
+}

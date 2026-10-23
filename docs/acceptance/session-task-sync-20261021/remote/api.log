@@ -1,0 +1,200 @@
+INFO:     Started server process [3548537]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:18101 (Press CTRL+C to quit)
+INFO:     127.0.0.1:40248 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40248 - "GET /api/v1/projects HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 422, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/applications.py", line 1194, in __call__
+    await super().__call__(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/telemetry/_asgi.py", line 151, in __call__
+    await self.app(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/routing.py", line 678, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2809, in app
+    await route.handle(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1837, in handle
+    await self.original_router.handle(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 2892, in handle
+    await included_router._handle_selected(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1863, in _handle_selected
+    await original_route.handle(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 1326, in handle
+    await effective_context.app(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 166, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 152, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 745, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 372, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/src/hypertest/api/routes.py", line 79, in read_projects
+    return await list_projects(db)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/final-4036ba150/src/hypertest/application/services.py", line 78, in list_projects
+    result = await session.scalars(select(Project).order_by(Project.updated_at.desc()))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 777, in scalars
+    result = await self.execute(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 651, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 210, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2473, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2350, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2173, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<sqlalchemy generated _go() wrapper for sqlalchemy.orm.session.SessionTransaction._connection_for_bind>", line 2, in _connection_for_bind
+    return target(fn, self, bind, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1203, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3270, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 149, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3294, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 445, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1317, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 709, in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/impl.py", line 176, in _do_get
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 166, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/impl.py", line 174, in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 386, in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 671, in __init__
+    self.__connect()
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 916, in __connect
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 166, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 912, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/engine/create.py", line 645, in connect
+    return dialect.connect(*cargs_tup, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 869, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 967, in connect
+    return await_(
+           ^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 167, in await_
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/util/concurrency.py", line 205, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 378, in create
+    cls._handle_exception_no_connection(dbapi, error)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 841, in _handle_exception_no_connection
+    super()._handle_exception_no_connection(dbapi, error)
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 409, in _handle_exception_no_connection
+    raise error.with_traceback(exc_info[2])
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/sqlalchemy/connectors/asyncio.py", line 376, in create
+    connection = await connection_awaitable
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/asyncpg/connection.py", line 2498, in connect
+    return await connect_utils._connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 1269, in _connect
+    addrs, params, config = _parse_connect_arguments(**kwargs)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 910, in _parse_connect_arguments
+    addrs, params = _parse_connect_dsn_and_args(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hypertest/candidates/session-sync-20261021/.venv/lib/python3.12/site-packages/asyncpg/connect_utils.py", line 773, in _parse_connect_dsn_and_args
+    if sslkey is not None and not sslkey.exists():
+                                  ^^^^^^^^^^^^^^^
+  File "/opt/hypertest/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/pathlib.py", line 860, in exists
+    self.stat(follow_symlinks=follow_symlinks)
+  File "/opt/hypertest/python/cpython-3.12.15-linux-x86_64-gnu/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/root/.postgresql/postgresql.key'
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3548537]
+INFO:     Started server process [3551094]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:18101 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57690 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57690 - "GET /api/v1/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57690 - "POST /api/v1/projects HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57690 - "POST /api/v1/interactive/registrations HTTP/1.1" 201 Created
+INFO:     127.0.0.1:34874 - "GET /api/v1/interactive/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34874 - "POST /api/v1/interactive/tasks/sync HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34874 - "GET /api/v1/interactive/tasks/syncs/by-key?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&idempotency_key=uc18-real-session-remote-20261021-v1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34874 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=0&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34874 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=24000&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34874 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=48000&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48590 - "GET /api/v1/tasks/01a15d7e-7a28-7d0d-9044-cfecc3174199 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48602 - "GET /api/v1/tasks/01a15d7e-7a28-7d0d-9044-cfecc3174199 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59062 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=0&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59062 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=24000&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59062 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=48000&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55242 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=0&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59910 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=0&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59910 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=24000&limit=24000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59910 - "GET /api/v1/interactive/tasks/by-session?project_id=01a15d7d-a1d1-7cbd-a773-450708ed9094&provider=codex&session_id=01a143f4-4ec0-7451-ab23-8e59c6deb223&version=1&offset=48000&limit=24000 HTTP/1.1" 200 OK

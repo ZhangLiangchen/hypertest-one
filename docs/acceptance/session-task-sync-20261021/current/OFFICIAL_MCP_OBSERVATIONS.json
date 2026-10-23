@@ -1,0 +1,100 @@
+{
+  "environment": "REMOTE_TEST_ENVIRONMENT_CURRENT",
+  "target": {
+    "client_python": "/opt/hypertest/deployments/adr018-20261021/official-client/venv/bin/python",
+    "config_path": "/var/lib/hypertest-a18-client/remote.json",
+    "environment_label": "remote-test-current-5c03e4d",
+    "api_url": "https://localhost/api/v1",
+    "client_distribution": "hypertest-one==0.2.0",
+    "source_commit": "5c03e4d90bed69b6420238849cbb3a8bae2f4c42",
+    "wheel_sha256": "d7e7bfdbb5a5a25bab343bf695185cc9587c745605c667ba28a9d23d336a6dd3",
+    "sdk_version": "1.30.0",
+    "sdk_executable": "/opt/hypertest/deployments/adr018-20261021/official-client/venv/bin/python",
+    "tls_uds": "/run/hypertest-a18-admin/tls.sock",
+    "daemon_bootstrap": "official public constructors with explicit TLS UDS transport"
+  },
+  "transport": "Remote official MCP SDK -> released stock stdio -> official IPC/service with private transport bootstrap -> real TLS over private UDS -> current API",
+  "preflight": {
+    "http_status": 404,
+    "expected_version": 0,
+    "before_first_send": true
+  },
+  "privacy_review": {
+    "suspected_credential_patterns": 0,
+    "source_modified": false,
+    "before_any_script_write": true,
+    "checked_at": "2026-10-21T17:58:09.329337+08:00"
+  },
+  "task_fields_exact_readback": true,
+  "all_case_fields_exact_readback": true,
+  "all_report_fields_exact_readback": true,
+  "observed_distribution": "0.2.0",
+  "advertised_tool_names": [
+    "ask_user",
+    "complete_mission",
+    "evaluate_gate",
+    "get_issue",
+    "get_state",
+    "hypertest_bind_execution",
+    "hypertest_get_execution",
+    "hypertest_get_progress",
+    "hypertest_get_submission",
+    "hypertest_get_task",
+    "hypertest_list_evidence",
+    "hypertest_list_reports",
+    "hypertest_read_evidence",
+    "hypertest_read_report",
+    "hypertest_submit_task",
+    "hypertest_sync_task",
+    "request_execution",
+    "request_gitlab_issue",
+    "request_mission",
+    "submit_report"
+  ],
+  "management_tools_used": [
+    "hypertest_sync_task",
+    "hypertest_get_task"
+  ],
+  "tool_catalog_filtered_by_scope": false,
+  "api_listener_process": "Temporary private TLS ASGI process, not the current Docker API PID",
+  "current_database_identity_proof": "Separate backend listener/runtime evidence required",
+  "stock_daemon_cli_supports_uds_option": false,
+  "receipt": {
+    "status": "ACCEPTED",
+    "profile": "codex-session-task-sync/v1alpha1",
+    "task_id": "01a15de5-9aca-76b4-bd57-c673112f2e92",
+    "project_id": "01a15de2-205e-76e6-bfad-7468a724f886",
+    "provider": "codex",
+    "session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+    "version": 1,
+    "idempotency_key": "uc18-real-session-current-20261021-v1",
+    "source": "AGENT_REPORTED"
+  },
+  "source_session_id": "01a143f4-4ec0-7451-ab23-8e59c6deb223",
+  "cases": 15,
+  "automatic_subset": {
+    "cases": 12,
+    "PASS": 10,
+    "FAIL": 2
+  },
+  "designed_without_item_result": {
+    "UNKNOWN": [
+      "CASE-013",
+      "CASE-014",
+      "CASE-015"
+    ]
+  },
+  "independent_business_report": {
+    "PASS": 11,
+    "FAIL": 1
+  },
+  "reports_exact_readback": true,
+  "pages": 3,
+  "reconstructed_chars": 61137,
+  "source_bundle_sha256": "278f5003a287746b5abba528eed1f04f2d1f31122f0b8fea5e39c37601662f3c",
+  "original_receipt_readback": true,
+  "sut_tests_executed": 0,
+  "deployment_changed_by_script": false,
+  "execution_count_verification": "Separate remote backend counter observation required",
+  "checked_at": "2026-10-21T17:58:12.018334+08:00"
+}

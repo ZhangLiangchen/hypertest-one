@@ -1,0 +1,10 @@
+{
+  "scanned_at": "2026-10-21T07:02:22.643729+00:00",
+  "candidate_files_scanned": 72,
+  "private_secret_values_compared_in_memory": 5,
+  "matched_public_files": [],
+  "persistent_permission_errors": [],
+  "secret_values_output_or_persisted": false,
+  "pass": true,
+  "scope": "Changed/untracked non-ignored repository candidates, including docs/raw report copies/source/tests; private source values read in memory only"
+}

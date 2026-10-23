@@ -1,0 +1,19 @@
+{
+  "verification_date": "2026-10-21",
+  "ssh_host_verification": "Existing hypertest-one alias; StrictHostKeyChecking=yes; BatchMode=yes; PreferredAuthentications=publickey",
+  "server_leaf_path": "/opt/hypertest/deployments/adr015-forward-20261019/tls/server.crt",
+  "server_public_ca_path": "/opt/hypertest/deployments/adr015-forward-20261019/ingress-ca.crt",
+  "issuer_and_ca_subject": "CN=HyperTest One Connector CA",
+  "leaf_fingerprint_sha256": "BF:A3:FB:B7:B6:FC:B3:0E:92:32:77:08:71:49:2F:9D:81:67:26:4C:FA:0C:74:72:88:EE:C1:BE:13:F0:C0:4F",
+  "ca_fingerprint_sha256": "9B:3C:F1:B7:92:FC:14:BE:C8:84:03:47:57:CB:7D:DA:95:AB:8C:BA:0E:94:6C:D2:36:CB:9A:53:1A:1D:67:E6",
+  "ca_basic_constraints": "CA:TRUE, pathlen:0",
+  "leaf_basic_constraints": "CA:FALSE",
+  "leaf_san_matches_configured_ip": true,
+  "openssl_ca_and_ip_verification": "OK",
+  "public_ca_copy": "~/.local/share/hypertest/session-sync-dev-20261021/server-trust/ingress-ca.crt",
+  "local_directory_mode": "0700",
+  "local_file_mode": "0600",
+  "mac_curl_with_explicit_cacert_and_hostname_verification": "HTTP 200; health status=ok",
+  "private_key_read_or_copied": false,
+  "global_os_trust_or_server_tls_modified": false
+}

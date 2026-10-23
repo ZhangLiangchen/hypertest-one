@@ -1,0 +1,4 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0020_interactive_tool_inbox -> 0021_native_intake, ADR-017 additive native intake; never rewrites legacy state.
+INFO  [alembic.runtime.migration] Running upgrade 0021_native_intake -> 0022_session_task_sync, ADR-018 additive session task management; no execution or legacy rewrites.

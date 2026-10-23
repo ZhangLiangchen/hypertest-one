@@ -1,0 +1,67 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----< org.merypto.blockchain:blockchain-rpc-spring-boot-starter >------
+[INFO] Building blockchain-rpc-spring-boot-starter 0.1.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.5.0:enforce (enforce-project-dependency-isolation) @ blockchain-rpc-spring-boot-starter ---
+[INFO] Rule 0: org.apache.maven.enforcer.rules.dependency.BannedDependencies passed
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ blockchain-rpc-spring-boot-starter ---
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- flatten:1.6.0:flatten (flatten) @ blockchain-rpc-spring-boot-starter ---
+[INFO] Generating flattened POM of project org.merypto.blockchain:blockchain-rpc-spring-boot-starter:jar:0.1.1-SNAPSHOT...
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ blockchain-rpc-spring-boot-starter ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 48 source files with javac [debug parameters release 21] to target/classes
+[INFO] Annotation processing is enabled because one or more processors were found
+  on the class path. A future release of javac may disable annotation processing
+  unless at least one processor is specified by name (-processor), or a search
+  path is specified (--processor-path, --processor-module-path), or annotation
+  processing is enabled explicitly (-proc:only, -proc:full).
+  Use -Xlint:-options to suppress this message.
+  Use -proc:none to disable annotation processing.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ blockchain-rpc-spring-boot-starter ---
+[INFO] skip non existing resourceDirectory /Users/zhangliangchen/PycharmProjects/hypertest-one/docs/acceptance/native-framework-20261021/private-runtime/blockchain-source/blockchain-rpc-spring-boot-starter/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ blockchain-rpc-spring-boot-starter ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 23 source files with javac [debug parameters release 21] to target/test-classes
+[INFO] Annotation processing is enabled because one or more processors were found
+  on the class path. A future release of javac may disable annotation processing
+  unless at least one processor is specified by name (-processor), or a search
+  path is specified (--processor-path, --processor-module-path), or annotation
+  processing is enabled explicitly (-proc:only, -proc:full).
+  Use -Xlint:-options to suppress this message.
+  Use -proc:none to disable annotation processing.
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ blockchain-rpc-spring-boot-starter ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.485 s -- in org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest
+[INFO] Running org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.272 s -- in org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest
+[INFO] Running org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.345 s -- in org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest
+[INFO] Running org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.344 s -- in org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 60, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.956 s
+[INFO] Finished at: 2026-10-21T14:25:54+08:00
+[INFO] ------------------------------------------------------------------------

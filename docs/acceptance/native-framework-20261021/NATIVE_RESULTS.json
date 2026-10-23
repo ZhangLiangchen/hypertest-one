@@ -1,0 +1,552 @@
+{
+  "generated_at": "2026-10-21T06:26:43.083629+00:00",
+  "evidence_class": "LOCAL_EXECUTION_MATERIAL",
+  "provenance_verification": "UNVERIFIED_BY_PLATFORM",
+  "formal_evidence": false,
+  "blockchain": {
+    "process_record": "blockchain-maven-01.process.json",
+    "source_commit": "0914459b323b82d8f794145247c4627625a6c87b",
+    "counts": {
+      "PASS": 60
+    },
+    "reports": [
+      {
+        "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest.xml",
+        "bytes": 34601,
+        "sha256": "180b3bac9b7faff677a7568e5a3a92956ecfb87e2d175fff65551ec428cd37d7",
+        "format": "Surefire XML, original byte-for-byte copy",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest.xml",
+        "bytes": 34715,
+        "sha256": "35644644e902160720be50219223d08b3b9d008d3bf4d642c88a5101190a4b15",
+        "format": "Surefire XML, original byte-for-byte copy",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest.xml",
+        "bytes": 33181,
+        "sha256": "9ba9b36723e278eff8cf59adc5b8ad3fd8f7c54ca452992bacccceb58d17f20a",
+        "format": "Surefire XML, original byte-for-byte copy",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "path": "blockchain-surefire/TEST-org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest.xml",
+        "bytes": 33260,
+        "sha256": "f142a28fdff7bcd08000f6f270be73aefd7ef68716613b43e76909334ee4ec07",
+        "format": "Surefire XML, original byte-for-byte copy",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "cases": [
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyAlreadyKnownAndRetainProviderFields",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifySynthesizedBroadcastRejection",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.253"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.011"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyExplicitProviderRejectionAndRetainFields",
+        "status": "PASS",
+        "time_seconds": "0.009"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+        "status": "PASS",
+        "time_seconds": "0.007"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+        "status": "PASS",
+        "time_seconds": "0.006"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+        "status": "PASS",
+        "time_seconds": "0.006"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldRequireLocalHashBeforeSendingBroadcast",
+        "status": "PASS",
+        "time_seconds": "0.001"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyAcceptedAndPreserveLocalHash",
+        "status": "PASS",
+        "time_seconds": "0.005"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastClassificationTest",
+        "name": "shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyEmptySuccessBodyAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.014"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAlreadyKnownAndRetainProviderFields",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyAlreadyKnownAndRetainProviderFields",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredTransportAmbiguity(int, String, String)[1]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredTransportAmbiguity(int, String, String)[2]",
+        "status": "PASS",
+        "time_seconds": "0.002"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredTransportAmbiguity(int, String, String)[3]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldRejectMismatchingRemoteHashWithoutOverwritingLocalHash",
+        "status": "PASS",
+        "time_seconds": "0.002"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyConnectionFailureAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifySynthesizedBroadcastRejection",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifySynthesizedBroadcastRejection",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyTimeoutAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.254"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyInvalidJsonAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.013"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyExplicitProviderRejectionAndRetainFields",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyExplicitProviderRejectionAndRetainFields",
+        "status": "PASS",
+        "time_seconds": "0.011"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[1]",
+        "status": "PASS",
+        "time_seconds": "0.006"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[2]",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyProviderOperationalErrorEnvelopeAsAcceptanceUnknown(String, RpcFailureKind)[3]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldRequireLocalHashBeforeSendingBroadcast",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldRequireLocalHashBeforeSendingBroadcast",
+        "status": "PASS",
+        "time_seconds": "0.001"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyAcceptedAndPreserveLocalHash",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyAcceptedAndPreserveLocalHash",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyIncompleteEnvelopeAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest#shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.evm.EvmBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyBadGatewayAsAcceptanceUnknownWithoutRetry",
+        "status": "PASS",
+        "time_seconds": "0.002"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredBadRequestAsRejected",
+        "status": "PASS",
+        "time_seconds": "0.15"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyTimeoutAsUnknownWithoutReplay",
+        "status": "PASS",
+        "time_seconds": "0.218"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyDuplicateTransactionAsAlreadyKnown",
+        "status": "PASS",
+        "time_seconds": "0.007"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldRequireLocalTransactionIdBeforeBroadcast",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+        "status": "PASS",
+        "time_seconds": "0.009"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyEmptySuccessBodyAsUnknown",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+        "status": "PASS",
+        "time_seconds": "0.007"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldRejectMismatchingRemoteTransactionId",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+        "status": "PASS",
+        "time_seconds": "0.006"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastClassificationTest",
+        "name": "shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredBadRequestAsRejected",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredBadRequestAsRejected",
+        "status": "PASS",
+        "time_seconds": "0.024"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTimeoutAsUnknownWithoutReplay",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyTimeoutAsUnknownWithoutReplay",
+        "status": "PASS",
+        "time_seconds": "0.207"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyDuplicateTransactionAsAlreadyKnown",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyDuplicateTransactionAsAlreadyKnown",
+        "status": "PASS",
+        "time_seconds": "0.006"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRequireLocalTransactionIdBeforeBroadcast",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldRequireLocalTransactionIdBeforeBroadcast",
+        "status": "PASS",
+        "time_seconds": "0.002"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyTwoHundredFalseResultAsRejected(String)[1]",
+        "status": "PASS",
+        "time_seconds": "0.005"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyTwoHundredFalseResultAsRejected(String)[2]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyEmptySuccessBodyAsUnknown",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyEmptySuccessBodyAsUnknown",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldAcceptMatchingRemoteTransactionIdAndPreserveNativeBody",
+        "status": "PASS",
+        "time_seconds": "0.004"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldRejectMismatchingRemoteTransactionId",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldRejectMismatchingRemoteTransactionId",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[1]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[2]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      },
+      {
+        "framework": "junit5",
+        "native_id": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest#shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+        "suite": "org.merypto.blockchain.transferindex.rpc.consumer.tron.TronBroadcastOkHttpClassificationTest",
+        "name": "shouldClassifyStructuredOperationalFailureAsUnknown(int, RpcFailureKind, String)[3]",
+        "status": "PASS",
+        "time_seconds": "0.003"
+      }
+    ]
+  },
+  "xblock": {
+    "process_record": "xblock-scenarios.process.json",
+    "report": "xblock-scenarios.stdout.jsonl",
+    "selected_scenarios": 17,
+    "asserted_steps": 25,
+    "passed": 17,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "sut_source_commit": "UNKNOWN",
+    "platform_source_attestation": "UNVERIFIED",
+    "sut_binary_sha256": "8d53f8db68856feefacf3585f3c7f55d8ce500d043b2027cd4a5b3cd8478129e"
+  },
+  "gate_conclusion": "UNKNOWN until independent Verifier validates provenance, scope and case bindings; PASS is only local test assertion result",
+  "source_export": "none; local Git materialization only"
+}

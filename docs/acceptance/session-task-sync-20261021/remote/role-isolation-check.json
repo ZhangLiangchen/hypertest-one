@@ -1,0 +1,7 @@
+{
+  "database": "hypertest_session_sync_candidate_20261021",
+  "role": "hypertest_session_sync_qa_20261021",
+  "superuser": false,
+  "candidate_tables": 0,
+  "production_project_read": "DENIED"
+}
