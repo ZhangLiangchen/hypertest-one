@@ -2,6 +2,7 @@ import "antd/dist/reset.css";
 import "./globals.css";
 
 import { cookies } from "next/headers";
+import { AntdRegistry } from "@ant-design/nextjs-registry";
 
 import { Providers } from "@/app/providers";
 import { SiteHeader } from "@/app/site-header";
@@ -16,12 +17,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={initialLocale === "zh" ? "zh-CN" : "en"}>
       <body>
-        <Providers initialLocale={initialLocale}>
-          <div className="app-shell">
-            <SiteHeader />
-            <div id="main-content" tabIndex={-1} className="page-container">{children}</div>
-          </div>
-        </Providers>
+        <AntdRegistry>
+          <Providers initialLocale={initialLocale}>
+            <div className="app-shell">
+              <SiteHeader />
+              <div id="main-content" tabIndex={-1} className="page-container">{children}</div>
+            </div>
+          </Providers>
+        </AntdRegistry>
       </body>
     </html>
   );

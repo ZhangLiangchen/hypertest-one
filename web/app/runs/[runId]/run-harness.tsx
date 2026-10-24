@@ -12,9 +12,9 @@ import { latestRunVerdict } from "@/lib/run-summary";
 export function RunHarness({ runId, projectId, refreshRun, selectTab, openTask }: { runId: string; projectId?: string; refreshRun: () => Promise<unknown>; selectTab: (key: string) => void; openTask?: (id: string) => void }) {
   const { t, label, locale, formatDate } = useI18n();
   const client = useQueryClient();
-  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
-  const jobs = useQuery({ queryKey: ["jobs", runId], queryFn: () => getJobs(runId), refetchInterval: 1_500 });
-  const verdicts = useQuery({ queryKey: ["verdicts", runId], queryFn: () => getVerdicts(runId), refetchInterval: 5_000 });
+  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId) });
+  const jobs = useQuery({ queryKey: ["jobs", runId], queryFn: () => getJobs(runId) });
+  const verdicts = useQuery({ queryKey: ["verdicts", runId], queryFn: () => getVerdicts(runId) });
   const latestVerdict = latestRunVerdict(verdicts.data);
   const [reportId, setReportId] = useState<string | null>(null);
   const report = harness.data?.reports.find((item) => item.id === reportId);

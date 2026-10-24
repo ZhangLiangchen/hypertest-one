@@ -1,9 +1,38 @@
 "use client";
 
-import { Descriptions, Empty, Space, Table, Tag, Typography } from "antd";
+import { Descriptions, Empty, Pagination, Space, Table, Tag, Typography } from "antd";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { useI18n } from "@/lib/i18n";
 import type { ReportedResult, SessionCaseRevision, SessionReportRevision, SessionTaskDetail } from "@/lib/types";
+
+// Native <details> hides DOM visually but still eagerly renders its children.
+// Keep large accepted artifacts and snapshots out of React/DOM until requested.
+function DeferredDetails({ summary, children, className }: { summary: ReactNode; children: () => ReactNode; className?: string }) {
+  const [open, setOpen] = useState(false);
+  return <details className={className} open={open} onToggle={(event) => {
+    if (event.target === event.currentTarget) setOpen(event.currentTarget.open);
+  }}><summary>{summary}</summary>{open ? children() : null}</details>;
+}
+
+function PagedRecords<T>({ items, children, label, ordered = false }: { items: T[]; children: (item: T, index: number) => ReactNode; label: string; ordered?: boolean }) {
+  const { t } = useI18n();
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const current = Math.min(page, Math.max(1, Math.ceil(items.length / pageSize)));
+  const offset = (current - 1) * pageSize;
+  const records = items.slice(offset, offset + pageSize).map((item, index) => children(item, offset + index));
+  return <>
+    {ordered ? <ol className="session-sync-history" start={offset + 1}>{records}</ol> : records}
+    {items.length > pageSize ? <nav aria-label={label} className="session-record-pagination"><Pagination current={current} pageSize={pageSize} total={items.length} showSizeChanger={false} onChange={setPage}
+      showTotal={(total, range) => t(`${range[0]}–${range[1]} of ${total}`, `第 ${range[0]}–${range[1]} 条，共 ${total} 条`)} /></nav> : null}
+  </>;
+}
+
+function TaskSnapshot({ snapshot }: { snapshot: SessionTaskDetail["task"] }) {
+  const content = useMemo(() => JSON.stringify(snapshot, null, 2), [snapshot]);
+  return <pre className="artifact-content">{content}</pre>;
+}
 
 export function ReportedResultTag({ result }: { result: ReportedResult }) {
   const { label } = useI18n();
@@ -72,40 +101,46 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         { title: t("Revision", "修订"), dataIndex: "revision", width: 80 },
         { title: t("Synced", "同步时间"), dataIndex: "created_at", width: 190, render: formatDate },
       ]} locale={{ emptyText: t("No cases have been synced.", "尚未同步测试用例。") }} /></div>
-      <details className="session-history"><summary>{t("Case revision history", "用例修订历史")} ({case_history.length})</summary>
-        {case_history.map((item) => <details key={item.id} className="session-revision"><summary>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /> · {formatDate(item.created_at)}</summary><CaseContent item={item} /></details>)}
-      </details>
+      <DeferredDetails className="session-history" summary={<>{t("Case revision history", "用例修订历史")} ({case_history.length})</>}>{() =>
+        <PagedRecords key={task.id} items={case_history} label={t("Case history pages", "用例历史分页")}>{(item) =>
+          <DeferredDetails key={item.id} className="session-revision" summary={<>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /> · {formatDate(item.created_at)}</>}>{() => <CaseContent item={item} />}</DeferredDetails>
+        }</PagedRecords>
+      }</DeferredDetails>
     </section>
     <section className="session-task-section" aria-labelledby="task-reports-heading">
       <Typography.Title id="task-reports-heading" level={2}>{t("Original test reports", "原始测试报告")} ({reports.length})</Typography.Title>
-      {reports.length ? reports.map((item) => <article key={item.id} className="data-surface session-record"><Typography.Title level={3}>{item.title}</Typography.Title><span className="entity-key">{item.key}</span><ReportContent item={item} /></article>) : <div className="data-surface session-task-empty"><Empty description={t("No reports have been synced.", "尚未同步测试报告。")} /></div>}
-      <details className="session-history"><summary>{t("Report revision history", "报告修订历史")} ({report_history.length})</summary>
-        {report_history.map((item) => <details key={item.id} className="session-revision"><summary>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /></summary><ReportContent item={item} /></details>)}
-      </details>
+      {reports.length ? <PagedRecords key={task.id} items={reports} label={t("Report pages", "报告分页")}>{(item) =>
+        <DeferredDetails key={item.id} className="data-surface session-record session-history" summary={<><strong>{item.title}</strong> · <span className="entity-key">{item.key}</span> · <ReportedResultTag result={item.reported_result} /> · {t("Revision", "修订")} {item.revision} · {formatDate(item.created_at)}</>}>{() => <ReportContent item={item} />}</DeferredDetails>
+      }</PagedRecords> : <div className="data-surface session-task-empty"><Empty description={t("No reports have been synced.", "尚未同步测试报告。")} /></div>}
+      <DeferredDetails className="session-history" summary={<>{t("Report revision history", "报告修订历史")} ({report_history.length})</>}>{() =>
+        <PagedRecords key={task.id} items={report_history} label={t("Report history pages", "报告历史分页")}>{(item) =>
+          <DeferredDetails key={item.id} className="session-revision" summary={<>{item.key} · {item.title} · {t("Revision", "修订")} {item.revision} · <ReportedResultTag result={item.reported_result} /></>}>{() => <ReportContent item={item} />}</DeferredDetails>
+        }</PagedRecords>
+      }</DeferredDetails>
     </section>
     {binding_history.length ? <section className="session-task-section" aria-labelledby="task-binding-history-heading">
-      <Typography.Title id="task-binding-history-heading" level={2}>{t("Binding history", "会话绑定历史")}</Typography.Title>
-      <ol className="session-sync-history">{binding_history.map((entry) => <li key={entry.id}>
+      <Typography.Title id="task-binding-history-heading" level={2}>{t("Binding history", "会话绑定历史")} ({binding_history.length})</Typography.Title>
+      <PagedRecords key={task.id} items={binding_history} ordered label={t("Binding history pages", "绑定历史分页")}>{(entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
         <Space wrap><strong>{t("Session bound", "已绑定会话")}</strong><span>{t("Task version", "任务版本")} {entry.task_version}</span><span>{formatDate(entry.created_at)}</span></Space>
         <p className="session-literal muted">{t("Bound by", "绑定客户端")}: {entry.actor_ref}</p>
-        <details><summary>{t("Task after binding", "绑定后的任务记录")}</summary><pre className="artifact-content">{JSON.stringify(entry.task_snapshot, null, 2)}</pre></details>
-      </li>)}</ol>
+        <DeferredDetails summary={t("Task after binding", "绑定后的任务记录")}>{() => <TaskSnapshot snapshot={entry.task_snapshot} />}</DeferredDetails>
+      </li>}</PagedRecords>
     </section> : null}
     <section className="session-task-section" aria-labelledby="task-management-heading">
-      <Typography.Title id="task-management-heading" level={2}>{t("Management history", "管理历史")}</Typography.Title>
-      {management_history.length ? <ol className="session-sync-history">{management_history.map((entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
+      <Typography.Title id="task-management-heading" level={2}>{t("Management history", "管理历史")} ({management_history.length})</Typography.Title>
+      {management_history.length ? <PagedRecords key={task.id} items={management_history} ordered label={t("Management history pages", "管理历史分页")}>{(entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
         <Space wrap><strong>{label(entry.action)}</strong><span>{t("Task version", "任务版本")} {entry.task_version}</span><span>{formatDate(entry.created_at)}</span></Space>
         <p className="session-literal muted">{t("Managed by", "管理来源")}: {entry.actor_ref}</p>
-        <details><summary>{t("Task after this change", "修改后的任务内容")}</summary><pre className="artifact-content">{JSON.stringify(entry.task_snapshot, null, 2)}</pre></details>
-      </li>)}</ol> : <Typography.Paragraph className="muted">{t("No manual changes recorded.", "暂无手动修改记录。")}</Typography.Paragraph>}
+        <DeferredDetails summary={t("Task after this change", "修改后的任务内容")}>{() => <TaskSnapshot snapshot={entry.task_snapshot} />}</DeferredDetails>
+      </li>}</PagedRecords> : <Typography.Paragraph className="muted">{t("No manual changes recorded.", "暂无手动修改记录。")}</Typography.Paragraph>}
     </section>
     <section className="session-task-section" aria-labelledby="task-sync-heading">
-      <Typography.Title id="task-sync-heading" level={2}>{t("Sync history", "同步历史")}</Typography.Title>
-      {sync_history.length ? <ol className="session-sync-history">{sync_history.map((receipt) => <li key={receipt.id}>
+      <Typography.Title id="task-sync-heading" level={2}>{t("Sync history", "同步历史")} ({sync_history.length})</Typography.Title>
+      {sync_history.length ? <PagedRecords key={task.id} items={sync_history} ordered label={t("Sync history pages", "同步历史分页")}>{(receipt) => <li key={receipt.id}>
         <Space wrap><strong>{t("Task version", "任务版本")} {receipt.task_version}</strong><span>{formatDate(receipt.created_at)}</span></Space>
         <p className="session-literal muted">{t("Submitted by", "提交来源")}: {receipt.actor_ref}</p>
-        <details><summary>{t("Task at this sync", "本次同步的任务内容")}</summary><pre className="artifact-content">{JSON.stringify(receipt.task_snapshot, null, 2)}</pre></details>
-      </li>)}</ol> : <Empty description={t("No sync history is available.", "暂无同步历史。")} />}
+        <DeferredDetails summary={t("Task at this sync", "本次同步的任务内容")}>{() => <TaskSnapshot snapshot={receipt.task_snapshot} />}</DeferredDetails>
+      </li>}</PagedRecords> : <Empty description={t("No sync history is available.", "暂无同步历史。")} />}
     </section>
   </>;
 }

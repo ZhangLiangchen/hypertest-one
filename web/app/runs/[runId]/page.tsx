@@ -2,6 +2,7 @@
 
 import {
   PlayCircleOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -19,6 +20,7 @@ import {
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { runPollInterval, runRecordsPollInterval } from "@/lib/run-polling";
 
 import { errorText, getCoverage, getMissions, getRequirements, getRisks, getRun, getTestCases, planNext } from "@/lib/api";
 import type { Mission, Requirement, Risk, TestCase } from "@/lib/types";
@@ -71,33 +73,42 @@ export default function RunPage() {
   const run = useQuery({
     queryKey: ["run", params.runId],
     queryFn: () => getRun(params.runId),
-    refetchInterval: 5_000,
+    refetchInterval: (query) => runPollInterval(query.state.data?.status),
+    refetchOnWindowFocus: true,
   });
-  const operations = useRunOperations(params.runId, selectTab, run.data?.source_snapshot_id, run.data?.project_id, setCanonicalSelection);
+  const operations = useRunOperations(params.runId, selectTab, run.data?.source_snapshot_id, run.data?.project_id, setCanonicalSelection, { activeTab, runStatus: run.data?.status });
   const requirements = useQuery({
     queryKey: ["requirements", params.runId],
     queryFn: () => getRequirements(params.runId),
-    refetchInterval: 5_000,
+    enabled: activeTab === "requirements" || !!canonicalSelection,
+    refetchInterval: runRecordsPollInterval(run.data?.status, activeTab === "requirements" || !!canonicalSelection, operations.activeJobs),
+    refetchOnWindowFocus: true,
   });
   const risks = useQuery({
     queryKey: ["risks", params.runId],
     queryFn: () => getRisks(params.runId),
-    refetchInterval: 5_000,
+    enabled: ["requirements", "risks"].includes(activeTab) || !!canonicalSelection,
+    refetchInterval: runRecordsPollInterval(run.data?.status, ["requirements", "risks"].includes(activeTab) || !!canonicalSelection, operations.activeJobs),
+    refetchOnWindowFocus: true,
   });
   const testCases = useQuery({
     queryKey: ["test-cases", params.runId],
     queryFn: () => getTestCases(params.runId),
-    refetchInterval: 5_000,
+    enabled: activeTab === "test-cases" || !!canonicalSelection,
+    refetchInterval: runRecordsPollInterval(run.data?.status, activeTab === "test-cases" || !!canonicalSelection, operations.activeJobs),
+    refetchOnWindowFocus: true,
   });
   const coverage = useQuery({
     queryKey: ["coverage", params.runId],
     queryFn: () => getCoverage(params.runId),
-    refetchInterval: 5_000,
+    refetchInterval: runRecordsPollInterval(run.data?.status, true, operations.activeJobs),
+    refetchOnWindowFocus: true,
   });
   const missions = useQuery({
     queryKey: ["missions", params.runId],
     queryFn: () => getMissions(params.runId),
-    refetchInterval: 5_000,
+    refetchInterval: runRecordsPollInterval(run.data?.status, activeTab === "missions", operations.activeJobs),
+    refetchOnWindowFocus: true,
   });
   const planner = useMutation({
     mutationFn: () => planNext(params.runId),
@@ -259,6 +270,7 @@ export default function RunPage() {
         metadata={<><Tag color={run.data.status === "COMPLETED" ? undefined : statusColor(run.data.status)}>{label(run.data.status)}</Tag><Typography.Text code copyable>{run.data.key}</Typography.Text><span className="entity-key">{t("Snapshot", "快照")} {run.data.source_snapshot_id}</span></>}
         actions={<div className="workbench-actions">
             {operations.actions}
+            <Button icon={<ReloadOutlined aria-hidden />} loading={run.isFetching} onClick={() => void operations.refresh()}>{t("Refresh", "刷新")}</Button>
             <details className="secondary-actions">
               <summary>{t("More actions", "更多操作")}</summary>
               <div className="secondary-action-list">
@@ -298,12 +310,12 @@ export default function RunPage() {
             { key: "harness", label: t("Session & reports", "持续会话与报告"), children: <RunHarness runId={params.runId} projectId={run.data.project_id} refreshRun={operations.refresh} selectTab={selectTab} openTask={operations.openTask} /> },
             {
               key: "requirements",
-              label: `${t("Requirements", "需求")} (${requirements.data ? requirementData.length : "—"})`,
-              children: <Table rowKey="id" loading={requirements.isLoading} columns={requirementColumns} dataSource={requirementData} locale={{ emptyText: t("No requirements yet. Run a test cycle or plan the requirement analysis mission.", "暂无需求。请运行完整测试周期，或规划需求分析任务。") }} pagination={false} scroll={{ x: 650 }} expandable={{ expandedRowRender: (requirement) => <div className="entity-detail"><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{requirement.description}</Typography.Paragraph><Space wrap><Tag title={requirement.lifecycle_status}>{label(requirement.lifecycle_status)}</Tag><Tag title={requirement.source_type}>{label(requirement.source_type)}</Tag>{requirement.source_ref && <Typography.Text code>{requirement.source_ref}</Typography.Text>}</Space></div> }} />,
+              label: `${t("Requirements", "需求")} (${coverageData?.requirement_count ?? (requirements.data ? requirementData.length : "—")})`,
+              children: <Table rowKey="id" loading={requirements.isLoading} columns={requirementColumns} dataSource={requirementData} locale={{ emptyText: t("No requirements yet. Run a test cycle or plan the requirement analysis mission.", "暂无需求。请运行完整测试周期，或规划需求分析任务。") }} pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }} scroll={{ x: 650 }} expandable={{ expandedRowRender: (requirement) => <div className="entity-detail"><Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>{requirement.description}</Typography.Paragraph><Space wrap><Tag title={requirement.lifecycle_status}>{label(requirement.lifecycle_status)}</Tag><Tag title={requirement.source_type}>{label(requirement.source_type)}</Tag>{requirement.source_ref && <Typography.Text code>{requirement.source_ref}</Typography.Text>}</Space></div> }} />,
             },
             {
               key: "risks",
-              label: `${t("Risks", "风险")} (${risks.data ? riskData.length : "—"})`,
+              label: `${t("Risks", "风险")} (${coverageData?.risk_count ?? (risks.data ? riskData.length : "—")})`,
               children: (
                 <Table
                   rowKey="id"
@@ -311,7 +323,7 @@ export default function RunPage() {
                   loading={risks.isLoading}
                   locale={{ emptyText: t("No risks yet. Analyze the requirements to identify risks.", "暂无风险。分析需求后可识别风险。") }}
                   dataSource={riskData}
-                  pagination={false}
+                  pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
                   scroll={{ x: 850 }}
                   expandable={{
                     expandedRowRender: (risk) => {
@@ -335,7 +347,7 @@ export default function RunPage() {
             },
             {
               key: "test-cases",
-              label: `${t("Test Cases", "测试用例")} (${testCases.data ? testCaseData.length : "—"})`,
+              label: `${t("Test Cases", "测试用例")} (${coverageData?.test_case_count ?? (testCases.data ? testCaseData.length : "—")})`,
               children: (
                 <Table
                   rowKey="id"
@@ -343,7 +355,7 @@ export default function RunPage() {
                   loading={testCases.isLoading}
                   locale={{ emptyText: t("No test cases yet. Design tests for the identified risks.", "暂无测试用例。识别风险后可设计用例。") }}
                   dataSource={testCaseData}
-                  pagination={false}
+                  pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }}
                   scroll={{ x: 750 }}
                   expandable={{
                     expandedRowRender: (testCase) => (
@@ -364,7 +376,7 @@ export default function RunPage() {
             {
               key: "missions",
               label: `${t("Missions", "测试任务")} (${missions.data ? missionData.length : "—"})`,
-              children: <Table rowKey="id" columns={missionColumns} dataSource={missionData} loading={missions.isLoading} locale={{ emptyText: t("No missions yet. Start a test cycle or plan the next mission.", "暂无测试任务。请运行完整测试周期，或规划下一任务。") }} pagination={false} scroll={{ x: 800 }} />,
+              children: <Table rowKey="id" columns={missionColumns} dataSource={missionData} loading={missions.isLoading} locale={{ emptyText: t("No missions yet. Start a test cycle or plan the next mission.", "暂无测试任务。请运行完整测试周期，或规划下一任务。") }} pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }} scroll={{ x: 800 }} />,
             },
             ...operations.tabs.filter((tab) => tab.key === "automation"),
           ]}

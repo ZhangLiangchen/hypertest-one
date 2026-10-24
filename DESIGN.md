@@ -8,7 +8,8 @@ colors:
   canvas: "#f2f5fa"
   surface: "#ffffff"
   shell: "#f6f9ff"
-  glass: "rgb(248 251 255 / 82%)"
+  glass-top: "#fcfdff"
+  glass-bottom: "#f4f7fc"
   ink: "#172338"
   muted: "#526177"
   line: "#dce3ed"
@@ -128,7 +129,6 @@ components:
     rounded: "{rounded.control}"
     height: "38px"
   navigation:
-    backgroundColor: "{colors.glass}"
     textColor: "{colors.ink}"
     rounded: "{rounded.navigation}"
     height: "68px"
@@ -159,7 +159,6 @@ components:
     rounded: "{rounded.surface}"
     padding: "4px"
   project-navigation:
-    backgroundColor: "{colors.glass}"
     textColor: "{colors.muted}"
     rounded: "{rounded.navigation-compact}"
     padding: "6px"
@@ -186,14 +185,14 @@ components:
 
 **Creative North Star: "The Floating Testing Reference Index"**
 
-HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Frosted navigation gains definition from an inner light and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.
+HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Static glass navigation gains definition from an opaque light gradient, an inner highlight and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.
 
-The material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.
+The material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation preserves the Liquid Glass hierarchy with an opaque static CSS gradient and two shadow layers. Navigation does not sample or blur scrolling content; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.
 
 Daily operation on PC wide screens determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components across the eight workspace routes. HyperTest One implements and supports PC wide-screen interfaces only; mobile and portrait compatibility are outside the product scope. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.
 
 **Key Characteristics:**
-- Floating light navigation with a single frosted material per navigation surface.
+- Floating light navigation with an opaque static gradient and two shadow layers.
 - Opaque records, forms, decisions and evidence on a pale cool canvas.
 - Related rounded geometry, capsule primary actions and quiet control feedback.
 - Readable Chinese and English, stable drafts and explicit unknown or recorded-result states.
@@ -213,7 +212,7 @@ Electric blue supplies action emphasis; pale cool neutrals separate navigation f
 
 ### Neutral
 - **Cool Canvas** (`canvas`), **White Surface** (`surface`) and **Table Fields** (`table-header`, `table-hover`): page ground, records and table states. Two shallow cool radial gradients add ambient light near the page top.
-- **Frosted Light** (`glass`) and **Solid Light** (`shell`): filtered navigation and its opaque alternative. The glass token retains its authored CSS color format and alpha.
+- **Static Glass Light** (`glass-top`, `glass-bottom`) and **Solid Light** (`shell`): opaque gradient endpoints for navigation and the plain fill used for stronger contrast. The gradient itself lives in the sidecar material extension, outside the color-token schema.
 - **Slate Ink** (`ink`), **Quiet Ink** (`muted`) and **Placeholder Ink** (`placeholder`): primary content, readable explanations and input hints. Ant Design receives Quiet Ink through both `colorTextSecondary` and `colorTextDescription`, covering form help, counters, optional marks and guide-step descriptions.
 - **Surface Line** (`line`) and **Control Line** (`control-border`): thin structure and visible form boundaries. Higher-contrast preferences strengthen lines with Control Line and change the CSS muted token to `contrast-muted`.
 
@@ -256,18 +255,18 @@ The spacing vocabulary combines small control gaps with comfortable panel and se
 
 ## Elevation & Depth
 
-Depth belongs to navigation and immediate control feedback. Header, project navigation and run-section navigation share a fine inner highlight and diffuse downward shadow. White content surfaces use fill and a thin border without an added ambient shadow. Primary buttons have a small colored shadow at rest and a slightly larger hover shadow; default buttons retain no resting shadow. Modals, drawers and menus use their library overlay behavior.
+Depth belongs to navigation and immediate control feedback. Header, project navigation and run-section navigation share an opaque static light gradient, a fine inner highlight and a diffuse downward shadow. White content surfaces use fill and a thin border without an added ambient shadow. Primary buttons have a small colored shadow at rest and a slightly larger hover shadow; default buttons retain no resting shadow. Modals, drawers and menus use their library overlay behavior.
 
 ### Shadow Vocabulary
-- **Navigation glass:** `var(--ht-glass-shadow)` — `0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%)`.
+- **Navigation glass:** `var(--ht-glass-shadow)` — `0 6px 22px rgb(34 58 98 / 8%), inset 0 1px 0 rgb(255 255 255 / 96%)`.
 - **Primary action, rest:** `0 3px 8px rgb(37 99 235 / 16%)`.
 - **Primary action, hover:** `0 5px 14px rgb(37 99 235 / 22%)`.
 - **Navigation hover:** `0 2px 7px rgb(34 58 98 / 7%)`.
 - **Selected run section:** `inset 0 1px 0 rgb(255 255 255 / 90%), 0 2px 5px rgb(34 58 98 / 5%)`.
 
-**The Navigation Material Rule.** Apply backdrop filtering only to the shared header, project navigation and run-section navigation. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within a glass surface use fills rather than a second glass layer.
+**The Navigation Material Rule.** Use the same opaque static gradient and two shadow layers on the shared header, project navigation and run-section navigation. Do not apply live backdrop filtering. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within navigation use simple fills.
 
-Navigation surfaces use a fixed filter (`blur(24px) saturate(130%)`) only inside the filter-support query. Their base material is the solid shell, so browsers without filter support retain a readable surface. Reduced transparency and increased contrast replace the filter with solid fill and a stronger inset edge. Forced colors use system Canvas, CanvasText and Highlight, with filtering and shadows removed. Do not animate backdrop blur.
+Navigation surfaces use the shared static gradient material (`--ht-glass`) without a backdrop-filter support branch. Reduced transparency and increased contrast use the plain solid shell and a stronger inset edge. Forced colors use system Canvas, CanvasText and Highlight, with shadows removed. The opaque material preserves separation during rapid scrolling without resampling the content beneath it.
 
 ## Shapes
 
@@ -297,14 +296,19 @@ The shared workspace heading provides a single page-title level, optional back l
 ### Navigation
 The brand returns home; the header identifies project/run context and exposes guide and language controls. Current global navigation combines `aria-current`, darker blue ink and a pale capsule fill. Hover adds a light fill and a small shadow. The locale control uses a thin translucent fill within the header, with no second backdrop filter.
 
-Project navigation uses three icon-and-label links for Local tasks, Cloud testing and Project experience, with `aria-current="page"` on the active destination. Links have generous inline padding (18px), a minimum height (42px), the section radius and a pale selected fill. This navigation shares the header's glass and solid-material fallbacks. Workspace content tabs remain opaque and use the workspace-selected field; they do not add another glass layer. Segmented switches keep a neutral track, white selected item and darker blue selected text.
+Project navigation uses three icon-and-label links for Local tasks, Cloud testing and Project experience, with `aria-current="page"` on the active destination. Links have generous inline padding (18px), a minimum height (42px), the section radius and a pale selected fill. This navigation shares the header's opaque static glass material and solid preference alternatives. Workspace content tabs remain opaque and use the workspace-selected field; they do not add another glass layer. Segmented switches keep a neutral track, white selected item and darker blue selected text.
 
-Run tabs sit on one frosted navigation surface. Selected and active text use the darker blue token, paired with the selected section fill; hover uses the configured hover ink. Tabs retain selection per run in session storage and through language changes. Evidence shortcuts select the relevant section and focus its selected tab. Keep the library's keyboard behavior, including Home/End and Enter activation. Details open in solid drawers so users retain run context.
+Run tabs sit on one opaque static glass navigation surface. Selected and active text use the darker blue token, paired with the selected section fill; hover uses the configured hover ink. Tabs retain selection per run in session storage and through language changes. Evidence shortcuts select the relevant section and focus its selected tab. Keep the library's keyboard behavior, including Home/End and Enter activation. Details open in solid drawers so users retain run context.
 
 ### Decision and evidence trail
 The lead decision is the highest-sequence verdict whose status is `FINAL` and scope is `TEST_RUN`. Draft, revoked and narrower verdicts remain in history. With no eligible verdict, show waiting or unavailable text; task completion never substitutes for a decision. Historical execution failures may precede the current verdict and must retain that distinction.
 
 The opaque evidence trail links to executions, findings, evidence and verdicts, carrying counts or a dash when data has not loaded. Unknown coverage is labeled Unknown rather than displayed as zero. Failed refreshes retain loaded records with a retry warning. Agent activity remains supporting information; trusted Runner execution and evidence provide formal facts.
+
+### Progressive content
+Local record originals, revision histories and task snapshots mount when their disclosure opens. Cases, reports and history lists use pages of 20 records, preserving every record and its original text. Deferred presentation does not truncate or rewrite accepted artifacts.
+
+The workflow guide, project/run creation dialogs and Cloud resource/task forms load when first opened. After that first opening, keep the component instance and its draft when it closes or its tab changes; later visits reuse the same form state. A deferred panel uses the existing written loading surface.
 
 ### Overlays
 Modal and drawer bodies remain opaque with related overlay corners. Modals use generous internal padding (28px). The right drawer floats inside a viewport inset (12px), with a lightly tinted header and an opaque reading area. Close controls are capsules; long URLs, hashes and descriptions wrap within the available width.
@@ -312,9 +316,9 @@ Modal and drawer bodies remain opaque with related overlay corners. Modals use g
 ### Accessibility and motion
 Maintain a skip link, visible keyboard focus, accessible control names, semantic headings and written statuses in both languages. The authored focus outline uses the primary accent (3px with a 3px offset). Ant Design also receives the primary accent through `colorPrimaryBorder` so its controls retain strong library focus treatment. Clamped overview descriptions retain links to the full content. No accessibility conformance level is inferred from these implementation rules.
 
-Control and navigation feedback transitions color, fill, border, shadow or a small press transform; the filter remains fixed. The shared easing is `cubic-bezier(.16, 1, .3, 1)`. Reduced motion removes authored transitions and the primary press transform. Run tab-pane animation is explicitly disabled.
+Control and navigation feedback transitions color, fill, border, shadow or a small press transform; the static navigation gradient remains unchanged. The shared easing is `cubic-bezier(.16, 1, .3, 1)`. Reduced motion removes authored transitions and the primary press transform. Run tab-pane animation is explicitly disabled.
 
-The provider initializes reduced motion to true, mounting Ant's motion wrapper from the first render, then reads `matchMedia('(prefers-reduced-motion: reduce)')` and listens for changes. Preserve this stable provider structure and the theme motion token so changing preferences does not insert a wrapper and remount pages or discard drafts. Do not substitute a blanket third-party animation override for provider-level handling. Solid-material preference and unsupported-filter fallbacks remain part of the same navigation component contract.
+The root layout uses the official Ant Design Next.js registry to insert component styles during server rendering. Ant Design's shared theme keeps `motion: false` for both server and browser, preserving identical tokens through hydration without inserting preference-dependent wrappers or discarding drafts. Short authored CSS feedback remains available and follows `prefers-reduced-motion`. Solid-material preferences remain part of the same navigation contract.
 
 ## Do's and Don'ts
 
@@ -325,12 +329,12 @@ The provider initializes reduced motion to true, mounting Ant's motion wrapper f
 - **Do** preserve bilingual drafts, selected run sections, loaded results and immutable history during updates.
 - **Do** give readable help the muted description token and reserve a separate line for textarea counters.
 - **Do** pair state color with readable labels, preserve visible keyboard focus and keep short project status labels intact.
-- **Do** retain solid navigation fallbacks and the stable reduced-motion provider structure.
+- **Do** retain static navigation materials, preference alternatives and identical server/browser Ant Design tokens.
 - **Do** distinguish unknown, unavailable, zero, task completion and formal quality decisions.
 
 ### Don't:
-- **Don't** stack glass on glass or apply backdrop filtering to decisions, evidence, tables, forms or reading surfaces.
-- **Don't** animate blur or add decorative entrance sequences to routine testing work.
+- **Don't** apply live backdrop filtering to navigation or content surfaces.
+- **Don't** add decorative entrance sequences to routine testing work.
 - **Don't** infer release readiness from task success, coverage counts or an Agent report.
 - **Don't** let dense tables or long identifiers create whole-page horizontal overflow.
 - **Don't** replace explicit semantic tag overrides with lower-specificity preset styling.

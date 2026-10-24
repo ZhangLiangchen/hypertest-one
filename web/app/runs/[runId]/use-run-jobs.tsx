@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { cancelJob, createJob, errorText, getJob, getJobs, getMission, getRunHarness, retryJob, retryMission } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { hasSourcePreparationFailure, sourcePreparationCopy, sourcePreparationDiagnostic, sourcePreparationSummary } from "@/lib/source-preparation";
+import { jobPollInterval, jobsPollInterval } from "@/lib/run-polling";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, JobCreate, JobOperation, JobStatus, Mission } from "@/lib/types";
 import { JobActivityPanel } from "./job-activity";
@@ -36,16 +37,16 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
-export function useRunJobs(runId: string, useWorkspace: (workspace: string) => void, onViewResult: (section: string, key?: string) => void) {
+export function useRunJobs(runId: string, useWorkspace: (workspace: string) => void, onViewResult: (section: string, key?: string) => void, runStatus?: string) {
   const { t, label, locale, formatDate } = useI18n();
   const client = useQueryClient();
   const [notifications, contextHolder] = message.useMessage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const pendingRequests = useRef(new Map<string, { signature: string; key: string }>());
   const statuses = useRef(new Map<string, JobStatus>());
-  const jobs = useQuery({ queryKey: ["jobs", runId], queryFn: () => getJobs(runId), refetchInterval: 1_500 });
-  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
-  const selected = useQuery({ queryKey: ["job", selectedId], queryFn: () => getJob(selectedId!), enabled: !!selectedId, refetchInterval: 1_500 });
+  const jobs = useQuery({ queryKey: ["jobs", runId], queryFn: () => getJobs(runId), refetchInterval: (query) => jobsPollInterval(query.state.data, runStatus), refetchOnWindowFocus: true });
+  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId) });
+  const selected = useQuery({ queryKey: ["job", selectedId], queryFn: () => getJob(selectedId!), enabled: !!selectedId, refetchInterval: (query) => jobPollInterval(query.state.data?.status), refetchOnWindowFocus: true });
 
   function pendingKey(scope: string, request: unknown) {
     const storageKey = `hypertest.pending-job.${runId}.${scope}`;

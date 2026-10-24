@@ -4,6 +4,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Empty, Segmented, Space, Table, Tabs, Tag, Typography } from "antd";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -14,8 +15,13 @@ import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
 import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 import { CloudCapabilitiesNotice, CloudOperationNotice } from "./cloud-shared";
-import { CloudResources } from "./resources";
-import { CloudTaskForm } from "./task-form";
+
+function LoadingPanel() {
+  const { t } = useI18n();
+  return <WorkspaceLoading label={t("Loading form…", "正在加载表单…")} />;
+}
+const CloudResources = dynamic(() => import("./resources").then((module) => module.CloudResources), { loading: LoadingPanel });
+const CloudTaskForm = dynamic(() => import("./task-form").then((module) => module.CloudTaskForm), { loading: LoadingPanel });
 
 export default function CloudProjectPage() {
   const { projectId } = useParams<{ projectId: string }>(); const router = useRouter();

@@ -161,24 +161,25 @@ function taskPage(status, options = {}) {
   const document = { task: { id: taskId, project_id: projectId, version: 1, config_id: "config-1", title: "Task",
     latest_attempt_id: attempt?.id ?? null, status, reported_result: options.result || "NOT_RUN", inputs: {} },
     attempts: attempt ? [attempt] : [], resolutions: [], questions: [], answers: [], assets: [{ markdown: "Original FAIL" }], runs: [], run_cases: [], artifacts: [], delegations: [] };
-  const live = { ...document.task, current_attempt: attempt, resolutions: [], observed_at: "2026-10-23T00:00:00Z" };
+  const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: [], observed_at: "2026-10-23T00:00:00Z" };
   const values = { "cloud-web-setup": { configured: true }, "cloud-capabilities": { enabled: true, worker_enabled: true },
     "cloud-config": { items: [{ id: "config-1", configuration: { environment: { connection: "NONE" }, sut: { url: "https://git.invalid/sut" }, framework: { url: "https://git.invalid/framework" } } }] },
     "cloud-task": document, "cloud-task-live": options.missingLive ? undefined : options.foreignLive ? { ...live, project_id: "other-project" } : live };
   const ui = Object.fromEntries(["Alert", "Button", "Checkbox", "Descriptions", "Space", "Spin", "Steps", "Table", "Tabs", "Tag"].map((name) => [name, name]));
   Object.assign(ui, { Form: { Item: "Form.Item" }, Input: { TextArea: "Input.TextArea" }, Typography: { Title: "Title", Text: "Text", Paragraph: "Paragraph" } });
-  let writes = 0;
+  let writes = 0; const queries = {}; const effects = []; const reads = [];
   const jsx = (type, props) => typeof type === "function" ? type(props) : ({ type, props });
   const original = JSON.stringify(document);
   const page = load("app/cloud-tasks/[taskId]/page.tsx", { require: (name) => {
-    if (name === "react") return { useState: (initial) => [initial, () => {}], useEffect() {} };
+    if (name === "react") return { useState: (initial) => [initial, () => {}], useEffect(effect) { effects.push(effect); } };
     if (name === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
     if (name === "antd") return ui;
     if (name === "@ant-design/icons") return { ArrowLeftOutlined: "ArrowLeftOutlined", ReloadOutlined: "ReloadOutlined" };
     if (name === "next/link") return "Link";
     if (name === "next/navigation") return { useParams: () => ({ taskId }), useSearchParams: () => new URLSearchParams({ projectId }) };
-    if (name === "@tanstack/react-query") return { useQuery: ({ queryKey }) => ({ data: values[queryKey[0]], refetch() {}, isError: false }) };
-    if (name === "@/lib/cloud") return helpers();
+    if (name === "@tanstack/react-query") return { useQuery: (options) => { queries[options.queryKey[0]] = options; return { data: values[options.queryKey[0]], dataUpdatedAt: 1, refetch() { reads.push(options.queryKey[0]); }, isError: false }; } };
+    if (name === "@/lib/cloud") return { ...helpers(), ...(options.cloudDocument ? { cloudDocument: options.cloudDocument } : {}) };
+    if (name === "@/lib/run-polling") return load("lib/run-polling.ts", { require });
     if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit() { writes++; throw new Error("render must not write"); } }) };
     if (name === "@/lib/i18n") return { useI18n: () => ({ t: (en) => en, label: (value) => value }) };
     if (name === "@/app/tasks/task-records") return { ReportedResultTag: "ReportedResultTag" };
@@ -195,7 +196,7 @@ function taskPage(status, options = {}) {
   const rendered = nodes(tree);
   assert.equal(JSON.stringify(document), original, "a progress projection cannot rewrite accepted history");
   assert.equal(writes, 0);
-  return { steps: rendered.find((node) => node.type === "Steps").props,
+  return { queries, effects, reads, document, live, steps: rendered.find((node) => node.type === "Steps").props,
     result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
     unknown: rendered.some((node) => node.type === "Paragraph" && String(node.props.children).includes("Phase completion is unknown")) };
 }
@@ -248,5 +249,32 @@ test("Cloud browser client never sets operator credentials or calls legacy execu
     assert.equal(call.options.headers["X-Hypertest-Operator-Key"], undefined);
     assert.equal(call.options.headers.Authorization, undefined);
     assert.equal(call.options.cache, "no-store");
+  }
+});
+
+
+test("Cloud detail only schedules summary polls and reads a complete newer version once observed", async () => {
+  const calls = [];
+  const page = taskPage("RUNNING", { liveVersion: 2, cloudDocument: async (projectId, taskId, version) => {
+    calls.push({ projectId, taskId, version });
+    return { task: { ...page.live }, assets: [{ markdown: "Original FAIL" }] };
+  } });
+  assert.equal(page.queries["cloud-task"].refetchInterval, undefined, "complete records have no periodic timer");
+  assert.equal(page.queries["cloud-task-live"].refetchInterval({ state: { data: page.live } }), 3000);
+  assert.equal(page.reads.length, 0);
+  page.effects.forEach((effect) => effect());
+  assert.deepEqual(page.reads, ["cloud-task"], "observing a greater accepted version requests a full readback");
+  const accepted = await page.queries["cloud-task"].queryFn();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].version, 2);
+  assert.equal(accepted.task.version, 2);
+  assert.equal(page.document.task.version, 1, "the previous verified document stays unchanged until the complete read succeeds");
+});
+
+test("same-version lease observations and foreign Projects cannot trigger complete Cloud reads", () => {
+  for (const options of [{}, { foreignLive: true }]) {
+    const page = taskPage("RUNNING", options);
+    page.effects.forEach((effect) => effect());
+    assert.deepEqual(page.reads, []);
   }
 });

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-24T18:00:15Z",
+  "generatedAt": "2026-10-24T20:42:43Z",
   "title": "Design System: HyperTest One",
   "extensions": {
     "colorMeta": {
@@ -86,20 +86,6 @@
           "oklch(72% 0.00860 264.52)",
           "oklch(84% 0.00860 264.52)",
           "oklch(95% 0.00860 264.52)"
-        ]
-      },
-      "glass": {
-        "role": "neutral",
-        "displayName": "Glass",
-        "tonalRamp": [
-          "oklch(15% 0.00621 255.47)",
-          "oklch(26% 0.00621 255.47)",
-          "oklch(38% 0.00621 255.47)",
-          "oklch(49% 0.00621 255.47)",
-          "oklch(61% 0.00621 255.47)",
-          "oklch(72% 0.00621 255.47)",
-          "oklch(84% 0.00621 255.47)",
-          "oklch(95% 0.00621 255.47)"
         ]
       },
       "ink": {
@@ -521,6 +507,34 @@
           "oklch(84% 0.03752 90.08)",
           "oklch(95% 0.03752 90.08)"
         ]
+      },
+      "glass-top": {
+        "role": "neutral",
+        "displayName": "Static Glass Top",
+        "tonalRamp": [
+          "oklch(15% 0.00285 264.54)",
+          "oklch(26% 0.00285 264.54)",
+          "oklch(38% 0.00285 264.54)",
+          "oklch(49% 0.00285 264.54)",
+          "oklch(61% 0.00285 264.54)",
+          "oklch(72% 0.00285 264.54)",
+          "oklch(84% 0.00285 264.54)",
+          "oklch(95% 0.00285 264.54)"
+        ]
+      },
+      "glass-bottom": {
+        "role": "neutral",
+        "displayName": "Static Glass Bottom",
+        "tonalRamp": [
+          "oklch(15% 0.00740 260.73)",
+          "oklch(26% 0.00740 260.73)",
+          "oklch(38% 0.00740 260.73)",
+          "oklch(49% 0.00740 260.73)",
+          "oklch(61% 0.00740 260.73)",
+          "oklch(72% 0.00740 260.73)",
+          "oklch(84% 0.00740 260.73)",
+          "oklch(95% 0.00740 260.73)"
+        ]
       }
     },
     "typographyMeta": {
@@ -568,8 +582,8 @@
     "shadows": [
       {
         "name": "navigation-glass",
-        "value": "0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%)",
-        "purpose": "Header, project navigation and run-section index only; inner light and soft downward depth."
+        "value": "0 6px 22px rgb(34 58 98 / 8%), inset 0 1px 0 rgb(255 255 255 / 96%)",
+        "purpose": "Header, project navigation and run-section index share one downward shadow and one inset highlight."
       },
       {
         "name": "primary-rest",
@@ -606,7 +620,7 @@
       {
         "name": "control-feedback",
         "value": "180ms",
-        "purpose": "Color, fill, border, shadow and small press response; never backdrop blur."
+        "purpose": "Short authored color, fill, border, shadow and small press response; removed under reduced motion."
       },
       {
         "name": "primary-press",
@@ -620,8 +634,8 @@
       },
       {
         "name": "provider-motion",
-        "value": "motion: !reducedMotion; reducedMotion initially true",
-        "purpose": "Mount the Ant motion wrapper from the first render; follow matchMedia changes without remounting pages or losing drafts."
+        "value": "motion: false",
+        "purpose": "Identical server/browser Ant Design tokens with official Next.js SSR registry; authored CSS feedback follows reduced motion without remounting pages or losing drafts."
       }
     ],
     "breakpoints": [
@@ -649,18 +663,18 @@
     "materials": [
       {
         "name": "navigation-glass",
-        "value": "blur(24px) saturate(130%)",
-        "purpose": "Static backdrop filter on header, project navigation and run-section navigation only; no nested glass."
+        "value": "linear-gradient(180deg, #fcfdff, #f4f7fc)",
+        "purpose": "Opaque static gradient on header, project navigation and run-section navigation; no live backdrop filtering or scrolling-content sampling."
       },
       {
-        "name": "navigation-fallback",
+        "name": "navigation-solid",
         "value": "solid shell; backdrop-filter: none",
-        "purpose": "Base material without filter support; also used under reduced transparency or increased contrast."
+        "purpose": "Plain fill and stronger inset edge under reduced transparency or increased contrast."
       },
       {
         "name": "forced-colors",
         "value": "Canvas / CanvasText / Highlight",
-        "purpose": "Remove backdrop filtering and shadows; preserve current-navigation outlines."
+        "purpose": "Remove shadows and preserve current-navigation outlines."
       }
     ],
     "focus": [
@@ -700,9 +714,9 @@
       "name": "Floating global navigation",
       "kind": "nav",
       "refersTo": "navigation",
-      "description": "A single light frosted navigation surface with a solid fallback and capsule current link.",
+      "description": "An opaque static light-gradient navigation surface with solid preference alternatives and capsule current link.",
       "html": "<nav class=\"ds-nav\" aria-label=\"Main navigation\"><a class=\"ds-brand\" href=\"#projects\">HyperTest One</a><a class=\"ds-current\" href=\"#projects\" aria-current=\"page\">Projects</a></nav>",
-      "css": ".ds-nav{display:flex;align-items:center;gap:36px;height:68px;padding:0 22px;border-radius:22px;background:var(--ht-shell,#f6f9ff);box-shadow:var(--ht-glass-shadow,0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:var(--ht-ink,#172338)}.ds-nav a{text-decoration:none}.ds-brand{color:var(--ht-ink,#172338);font-size:17px;font-weight:650;letter-spacing:-.025em}.ds-brand:hover{color:var(--ht-accent,#2563eb)}.ds-current{padding:8px 16px;border-radius:999px;font-size:13px;font-weight:600;background:#e4ecfb;color:#1e40af;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-current:hover{background:rgb(255 255 255 / 85%);box-shadow:0 2px 7px rgb(34 58 98 / 7%)}.ds-nav a:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.ds-nav{background:var(--ht-glass,rgb(248 251 255 / 82%));-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%);}}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-nav{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-nav{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-current{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:640px){.ds-nav{height:60px;padding:0 12px;gap:10px;border-radius:18px}.ds-brand{font-size:15px}.ds-current{display:none}}@media(prefers-reduced-motion:reduce){.ds-current{transition:none}}"
+      "css": ".ds-nav{display:flex;align-items:center;gap:36px;height:68px;padding:0 22px;border-radius:22px;background:var(--ht-glass,linear-gradient(180deg,#fcfdff,#f4f7fc));box-shadow:var(--ht-glass-shadow,0 6px 22px rgb(34 58 98 / 8%), inset 0 1px 0 rgb(255 255 255 / 96%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif;color:var(--ht-ink,#172338)}.ds-nav a{text-decoration:none}.ds-brand{color:var(--ht-ink,#172338);font-size:17px;font-weight:650;letter-spacing:-.025em}.ds-brand:hover{color:var(--ht-accent,#2563eb)}.ds-current{padding:8px 16px;border-radius:999px;font-size:13px;font-weight:600;background:#e4ecfb;color:#1e40af;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-current:hover{background:rgb(255 255 255 / 85%);box-shadow:0 2px 7px rgb(34 58 98 / 7%)}.ds-nav a:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-nav{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-nav{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-current{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:640px){.ds-nav{height:60px;padding:0 12px;gap:10px;border-radius:18px}.ds-brand{font-size:15px}.ds-current{display:none}}@media(prefers-reduced-motion:reduce){.ds-current{transition:none}}"
     },
     {
       "name": "Semantic evidence tag",
@@ -732,9 +746,9 @@
       "name": "Run section navigation",
       "kind": "nav",
       "refersTo": "run-section-selected",
-      "description": "A frosted left index for the PC wide-screen run workspace; retained narrow-screen CSS does not imply compatibility support.",
+      "description": "An opaque static glass left index for the PC wide-screen run workspace; retained narrow-screen CSS does not imply compatibility support.",
       "html": "<div class=\"ds-sections\" role=\"tablist\" aria-label=\"Run sections\"><button class=\"ds-section\" role=\"tab\" aria-selected=\"true\">Overview</button><button class=\"ds-section\" role=\"tab\" aria-selected=\"false\">Executions</button><button class=\"ds-section\" role=\"tab\" aria-selected=\"false\">Evidence</button></div>",
-      "css": ".ds-sections{display:flex;flex-direction:column;width:180px;padding:8px;border-radius:18px;background:var(--ht-shell,#f6f9ff);box-shadow:var(--ht-glass-shadow,0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-section{margin:2px 0;padding:11px 14px;text-align:left;border:0;border-radius:12px;font-family:inherit;font-size:14px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-section[aria-selected=\"true\"]{background:#e0eafb;color:#1e40af;box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%),0 2px 5px rgb(34 58 98 / 5%)}.ds-section:hover{color:#1d4ed8;background:rgb(255 255 255 / 85%)}.ds-section:active{color:#1e40af}.ds-section:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.ds-sections{background:var(--ht-glass,rgb(248 251 255 / 82%));-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%);}}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-sections{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-sections{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-section[aria-selected=\"true\"]{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:991px){.ds-sections{width:auto;flex-direction:row;overflow-x:auto}.ds-section{margin:0 4px 0 0;padding:10px 14px;white-space:nowrap}}@media(prefers-reduced-motion:reduce){.ds-section{transition:none}}"
+      "css": ".ds-sections{display:flex;flex-direction:column;width:180px;padding:8px;border-radius:18px;background:var(--ht-glass,linear-gradient(180deg,#fcfdff,#f4f7fc));box-shadow:var(--ht-glass-shadow,0 6px 22px rgb(34 58 98 / 8%), inset 0 1px 0 rgb(255 255 255 / 96%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-section{margin:2px 0;padding:11px 14px;text-align:left;border:0;border-radius:12px;font-family:inherit;font-size:14px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-section[aria-selected=\"true\"]{background:#e0eafb;color:#1e40af;box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%),0 2px 5px rgb(34 58 98 / 5%)}.ds-section:hover{color:#1d4ed8;background:rgb(255 255 255 / 85%)}.ds-section:active{color:#1e40af}.ds-section:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-sections{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-sections{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-section[aria-selected=\"true\"]{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:991px){.ds-sections{width:auto;flex-direction:row;overflow-x:auto}.ds-section{margin:0 4px 0 0;padding:10px 14px;white-space:nowrap}}@media(prefers-reduced-motion:reduce){.ds-section{transition:none}}"
     },
     {
       "name": "Opaque modal surface",
@@ -748,16 +762,16 @@
       "name": "Project workspace navigation",
       "kind": "nav",
       "refersTo": "project-navigation",
-      "description": "Three adjacent project destinations share one glass surface and a readable current-page state on PC wide screens.",
+      "description": "Three adjacent project destinations share one opaque static glass surface and a readable current-page state on PC wide screens.",
       "html": "<nav class=\"ds-project-nav\" aria-label=\"Project navigation\"><a href=\"#local\" aria-current=\"page\"><svg viewBox=\"64 64 896 896\" width=\"1em\" height=\"1em\" fill=\"currentColor\" focusable=\"false\" aria-hidden=\"true\"><path d=\"M956.9 845.1L896.4 632V168c0-17.7-14.3-32-32-32h-704c-17.7 0-32 14.3-32 32v464L67.9 845.1C60.4 866 75.8 888 98 888h828.8c22.2 0 37.6-22 30.1-42.9zM200.4 208h624v395h-624V208zm228.3 608l8.1-37h150.3l8.1 37H428.7zm224 0l-19.1-86.7c-.8-3.7-4.1-6.3-7.8-6.3H398.2c-3.8 0-7 2.6-7.8 6.3L371.3 816H151l42.3-149h638.2l42.3 149H652.7z\"></path></svg><span>Local tasks</span></a><a href=\"#cloud\"><svg viewBox=\"64 64 896 896\" width=\"1em\" height=\"1em\" fill=\"currentColor\" focusable=\"false\" aria-hidden=\"true\"><path d=\"M811.4 418.7C765.6 297.9 648.9 212 512.2 212S258.8 297.8 213 418.6C127.3 441.1 64 519.1 64 612c0 110.5 89.5 200 199.9 200h496.2C870.5 812 960 722.5 960 612c0-92.7-63.1-170.7-148.6-193.3zm36.3 281a123.07 123.07 0 01-87.6 36.3H263.9c-33.1 0-64.2-12.9-87.6-36.3A123.3 123.3 0 01140 612c0-28 9.1-54.3 26.2-76.3a125.7 125.7 0 0166.1-43.7l37.9-9.9 13.9-36.6c8.6-22.8 20.6-44.1 35.7-63.4a245.6 245.6 0 0152.4-49.9c41.1-28.9 89.5-44.2 140-44.2s98.9 15.3 140 44.2c19.9 14 37.5 30.8 52.4 49.9 15.1 19.3 27.1 40.7 35.7 63.4l13.8 36.5 37.8 10c54.3 14.5 92.1 63.8 92.1 120 0 33.1-12.9 64.3-36.3 87.7z\"></path></svg><span>Cloud testing</span></a><a href=\"#memory\"><svg viewBox=\"64 64 896 896\" width=\"1em\" height=\"1em\" fill=\"currentColor\" focusable=\"false\" aria-hidden=\"true\"><path d=\"M832 64H192c-17.7 0-32 14.3-32 32v832c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V96c0-17.7-14.3-32-32-32zm-600 72h560v208H232V136zm560 480H232V408h560v208zm0 272H232V680h560v208zM304 240a40 40 0 1080 0 40 40 0 10-80 0zm0 272a40 40 0 1080 0 40 40 0 10-80 0zm0 272a40 40 0 1080 0 40 40 0 10-80 0z\"></path></svg><span>Project experience</span></a></nav>",
-      "css": ".ds-project-nav{display:flex;align-items:center;gap:6px;width:fit-content;max-width:100%;padding:6px;border-radius:18px;background:var(--ht-shell,#f6f9ff);box-shadow:var(--ht-glass-shadow,0 8px 30px rgb(34 58 98 / 9%),0 2px 5px rgb(34 58 98 / 4%),inset 0 1px 0 rgb(255 255 255 / 96%),inset 0 0 0 1px rgb(255 255 255 / 72%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-project-nav a{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;min-height:42px;border-radius:12px;color:var(--ht-muted,#526177);text-decoration:none;font-size:13px;font-weight:500;transition:color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-project-nav a:hover{color:var(--ht-ink,#172338);background:rgb(255 255 255 / 75%)}.ds-project-nav a[aria-current=\"page\"]{color:#1e40af;background:#e4ecfb;box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%),0 2px 5px rgb(34 58 98 / 5%)}.ds-project-nav a:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.ds-project-nav{background:var(--ht-glass,rgb(248 251 255 / 82%));-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%)}}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-project-nav{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-project-nav{background:Canvas;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}.ds-project-nav a[aria-current=\"page\"]{outline:2px solid Highlight;outline-offset:-2px}}@media(prefers-reduced-motion:reduce){.ds-project-nav a{transition:none}}"
+      "css": ".ds-project-nav{display:flex;align-items:center;gap:6px;width:fit-content;max-width:100%;padding:6px;border-radius:18px;background:var(--ht-glass,linear-gradient(180deg,#fcfdff,#f4f7fc));box-shadow:var(--ht-glass-shadow,0 6px 22px rgb(34 58 98 / 8%), inset 0 1px 0 rgb(255 255 255 / 96%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-project-nav a{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;min-height:42px;border-radius:12px;color:var(--ht-muted,#526177);text-decoration:none;font-size:13px;font-weight:500;transition:color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-project-nav a:hover{color:var(--ht-ink,#172338);background:rgb(255 255 255 / 75%)}.ds-project-nav a[aria-current=\"page\"]{color:#1e40af;background:#e4ecfb;box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%),0 2px 5px rgb(34 58 98 / 5%)}.ds-project-nav a:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-project-nav{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-project-nav{background:Canvas;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}.ds-project-nav a[aria-current=\"page\"]{outline:2px solid Highlight;outline-offset:-2px}}@media(prefers-reduced-motion:reduce){.ds-project-nav a{transition:none}}"
     }
   ],
   "narrative": {
     "northStar": "The Floating Testing Reference Index",
-    "overview": "HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Frosted navigation gains definition from an inner light and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.\n\nThe material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.\n\nDaily operation on PC wide screens determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components across the eight workspace routes. HyperTest One implements and supports PC wide-screen interfaces only; mobile and portrait compatibility are outside the product scope. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.",
+    "overview": "HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Static glass navigation gains definition from an opaque light gradient, an inner highlight and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.\n\nThe material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation preserves the Liquid Glass hierarchy with an opaque static CSS gradient and two shadow layers. Navigation does not sample or blur scrolling content; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.\n\nDaily operation on PC wide screens determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components across the eight workspace routes. HyperTest One implements and supports PC wide-screen interfaces only; mobile and portrait compatibility are outside the product scope. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.",
     "keyCharacteristics": [
-      "Floating light navigation with a single frosted material per navigation surface.",
+      "Floating light navigation with an opaque static gradient and two shadow layers.",
       "Opaque records, forms, decisions and evidence on a pale cool canvas.",
       "Related rounded geometry, capsule primary actions and quiet control feedback.",
       "Readable Chinese and English, stable drafts and explicit unknown or recorded-result states."
@@ -775,7 +789,7 @@
       },
       {
         "name": "The Navigation Material Rule",
-        "body": "Apply backdrop filtering only to the shared header, project navigation and run-section navigation. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within a glass surface use fills rather than a second glass layer.",
+        "body": "Use the same opaque static gradient and two shadow layers on the shared header, project navigation and run-section navigation. Do not apply live backdrop filtering. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within navigation use simple fills.",
         "section": "elevation"
       }
     ],
@@ -786,12 +800,12 @@
       "Do preserve bilingual drafts, selected run sections, loaded results and immutable history during updates.",
       "Do give readable help the muted description token and reserve a separate line for textarea counters.",
       "Do pair state color with readable labels, preserve visible keyboard focus and keep short project status labels intact.",
-      "Do retain solid navigation fallbacks and the stable reduced-motion provider structure.",
+      "Do retain static navigation materials, preference alternatives and identical server/browser Ant Design tokens.",
       "Do distinguish unknown, unavailable, zero, task completion and formal quality decisions."
     ],
     "donts": [
-      "Don't stack glass on glass or apply backdrop filtering to decisions, evidence, tables, forms or reading surfaces.",
-      "Don't animate blur or add decorative entrance sequences to routine testing work.",
+      "Don't apply live backdrop filtering to navigation or content surfaces.",
+      "Don't add decorative entrance sequences to routine testing work.",
       "Don't infer release readiness from task success, coverage counts or an Agent report.",
       "Don't let dense tables or long identifiers create whole-page horizontal overflow.",
       "Don't replace explicit semantic tag overrides with lower-specificity preset styling.",

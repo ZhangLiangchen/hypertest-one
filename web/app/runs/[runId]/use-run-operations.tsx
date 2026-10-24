@@ -17,6 +17,7 @@ import {
   getCapabilities, getMission, getMissionAttempts, getMissionProposals, getRunHarness, getSourceSnapshot, getVerdicts, retryMission, transitionFinding,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { harnessPollInterval, missionPollInterval, runRecordsPollInterval } from "@/lib/run-polling";
 import { latestRunVerdict } from "@/lib/run-summary";
 import { sourcePreparationSummary } from "@/lib/source-preparation";
 import { useRunJobs } from "./use-run-jobs";
@@ -102,7 +103,7 @@ function supportsManagedCheckout(repository: string | undefined): boolean {
   } catch { return false; }
 }
 
-export function useRunOperations(runId: string, onNavigate: (section: string) => void, sourceId?: string, projectId?: string, onSelectCanonical?: (selection: CanonicalSelection) => void) {
+export function useRunOperations(runId: string, onNavigate: (section: string) => void, sourceId?: string, projectId?: string, onSelectCanonical?: (selection: CanonicalSelection) => void, polling: { activeTab: string; runStatus?: string } = { activeTab: "overview" }) {
   const { t, label, locale, formatDate, verdictReason } = useI18n();
   const client = useQueryClient();
   const [notifications, contextHolder] = message.useMessage();
@@ -155,25 +156,31 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     if (section === "executions" && key) setExecutionSelection(executions.data?.find((entry) => entry.key === key || entry.id === key) || null);
     if (section === "verdicts" && key) setVerdictSelection(verdicts.data?.find((entry) => entry.key === key || entry.id === key) || null);
   }
-  const tasks = useRunJobs(runId, applyWorkspace, viewResult);
+  const tasks = useRunJobs(runId, applyWorkspace, viewResult, polling.runStatus);
   useEffect(() => {
     if (!workspace && typeof tasks.latestPrepared?.result?.workspace === "string") applyWorkspace(tasks.latestPrepared.result.workspace);
   }, [workspace, tasks.latestPrepared, applyWorkspace]);
 
-  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: getCapabilities, refetchInterval: 5_000 });
-  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: 5_000 });
+  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: getCapabilities, refetchInterval: tasks.active.length ? 5_000 : 30_000, refetchOnWindowFocus: true });
+  const harness = useQuery({ queryKey: ["harness", runId], queryFn: () => getRunHarness(runId), refetchInterval: (query) => harnessPollInterval(query.state.data, tasks.rows, polling.runStatus), refetchOnWindowFocus: true });
   const localHarness = harness.data?.selection?.mode === "LOCAL_CONNECTOR";
   const agentReady = localHarness ? !!harness.data?.selection?.online : !!capabilities.data?.agent_providers.includes("codex");
   const persistentRun = localHarness || !!harness.data?.binding || capabilities.data?.execution_profile === "run-persistent-harness/v1";
   const manualMissionControl = !!capabilities.data && !capabilities.error && !!harness.data && !harness.error && !persistentRun;
-  const implementations = useQuery({ queryKey: ["implementations", runId], queryFn: () => getImplementations(runId), refetchInterval: 5_000 });
-  const executions = useQuery({ queryKey: ["executions", runId], queryFn: () => getExecutions(runId), refetchInterval: 5_000 });
-  const evidence = useQuery({ queryKey: ["evidence", runId], queryFn: () => getEvidence(runId), refetchInterval: 5_000 });
-  const findings = useQuery({ queryKey: ["findings", runId], queryFn: () => getFindings(runId), refetchInterval: 5_000 });
-  const verdicts = useQuery({ queryKey: ["verdicts", runId], queryFn: () => getVerdicts(runId), refetchInterval: 5_000 });
-  const selectedMission = useQuery({ queryKey: ["mission", missionSelection?.id], queryFn: () => getMission(missionSelection!.id), enabled: !!missionSelection, refetchInterval: 3_000 });
-  const attempts = useQuery({ queryKey: ["attempts", missionSelection?.id], queryFn: () => getMissionAttempts(missionSelection!.id), enabled: !!missionSelection, refetchInterval: 3_000 });
-  const proposals = useQuery({ queryKey: ["proposals", missionSelection?.id], queryFn: () => getMissionProposals(missionSelection!.id), enabled: !!missionSelection, refetchInterval: 3_000 });
+  const implementations = useQuery({ queryKey: ["implementations", runId], queryFn: () => getImplementations(runId), refetchInterval: runRecordsPollInterval(polling.runStatus, ["automation"].includes(polling.activeTab), tasks.rows), refetchOnWindowFocus: true });
+  const executions = useQuery({ queryKey: ["executions", runId], queryFn: () => getExecutions(runId), refetchInterval: runRecordsPollInterval(polling.runStatus, ["overview", "executions"].includes(polling.activeTab) || !!executionSelection, tasks.rows), refetchOnWindowFocus: true });
+  const evidence = useQuery({ queryKey: ["evidence", runId], queryFn: () => getEvidence(runId), refetchInterval: runRecordsPollInterval(polling.runStatus, ["overview", "evidence"].includes(polling.activeTab) || !!findingSelection || !!verdictSelection || !!executionSelection, tasks.rows), refetchOnWindowFocus: true });
+  const findings = useQuery({ queryKey: ["findings", runId], queryFn: () => getFindings(runId), refetchInterval: runRecordsPollInterval(polling.runStatus, ["overview", "findings"].includes(polling.activeTab) || !!findingSelection || !!verdictSelection || !!executionSelection, tasks.rows), refetchOnWindowFocus: true });
+  const verdicts = useQuery({ queryKey: ["verdicts", runId], queryFn: () => getVerdicts(runId), refetchInterval: runRecordsPollInterval(polling.runStatus, ["overview", "verdicts", "harness"].includes(polling.activeTab), tasks.rows), refetchOnWindowFocus: true });
+  const selectedMission = useQuery({ queryKey: ["mission", missionSelection?.id], queryFn: () => getMission(missionSelection!.id), enabled: !!missionSelection, refetchInterval: (query) => missionPollInterval(query.state.data?.status || missionSelection?.status) });
+  const attempts = useQuery({ queryKey: ["attempts", missionSelection?.id], queryFn: () => getMissionAttempts(missionSelection!.id), enabled: !!missionSelection, refetchInterval: missionPollInterval(selectedMission.data?.status || missionSelection?.status) });
+  const proposals = useQuery({ queryKey: ["proposals", missionSelection?.id], queryFn: () => getMissionProposals(missionSelection!.id), enabled: !!missionSelection, refetchInterval: missionPollInterval(selectedMission.data?.status || missionSelection?.status) });
+  useEffect(() => {
+    if (selectedMission.data && missionPollInterval(selectedMission.data.status) === false) {
+      // Capture the final attempt/proposals before their terminal-state timers stop.
+      for (const key of ["attempts", "proposals"]) void client.invalidateQueries({ queryKey: [key, selectedMission.data.id] });
+    }
+  }, [selectedMission.data?.id, selectedMission.data?.status, client]);
   const executionDetail = useQuery({ queryKey: ["execution", executionSelection?.id], queryFn: () => getExecution(executionSelection!.id), enabled: !!executionSelection, refetchInterval: (query) => !["COMPLETED", "ERROR", "TIMED_OUT", "CANCELLED"].includes(query.state.data?.execution.status || "") ? 3_000 : false });
   const evidenceContent = useQuery({ queryKey: ["evidence-content", evidenceSelection?.id], queryFn: () => getEvidenceContent(evidenceSelection!.id), enabled: !!evidenceSelection, retry: false });
 
@@ -184,7 +191,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
     ]);
   }
 
-  const inputRequests = useRunInputRequests(runId, tasks.rows, tasks.jobs.isLoading || !!tasks.jobs.error, tasks.openTask, () => { void refresh(); });
+  const inputRequests = useRunInputRequests(runId, tasks.rows, tasks.jobs.isLoading || !!tasks.jobs.error, tasks.openTask, () => { void refresh(); }, polling.runStatus);
 
   const mission = selectedMission.data || missionSelection;
   const waitingMissionJob = inputRequests.requests.data?.find((item) => item.mission_id === mission?.id && ["PENDING", "ANSWERED"].includes(item.status))?.durable_job_id;
@@ -442,7 +449,7 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
         {executionDetail.data.execution.error_message && <Alert type="error" showIcon style={{ marginTop: 16 }} message={executionDetail.data.execution.error_code || t("Execution error", "执行错误")} description={executionDetail.data.execution.error_message} />}
         <Typography.Title level={4}>{t("Per-case results", "各正式用例结果")}</Typography.Title>
         <Typography.Paragraph className="muted">{t("These are canonical test-case results aggregated from accepted implementations. A parameterized test can produce a different number of JUnit instances; inspect the verified report below for individual assertions.", "此处按已接受的测试实现汇总正式用例结果。参数化测试的 JUnit 实例数可能与正式用例数不同，具体断言请查看下方已验证的测试报告。")}</Typography.Paragraph>
-        <Table rowKey="test_case_id" dataSource={executionDetail.data.test_cases} pagination={false} columns={[
+        <Table rowKey="test_case_id" dataSource={executionDetail.data.test_cases} pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: [20, 50, 100] }} columns={[
           { title: t("Test case", "测试用例"), key: "case", render: (_: unknown, item: { test_case_key?: string; test_case_id: string }) => item.test_case_key || item.test_case_id },
           { title: t("Result", "结果"), dataIndex: "result", render: (value: string) => <Badge value={value} /> },
           { title: t("Duration", "耗时"), dataIndex: "duration_ms", render: (value: number | null) => value == null ? "—" : `${value} ms` },
@@ -479,5 +486,5 @@ export function useRunOperations(runId: string, onNavigate: (section: string) =>
   </>;
 
   const overview = <>{inputRequests.monitor}<RunOverview verdicts={verdicts} executions={executions} evidence={evidence} findings={findings} jobs={tasks.jobs} harness={harness} navigate={onNavigate} openVerdict={setVerdictSelection} openEvidence={setEvidenceSelection} openExecution={setExecutionSelection} openFinding={setFindingSelection} openTask={tasks.openTask} reevaluateGate={gateAvailable ? openGateReview : undefined} reevaluationDisabled={tasks.busy || gate.isPending} reevaluationRetry={!!failedGate} /></>;
-  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, implementations, openTask: tasks.openTask, manualMissionControl, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
+  return { tabs, actions, secondaryActions, dialogs, summary, overview, missionActions, refresh, implementations, openTask: tasks.openTask, manualMissionControl, activeJobs: tasks.active, busy: inputRequests.busy || tasks.busy || cycle.isPending || missionExecution.isPending || execution.isPending };
 }

@@ -3,37 +3,19 @@
 import "@ant-design/v5-patch-for-react-19";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ConfigProvider } from "antd";
+import type { ThemeConfig } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import enUS from "antd/locale/en_US";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 
-function LocalizedProviders({ children }: { children: React.ReactNode }) {
-  const { locale } = useI18n();
-  // Ant adds a motion provider when motion first becomes false. Mount it up
-  // front so a preference change never remounts pages and discards their drafts.
-  const [reducedMotion, setReducedMotion] = useState(true);
-  useEffect(() => {
-    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReducedMotion(preference.matches);
-    update();
-    preference.addEventListener("change", update);
-    return () => preference.removeEventListener("change", update);
-  }, []);
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: { staleTime: 5_000, refetchOnWindowFocus: false },
-        },
-      }),
-  );
-
-  return <ConfigProvider locale={locale === "zh" ? zhCN : enUS} theme={{
+// Stable tokens prevent a second component style set after hydration.
+const workspaceTheme: ThemeConfig = {
     token: {
-      motion: !reducedMotion,
+      // Server and browser use the same tokens; CSS keeps hover and press feedback.
+      motion: false,
       colorPrimary: "#2563eb", colorPrimaryBorder: "#2563eb", colorPrimaryHover: "#1d4ed8", colorPrimaryActive: "#1e40af",
       colorLink: "#2563eb", colorLinkHover: "#1d4ed8", colorLinkActive: "#1e40af",
       colorInfo: "#0e7490", colorInfoText: "#0e7490", colorInfoBg: "#e7f6fb", colorInfoBorder: "#8cc6d8",
@@ -54,7 +36,20 @@ function LocalizedProviders({ children }: { children: React.ReactNode }) {
       Segmented: { trackBg: "#edf1f7", itemSelectedBg: "#ffffff", itemSelectedColor: "#1e40af" },
       Modal: { borderRadiusLG: 20 }, Drawer: { paddingLG: 24 },
     },
-  }}>
+  };
+
+function LocalizedProviders({ children }: { children: React.ReactNode }) {
+  const { locale } = useI18n();
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { staleTime: 5_000, refetchOnWindowFocus: false },
+        },
+      }),
+  );
+
+  return <ConfigProvider locale={locale === "zh" ? zhCN : enUS} theme={workspaceTheme}>
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   </ConfigProvider>;
 }

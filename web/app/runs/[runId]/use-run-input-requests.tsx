@@ -7,13 +7,14 @@ import { useRef, useState } from "react";
 import { answerInputRequest, errorText, getInputRequests } from "@/lib/api";
 import { canAnswerInput, MAX_INPUT_ANSWER_CHARACTERS, prepareInputAnswer, validateInputAnswer } from "@/lib/input-answers";
 import { useI18n } from "@/lib/i18n";
+import { inputPollInterval } from "@/lib/run-polling";
 import { createUuid } from "@/lib/uuid";
 import type { BackgroundJob, InputAnswer, InputRequest, Mission } from "@/lib/types";
 
-export function useRunInputRequests(runId: string, jobs: BackgroundJob[], jobsUnavailable: boolean, openTask: (id: string) => void, refreshRun: () => void) {
+export function useRunInputRequests(runId: string, jobs: BackgroundJob[], jobsUnavailable: boolean, openTask: (id: string) => void, refreshRun: () => void, runStatus?: string) {
   const { t, label, locale, formatDate } = useI18n();
   const client = useQueryClient();
-  const requests = useQuery({ queryKey: ["input-requests", runId], queryFn: () => getInputRequests(runId), refetchInterval: 2_000 });
+  const requests = useQuery({ queryKey: ["input-requests", runId], queryFn: () => getInputRequests(runId), refetchInterval: (query) => inputPollInterval(query.state.data, jobs, runStatus), refetchOnWindowFocus: true });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const submissions = useRef(new Map<string, InputAnswer>());

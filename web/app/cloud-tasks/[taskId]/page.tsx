@@ -12,6 +12,7 @@ import { CloudAttemptRecovery, CloudCapabilitiesNotice, CloudOperationNotice } f
 import { cloudCapabilities, cloudCancellation, cloudConfiguration, cloudDocument, cloudOperationalView, cloudProgressTone, cloudSetup, cloudSummary } from "@/lib/cloud";
 import type { CloudRecord } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
+import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument } from "@/lib/run-polling";
 import { useI18n } from "@/lib/i18n";
 import { CloudTaskRecords } from "./records";
 
@@ -28,15 +29,17 @@ export default function CloudTaskPage() {
   const configured = setup.data?.configured === true;
   const capabilities = useQuery({ queryKey: ["cloud-capabilities"], queryFn: cloudCapabilities, enabled: configured });
   const configurations = useQuery({ queryKey: ["cloud-config", projectId], queryFn: () => cloudConfiguration(projectId), enabled: configured && isUuid(projectId) });
-  const document = useQuery({ queryKey: ["cloud-task", projectId, taskId], queryFn: () => cloudDocument(projectId, taskId),
-    enabled: configured && isUuid(projectId) && isUuid(taskId), refetchInterval: (query) => {
-      const status = query.state.data?.task.status; return status && ["QUEUED", "PREPARING", "RUNNING", "DRAFT"].includes(status) ? 3000 : false;
-    } });
   const live = useQuery({ queryKey: ["cloud-task-live", projectId, taskId], queryFn: () => cloudSummary(projectId, taskId), enabled: configured && isUuid(projectId) && isUuid(taskId),
-    refetchInterval: (query) => { const status = query.state.data?.status; return !status || ["DRAFT", "QUEUED", "PREPARING", "RUNNING"].includes(status) ? 3000 : false; } });
+    refetchInterval: (query) => cloudSummaryPollInterval(projectId, taskId, query.state.data), refetchOnWindowFocus: true });
+  const observedVersion = cloudPollingVersion(projectId, taskId, live.data);
+  const document = useQuery({ queryKey: ["cloud-task", projectId, taskId], queryFn: () => readCloudPollingDocument(projectId, taskId, live.data, cloudDocument),
+    enabled: configured && isUuid(projectId) && isUuid(taskId) && observedVersion !== undefined,
+    staleTime: Infinity });
   useEffect(() => {
-    if (live.data && document.data && live.data.id === taskId && live.data.project_id === projectId && live.data.version > document.data.task.version) void document.refetch();
-  }, [live.data?.version, document.data?.task.version, taskId, projectId, document.refetch]);
+    // Heavy accepted records are fetched once per observed version. A failed read
+    // keeps the old document and can retry on the next successful summary read.
+    if (observedVersion !== undefined && (!document.data || observedVersion > document.data.task.version) && !document.isFetching) void document.refetch();
+  }, [observedVersion, live.dataUpdatedAt, document.data?.task.version, taskId, projectId, document.refetch]);
   async function mutate(fields: CloudRecord) {
     if (!document.data || !cloudOperationalView(document.data, live.data).valid) return;
     const receipt = await operation.submit({ task_id: taskId, expected_version: document.data.task.version, ...fields });
@@ -44,7 +47,7 @@ export default function CloudTaskPage() {
   }
   if (!isUuid(projectId)) return <main className="workspace-page"><WorkspaceHeading title={t("Cloud task", "云端任务")} backHref="/" backLabel={t("Projects", "项目")} /><Alert showIcon type="error" message={t("Project context is required", "需要项目上下文")} description={t("Open this task from its Project's Cloud directory. A task ID alone does not grant access.", "请从所属项目的云端任务目录打开；仅有任务 ID 不构成访问授权。 ")} /></main>;
   if (!configured) return <main className="workspace-page"><WorkspaceHeading title={t("Cloud task", "云端任务")} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")} />{setup.isLoading ? <WorkspaceLoading label={t("Checking Cloud access", "正在检查云端访问")} /> : <CloudCapabilitiesNotice configured={false} />}</main>;
-  if (!document.data) return <main className="workspace-page"><WorkspaceHeading title={t("Cloud task", "云端任务")} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")} />{document.isLoading ? <WorkspaceLoading label={t("Loading task records", "正在读取任务记录")} /> : <Alert showIcon type="error" message={t("The fixed task version could not be read", "无法读取固定任务版本")} description={t("Check access and retry. No execution will be submitted by this read.", "请检查访问权限后重试；读取不会下发执行。 ")} action={<Button onClick={() => void document.refetch()}>{t("Retry", "重试")}</Button>} />}</main>;
+  if (!document.data) return <main className="workspace-page"><WorkspaceHeading title={t("Cloud task", "云端任务")} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")} />{live.isLoading || document.isLoading ? <WorkspaceLoading label={t("Loading task records", "正在读取任务记录")} /> : <Alert showIcon type="error" message={t("The fixed task version could not be read", "无法读取固定任务版本")} description={t("Check access and retry. No execution will be submitted by this read.", "请检查访问权限后重试；读取不会下发执行。 ")} action={<Button onClick={() => { void live.refetch(); void document.refetch(); }}>{t("Retry", "重试")}</Button>} />}</main>;
   const detail = document.data; const task = detail.task; const operational = cloudOperationalView(detail, live.data); const attempt = operational.attempt;
   const status = operational.status;
   const accepted = detail.resolutions.find((row) => row.status === "ACCEPTED" && row.accepted_task_version === task.version);

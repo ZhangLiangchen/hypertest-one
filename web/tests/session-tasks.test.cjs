@@ -7,6 +7,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const load = require("./load-helper.cjs");
 const i18n = load("lib/i18n.tsx", { require });
 const { SessionTaskRecords } = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
+const expandedRecords = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "react" ? { ...React, useState: (initial) => [initial === false ? true : initial, () => {}] } : require(name) }).SessionTaskRecords;
 
 function fixture(provider = "codex") {
   const at = "2026-10-21T04:00:00+00:00";
@@ -16,13 +17,13 @@ function fixture(provider = "codex") {
   return { task, cases: [item], reports: [report], case_history: [{ ...item, id: "case-old", revision: 1, reported_result: "FAIL", actual: "Historical failure" }, item], report_history: [{ ...report, id: "report-old", revision: 1, reported_result: "FAIL", markdown: "# Historical failure\nDo not overwrite" }, report], sync_history: [{ id: "sync-1", task_version: 2, actor_ref: "codex:client", created_at: at, task_snapshot: task }] };
 }
 
-function render(detail, locale) {
-  return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(SessionTaskRecords, { detail })));
+function render(detail, locale, expanded = false) {
+  return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(expanded ? expandedRecords : SessionTaskRecords, { detail })));
 }
 
 test("session task separates progress and reported result and preserves previous failures in both languages", () => {
   for (const provider of ["codex", "claude_code", "deepseek_harness"]) for (const locale of ["en", "zh"]) {
-    const html = render(fixture(provider), locale);
+    const html = render(fixture(provider), locale, true);
     assert.ok(html.includes(provider), "the actual source provider remains visible");
     assert.equal(html.includes("Codex reported"), false, "generic labels do not misattribute another provider");
     for (const text of ["session-long-reference", "AGENT_REPORTED", "Historical failure", "Do not overwrite", "The expected response", "Call project test", "Observed response", "codex:client"]) assert.ok(html.includes(text), text);
@@ -36,7 +37,7 @@ test("session task separates progress and reported result and preserves previous
 });
 
 test("untrusted original Markdown remains literal readable text, including report history", () => {
-  const html = render(fixture(), "en");
+  const html = render(fixture(), "en", true);
   assert.ok(html.includes("&lt;script&gt;UNTRUSTED()&lt;/script&gt;"));
   assert.equal(html.includes("<script>UNTRUSTED"), false);
   assert.ok(html.includes("Original Markdown report"));
@@ -98,7 +99,7 @@ test("manual management history remains distinct from Codex syncs and reported f
   detail.task.last_managed_at = "2026-10-23T09:00:00+00:00";
   detail.management_history = [{ id: "manual-1", action: "UPDATE", actor_ref: "operator:management", task_version: 3, task_snapshot: { ...detail.task, version: 3 }, created_at: detail.task.last_managed_at }];
   for (const locale of ["en", "zh"]) {
-    const html = render(detail, locale);
+    const html = render(detail, locale, true);
     assert.ok(html.includes(locale === "en" ? "Management history" : "管理历史"));
     assert.ok(html.includes(locale === "en" ? "Last managed" : "最近人工管理"));
     assert.ok(html.includes("operator:management"));
