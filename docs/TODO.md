@@ -1,9 +1,10 @@
 # HyperTest One 当前 TODO
 
-更新：2026-10-24（Asia/Singapore）。以本表和链接中的精确范围区分开发、部署与用户功能验收；历史交付原件不重标。本次后续交付见[FOLLOWUP_DELIVERY_20261023](FOLLOWUP_DELIVERY_20261023.md)。
+更新：2026-10-25（Asia/Singapore）。以本表和链接中的精确范围区分开发、部署与用户功能验收；历史交付原件不重标。本次后续交付见[FOLLOWUP_DELIVERY_20261023](FOLLOWUP_DELIVERY_20261023.md)，PC 界面统一见[Web 交付记录](LIQUID_GLASS_WEB_DELIVERY_20261025.md)。
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
+| PC 宽屏全页面视觉统一 | **已实现并部署**；全部8个路由统一 Liquid Glass 导航、标题、内容面板、表格与表单；84项定向回归、构建、桌面视觉修复确认及健康检查通过；Web源码4f54a4f | USER_OWNED功能验收保留；不扩展到移动端/竖屏。见[精确范围及镜像](LIQUID_GLASS_WEB_DELIVERY_20261025.md) |
 | P0-1 Web未决请求持久保全 | **已实现并部署**；独立IndexedDB、双标签、原key恢复、固定版本完整读回 | USER_OWNED 功能验收保留；浏览器清除站点数据不能推导未执行。见[P0原记录](P0_RECOVERY_DELIVERY_20261023.md) |
 | P0-2 取消、失联与人工收尾 | **已实现并部署**；fence/lease/对账、人工入口、明确SDK恢复不支持 | USER_OWNED 功能验收保留；UNKNOWN/HELD及原件/历史不由声明清除 |
 | P1-1 Cloud框架依赖与受控HTTPS | **首片实现并部署，整体部分完成**：FRAMEWORK_LOCKED_V1及公开GET/HEAD目录adapter、canonical账本、原key恢复、Worker/权限集成与合成故障回归；新开关保持关闭 | 真实Project/目标/IP/只读资源/期限/预算尚未授权。依赖闭包与离线安装供应、认证/写API/query/body、其他工具链与浏览器仍待独立开发。未宣称一般框架或真实API任务已通过 |

@@ -36,4 +36,22 @@ TypeScript 检查通过；Impeccable 检测无发现。现有组件测试为共�
 
 复核者对上述两项视觉修复及设计文档同步均判定 `resolved / ship`；该结论范围是本轮列出的修复项。DESIGN.md、token sidecar、surface brief 和 PRODUCT.md 已同步 PC 宽屏范围与共享组件契约。
 
-构建与部署结果在实际完成后追加。本轮不创建验收项目、任务、凭据，不调用模型或 SUT；功能验收保持 **USER_OWNED**。
+桌面中英文切换后表单草稿保留；高对比度与减少动态效果下，项目导航为不透明 `rgb(246,249,255)`、`backdrop-filter: none`、过渡 `0s`。
+
+## 部署
+
+从已推送分支 `codex/liquid-glass-unification` fetch 后固定完整源码 SHA **`4f54a4f99ba7bb4e65b444bbffd83963388677b3`**；复用当前干净 checkout，在本服务器停止受影响的 Web 后按 `web/Dockerfile` 构建。Node 基础镜像固定 digest，构建内编译、类型检查、页面生成和优化全部成功。
+
+| 项目 | 实际结果 |
+| --- | --- |
+| Web image | `sha256:bba398e4b6fba5f7566ddc916bbf1446e2546ef28b20e069e152a7484714f841`；revision 为上述完整源码 SHA |
+| Web container | `9f75df50c3886111c7e3f09664c3970be34ef81fe16876101c465244933f9e7d`，healthy |
+| 替换前 Web | `sha256:0e534f0f93c8029087216a948538804544692484f2d9c4d03c0d9e2dbe9f0d16`，镜像保留 |
+| 服务与入口 | 只替换 Web，容器 nginx reload 刷新上游；五容器 healthy，ingress guard protected |
+| 最小冒烟 | ingress/API health 为 ok；Web 根页 HTTP 200；其正式 CSS HTTP 200，包含共享标题和项目导航样式 |
+| API / Worker / schema | API 保持 76edb01、legacy Worker 保持 55de50e；独立 Cloud Worker / Bridge 未迁移；无 schema 变更或迁移 |
+| 资源与清理 | 构建前约 11GiB、完成后约 9.2GiB 可用；本轮预览进程与浏览器已关闭，无新平台/测试库；保留构建缓存、截图与源产物 |
+
+原 TLS / VPN / SSH 和访问限制保持；仅更新 compose.env 的 Web image 键。部署和冒烟回执在本机 `output/playwright/`，不包含业务凭据。后续补录本节及当前身份指针是纯文档提交，不重建镜像。
+
+本轮不创建验收项目、任务、凭据，不调用模型或 SUT；功能验收保持 **USER_OWNED**。
