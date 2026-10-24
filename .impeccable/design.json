@@ -633,17 +633,17 @@
       {
         "name": "compact-desktop",
         "value": "max-width: 1199px",
-        "purpose": "Retained source compatibility fallback; PC wide screens are the design scope."
+        "purpose": "Retained legacy CSS; mobile and portrait are not supported operating contexts or adaptation requirements."
       },
       {
         "name": "top-run-tabs",
         "value": "max-width: 991px",
-        "purpose": "Retained source compatibility fallback; PC wide screens are the design scope."
+        "purpose": "Retained legacy CSS; mobile and portrait are not supported operating contexts or adaptation requirements."
       },
       {
         "name": "mobile",
         "value": "max-width: 640px",
-        "purpose": "Retained source compatibility fallback; PC wide screens are the design scope."
+        "purpose": "Retained legacy CSS; mobile and portrait are not supported operating contexts or adaptation requirements."
       }
     ],
     "materials": [
@@ -732,7 +732,7 @@
       "name": "Run section navigation",
       "kind": "nav",
       "refersTo": "run-section-selected",
-      "description": "A frosted left index for the PC run workspace; the existing narrow-screen fallback remains in its source.",
+      "description": "A frosted left index for the PC wide-screen run workspace; retained narrow-screen CSS does not imply compatibility support.",
       "html": "<div class=\"ds-sections\" role=\"tablist\" aria-label=\"Run sections\"><button class=\"ds-section\" role=\"tab\" aria-selected=\"true\">Overview</button><button class=\"ds-section\" role=\"tab\" aria-selected=\"false\">Executions</button><button class=\"ds-section\" role=\"tab\" aria-selected=\"false\">Evidence</button></div>",
       "css": ".ds-sections{display:flex;flex-direction:column;width:180px;padding:8px;border-radius:18px;background:var(--ht-shell,#f6f9ff);box-shadow:var(--ht-glass-shadow,0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%));font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif}.ds-section{margin:2px 0;padding:11px 14px;text-align:left;border:0;border-radius:12px;font-family:inherit;font-size:14px;background:transparent;color:var(--ht-ink,#172338);cursor:pointer;transition:background-color 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1)),box-shadow 180ms var(--ht-ease,cubic-bezier(.16,1,.3,1))}.ds-section[aria-selected=\"true\"]{background:#e0eafb;color:#1e40af;box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%),0 2px 5px rgb(34 58 98 / 5%)}.ds-section:hover{color:#1d4ed8;background:rgb(255 255 255 / 85%)}.ds-section:active{color:#1e40af}.ds-section:focus-visible{outline:3px solid var(--ht-accent,#2563eb);outline-offset:3px}@supports((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.ds-sections{background:var(--ht-glass,rgb(248 251 255 / 82%));-webkit-backdrop-filter:blur(24px) saturate(130%);backdrop-filter:blur(24px) saturate(130%);}}@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){.ds-sections{background:var(--ht-shell,#f6f9ff);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1px #8190a5}}@media(forced-colors:active){.ds-sections{background:Canvas;color:CanvasText;border:1px solid CanvasText;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}}@media(forced-colors:active){.ds-section[aria-selected=\"true\"]{outline:2px solid Highlight;outline-offset:-2px}}@media(max-width:991px){.ds-sections{width:auto;flex-direction:row;overflow-x:auto}.ds-section{margin:0 4px 0 0;padding:10px 14px;white-space:nowrap}}@media(prefers-reduced-motion:reduce){.ds-section{transition:none}}"
     },
@@ -755,7 +755,7 @@
   ],
   "narrative": {
     "northStar": "The Floating Testing Reference Index",
-    "overview": "HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Frosted navigation gains definition from an inner light and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.\n\nThe material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.\n\nDaily operation on PC wide screens determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components across the eight workspace routes. Mobile and portrait adaptation are outside the current design scope. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.",
+    "overview": "HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Frosted navigation gains definition from an inner light and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.\n\nThe material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.\n\nDaily operation on PC wide screens determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components across the eight workspace routes. HyperTest One implements and supports PC wide-screen interfaces only; mobile and portrait compatibility are outside the product scope. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.",
     "keyCharacteristics": [
       "Floating light navigation with a single frosted material per navigation surface.",
       "Opaque records, forms, decisions and evidence on a pale cool canvas.",

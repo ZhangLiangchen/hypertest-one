@@ -4,6 +4,12 @@
 
 剩余工作统一看[当前TODO](docs/TODO.md)与[本轮跟进](docs/FOLLOWUP_DELIVERY_20261023.md)；实现、部署和USER_OWNED验收分别记录，不从历史候选状态重复安排已完成工作。
 
+## Web 产品实现范围（长期约束）
+
+- **HyperTest One 仅实现并支持 PC 宽屏界面，无需兼容竖屏或移动端。** 此约束适用于后续全部 Web 页面、组件、交互、布局和回归验证，不限于某次美化工作。
+- 不为移动端、竖屏或窄屏额外建设适配布局、兼容逻辑、截图或测试矩阵，也不将这些检查作为交付前置条件。
+- 既有窄屏 CSS 可作为历史实现保留，不构成产品兼容承诺或后续维护要求。PC 宽屏下的中英文、键盘操作、焦点及可读性要求继续适用。
+
 ## 当前测试服务器：开发与部署规则（2026-10-24 增补）
 
 最新API/独立Cloud Worker已按Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b` 部署，新增默认关闭的受控公开HTTPS首片与框架冻结；Web已于2026-10-25按`4f54a4f99ba7bb4e65b444bbffd83963388677b3`完成PC宽屏全页面Liquid Glass统一并部署，见[Web交付记录](docs/LIQUID_GLASS_WEB_DELIVERY_20261025.md)；schema0028，legacy Worker保留55de50e。P0/Memory能力与独立权限保持，见[最新跟进交付](docs/FOLLOWUP_DELIVERY_20261023.md)、[Memory原交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文C4/6d49等保留历史，不替代最新部署身份或用户验收。容量处置与清理结果由[本轮磁盘清理记录](docs/DISK_CLEANUP_20261024.md)拥有；后续构建检查实际余量，不沿用旧观察或自行删除历史。

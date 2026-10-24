@@ -9,7 +9,7 @@ related_targets: ["web/app/page.tsx","web/app/projects/[projectId]/page.tsx","we
 
 Mode: Operate. Scope: all eight workspace routes: project index, project workspace, task creation, Cloud directory/resources/creation, project experience, Local task, Cloud task and legacy run; shared shell and detail overlays follow the same system.
 The user delegates navigation, visual direction and ordinary interactions, explicitly requests code-led implementation, and confirms PRODUCT.md's users and workflow. No further aesthetic selection round is required.
-The user explicitly limits use to PC wide screens: mobile and portrait adaptation are outside this extension. Existing narrow-screen styles remain compatibility fallbacks.
+HyperTest One implements and supports PC wide-screen interfaces only. This permanent product constraint applies to every page, component, interaction, layout and regression check; mobile and portrait compatibility are not required. Existing narrow-screen CSS is retained implementation history and does not create a compatibility commitment or maintenance requirement.
 
 ## Direction contract
 
