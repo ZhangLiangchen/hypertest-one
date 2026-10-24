@@ -1,6 +1,7 @@
 const { IDBFactory } = require("fake-indexeddb");
 const load = require("./load-helper.cjs");
 const assert = require("node:assert/strict");
+const { performance } = require("node:perf_hooks");
 
 class TestChannel {
   static channels = new Set();
@@ -11,9 +12,17 @@ class TestChannel {
   close() { TestChannel.channels.delete(this); }
 }
 
-async function until(condition) {
-  for (let i = 0; i < 100; i++) { if (await condition()) return; await new Promise(setImmediate); }
-  assert.fail("bounded async lifecycle did not settle");
+async function until(condition, { timeoutMs = 5_000, description = condition.toString() } = {}) {
+  // Event-loop turns have no minimum duration. Crypto and IndexedDB work may
+  // still be pending after hundreds of turns, especially under CI contention.
+  const deadline = performance.now() + timeoutMs;
+  let checks = 0;
+  while (true) {
+    checks++;
+    if (await condition()) return;
+    if (performance.now() >= deadline) assert.fail(`${description} did not settle within ${timeoutMs} ms (${checks} condition checks)`);
+    await new Promise(setImmediate);
+  }
 }
 
 function operationHarness(overrides = {}, options = {}) {
