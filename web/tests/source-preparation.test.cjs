@@ -22,7 +22,7 @@ function tasks(job, { locale = "en", status = null, freshStatus = status } = {})
   const realUi = require("antd");
   const ui = { ...realUi, Drawer: ({ children }) => React.createElement("section", null, children), message: { useMessage: () => [{ success() {}, info() {} }, null] } };
   const dependencies = { react: { ...React, useState: () => React.useState(job.id) }, antd: ui,
-    "@/lib/i18n": i18n, "@/lib/source-preparation": preparation, "@tanstack/react-query": hooks, "@/lib/api": api,
+    "@/lib/i18n": i18n, "@/lib/source-preparation": preparation, "@/lib/run-polling": load("lib/run-polling.ts", { require }), "@tanstack/react-query": hooks, "@/lib/api": api,
     "@/lib/uuid": { createUuid: () => "source-retry" }, "./run-next-action": followUp, "./job-activity": { JobActivityPanel: () => null } };
   const { useRunJobs } = load("app/runs/[runId]/use-run-jobs.tsx", { require: (name) => name in dependencies ? dependencies[name] : require(name) });
   let controller;
