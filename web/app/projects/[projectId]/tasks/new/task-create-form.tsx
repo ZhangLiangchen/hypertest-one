@@ -77,10 +77,11 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     }
     void localOperation.submit(request.current.payload).then((detail) => { if (detail) accepted(detail); });
   };
-  return <><Form form={form} layout="vertical" initialValues={{ mode: "cloud", title: "", objective: "", plan_markdown: "", intended_actor_ref: null }}
+  return <><Form className="workspace-panel" form={form} layout="vertical" initialValues={{ mode: "cloud", title: "", objective: "", plan_markdown: "", intended_actor_ref: null }}
     disabled={localBlocked || cloudBlocked} requiredMark="optional" onFinish={submit}
     onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}
     onValuesChange={localOperation.resetError}>
+    <Typography.Title level={2}>{t("Task details", "任务信息")}</Typography.Title>
     <Form.Item name="mode" label={t("Execution mode", "执行方式")}>
       <Radio.Group aria-label={t("Execution mode", "执行方式")} options={[{ value: "cloud", label: t("Cloud execution", "云端执行") }, { value: "local", label: t("Local execution", "本地执行") }]} />
     </Form.Item>
@@ -90,7 +91,8 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
     <Form.Item name="objective" label={t("Testing objective", "测试目标")} rules={[{ required: true, whitespace: true, message: t("Describe what this task should test.", "请描述此任务需要测试的目标。") }, { max: 16000 }]}>
       <Input.TextArea rows={4} maxLength={16000} />
     </Form.Item>
-    {mode === "local" ? <>
+    {mode === "local" ? <div className="form-section">
+      <Typography.Title level={3}>{t("Local task setup", "本地任务设置")}</Typography.Title>
       <Typography.Paragraph className="muted">{t("Create a task ID first, then bind it from the authorized local Agent. The Agent performs the testing; this page does not start a model or a test.", "先创建任务 ID，再从获准的本地 Agent 中绑定。测试由 Agent 执行；此页面不会启动模型或测试。")}</Typography.Paragraph>
       <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("New binding needs Codex CLI 0.144.6", "新绑定需要 Codex CLI 0.144.6")} description={t("Use the matching client and follow the task page's upgrade and binding steps after creation. Claude Code and DeepSeek existing task sync remains compatible. You can create an unbound task first.", "创建后按任务页说明升级匹配客户端，再绑定任务。Claude Code 和 DeepSeek 的已有任务同步不受影响，也可以先创建待绑定任务。") } />
       <Form.Item name="intended_actor_ref" label={t("Authorized local client", "获准绑定的本地客户端")} extra={t("Only this client's active Project authorization may claim the task. A Task ID is not a credential. You can leave this empty and authorize a client on the task page later.", "只有所选客户端持有本项目的有效授权时才能绑定。任务 ID 不是凭据。可以暂不选择，创建后再在任务页授权。") }>
@@ -100,7 +102,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
       {actors.isError ? <Alert showIcon type="warning" message={t("Local clients could not be loaded", "无法读取本地客户端")} description={<>{errorText(actors.error, locale)} {t("You can still create an unbound task and authorize its client later.", "仍可先创建待绑定任务，稍后再授权客户端。")}</>} action={<Button onClick={() => void actors.refetch()} loading={actors.isFetching}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 20 }} /> : null}
       {!selectedActor ? <Alert showIcon type="info" message={t("The task will wait for client authorization", "任务将等待客户端授权")} description={t("Arrange an existing Project-scoped Local connection, then select its client on the task page before binding.", "先按项目的本地接入引导准备有效授权，再在任务页选择对应客户端并绑定。") } style={{ marginBottom: 20 }} /> : null}
       <Form.Item name="plan_markdown" label={t("Initial test plan (optional, Markdown)", "初始测试计划（可选，Markdown）")} rules={[{ max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item>
-    </> : null}
+    </div> : null}
     {storageError ? <Alert type="error" showIcon message={t("The pending request cannot be saved or read", "无法保存或读取未决请求")} description={t("Check browser persistent storage before creating a task. Preserve any earlier request key and reconcile it before creating another task.", "请检查浏览器持久存储后再创建任务。若已有请求标识，请保留并先完成查询对账，不要另建任务。") } action={<Button onClick={() => window.location.reload()}>{t("Reload page", "重载页面")}</Button>} style={{ marginBottom: 20 }} /> : null}
     {mode === "local" && Boolean(localOperation.error) && !unresolved ? <Alert type="error" showIcon message={t("Task was not created", "任务未创建")} description={<>{errorText(localOperation.error, locale)} {t("Your input is preserved. Review it before retrying.", "当前输入已保留，请检查后重试。")}</>} style={{ marginBottom: 20 }} /> : null}
     {mode === "local" ? <Button type="primary" htmlType="submit" disabled={localBlocked || cloudBlocked || !localOperation.ready || storageError} loading={localOperation.busy || localOperation.success}>{t("Create test task", "创建测试任务")}</Button> : null}

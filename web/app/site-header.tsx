@@ -12,11 +12,18 @@ export function SiteHeader() {
   const { locale, setLocale, t } = useI18n();
   const path = usePathname();
   const [guideOpen, setGuideOpen] = useState(false);
+  const location = path.startsWith("/cloud-tasks/") ? t("Cloud task", "云端任务")
+    : path.startsWith("/runs/") ? t("Test run", "测试运行")
+      : path.startsWith("/tasks/") ? t("Local task", "本地任务")
+        : path.endsWith("/tasks/new") ? t("Create test task", "创建测试任务")
+          : path.endsWith("/memory") ? t("Project experience", "项目经验")
+            : path.endsWith("/cloud") ? t("Cloud testing", "云端测试")
+              : t("Project workspace", "项目工作区");
   return <><a href="#main-content" className="skip-link">{t("Skip to content", "跳转到内容")}</a><header className="topbar">
     <Link href="/" className="brand"><ExperimentOutlined /><span>HyperTest One</span></Link>
     <nav className="topbar-nav" aria-label={t("Main navigation", "主导航")}>
       <Link href="/" aria-current={path === "/" ? "page" : undefined}><AppstoreOutlined aria-hidden /> {t("Projects", "项目")}</Link>
-      {path !== "/" && <span className="header-location">/ {path.startsWith("/runs/") ? t("Test run", "测试运行") : path.startsWith("/tasks/") ? t("Codex test task", "Codex 测试任务") : t("Project workspace", "项目工作区")}</span>}
+      {path !== "/" && <span className="header-location">/ {location}</span>}
     </nav>
     <div className="topbar-actions">
       <Button className="guide-button" type="text" icon={<QuestionCircleOutlined aria-hidden />} onClick={() => setGuideOpen(true)} aria-label={t("Workflow guide", "使用指南")}><span>{t("Guide", "使用指南")}</span></Button>

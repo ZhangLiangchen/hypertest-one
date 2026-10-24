@@ -2,7 +2,7 @@
 
 import { ArrowRightOutlined, BranchesOutlined, FolderOpenOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Empty, Form, Input, Select, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Empty, Form, Input, Select, Space, Table, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { ClientModal as Modal } from "@/app/client-modal";
 import { useI18n } from "@/lib/i18n";
 import { createUuid } from "@/lib/uuid";
 import { ProjectActions } from "@/app/projects/project-actions";
+import { WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 
 type ProjectFormValues = {
   key: string;
@@ -65,14 +66,10 @@ export default function DashboardPage() {
   const openCreate = () => setCreateOpen(true);
 
   return (
-    <main>
-      <div className="page-heading heading-with-action">
-        <div>
-          <Typography.Title level={1} style={{ margin: 0 }}>{t("Projects", "项目工作台")}</Typography.Title>
-          <Typography.Paragraph className="muted page-intro">{t("Manage Codex testing tasks, cases and reports by project.", "按项目管理 Codex 测试任务、用例和报告。")}</Typography.Paragraph>
-        </div>
-        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button>
-      </div>
+    <main className="workspace-page">
+      <WorkspaceHeading title={t("Projects", "项目工作台")}
+        description={t("Manage Codex testing tasks, cases and reports by project.", "按项目管理 Codex 测试任务、用例和报告。")}
+        actions={<Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button>} />
       <section className="workspace-intro" aria-label={t("Testing workflow", "测试工作流")}>
         <div className="intro-mark"><FolderOpenOutlined aria-hidden /></div>
         <div><h2>{t("Keep Codex testing work traceable.", "让 Codex 测试工作，有迹可循。")}</h2><p>{t("Codex performs the testing work. Sync each session's task, plan, cases and original reports to its project.", "Codex 完成测试工作，将每个会话的任务、计划、用例和原始报告同步到所属项目。")}</p></div>
@@ -85,7 +82,7 @@ export default function DashboardPage() {
         </div>
         {projects.isError ? <div className="surface-message"><Alert type="error" showIcon message={t("Unable to load projects", "无法加载项目")} description={errorText(projects.error, locale)} action={<Button onClick={() => void projects.refetch()} loading={projects.isFetching}>{t("Retry", "重试")}</Button>} /></div> : null}
         {status === "deleted" ? <Typography.Paragraph className="table-footnote">{t("Deleted projects retain their keys and history. Restore a project here to use it again.", "已删除项目保留原标识与历史。需要继续使用时，请在此恢复。")}</Typography.Paragraph> : null}
-        {projects.isLoading ? <div className="pane-loading" role="status" aria-label={t("Loading projects…", "正在加载项目…")}><Space direction="vertical" align="center"><Spin /><span className="muted">{t("Loading projects…", "正在加载项目…")}</span></Space></div> : projects.data?.length ? <Table
+        {projects.isLoading ? <WorkspaceLoading label={t("Loading projects…", "正在加载项目…")} /> : projects.data?.length ? <Table
           rowKey="id" pagination={{pageSize: 10, hideOnSinglePage: true}} scroll={{ x: 900 }}
           dataSource={projects.data.filter((project) => (status === "deleted" ? Boolean(project.deleted_at) : !project.deleted_at && (status === "all" || project.status === status)) && `${project.name} ${project.key} ${project.repository_url || ""}`.toLowerCase().includes(search.trim().toLowerCase()))}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("No matching projects. Try a different search or reset the filters.", "未找到匹配项目。请修改搜索内容，或重置筛选。")}><Button onClick={() => { setSearch(""); setStatus("all"); }}>{t("Reset filters", "重置筛选")}</Button></Empty> }}

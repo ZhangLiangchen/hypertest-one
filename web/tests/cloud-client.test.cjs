@@ -168,7 +168,7 @@ function taskPage(status, options = {}) {
   const ui = Object.fromEntries(["Alert", "Button", "Checkbox", "Descriptions", "Space", "Spin", "Steps", "Table", "Tabs", "Tag"].map((name) => [name, name]));
   Object.assign(ui, { Form: { Item: "Form.Item" }, Input: { TextArea: "Input.TextArea" }, Typography: { Title: "Title", Text: "Text", Paragraph: "Paragraph" } });
   let writes = 0;
-  const jsx = (type, props) => ({ type, props });
+  const jsx = (type, props) => typeof type === "function" ? type(props) : ({ type, props });
   const original = JSON.stringify(document);
   const page = load("app/cloud-tasks/[taskId]/page.tsx", { require: (name) => {
     if (name === "react") return { useState: (initial) => [initial, () => {}], useEffect() {} };
@@ -182,6 +182,10 @@ function taskPage(status, options = {}) {
     if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit() { writes++; throw new Error("render must not write"); } }) };
     if (name === "@/lib/i18n") return { useI18n: () => ({ t: (en) => en, label: (value) => value }) };
     if (name === "@/app/tasks/task-records") return { ReportedResultTag: "ReportedResultTag" };
+    if (name === "@/app/workspace-ui") return {
+      WorkspaceHeading: ({ title, description, metadata, actions }) => jsx("header", { children: [jsx("h1", { children: title }), description, metadata, actions] }),
+      WorkspaceLoading: "WorkspaceLoading",
+    };
     if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice" };
     if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
     return require(name);

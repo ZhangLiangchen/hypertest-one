@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Alert, Button, Descriptions, Empty, Modal, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Empty, Modal, Table, Tag, Typography } from "antd";
 import { useI18n } from "@/lib/i18n";
 import { cloudProgressTone, cloudRequest } from "@/lib/cloud";
 import type { CloudAsset, CloudDocument, CloudRecord } from "@/lib/cloud";
@@ -34,7 +34,7 @@ export function CloudTaskRecords({ document }: { document: CloudDocument }) {
       {asset.artifact_id ? <Button onClick={() => void readArtifact(asset.artifact_id!)} loading={reading === asset.artifact_id}>{t("Read original attachment", "读取原始附件")}</Button> : null}
     </div>;
   }
-  return <Space direction="vertical" size={28} style={{ width: "100%" }}>
+  return <div className="workspace-section-stack">
     <section aria-labelledby="cloud-assets-title"><Typography.Title id="cloud-assets-title" level={2}>{t("Test artifacts and revision history", "测试产物与修订历史")}</Typography.Title>
       <Typography.Paragraph className="muted">{t("Analysis, design, cases, code and reports retain each accepted revision. A later PASS does not remove earlier FAIL results.", "分析、设计、用例、代码和报告保留每个接受修订；后续通过不会删除此前失败。 ")}</Typography.Paragraph>
       <div className="data-surface"><Table rowKey="id" dataSource={document.assets || []} scroll={{ x: 780 }} pagination={{ pageSize: 20, hideOnSinglePage: true }} expandable={{ expandedRowRender: assetBody }} locale={{ emptyText: <Empty description={t("No formal artifacts have been accepted yet.", "尚无已接受的正式产物。 ")} /> }} columns={[
@@ -80,5 +80,5 @@ export function CloudTaskRecords({ document }: { document: CloudDocument }) {
     <Modal open={original !== null} onCancel={() => setOriginal(null)} footer={null} title={original?.filename} width={900}>
       <pre className="artifact-content session-markdown">{original?.content}</pre>
     </Modal>
-  </Space>;
+  </div>;
 }

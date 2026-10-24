@@ -8,6 +8,8 @@ const load = require("./load-helper.cjs");
 const helpers = load("lib/local-task-binding.ts");
 const bindingClient = load("lib/task-binding-client.ts");
 const i18n = load("lib/i18n.tsx", { require });
+const workspaceUi = load("app/workspace-ui.tsx", { require: (name) => name === "@/lib/i18n" ? i18n
+  : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
 
 function detail() {
   return { task: { id: "task-1", project_id: "project-1", title: "Awaiting local Agent", objective: "Test an authorized target", plan_markdown: "# Initial plan", status: "DRAFT", reported_result: "NOT_RUN", version: 1, binding_state: "UNBOUND", binding_required: true, intended_actor_ref: null, provider: null, session_id: null, source: null, last_synced_at: null, last_managed_at: "2026-10-23T09:00:00Z", created_at: "2026-10-23T09:00:00Z" }, cases: [], reports: [], case_history: [], report_history: [], sync_history: [], binding_history: [], management_history: [], creation_receipt: { status: "ACCEPTED", operation: "CREATE", task_id: "task-1", project_id: "project-1", version: 1, idempotency_key: "create-original" } };
@@ -227,7 +229,7 @@ test("the task directory reopens both task kinds and marks only unbound Local ro
   const records = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
   const rows = [{ task_id: "cloud-task-1", task_kind: "CLOUD_TASK", product_mode: "CLOUD", title: "Cloud draft", status: "DRAFT", reported_result: "NOT_RUN", version: 1 },
     { task_id: "local-task-1", task_kind: "SESSION_TASK", product_mode: "LOCAL", title: "Local draft", status: "DRAFT", reported_result: "NOT_RUN", version: 1, provider: null, last_synced_at: null }];
-  const page = load("app/projects/[projectId]/cloud/page.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cloud" ? cloud
+  const page = load("app/projects/[projectId]/cloud/page.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi : name === "@/lib/cloud" ? cloud
     : name === "@/lib/api" ? {} : name === "@/lib/cloud-operation" ? { useCloudOperation: () => ({ blocked: false }) }
       : name === "@/app/tasks/task-records" ? records : name === "./cloud-shared" ? { CloudCapabilitiesNotice: () => null, CloudOperationNotice: () => null }
         : name === "./resources" ? { CloudResources: () => null } : name === "./task-form" ? { CloudTaskForm: () => null }
@@ -244,11 +246,13 @@ test("the task directory reopens both task kinds and marks only unbound Local ro
 
 test("unified task creation preserves Local setup and keeps binding mutations out of read-only record components", () => {
   const project = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/page.tsx"), "utf8");
+  const navigation = fs.readFileSync(path.join(__dirname, "../app/workspace-ui.tsx"), "utf8");
   const list = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/session-tasks.tsx"), "utf8");
   const form = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/tasks/new/task-create-form.tsx"), "utf8");
   assert.ok(project.includes('/tasks/new'));
   assert.ok(project.includes('"Create test task", "创建测试任务"'));
-  assert.ok(project.includes('/cloud?tab=tasks'));
+  assert.ok(project.includes('<ProjectNavigation'));
+  assert.ok(navigation.includes('/cloud?tab=tasks'));
   assert.ok(list.includes("<LocalModeGuide"));
   assert.ok(list.includes("SessionTaskActions"));
   assert.ok(form.includes('value: "cloud"'));

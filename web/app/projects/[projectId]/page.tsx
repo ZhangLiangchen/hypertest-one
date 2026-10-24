@@ -24,6 +24,7 @@ import type { PolicyFormValues } from "./policy-fields";
 import { HarnessFields } from "./harness-fields";
 import { ProjectSessionTasks } from "./session-tasks";
 import { ProjectActions } from "../project-actions";
+import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 
 type RunFormValues = PolicyFormValues & EnvironmentFormValues & {
   harness_mode?: "SERVER_HOST" | "LOCAL_CONNECTOR";
@@ -289,7 +290,7 @@ export default function ProjectPage() {
     : importError === "empty" ? t("The file contains no requirements text. Choose a non-empty UTF-8 file or enter requirements below. Your current draft is preserved.", "文件没有需求正文，请选择非空 UTF-8 文件或在下方填写需求。当前草稿已保留。")
     : t("Unable to read the file. Choose it again or paste its contents below.", "无法读取文件，请重新选择，或直接粘贴下方文本。");
 
-  if (project.isLoading) return <Spin size="large" />;
+  if (project.isLoading) return <WorkspaceLoading label={t("Loading project", "正在读取项目")} />;
   if (!project.data) {
     return (
       <main>
@@ -314,21 +315,17 @@ export default function ProjectPage() {
     : errorText(previousInputs.error, locale);
 
   return (
-    <main>
-      <div className="page-heading">
-        <Link href="/"><ArrowLeftOutlined aria-hidden /> {t("Projects", "项目")}</Link>
-        <div className="session-task-title"><Typography.Title level={1}>{project.data.name}</Typography.Title><Space wrap><ProjectActions project={project.data} /><Button type="primary" icon={<PlusOutlined aria-hidden />} href={project.data.deleted_at ? undefined : `/projects/${params.projectId}/tasks/new`} disabled={Boolean(project.data.deleted_at)}>{t("Create test task", "创建测试任务")}</Button></Space></div>
-        <Typography.Paragraph className="muted" style={{ marginTop: 8 }}>
-          {project.data.description || t("Project testing workspace", "项目测试工作台")}
-        </Typography.Paragraph>
-        <Space wrap>
+    <main className="workspace-page">
+      <WorkspaceHeading backHref="/" backLabel={t("Projects", "项目")} title={project.data.name}
+        description={project.data.description || t("Project testing workspace", "项目测试工作台")}
+        actions={<Space wrap><ProjectActions project={project.data} /><Button type="primary" icon={<PlusOutlined aria-hidden />} href={project.data.deleted_at ? undefined : `/projects/${params.projectId}/tasks/new`} disabled={Boolean(project.data.deleted_at)}>{t("Create test task", "创建测试任务")}</Button></Space>}
+        metadata={<>
           <span className="muted">{t("Project key", "项目标识")}: <span className="entity-key">{project.data.key}</span></span>
           <Tag color="blue">{label(project.data.status)}</Tag>
           <Tag icon={<BranchesOutlined aria-hidden />}>{project.data.default_branch}</Tag>
           {project.data.repository_url ? <Tag style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{project.data.repository_url}</Tag> : null}
-        </Space>
-        <Space wrap style={{ marginTop: 16 }}><Link href={`/projects/${params.projectId}/cloud?tab=tasks`}>{t("Cloud and Local task directory", "云端与本地任务目录")}</Link><Link href={`/projects/${params.projectId}/memory`}>{t("Project experience", "项目经验")}</Link></Space>
-      </div>
+        </>} />
+      <ProjectNavigation projectId={params.projectId} active="local" />
 
       {project.data.deleted_at ? <Alert type="warning" showIcon message={t("This project is in the recycle bin", "此项目已移入回收站")} description={t("History remains readable. Restore the project to edit it or continue task synchronization.", "历史仍可查看。请先恢复项目，再编辑或继续同步任务。") } style={{ marginBottom: 20 }} /> : null}
 

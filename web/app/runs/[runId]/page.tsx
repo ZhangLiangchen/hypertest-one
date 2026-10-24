@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeftOutlined,
   PlayCircleOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -11,14 +10,12 @@ import {
   Grid,
   Progress,
   Space,
-  Spin,
   Table,
   Tabs,
   Tag,
   Typography,
   message,
 } from "antd";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -31,6 +28,7 @@ import { RunInputs } from "./run-inputs";
 import { RunHarness } from "./run-harness";
 import { CanonicalDetailsDrawer } from "./canonical-details";
 import type { CanonicalSelection } from "./canonical-details";
+import { WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 
 function statusColor(status: string) {
   if (["COMPLETED", "ACCEPTED", "ACTIVE", "OPEN"].includes(status)) return "green";
@@ -117,7 +115,7 @@ export default function RunPage() {
   const loading = run.isLoading || requirements.isLoading || risks.isLoading || testCases.isLoading || coverage.isLoading || missions.isLoading;
   const error = run.error || requirements.error || risks.error || testCases.error || coverage.error || missions.error;
   const retryState = () => { void operations.refresh(); };
-  if (!run.data && loading) return <div className="pane-loading"><Space direction="vertical" align="center"><Spin size="large" /><Typography.Text type="secondary">{t("Loading test run", "正在加载测试运行")}</Typography.Text></Space></div>;
+  if (!run.data && loading) return <WorkspaceLoading label={t("Loading test run", "正在加载测试运行")} />;
   if (!run.data) {
     return <Alert type="error" showIcon message={t("Unable to load test run", "无法加载测试运行")} description={errorText(error, locale)} action={<Button onClick={retryState}>{t("Retry", "重试")}</Button>} />;
   }
@@ -254,20 +252,12 @@ export default function RunPage() {
   ];
 
   return (
-    <main>
+    <main className="workspace-page">
       {contextHolder}
-      <div className="page-heading">
-        <Link href={`/projects/${run.data.project_id}`}><ArrowLeftOutlined /> {t("Project", "项目")}</Link>
-        <div className="workbench-heading">
-          <div>
-
-            <Typography.Title level={1} style={{ margin: 0 }}>{t("Test run", "测试运行")}<span className="heading-status"><Tag color={run.data.status === "COMPLETED" ? undefined : statusColor(run.data.status)}>{label(run.data.status)}</Tag></span></Typography.Title>
-            <Typography.Paragraph style={{ margin: "8px 0", overflowWrap: "anywhere" }}><Typography.Text code copyable>{run.data.key}</Typography.Text></Typography.Paragraph>
-            <Space wrap style={{ marginTop: 10 }}>
-              <span className="entity-key">{t("Snapshot", "快照")} {run.data.source_snapshot_id}</span>
-            </Space>
-          </div>
-          <div className="workbench-actions">
+      <WorkspaceHeading backHref={`/projects/${run.data.project_id}`} backLabel={t("Project", "项目")}
+        title={t("Test run", "测试运行")}
+        metadata={<><Tag color={run.data.status === "COMPLETED" ? undefined : statusColor(run.data.status)}>{label(run.data.status)}</Tag><Typography.Text code copyable>{run.data.key}</Typography.Text><span className="entity-key">{t("Snapshot", "快照")} {run.data.source_snapshot_id}</span></>}
+        actions={<div className="workbench-actions">
             {operations.actions}
             <details className="secondary-actions">
               <summary>{t("More actions", "更多操作")}</summary>
@@ -277,9 +267,7 @@ export default function RunPage() {
                 <RunInputs sourceId={run.data.source_snapshot_id} policyId={run.data.policy_snapshot_id} />
               </div>
             </details>
-          </div>
-        </div>
-      </div>
+          </div>} />
 
       <section className="coverage-strip" aria-label={t("Test design coverage", "测试设计覆盖")}>
         <dl className="asset-counts">

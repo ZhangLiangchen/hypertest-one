@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Empty, Segmented, Space, Spin, Table, Tabs, Tag, Typography } from "antd";
+import { Alert, Button, Empty, Segmented, Space, Table, Tabs, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { cloudCapabilities, cloudConfiguration, cloudCredentials, cloudDirectory
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
+import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 import { CloudCapabilitiesNotice, CloudOperationNotice } from "./cloud-shared";
 import { CloudResources } from "./resources";
 import { CloudTaskForm } from "./task-form";
@@ -33,17 +34,19 @@ export default function CloudProjectPage() {
   useEffect(() => { if (tasks.data && page > Math.max(1, Math.ceil(tasks.data.total / 20))) setPage(Math.max(1, Math.ceil(tasks.data.total / 20))); }, [tasks.data, page]);
   const enabled = capabilities.data?.enabled === true && project.isSuccess && !project.isError && !project.data?.deleted_at;
   function refresh() { void configuration.refetch(); void credentials.refetch(); void tasks.refetch(); void capabilities.refetch(); }
-  return <main>
-    <div className="page-heading"><Link href={`/projects/${projectId}`}><ArrowLeftOutlined aria-hidden /> {t("Project workspace", "项目工作台")}</Link>
-      <div className="workbench-heading"><div><Typography.Title level={1}>{project.data?.name || t("Project", "项目")} · {t("Cloud testing", "云端测试")}</Typography.Title><Typography.Paragraph className="muted">{t("Configure resources, create a task, freeze exact versions, then follow artifacts and execution results.", "配置资源、创建任务、冻结确切版本，随后查看阶段产物与执行结果。 ")}</Typography.Paragraph></div><Button icon={<ReloadOutlined aria-hidden />} onClick={refresh} disabled={!configured}>{t("Refresh", "刷新")}</Button></div>
-    </div>
-    {setup.isLoading ? <Spin aria-label={t("Checking Cloud access", "正在检查云端访问")} /> : <CloudCapabilitiesNotice configured={configured} capabilities={capabilities.data} />}
+  return <main className="workspace-page">
+    <WorkspaceHeading title={<>{project.data?.name || t("Project", "项目")} · {t("Cloud testing", "云端测试")}</>}
+      description={t("Configure resources, create a task, freeze exact versions, then follow artifacts and execution results.", "配置资源、创建任务、冻结确切版本，随后查看阶段产物与执行结果。 ")}
+      backHref={`/projects/${projectId}`} backLabel={t("Project workspace", "项目工作台")}
+      actions={<Button icon={<ReloadOutlined aria-hidden />} onClick={refresh} disabled={!configured}>{t("Refresh", "刷新")}</Button>} />
+    <ProjectNavigation projectId={projectId} active="cloud" />
+    {setup.isLoading ? <WorkspaceLoading label={t("Checking Cloud access", "正在检查云端访问")} /> : <CloudCapabilitiesNotice configured={configured} capabilities={capabilities.data} />}
     {project.isError || project.data?.deleted_at ? <Alert showIcon type="error" style={{ marginTop: 20 }} message={project.data?.deleted_at ? t("Project is in the recycle bin", "项目已在回收站") : t("Project could not be read", "无法读取项目")}
       description={t("Drafts and loaded records are retained. Return to the project workspace to restore the project or check access before creating or changing Cloud resources.", "保留草稿及已加载记录。请返回项目工作台恢复项目或核对访问权限后，再创建任务或修改云端资源。")}
       action={<Link href={`/projects/${projectId}`}>{t("Open project", "打开项目")}</Link>} /> : null}
     {setup.isError || capabilities.isError || configuration.isError || credentials.isError || tasks.isError ? <Alert showIcon type="warning" style={{ marginTop: 20 }} message={t("Some Cloud records could not be refreshed", "部分云端记录无法刷新")} description={t("Loaded records and drafts remain visible. Refresh to verify current access and versions.", "已加载记录和草稿保留；请刷新核对当前访问与版本。 ")} /> : null}
     <div style={{ marginTop: 24 }}><CloudOperationNotice operation={operation} /></div>
-    <Tabs activeKey={tab} onChange={setTab} animated={false} items={[
+    <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "tasks", label: t("Project tasks", "项目任务"), children: <section aria-labelledby="cloud-task-list-heading">
         <div className="activity-heading"><Typography.Title id="cloud-task-list-heading" level={2}>{t("Cloud and Local tasks", "Cloud 与 Local 任务")}</Typography.Title><Button type="primary" onClick={() => setTab(latest ? "new" : "resources")} disabled={!enabled}>{latest ? t("Create cloud task", "创建云端任务") : t("Configure resources", "配置项目资源")}</Button></div>
         <Space wrap style={{ marginBottom: 20 }}><Segmented aria-label={t("Task source", "任务来源")} value={mode} onChange={(value) => { setMode(String(value)); setPage(1); }} options={[{ value: "", label: t("All sources", "全部来源") }, { value: "CLOUD", label: "Cloud" }, { value: "LOCAL", label: "Local" }]} /><Typography.Text type="secondary">{t("Task identities and histories remain independent.", "两类任务的身份和历史各自保留。 ")}</Typography.Text></Space>

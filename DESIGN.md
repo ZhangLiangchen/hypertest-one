@@ -16,6 +16,8 @@ colors:
   placeholder: "#5f6f85"
   navigation-selected: "#e4ecfb"
   tab-selected: "#e0eafb"
+  workspace-selected: "#e9f0ff"
+  segmented-track: "#edf1f7"
   trail: "#edf2fa"
   info: "#0e7490"
   info-bg: "#e7f6fb"
@@ -33,6 +35,7 @@ colors:
   info-tag-bg: "#edf5fb"
   danger-surface: "#fff8f7"
   warning-surface: "#fffcf3"
+  warning-border: "#e7ddc2"
   table-header: "#f7f9fc"
   table-hover: "#f3f7ff"
   contrast-muted: "#34445c"
@@ -53,6 +56,16 @@ typography:
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "18px"
     letterSpacing: "-0.02em"
+  section:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.45
+    letterSpacing: "-0.02em"
+  subsection:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: "17px"
+    lineHeight: 1.5
   body:
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
     fontSize: "14px"
@@ -145,6 +158,26 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.surface}"
     padding: "4px"
+  project-navigation:
+    backgroundColor: "{colors.glass}"
+    textColor: "{colors.muted}"
+    rounded: "{rounded.navigation-compact}"
+    padding: "6px"
+  project-navigation-selected:
+    backgroundColor: "{colors.navigation-selected}"
+    textColor: "{colors.primary-active}"
+    rounded: "{rounded.section}"
+    padding: "11px 18px"
+  workspace-tab-selected:
+    backgroundColor: "{colors.workspace-selected}"
+    textColor: "{colors.primary-active}"
+    padding: "10px 16px"
+  table-cell:
+    padding: "16px 20px"
+  warning-notice:
+    backgroundColor: "{colors.warning-surface}"
+    textColor: "{colors.warning-ink}"
+    rounded: "{rounded.compact-surface}"
 ---
 
 # Design System: HyperTest One
@@ -155,9 +188,9 @@ components:
 
 HyperTest One places a quiet, floating control plane above stable testing records. Pale cool canvas, white reading surfaces, graphite text and one blue action accent keep daily QA work clear. Frosted navigation gains definition from an inner light and a soft downward shadow; aligned records, immutable identifiers and adjacent evidence retain the reference-index structure.
 
-The material direction adapts Apple's [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented.
+The material direction adapts Apple's [Liquid Glass overview](https://developer.apple.com/documentation/TechnologyOverviews/liquid-glass), [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) and [Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/) to the existing web workspace. The reusable principles are separation between navigation and content, related corner geometry, restrained interaction feedback and legibility across user preferences. The implementation uses CSS translucency and backdrop filtering, with opaque alternatives; native optical refraction is not implemented. [ReportPortal's test-execution workspace](https://reportportal.io/docs/test-executions/) is the reference for table-oriented inspection, visible filters and adjacent record actions; HyperTest retains its own task and result semantics.
 
-Daily operation determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.
+Daily operation on PC wide screens determines density and typography. A decision stays close to its reason and evidence, supporting metadata stays readable, and Chinese and English receive the same hierarchy. These rules describe the current checkout's shared stylesheet, Ant Design provider and application components across the eight workspace routes. Mobile and portrait adaptation are outside the current design scope. Product and canonical-state semantics remain governed by PRODUCT.md and the four foundational specifications.
 
 **Key Characteristics:**
 - Floating light navigation with a single frosted material per navigation surface.
@@ -171,11 +204,11 @@ Electric blue supplies action emphasis; pale cool neutrals separate navigation f
 
 ### Primary
 - **Electric Blue** (`primary`, `primary-hover`, `primary-active`): primary actions, links, caret and keyboard focus. Selected navigation uses the darker active ink on a pale blue fill.
-- **Cool Navigation Fields** (`navigation-selected`, `tab-selected`, `trail`): current global navigation, selected run section and the connected evidence strip. Preserve their individual roles.
+- **Cool Navigation Fields** (`navigation-selected`, `tab-selected`, `workspace-selected`, `trail`): current global/project navigation, selected run section, workspace tabs and the connected evidence strip. Preserve their individual roles. Segmented controls use their own neutral track.
 
 ### Secondary
 - **Information Teal** (`info`, `info-bg`, `info-border`): informational messages and test-design progress.
-- **Recorded State Colors** (`success`, `warning`, `error`): established semantic feedback, reinforced by written labels. Danger and warning decisions use their dedicated ink and opaque surface tokens.
+- **Recorded State Colors** (`success`, `warning`, `error`): established semantic feedback, reinforced by written labels. Danger and warning decisions use their dedicated ink and opaque surface tokens. Shared warning notices also use the warning surface, border and ink roles, keeping extended explanations readable.
 - **Semantic Tag Colors** (`success-tag-*`, `danger-tag-bg`, `warning-tag-bg`, `info-tag-*`): readable foregrounds on restrained state fills. Red and gold tags use the corresponding danger and warning ink tokens; volcano also retains its explicit authored override.
 
 ### Neutral
@@ -197,9 +230,10 @@ Keep the `html .ant-tag.ant-tag-*` selector specificity so Ant preset rules do n
 **Character:** compact hierarchy for repeated scanning and extended reading. Identifiers distinguish immutable records without competing with human-readable names; numerical counts and table values use tabular figures.
 
 ### Hierarchy
-- **Headline:** page title; reduces to the mobile title size (25px) at the mobile breakpoint.
-- **Title:** quality decision; reduces on mobile (23px). Section headings vary with position (14–17px, weight 600).
+- **Headline:** the single page title in the shared workspace heading.
+- **Title:** quality decision. Existing compact overview labels retain their local hierarchy.
 - **Overlay Title:** modal and drawer title, with modest negative tracking.
+- **Section / Subsection:** shared panel headings and nested form sections. Ant Card headings use the subsection size; shared section headings are the stronger panel level.
 - **Body:** Ant Design's base reading and control size. Longer decision and task text uses the reading role; decision reasons are capped at a readable measure (72ch).
 - **Label:** table headers, filters, metadata and evidence navigation. Compact supporting record labels sometimes use smaller type (11px).
 - **Identifier / Artifact:** keys and logs; preserve original text, line breaks and wrapping. Artifact content scrolls within a bounded viewport (65vh).
@@ -208,17 +242,21 @@ Keep the `html .ant-tag.ant-tag-*` selector specificity so Ant preset rules do n
 
 The sticky header floats above the page with a separate inset: desktop height (68px), top offset and margin (16px), side gutters (24px), maximum width (1460px) and horizontal padding (22px). Its desktop corner is larger than the contained controls. The centered content container has its own maximum width (1400px), side gutters (48px), top padding (40px) and bottom padding (64px).
 
-Navigation progresses from Projects to a project's runs to one run. Context links preserve that hierarchy. At desktop widths (992px upward), run sections use a left index (180px wide, 8px inner padding) separated from pane content by a gap (24px). Below that boundary, the index becomes a horizontal strip with the library's overflow controls. Overview groups use a proportional split (1.25:1), with normal gaps (20px or 24px) tightening below 1200px (16px). Dense tables own horizontal scrolling; long identifiers wrap inside their content region.
+Navigation progresses from Projects to a project workspace to a Local task, Cloud task or legacy run. Project navigation keeps Local tasks, Cloud testing and Project experience adjacent while preserving their separate identities. On the desktop run workbench, sections use a left index (180px wide, 8px inner padding) separated from pane content by a gap (24px). Overview groups use a proportional split (1.25:1), with normal gaps (20px or 24px). Dense tables own horizontal scrolling; long identifiers wrap inside their content region.
 
-At 991px and below, content gutters reduce (20px) and top padding tightens (28px). At 640px and below, content gutters reduce again (16px) and top padding tightens (24px); the header uses a smaller height (60px), top offset and margin (10px), side gutters (10px), inner horizontal padding (12px) and compact corner. Heading actions stack, overview panels become one column, and four evidence links form a two-by-two grid. Coverage counts move above the measures. Supporting workflow labels disappear below 1200px. Mobile keeps the home brand, guide and language controls while page context links support navigation.
+Shared workspace headings align a title and description with a trailing action group, separated by a gap (24px). Description text has a readable measure (75ch); metadata sits below the title row with its own spacing (18px top margin, 8px by 16px gaps). The project navigation is a content-width floating strip with an inner inset (6px) and section separation (28px below). Shared panel stacks and adjacent workspace panels keep a clear gap (24px), including the project-experience search and records panels.
 
-The spacing vocabulary combines small control gaps with comfortable panel and section separation; it is not a mandatory single-step grid. Typical panel padding is the panel step, tightening to the compact panel step on smaller layouts. Textarea counters reserve a separate bottom line (24px margin) before explanatory Form.Item text. Preserve that reservation when adding counted fields.
+Task creation uses a centered form width (1040px). Repository pairs use equal columns and a gap (24px); form sections use vertical separation (24px) with fine dividers, and actions have their own top rule. Form items keep the same vertical rhythm (24px). Description blocks use readable label fields, a title separation (20px) and item spacing (16px).
+
+The supported operating context is PC wide screens. Existing compact and narrow-screen media queries remain in the stylesheet as compatibility fallbacks; they do not establish mobile or portrait design requirements, and no mobile or portrait validation is claimed for this extension.
+
+The spacing vocabulary combines small control gaps with comfortable panel and section separation; it is not a mandatory single-step grid. Typical workspace panel padding is the panel step, shared through the stylesheet's panel spacing token. Textarea counters reserve a separate bottom line (24px margin) before explanatory Form.Item text. Preserve that reservation when adding counted fields.
 
 **The Action Hierarchy Rule.** Keep the complete testing cycle as the principal run action; group secondary planning, execution, gate and input actions in the existing More actions disclosure.
 
 ## Elevation & Depth
 
-Depth belongs to navigation and immediate control feedback. Header and run-section navigation share a fine inner highlight and diffuse downward shadow. White content surfaces use fill and a thin border without an added ambient shadow. Primary buttons have a small colored shadow at rest and a slightly larger hover shadow; default buttons retain no resting shadow. Modals, drawers and menus use their library overlay behavior.
+Depth belongs to navigation and immediate control feedback. Header, project navigation and run-section navigation share a fine inner highlight and diffuse downward shadow. White content surfaces use fill and a thin border without an added ambient shadow. Primary buttons have a small colored shadow at rest and a slightly larger hover shadow; default buttons retain no resting shadow. Modals, drawers and menus use their library overlay behavior.
 
 ### Shadow Vocabulary
 - **Navigation glass:** `var(--ht-glass-shadow)` — `0 8px 30px rgb(34 58 98 / 9%), 0 2px 5px rgb(34 58 98 / 4%), inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 0 0 1px rgb(255 255 255 / 72%)`.
@@ -227,13 +265,13 @@ Depth belongs to navigation and immediate control feedback. Header and run-secti
 - **Navigation hover:** `0 2px 7px rgb(34 58 98 / 7%)`.
 - **Selected run section:** `inset 0 1px 0 rgb(255 255 255 / 90%), 0 2px 5px rgb(34 58 98 / 5%)`.
 
-**The Navigation Material Rule.** Apply backdrop filtering only to the shared header and run-section navigation. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within a glass surface use fills rather than a second glass layer.
+**The Navigation Material Rule.** Apply backdrop filtering only to the shared header, project navigation and run-section navigation. Keep decisions, evidence, tables, forms and reading surfaces opaque; controls within a glass surface use fills rather than a second glass layer.
 
-The two navigation surfaces use a fixed filter (`blur(24px) saturate(130%)`) only inside the filter-support query. Their base material is the solid shell, so browsers without filter support retain a readable surface. Reduced transparency and increased contrast replace the filter with solid fill and a stronger inset edge. Forced colors use system Canvas, CanvasText and Highlight, with filtering and shadows removed. Do not animate backdrop blur.
+Navigation surfaces use a fixed filter (`blur(24px) saturate(130%)`) only inside the filter-support query. Their base material is the solid shell, so browsers without filter support retain a readable surface. Reduced transparency and increased contrast replace the filter with solid fill and a stronger inset edge. Forced colors use system Canvas, CanvasText and Highlight, with filtering and shadows removed. Do not animate backdrop blur.
 
 ## Shapes
 
-Related corners create the shared form language: major content surfaces use the surface radius; standard controls use the control radius; modal and drawer bodies use their overlay radii. The desktop header uses the navigation radius and tightens to the compact navigation radius on mobile. Run navigation uses the compact navigation radius, with section controls using the section radius. Primary actions, current header links, counts and header utility controls are capsules.
+Related corners create the shared form language: major content surfaces use the surface radius; standard controls use the control radius; modal and drawer bodies use their overlay radii. The desktop header uses the navigation radius. Project and run navigation use the compact navigation radius, with section controls using the section radius. Primary actions, current header links, counts and header utility controls are capsules. Workspace tabs have rounded upper corners (10px) over a fine baseline; segmented controls use a track radius (12px) with smaller selected-item corners (8px).
 
 Compact table wrappers, alerts and policy blocks retain their compact-surface radius. Semantic tags and artifact blocks retain smaller corners; these are local content treatments, not defaults for new controls. Borders are normally one pixel. The evidence strip has the surface radius and a small inner inset; its internal buttons have related corners (11px), while dividers keep the group connected. Project avatars use the section radius.
 
@@ -251,10 +289,15 @@ Keep drafts on the current page when dialogs close. Creation runs through source
 Tags show a written status. Green, red, gold, blue/geekblue and volcano retain explicit semantic overrides; neutral tags serve metadata and states that do not imply success. General tags can wrap long content. Project status labels remain on one line so English Archived stays intact in its status cell. A verified evidence tag does not imply a passing run.
 
 ### Cards / Containers
-White bordered containers use the surface radius and normal panel spacing. Danger and warning decisions add opaque semantic fill and border. Table headings are lightly tinted, rows have a cool hover field and vertical cell padding (20px). Empty, loading and failed reads occupy the same region as their eventual content and offer a relevant next action or retry.
+White bordered containers use the surface radius and normal panel spacing. Danger and warning decisions add opaque semantic fill and border. Table headings are lightly tinted, rows have a cool hover field and cell padding (16px vertically, 20px horizontally); explicitly small tables retain the library's compact size. Ant Cards use a restrained header (56px high) and normal panel padding. Empty, loading and failed reads occupy the same region as their eventual content and offer a relevant next action or retry.
+
+### Workspace heading and loading
+The shared workspace heading provides a single page-title level, optional back link, description, action group and metadata row. Keep project and task names at that level rather than inventing route-specific heading systems. The shared loading surface pairs a written status with a skeleton title and four text rows in an opaque bordered panel (28px padding); when placed inside a table surface it reuses that surface's outer border.
 
 ### Navigation
 The brand returns home; the header identifies project/run context and exposes guide and language controls. Current global navigation combines `aria-current`, darker blue ink and a pale capsule fill. Hover adds a light fill and a small shadow. The locale control uses a thin translucent fill within the header, with no second backdrop filter.
+
+Project navigation uses three icon-and-label links for Local tasks, Cloud testing and Project experience, with `aria-current="page"` on the active destination. Links have generous inline padding (18px), a minimum height (42px), the section radius and a pale selected fill. This navigation shares the header's glass and solid-material fallbacks. Workspace content tabs remain opaque and use the workspace-selected field; they do not add another glass layer. Segmented switches keep a neutral track, white selected item and darker blue selected text.
 
 Run tabs sit on one frosted navigation surface. Selected and active text use the darker blue token, paired with the selected section fill; hover uses the configured hover ink. Tabs retain selection per run in session storage and through language changes. Evidence shortcuts select the relevant section and focus its selected tab. Keep the library's keyboard behavior, including Home/End and Enter activation. Details open in solid drawers so users retain run context.
 
@@ -264,7 +307,7 @@ The lead decision is the highest-sequence verdict whose status is `FINAL` and sc
 The opaque evidence trail links to executions, findings, evidence and verdicts, carrying counts or a dash when data has not loaded. Unknown coverage is labeled Unknown rather than displayed as zero. Failed refreshes retain loaded records with a retry warning. Agent activity remains supporting information; trusted Runner execution and evidence provide formal facts.
 
 ### Overlays
-Modal and drawer bodies remain opaque with related overlay corners. Modals use generous internal padding (28px desktop, 24px vertically and 20px horizontally on mobile). The right drawer floats inside a viewport inset (12px), with a lightly tinted header and an opaque reading area. Close controls are capsules; long URLs, hashes and descriptions wrap within the available width.
+Modal and drawer bodies remain opaque with related overlay corners. Modals use generous internal padding (28px). The right drawer floats inside a viewport inset (12px), with a lightly tinted header and an opaque reading area. Close controls are capsules; long URLs, hashes and descriptions wrap within the available width.
 
 ### Accessibility and motion
 Maintain a skip link, visible keyboard focus, accessible control names, semantic headings and written statuses in both languages. The authored focus outline uses the primary accent (3px with a 3px offset). Ant Design also receives the primary accent through `colorPrimaryBorder` so its controls retain strong library focus treatment. Clamped overview descriptions retain links to the full content. No accessibility conformance level is inferred from these implementation rules.
@@ -277,6 +320,7 @@ The provider initializes reduced motion to true, mounting Ant's motion wrapper f
 
 ### Do:
 - **Do** use the pale cool canvas, floating light navigation, blue actions and opaque reading surfaces for new operating pages.
+- **Do** use the shared workspace heading, project navigation and panel spacing across PC wide-screen pages.
 - **Do** keep decisions, reasons, record identity and evidence reachable in one reading path.
 - **Do** preserve bilingual drafts, selected run sections, loaded results and immutable history during updates.
 - **Do** give readable help the muted description token and reserve a separate line for textarea counters.
