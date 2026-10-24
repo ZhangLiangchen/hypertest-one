@@ -81,7 +81,10 @@ def controlled_errors(func):
 @router.get("/capabilities")
 async def capabilities():
     from hypertest.api.task_schemas import (
-        GET_TASK_SCHEMA, TASK_BINDING_QUERY_SCHEMA, SessionTaskSync, TaskBind,
+        GET_TASK_SCHEMA,
+        TASK_BINDING_QUERY_SCHEMA,
+        SessionTaskSync,
+        TaskBind,
     )
 
     entries = [

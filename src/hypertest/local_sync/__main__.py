@@ -11,7 +11,14 @@ from hypertest.interactive_client.config import ClientConfig
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.ipc import LocalClient
 from hypertest.local_sync.hosts import HOST_PROVIDERS
-from hypertest.local_sync.installer import doctor, install, recover_install, rollback, uninstall, upgrade_owned
+from hypertest.local_sync.installer import (
+    doctor,
+    install,
+    recover_install,
+    rollback,
+    uninstall,
+    upgrade_owned,
+)
 
 
 async def hook(config_path: Path):

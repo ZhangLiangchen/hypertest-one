@@ -14,9 +14,8 @@ from hypertest.api.task_schemas import (
     TaskBind,
     TaskBindingAuthorization,
 )
-from hypertest.application import interactive
+from hypertest.application import interactive, task_binding
 from hypertest.application import session_tasks as service
-from hypertest.application import task_binding
 from hypertest.connector.security import require_operator
 from hypertest.db.session import get_db
 from hypertest.domain.interactive import (

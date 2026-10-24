@@ -10,6 +10,11 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from test_local_sync import configure_artifact_source, full
+from test_local_sync import local as local
+from test_session_task_mcp import NoExecutionHost
+from test_session_tasks import body, sync
+from test_session_tasks import context as context
 
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application.services import create_project
@@ -17,19 +22,13 @@ from hypertest.common.ids import public_key
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.interactive_client.api_client import ApiError
 from hypertest.interactive_client.errors import ClientError
-from hypertest.interactive_client.journal import Journal
 from hypertest.interactive_client.ipc import LocalClient, LocalServer
+from hypertest.interactive_client.journal import Journal
 from hypertest.interactive_client.service import InteractiveService
 from hypertest.local_sync.coordinator import LocalSyncCoordinator
 from hypertest.local_sync.sources import source_binding
 from hypertest.sync_core import FrozenIntent
 from hypertest.sync_core.storage import JournalLedger
-
-from test_local_sync import configure_artifact_source, full
-from test_local_sync import local as local
-from test_session_tasks import body, sync
-from test_session_tasks import context as context
-from test_session_task_mcp import NoExecutionHost
 
 
 async def create_local(f, **changes):
@@ -293,7 +292,10 @@ class BindingTransport:
 
     async def capabilities(self):
         from hypertest.api.task_schemas import (
-            GET_TASK_SCHEMA, TASK_BINDING_QUERY_SCHEMA, SessionTaskSync, TaskBind,
+            GET_TASK_SCHEMA,
+            TASK_BINDING_QUERY_SCHEMA,
+            SessionTaskSync,
+            TaskBind,
         )
         from hypertest.interactive_client import PROFILE
 
@@ -513,6 +515,7 @@ async def mcp_binding_boundary(native_binding):
 @pytest.mark.parametrize("operation", ["bind", "manual-sync", "manual-sync-old-target"])
 async def test_child_meta_cannot_write_known_parent_through_mcp_and_private_ipc(mcp_binding_boundary, operation):
     from mcp.shared.memory import create_connected_server_and_client_session
+
     from hypertest.interactive_client.mcp_server import create_server
 
     _, api, journal, service, ipc_client, payload, _ = mcp_binding_boundary
@@ -542,6 +545,7 @@ async def test_child_meta_cannot_write_known_parent_through_mcp_and_private_ipc(
 @pytest.mark.parametrize("spoof", ["no-metadata", "argument-meta", "argument-caller-context"])
 async def test_bind_arguments_cannot_supply_or_override_mcp_native_caller(mcp_binding_boundary, spoof):
     from mcp.shared.memory import create_connected_server_and_client_session
+
     from hypertest.interactive_client.mcp_server import create_server
 
     _, api, journal, service, ipc_client, payload, _ = mcp_binding_boundary
@@ -567,6 +571,7 @@ async def test_bind_arguments_cannot_supply_or_override_mcp_native_caller(mcp_bi
 async def test_unsupported_host_mcp_binding_fails_closed_but_original_key_get_remains_available(
         mcp_binding_boundary, host, provider, metadata):
     from mcp.shared.memory import create_connected_server_and_client_session
+
     from hypertest.interactive_client.mcp_server import create_server
 
     config, api, journal, service, ipc_client, payload, event = mcp_binding_boundary

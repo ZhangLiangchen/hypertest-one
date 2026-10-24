@@ -76,7 +76,7 @@ jobs:
           import importlib.util
           from hypertest.main import app
           from hypertest.memory.powercontext import PowerContextAdapter
-          assert any(route.path == "/api/v1/memory/operations" for route in app.routes)
+          assert "post" in app.openapi()["paths"]["/api/v1/memory/operations"]
           assert PowerContextAdapter.__name__ == "PowerContextAdapter"
           assert importlib.util.find_spec("deepseek_harness") is None
           assert importlib.util.find_spec("deepseek_harness_runtime") is None
