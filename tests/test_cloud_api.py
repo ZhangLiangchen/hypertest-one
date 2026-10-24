@@ -60,6 +60,7 @@ async def test_capabilities_are_default_off_and_explicit_about_unsupported_execu
     monkeypatch.setattr(get_settings(), "cloud_worker_enabled", False)
     monkeypatch.setattr(get_settings(), "cloud_codex_enabled", False)
     monkeypatch.setattr(get_settings(), "cloud_ssh_enabled", False)
+    monkeypatch.setattr(get_settings(), "cloud_https_enabled", False)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://localhost") as client:
         response = await client.get("/api/v1/cloud/capabilities")
     assert response.status_code == 200
@@ -71,7 +72,8 @@ async def test_capabilities_are_default_off_and_explicit_about_unsupported_execu
     assert data["supported"]["ssh_fixed_diagnostics"]
     assert data["supported"]["ssh_profile"] == "SSH_FIXED_DIAGNOSTICS_V1"
     assert data["configuration"] == {"cloud_enabled": False, "worker_enabled": False,
-                                     "codex_enabled": False, "ssh_fixed_diagnostics_enabled": False}
+                                     "codex_enabled": False, "ssh_fixed_diagnostics_enabled": False,
+                                     "https_controlled_api_enabled": False}
     assert data["support_semantics"] == "IMPLEMENTATION_NOT_ADMISSION"
     assert data["admission"] == {"state": "NOT_CHECKED", "scope": "PER_ATTEMPT", "checked_by": "WORKER"}
     assert "model_execution" in data["not_proven"]
@@ -83,11 +85,11 @@ async def test_capability_flags_never_claim_runtime_or_credential_admission(monk
 
     from hypertest.api import cloud_routes
 
-    # Only these four configuration booleans are available: no identity, file,
+    # Only these five configuration booleans are available: no identity, file,
     # runtime/payload path, model credential or Worker probe can be consulted.
     monkeypatch.setattr(cloud_routes, "get_settings", lambda: SimpleNamespace(
         cloud_enabled=enabled, cloud_worker_enabled=enabled,
-        cloud_codex_enabled=enabled, cloud_ssh_enabled=enabled))
+        cloud_codex_enabled=enabled, cloud_ssh_enabled=enabled, cloud_https_enabled=enabled))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://localhost") as client:
         response = await client.get("/api/v1/cloud/capabilities")
     assert response.status_code == 200

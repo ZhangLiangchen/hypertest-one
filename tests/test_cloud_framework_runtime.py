@@ -2,9 +2,11 @@
 import hashlib
 import os
 import platform
+import subprocess
 import sys
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -22,6 +24,21 @@ def spec():
         "tools": [{"name": "python", "version": platform.python_version(),
             "sha256": runtime._hash_executable(Path(sys.executable).resolve())}],
         "entrypoints": [{"key": "python -m pytest", "argv": ["python", "-m", "pytest", "-q"]}]}
+
+
+@pytest.fixture
+def trusted_python(monkeypatch, tmp_path):
+    # setup-python's hosted tool cache is not a trusted Worker installation.
+    # Inspect the fixed system interpreter through the unchanged trust checks.
+    executable = Path("/usr/bin/python3").resolve(strict=True)
+    monkeypatch.setattr(runtime, "sys", SimpleNamespace(executable=str(executable)))
+    assert runtime._runtime_executable("python", tmp_path) == executable
+    observed = subprocess.run([str(executable), "--version"], check=True, timeout=5,
+        capture_output=True, text=True, cwd="/",
+        env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"})
+    assert observed.stdout.startswith("Python ")
+    return {"name": "python", "version": observed.stdout.removeprefix("Python ").strip(),
+        "sha256": runtime._hash_executable(executable)}
 
 
 @pytest.mark.parametrize("path", ["../requirements.lock", "/tmp/requirements.lock", "./requirements.lock",
@@ -68,8 +85,9 @@ async def test_absent_spec_preserves_legacy_no_inspection(tmp_path, monkeypatch)
     assert await runtime.inspect_framework_runtime(tmp_path / "absent", None, ["old entrypoint"]) is None
 
 
-async def test_real_fixed_python_and_locks_observed_without_running_entrypoint(tmp_path):
+async def test_real_fixed_python_and_locks_observed_without_running_entrypoint(tmp_path, trusted_python):
     selected = spec()
+    selected["tools"] = [trusted_python]
     (tmp_path / "requirements.lock").write_bytes(b"pytest==8.4.2\n")
     marker = tmp_path / "must-not-exist"
     selected["entrypoints"][0]["argv"] = ["python", "-c", f"open({str(marker)!r}, 'w').write('executed')"]
@@ -123,8 +141,9 @@ async def test_entrypoint_set_must_match_original_inputs_before_filesystem(tmp_p
         await runtime.inspect_framework_runtime(tmp_path, selected, ["new unauthorized entrypoint"])
 
 
-async def test_executable_digest_precedes_version_and_repository_path_is_not_used(tmp_path, monkeypatch):
+async def test_executable_digest_precedes_version_and_repository_path_is_not_used(tmp_path, monkeypatch, trusted_python):
     selected = spec()
+    selected["tools"] = [trusted_python]
     (tmp_path / "requirements.lock").write_bytes(b"pytest==8.4.2\n")
     selected["tools"][0]["sha256"] = "0" * 64
     async def forbidden(*args, **kwargs):
@@ -144,8 +163,9 @@ async def test_executable_digest_precedes_version_and_repository_path_is_not_use
         assert actual != executable and not actual.is_relative_to(tmp_path)
 
 
-async def test_matching_binary_with_wrong_version_is_refused(tmp_path):
+async def test_matching_binary_with_wrong_version_is_refused(tmp_path, trusted_python):
     selected = spec()
+    selected["tools"] = [trusted_python]
     (tmp_path / "requirements.lock").write_bytes(b"pytest==8.4.2\n")
     selected["tools"][0]["version"] = "0.0.0"
     with pytest.raises(CloudBlocked, match="version differs"):

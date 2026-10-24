@@ -232,11 +232,15 @@ async def test_read_pagination_hash_scope_cursor_and_revocation(api_context):
     assert (await c.get(url, headers=h)).status_code == 403
 
 
-async def test_strict_capabilities_never_accept_host_identity_from_mcp(api_context):
-    caps = (await api_context["client"].get("/api/v1/interactive/capabilities")).json()
+async def test_strict_capabilities_never_accept_host_identity_from_mcp():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://localhost") as client:
+        response = await client.get("/api/v1/interactive/capabilities")
+    assert response.status_code == 200
+    caps = response.json()
     assert caps["profile"] == "hypertest.interactive-mcp/v1alpha1"
-    assert len(caps["tools"]) == 11 and len(caps["execution_tools"]) == 9
-    assert {"hypertest_sync_task", "hypertest_get_task"} <= {t["name"] for t in caps["tools"]}
+    assert len(caps["tools"]) == 13 and len(caps["execution_tools"]) == 9
+    assert {"hypertest_sync_task", "hypertest_get_task", "hypertest_bind_task",
+            "hypertest_get_task_binding"} <= {t["name"] for t in caps["tools"]}
     bind = next(t for t in caps["tools"] if t["name"] == "hypertest_bind_execution")
     assert "host_proof" not in bind["inputSchema"]["properties"]
     complete = next(t for t in caps["execution_tools"] if t["name"] == "complete_mission")
