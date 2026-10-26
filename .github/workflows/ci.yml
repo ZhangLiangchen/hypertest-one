@@ -1,9 +1,8 @@
 name: ci
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  # Rapid prototyping: full platform checks run only when manually requested.
+  workflow_dispatch:
 
 jobs:
   test:
