@@ -26,11 +26,11 @@ export default function DashboardPage() {
   return (
     <main className="workspace-page">
       <WorkspaceHeading title={t("Projects", "项目工作台")}
-        description={t("Manage Codex testing tasks, cases and reports by project.", "按项目管理 Codex 测试任务、用例和报告。")}
+        description={t("Manage local and cloud testing tasks, cases and reports by project.", "按项目统一管理本地与云端测试任务、用例和报告。")}
         actions={<Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button>} />
       <section className="workspace-intro" aria-label={t("Testing workflow", "测试工作流")}>
         <div className="intro-mark"><FolderOpenOutlined aria-hidden /></div>
-        <div><h2>{t("Keep Codex testing work traceable.", "让 Codex 测试工作，有迹可循。")}</h2><p>{t("Codex performs the testing work. Sync each session's task, plan, cases and original reports to its project.", "Codex 完成测试工作，将每个会话的任务、计划、用例和原始报告同步到所属项目。")}</p></div>
+        <div><h2>{t("Keep testing work traceable.", "让测试工作，有迹可循。")}</h2><p>{t("Connect Codex, Claude Code or DeepSeek Harness locally, or use DeepSeek Harness + Codex for cloud testing. Keep tasks, plans, cases and original reports together by project.", "本地接入 Codex、Claude Code 和 DeepSeek Harness，云端支持 DeepSeek Harness + Codex 测试；任务、计划、用例与原始报告统一归档到所属项目。")}</p></div>
         <div className="workflow-labels"><span>{t("Task", "任务")}</span><ArrowRightOutlined aria-hidden /><span>{t("Cases", "用例")}</span><ArrowRightOutlined aria-hidden /><span>{t("Reports & history", "报告与历史")}</span></div>
       </section>
       <section className="data-surface" aria-label={t("Project list", "项目列表")}>
@@ -52,7 +52,7 @@ export default function DashboardPage() {
             {title: t("Open", "打开"), key: "open", width: 65, render: (_, project) => <Link href={`/projects/${project.id}`} aria-label={`${t("Open project", "打开项目")} ${project.name}`}><ArrowRightOutlined /></Link>},
             {title: t("Actions", "操作"), key: "actions", width: 120, render: (_, project) => <ProjectActions project={project} compact />},
           ]}
-        /> : projects.data ? <div className="empty-workspace"><FolderOpenOutlined aria-hidden /><h3>{t("Your first project starts here", "从第一个项目开始")}</h3><p>{t("Create a project, then sync testing tasks and artifacts from your Codex sessions.", "创建项目后，从 Codex 会话同步测试任务和产物。")}</p><Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button></div> : null}
+        /> : projects.data ? <div className="empty-workspace"><FolderOpenOutlined aria-hidden /><h3>{t("Your first project starts here", "从第一个项目开始")}</h3><p>{t("Create a project, then connect a local Agent or set up cloud testing to manage tasks and artifacts.", "创建项目，接入本地 Agent 或配置云端测试，集中管理任务和产物。")}</p><Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate}>{t("Create project", "创建项目")}</Button></div> : null}
       </section>
 
       {createOpened && <CreateProjectDialog open={createOpen} onClose={() => setCreateOpen(false)} projects={projects.data || []} />}

@@ -5,13 +5,13 @@ import { useI18n } from "@/lib/i18n";
 
 export function WorkflowGuide({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
-  return <Drawer title={t("Manage Codex testing work", "管理 Codex 测试工作")} open={open} onClose={onClose} width={440}>
+  return <Drawer title={t("Manage local and cloud testing work", "管理本地与云端测试工作")} open={open} onClose={onClose} width={440}>
     <Typography.Paragraph>{t("One Input. One Mission. One Complete Test Cycle.", "一次输入，一个使命，完整测试闭环。")}</Typography.Paragraph>
     <Steps direction="vertical" current={-1} items={[
       { title: t("Choose a project", "选择测试项目"), description: t("Keep each project's tasks, cases and reports together.", "集中管理项目的任务、用例和报告。") },
-      { title: t("Work in Codex", "在 Codex 中测试"), description: t("Use one Codex session for one task. Codex analyzes, designs, implements and calls the project's existing tests.", "一个 Codex 会话对应一个任务，由 Codex 分析、设计、实现并调用项目已有测试。") },
-      { title: t("Sync the work", "同步测试产物"), description: t("Sync the task, plan, cases and original reports from the session.", "从会话同步任务、计划、用例和原始报告。") },
-      { title: t("Review results and history", "查看结果与历史"), description: t("Read Codex's reported results, original reports and revisions. Task progress and test results are shown separately.", "查看 Codex 报告结果、原始报告和修订。任务进度与测试结果分别展示。") },
+      { title: t("Choose a testing mode", "选择测试方式"), description: t("Test locally with Codex, Claude Code or DeepSeek Harness. Cloud testing supports DeepSeek Harness + Codex.", "本地可使用 Codex、Claude Code 或 DeepSeek Harness；云端支持 DeepSeek Harness + Codex 测试。") },
+      { title: t("Collect testing artifacts", "归集测试产物"), description: t("Collect local session work and cloud testing artifacts under their project, preserving sources and versions.", "将本地会话同步的任务、计划、用例与报告，以及云端任务产物归集到所属项目，保留来源和版本。") },
+      { title: t("Review results and history", "查看结果与历史"), description: t("Read Agent-reported results, original reports and revisions. Task progress and test results are shown separately.", "查看 Agent 报告结果、原始报告和修订。任务进度与测试结果分别展示。") },
     ]} />
     <Typography.Paragraph className="muted">{t("Existing managed test runs and their execution records remain available under each project's history.", "既有受管测试运行及其执行记录仍可在项目历史入口查看。")}</Typography.Paragraph>
   </Drawer>;

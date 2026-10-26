@@ -69,7 +69,7 @@ export function CreateProjectDialog({ open, onClose, projects }: { open: boolean
         width={600}
       >
         <Typography.Paragraph className="muted">
-          {t("A project groups Codex testing tasks, plans, cases and reports. After creation, sync the testing work from its Codex sessions.", "项目集中管理 Codex 测试任务、计划、用例和报告。创建后，从所属 Codex 会话同步测试工作。")}
+          {t("A project brings local and cloud testing tasks, plans, cases and reports together. After creation, connect a local Agent or configure cloud testing resources.", "项目集中管理本地与云端测试任务、计划、用例和报告。创建项目后，可接入本地 Agent 或配置云端测试资源。")}
         </Typography.Paragraph>
         {creation.isError ? (
           <Alert
