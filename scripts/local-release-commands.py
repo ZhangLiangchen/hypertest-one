@@ -51,6 +51,14 @@ def command(record: dict, host: str = "codex", *, enable_hooks: bool = False) ->
     return shlex.join(args)
 
 
+def skill_command(record: dict, host: str) -> str:
+    root = Path(f"/ABS/PRIVATE/hypertest-local-{host}")
+    release = root / (record["release_tag"] + "-" + record["manifest_sha256"][:12])
+    return shlex.join([str(release / "venv/bin/python"), "-I", "-m", "hypertest.local_sync",
+        "install-skill", "--directory", str(root / "host-installation"),
+        "--skills-directory", "/ABS/SELECTED/agent-skills"])
+
+
 def release_record(path: Path) -> dict:
     if path.is_symlink() or path.stat().st_size > 450 * 1024 * 1024:
         raise ValueError("Bounded regular Local bundle required")
@@ -105,6 +113,8 @@ def main():
                   f"Bundle SHA-256: `{record['bundle_sha256']}`.", ""]
         for host in ("codex", "claude-code", "deepseek-harness"):
             notes += [f"{host}:", "", "```sh", command(record, host), "```", ""]
+            notes += ["After runtime installation, explicitly install/upgrade the bundled onboarding skill into your selected Agent skills directory. Use the same private installation root as above; existing custom skill conflicts are preserved. This configures guidance only, without Hook trust or platform writes:", "",
+                      "```sh", skill_command(record, host), "```", ""]
             if record["hosts"].get(host, {}).get("automatic_trigger") == "ACCEPTED":
                 notes += ["With explicitly selected workspace and the accepted Hook version:", "", "```sh",
                           command(record, host, enable_hooks=True), "```", ""]

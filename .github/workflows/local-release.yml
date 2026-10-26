@@ -60,8 +60,10 @@ jobs:
           LOCAL_ACCEPTANCE_FILE: ${{ matrix.acceptance_file }}
         run: |
           args=()
-          if [ -n "$LOCAL_ACCEPTANCE_FILE" ]; then args+=(--acceptance-file "$LOCAL_ACCEPTANCE_FILE"); fi
-          if [[ "$GITHUB_REF_NAME" =~ ^local-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then args+=(--release); fi
+          if [[ "$GITHUB_REF_NAME" =~ ^local-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            test -n "$LOCAL_ACCEPTANCE_FILE"
+            args+=(--release --acceptance-file "$LOCAL_ACCEPTANCE_FILE")
+          fi
           python scripts/build-local-release.py --root "$GITHUB_WORKSPACE" \
             --tag "$GITHUB_REF_NAME" --ref "$GITHUB_SHA" --require-tag \
             --dependency-lock "$RUNNER_TEMP/local-inputs/dependencies.lock.json" \
@@ -99,8 +101,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          args=()
+          if [[ "$GITHUB_REF_NAME" =~ -(alpha|beta|rc)\.[0-9]+$ ]]; then args+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --draft --latest=false \
+            --verify-tag --draft --latest=false "${args[@]}" \
             --title "HyperTest Local $GITHUB_REF_NAME" \
             --notes-file "$RUNNER_TEMP/local-notes/LOCAL_INSTALL.md" \
             "$RUNNER_TEMP"/local-bundles/*.zip \

@@ -31,12 +31,20 @@ LOCK_SCHEMA = "hypertest.local-dependency-lock/v1"
 REPOSITORY = "https://github.com/ZhangLiangchen/hypertest-one"
 DIRECT_DEPENDENCIES = {"pydantic", "httpx", "jsonschema", "mcp"}
 HOSTS = ("codex", "claude-code", "deepseek-harness")
+SKILL_NAME = "hypertest-local-task-onboarding"
+SKILL_FILES = (
+    "SKILL.md", "agents/openai.yaml", "references/setup.md",
+    "references/sync-contract.md", "references/troubleshooting.md",
+)
+SKILL_SOURCE_ROOT = f"skills/{SKILL_NAME}"
+SKILL_WHEEL_ROOT = f"hypertest/local_sync/assets/skills/{SKILL_NAME}"
 SOURCE_BOUND_FILES = (
     "pyproject.toml", "scripts/install-local-release.py", "scripts/build-local-release.py",
     "scripts/prepare-local-dependencies.py", "scripts/local-release-commands.py",
     "scripts/plan-local-release.py", "scripts/freeze-local-release-source.py",
     "scripts/local-release-dependencies.json", ".github/workflows/local-release.yml",
     "src/hypertest/api/task_schemas.py",
+    *(f"{SKILL_SOURCE_ROOT}/{name}" for name in SKILL_FILES),
 )
 REQUIRED = {
     "hypertest/interactive_client/__main__.py", "hypertest/interactive_client/mcp_server.py",
@@ -192,6 +200,22 @@ def validate_catalog_lock(catalog_path: Path, lock: dict) -> None:
             raise ValueError("Actual dependency version/wheel/hash/origin differs from the fixed-source catalog")
 
 
+def onboarding_skill(source: Path) -> dict[str, bytes]:
+    """Read only the reviewed skill files from the canonical repository source."""
+    files = {}
+    for name in SKILL_FILES:
+        path = source / SKILL_SOURCE_ROOT / name
+        for component in (path, *path.parents):
+            if component.is_symlink():
+                raise ValueError("Onboarding skill source must not contain symlinks")
+            if component == source:
+                break
+        if not path.is_file():
+            raise ValueError("Source is missing required onboarding skill files")
+        files[f"{SKILL_WHEEL_ROOT}/{name}"] = path.read_bytes()
+    return files
+
+
 def make_local_wheel(source: Path, version: str, commit: str, dependencies: list[str], epoch: int) -> tuple[str, bytes]:
     files = {}
     for directory in ("interactive_client", "sync_core", "local_sync"):
@@ -212,6 +236,7 @@ def make_local_wheel(source: Path, version: str, commit: str, dependencies: list
         if path.is_symlink():
             raise ValueError("Source asset symlink is not supported")
         files["hypertest/interactive_client/assets/" + name] = path.read_bytes()
+    files.update(onboarding_skill(source))
     if not REQUIRED <= files.keys():
         raise ValueError("Source is missing required Local components")
     files["hypertest/local_sync/release.json"] = encoded({"release_version": version, "source_commit": commit,
@@ -243,6 +268,7 @@ def make_local_wheel(source: Path, version: str, commit: str, dependencies: list
 
 def local_source_digest(source: Path) -> str:
     """Bind native acceptance to distributed source bytes without a self-referential commit."""
+    onboarding_skill(source)  # Required assets and their parent directories cannot be symlinks.
     paths = [source / name for name in SOURCE_BOUND_FILES]
     for directory in ("interactive_client", "sync_core", "local_sync"):
         paths.extend(path for path in (source / "src/hypertest" / directory).rglob("*")
@@ -316,6 +342,10 @@ def check_environment(assets: dict[str, bytes], directory: Path) -> None:
                     "--no-cache-dir", "--disable-pip-version-check", *map(str, sorted(wheels.glob("*.whl")))], check=True)
     subprocess.run([str(python), "-I", "-m", "pip", "--isolated", "check"], check=True)
     subprocess.run([str(python), "-I", "-c", "import hypertest.local_sync.coordinator; import hypertest.local_sync.installer; import hypertest.interactive_client.mcp_server"], check=True)
+    # Exercise the real installed wheel's resource loader and public CLI offline.
+    subprocess.run([str(python), "-I", "-m", "hypertest.local_sync", "install-skill",
+                    "--directory", str(directory / "skill-receipts"),
+                    "--skills-directory", str(directory / "agent-skills")], check=True)
 
 
 def instructions(manifest: dict) -> bytes:
@@ -386,6 +416,9 @@ def build(args: argparse.Namespace) -> dict:
         dependencies = validate_source_requirements(project, lock)
         source_digest = local_source_digest(source)
         bridge_digest = sha256((source / "src/hypertest/local_sync/deepseek_root_bridge.mjs").read_bytes())
+        skill_assets = {name.removeprefix(SKILL_WHEEL_ROOT + "/"): {
+            "sha256": sha256(raw), "size_bytes": len(raw)}
+            for name, raw in onboarding_skill(source).items()}
         target = {"system": platform.system(), "machine": platform.machine(),
                   "python": f"{sys.version_info.major}.{sys.version_info.minor}"}
         acceptance_path = source / args.acceptance_file if args.acceptance_file else None
@@ -418,9 +451,10 @@ def build(args: argparse.Namespace) -> dict:
         "tag_verification": tag_state, "distribution_state": state, "publication": "NOT_ASSERTED",
         "requires_python": ">=3.12", "target": target, "wheel": wheel_name,
         "source_assets": {"deepseek-root-bridge": {"path": "hypertest/local_sync/deepseek_root_bridge.mjs",
-            "sha256": bridge_digest}},
+            "sha256": bridge_digest}, "local-task-onboarding": {"path": SKILL_WHEEL_ROOT,
+            "files": skill_assets}},
         "components": {name: {"version": version, "source_commit": commit} for name in
-                       ("mcp", "private-client", "task-sync-core", "coordinator", "host-adapters", "installer", "templates")},
+                       ("mcp", "private-client", "task-sync-core", "coordinator", "host-adapters", "installer", "templates", "onboarding-skill")},
         "compatibility": {"mcp_profile": "hypertest.interactive-mcp/v1alpha1",
             "task_profile": "codex-session-task-sync/v1alpha1", "journal": "existing-intents/v1+local-delivery/v1",
             "snapshot": "hypertest.sync-snapshot/v1", "core_contract": "1",

@@ -1,5 +1,9 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+## 2026-10-26 接入 Skill 打包增量
+
+新版候选将仓库 `skills/hypertest-local-task-onboarding/` 的五份文件原样放入 `hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/`，并纳入 Local source digest、wheel RECORD 和 manifest。显式 `install-skill` 可安装/升级到所选 Agent 技能目录，不默认修改用户全局技能。候选 tag 的构建不携带旧 `local-v0.1.0` 验收文件，Linux/Mac 均保留 CANDIDATE；稳定版的精确源码验收要求继续生效。精确版本、发布状态与检查见[本轮交付](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。后文早期“只含代码与 JSON”描述是原包范围，不覆盖此增量。
+
 ## 2026-10-23 新增真实矩阵（已通过）
 
 `local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**

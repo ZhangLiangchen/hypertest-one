@@ -1,5 +1,9 @@
 # HyperTest Local 统一发行与一键安装设计
 
+## 2026-10-26 接入 Skill 与新版候选
+
+`local-v0.1.1-rc.1` 新增完整的 `hypertest-local-task-onboarding` 指南和显式 `install-skill` 安装/升级入口，并包含当前 ADR-024 绑定客户端。下载、固定摘要命令、当前发布状态和回归见[本轮交付](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。两个目标均为候选，真实宿主验收未观察；新绑定 caller 仍仅 Codex CLI `0.144.6`。旧 `local-v0.1.0` 正式资产和历史验收保持原身份，不将候选提升为旧包的已验收升级。下文 F2 私有源码安装保留其历史身份，新的安装优先按本轮固定候选及其实际能力核验。
+
 ## ADR-024绑定能力与发行兼容
 
 [ADR-024](architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)新增的hypertest_bind_task、原key绑定查询、task_id选择及新会话首次产物门槛，必须使用与服务端匹配的客户端版本/源码。已公开local-v0.1.0资产不因新文档/服务端更新而变化，不能向旧发行补写新工具、tag或digest；安装Prompt需核对实际能力，缺工具时提示升级，不fallback自动建Task。旧已存在auto根、私有身份、journal及原未决key应原样保留。新能力的源码、远端验收、真实宿主和新发行分别记录，不沿用旧三宿主证明宣称通过。

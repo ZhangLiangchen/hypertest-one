@@ -13,6 +13,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -129,6 +130,61 @@ def test_local_wheel_is_reproducible_and_excludes_cloud_and_platform(source):
         metadata = wheel.read("hypertest_local-0.1.0b1.dist-info/METADATA").decode()
         assert "Requires-Dist: mcp==1.28.0" in metadata
         assert "deepseek-harness-sdk" not in metadata
+
+
+def test_local_wheel_contains_only_reviewed_onboarding_files_with_original_bytes(source):
+    skill = source / builder.SKILL_SOURCE_ROOT
+    (skill / "private-notes.md").write_text("must not ship\n")
+    for name in builder.SKILL_FILES:
+        (skill / name).write_bytes((f"# {name}\n中文与原始换行\r\n").encode())
+    _, raw = builder.make_local_wheel(source, "0.1.1rc1", COMMIT, [], 1_700_000_000)
+    with zipfile.ZipFile(io.BytesIO(raw)) as wheel:
+        members = {name for name in wheel.namelist() if name.startswith(builder.SKILL_WHEEL_ROOT + "/")}
+        assert members == {f"{builder.SKILL_WHEEL_ROOT}/{name}" for name in builder.SKILL_FILES}
+        for name in builder.SKILL_FILES:
+            assert wheel.read(f"{builder.SKILL_WHEEL_ROOT}/{name}") == (skill / name).read_bytes()
+
+
+def test_source_wheel_maps_the_same_canonical_skill_without_copying_unreviewed_files():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    includes = project["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert includes == {f"{builder.SKILL_SOURCE_ROOT}/{name}": f"{builder.SKILL_WHEEL_ROOT}/{name}"
+                        for name in builder.SKILL_FILES}
+
+
+@pytest.mark.parametrize("name", builder.SKILL_FILES)
+def test_every_distributed_skill_file_is_bound_to_native_acceptance(source, name):
+    before = builder.local_source_digest(source)
+    path = source / builder.SKILL_SOURCE_ROOT / name
+    path.write_bytes(path.read_bytes() + b"\nChanged reviewed guidance.\n")
+    assert builder.local_source_digest(source) != before
+
+
+@pytest.mark.parametrize("operation", ["wheel", "digest"])
+@pytest.mark.parametrize("kind", ["file", "directory"])
+def test_onboarding_source_rejects_symlinked_files_and_parent_directories(source, tmp_path, operation, kind):
+    skill = source / builder.SKILL_SOURCE_ROOT
+    if kind == "file":
+        path = skill / "SKILL.md"
+        outside = tmp_path / "outside.md"
+        outside.write_bytes(path.read_bytes())
+        path.unlink()
+    else:
+        path = skill / "references"
+        outside = tmp_path / "outside-references"
+        path.rename(outside)
+    path.symlink_to(outside, target_is_directory=kind == "directory")
+    with pytest.raises(ValueError, match="symlinks"):
+        if operation == "wheel":
+            builder.make_local_wheel(source, "0.1.1rc1", COMMIT, [], 1_700_000_000)
+        else:
+            builder.local_source_digest(source)
+
+
+def test_local_wheel_cannot_silently_omit_required_skill_references(source):
+    (source / builder.SKILL_SOURCE_ROOT / "references/sync-contract.md").unlink()
+    with pytest.raises(ValueError, match="missing required onboarding skill"):
+        builder.make_local_wheel(source, "0.1.1rc1", COMMIT, [], 1_700_000_000)
 
 
 def test_offline_verification_never_creates_state_or_claims_native_acceptance(bundle):
@@ -512,6 +568,10 @@ def test_formal_release_selects_only_real_accepted_target_not_candidate_os(tmp_p
     evidence = acceptance_evidence("b" * 64, {key: row[key] for key in ("system", "machine", "python")})
     evidence["release_tag"] = "local-v0.1.0"
     path.write_text(json.dumps(evidence))
+    # Prereleases never consume the old stable tag's accepted host record.
+    candidates = release_plan.plan(root, "local-v0.1.1-rc.1")["include"]
+    assert len(candidates) == 2
+    assert all(item["acceptance_file"] == "" for item in candidates)
     selected = release_plan.plan(root, "local-v0.1.0")["include"]
     assert [item["target"] for item in selected] == ["darwin-arm64-py313"]
 

@@ -4,6 +4,7 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
+| Local 接入 Skill 与新版候选包 | **PR #25 已合入；包更新进行中**；单一技能源码纳入 wheel、固定摘要与显式安装/升级；见[本轮记录](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md) | 新版宿主验收保持 USER_OWNED / NOT_OBSERVED，不沿用旧发行资格 |
 | PC 创建任务页显示 | **已修复并部署**；独立面板恢复24px留白，Cloud读取中/失败/空资源分别显示，保留草稿；Web源码d2d329e | USER_OWNED功能验收保留；见[回归与镜像](TASK_CREATE_WEB_FIX_20261026.md) |
 | PC 首屏与滚动性能 | **已实现并部署**；AntD SSR样式、静态玻璃、延迟记录/分页、状态/页签轮询及非首屏拆包；Web源码8c18232，正式构建和健康检查通过 | USER_OWNED体感/功能验收保留；合成DOM与JS估算不等于真实PC帧率。见[测量、CI与镜像](WEB_PERFORMANCE_DELIVERY_20261025.md) |
 | PC 宽屏全页面视觉统一 | **已实现并部署**；全部8个路由统一 Liquid Glass 导航、标题、内容面板、表格与表单；84项定向回归、构建、桌面视觉修复确认及健康检查通过；Web源码4f54a4f | USER_OWNED功能验收保留；不扩展到移动端/竖屏。见[精确范围及镜像](LIQUID_GLASS_WEB_DELIVERY_20261025.md) |

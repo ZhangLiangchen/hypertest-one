@@ -6,6 +6,16 @@
 
 先读[现行发行与安装说明](https://github.com/ZhangLiangchen/hypertest-one/blob/main/docs/LOCAL_MODE_RELEASE_AND_INSTALLATION.md#adr-024绑定能力与发行兼容)，核对服务端、Local 客户端、Python、OS/架构及宿主能力。已有兼容安装时复用，不重复安装。需要安装时优先使用含所需能力的不可变正式发行，验证可信渠道与预先确认的摘要。旧 `local-v0.1.0` 的固定资产没有 ADR-024 新绑定工具；服务端升级不会改变旧包。
 
+新版 `local-v0.1.1-rc.1` 是明确的候选发行，内置本指南和当前绑定客户端；两个目标的包与固定摘要安装命令见[本轮交付](https://github.com/ZhangLiangchen/hypertest-one/blob/main/docs/LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。候选下载或安装不代表新宿主已验收，不沿用旧三宿主证明。已有 runtime 安装后，可显式把包内指南安装到所选 Agent 技能目录：
+
+```sh
+"$local_python" -m hypertest.local_sync install-skill \
+  --directory "$local_install_directory" \
+  --skills-directory "$local_agent_skills_directory"
+```
+
+`local_agent_skills_directory` 是用户选择的绝对技能父目录；Codex 常用 `~/.codex/skills`。命令创建其中的 `hypertest-local-task-onboarding/` 并保存私有所有权收据；升级时通过新 runtime 对同一收据和目录执行相同命令。已有自定义同名技能或已改动的受管文件发生冲突时保留原件，不强制覆盖。不默认修改技能目录、Hook 信任、平台绑定或授权。
+
 正式兼容包尚未发布、且用户已授权源码安装时，可按该说明固定**完整 Git SHA**安装匹配源码。记录它是源码安装，不称为新公开 release，不使用浮动 main 或移动旧 tag。复用兼容依赖环境；确需独立依赖目录时才创建新的 venv，不覆盖旧运行时。
 
 ```sh

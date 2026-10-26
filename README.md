@@ -429,7 +429,7 @@ The first production file-import Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` corr
 
 ## HyperTest Local
 
-本地模式首次接入、已有任务绑定及恢复可使用独立的 [hypertest-local-task-onboarding Skill](skills/hypertest-local-task-onboarding/SKILL.md)：将完整 `skills/hypertest-local-task-onboarding/` 目录复制到所用 Agent 的技能目录（Codex 可用 `~/.codex/skills/`），或通过支持 GitHub 路径的 Skill 安装器选择本仓库该路径；随后用 `$hypertest-local-task-onboarding` 调用。此操作只安装指南，不安装 Local runtime、不新增授权，也不将该 Skill 补入旧发行包。
+本地模式首次接入、已有任务绑定及恢复使用 [hypertest-local-task-onboarding Skill](skills/hypertest-local-task-onboarding/SKILL.md)，调用方式为 `$hypertest-local-task-onboarding`。仓库 `skills/` 是唯一维护位置；新版 Local 候选包内置同一份完整指南，并提供显式 `install-skill` 安装/升级入口，不默认写全局技能目录。也可把完整技能目录复制到所用 Agent 的技能目录（Codex 可用 `~/.codex/skills/`）。指南不新增授权；旧 `local-v0.1.0` 资产保持不变。新版下载、安装和验收边界见[本轮包更新](docs/LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。
 
 ## 2026-10-23 新增真实矩阵（已通过）
 

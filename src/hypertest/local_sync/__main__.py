@@ -78,6 +78,9 @@ def main():
     child.add_argument("--manifest", type=Path, help="Must match the manifest selected in the private config")
     child = commands.add_parser("recover-install", help="Safely roll back interrupted owned config transactions")
     child.add_argument("--directory", required=True, type=Path)
+    child = commands.add_parser("install-skill", help="Install the bundled onboarding guide into an explicitly selected Agent skills directory")
+    child.add_argument("--directory", required=True, type=Path)
+    child.add_argument("--skills-directory", required=True, type=Path)
     child = commands.add_parser("drain-source", help="Recover one existing native source without creating a Hook event")
     child.add_argument("--config", required=True, type=Path)
     child.add_argument("--session-id", required=True)
@@ -99,6 +102,11 @@ def main():
             child.add_argument("--expected-version", required=True, type=int)
     args = parser.parse_args()
     try:
+        if args.command == "install-skill":
+            from hypertest.local_sync.skills import install_skill
+            print(json.dumps(install_skill(directory=args.directory, skills_directory=args.skills_directory),
+                             ensure_ascii=False, indent=2))
+            return
         if args.command in {"bind-task", "get-task-binding", "capabilities"}:
             from hypertest.interactive_client.__main__ import ensure_daemon
             config = ClientConfig.load(args.config, validate_credentials=False)

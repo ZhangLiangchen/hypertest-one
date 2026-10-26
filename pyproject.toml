@@ -57,6 +57,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/hypertest"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"skills/hypertest-local-task-onboarding/SKILL.md" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/SKILL.md"
+"skills/hypertest-local-task-onboarding/agents/openai.yaml" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/agents/openai.yaml"
+"skills/hypertest-local-task-onboarding/references/setup.md" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/references/setup.md"
+"skills/hypertest-local-task-onboarding/references/sync-contract.md" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/references/sync-contract.md"
+"skills/hypertest-local-task-onboarding/references/troubleshooting.md" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/references/troubleshooting.md"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_test_loop_scope = "session"

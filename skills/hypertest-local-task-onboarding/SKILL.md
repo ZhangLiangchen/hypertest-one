@@ -5,7 +5,7 @@ description: "为 HyperTest One 接入本地会话任务：安装或升级 Local
 
 # HyperTest 本地任务接入
 
-将用户指定的 Local Task 接入当前真实父会话，完成管理资产同步与完整读回。此 Skill 是可单独安装的操作指南，不替换客户端内置的 `hypertest-interactive`，也不因加入仓库而进入既有发行包。
+将用户指定的 Local Task 接入当前真实父会话，完成管理资产同步与完整读回。此 Skill 可独立安装，也随新版 Local 包交付；它不替换 `hypertest-interactive`。旧 `local-v0.1.0` 资产保持不变，安装指南本身不安装 runtime 或新增授权。
 
 ## 先固定目标和范围
 
