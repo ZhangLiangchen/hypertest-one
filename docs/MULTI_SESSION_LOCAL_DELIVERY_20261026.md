@@ -14,25 +14,41 @@
 
 ## 相关验证
 
-复用既有 Python 环境 `/tmp/hypertest-p0-backend-venv`、Web node_modules 与服务器 Node；只新建一个限额512MiB的临时测试 PostgreSQL 容器保存合成 fixtures，与业务库分离。未复制全栈或模型环境。
+复用既有 Python 环境 `/tmp/hypertest-p0-backend-venv`、Web node_modules 与服务器 Node；数据库仅隔离为限额512MiB的临时 PostgreSQL 保存合成 fixtures，人工管理修复验证时按同规格重建，完成后均移除。与业务库分离，未复制全栈或模型环境。
 
 | 检查 | 结果 |
 | --- | --- |
 | 后端相关自动回归 | 70 passed；含7条多场景协作测试和原任务/绑定/分页回归 |
 | 最终协作契约回归 | 增加真实 ApiClient(ASGITransport)→LocalCollaborationAdapter→后端与Operator人工管理后，协作文件9 passed；覆盖JOIN/贡献/交接后发布、CASE/REPORT默认值、非ASCII原文跨页与真实摘要/回执/固定版本读回。与上行重叠不加总 |
 | Local/MCP/技能相关自动回归 | 124 passed；最终微调后新协作39项再次通过，两次有重叠不加总 |
+| 独立Local打包回归 | 61 passed；custom wheel真实隔离导入两份wire schema/协调器、中文REPORT规范化、源码摘要变化及缺件/链接拒绝 |
 | Web 相关自动回归 | 56 passed；含独立账本、失答恢复、固定版本内容核验与组件流程 |
 | Web 类型与静态检查 | typecheck、Ruff、技能验证、文档链接及 diff 检查按本轮范围执行 |
 | 旧数据迁移合成回归 | 专用测试库0001→0028植入旧FAIL任务/SyncReceipt→0029；原UUID、version、source与旧JSON snapshot保持，来源注册正确、无补造participants |
 | PC 合成组件检查 | 1440px英文、中文授权、中文交接三状态；修正新增Descriptions标签对比度后确认，无页面横向溢出。不作为真实宿主或用户验收 |
 
-以上是实现自动回归，不是模型/SUT执行或用户验收。CI 及部署构建结果在完成后补记，不预先宣称通过。
+以上是实现自动回归，不是模型/SUT执行或用户验收。两条旧CI断言同步后，在无数据库连接的轮廓下定向2项通过；最终CI结果另列。
 
 集成审查发现首片对旧 full sync 的拒绝一并阻止了已有 Operator UPDATE，原回归还包含错误的拒绝断言。已恢复 §50.4 人工标题/计划/进度编辑，新增回归验证 reported_result/成员/主代次保持、管理快照继承固定 roster、旧版本 PUBLISH 冲突及新版发布；最终9项覆盖修正，不把 Agent PRIMARY 约束扩大成人工管理权限变更。
 
+独立Local custom wheel原本只手动纳入task_schemas.py；新协作schema需同时纳入wheel/必需文件/固定源码摘要。打包修正提交为`2cdd59a6ae3e552021abc2d5f0cab14961a3faaf`，freeze清单同步但不改旧BASE或历史发行；真实wheel导入及摘要回归已通过，没有另建venv或发布新tag。
+
+[首轮代码CI](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/40272764669)的Web与memory-api-profile成功，平台pytest为**2212 passed / 2 failed / 21 skipped**。两失败分别是旧迁移head仍固定0028、工具数仍固定13；已更新为0029/17，新增四工具存在性并保留caller context不由arguments提供的断言，不重标首轮失败。
+
 ## Git 与部署
 
-本轮从 `codex/multi-session-task-adr` 提交并推送后，服务器复用干净 checkout fetch 指定完整 SHA，按既有 Compose/TLS/访问守卫更新受影响的 API/Web，并执行0029迁移与基本健康、协作只读路径检查。部署的源码、镜像与结果在实际完成后补入本节；此处不将源码实现写成已部署。
+本轮从 `codex/multi-session-task-adr` 提交并推送后，服务器复用干净 checkout fetch 并固定完整 SHA `66f69f17a249ee382d60096ef9871695be457ee5`，按既有 Compose/TLS/访问守卫停止受影响的 API/Web、在服务器构建、执行0029增量迁移并启动，重启容器nginx刷新上游。应用源码已部署；其后独立Local打包、测试断言与交付文档提交不改变这两个应用镜像的运行代码，不为此重复构建。
+
+| 项目 | 实际身份 / 结果 |
+| --- | --- |
+| API | `sha256:6077cd442245aabbe19c86fa76515ed54801152175bd3ffd42729d7edf023ea2`，源码为上述66f69f1完整SHA；最小镜像无MCP/Agent SDK仍可导入新路由 |
+| Web | `sha256:9d860c213fda79acfa1edfd5c715bef0c3d7d0fa198d799f25f376bd52d0b2eb`，相同Git来源；正式构建、类型检查和页面生成成功 |
+| 迁移 | 0028→`0029_local_task_collaboration`；迁移前备份1,944,990 bytes；原15个Task数量保持，15个BOUND来源登记，新增成员/贡献/发布/协作回执均0，不创建线上fixture |
+| 健康与技术关键路径 | 五容器healthy；API health、Web根页、既有Task协作GET及其Web转发均HTTP200；旧Task仍collaboration=false |
+| 访问 | 原Compose/TLS/VPN/SSH、入口守卫和凭据保持；没有给Project启用协作或新增会话授权 |
+| 清理与容量 | 本轮512MiB合成测试库容器已移除；未删旧数据、卷、镜像、发行或未决账本；构建后根盘剩余约5.2GiB |
+
+部署回执目录为 `/var/lib/hypertest-cloud/delivery/20261026-local-collaboration-66f69f17`，含实际deployment.json、build/migration日志、迁移前备份及执行脚本。PR为[#26](https://github.com/ZhangLiangchen/hypertest-one/pull/26)，部署不以PR合并为前提。
 
 Cloud 独立 Worker、legacy Worker、模型配置、权限、凭据及数据卷不因 Local 协作改为新运行身份。用户功能验收保持 USER_OWNED。
 

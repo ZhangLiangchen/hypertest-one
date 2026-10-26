@@ -82,6 +82,10 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 - 保留现有 SSH 访问、公钥和人工密码恢复、主机密钥校验、TLS、VPN 白名单及其他网络
   访问限制；不将私钥、token 或密码写入源码、日志或交付物，不改动无关服务。
 
+### 2026-10-26 Local 多会话协作交付
+
+API/Web已从干净Git checkout固定`66f69f17a249ee382d60096ef9871695be457ee5`构建并部署，schema0029；原Task与初始来源保持，协作默认未启用。独立Cloud Worker与legacy Worker未更新。新镜像、相关自动回归、只读协作路径、备份及清理见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)。下节API/Worker/Web身份是此前Cloud轮次的历史记录，不覆盖本次API/Web部署；Local新源码/打包资格不由服务端部署推定。
+
 ### 2026-10-23 Cloud Git 交付
 
 最新API/独立Cloud Worker为Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增默认关闭的受控公开HTTPS首片/框架冻结；Web于2026-10-26按`d2d329ef575978e978f7b322a4a4123122688760`修复PC创建任务页显示并部署，见[本轮Web修复](TASK_CREATE_WEB_FIX_20261026.md)；首屏及滚动优化保留在[Web性能交付](WEB_PERFORMANCE_DELIVERY_20261025.md)；全页面视觉统一保留在[原Web记录](LIQUID_GLASS_WEB_DELIVERY_20261025.md)；schema0028，五容器healthy、Cloud Worker原运行身份保持，legacy Worker保留55de50e。镜像、迁移与健康见[最新跟进交付](FOLLOWUP_DELIVERY_20261023.md)，[Memory](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)与[P0](P0_RECOVERY_DELIVERY_20261023.md)原记录保留。当前容量处置与清理结果由[本轮磁盘清理记录](DISK_CLEANUP_20261024.md)拥有，构建前检查实际余量；2026-10-23当轮未删历史，仅共享当轮新增的4个完全相同只读payload文件。以下C4/6d49是原轮次历史，不能据此覆盖工作区或判断当前镜像。
