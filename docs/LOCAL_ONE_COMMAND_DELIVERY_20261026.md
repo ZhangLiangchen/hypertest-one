@@ -1,5 +1,7 @@
 # Local 一条命令 / Prompt 安装与升级（2026-10-26）
 
+正式发行后续：本页 rc.2 的功能已按用户指令以 `local-v0.1.1` 正式公开，GitHub Latest 与 stable 更新入口已指向新版；见[精确状态、下载与摘要](LOCAL_STABLE_RELEASE_20261026.md)。以下 rc.2 源码、资产与部署仍保留原轮次身份，不重写为正式版构建或新宿主验收。
+
 用户要求已将 [PR #26](https://github.com/ZhangLiangchen/hypertest-one/pull/26) 合入 main，合并提交为 `2262bf3ecba256644b8f6910314679b6340d0b22`。本轮在该基线上改进 Local 分发和接入入口；ADR-026 的任务语义、权限和历史保持。
 
 ## 实现范围

@@ -431,6 +431,8 @@ The first production file-import Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` corr
 
 ## HyperTest Local
 
+当前正式发行：[local-v0.1.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.1)，已设为仓库 Latest，提供 Mac arm64/Python3.13 与 Linux x86_64/Python3.12 包。安装、同命令升级与固定摘要见[正式发行记录](docs/LOCAL_STABLE_RELEASE_20261026.md)；发行状态与真实宿主验收分别记录。
+
 本地模式首次接入、已有任务绑定及恢复使用 [hypertest-local-task-onboarding Skill](skills/hypertest-local-task-onboarding/SKILL.md)，调用方式为 `$hypertest-local-task-onboarding`。仓库 `skills/` 是唯一维护位置；新版 Local 候选包内置同一份完整指南，并提供显式 `install-skill` 安装/升级入口，不默认写全局技能目录。也可把完整技能目录复制到所用 Agent 的技能目录（Codex 可用 `~/.codex/skills/`）。指南不新增授权；旧 `local-v0.1.0` 资产保持不变。新版下载、安装和验收边界见[本轮包更新](docs/LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。
 
 ## 2026-10-23 新增真实矩阵（已通过）
