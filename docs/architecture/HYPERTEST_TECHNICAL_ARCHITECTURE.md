@@ -2,6 +2,8 @@
 
 ## ADR-024统一创建与Local绑定
 
+[ADR-026 多会话协作](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)增加显式启用的 Local 参与关系、窄贡献操作与单一主会话汇总，具体合同见领域 §50.6 / TMP §45.5。初始 BIND、旧单会话合同及 Cloud/Local 隔离保持；实现、部署、Local 发行和真实宿主资格分别记录。
+
 项目创建入口按Cloud/Local路由到独立领域API，不新增通用Task根表或跨模式写入。Local Operator先创建UNBOUND SessionTask，真实父会话通过现有私有客户端授权一次绑定同UUID；CREATE、人工管理、BIND和sync共用version，各自保留不可变快照/回执及Audit/Outbox。source/last_synced只在真实sync产生，绑定不启动Worker/Harness/Runner。新Local客户端首次资产前需TaskID绑定，旧已存在auto根可resume；服务端legacy兼容不作为新客户端fallback。字段/接口分别由领域§50.5、TMP§45.4拥有，取舍和验收见[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)。Cloud的任务/Attempt、资源与下发仍由独立Cloud设计和实施维护；本增补不将其源码存在或统一UI解释为已验收执行。
 
 ## 2026-10-23 新增真实矩阵（已通过）
@@ -26,7 +28,7 @@ Cloud 通过独立 SDK Worker 完成六步；API 不运行 Agent/测试，Local 
 
 ### v0.8 Local 入口：Codex 会话任务同步（ADR-018 优先）
 
-现阶段 HyperTest 是 Codex 测试任务、用例和报告的管理平台：一个 Codex 会话对应一个 SessionTask，Codex 在项目已有工具链中完成测试并同步产物。平台只校验与保存管理数据，不承担测试执行。
+现阶段 HyperTest 是测试任务、用例和报告的管理平台：默认一个真实会话对应一个 SessionTask；显式启用 ADR-026 后，多个获授权 root 可以参与同一 SessionTask。Agent 在项目已有工具链中完成测试并同步产物，平台只校验与保存管理数据，不承担测试执行。
 
 当前链路为 **Codex → MCP/私有客户端 → typed API → Project/SessionTask/CaseRevision/ReportRevision/SyncReceipt + Audit/Outbox（PostgreSQL）**。共享既有 Project 与存储，不使用旧 TestRun bootstrap、Job、execution binding、Harness、Runner 或 Gate。查询不接管原生会话；session reference 是同步来源元数据，不要求宿主执行身份核验。
 
@@ -1176,6 +1178,14 @@ Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重�
 Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
 升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
 Local 发行不包含 Cloud runtime；Cloud 实施进度与最终树验收按独立 Cloud 状态记录，不由 Local 发行成绩推定。
+
+### 46.1 ADR-026 多会话协作组件
+
+`LocalSyncCoordinator → LocalCollaborationAdapter → local-task-collaboration/v1alpha1 typed API` 在各 root 私有锁和账本下提交 JOIN、贡献及显式汇总；宿主逐调用 caller fence 继续核对真实 root，child 不能借父 ID 写入。平台使用同一 SessionTask 聚合锁、全局来源注册表、成员角色和 primary generation 接受并行准备的贡献；Local 客户端不依赖跨 root 共享目录或全局 journal。
+
+管理端显式 ENABLE、AUTHORIZE、REVOKE 和 HANDOFF；成员操作为 JOIN、CONTRIBUTE、PUBLISH。贡献、发布及协作回执分别追加，所有接受版本保留完整成员与产物快照。固定版本读回不从最新 roster 拼装过去；ACK 不代替完整读回。PC Web 区分初始绑定、当前主会话、授权待加入成员、贡献来源和交接历史；变更前通过独立 IndexedDB 协作账本保全完整冻结请求，失答只原 key 查询。
+
+旧任务默认不启用协作。启用后拒绝新的旧 full sync，保留已接受原 key 和旧历史读取；Hooks 仅可采集获准产物作为本 root 的贡献，不自动发布整体状态。客户端未支持的版本/宿主仍明确拒绝；源码存在不代表公开 Local 包或真实宿主验收已升级。CloudSyncAdapter、Cloud fenced Worker、凭据及 ledger 均保持独立。
 
 ## 47. ADR-021 TaskSyncCore 的 Local 消费方
 

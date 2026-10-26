@@ -2,8 +2,8 @@
  * IndexedDB readwrite transactions arbitrate writers across tabs; notifications
  * only refresh the view and never grant permission to submit a request.
  */
-export type JournalIdentity = { project_id: string; operation_key: string; state: "SENT" | "UNKNOWN" };
-type Domain = "cloud" | "local-create";
+export type JournalIdentity = { project_id: string; task_id?: string; operation_key: string; state: "SENT" | "UNKNOWN" };
+type Domain = "cloud" | "local-create" | "local-collaboration";
 const databaseName = "hypertest-operation-journals-v1";
 const channelName = "hypertest-operation-journals-changed-v1";
 const listeners = new Set<(domain: Domain, projectId: string) => void>();
@@ -11,10 +11,11 @@ const listeners = new Set<(domain: Domain, projectId: string) => void>();
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") { reject(new Error("PRIVATE_JOURNAL_UNAVAILABLE")); return; }
-    const request = indexedDB.open(databaseName, 1);
+    const request = indexedDB.open(databaseName, 2);
     request.onupgradeneeded = () => {
-      for (const name of ["cloud", "local-create"]) {
-        const store = request.result.createObjectStore(name, { keyPath: ["project_id", "operation_key"] });
+      for (const name of ["cloud", "local-create", "local-collaboration"]) {
+        if (request.result.objectStoreNames.contains(name)) continue;
+        const store = request.result.createObjectStore(name, { keyPath: name === "local-collaboration" ? ["project_id", "task_id", "operation_key"] : ["project_id", "operation_key"] });
         store.createIndex("project", "project_id");
       }
     };
@@ -40,7 +41,9 @@ function identity(value: JournalIdentity): string {
   return JSON.stringify(frozen);
 }
 
-export function createOperationJournal<T extends JournalIdentity>(domain: Domain, validate: (value: unknown, projectId: string) => T) {
+export function createOperationJournal<T extends JournalIdentity>(domain: Domain, validate: (value: unknown, projectId: string) => T, streamId?: (value: T) => string) {
+  const recordKey = (value: T): IDBValidKey => domain === "local-collaboration"
+    ? [value.project_id, value.task_id!, value.operation_key] : [value.project_id, value.operation_key];
   async function transaction<R>(mode: IDBTransactionMode, work: (store: IDBObjectStore, done: (value: R) => void, fail: (error: unknown) => void) => void): Promise<R> {
     const db = await openDatabase();
     return new Promise<R>((resolve, reject) => {
@@ -65,7 +68,7 @@ export function createOperationJournal<T extends JournalIdentity>(domain: Domain
       const request = store.index("project").getAll(value.project_id);
       request.onsuccess = () => {
         try {
-          const records = request.result.map((row) => validate(row, value.project_id));
+          const records = request.result.map((row) => validate(row, value.project_id)).filter((row) => !streamId || streamId(row) === streamId(value));
           if (records.length) { done({ created: false, records }); return; }
           store.add(value); done({ created: true, records: [value] });
         } catch (error) { fail(error); }
@@ -80,7 +83,7 @@ export function createOperationJournal<T extends JournalIdentity>(domain: Domain
   async function importLegacy(input: T): Promise<void> {
     const value = validate(input, input.project_id);
     await transaction<void>("readwrite", (store, done, fail) => {
-      const request = store.get([value.project_id, value.operation_key]);
+      const request = store.get(recordKey(value));
       request.onsuccess = () => {
         try {
           if (request.result) {
@@ -97,13 +100,13 @@ export function createOperationJournal<T extends JournalIdentity>(domain: Domain
   async function change(input: T, remove: boolean): Promise<boolean> {
     const original = validate(input, input.project_id);
     const changed = await transaction<boolean>("readwrite", (store, done, fail) => {
-      const request = store.get([original.project_id, original.operation_key]);
+      const request = store.get(recordKey(original));
       request.onsuccess = () => {
         try {
           if (!request.result) { done(false); return; }
           const previous = validate(request.result, original.project_id);
           if (identity(previous) !== identity(original)) throw new Error("JOURNAL_KEY_CONFLICT");
-          if (remove) store.delete([original.project_id, original.operation_key]);
+          if (remove) store.delete(recordKey(original));
           else store.put({ ...previous, state: "UNKNOWN" });
           done(true);
         } catch (error) { fail(error); }

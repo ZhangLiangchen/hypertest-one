@@ -1,5 +1,7 @@
 # ADR-020：Hooks 驱动的本地会话任务同步
 
+**2026-10-26 协作增补：[ADR-026](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)增加各真实 root 的窄贡献 adapter。协作 profile 启用后 Hooks 仅同步本成员获准产物，PRIMARY 显式汇总；原生 child 仍回交父会话。下文单父协调器、冻结请求与原 key 恢复规则在每个 root 内继续生效，未启用任务与公开旧包资格不变。**
+
 ## ADR-024预创建与绑定增补（2026-10-23）
 
 [ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)要求新Local客户端首次资产上传前显式绑定平台Task ID；缺失时TASK_BINDING_REQUIRED且不POST/不自动建任务。已有确认原Task ID的auto根可resume，服务端legacy路径保留。真实native root仍由原Hook/宿主adapter建立，Hook/MCP共用同一协调器及绑定/同步账本，不接受任意session覆盖。该增补不修改下面固定local-v0.1.0资产、历史矩阵或其资格；新源码、远端验证及客户端发行另行记录。

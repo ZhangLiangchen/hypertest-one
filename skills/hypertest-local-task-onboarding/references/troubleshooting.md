@@ -11,7 +11,10 @@
 | root 存在，BIND 仍报 caller 错 | 查看 `NATIVE_CALLER_CONTEXT_REQUIRED/MISMATCH/UNSUPPORTED`，核对真实宿主版本和原生 MCP；不在 arguments 添加 `_meta` 或 caller 字段 |
 | 新工具缺失或 schema 没有 task_id | 对照 profile 运行时、旧 daemon、服务端和宿主工具目录；按 setup 的匹配版本升级，不能 fallback legacy 自动建 Task |
 | UNBOUND 授权为空/actor 不符 | 由 Operator 在 UNBOUND 下核对 intended actor 及当前 grant；Agent 不自行签发 token 或变更 owner |
-| Task 已 BOUND 到另一会话 | 回到原绑定 writer 接续，或报告不可改绑；不能冒用来源、转移资产或另建 Task 掩盖问题 |
+| Task 已 BOUND 到另一会话 | 单会话任务回原 writer；明确启用协作且本真实 root 获授权时使用协作 GET/JOIN。不改绑、不冒用来源或另建替代 Task |
+| COLLABORATION_PROFILE_REQUIRED | 使用匹配版本的协作工具及精确 root；原 full sync 新写已关闭，不通过降级、改 session 或旧包绕过 |
+| JOIN/CONTRIBUTE/PUBLISH 缺 caller 或宿主 unsupported | 保留正式文件和账本；仅受支持 Codex 路径可新写。原 key GET 继续只读，不补造 caller |
+| PRIMARY_REQUIRED / 代次或版本冲突 | 读取获授权固定/当前协作状态，协调当前 PRIMARY；原冻结请求不自动重基，不替他人提交或消除 UNKNOWN |
 | Hook 后额外版本/重复报告 | 停止新增写，完整读取新 head；比对实际 policy 槽、报告 key/title/result、接受版计划和本地投影。保留新旧版本，不清除记录“恢复干净” |
 
 ## worktree 与 Hook 源不同的排障路径

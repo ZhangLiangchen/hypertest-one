@@ -3,11 +3,14 @@ name: hypertest-interactive
 description: Use HyperTest MCP to sync Codex session tasks, cases and raw reports, or query their saved history. Legacy managed testing tools remain separately available. Use only when working with HyperTest tasks.
 ---
 
-Current stage: **one Codex session corresponds to one test task**. Codex performs
+Local tasks default to one bound native root. With explicitly enabled
+`local-task-collaboration/v1alpha1`, multiple authorized independent roots may
+join the same task while retaining separate identities and contributions. Codex performs
 the testing work in the SUT's existing framework; HyperTest only manages the
 task, plan, cases and reports. Use `hypertest_sync_task` with the real available
 session reference and authorized Project, stable `idempotency_key` and the
-latest `expected_version` (0 when creating). Submit structured cases and raw
+latest `expected_version`. New roots bind an explicit Operator-created Task ID
+with `hypertest_bind_task`; do not fall back to legacy automatic creation. Submit structured cases and raw
 Markdown reports with their source and reported result. Session references are
 metadata, never credentials or proof of host identity.
 
@@ -17,6 +20,27 @@ client journal. After an uncertain write, only query the original key; a
 NOT_FOUND response does not permit automatic POST retry or a replacement key.
 Read the latest task version before a deliberate subsequent update. A new
 report key/version preserves earlier failures; omission does not delete them.
+
+For explicitly enabled collaboration, use `hypertest_get_task_collaboration`
+with Project, Task ID and your own provider/session to read the fixed document.
+The Operator authorizes your exact native root before `hypertest_join_task`.
+Use `hypertest_contribute_task` to append your own PLAN/CASE/REPORT/REVIEW
+revisions. Only the current PRIMARY uses `hypertest_publish_task` with the
+current primary generation and exact contribution references. Do not full sync
+a collaboration task, overwrite another member's contribution, or rebind the
+initial source. Native children return artifacts to their root. Operator-only
+enablement, membership changes and handoff do not grant the Agent an Operator key.
+
+Reconcile JOIN/CONTRIBUTE/PUBLISH through `hypertest_get_task_collaboration`
+using the original Project/Task/provider/session and idempotency key, without
+pagination or version arguments. Keep separate operation records in your own
+private journal; never replay another root's key. Accepted writes require a
+complete readback of their fixed version and original content before confirming
+delivery. Hooks submit approved files as this participant's contributions;
+overall publication remains explicit. New collaboration writes currently use
+only the supported Codex 0.144.6 native per-call context. Claude/DeepSeek new
+caller adapters remain unsupported; read-only recovery remains separate.
+Source changes do not upgrade existing public release assets or host acceptance.
 
 Sync does not need device pairing, host proof, source transfer, execution
 binding, Runner, Gate or CI verification. Preserve reported PASS/FAIL and

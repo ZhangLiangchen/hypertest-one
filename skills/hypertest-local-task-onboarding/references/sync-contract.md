@@ -21,7 +21,7 @@ Task ID 查询不同时传 provider/session；原 key 查询不传 task_id/provi
 
 - UNBOUND：当前授权 actor 必须精确等于 intended actor，且当前 root 尚无其他 Task；满足后才准备 BIND。
 - BOUND 且来源/owner 与本父会话匹配：恢复原目标和账本，不再次 BIND。
-- 已绑定到其他来源：让原真实 writer 接续或明确来源阻塞，不可改绑、复制其 session ID 或让新会话冒用。`SESSION_ALREADY_HAS_TASK` 也不授权自动合并或创建替代 Task。
+- 已绑定到其他来源：单会话合同让原真实 writer 接续或明确来源阻塞；只有显式启用协作并授权本 root 时才转到下节 JOIN，不可改绑、复制其 session ID 或让新会话冒用。`SESSION_ALREADY_HAS_TASK` 也不授权自动合并或创建替代 Task。
 - 其他 writer 或未决 key 尚未协调时，不继续写入；保留可独立准备的私有材料。
 
 ## 2. 冻结并调用一次 BIND
@@ -77,3 +77,22 @@ SYNC ACK 核对 `status=ACCEPTED`、`profile=codex-session-task-sync/v1alpha1`�
 | ACK 已接受但读回不完整/不符 | 继续该固定版本只读核查，不用另一次 SYNC 修补读回 |
 
 规范：[会话同步指南](https://github.com/ZhangLiangchen/hypertest-one/blob/main/docs/CODEX_SESSION_TASK_SYNC.md)、[输入和 GET schema](https://github.com/ZhangLiangchen/hypertest-one/blob/main/src/hypertest/api/task_schemas.py)。
+
+## 7. 显式多会话协作（ADR-026）
+
+本节仅适用于服务端与客户端均支持 `local-task-collaboration/v1alpha1` 的 Task。旧 `local-v0.1.0` 和 `local-v0.1.1-rc.1` 的不可变资产不因源码更新获得协作能力；先核验实际安装的工具和能力。默认任务不自动启用协作。
+
+Operator 先 ENABLE，并对拟加入的精确 actor/provider/真实独立 root session AUTHORIZE。当前首片同一 owner actor；Agent 不取得 Operator key。AUTHORIZED 只是授权意图，不代表已 JOIN。使用 `hypertest_get_task_collaboration` 带 `project_id/task_id/provider/session_id` 读取当前或固定版本，续页 `offset>0` 必须携 `version`。AUTHORIZED 与 ACTIVE 可按当前授权读取；REVOKED 拒绝。旧不带来源的 Task GET 遇到 `COLLABORATION_PROFILE_REQUIRED` 时切换新 GET，不继续 full sync。
+
+- **JOIN：** `hypertest_join_task` 传 `project_id/task_id/provider/session_id/expected_version/idempotency_key`，可显式传 profile。必须由匹配的真实 root 调用，宿主 caller context 不属于 arguments。JOIN 原 key 对账并完整读回 ACTIVE participant 后才提交贡献；已是 ACTIVE 不再 JOIN。
+- **贡献：** `hypertest_contribute_task` 另传 `contributions`。每项含 `kind=PLAN|CASE|REPORT|REVIEW`、`stable_key`、`expected_revision`（首次为0）和 `content` 对象。CASE/REPORT 内容采用旧对应输入字段但去掉 `key`，报告明确 reported_result；PLAN/REVIEW 保存批准的正式 JSON。只追加自己的贡献，不将其他成员同名 key 当作自己的基线。
+- **汇总：** 当前 PRIMARY 的 `hypertest_publish_task` 另传 `primary_generation` 与 `summary`。summary 明确承接 `title/objective/status/plan_markdown/reported_result`，`contribution_refs` 每项固定 `contribution_id/revision/disposition`（ADOPTED/MERGED/DIVERGENCE/DEFERRED）及可选 `shared_key`，另含 `completion_basis`、`unresolved_items`。COMPLETED 必须给出完成依据；采纳映射不隐式物化旧 CaseRevision/ReportRevision。所有原贡献和 FAIL 保留，成员完成不自动完成整体任务。
+- **角色交接：** 由 Operator 选择 ACTIVE participant 并核验版本与代次。原主失去整体写权后仍按当前角色贡献，不修改原 session 或替旧 root 重发未决 key。
+
+每次写都冻结完整规范化 payload、Task/source/operation、原 key、expected_version 及适用 generation/revision。各操作共享服务端 actor/Project 的 key 唯一范围，不能跨操作重用 key。明确版本拒绝后可读取新基线形成真实新意图；已发送或未知请求只 GET 原 key，绝不自动重基或重放。
+
+原协作 key 查询用 `hypertest_get_task_collaboration({project_id,task_id,provider,session_id,idempotency_key})`，不混入 version/offset/limit。当前授权下验证原身份、operation、request_digest、participant、版本和代次；本地协调器持有原快照时继续完整固定版本读回，逐字段核对 operation_history 原 request/response、来源、贡献原文和 publication。没有本地原快照的只读回执不宣称已比较原请求。
+
+同一 root 的 Hook/MCP 共用锁和私有账本，跨 root 由服务端串行接受。批准的计划文件成为该成员 `PLAN/approved-plan`，报告成为该成员原 stable_key 的 REPORT。文件观察保留该成员已有报告 metadata/result，只更新 Markdown；不把共享整体计划回投到另一个成员的槽。manifest 含整体 title/objective/status/reported_result 变更时明确要求显式 PUBLISH，Hook 不代发。旧 full sync 新写明确拒绝；启用前原 key 和固定历史仍按原合同恢复。
+
+协作来源实现与输入：[协作 schema](https://github.com/ZhangLiangchen/hypertest-one/blob/main/src/hypertest/api/task_collaboration_schemas.py)、[Local adapter](https://github.com/ZhangLiangchen/hypertest-one/blob/main/src/hypertest/local_sync/collaboration.py)。

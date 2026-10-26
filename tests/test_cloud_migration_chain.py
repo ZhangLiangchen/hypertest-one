@@ -10,7 +10,8 @@ def test_cloud_migrations_have_one_head_after_local_binding_without_historical_n
     config = Config()
     config.set_main_option("script_location", str(root / "alembic"))
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0028_cloud_http_operations"]
+    assert scripts.get_heads() == ["0029_local_task_collaboration"]
+    assert scripts.get_revision("0029_local_task_collaboration").down_revision == "0028_cloud_http_operations"
     assert scripts.get_revision("0028_cloud_http_operations").down_revision == "0027_project_memory"
     assert scripts.get_revision("0027_project_memory").down_revision == "0026_cloud_ssh_operations"
     assert scripts.get_revision("0026_cloud_ssh_operations").down_revision == "0025_cloud_tasks"

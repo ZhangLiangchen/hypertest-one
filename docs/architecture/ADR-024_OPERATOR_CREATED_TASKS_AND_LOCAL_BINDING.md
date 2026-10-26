@@ -1,5 +1,7 @@
 # ADR-024：统一任务创建与 Local 预创建显式绑定
 
+**2026-10-26 增补：[ADR-026](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)通过显式 ENABLE、精确成员授权与 JOIN 扩展已 BOUND 的 Local 任务；初始 BIND 来源仍一次性不可变。下文“一个任务不能绑定两个来源/新会话需独立任务”仅继续约束初始 BIND 与未启用协作的旧合同，不阻止新 profile 的参与关系。原授权链、caller fence、历史与 UNKNOWN 原 key 对账保留。**
+
 **状态：Accepted design（2026-10-23，Asia/Singapore）；实现、远端验收与客户端发行分别记录。**
 
 **决定方：项目负责人。范围：同一 Project 内的创建入口与 Local SessionTask 绑定，不接管独立 Cloud 实施。**

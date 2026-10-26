@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml README.md ./
 COPY src ./src
+COPY skills/hypertest-local-task-onboarding ./skills/hypertest-local-task-onboarding
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY ops/container/healthcheck.py /app/healthcheck.py

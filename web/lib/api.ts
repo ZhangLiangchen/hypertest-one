@@ -5,6 +5,7 @@ import type {
   SessionTaskDetail, SessionTaskList, SessionReportRevision, ProjectUpdate, SessionTaskUpdate, LocalTaskActorList, LocalTaskCreate, TaskBindingAuthorization,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
+import type { CollaborationDocument, CollaborationReceipt, CollaborationRequest } from "@/lib/local-collaboration";
 
 const API_PREFIX = "/api/v1";
 
@@ -32,6 +33,18 @@ export function errorText(error: unknown, locale: Locale): string {
       TASK_OPERATION_KEY_CONFLICT: "This request key belongs to different input. Query the original key before continuing.",
       TASK_CREATION_RECEIPT_NOT_FOUND: "The original creation receipt was not found. Continue querying the original key; this does not permit another POST.",
       LOCAL_TASK_CREATION_RECEIPT_MISMATCH: "The creation receipt did not match the frozen request. Query the original key instead of creating another task.",
+      COLLABORATION_KEY_CONFLICT: "The original key belongs to different input. Keep the pending request and query its original key.",
+      COLLABORATION_RECEIPT_NOT_FOUND_NO_REPLAY: "No receipt was found for the original key. Keep querying that key; this does not permit another submission.",
+      COLLABORATION_PARTICIPANT_EXISTS: "This session is already authorized or active. Refresh the participant list before continuing.",
+      COLLABORATION_PRIMARY_GENERATION_CONFLICT: "The primary role changed. Your input is preserved; refresh and review the current primary generation.",
+      COLLABORATION_HANDOFF_REQUIRES_ACTIVE_MEMBER: "The target session must complete JOIN before it can become primary.",
+      COLLABORATION_ACTOR_MISMATCH: "Only the task's existing owner client can participate in this version of collaboration.",
+      COLLABORATION_ALREADY_REVOKED: "This participant was already revoked. Refresh the session list.",
+      COLLABORATION_ALREADY_PRIMARY: "This session is already primary. Refresh the session list.",
+      COLLABORATION_ALREADY_ENABLED: "Collaboration is already enabled. Refresh the task before making another change.",
+      COLLABORATION_NOT_ENABLED: "Enable collaboration on this task first.",
+      COLLABORATION_TASK_DELETED: "Restore the task and its Project before changing collaboration.",
+      LOCAL_COLLABORATION_READBACK_PENDING: "The complete accepted version has not been confirmed. Query the original request; the change will not be resubmitted.",
     };
     return bindingProblems[detail] || detail || "Something went wrong. Please try again.";
   }
@@ -64,6 +77,18 @@ export function errorText(error: unknown, locale: Locale): string {
     "TASK_OPERATION_KEY_CONFLICT": "此请求标识已用于另一组输入。请保留原标识，先按原请求查询对账。",
     "TASK_CREATION_RECEIPT_NOT_FOUND": "尚未找到原创建请求回执。请继续查询原 key，不代表可以再次提交创建请求。",
     "LOCAL_TASK_CREATION_RECEIPT_MISMATCH": "创建回执与固定请求不一致。请按原 key 查询，不要另建任务。",
+    "COLLABORATION_KEY_CONFLICT": "原 key 已用于不同输入。请保留未决请求，继续查询原 key。",
+    "COLLABORATION_RECEIPT_NOT_FOUND_NO_REPLAY": "尚未找到原 key 的回执。请继续查询原 key，不能据此重新提交。",
+    "COLLABORATION_PARTICIPANT_EXISTS": "该会话已经获准加入或正在参与。请刷新参与会话列表后再操作。",
+    "COLLABORATION_PRIMARY_GENERATION_CONFLICT": "主会话责任已变化，当前输入已保留。请刷新后核对最新主会话代次。",
+    "COLLABORATION_HANDOFF_REQUIRES_ACTIVE_MEMBER": "目标会话须先完成 JOIN，才能成为主会话。",
+    "COLLABORATION_ACTOR_MISMATCH": "当前协作版本只允许任务原有 owner 客户端参与。",
+    "COLLABORATION_ALREADY_REVOKED": "该参与会话已经被撤销权限。请刷新会话列表。",
+    "COLLABORATION_ALREADY_PRIMARY": "该会话已经是当前主会话。请刷新会话列表。",
+    "COLLABORATION_ALREADY_ENABLED": "此任务已经启用协作。请刷新任务后再进行新变更。",
+    "COLLABORATION_NOT_ENABLED": "请先在此任务中启用多会话协作。",
+    "COLLABORATION_TASK_DELETED": "请先恢复任务及所属项目，再修改协作状态。",
+    "LOCAL_COLLABORATION_READBACK_PENDING": "尚未完整确认固定接受版本。请查询原请求，系统不会重新提交此变更。",
     "controlled environment unavailable; build the configured profile on this host": "受控环境当前不可用。请在执行主机准备与所选配置匹配的可信镜像，再刷新环境可用性；当前草稿会保留。",
     "ASGI application module must be tracked in the pinned source": "ASGI 应用模块必须是固定源码中已跟踪的文件。请核对应用对象路径与提交 SHA。",
     "controlled environments require the Docker runner": "固定受控环境必须通过 Docker Runner 执行，不能改用本机进程。",
@@ -173,6 +198,12 @@ export const getSessionTask = (taskId: string, version?: number, includeDeleted 
   const query = [version === undefined ? "" : `version=${version}`, includeDeleted ? "include_deleted=true" : ""].filter(Boolean).join("&");
   return api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}${query ? `?${query}` : ""}`);
 };
+export const getTaskCollaboration = (taskId: string, version?: number) =>
+  api<CollaborationDocument>(`/tasks/${encodeURIComponent(taskId)}/collaboration?include_deleted=true${version === undefined ? "" : `&version=${version}`}`);
+export const changeTaskCollaboration = (taskId: string, payload: CollaborationRequest) =>
+  api<CollaborationReceipt>(`/tasks/${encodeURIComponent(taskId)}/collaboration`, { method: "POST", body: JSON.stringify(payload) });
+export const getTaskCollaborationReceipt = (taskId: string, key: string) =>
+  api<CollaborationReceipt>(`/tasks/${encodeURIComponent(taskId)}/collaboration/receipts/by-key?idempotency_key=${encodeURIComponent(key)}`);
 export const updateSessionTask = (taskId: string, payload: SessionTaskUpdate) =>
   api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteSessionTask = (taskId: string, expectedVersion: number) =>

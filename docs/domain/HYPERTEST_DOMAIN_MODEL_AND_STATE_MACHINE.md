@@ -2194,7 +2194,9 @@ NativeConclusion.UNKNOWN 是质量证据不足；NativeOperation.UNKNOWN 是副�
 
 ## 50. SessionTask 管理数据与历史（ADR-018，当前阶段）
 
-本节规范当前“一个 Codex 会话一个测试任务”的管理同步；独立于 legacy TestRun/Mission/Execution/Evidence/Verdict 与 §49 native材料/Gate。平台保存 Codex产物，不执行测试；既有 Project 是唯一共享的项目身份。任务不要求存在 SourceSnapshot、Policy、执行绑定、Job、Runner或Gate记录，不向旧表回填历史。
+[ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)已接受，增加 §50.6 的显式协作合同；以下 §50.1–50.5 的初始绑定、单会话默认及旧历史继续生效。多参与来源通过独立关系加入，不覆写原 source、owner 或 BIND 回执。
+
+本节规范默认单会话管理同步及 §50.6 的显式多会话协作；独立于 legacy TestRun/Mission/Execution/Evidence/Verdict 与 §49 native材料/Gate。平台保存 Agent 产物，不执行测试；既有 Project 是唯一共享的项目身份。任务不要求存在 SourceSnapshot、Policy、执行绑定、Job、Runner或Gate记录，不向旧表回填历史。
 
 ### 50.1 实体与归属
 
@@ -2260,6 +2262,35 @@ Local MCP在发送BIND前核对受支持宿主SessionStart建立的私有root co
 若来源已对应另一个autoTask，绑定409，只向有权读取者返回existing_task_id；不merge、不重分配主键/来源、不搬历史或覆盖原FAIL。可以显式继续已有Task并删除未绑定草稿，或以真实新会话绑定；计划/报告的前序引用不改变原身份和权限。软删除后不得新绑定或改绑，恢复保留UNBOUND/BOUND及原来源。
 
 CREATE/BIND写前冻结完整请求/key/version；同key同输入返回固定接受Task与版本，同key异输入冲突。SENT/UNKNOWN/失答甚至原keyNOT_FOUND只继续原key GET，不重POST、换key、另建Task或发新凭据。原回执在当前有效授权下可查询，软删除/版本前进不改原接受记录。绑定回执与sync回执是不同操作，不能混用查询身份。Web binding_history仅投影BIND的{id,action,actor_ref,task_version,task_snapshot,created_at}。
+
+### 50.6 Local 多会话参与与贡献（ADR-026）
+
+`local-task-collaboration/v1alpha1` 只扩展显式启用协作的 SessionTask，不合并 CloudTask、legacy Run 或 native Run。`0029_local_task_collaboration` 增加以下状态；任务初始 provider/session/owner/Project 和原 CREATE/BIND/SyncReceipt 保持不可变。
+
+| 对象 | 持久化合同 |
+| --- | --- |
+| SessionTask 协作字段 | `collaboration_enabled` 默认 false；`primary_participant_id` 可空；`primary_generation` 初始 0，ENABLE 后为 1，交接/撤销当前主会话严格递增。协作开启后不自动降回旧合同 |
+| session_task_sources | 全局 `(provider,session_id)` 主键 → Task FK。迁移仅登记已有来源，不补造 JOIN；初始来源与新增参与来源在同一数据库约束边界中占用，不能借另一张表绕过唯一性。软删除/撤销不释放来源 |
+| session_task_participants | 稳定 ID、Task/Project、provider/session、actor、角色 PRIMARY/CONTRIBUTOR、状态 AUTHORIZED/ACTIVE/REVOKED、assignment、initial_binding、最近成员变更版本和授权/加入/撤销时间。任务内来源唯一；真实来源与 owner 不改写，成员变更通过协作接受快照保留历史 |
+| session_contribution_revisions | Task/participant/kind/stable_key/revision 唯一，kind 为 PLAN/CASE/REPORT/REVIEW，完整结构化 content、作者/source、接受 task_version/created_at；修订递增且只追加 |
+| session_task_publications | Task/version 唯一，原 PRIMARY participant、primary_generation、完整 summary 和固定贡献引用；只追加，不覆写贡献原件 |
+| session_collaboration_receipts | actor/Project/key 唯一、Task/version 唯一，operation、provider/session/participant、输入摘要、完整非秘密 request_payload、冻结 task_snapshot/collaboration_snapshot、response 和接受时间；与旧 SyncReceipt/CREATE/BIND 回执分开且不可变 |
+
+ENABLE 只接受已有真实 BOUND 任务，建立引用初始来源的 ACTIVE PRIMARY；这是现有绑定的协作角色投影，不补造一次新的宿主 JOIN。AUTHORIZE 仅允许现有 owner actor 的精确拟加入 provider/session，保存 AUTHORIZED 意图和分工；该状态不表示会话已加入或通过宿主验证。JOIN 经当前 grant 及本地 caller fence 后转为 ACTIVE 并记录实际加入时间。首版跨 actor 拒绝。精确 AUTHORIZED/ACTIVE 成员可按当前授权只读协作快照与本人原 key，便于 JOIN 前选择基线；CONTRIBUTE/PUBLISH 要求 ACTIVE。REVOKED 拒绝普通成员读取和新写，原件与未决请求保留，恢复仍需当前授权。
+
+并行 root 分别追加自己的贡献，不更新整体 title/objective/plan/status/reported_result。当前 ACTIVE PRIMARY 经 PUBLISH 明确提交整体 summary 与准确的 contribution ID/revision/disposition/shared_key 映射；角色、primary_generation 和 expected_version 必须匹配。首片发布映射不物化为旧 CaseRevision/ReportRevision，不把贡献者替换成汇总者；原用例/报告与全部贡献修订分别可读。COMPLETED 需要明确 completion_basis，unresolved_items 与原 FAIL/UNKNOWN 不因新 PASS、交接或成员退出删除。成员完成不自动完成任务；任何 reported result 仍是提交者报告，不升级独立执行证明。
+
+ENABLE/AUTHORIZE/JOIN/REVOKE/CONTRIBUTE/PUBLISH/HANDOFF 每次新接受都在同一任务聚合锁下核验 expected_version、递增 task.version 并原子保存相应领域变更、完整快照、协作回执、Audit/Outbox。贡献另核本成员命名空间的 expected_revision；旧版本拒绝，不自动重基。人工 UPDATE/DELETE/RESTORE 仍按 §50.4 递增同一版本，其协作投影继承该版本之前最近已接受的 roster/贡献，不读取未来成员状态。
+
+只有 Operator 操作更新 last_managed_at；PUBLISH 更新实际 last_synced_at/source。JOIN 与贡献有各自接受时间，不冒充人工管理或整体汇总。固定版本读取联合旧同步/管理/绑定/新协作快照，完整重建当时成员、代次、贡献和结果；不改写原历史快照。
+
+HANDOFF 由 Operator 指定 ACTIVE 成员，在当前版本与预期 generation 下原子切换 PRIMARY 并递增 generation；原主会话可继续作 CONTRIBUTOR。撤销当前主会话同样 fence 原代次，可暂时无 PRIMARY。先接受的汇总令旧版本交接冲突，先接受的交接令旧角色/代次汇总失败。handoff 清单只表示明确提交材料及服务端已知操作，`private_journals_observed=false`；平台不能枚举失联 root 的全部私有发送意图，相关未知范围仍阻塞依赖工作。
+
+幂等原 key 在版本/新角色检查前查重，同输入返回原接受回执，异输入或换来源冲突；读取回执仍核当前 grant 和原提交 actor/provider/session，不能借同 actor 的另一个会话获取其写身份。SENT/UNKNOWN/失答/NOT_FOUND 仅原 key 查询，禁止改 generation、换会话或新 key 重发；ACK 后须完整固定版本读回。协作启用后拒绝旧 full sync 的新写入，但不改变已接受旧 key 的固定结果、授权历史读取与未启用任务。
+
+### 50.7 协作与 Local 私有运行态
+
+各真实 root 的 Hook/MCP 共用该 root 的协调器、目标和未决账本。协作操作使用独立命名空间，携 task/source/operation 区分，不共享全局 journal；冻结请求和回执只读恢复沿 §52/§53 原语义。新显式写入继续逐调用 caller 核验，原 key 查询及授权只读不因缺少 caller 被改造成一次新写。Hooks 只可将获准正式产物转换为本成员贡献，整体 PUBLISH 由主会话显式调用；不从 Stop/聊天/SDK idle 推导任务结果。不支持的宿主、profile 或已启用协作的旧客户端明确拒绝，不回退自动建任务。
 
 ## 51. 云端测试任务模型（ADR-019，部分实现、代码默认关闭）
 

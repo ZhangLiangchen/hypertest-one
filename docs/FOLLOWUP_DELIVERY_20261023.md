@@ -1,5 +1,7 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
+2026-10-26 多会话后续：用户已要求实施[ADR-026](architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)，首片源码连通同一 Local 任务的多真实root授权/JOIN、独立贡献、单一主会话汇总、交接、MCP与PC详情；领域 §50.6/TMP §45.5 与初始绑定兼容同步更新。自动回归、迁移、部署及镜像见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)，旧公开Local包/宿主资格不升级；未执行模型、SUT或用户功能验收。下方API/Worker/Web身份保留其原轮次，最新部署以新交付记录为准。
+
 2026-10-26 Local 后续：按用户本轮更新接入包的指令，PR #25 已审查合入，Skill 已纳入 `local-v0.1.1-rc.1` Mac/Linux公开候选包并增加显式安装/升级；80项相关回归、代码CI及发行构建通过。精确源码/摘要与下载见[本轮交付](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。新版宿主验收仍USER_OWNED/NOT_OBSERVED，旧正式发行和下文API/Worker部署身份保持原义。
 
 本轮继续既有授权范围内的开发，不重复P0-1/P0-2或PowerContext集成；完整处置见[当前TODO](TODO.md)。新API能力默认关闭，没有为任何Project增加授权、凭据、Task或经验，不运行真实模型/SUT。功能验收保持USER_OWNED。

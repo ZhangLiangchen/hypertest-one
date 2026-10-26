@@ -1,5 +1,9 @@
 # Codex 会话测试任务同步
 
+## 多会话协作（ADR-026）
+
+显式启用的 Local 任务现有独立协作 profile：Operator 启用并授权精确会话，同一 owner 的真实 root 通过 JOIN 加入、各自追加贡献，当前 PRIMARY 显式发布整体汇总并可交接。初始绑定和旧历史不改写，未启用任务继续下文单会话合同。完整用法、源码客户端与公开旧包的区别见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)；API字段见TMP §45.5。
+
 现阶段，一个 Codex 会话对应 HyperTest One 中一个测试任务。Codex 继续使用真实 SUT 的已有框架进行测试，通过 MCP 同步任务、计划、用例和原始报告；平台提供持久管理、查询和版本历史，不执行测试。
 
 本文针对 [ADR-018](architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) 新入口。旧受管任务、原生材料准入、Runner、Gate、源码传输或设备执行绑定均不是同步准备条件。实际部署版本、授权与验收环境由操作者核验；源码存在不证明目标环境已经升级。

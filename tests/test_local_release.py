@@ -132,6 +132,74 @@ def test_local_wheel_is_reproducible_and_excludes_cloud_and_platform(source):
         assert "deepseek-harness-sdk" not in metadata
 
 
+def test_real_local_wheel_imports_collaboration_coordinator_and_wire_contract(tmp_path):
+    filename, raw = builder.make_local_wheel(ROOT, "0.1.2rc1", COMMIT, [], 1_700_000_000)
+    path = tmp_path / filename
+    path.write_bytes(raw)
+    script = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from hypertest.local_sync import coordinator
+from hypertest.local_sync import collaboration
+from hypertest.api import task_collaboration_schemas as schema
+from hypertest.api import task_schemas
+for module in (coordinator, collaboration, schema, task_schemas):
+    assert module.__file__.startswith(sys.argv[1] + '/'), module.__file__
+request = schema.CollaborationMemberOperation.model_validate({
+    'project_id': '00000000-0000-0000-0000-000000000001',
+    'provider': 'codex', 'session_id': 'real-native-root-reference',
+    'operation': 'CONTRIBUTE', 'expected_version': 5, 'idempotency_key': 'original-key',
+    'contributions': [{'kind': 'REPORT', 'stable_key': 'report', 'expected_revision': 0,
+        'content': {'title': 'Raw report', 'markdown': '中文原文\\n', 'reported_result': 'FAIL'}}]})
+value = request.model_dump(mode='json')
+assert value['profile'] == collaboration.PROFILE
+assert value['contributions'][0]['content']['reported_result'] == 'FAIL'
+assert value['contributions'][0]['content']['source_ref'] is None
+assert value['contributions'][0]['content']['markdown'] == '中文原文\\n'
+assert coordinator.LocalSyncCoordinator is not None
+"""
+    # -I ignores this checkout/PYTHONPATH. Reuse the existing interpreter and
+    # installed dependencies; no installation or extra virtualenv is needed.
+    subprocess.run([sys.executable, "-I", "-c", script, str(path)], cwd=tmp_path,
+                   check=True, capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("name", ["task_schemas.py", "task_collaboration_schemas.py"])
+def test_wire_schema_bytes_are_bound_to_wheel_and_native_acceptance(source, name):
+    path = source / "src/hypertest/api" / name
+    before_digest = builder.local_source_digest(source)
+    _, before_wheel = builder.make_local_wheel(source, "0.1.2rc1", COMMIT, [], 1_700_000_000)
+    path.write_bytes(path.read_bytes() + b"# wire contract changed\n")
+    assert builder.local_source_digest(source) != before_digest
+    _, after_wheel = builder.make_local_wheel(source, "0.1.2rc1", COMMIT, [], 1_700_000_000)
+    assert after_wheel != before_wheel
+    with zipfile.ZipFile(io.BytesIO(after_wheel)) as wheel:
+        assert wheel.read("hypertest/api/" + name) == path.read_bytes()
+
+
+@pytest.mark.parametrize("operation", ["wheel", "digest"])
+@pytest.mark.parametrize("name", ["task_schemas.py", "task_collaboration_schemas.py"])
+@pytest.mark.parametrize("kind", ["missing", "file-link", "directory-link"])
+def test_wire_schema_missing_or_symlinked_sources_cannot_build_or_qualify(source, tmp_path, operation, name, kind):
+    path = source / "src/hypertest/api" / name
+    if kind == "missing":
+        path.unlink()
+    elif kind == "file-link":
+        outside = tmp_path / name
+        path.rename(outside)
+        path.symlink_to(outside)
+    else:
+        path = path.parent
+        outside = tmp_path / "outside-api"
+        path.rename(outside)
+        path.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="required Local wire schema|symlinks"):
+        if operation == "wheel":
+            builder.make_local_wheel(source, "0.1.2rc1", COMMIT, [], 1_700_000_000)
+        else:
+            builder.local_source_digest(source)
+
+
 def test_local_wheel_contains_only_reviewed_onboarding_files_with_original_bytes(source):
     skill = source / builder.SKILL_SOURCE_ROOT
     (skill / "private-notes.md").write_text("must not ship\n")
@@ -580,6 +648,8 @@ def test_release_source_allowlist_never_copies_cloud_implementation():
     selected = freeze.approved_paths(ROOT)
     assert "scripts/local-release-targets.json" in selected
     assert "src/hypertest/interactive_client/mcp_server.py" in selected
+    assert "src/hypertest/api/task_schemas.py" in selected
+    assert "src/hypertest/api/task_collaboration_schemas.py" in selected
     assert "tests/test_session_task_mcp.py" in selected
     assert "src/hypertest/local_sync/deepseek_root_bridge.mjs" in selected
     assert "tests/test_local_deepseek_bridge.py" in selected

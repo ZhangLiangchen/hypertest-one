@@ -238,9 +238,12 @@ async def test_strict_capabilities_never_accept_host_identity_from_mcp():
     assert response.status_code == 200
     caps = response.json()
     assert caps["profile"] == "hypertest.interactive-mcp/v1alpha1"
-    assert len(caps["tools"]) == 13 and len(caps["execution_tools"]) == 9
+    assert len(caps["tools"]) == 17 and len(caps["execution_tools"]) == 9
     assert {"hypertest_sync_task", "hypertest_get_task", "hypertest_bind_task",
-            "hypertest_get_task_binding"} <= {t["name"] for t in caps["tools"]}
+            "hypertest_get_task_binding", "hypertest_join_task", "hypertest_contribute_task",
+            "hypertest_publish_task", "hypertest_get_task_collaboration"} <= {t["name"] for t in caps["tools"]}
+    for tool in caps["tools"]:
+        assert "native_caller_context" not in tool["inputSchema"]["properties"]
     bind = next(t for t in caps["tools"] if t["name"] == "hypertest_bind_execution")
     assert "host_proof" not in bind["inputSchema"]["properties"]
     complete = next(t for t in caps["execution_tools"] if t["name"] == "complete_mission")

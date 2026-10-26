@@ -36,6 +36,9 @@ class LocalSyncCoordinator:
         from hypertest.local_sync.binding import LocalBindingAdapter
         self.binding_adapter = LocalBindingAdapter(api)
         self.binding_core = TaskSyncCore(JournalLedger(journal), self.binding_adapter)
+        from hypertest.local_sync.collaboration import LocalCollaborationAdapter
+        self.collaboration_adapter = LocalCollaborationAdapter(api)
+        self.collaboration_core = TaskSyncCore(JournalLedger(journal), self.collaboration_adapter)
         self._locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
@@ -72,7 +75,8 @@ class LocalSyncCoordinator:
         # The existing Journal remains the only transmission ledger. Full
         # approved payload snapshots are not duplicated into this compact row.
         rows = self.journal.db.execute(
-            "SELECT kind,key,payload FROM intents WHERE (kind LIKE 'session-task:%' OR kind LIKE 'task-bind:%') "
+            "SELECT kind,key,payload FROM intents WHERE (kind LIKE 'session-task:%' OR kind LIKE 'task-bind:%' "
+            "OR kind LIKE 'task-collaboration:%') "
             "AND state NOT IN ('READBACK_COMPLETE','LEGACY_ACCEPTED_READBACK','REJECTED') ORDER BY rowid").fetchall()
         return [(kind, key) for kind, key, raw in rows
                 if all(json.loads(raw).get(field) == identity[field]
@@ -83,7 +87,8 @@ class LocalSyncCoordinator:
         for namespace, key in self._pending(identity):
             if key == current_key and namespace == current_namespace:
                 continue
-            if query_only and self.journal.get(namespace, key)["state"] == "PENDING":
+            if ((query_only or namespace.startswith("task-collaboration:"))
+                    and self.journal.get(namespace, key)["state"] == "PENDING"):
                 return {"status": "BLOCKED", "code": "ORIGINAL_REQUEST_NOT_SENT",
                         "idempotency_key": key, "query_required": False}
             try:
@@ -96,11 +101,15 @@ class LocalSyncCoordinator:
                 if blocked:
                     return blocked
                 continue
-            outcome = await (self.binding_core if namespace.startswith("task-bind:") else self.core).deliver(original)
+            core = (self.binding_core if namespace.startswith("task-bind:") else
+                    self.collaboration_core if namespace.startswith("task-collaboration:") else self.core)
+            outcome = await core.deliver(original)
             if not outcome.synced and outcome.state != "REJECTED":
                 return self._projection(outcome, key)
             if outcome.synced and namespace.startswith("task-bind:"):
                 self._remember_target(original.target, binding_required=True)
+            if outcome.synced and namespace.startswith("task-collaboration:"):
+                self._remember_collaboration(original.target)
             if outcome.synced and original.target.get("checkpoint_digest"):
                 self._mark_checkpoint(identity, original.target["checkpoint_digest"], key,
                                       outcome.receipt["version"])
@@ -181,6 +190,18 @@ class LocalSyncCoordinator:
     def _target_path(self, identity):
         source = {field: identity[field] for field in ("provider", "session_id")}
         return self.directory / (digest(source) + ".task.json")
+
+    def _collaboration_path(self, identity):
+        return self._target_path(identity).with_suffix(".collaboration.json")
+
+    def _remember_collaboration(self, identity):
+        self._remember_target(identity)
+        selected = {field: identity[field] for field in ("project_id", "provider", "session_id", "task_id")}
+        try:
+            private_create(self._collaboration_path(identity), canonical_json(selected).encode())
+        except FileExistsError:
+            if json.loads(private_read(self._collaboration_path(identity))) != selected:
+                raise ClientError("LOCAL_TARGET_TASK_CONFLICT") from None
 
     def _remember_target(self, identity, *, binding_required=None):
         selected = {field: identity[field] for field in ("project_id", "provider", "session_id", "task_id")}
@@ -303,7 +324,115 @@ class LocalSyncCoordinator:
             return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
         return {**receipt, "_sync": {"state": "READBACK_COMPLETE", "readback_complete": True, "code": None}}
 
+    def _collaboration_record(self, arguments):
+        rows = self.journal.db.execute(
+            "SELECT kind,key FROM intents WHERE kind LIKE ? AND key=?",
+            ("task-collaboration:" + arguments["project_id"] + ":%", arguments["idempotency_key"])).fetchall()
+        if not rows:
+            return None
+        if len(rows) != 1:
+            raise ClientError("COLLABORATION_JOURNAL_CONFLICT")
+        original = self.snapshots.load(*rows[0])
+        if any(original.target[field] != arguments[field]
+               for field in ("project_id", "task_id", "provider", "session_id")):
+            raise ClientError("IDEMPOTENCY_CONFLICT")
+        return original
+
+    async def submit_collaboration(self, arguments, *, operation, native_caller_context=None):
+        from hypertest.api.task_collaboration_schemas import CollaborationMemberOperation
+        from hypertest.local_sync.collaboration import namespace
+        supplied = dict(arguments)
+        try:
+            task_id = str(UUID(supplied.pop("task_id")))
+            if supplied.get("operation", operation) != operation:
+                raise ValueError("operation mismatch")
+            payload = CollaborationMemberOperation.model_validate({**supplied, "operation": operation}).model_dump(mode="json")
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
+        payload = {**payload, "task_id": task_id}
+        original = self._collaboration_record(payload)
+        record = self.journal.get(original.namespace, original.key) if original else None
+        recovering = record is not None and record["state"] != "PENDING"
+        if original and canonical_json(original.payload) != canonical_json(payload):
+            raise ClientError("IDEMPOTENCY_CONFLICT")
+        if not recovering:
+            # Validate before target, snapshot, intent or any network access.
+            self._require_native_caller(payload, native_caller_context)
+        async with self.writer(payload):
+            blocked = await self._settle_pending(payload, current_key=payload["idempotency_key"],
+                current_namespace=namespace(payload), query_only=True)
+            if blocked:
+                return blocked
+            if original:
+                if record["state"] == "READBACK_COMPLETE":
+                    return await self._query_collaboration(original)
+                outcome = await self.collaboration_core.deliver(original)
+            else:
+                path = self._target_path(payload)
+                if path.exists() and json.loads(private_read(path))["task_id"] != task_id:
+                    raise ClientError("LOCAL_TARGET_TASK_CONFLICT")
+                target = {field: payload[field] for field in ("project_id", "provider", "session_id", "task_id")}
+                intent = FrozenIntent(namespace(payload), payload["idempotency_key"], target, payload,
+                                      payload["expected_version"])
+                self.snapshots.save(intent)
+                outcome = await self.collaboration_core.deliver(intent)
+            if outcome.synced:
+                self._remember_collaboration(payload)
+            return self._projection(outcome, payload["idempotency_key"])
+
+    async def _query_collaboration(self, original):
+        from hypertest.interactive_client.api_client import ApiError
+        try:
+            receipt = await self.collaboration_adapter.reconcile(original)
+            self.collaboration_adapter.validate_receipt(original, receipt)
+        except (ApiError, ClientError, SyncError) as exc:
+            record = self.journal.get(original.namespace, original.key)
+            if record["state"] != "READBACK_COMPLETE":
+                self.journal.mark(original.namespace, original.key, "UNKNOWN", record.get("result"))
+            return {"status": "UNKNOWN", "idempotency_key": original.key,
+                    "code": exc.code, "query_required": True}
+        self.journal.mark(original.namespace, original.key, "ACKED", receipt)
+        outcome = await self.collaboration_core.deliver(original)
+        if outcome.synced:
+            self._remember_collaboration(original.target)
+        return self._projection(outcome, original.key)
+
+    async def get_collaboration(self, arguments):
+        from hypertest.interactive_client.api_client import ApiError
+        from hypertest.local_sync.collaboration import validate_page, validate_receipt
+        arguments = dict(arguments)
+        try:
+            for field in ("project_id", "task_id"):
+                arguments[field] = str(UUID(arguments[field]))
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise ClientError("INVALID_TOOL_ARGUMENTS") from exc
+        if (("idempotency_key" in arguments and set(arguments) & {"version", "offset", "limit"})
+                or (arguments.get("offset", 0) > 0 and "version" not in arguments)):
+            raise ClientError("INVALID_TOOL_ARGUMENTS")
+        if "idempotency_key" in arguments:
+            original = self._collaboration_record(arguments)
+            if original:
+                async with self.writer(original.target):
+                    return await self._query_collaboration(original)
+            try:
+                receipt = await self.adapter.api.request("GET", self.collaboration_adapter.path(arguments)
+                    + "/receipts/by-key", params={field: arguments[field] for field in (
+                        "project_id", "provider", "session_id", "idempotency_key")})
+                if receipt.get("operation") not in {"JOIN", "CONTRIBUTE", "PUBLISH"}:
+                    raise ApiError("INVALID_COLLABORATION_RECEIPT")
+                validate_receipt(receipt, arguments["idempotency_key"], payload={
+                    **arguments, "operation": receipt["operation"]})
+            except (ApiError, ClientError) as exc:
+                return {"status": "UNKNOWN", "code": exc.code, "query_required": True}
+            return {**receipt, "_sync": {"readback_complete": False,
+                    "original_request_comparison": "UNAVAILABLE_LOCAL_SNAPSHOT"}}
+        result = await self.adapter.api.request("GET", self.collaboration_adapter.path(arguments),
+            params={key: value for key, value in arguments.items() if key != "task_id"})
+        validate_page(result, arguments)
+        return result
+
     async def submit_full(self, payload: dict, *, native_caller_context=None) -> dict:
+        from hypertest.interactive_client.api_client import ApiError
         # Preserve the caller's exact body, empty strings, original key/version
         # and no-op acceptance. This is never interpreted as PATCH or rebased.
         payload = dict(payload)
@@ -320,6 +449,8 @@ class LocalSyncCoordinator:
         recovering = known is not None and known["state"] in {
             "SENT", "UNKNOWN", "ACKED", "READBACK_COMPLETE", "LEGACY_ACCEPTED_READBACK", "REJECTED"}
         if not recovering:
+            if self._collaboration_path(payload).exists():
+                raise ClientError("COLLABORATION_PROFILE_REQUIRED")
             pending = self._pending(payload)
             path = self._target_path(payload)
             manual = json.loads(private_read(path)).get("binding_required") if path.exists() else None
@@ -371,10 +502,19 @@ class LocalSyncCoordinator:
                     raise ClientError("IDEMPOTENCY_CONFLICT")
                 return self._projection(await self.core.deliver(frozen), key)
             target = await self._target(payload, supplied_task_id=payload.get("task_id"))
+            if self._collaboration_path(target).exists():
+                raise ClientError("COLLABORATION_PROFILE_REQUIRED")
             # The explicit full body is never silently changed after freezing.
             # New manually bound tasks require the caller's exact target ID.
             if payload.get("task_id") is None:
-                document = await self.adapter.baseline(target, allow_unsynced=True)
+                try:
+                    document = await self.adapter.baseline(target, allow_unsynced=True)
+                except ApiError as exc:
+                    if exc.code == "COLLABORATION_PROFILE_REQUIRED":
+                        raise ClientError("COLLABORATION_PROFILE_REQUIRED") from exc
+                    raise
+                if document["task"].get("collaboration_enabled", False):
+                    raise ClientError("COLLABORATION_PROFILE_REQUIRED")
                 if document["task"].get("binding_required", False):
                     raise ClientError("TASK_ID_REQUIRED")
             intent = FrozenIntent("session-task:" + payload["project_id"], payload["idempotency_key"],
@@ -393,6 +533,7 @@ class LocalSyncCoordinator:
                              base_version: int | None, checkpoint_digest: str,
                              initial_fields: dict | None = None,
                              artifact_observation: bool = False) -> dict:
+        from hypertest.interactive_client.api_client import ApiError
         if not set(changes) <= set(SCALARS) | {"cases", "reports"}:
             raise ClientError("PARTIAL_FIELD_UNSUPPORTED")
         async with self.writer(identity):
@@ -405,7 +546,18 @@ class LocalSyncCoordinator:
                 previous = json.loads(private_read(completed))
                 return {"status": "UNCHANGED", "version": previous["version"],
                         "readback_complete": True, "checkpoint_already_synced": True}
-            baseline = await self.adapter.baseline(target, allow_unsynced=True)
+            try:
+                baseline = await self.adapter.baseline(target, allow_unsynced=True)
+            except ApiError as exc:
+                if exc.code != "COLLABORATION_PROFILE_REQUIRED":
+                    raise
+                return await self._submit_collaboration_partial(target, changes,
+                    clear_fields=clear_fields, base_version=base_version,
+                    checkpoint_digest=checkpoint_digest, artifact_observation=artifact_observation)
+            if baseline and baseline["task"].get("collaboration_enabled", False):
+                return await self._submit_collaboration_partial(target, changes,
+                    clear_fields=clear_fields, base_version=base_version,
+                    checkpoint_digest=checkpoint_digest, artifact_observation=artifact_observation)
             actual_version = baseline["task"]["version"] if baseline else 0
             if base_version is not None and base_version != actual_version:
                 raise ClientError("LOCAL_BASE_VERSION_CONFLICT")
@@ -468,3 +620,81 @@ class LocalSyncCoordinator:
             if outcome.synced:
                 self._mark_checkpoint(identity, checkpoint_digest, intent.key, outcome.receipt["version"])
             return self._projection(outcome, intent.key)
+
+    async def _submit_collaboration_partial(self, target, changes, *, clear_fields,
+            base_version, checkpoint_digest, artifact_observation):
+        """Approved Hook files become this root's contributions, never summary writes.
+
+        The caller already holds the same source writer lock as explicit MCP.
+        Hook admission continues to use its private native root and policy; it
+        does not manufacture the per-invocation MCP caller context.
+        """
+        from hypertest.api.task_collaboration_schemas import CollaborationMemberOperation
+        from hypertest.local_sync.collaboration import namespace
+        from hypertest.local_sync.sources import require_native_root
+        if (self.config.local_sync.get("host") != "codex"
+                or self.config.local_sync.get("harness_version") != "0.144.6"):
+            raise ClientError("NATIVE_CALLER_CONTEXT_UNSUPPORTED")
+        require_native_root(self.config, target)
+        if (set(changes) - {"plan_markdown", "cases", "reports"}
+                or set(clear_fields) - {"plan_markdown"}):
+            raise ClientError("COLLABORATION_EXPLICIT_PUBLICATION_REQUIRED")
+        if set(clear_fields) & changes.keys():
+            raise ClientError("CLEAR_AND_SET_CONFLICT")
+        document = await self.collaboration_adapter.baseline(target)
+        version = document["task"]["version"]
+        if base_version is not None and base_version != version:
+            raise ClientError("LOCAL_BASE_VERSION_CONFLICT")
+        member = next((item for item in document["collaboration"]["participants"]
+            if item.get("provider") == target["provider"]
+            and item.get("session_id") == target["session_id"]
+            and item.get("status") == "ACTIVE"), None)
+        if member is None:
+            raise ClientError("COLLABORATION_PARTICIPANT_REQUIRED")
+        own = {}
+        for item in document["collaboration"]["contributions"]:
+            if item.get("participant_id") == member["id"]:
+                key = (item["kind"], item["stable_key"])
+                if key not in own or own[key]["revision"] < item["revision"]:
+                    own[key] = item
+        selected = []
+        if "plan_markdown" in changes or "plan_markdown" in clear_fields:
+            selected.append(("PLAN", "approved-plan", {
+                "markdown": "" if "plan_markdown" in clear_fields else changes["plan_markdown"]}))
+        for group, kind, model in (("cases", "CASE", TaskCase), ("reports", "REPORT", TaskReport)):
+            additions = changes.get(group, [])
+            if len({item.get("key") for item in additions}) != len(additions):
+                raise ClientError("DUPLICATE_ARTIFACT_KEY")
+            for item in additions:
+                previous = own.get((kind, item.get("key")))
+                if previous and artifact_observation and kind == "REPORT":
+                    item = {**previous["content"], "key": item["key"], "markdown": item["markdown"]}
+                try:
+                    value = model.model_validate(item).model_dump(mode="json")
+                except ValidationError as exc:
+                    raise ClientError("INVALID_ARTIFACT_REVISION") from exc
+                key = value.pop("key")
+                selected.append((kind, key, value))
+        contributions = []
+        for kind, key, content in selected:
+            previous = own.get((kind, key))
+            if previous and canonical_json(previous["content"]) == canonical_json(content):
+                continue
+            contributions.append({"kind": kind, "stable_key": key,
+                "expected_revision": previous["revision"] if previous else 0, "content": content})
+        if not contributions:
+            return {"status": "UNCHANGED", "version": version, "readback_complete": True}
+        payload = CollaborationMemberOperation.model_validate({
+            **{key: target[key] for key in ("project_id", "provider", "session_id")},
+            "operation": "CONTRIBUTE", "expected_version": version,
+            "idempotency_key": "hook-contribution-" + uuid4().hex,
+            "contributions": contributions}).model_dump(mode="json")
+        payload["task_id"] = target["task_id"]
+        frozen_target = {**target, "checkpoint_digest": checkpoint_digest}
+        intent = FrozenIntent(namespace(payload), payload["idempotency_key"], frozen_target, payload, version)
+        self.snapshots.save(intent)
+        outcome = await self.collaboration_core.deliver(intent)
+        if outcome.synced:
+            self._remember_collaboration(target)
+            self._mark_checkpoint(target, checkpoint_digest, intent.key, outcome.receipt["version"])
+        return self._projection(outcome, intent.key)

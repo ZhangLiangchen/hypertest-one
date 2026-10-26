@@ -15,8 +15,13 @@ from hypertest.interactive_client.ipc import LocalClient
 
 def create_server(client: LocalClient, *, local_host: str | None = None) -> Server:
     server = Server("hypertest-interactive", version="0.2.0", instructions=(
-        "HyperTest access profile " + PROFILE + ". Current-stage management: one Codex session "
-        "corresponds to one task. New Local roots first bind an explicit platform Task ID with "
+        "HyperTest access profile " + PROFILE + ". Local management defaults to one root per task. "
+        "Explicitly enabled collaboration permits multiple authorized native roots on one Task. "
+        "Join with hypertest_join_task, submit own contributions with hypertest_contribute_task, "
+        "and let the current PRIMARY explicitly hypertest_publish_task with its generation. "
+        "Read collaboration and reconcile original keys with hypertest_get_task_collaboration. "
+        "Never use full sync on a collaboration task or impersonate another root. "
+        "New single-session Local roots first bind an explicit platform Task ID with "
         "hypertest_bind_task using the existing private native SessionStart context. "
         "Reconcile uncertain binding only with hypertest_get_task_binding and its original key. "
         "Use hypertest_sync_task and hypertest_get_task to save plans, "
@@ -54,7 +59,10 @@ def create_server(client: LocalClient, *, local_host: str | None = None) -> Serv
     async def call_tool(name: str, arguments: dict):
         try:
             payload = {"name": name, "arguments": arguments}
-            if local_host == "codex" and name in {"hypertest_bind_task", "hypertest_sync_task", "hypertest_query_memory", "hypertest_propose_memory"}:
+            if local_host == "codex" and name in {
+                "hypertest_bind_task", "hypertest_sync_task", "hypertest_query_memory", "hypertest_propose_memory",
+                "hypertest_join_task", "hypertest_contribute_task", "hypertest_publish_task",
+            }:
                 # Codex 0.144.6 overwrites this per invocation with the actual
                 # calling thread. Tool arguments never provide this context.
                 try:

@@ -6,6 +6,9 @@
 !alembic.ini
 !src/
 !src/**
+!skills/
+!skills/hypertest-local-task-onboarding/
+!skills/hypertest-local-task-onboarding/**
 !alembic/
 !alembic/**
 !ops/
