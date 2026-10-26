@@ -11,6 +11,7 @@ import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/wor
 import { SessionTaskRecords } from "../task-records";
 import { SessionTaskActions } from "../task-actions";
 import { LocalTaskBinding } from "../local-task-binding";
+import { LocalTaskCollaboration } from "../local-task-collaboration";
 
 export default function SessionTaskPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -25,6 +26,7 @@ export default function SessionTaskPage() {
     {query.data.task.deleted_at ? <Alert type="warning" showIcon message={t("This task is in the recycle bin", "此任务已移入回收站")} description={t("Cases, reports and history remain readable. Restore the task to edit it, bind a session or continue Agent synchronization.", "用例、报告和历史仍可查看。请先恢复任务，再编辑、绑定会话或继续 Agent 同步。") } style={{ marginBottom: 20 }} /> : null}
     {query.isError ? <Alert showIcon type="warning" message={t("Task refresh failed", "任务刷新失败")} description={t("Previously loaded sync records remain visible. Refresh to read the latest version.", "保留此前已读取的同步记录。请刷新以读取最新版本。") + " " + errorText(query.error, locale)} style={{ marginBottom: 20 }} /> : null}
     <LocalTaskBinding task={query.data.task} />
+    <LocalTaskCollaboration task={query.data.task} />
     <SessionTaskRecords detail={query.data} />
   </main>;
 }

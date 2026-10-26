@@ -75,7 +75,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         { key: "result", label: t("Agent reported result", "Agent 报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
         { key: "sync", label: t("Last synced", "最后同步"), children: formatDate(task.last_synced_at) },
         { key: "managed", label: t("Last managed", "最近人工管理"), children: task.last_managed_at ? formatDate(task.last_managed_at) : "—" },
-        { key: "session", label: t("Agent session", "Agent 会话"), children: task.session_id ? <span className="entity-key">{task.session_id}</span> : t("Not bound yet", "尚未绑定") },
+        { key: "session", label: t("Initially bound session", "初始绑定会话"), children: task.session_id ? <span className="entity-key">{task.session_id}</span> : t("Not bound yet", "尚未绑定") },
         { key: "source", label: t("Record source", "记录来源"), children: [task.provider, task.source].filter(Boolean).join(" · ") || t("No Agent sync received", "尚未收到 Agent 同步") },
         { key: "version", label: t("Task version", "任务版本"), children: task.version },
       ]} />

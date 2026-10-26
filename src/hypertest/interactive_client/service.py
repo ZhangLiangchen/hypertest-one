@@ -99,6 +99,15 @@ class InteractiveService:
                 and config.local_sync.get("host") == "codex"
                 and config.local_sync.get("harness_version") == "0.144.6"),
             "query_only_binding_recovery": True, "target_task_id_reads": True,
+            "task_collaboration": {
+                "profile": "local-task-collaboration/v1alpha1",
+                "operations": ["JOIN", "CONTRIBUTE", "PUBLISH"],
+                "writes_supported": bool(config.local_sync.get("enabled")
+                    and config.local_sync.get("host") == "codex"
+                    and config.local_sync.get("harness_version") == "0.144.6"),
+                "operator_only_operations": ["ENABLE", "AUTHORIZE", "REVOKE", "HANDOFF"],
+                "query_only_recovery": True,
+            },
             "task_binding_callers": {
                 "codex": {"support": "NATIVE_THREAD_ID_REQUIRED", "harness_version": "0.144.6",
                           "metadata_key": "threadId", "per_call_check": True},
@@ -149,6 +158,14 @@ class InteractiveService:
         from hypertest.interactive_client.memory import MEMORY_TOOLS
         if name in MEMORY_TOOLS:
             return public(await self._memory_call(name, arguments, native_caller_context))
+        from hypertest.local_sync.collaboration import COLLABORATION_TOOLS, GET_COLLABORATION_TOOL
+        if name in COLLABORATION_TOOLS or name == GET_COLLABORATION_TOOL:
+            if self.coordinator is None:
+                raise ClientError("LOCAL_COORDINATOR_REQUIRED")
+            if name == GET_COLLABORATION_TOOL:
+                return public(await self.coordinator.get_collaboration(arguments))
+            return public(await self.coordinator.submit_collaboration(arguments,
+                operation=COLLABORATION_TOOLS[name], native_caller_context=native_caller_context))
         if name == "hypertest_sync_task":
             payload = dict(arguments)
             payload.setdefault("provider", "codex")

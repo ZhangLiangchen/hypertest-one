@@ -23,9 +23,9 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ### Local 入口：Codex 测试任务与产物管理（ADR-018 优先）
 
-[ADR-026 多会话协作提案](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)记录一任务多真实会话参与、并行贡献与单一主会话汇总的目标；状态为 Proposed / NOT IMPLEMENTED，尚未替代本节及 ADR-024 的现行单会话合同。
+[ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)已接受并启动实施：显式启用的 Local 任务可以由多个获授权真实 root 参与、分别追加贡献，由一个当前主会话汇总。任务 UUID、初始绑定和历史保持；未启用任务继续使用下列单会话合同。源码、部署、客户端发行与用户功能验收分别记录。
 
-**一个 Codex 会话对应一个测试任务。Codex 将生成的任务、计划、用例、原始测试报告及 reported result 同步到 HyperTest One；HyperTest 本身不承担测试执行。**
+**默认单会话合同中，一个 Codex 会话对应一个测试任务；ADR-026 协作合同中，一个任务可接纳多个真实会话的贡献。Agent 将计划、用例、原始报告及 reported result 同步到 HyperTest One；HyperTest 本身不承担测试执行。**
 当前优先交付持久管理与查询，不以执行材料准入、平台 Runner、独立 CI 证明或 Gate 为保存报告的前提。平台显示提交者报告的 PASS/FAIL 等及其来源；它们不自动成为正式发布判定，也不因没有平台执行而被强制改成 UNKNOWN。
 [ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md)明确共享 Project 的 SessionTask、用例/报告修订、幂等同步与旧版本保护；优先于下文对当前新入口的宽泛治理要求。ADR-017 与旧受管 Harness/Runner 的实现和历史结论继续保留，不作为本阶段同步的依赖。生产部署不包含在默认开发范围中。
 

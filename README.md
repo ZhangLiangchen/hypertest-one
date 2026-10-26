@@ -1,5 +1,7 @@
 # HyperTest One
 
+[ADR-026 Local 多会话协作](docs/architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)首片源码已实现：同一测试任务可显式授权多个真实会话，各自保存贡献，由当前主会话汇总并交接。自动回归、部署和客户端发行分别见[本轮交付](docs/MULTI_SESSION_LOCAL_DELIVERY_20261026.md)；未启用任务与公开旧包保持原合同。
+
 ## 2026-10-23 生产 Web 上线补记
 
 PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上线。实际 Web 源码为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`；内部真实浏览器六条命令及已有用例 / 原始报告、外部严格 CA HTTPS 已验证。文中“待合并 / 待最终 gate”属于下方验收冻结时点；精确 image、保全、补证顺序和临时授权清理见[生产部署记录](docs/LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。原 `local-v0.1.0` 包 / tag / 三摘要与三宿主证明保持不变；本次后续纯文档提交不代表部署新 Web 源码。

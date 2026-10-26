@@ -13,6 +13,7 @@ from hypertest.common.ids import uuid7
 from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 from hypertest.domain.session_tasks import (
     CaseRevision,
+    CollaborationReceipt,
     ReportRevision,
     SessionTask,
     SyncReceipt,
@@ -108,6 +109,8 @@ async def sync_task(db, payload, actor_ref, *, operator=False,
         if task is None or task.id != target.id:
             raise HTTPException(409, "TASK_ID_MISMATCH")
     if task:
+        if task.collaboration_enabled:
+            raise HTTPException(409, "COLLABORATION_PROFILE_REQUIRED")
         if task.deleted_at is not None:
             raise HTTPException(409, "Session task is deleted; restore it explicitly before synchronization")
         if task.project_id != payload.project_id:
@@ -182,14 +185,15 @@ async def list_tasks(db, project_id, *, limit=50, offset=0, include_deleted=Fals
 
 
 async def version_snapshot(db, task_id, version):
-    for model in (SyncReceipt, TaskManagementRevision, TaskOperationReceipt):
+    for model in (SyncReceipt, TaskManagementRevision, TaskOperationReceipt, CollaborationReceipt):
         row = await db.scalar(select(model).where(model.task_id == task_id, model.task_version == version))
         if row is not None:
             # Historical snapshots are immutable. Derive additive legacy
             # fields on read rather than rewriting accepted old revisions.
             return {"binding_state": "BOUND", "binding_required": False,
                     "creator_actor_ref": None, "intended_actor_ref": None,
-                    "bound_at": None, **row.task_snapshot}
+                    "bound_at": None, "collaboration_enabled": False,
+                    "primary_participant_id": None, "primary_generation": 0, **row.task_snapshot}
     raise HTTPException(404, "Task version not found")
 
 
@@ -223,7 +227,11 @@ async def get_task(db, task_id, *, version=None, project_id=None, actor_ref=None
         latest = {row.key: public(row) for row in rows}
         histories.append([public(row) for row in rows])
         currents.append(list(latest.values()))
-    return {"task": snapshot, "cases": currents[0], "reports": currents[1],
+    from hypertest.application.task_collaboration import document
+    collaboration = await document(db, task.id, version=selected, include_deleted=include_deleted)
+    return {"task": snapshot, "collaboration": collaboration["collaboration"],
+        "collaboration_history": collaboration["operation_history"],
+        "cases": currents[0], "reports": currents[1],
         "case_history": histories[0], "report_history": histories[1],
         "management_history": [public(row) for row in management],
         "binding_history": [{"id": str(row.id), "action": "BIND", "actor_ref": row.actor_ref,
@@ -266,6 +274,8 @@ async def task_page(db, task, *, version=None, offset=0, limit=24_000):
         raise HTTPException(422, "Continuation requires a fixed version and bounded offset/limit")
     selected = task.version if version is None else version
     document = {"task": await version_snapshot(db, task.id, selected)}
+    if document["task"].get("collaboration_enabled"):
+        raise HTTPException(409, "COLLABORATION_PROFILE_REQUIRED")
     # Select one latest revision per key at the pinned version. Do not assemble
     # the unbounded Web history (or duplicate current reports) for MCP transport.
     for model, key in ((CaseRevision, "cases"), (ReportRevision, "reports")):
@@ -312,6 +322,8 @@ async def manage_task(db, task_id, expected_version, *, changes=None, action="UP
         raise HTTPException(404, "Session task not found in Project")
     if task.version != expected_version:
         raise HTTPException(409, "Task version is stale; refresh before changing it")
+    if task.collaboration_enabled and action in {"UPDATE", "AUTHORIZE"}:
+        raise HTTPException(409, "COLLABORATION_PROFILE_REQUIRED")
     if action == "AUTHORIZE" and task.binding_state != "UNBOUND":
         raise HTTPException(409, "TASK_ALREADY_BOUND")
     if action == "RESTORE" and task.deleted_at is None:

@@ -81,6 +81,8 @@ def parse_trigger(host: str, event: dict, *, selected_parent: str,
     # tool fields entirely; the explicit manifest alone selects artifacts.
     if tool and ("hypertest_sync_task" in tool or "hypertest_get_task" in tool
                  or "hypertest_bind_task" in tool
+                 or "hypertest_join_task" in tool or "hypertest_contribute_task" in tool
+                 or "hypertest_publish_task" in tool
                  or tool.startswith("mcp__hypertest")):
         return None
     return Trigger(host, HOST_PROVIDERS[host], session, name, tool)

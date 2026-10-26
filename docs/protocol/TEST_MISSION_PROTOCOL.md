@@ -1299,7 +1299,7 @@ create / 各写 envelope 的 `idempotency_key` 必须匹配 `^[A-Za-z0-9][A-Za-z
 
 ## 45. Codex 会话任务管理同步（ADR-018，当前阶段）
 
-[ADR-026 多会话协作提案](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)拟通过版本化协作 profile 分离成员贡献与主会话汇总；状态为 Proposed / NOT IMPLEMENTED，尚无新增协议操作，不放宽本节 full sync、绑定或逐调用 caller 的现行约束。
+[ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)通过 §45.5 的版本化协作 profile 分离成员贡献与主会话汇总；以下 full sync 和初始 BIND 合同继续用于未启用协作的任务，不把旧接口放宽为多写者。
 
 §45 是管理数据同步，不是执行申请或新的 Runner profile。一个 `(provider, session_id)` 对应一个 SessionTask；Project、actor 与客户端授权来自有效 integration grant，session reference 仅为提交来源元数据。MCP/API 不启动或接管 Codex，不需要 execution binding、device token、host proof、源码传输、SourceSnapshot、Policy、Job、Runner 或 Gate。
 
@@ -1380,6 +1380,33 @@ CREATE的`creation_receipt`为`{status:'ACCEPTED',operation:'CREATE',project_id,
 Web 的 Local CREATE 在发送前将完整原请求、原 key 与 expected_version=0 写入浏览器持久账本；与 Cloud 使用独立记录及原 key 查询路径。多标签页通过 IndexedDB readwrite 事务占据同 Project 的 Local 创建流，不能以无锁 localStorage 或单页内存互锁替代。已有未决记录、旧 sessionStorage 迁移冲突或存储失败时禁止新 CREATE POST；迁移不得覆盖未决原件。有效 creation_receipt 后还须完整 GET 同 Task 的固定接受版本并核对身份及请求内容，才完成本次 CREATE。关闭普通标签页后可恢复；用户清除站点数据、浏览器驱逐或私密模式结束不承诺持久保留。
 
 新Local客户端在首次asset上传前未绑定返回TASK_BINDING_REQUIRED，零sync POST；Hooks/MCP共用同一真实root、目标ID、协调器及未决账本。旧已确认auto根保留原ID兼容resume；服务端旧无task_id自动创建仅为legacy兼容，不作为新客户端fallback。新手动绑定任务的每次sync强校验task_id、Project/provider/session/owner/BOUND及当前version；不匹配不得另建任务。来源已属于另一Task时409，错误code为SESSION_ALREADY_HAS_TASK，仅对有权读取者给existing_task_id，不自动合并或改ID/历史。
+
+### 45.5 Local 多会话协作 profile（ADR-026）
+
+profile 为 `local-task-collaboration/v1alpha1`。所有操作仍为管理接受，不执行 Agent、模型、SUT、Runner 或 Cloud Worker；沿用当前可信 Operator 管理边界及 integration actor/client/Project `task:sync` 授权，不新增跨模式 token 或 scope。
+
+| 路径（`/api/v1` 前缀） | 合同 |
+| --- | --- |
+| `GET /tasks/{task_id}/collaboration?version?` | Operator 读取完整协作文档，含固定 task、collaboration 与 operation_history |
+| `POST /tasks/{task_id}/collaboration` | Operator 提交 ENABLE/AUTHORIZE/REVOKE/HANDOFF；共同字段 profile、operation、expected_version、idempotency_key |
+| `GET /tasks/{task_id}/collaboration/receipts/by-key?idempotency_key` | 原 Operator key 只读回执，不发新操作 |
+| `GET /interactive/tasks/{task_id}/collaboration` | integration 按 project_id/provider/session_id 读取；支持 version、offset、limit，分片固定版本且每片最多24,000字符 |
+| `POST /interactive/tasks/{task_id}/collaboration` | 共同字段 profile、project_id、真实 provider/session_id、operation、expected_version、idempotency_key；操作 JOIN/CONTRIBUTE/PUBLISH |
+| `GET /interactive/tasks/{task_id}/collaboration/receipts/by-key` | project_id/provider/session_id/idempotency_key 定位原成员回执，仍核当前授权及原来源 |
+
+ENABLE 没有额外业务字段，初始真实绑定成为首个 PRIMARY。AUTHORIZE 要求精确 actor_ref/provider/session_id 和可选 assignment，仅允许既有 owner actor；REVOKE 要求 participant_id。HANDOFF 要求 participant_id、expected_primary_generation 与 handoff `{materials,unresolved_items,private_journals_observed:false}`，清单不声明已读到失联会话私有 journal。
+
+JOIN 没有额外业务字段。CONTRIBUTE 携 `contributions:[{kind,stable_key,expected_revision,content}]`，kind 为 PLAN/CASE/REPORT/REVIEW；CASE/REPORT content 使用原 TaskCase/TaskReport 的内容字段，key 由 stable_key 单独提供。单项内容最多512KiB，最多200项，完整成员请求最多2MiB。同成员同 kind/key 不重复，追加新 revision，不更新整体任务字段。
+
+PUBLISH 携当前 `primary_generation` 和完整 `summary`：title/objective/status/plan_markdown/reported_result、`contribution_refs:[{contribution_id,revision,disposition,shared_key?}]`、completion_basis、unresolved_items。disposition 为 ADOPTED/MERGED/DIVERGENCE/DEFERRED，引用须为同任务的准确接受修订，不能以最新内容替换冻结引用；首片只保存显式发布映射，不将其伪装为已产生旧 CaseRevision/ReportRevision。COMPLETED 必须有非空完成依据。
+
+公共回执为 `{status:'ACCEPTED',profile,operation,task_id,project_id,actor_ref,provider,session_id,participant_id,version,idempotency_key,request_digest,primary_generation,contribution_refs}`，Operator 回执的 source/participant 字段为空；新接受 version=expected_version+1。CONTRIBUTE 回执引用本次新增贡献 ID/revision。完整文档包含 `task`、`collaboration:{enabled,primary_participant_id,primary_generation,participants,contributions,publications}` 和不可变 operation_history；成员分页 envelope 与 §45.1 相同，续片须固定 version。
+
+精确 AUTHORIZED/ACTIVE 来源在当前 grant 下允许只读，JOIN前可据此选择明确基线；ACTIVE 才能贡献，当前 PRIMARY/generation 才能汇总。新 MCP 写仍要求受支持真实 root 与逐调用 caller fence，工具参数不能覆盖宿主来源；child、错配和未支持宿主零新 POST。授权 GET、原 key 恢复不需要伪造 caller 或重新写入目标。
+
+键唯一性属于独立 collaboration receipt 命名空间中的 actor/Project/key，完整摘要包含操作、来源、任务和版本；同 key 换操作/来源/输入冲突。原 key 查重先版本与新角色检查，回执读取仍按当前授权和原提交者来源。SENT/UNKNOWN/失答/原 key NOT_FOUND 只查询原 key；冻结请求不可重基、换 generation 或换会话重发。ACK 后完整读取固定接受版本，核请求摘要、来源、贡献引用和原文，才确认本次交付。
+
+旧单会话任务保留原 wire。协作启用后旧 full sync 新写返回 `COLLABORATION_PROFILE_REQUIRED`，不因已知 Task ID 回退自动创建；已接受旧 key 仍返回原结果，旧历史保留。新 profile 不能把全部贡献标成初始 session，原初始 BIND 来源不被主会话交接替换。客户端/公开包/宿主资格分别记录，API 能力目录存在不代表旧安装已支持新工具。
 
 ## 46. 云端测试任务 profile（ADR-019，部分实现、代码默认关闭）
 

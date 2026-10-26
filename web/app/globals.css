@@ -480,3 +480,10 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
   .session-task-section .activity-heading { flex-wrap: wrap; }
   .session-task-title > .ant-space { max-width: 100%; }
 }
+.session-collaboration-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.session-collaboration-heading > div:first-child { max-width: 75ch; }
+.session-collaboration-heading > .ant-space { flex-shrink: 0; }
+.session-collaboration .ant-descriptions .ant-descriptions-item-label { color: var(--ht-muted); }
+.session-collaboration-form { display: grid; gap: 16px; margin-block: 24px; padding-block: 24px; border-block: 1px solid var(--ht-line); }
+.session-collaboration-form label { display: grid; gap: 8px; }
+.session-collaboration-fields { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }

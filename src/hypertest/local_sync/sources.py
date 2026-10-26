@@ -122,6 +122,9 @@ def session_context(config, event):
             "When producing the selected artifacts, write their approved Markdown files at " + selected +
             ". Before the first asset sync, ask for the platform-created Local Task ID and use "
             "hypertest_bind_task with this exact native source and the current task version. "
+            "For an explicitly enabled collaboration Task, the Operator must authorize this exact root; "
+            "then use hypertest_join_task instead of rebinding. Hooks submit this root's contributions; "
+            "only the current PRIMARY explicitly publishes the overall summary. "
             "Until binding is confirmed, hooks retain files and return TASK_BINDING_REQUIRED without POST. "
             "Do not write chat transcripts, reasoning or secrets. Hook success does not mean test PASS. "
             "Use explicit HyperTest MCP for case data and changes to task status or test results.")

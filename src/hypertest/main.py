@@ -14,6 +14,7 @@ from hypertest.api.memory_routes import router as memory_router
 from hypertest.api.native_routes import router as native_router
 from hypertest.api.routes import router
 from hypertest.api.source_transfer_routes import router as source_transfer_router
+from hypertest.api.task_collaboration_routes import router as task_collaboration_router
 from hypertest.api.task_routes import router as task_router
 from hypertest.config import get_settings
 
@@ -54,6 +55,7 @@ app.include_router(interactive_router, prefix=settings.api_prefix)
 
 app.include_router(native_router, prefix=settings.api_prefix)
 app.include_router(task_router, prefix=settings.api_prefix)
+app.include_router(task_collaboration_router, prefix=settings.api_prefix)
 app.include_router(cloud_router, prefix=settings.api_prefix)
 
 app.include_router(memory_router, prefix=settings.api_prefix)

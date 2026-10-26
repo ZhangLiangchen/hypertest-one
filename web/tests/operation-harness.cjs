@@ -28,6 +28,7 @@ async function until(condition, { timeoutMs = 5_000, description = condition.toS
 function operationHarness(overrides = {}, options = {}) {
   const client = load("lib/cloud.ts", { TextEncoder, Uint8Array, DataView, Int32Array, URL });
   const binding = load("lib/local-task-binding.ts");
+  const collaboration = load("lib/local-collaboration.ts");
   const slots = [], effects = [], data = options.session || new Map();
   const factory = options.factory || new IDBFactory();
   let cursor = 0, sequence = 0, selectedProject = "project-a";
@@ -44,20 +45,20 @@ function operationHarness(overrides = {}, options = {}) {
     },
   };
   const journals = load("lib/operation-journal.ts", { indexedDB: options.unavailable ? undefined : factory, BroadcastChannel: TestChannel });
-  const module = load(options.local ? "lib/local-create-operation.ts" : "lib/cloud-operation.ts", { sessionStorage,
+  const module = load(options.collaboration ? "lib/local-collaboration-operation.ts" : options.local ? "lib/local-create-operation.ts" : "lib/cloud-operation.ts", { sessionStorage,
     require: (name) => name === "react" ? react : name === "@/lib/uuid" ? { createUuid: () => `operation-${options.tab || "one"}-${++sequence}` }
       : name === "@/lib/cloud" ? { ...client, ...overrides } : name === "@/lib/operation-journal" ? journals
-        : name === "@/lib/local-task-binding" ? binding : name === "@/lib/api" ? overrides : require(name),
+        : name === "@/lib/local-task-binding" ? binding : name === "@/lib/local-collaboration" ? collaboration : name === "@/lib/api" ? overrides : require(name),
   });
   const render = (projectId = selectedProject) => {
     selectedProject = projectId; cursor = 0;
-    const value = (options.local ? module.useLocalCreateOperation : module.useCloudOperation)(projectId);
+    const value = options.collaboration ? module.useCollaborationOperation(projectId, options.task || "task-a") : (options.local ? module.useLocalCreateOperation : module.useCloudOperation)(projectId);
     while (effects.length) effects.shift()();
     return value;
   };
   const mount = async (projectId = selectedProject) => { render(projectId); await until(() => render(projectId).ready || render(projectId).storageError || render(projectId).issue === "PRIVATE_JOURNAL_UNAVAILABLE"); return render(projectId); };
   const close = () => { for (const slot of slots) slot?.cleanup?.(); };
-  return { render, mount, close, data, client, factory, journals, journal: options.local ? module.localCreateJournal : module.cloudJournal };
+  return { render, mount, close, data, client, factory, journals, journal: options.collaboration ? module.collaborationJournal : options.local ? module.localCreateJournal : module.cloudJournal };
 }
 
 function document(projectId, taskId, version) {

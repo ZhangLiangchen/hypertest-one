@@ -1,5 +1,7 @@
 # ADR-021：本地与云端复用任务同步核心
 
+**2026-10-26 协作增补：[ADR-026](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)由 LocalCollaborationAdapter 复用现有 TaskSyncCore 的冻结/原 key/完整固定版本读回机制；成员、贡献及 primary generation 属于 Local 协作领域合同。原 Local full sync、CloudSyncAdapter、Cloud lease 与两种私有账本保持隔离，不新增通用任务或跨模式凭据。**
+
 ## Cloud 消费方集成增补（2026-10-23）
 
 Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。最终合并树、统一 Web 入口与测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；默认关闭。

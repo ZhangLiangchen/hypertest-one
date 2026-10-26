@@ -1,5 +1,7 @@
 # ADR-018：Codex 会话测试任务与产物同步
 
+**2026-10-26 增补：[ADR-026](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)在显式启用的协作 profile 中允许一个 SessionTask 接纳多个获授权真实 root 的贡献，由当前 PRIMARY 汇总。下文一对一规则继续用于未启用任务与初始绑定；原 UUID/source/owner/历史不改写，旧 full sync 不变成多写者接口。字段及操作由领域 §50.6 / TMP §45.5 拥有。**
+
 **状态：Accepted（2026-10-21，Asia/Singapore）；实现与验收单独记录。**
 
 **2026-10-23增补：[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)接受Operator预创建UNBOUND SessionTask、同UUID显式绑定和新Local会话首次产物前TaskID门槛。绑定后仍是一真实父会话一任务；未绑定记录没有session/owner/Agent来源，旧自动任务的ID与历史保留。该增补按领域§50.5/TMP§45.4替代下面仅由首次sync创建的适用范围，不把绑定当同步或执行。**

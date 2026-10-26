@@ -87,4 +87,6 @@ MCP 已加载不等于 SessionStart 已发生。按[故障恢复](troubleshootin
 
 新 BIND 及手动绑定 Task 的显式新 SYNC 需要实际 MCP 调用 `_meta.threadId`，它由宿主注入，经私有 IPC 与 root 核对；不能放进 arguments。当前 CLI `bind-task` 没有该原生 context，不能作为替代绑定通道。Claude Code/DeepSeek 当前未实现此新 caller 路径；旧 auto 任务 resume、授权 GET 和原 key 恢复是另一个兼容范围，不能用旧三宿主矩阵推导新绑定支持。
 
+ADR-026 协作同样只支持上述 Codex `0.144.6` 逐调用来源路径，新 JOIN/CONTRIBUTE/PUBLISH 不扩展 Claude/DeepSeek 资格。服务端能力需明确包含 `local-task-collaboration/v1alpha1`；实际客户端需可见 `hypertest_join_task`、`hypertest_contribute_task`、`hypertest_publish_task`、`hypertest_get_task_collaboration`，且报告相应 Local 能力。旧 `local-v0.1.0` / `local-v0.1.1-rc.1` 资产不包含本轮新增协作代码，不修改原 tag、digest 或三宿主验收记录。源码客户端、独立发行和真实宿主验收分别记录，不能仅凭远端工具目录宣称本机具备新能力。
+
 源码入口：[`local_sync` CLI](https://github.com/ZhangLiangchen/hypertest-one/blob/main/src/hypertest/local_sync/__main__.py)、[安装器](https://github.com/ZhangLiangchen/hypertest-one/blob/main/src/hypertest/local_sync/installer.py)、[MCP caller 适配](https://github.com/ZhangLiangchen/hypertest-one/blob/main/src/hypertest/interactive_client/mcp_server.py)。

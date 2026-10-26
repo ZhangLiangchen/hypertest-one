@@ -1,5 +1,9 @@
 # HyperTest Local 实现与发行状态
 
+## 2026-10-26 多会话协作源码增量
+
+[ADR-026](architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)首片源码已连通 JOIN、独立贡献、PRIMARY 汇总与交接、协作 MCP/Hook 和 PC 详情。后端/客户端相关回归及部署身份见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)。这是新源码增量，不重标下方旧公开包、固定摘要、三宿主资格或真实E2E；新显式协作写仍限已实现的逐调用caller宿主。
+
 **当前增补：** [2026-10-23 caller源码核对](LOCAL_CALLER_FOLLOWUP_20261023.md)没有放宽新写入宿主列表，真实Codex绑定E2E仍NOT_OBSERVED。PowerContext的可选Local源码接入已由[独立集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)交付；本文件下方原发行时“Memory未实现”保持历史边界，不表示当前Gateway缺失，也不把旧local-v0.1.0重标为包含新工具。
 
 ## ADR-024预创建/绑定增量的状态边界
