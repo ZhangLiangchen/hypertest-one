@@ -97,6 +97,7 @@ jobs:
           python scripts/local-release-commands.py --bundles "$RUNNER_TEMP/local-bundles" \
             --output "$RUNNER_TEMP/local-notes"
           cp scripts/install-local-release.py "$RUNNER_TEMP/local-notes/install-local-release.py"
+          cp scripts/update-local.py "$RUNNER_TEMP/local-notes/update-local.py"
       - name: Create a draft for serial review and publication
         env:
           GH_TOKEN: ${{ github.token }}
@@ -109,5 +110,6 @@ jobs:
             --notes-file "$RUNNER_TEMP/local-notes/LOCAL_INSTALL.md" \
             "$RUNNER_TEMP"/local-bundles/*.zip \
             "$RUNNER_TEMP/local-notes/install-local-release.py" \
+            "$RUNNER_TEMP/local-notes/update-local.py" \
             "$RUNNER_TEMP/local-notes/local-install-catalog.json" \
             "$RUNNER_TEMP/local-notes/LOCAL_INSTALL.md"

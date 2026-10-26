@@ -6,7 +6,6 @@ import asyncio
 import json
 import os
 import signal
-import socket
 import stat
 import subprocess
 import sys
@@ -15,7 +14,7 @@ from pathlib import Path
 from hypertest.interactive_client.config import ClientConfig
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.ipc import LocalClient, LocalServer
-from hypertest.interactive_client.security import peer_pid, peer_uid
+from hypertest.interactive_client.runtime import runtime_identity
 
 
 async def daemon(config: ClientConfig):
@@ -28,9 +27,9 @@ async def daemon(config: ClientConfig):
     journal = Journal(config.state_dir / "client.sqlite3")
     host = make_host_adapter(config.model_dump(mode="json"))
     service = InteractiveService(config, api, journal, host)
-    server = LocalServer(config, service)
-    await server.start()
     stopping = asyncio.Event()
+    server = LocalServer(config, service, stopping=stopping)
+    await server.start()
     for sig in (signal.SIGINT, signal.SIGTERM):
         asyncio.get_running_loop().add_signal_handler(sig, stopping.set)
     try:
@@ -43,12 +42,24 @@ async def daemon(config: ClientConfig):
 
 
 async def ensure_daemon(config: ClientConfig, config_path: Path):
-    """Start only the existing fenced transport, shared by MCP and hooks."""
-    available = False
-    if config.socket_path.exists() and not config.socket_path.is_symlink():
-        with socket.socket(socket.AF_UNIX) as probe:
-            available = probe.connect_ex(str(config.socket_path)) == 0
-    if not available:
+    """Use the selected runtime, shared by MCP and hooks, without syncing work."""
+    client = LocalClient(config.socket_path, config.local_token_file)
+    expected = runtime_identity(config)
+    observed = await observe_runtime(config)
+    if observed.get("runtime") == expected and observed.get("state") == "READY":
+        return {"status": "MATCH", "expected": expected, "observed": observed["runtime"],
+                "restarted": False}
+    restarted = observed["state"] != "NOT_RUNNING"
+    if restarted:
+        await client.stop()
+        for _ in range(100):
+            if not config.socket_path.exists():
+                break
+            await asyncio.sleep(0.05)
+        else:
+            raise ClientError("LOCAL_RUNTIME_STOP_TIMEOUT")
+        observed = {"state": "NOT_RUNNING"}
+    if observed.get("runtime") != expected:
         # A transport daemon, never a model/Provider. Preserve the host launch
         # environment so the trusted adapter can attest the current native Agent.
         log_path = config.state_dir / "daemon.log"
@@ -72,14 +83,33 @@ async def ensure_daemon(config: ClientConfig, config_path: Path):
                              stdout=subprocess.DEVNULL, stderr=log, start_new_session=True,
                              close_fds=True, env=child_environment)
         for _ in range(100):
-            if config.socket_path.exists() and not config.socket_path.is_symlink():
-                with socket.socket(socket.AF_UNIX) as probe:
-                    if probe.connect_ex(str(config.socket_path)) == 0:
-                        break
+            current = await observe_runtime(config)
+            if current.get("runtime") == expected and current.get("state") == "READY":
+                return {"status": "MATCH", "expected": expected,
+                        "observed": current["runtime"], "restarted": restarted}
+            if current["state"] != "NOT_RUNNING":
+                raise ClientError("LOCAL_RUNTIME_MISMATCH")
             await asyncio.sleep(0.05)
         else:
             raise ClientError("LOCAL_CONNECTOR_UNAVAILABLE")
-    return
+    raise ClientError("LOCAL_RUNTIME_MISMATCH")
+
+
+async def observe_runtime(config: ClientConfig) -> dict:
+    """Read authenticated daemon provenance without autostart or platform I/O."""
+    if not config.socket_path.exists() and not config.socket_path.is_symlink():
+        return {"state": "NOT_RUNNING"}
+    try:
+        return await asyncio.wait_for(LocalClient(config.socket_path, config.local_token_file).exchange(
+            "runtime-info", {}), 5)
+    except ClientError as exc:
+        if exc.code == "LOCAL_OPERATION_UNSUPPORTED":
+            return {"state": "LEGACY_UNVERIFIED"}
+        if exc.code == "LOCAL_CONNECTOR_UNAVAILABLE":
+            return {"state": "NOT_RUNNING"}
+        raise
+    except TimeoutError as exc:
+        raise ClientError("LOCAL_RUNTIME_PROBE_TIMEOUT") from exc
 
 
 async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
@@ -91,16 +121,7 @@ async def stdio(config: ClientConfig, config_path: Path, *, autostart: bool):
 
 
 async def stop(config: ClientConfig):
-    reader, writer = await asyncio.open_unix_connection(config.socket_path)
-    del reader
-    try:
-        stream = writer.get_extra_info("socket")
-        if peer_uid(stream) != os.getuid():
-            raise ClientError("LOCAL_PEER_REJECTED")
-        os.kill(peer_pid(stream), signal.SIGTERM)
-    finally:
-        writer.close()
-        await writer.wait_closed()
+    return await LocalClient(config.socket_path, config.local_token_file).stop()
 
 
 def main():

@@ -136,8 +136,10 @@ async def test_optional_timeout_is_bounded_and_memory_not_in_task_journal(tmp_pa
     task_journal.close()
 
 
-async def test_memory_ipc_does_not_hold_task_transport_lock():
-    server = LocalServer(None, None)
+async def test_memory_ipc_does_not_hold_task_transport_lock(tmp_path):
+    config = ClientConfig(api_url="https://platform.invalid/api/v1", state_dir=tmp_path / "state",
+        integration_token_file=tmp_path / "unused-integration")
+    server = LocalServer(config, None)
     async with server._lock:
         async with asyncio.timeout(0.05):
             async with server._request_lock({"operation": "call", "payload": {"name": "hypertest_query_memory"}}):
