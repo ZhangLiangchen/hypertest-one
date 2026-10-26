@@ -2,6 +2,8 @@
 
 ## ADR-024统一创建与Local绑定
 
+[ADR-026 多会话协作提案](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)拟增加 Local 参与关系、窄贡献操作和单一主会话汇总；状态为 Proposed / NOT IMPLEMENTED，不改变当前组件、单父会话绑定或 Cloud/Local 隔离。后续实施须同步领域 §50 与 TMP §45。
+
 项目创建入口按Cloud/Local路由到独立领域API，不新增通用Task根表或跨模式写入。Local Operator先创建UNBOUND SessionTask，真实父会话通过现有私有客户端授权一次绑定同UUID；CREATE、人工管理、BIND和sync共用version，各自保留不可变快照/回执及Audit/Outbox。source/last_synced只在真实sync产生，绑定不启动Worker/Harness/Runner。新Local客户端首次资产前需TaskID绑定，旧已存在auto根可resume；服务端legacy兼容不作为新客户端fallback。字段/接口分别由领域§50.5、TMP§45.4拥有，取舍和验收见[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)。Cloud的任务/Attempt、资源与下发仍由独立Cloud设计和实施维护；本增补不将其源码存在或统一UI解释为已验收执行。
 
 ## 2026-10-23 新增真实矩阵（已通过）

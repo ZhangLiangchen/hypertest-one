@@ -2194,6 +2194,8 @@ NativeConclusion.UNKNOWN 是质量证据不足；NativeOperation.UNKNOWN 是副�
 
 ## 50. SessionTask 管理数据与历史（ADR-018，当前阶段）
 
+[ADR-026 多会话协作提案](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)拟增加参与关系、成员贡献修订及可交接的主会话角色；状态为 Proposed / NOT IMPLEMENTED，不改变本节现行来源唯一性、一次绑定、owner、版本或历史约束，也不表示已有相关表/迁移。
+
 本节规范当前“一个 Codex 会话一个测试任务”的管理同步；独立于 legacy TestRun/Mission/Execution/Evidence/Verdict 与 §49 native材料/Gate。平台保存 Codex产物，不执行测试；既有 Project 是唯一共享的项目身份。任务不要求存在 SourceSnapshot、Policy、执行绑定、Job、Runner或Gate记录，不向旧表回填历史。
 
 ### 50.1 实体与归属

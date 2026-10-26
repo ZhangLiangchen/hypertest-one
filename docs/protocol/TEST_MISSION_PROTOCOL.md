@@ -1299,6 +1299,8 @@ create / 各写 envelope 的 `idempotency_key` 必须匹配 `^[A-Za-z0-9][A-Za-z
 
 ## 45. Codex 会话任务管理同步（ADR-018，当前阶段）
 
+[ADR-026 多会话协作提案](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)拟通过版本化协作 profile 分离成员贡献与主会话汇总；状态为 Proposed / NOT IMPLEMENTED，尚无新增协议操作，不放宽本节 full sync、绑定或逐调用 caller 的现行约束。
+
 §45 是管理数据同步，不是执行申请或新的 Runner profile。一个 `(provider, session_id)` 对应一个 SessionTask；Project、actor 与客户端授权来自有效 integration grant，session reference 仅为提交来源元数据。MCP/API 不启动或接管 Codex，不需要 execution binding、device token、host proof、源码传输、SourceSnapshot、Policy、Job、Runner 或 Gate。
 
 ### 45.1 请求与读取

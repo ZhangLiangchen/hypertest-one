@@ -4,6 +4,7 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
+| Local 多会话任务协作 | **ADR-026 提案已记录，NOT IMPLEMENTED**；一任务多真实root参与、成员贡献隔离、单一主会话汇总及显式交接。见[设计提案](architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md) | 现行单会话合同继续生效；后续需同步领域/TMP/架构、实现参与关系与协作profile、客户端及PC详情，分别记录部署/发行/USER_OWNED验收；未新增绑定或A2A运行能力 |
 | Local 接入 Skill 与新版候选包 | **PR #25 已合入；local-v0.1.1-rc.1 已公开**；Mac/Linux候选、单一技能源码纳入 wheel、固定摘要与显式安装/升级；80项定向回归及代码CI/发行构建通过。见[本轮记录](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md) | 新版宿主验收保持 USER_OWNED / NOT_OBSERVED，不沿用旧发行资格；旧正式版不重标 |
 | PC 创建任务页显示 | **已修复并部署**；独立面板恢复24px留白，Cloud读取中/失败/空资源分别显示，保留草稿；Web源码d2d329e | USER_OWNED功能验收保留；见[回归与镜像](TASK_CREATE_WEB_FIX_20261026.md) |
 | PC 首屏与滚动性能 | **已实现并部署**；AntD SSR样式、静态玻璃、延迟记录/分页、状态/页签轮询及非首屏拆包；Web源码8c18232，正式构建和健康检查通过 | USER_OWNED体感/功能验收保留；合成DOM与JS估算不等于真实PC帧率。见[测量、CI与镜像](WEB_PERFORMANCE_DELIVERY_20261025.md) |
