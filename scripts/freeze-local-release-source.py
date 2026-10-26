@@ -18,6 +18,7 @@ BASE = "5c03e4d90bed69b6420238849cbb3a8bae2f4c42"
 BRANCH = "codex/local-mode-release-v0.1.0"
 DIRECTORIES = ("src/hypertest/local_sync", "src/hypertest/sync_core")
 FILES = (
+    "src/hypertest/api/task_schemas.py", "src/hypertest/api/task_collaboration_schemas.py",
     "src/hypertest/interactive_client/__main__.py", "src/hypertest/interactive_client/config.py",
     "src/hypertest/interactive_client/ipc.py", "src/hypertest/interactive_client/service.py",
     "src/hypertest/interactive_client/mcp_server.py",

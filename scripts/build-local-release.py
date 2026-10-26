@@ -38,12 +38,13 @@ SKILL_FILES = (
 )
 SKILL_SOURCE_ROOT = f"skills/{SKILL_NAME}"
 SKILL_WHEEL_ROOT = f"hypertest/local_sync/assets/skills/{SKILL_NAME}"
+WIRE_SCHEMAS = ("task_schemas.py", "task_collaboration_schemas.py")
 SOURCE_BOUND_FILES = (
     "pyproject.toml", "scripts/install-local-release.py", "scripts/build-local-release.py",
     "scripts/prepare-local-dependencies.py", "scripts/local-release-commands.py",
     "scripts/plan-local-release.py", "scripts/freeze-local-release-source.py",
     "scripts/local-release-dependencies.json", ".github/workflows/local-release.yml",
-    "src/hypertest/api/task_schemas.py",
+    *(f"src/hypertest/api/{name}" for name in WIRE_SCHEMAS),
     *(f"{SKILL_SOURCE_ROOT}/{name}" for name in SKILL_FILES),
 )
 REQUIRED = {
@@ -54,7 +55,8 @@ REQUIRED = {
     "hypertest/local_sync/hosts.py", "hypertest/local_sync/hooks.py",
     "hypertest/local_sync/deepseek_root_bridge.mjs",
     "hypertest/local_sync/installer.py", "hypertest/sync_core/core.py",
-    "hypertest/sync_core/storage.py", "hypertest/api/task_schemas.py",
+    "hypertest/sync_core/storage.py", "hypertest/local_sync/collaboration.py",
+    *(f"hypertest/api/{name}" for name in WIRE_SCHEMAS),
 }
 
 
@@ -216,6 +218,21 @@ def onboarding_skill(source: Path) -> dict[str, bytes]:
     return files
 
 
+def wire_schemas(source: Path) -> dict[str, bytes]:
+    files = {}
+    for name in WIRE_SCHEMAS:
+        path = source / "src/hypertest/api" / name
+        for component in (path, *path.parents):
+            if component.is_symlink():
+                raise ValueError("Source wire schema paths must not contain symlinks")
+            if component == source:
+                break
+        if not path.is_file():
+            raise ValueError("Source is missing required Local wire schema: " + name)
+        files["hypertest/api/" + name] = path.read_bytes()
+    return files
+
+
 def make_local_wheel(source: Path, version: str, commit: str, dependencies: list[str], epoch: int) -> tuple[str, bytes]:
     files = {}
     for directory in ("interactive_client", "sync_core", "local_sync"):
@@ -225,10 +242,7 @@ def make_local_wheel(source: Path, version: str, commit: str, dependencies: list
             if path.is_symlink():
                 raise ValueError("Source package symlinks are not supported")
             files[str(path.relative_to(source / "src"))] = path.read_bytes()
-    schema = source / "src/hypertest/api/task_schemas.py"
-    if schema.is_symlink():
-        raise ValueError("Source schema symlink is not supported")
-    files["hypertest/api/task_schemas.py"] = schema.read_bytes()
+    files.update(wire_schemas(source))
     files["hypertest/api/__init__.py"] = b'"""Local wire schemas only; no platform service."""\n'
     files["hypertest/__init__.py"] = f'"""Isolated HyperTest Local distribution."""\n__version__ = {version!r}\n'.encode()
     for name in ("session-sync.config.example.json", "mcp.example.json"):
@@ -269,6 +283,7 @@ def make_local_wheel(source: Path, version: str, commit: str, dependencies: list
 def local_source_digest(source: Path) -> str:
     """Bind native acceptance to distributed source bytes without a self-referential commit."""
     onboarding_skill(source)  # Required assets and their parent directories cannot be symlinks.
+    wire_schemas(source)
     paths = [source / name for name in SOURCE_BOUND_FILES]
     for directory in ("interactive_client", "sync_core", "local_sync"):
         paths.extend(path for path in (source / "src/hypertest" / directory).rglob("*")
