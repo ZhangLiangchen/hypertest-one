@@ -65,7 +65,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
   const { t, label, formatDate } = useI18n();
   const { task, cases, reports, case_history, report_history, sync_history, management_history = [], binding_history = [] } = detail;
   return <>
-    <section className="data-surface session-record" aria-label={t("Task and session", "任务与会话")}>
+    <section id="task-overview" tabIndex={-1} className="data-surface session-record" aria-label={t("Task and session", "任务与会话")}>
       <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} layout="vertical" items={[
         { key: "id", label: t("Task ID", "任务 ID"), children: <Typography.Text code copyable>{task.id}</Typography.Text> },
         { key: "mode", label: t("Execution mode", "执行方式"), children: t("Local Agent", "本地执行") },
@@ -86,11 +86,11 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         : !task.last_synced_at ? t("The session is bound, but no Agent work has been synced yet. Binding time and sync time are separate; results remain Not run until the Agent explicitly reports otherwise.", "会话已绑定，尚未收到 Agent 同步的测试产物。绑定时间与同步时间分别记录；结果保持尚未运行，直到 Agent 明确报告。")
           : t("Synced from the source Agent session. The Agent performs the testing work; this page manages its records and reported results. Manual edits appear separately in management history.", "内容同步自来源 Agent 会话。测试工作由 Agent 完成，此页面管理任务记录与报告结果；手动修改单独记录在管理历史中。")}</Typography.Paragraph>
     </section>
-    <section className="data-surface session-record" aria-labelledby="task-plan-heading">
+    <section id="task-plan" tabIndex={-1} className="data-surface session-record" aria-labelledby="task-plan-heading">
       <Typography.Title id="task-plan-heading" level={2}>{t("Test plan", "测试计划")}</Typography.Title>
       {task.plan_markdown ? <pre className="artifact-content session-markdown">{task.plan_markdown}</pre> : <Empty description={t("No test plan has been synced.", "尚未同步测试计划。")} />}
     </section>
-    <section className="session-task-section" aria-labelledby="task-cases-heading">
+    <section id="task-cases" tabIndex={-1} className="session-task-section" aria-labelledby="task-cases-heading">
       <Typography.Title id="task-cases-heading" level={2}>{t("Test cases", "测试用例")} ({cases.length})</Typography.Title>
       <div className="data-surface"><Table rowKey="id" dataSource={cases} pagination={{ pageSize: 20, hideOnSinglePage: true }} scroll={{ x: 680 }} expandable={{
         expandedRowRender: (item) => <CaseContent item={item} />,
@@ -107,7 +107,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         }</PagedRecords>
       }</DeferredDetails>
     </section>
-    <section className="session-task-section" aria-labelledby="task-reports-heading">
+    <section id="task-reports" tabIndex={-1} className="session-task-section" aria-labelledby="task-reports-heading">
       <Typography.Title id="task-reports-heading" level={2}>{t("Original test reports", "原始测试报告")} ({reports.length})</Typography.Title>
       {reports.length ? <PagedRecords key={task.id} items={reports} label={t("Report pages", "报告分页")}>{(item) =>
         <DeferredDetails key={item.id} className="data-surface session-record session-history" summary={<><strong>{item.title}</strong> · <span className="entity-key">{item.key}</span> · <ReportedResultTag result={item.reported_result} /> · {t("Revision", "修订")} {item.revision} · {formatDate(item.created_at)}</>}>{() => <ReportContent item={item} />}</DeferredDetails>
@@ -118,7 +118,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         }</PagedRecords>
       }</DeferredDetails>
     </section>
-    {binding_history.length ? <section className="session-task-section" aria-labelledby="task-binding-history-heading">
+    {binding_history.length ? <section id="task-binding-history" tabIndex={-1} className="session-task-section" aria-labelledby="task-binding-history-heading">
       <Typography.Title id="task-binding-history-heading" level={2}>{t("Binding history", "会话绑定历史")} ({binding_history.length})</Typography.Title>
       <PagedRecords key={task.id} items={binding_history} ordered label={t("Binding history pages", "绑定历史分页")}>{(entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
         <Space wrap><strong>{t("Session bound", "已绑定会话")}</strong><span>{t("Task version", "任务版本")} {entry.task_version}</span><span>{formatDate(entry.created_at)}</span></Space>
@@ -126,7 +126,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         <DeferredDetails summary={t("Task after binding", "绑定后的任务记录")}>{() => <TaskSnapshot snapshot={entry.task_snapshot} />}</DeferredDetails>
       </li>}</PagedRecords>
     </section> : null}
-    <section className="session-task-section" aria-labelledby="task-management-heading">
+    <section id="task-management" tabIndex={-1} className="session-task-section" aria-labelledby="task-management-heading">
       <Typography.Title id="task-management-heading" level={2}>{t("Management history", "管理历史")} ({management_history.length})</Typography.Title>
       {management_history.length ? <PagedRecords key={task.id} items={management_history} ordered label={t("Management history pages", "管理历史分页")}>{(entry) => <li key={entry.id || `${entry.task_version}-${entry.action}`}>
         <Space wrap><strong>{label(entry.action)}</strong><span>{t("Task version", "任务版本")} {entry.task_version}</span><span>{formatDate(entry.created_at)}</span></Space>
@@ -134,7 +134,7 @@ export function SessionTaskRecords({ detail }: { detail: SessionTaskDetail }) {
         <DeferredDetails summary={t("Task after this change", "修改后的任务内容")}>{() => <TaskSnapshot snapshot={entry.task_snapshot} />}</DeferredDetails>
       </li>}</PagedRecords> : <Typography.Paragraph className="muted">{t("No manual changes recorded.", "暂无手动修改记录。")}</Typography.Paragraph>}
     </section>
-    <section className="session-task-section" aria-labelledby="task-sync-heading">
+    <section id="task-sync" tabIndex={-1} className="session-task-section" aria-labelledby="task-sync-heading">
       <Typography.Title id="task-sync-heading" level={2}>{t("Sync history", "同步历史")} ({sync_history.length})</Typography.Title>
       {sync_history.length ? <PagedRecords key={task.id} items={sync_history} ordered label={t("Sync history pages", "同步历史分页")}>{(receipt) => <li key={receipt.id}>
         <Space wrap><strong>{t("Task version", "任务版本")} {receipt.task_version}</strong><span>{formatDate(receipt.created_at)}</span></Space>

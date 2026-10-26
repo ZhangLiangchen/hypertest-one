@@ -32,7 +32,7 @@ export function LocalTaskBinding({ task }: { task: SessionTask }) {
     void actors.refetch();
     void queryClient.invalidateQueries({ queryKey: ["session-task", task.id] });
   };
-  return <section className="data-surface session-record" aria-labelledby="local-task-binding-heading">
+  return <section id="task-binding" tabIndex={-1} className="data-surface session-record" aria-labelledby="local-task-binding-heading">
     <Typography.Title id="local-task-binding-heading" level={2}>{t("Bind your local Agent", "绑定本地 Agent")}</Typography.Title>
     <Typography.Paragraph>{t("Task ID", "任务 ID")}: <Typography.Text code copyable>{task.id}</Typography.Text></Typography.Paragraph>
     <Typography.Paragraph>{t("Authorized client", "获准绑定的客户端")}: {task.intended_actor_ref ? <>{actor?.label || task.intended_actor_ref}</> : t("Not authorized yet", "尚未授权")}</Typography.Paragraph>

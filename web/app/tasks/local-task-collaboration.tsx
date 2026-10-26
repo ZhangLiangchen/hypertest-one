@@ -56,7 +56,7 @@ export function LocalTaskCollaboration({ task }: { task: SessionTask }) {
   const update = (value: Partial<Draft>) => { if (draft) setDraft({ ...draft, ...value }); };
   const fieldId = (field: string) => `collaboration-${task.id}-${field}`;
   const participantLabel = (item: TaskParticipant) => `${item.provider} · ${item.session_id}`;
-  return <section className="data-surface session-record session-collaboration" aria-labelledby="local-collaboration-heading">
+  return <section id="task-collaboration" tabIndex={-1} className="data-surface session-record session-collaboration" aria-labelledby="local-collaboration-heading">
     <div className="session-collaboration-heading">
       <div><Typography.Title id="local-collaboration-heading" level={2}>{t("Session collaboration", "会话协作")}</Typography.Title>
         <Typography.Paragraph className="muted">{t("Independent local sessions can contribute to one task. The current primary session publishes the overall summary; each contribution retains its source and reported result.", "多个独立本地会话可共同完成一个任务。当前主会话负责整体汇总，各项贡献保留原始来源和报告结果。")}</Typography.Paragraph></div>
