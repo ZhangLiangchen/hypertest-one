@@ -230,13 +230,37 @@ def create_private(path: Path, raw: bytes):
         os.fsync(stream.fileno())
 
 
+def installation(args: argparse.Namespace) -> tuple[Path, dict | None]:
+    """Read only this host's explicitly selected owned receipt, never scan secrets."""
+    directory = (getattr(args, "directory", None) or args.install_root / "host-installation").expanduser().absolute()
+    path = directory / f"installed-{args.harness}.json"
+    if not path.exists() and not path.is_symlink():
+        return directory, None
+    receipt = json.loads(read_regular(path, 1024 * 1024, private=True))
+    if (receipt.get("profile") != "hypertest.local-install/v1"
+            or receipt.get("host") != args.harness or receipt.get("configuration") != "WRITTEN"):
+        raise ValueError("An existing owned WRITTEN installation receipt is required")
+    for name in ("client_config", "host_config"):
+        selected = getattr(args, name, None)
+        value = receipt.get(name)
+        if not isinstance(value, str) or not Path(value).is_absolute():
+            raise ValueError("Existing installation receipt has invalid configuration paths")
+        if selected is not None and selected.expanduser().absolute() != Path(value):
+            raise ValueError("Existing configuration migration requires an explicit separate operation")
+        setattr(args, name, Path(value))
+    return directory, receipt
+
+
 def install_release(args: argparse.Namespace, manifest: dict, verified: dict[str, bytes]) -> dict:
     accepted = manifest.get("hosts", {}).get(args.harness, {})
     if manifest["distribution_state"] != "RELEASE" and not args.allow_candidate:
         raise ValueError("Host support is NOT_ACCEPTED; explicit --allow-candidate is required for candidate configuration")
-    if args.harness not in HOSTS or args.client_config is None or args.host_config is None or args.install_root is None:
-        raise ValueError("Select one host, an isolated install root and existing private client / host config paths")
-    if getattr(args, "enable_hooks", False) and not (getattr(args, "workspace", None) or getattr(args, "artifact_source", None)):
+    if args.harness not in HOSTS or args.install_root is None:
+        raise ValueError("Select one host and a private release install root")
+    directory, existing = installation(args)
+    if args.client_config is None or args.host_config is None:
+        raise ValueError("Existing authorized private client and selected host configuration paths are required")
+    if not existing and getattr(args, "enable_hooks", False) and not (getattr(args, "workspace", None) or getattr(args, "artifact_source", None)):
         raise ValueError("Automatic Hooks require an explicitly selected workspace or approved private artifact policy")
     target_id()
     if manifest["distribution_state"] == "RELEASE" and (
@@ -287,24 +311,41 @@ def install_release(args: argparse.Namespace, manifest: dict, verified: dict[str
             subprocess.run([str(python), "-I", "-m", "pip", "--isolated", "check"], check=True)
             create_private(completed, json.dumps({"manifest_sha256": args.trusted_manifest_sha256,
                            "source_commit": args.source_commit, "release_tag": args.release_tag}).encode())
-        command = [str(python), "-I", "-m", "hypertest.local_sync", "install", "--directory", str(root / "host-installation"),
+        command = [str(python), "-I", "-m", "hypertest.local_sync", "install", "--directory", str(directory),
                    "--harness", args.harness, "--host-config", str(args.host_config.expanduser().absolute()),
                    "--client-config", str(args.client_config.expanduser().absolute()), "--version", manifest["release_tag"],
                    "--python", str(python)]
-        for flag, value in (("--hook-config", args.hook_config), ("--harness-version", args.harness_version),
-                            ("--dsh-home", args.dsh_home), ("--profile", args.profile),
-                            ("--workspace", args.workspace), ("--artifact-source", args.artifact_source),
-                            ("--event-bridge", args.event_bridge), ("--harness-binary", args.harness_binary)):
+        for flag, value in (("--hook-config", getattr(args, "hook_config", None)), ("--harness-version", getattr(args, "harness_version", None)),
+                            ("--dsh-home", getattr(args, "dsh_home", None)), ("--profile", getattr(args, "profile", None)),
+                            ("--workspace", getattr(args, "workspace", None)), ("--artifact-source", getattr(args, "artifact_source", None)),
+                            ("--event-bridge", getattr(args, "event_bridge", None)), ("--harness-binary", getattr(args, "harness_binary", None))):
             if value is not None:
                 command += [flag, str(value)]
-        if args.enable_hooks:
+        if getattr(args, "enable_hooks", False):
             command.append("--enable-hooks")
-        subprocess.run(command, check=True)
+        if existing:
+            # Only the recorded ownership-aware path can preserve Hooks and policy.
+            command = [str(python), "-I", "-m", "hypertest.local_sync", "upgrade-owned",
+                       "--directory", str(directory), "--harness", args.harness,
+                       "--version", manifest["release_tag"], "--python", str(python)]
+        unchanged = existing and existing.get("version") == manifest["release_tag"] and existing.get("python") == str(python)
+        if not unchanged:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        runtime = subprocess.run([str(python), "-I", "-m", "hypertest.local_sync", "runtime-check",
+            "--config", str(args.client_config), "--start"], check=True, capture_output=True, text=True)
+        runtime_result = json.loads(runtime.stdout)
+        if runtime_result.get("status") != "MATCH":
+            raise ValueError("LOCAL_RUNTIME_VERSION_UNCONFIRMED")
+        if getattr(args, "skills_directory", None):
+            subprocess.run([str(python), "-I", "-m", "hypertest.local_sync", "install-skill",
+                "--directory", str(directory), "--skills-directory", str(args.skills_directory.expanduser().absolute())], check=True)
         return {"release_tag": args.release_tag, "source_commit": args.source_commit,
                 "payload": "VERIFIED_AND_ISOLATED", "configuration": "WRITTEN_UNACCEPTED",
                 "authorization": "EXISTING_PRIVATE_CREDENTIAL_NOT_SERVER_VERIFIED",
                 "release_native_acceptance": accepted.get("native_acceptance", "NOT_ACCEPTED"),
-                "native_acceptance": "NOT_OBSERVED_ON_THIS_INSTALL", "real_sync": "NOT_OBSERVED", "reload_required": True}
+                "native_acceptance": "NOT_OBSERVED_ON_THIS_INSTALL", "real_sync": "NOT_OBSERVED", "reload_required": True,
+                "operation": "ALREADY_CURRENT" if unchanged else "UPGRADED" if existing else "INSTALLED",
+                "runtime": runtime_result, "private_state": "PRESERVED"}
     finally:
         os.close(fd)
 
@@ -321,6 +362,8 @@ def main():
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--allow-candidate", action="store_true")
     parser.add_argument("--install-root", type=Path)
+    parser.add_argument("--directory", type=Path, help="Existing owned host installation receipt directory")
+    parser.add_argument("--skills-directory", type=Path, help="Explicitly selected Agent skills directory")
     parser.add_argument("--harness", choices=HOSTS)
     parser.add_argument("--host-config", type=Path)
     parser.add_argument("--client-config", type=Path)
@@ -348,7 +391,11 @@ def main():
                           "payload": "VERIFIED", "publication": "NOT_ASSERTED", "hosts": manifest["hosts"]}
             else:
                 result = install_release(args, manifest, verified)
-    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError, zipfile.BadZipFile):
+    except subprocess.CalledProcessError as exc:
+        codes = re.findall(r"\b(?:LOCAL_|INSTALL_|MANAGED_|EXISTING_|SEPARATE_|TASK_)[A-Z0-9_]{3,100}\b", exc.stderr or "")
+        code = codes[-1] if codes else "LOCAL_INSTALL_BLOCKED"
+        parser.exit(1, code + ": Local bootstrap stopped; preserve existing credentials, private state and pending journals.\n")
+    except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
         parser.exit(1, "Local bootstrap BLOCKED; preserve existing credentials, private state and pending journals.\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

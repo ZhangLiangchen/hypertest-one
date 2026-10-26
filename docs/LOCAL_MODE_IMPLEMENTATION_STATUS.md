@@ -1,5 +1,9 @@
 # HyperTest Local 实现与发行状态
 
+## 2026-10-26 一条命令 / Prompt 更新增量
+
+统一安装 / 升级入口、明确渠道、旧收据迁移、运行来源核对和网页单 Prompt 已实现；代码回归、候选公开及 Web 部署分别记录在[本轮交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。ADR-026 与新安装入口不沿用旧三宿主资格，真实宿主验收仍为 USER_OWNED。
+
 ## 2026-10-26 多会话协作源码增量
 
 [ADR-026](architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)首片源码已连通 JOIN、独立贡献、PRIMARY 汇总与交接、协作 MCP/Hook 和 PC 详情。后端/客户端相关回归及部署身份见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)。这是新源码增量，不重标下方旧公开包、固定摘要、三宿主资格或真实E2E；新显式协作写仍限已实现的逐调用caller宿主。

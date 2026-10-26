@@ -657,3 +657,104 @@ def test_release_source_allowlist_never_copies_cloud_implementation():
     for name in ("src/hypertest/config.py", "src/hypertest/main.py", "src/hypertest/domain/models.py", "pyproject.toml",
                  ".github/workflows/ci.yml", "web/app/projects/[projectId]/page.tsx"):
         assert name not in selected
+
+
+def prepared_bootstrap_install(bundle, tmp_path):
+    """Prepare a synthetic complete runtime, avoiding pip or platform operations."""
+    path, manifest = bundle
+    install_root = tmp_path / "runtime"
+    install_root.mkdir(mode=0o700)
+    release = install_root / (TAG + "-" + builder.sha256(path.read_bytes())[:12])
+    (release / "venv/bin").mkdir(mode=0o700, parents=True)
+    python = release / "venv/bin/python"
+    python.write_text("# synthetic interpreter, never launched\n")
+    marker = release / "bootstrap-complete.json"
+    marker.write_text(json.dumps({"manifest_sha256": builder.sha256(path.read_bytes())}))
+    marker.chmod(0o600)
+    client = tmp_path / "authorized-client.json"
+    token = tmp_path / "private-token"
+    token.write_text("synthetic-existing-token")
+    token.chmod(0o600)
+    client.write_text(json.dumps({"api_url": "https://platform.example.invalid", "integration_token_file": str(token),
+        "state_dir": str(tmp_path / "preserved-state"), "local_sync": {"host": "codex", "hooks_enabled": True,
+        "artifact_source": {"workspace": "/selected/workspace", "approved_files": ["report.md"]}}}))
+    client.chmod(0o600)
+    args = argparse.Namespace(allow_candidate=True, harness="codex", install_root=install_root,
+        directory=None, client_config=client, host_config=tmp_path / "host.toml", enable_hooks=False,
+        trusted_manifest_sha256=builder.sha256(path.read_bytes()), source_commit=COMMIT, release_tag=TAG)
+    return args, python, manifest
+
+
+def test_bootstrap_owned_upgrade_preserves_hooks_policy_and_pending_journals(bundle, tmp_path, monkeypatch):
+    args, python, manifest = prepared_bootstrap_install(bundle, tmp_path)
+    directory = tmp_path / "legacy-installation"
+    directory.mkdir(mode=0o700)
+    args.directory = directory
+    original_client = args.client_config.read_bytes()
+    existing = {"profile": "hypertest.local-install/v1", "host": "codex", "configuration": "WRITTEN",
+        "version": "local-v0.0.9", "python": "/old/runtime/bin/python", "enable_hooks": True,
+        "client_config": str(args.client_config), "host_config": str(args.host_config)}
+    receipt = directory / "installed-codex.json"
+    receipt.write_text(json.dumps(existing))
+    receipt.chmod(0o600)
+    args.client_config = args.host_config = None
+    state = tmp_path / "preserved-state"
+    state.mkdir(mode=0o700)
+    pending = state / "journal.sqlite3"
+    pending.write_bytes(b"synthetic SENT original-key pending journal")
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, '{"status":"MATCH","restarted":true}')
+    monkeypatch.setattr(bootstrap.subprocess, "run", run)
+    result = bootstrap.install_release(args, manifest, {})
+    assert result["operation"] == "UPGRADED" and result["runtime"]["status"] == "MATCH"
+    assert calls[0] == [str(python), "-I", "-m", "hypertest.local_sync", "upgrade-owned", "--directory",
+        str(directory), "--harness", "codex", "--version", TAG, "--python", str(python)]
+    assert calls[1][4] == "runtime-check" and calls[1][-1] == "--start"
+    assert json.loads(receipt.read_bytes())["enable_hooks"] is True
+    assert args.client_config.read_bytes() == original_client
+    assert pending.read_bytes() == b"synthetic SENT original-key pending journal"
+
+
+def test_bootstrap_same_runtime_rechecks_live_identity_without_rewriting_configuration(bundle, tmp_path, monkeypatch):
+    args, python, manifest = prepared_bootstrap_install(bundle, tmp_path)
+    directory = args.install_root / "host-installation"
+    directory.mkdir(mode=0o700)
+    receipt = directory / "installed-codex.json"
+    receipt.write_text(json.dumps({"profile": "hypertest.local-install/v1", "host": "codex", "configuration": "WRITTEN",
+        "version": TAG, "python": str(python), "client_config": str(args.client_config), "host_config": str(args.host_config)}))
+    receipt.chmod(0o600)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, '{"status":"MATCH"}')
+    monkeypatch.setattr(bootstrap.subprocess, "run", run)
+    result = bootstrap.install_release(args, manifest, {})
+    assert result["operation"] == "ALREADY_CURRENT"
+    assert len(calls) == 1 and calls[0][4] == "runtime-check"
+
+
+def test_bootstrap_runtime_busy_does_not_report_success_or_remove_pending_state(bundle, tmp_path, monkeypatch):
+    args, _, manifest = prepared_bootstrap_install(bundle, tmp_path)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        if command[4] == "runtime-check":
+            raise subprocess.CalledProcessError(1, command, stderr="LOCAL_RUNTIME_BUSY\n")
+        return subprocess.CompletedProcess(command, 0, "{}")
+    monkeypatch.setattr(bootstrap.subprocess, "run", run)
+    with pytest.raises(subprocess.CalledProcessError) as observed:
+        bootstrap.install_release(args, manifest, {})
+    assert observed.value.stderr == "LOCAL_RUNTIME_BUSY\n"
+    assert len(calls) == 2
+
+
+def test_one_command_update_pins_updater_and_keeps_channel_explicit():
+    url = builder.REPOSITORY + "/releases/download/local-v0.1.1-rc.2/update-local.py"
+    command = commands.update_command(url, "a" * 64, "codex", channel="candidate", extra_args=["--check"])
+    assert command.startswith("python3 -I -c ")
+    assert url in command and "a" * 64 in command
+    assert "--channel candidate" in command and command.endswith("--check")
+    with pytest.raises(ValueError, match="Fixed Local updater"):
+        commands.update_command("https://evil.invalid/updater.py", "a" * 64)

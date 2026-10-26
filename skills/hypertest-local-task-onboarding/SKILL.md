@@ -5,7 +5,9 @@ description: "为 HyperTest One 接入本地会话任务：安装或升级 Local
 
 # HyperTest 本地任务接入
 
-将用户指定的 Local Task 接入当前真实父会话，完成管理资产同步与完整读回。此 Skill 可独立安装，也随新版 Local 包交付；它不替换 `hypertest-interactive`。旧 `local-v0.1.0` 资产保持不变，安装指南本身不安装 runtime 或新增授权。
+安装或升级本机 Local 客户端，或将用户指定的 Local Task 接入当前真实父会话并完成管理资产同步与完整读回。此 Skill 可独立安装，也随新版 Local 包交付；它不替换 `hypertest-interactive`。旧 `local-v0.1.0` 资产保持不变。
+
+用户仅要求安装或升级时，直接按 [安装与宿主核验](references/setup.md) 完成官方 updater 与本地诊断，不要求先提供 Task ID，不创建、绑定任务或启动模型、SUT 测试。用户给出平台生成的单条安装 Prompt 时承接其中的 Project、宿主和通道；已有配置与目录能确定时不再重复询问。
 
 ## 先固定目标和范围
 

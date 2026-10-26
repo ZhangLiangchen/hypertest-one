@@ -2,28 +2,19 @@
 
 在首次接入、升级或工具能力不符时读本文件。以下变量均须换成用户实际选择的绝对路径或已核实版本；不把占位内容直接执行。
 
-## 1. 选兼容版本，保留既有身份
+## 1. 一个入口完成安装和升级
 
-先读[现行发行与安装说明](https://github.com/ZhangLiangchen/hypertest-one/blob/main/docs/LOCAL_MODE_RELEASE_AND_INSTALLATION.md#adr-024绑定能力与发行兼容)，核对服务端、Local 客户端、Python、OS/架构及宿主能力。已有兼容安装时复用，不重复安装。需要安装时优先使用含所需能力的不可变正式发行，验证可信渠道与预先确认的摘要。旧 `local-v0.1.0` 的固定资产没有 ADR-024 新绑定工具；服务端升级不会改变旧包。
+优先使用平台项目页「接入本地模式」或任务页提供的**一条安装/升级 Prompt**。该 Prompt 固定官方 `update-local.py` 的发布地址及 SHA-256；执行前验证摘要，再由 updater 从指定 `stable` / `candidate` 通道选择已公开、匹配本机 Python / OS / 架构且支持更新协议的目标。不要把下载脚本旁边临时取得的同源摘要当作预先可信的摘要，也不要执行浮动 main 上的未固定脚本。
 
-新版 `local-v0.1.1-rc.1` 是明确的候选发行，内置本指南和当前绑定客户端；两个目标的包与固定摘要安装命令见[本轮交付](https://github.com/ZhangLiangchen/hypertest-one/blob/main/docs/LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。候选下载或安装不代表新宿主已验收，不沿用旧三宿主证明。已有 runtime 安装后，可显式把包内指南安装到所选 Agent 技能目录：
+默认私有根目录为 `~/.local/share/hypertest-local/<宿主>`，安装收据位于其 `host-installation`。先只读这个已知受管位置；原安装位于其他位置时，给 updater 的 `--directory` 传入真实收据目录，不全盘扫描，也不读聊天或认证目录。已有收据中的 client / host / Hook 配置、工作区策略、私有身份、state、journal、未决 key 全部保留。不要用首次 `install` 代替已有安装的 `upgrade-owned`，也不要因未传 `--enable-hooks` 而关闭原 Hooks。
 
-```sh
-"$local_python" -m hypertest.local_sync install-skill \
-  --directory "$local_install_directory" \
-  --skills-directory "$local_agent_skills_directory"
-```
+首次安装复用目标 Project 已有的私有 `task:sync` profile，以 `--client-config` 和 `--host-config` 传入实际绝对路径；DeepSeek 还需要已有的 `--dsh-home` / `--profile`。只在授权配置或旧安装位置实际缺失时向用户索取该信息，不申请 Operator key、签发 grant、复制模型登录或新建凭据。缺兼容 Python 时先复用已有环境或工具管理器；只在已授权范围内进行用户级安装，不改系统 Python。
 
-`local_agent_skills_directory` 是用户选择的绝对技能父目录；Codex 常用 `~/.codex/skills`。命令创建其中的 `hypertest-local-task-onboarding/` 并保存私有所有权收据；升级时通过新 runtime 对同一收据和目录执行相同命令。已有自定义同名技能或已改动的受管文件发生冲突时保留原件，不强制覆盖。不默认修改技能目录、Hook 信任、平台绑定或授权。
+平台可复制的命令同时适用于首次安装和升级；`--check` 只检查远端发行元数据和本地收据，不修改安装。`candidate` 必须明确选择，不能因稳定通道没有目标而悄悄切换。当前 `local-v0.1.1-rc.2` 是新增 updater 与 ADR-026 的候选发行；安装成功不升级真实宿主资格。旧 `local-v0.1.0` / `local-v0.1.1-rc.1` 的 tag、摘要及历史证明保持原样。
 
-正式兼容包尚未发布、且用户已授权源码安装时，可按该说明固定**完整 Git SHA**安装匹配源码。记录它是源码安装，不称为新公开 release，不使用浮动 main 或移动旧 tag。复用兼容依赖环境；确需独立依赖目录时才创建新的 venv，不覆盖旧运行时。
+通过 updater 的 `--skills-directory` 选择宿主标准技能父目录，例如 Codex 的 `~/.codex/skills`，在同一次操作中安装或升级包内指南。它仅更新私有收据拥有的未改动文件；同名自定义技能或受管文件已改动时保留原件并报告冲突。不要把更换 runtime 当作指南已更新。已有 runtime 也可用 `hypertest.local_sync install-skill --directory <收据目录> --skills-directory <已选技能目录>` 单独管理指南。
 
-```sh
-"$local_python" -m pip install \
-  "hypertest-one[interactive] @ git+https://github.com/ZhangLiangchen/hypertest-one.git@$local_source_sha"
-```
-
-`local_python` 是选定运行时解释器，`local_source_sha` 来自当前兼容性核验。不要把某次接入的 SHA 当成永久推荐版本。安装器读取既有私有 client config，不调用旧 setup、设备配对或授权签发入口。
+仅在没有满足需求的公开目标且用户已授权源码安装时，使用完整不可变 Git SHA 的源码路径；记录为源码安装，不把某次 SHA 写成永久推荐值，不移动旧 tag。复用兼容依赖环境，不覆盖原运行时。
 
 ## 2. 安装或升级所有权配置
 
@@ -60,7 +51,7 @@
 "$local_python" -m hypertest.local_sync capabilities --config "$local_client_config"
 ```
 
-升级配置后，只有确认该 profile 没有其他有效 writer 使用，才通过官方入口停止旧解释器的 transport，再按宿主标准流程重载：
+官方 updater 会检查运行时身份并通过受控停止流程切换旧 transport；无法安全停止时明确阻塞，保留收据与账本。不要只凭 socket 可连接或配置里的版本推断已升级。手动排障需要停止 transport 时使用官方入口，再按宿主标准流程重载：
 
 ```sh
 "$local_python" -m hypertest.interactive_client stop --config "$local_client_config"
@@ -70,12 +61,12 @@
 
 | 检查 | 必要内容 |
 | --- | --- |
-| 工具 | `hypertest_bind_task`、`hypertest_get_task_binding`、`hypertest_sync_task`、`hypertest_get_task` |
+| 工具 | 绑定/同步四个工具，以及协作所需 `hypertest_join_task`、`hypertest_contribute_task`、`hypertest_publish_task`、`hypertest_get_task_collaboration` |
 | GET schema | 支持独立的 `task_id` 选择器 |
 | Local 能力 | `local_capabilities.explicit_task_binding` 及 `task_binding_callers` 与当前宿主匹配 |
 | 配置 | profile 的 Project、host、workspace/policy、运行时解释器及私有 state 一致 |
 
-只按需使用这四个管理工具；列出 legacy 工具不表示 `task:sync` 授权执行。`doctor` 的 `CONFIGURED_UNACCEPTED`、`RELOAD_AND_NATIVE_PROBE_REQUIRED`、`NOT_OBSERVED` 是实际边界，不手动改成 READY。
+只按实际任务合同使用上述管理工具；列出 legacy 工具不表示 `task:sync` 授权执行。`doctor` 的 `CONFIGURED_UNACCEPTED`、`RELOAD_AND_NATIVE_PROBE_REQUIRED`、`NOT_OBSERVED` 是实际边界，不手动改成 READY。
 
 ## 4. Hooks 与真实 root
 

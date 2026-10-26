@@ -6,7 +6,8 @@ const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const load = require("./load-helper.cjs");
 const helpers = load("lib/local-task-binding.ts");
-const bindingClient = load("lib/task-binding-client.ts");
+const installHelper = load("lib/local-mode-install.ts");
+const bindingClient = load("lib/task-binding-client.ts", { require: (name) => name === "@/lib/local-mode-install" ? installHelper : require(name) });
 const i18n = load("lib/i18n.tsx", { require });
 const workspaceUi = load("app/workspace-ui.tsx", { require: (name) => name === "@/lib/i18n" ? i18n
   : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
@@ -107,23 +108,14 @@ test("binding guidance copies the chosen task and version while requiring a real
   }
 });
 
-test("source upgrade commands pin the client commit and preserve owned installation settings", () => {
-  assert.equal(bindingClient.TASK_BINDING_CLIENT_SOURCE_COMMIT, "86f7659254cf2253de6376e64b287352e6df7f89");
-  const options = { sourceCommit: bindingClient.TASK_BINDING_CLIENT_SOURCE_COMMIT, venvDirectory: "/private/new client's env", installDirectory: "/private/owned install", clientConfig: "/private/config.json", harness: "codex" };
-  const commands = bindingClient.taskBindingClientCommands(options);
-  assert.ok(commands.prepare.includes("hypertest-one[interactive] @ git+https://github.com/ZhangLiangchen/hypertest-one.git@" + options.sourceCommit));
-  assert.ok(commands.prepare.includes("if [ -e"));
-  assert.ok(commands.prepare.includes("'\"'\"'"), "private paths use POSIX quoting");
-  assert.ok(commands.upgrade.includes("upgrade-owned"));
-  assert.ok(commands.upgrade.includes("--version local-v0.1.0-source." + options.sourceCommit));
-  for (const guessed of ["--enable-hooks", "--hook-config", "--host-config", "--workspace", "--artifact-source", "--dsh-home"]) assert.equal(commands.upgrade.includes(guessed), false, guessed);
-  assert.ok(commands.stop.includes("hypertest.interactive_client stop --config"));
-  assert.ok(commands.capabilities.includes("hypertest.local_sync capabilities --config"));
-  for (const localCheck of ["local_capabilities", "explicit_task_binding", "task_binding_callers", "NATIVE_THREAD_ID_REQUIRED", "0.144.6", "threadId", "per_call_check", "CURRENT_NATIVE_MCP_CALL_STILL_REQUIRED"]) assert.ok(commands.capabilities.includes(localCheck), localCheck);
-  assert.equal(commands.capabilities.includes("BINDING_READY"), false);
-  for (const harness of ["claude-code", "deepseek-harness"]) assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, harness }), /task-binding-host-unsupported/);
-  for (const sourceCommit of ["main", "local-v0.1.0", "abc123", "a".repeat(39)]) assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, sourceCommit }), /fixed-source-commit/);
-  assert.throws(() => bindingClient.taskBindingClientCommands({ ...options, clientConfig: options.installDirectory }), /distinct-private-paths/);
+test("task binding uses the same one-prompt updater and retains the current native caller limit", () => {
+  const updater = { url: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.1-rc.2/update-local.py", sha256: "a".repeat(64) };
+  const prompt = bindingClient.taskBindingClientPrompt({ channel: "candidate", locale: "en", directory: "/private/owned install" }, updater);
+  assert.ok(prompt.includes("--harness codex --channel candidate"));
+  assert.ok(prompt.includes("--directory '/private/owned install'"));
+  assert.ok(prompt.includes("0.144.6"));
+  assert.ok(prompt.includes("UNKNOWN"));
+  assert.equal(prompt.includes("pip install"), false);
 });
 
 test("a bound task does not claim an Agent sync before actual artifacts arrive", () => {

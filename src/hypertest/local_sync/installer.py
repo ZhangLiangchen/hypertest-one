@@ -5,6 +5,7 @@ tested. These operations configure files, not a running Agent or model login.
 """
 from __future__ import annotations
 
+import asyncio
 import fcntl
 import hashlib
 import json
@@ -448,9 +449,10 @@ def doctor(*, directory: Path, host: str) -> dict:
     if not path.exists():
         return {"host": host, "configuration": "NOT_INSTALLED", "real_sync": "NOT_OBSERVED"}
     record = json.loads(private_read(path))
-    result = {"host": host, "version": record["version"],
+    result = {"host": host, "version": record["version"], "receipt_version": record["version"],
               "configuration": record["configuration"], "native_acceptance": "NOT_OBSERVED",
-              "mcp": "RELOAD_AND_NATIVE_PROBE_REQUIRED", "real_sync": "NOT_OBSERVED"}
+              "mcp": "RELOAD_AND_NATIVE_PROBE_REQUIRED", "real_sync": "NOT_OBSERVED",
+              "runtime": {"state": "NOT_OBSERVED"}}
     try:
         # Default doctor is strictly read-only, including a missing state dir.
         config = ClientConfig.model_validate(json.loads(private_read(Path(record["client_config"]))))
@@ -468,6 +470,13 @@ def doctor(*, directory: Path, host: str) -> dict:
                 raise ClientError("PRIVATE_DIRECTORY_REQUIRED")
         result["authorization"] = "PRIVATE_CREDENTIAL_PRESENT_NOT_SERVER_VERIFIED"
         result["pending_state"] = "PRESERVED" if state_exists else "ABSENT"
+        from hypertest.interactive_client.__main__ import observe_runtime
+        loop = asyncio.new_event_loop()
+        try:
+            result["runtime"] = loop.run_until_complete(observe_runtime(config))
+        finally:
+            loop.close()
+        result["running_version"] = result["runtime"].get("runtime", {}).get("release_version")
         if sys.platform == "darwin":
             # sockaddr_un.sun_path is 104 bytes on this supported target;
             # Python's pathname socket includes a terminating NUL byte.

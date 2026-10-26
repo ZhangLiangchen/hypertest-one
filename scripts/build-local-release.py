@@ -41,7 +41,7 @@ SKILL_WHEEL_ROOT = f"hypertest/local_sync/assets/skills/{SKILL_NAME}"
 WIRE_SCHEMAS = ("task_schemas.py", "task_collaboration_schemas.py")
 SOURCE_BOUND_FILES = (
     "pyproject.toml", "scripts/install-local-release.py", "scripts/build-local-release.py",
-    "scripts/prepare-local-dependencies.py", "scripts/local-release-commands.py",
+    "scripts/prepare-local-dependencies.py", "scripts/local-release-commands.py", "scripts/update-local.py",
     "scripts/plan-local-release.py", "scripts/freeze-local-release-source.py",
     "scripts/local-release-dependencies.json", ".github/workflows/local-release.yml",
     *(f"src/hypertest/api/{name}" for name in WIRE_SCHEMAS),

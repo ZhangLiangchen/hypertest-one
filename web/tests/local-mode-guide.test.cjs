@@ -141,51 +141,84 @@ test("automatic published commands require accepted exact versions and an explic
   assert.throws(() => helper.buildPublishedLocalCommand({ ...base, harness: "claude-code" }, published, policy), /accepted-hooks-required/);
 });
 
-const component = load("app/projects/[projectId]/local-mode-guide.tsx", {
-  require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/local-mode-install" ? helper : require(name),
+const updater = { url: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.1-rc.2/update-local.py", sha256: "e".repeat(64) };
+const setupOptions = { projectId, harness: "codex", channel: "candidate" };
+test("the shipped updater command pins the exact updater being released", () => {
+  const updaterSource = fs.readFileSync(path.join(__dirname, "../../scripts/update-local.py"));
+  const digest = require("node:crypto").createHash("sha256").update(updaterSource).digest("hex");
+  assert.equal(helper.LOCAL_UPDATER.sha256, digest);
+  assert.ok(helper.buildLocalUpdateCommand(setupOptions).includes(digest));
 });
-const sourceComponent = load("app/projects/[projectId]/local-mode-guide.tsx", {
-  require: (name) => name === "@/lib/i18n" ? i18n
-    : name === "@/lib/local-mode-install" ? { ...helper, LOCAL_PUBLISHED_TARGETS: [] } : require(name),
+const uiHelper = { ...helper,
+  buildLocalSetupPrompt: (options) => helper.buildLocalSetupPrompt(options, updater),
+  buildLocalUpdateCommand: (options) => helper.buildLocalUpdateCommand(options, updater),
+};
+const setupComponent = load("app/tasks/source-client-upgrade.tsx", {
+  require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/local-mode-install" ? uiHelper : require(name),
+});
+const component = load("app/projects/[projectId]/local-mode-guide.tsx", {
+  require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/tasks/source-client-upgrade" ? setupComponent : require(name),
+});
+
+test("one updater command selects a channel and verifies pinned code before release discovery", () => {
+  const command = helper.buildLocalUpdateCommand(setupOptions, updater);
+  assert.ok(command.startsWith("python3 -I -c "));
+  assert.ok(command.includes(updater.url));
+  assert.ok(command.includes(updater.sha256));
+  assert.ok(command.includes("hashlib.sha256(b).hexdigest()"));
+  assert.ok(command.includes("--harness codex --channel candidate"));
+  assert.equal(/pip install|upgrade-owned|--enable-hooks|--operator-key|git clone/.test(command), false);
+  assert.equal(command.includes("\n"), false, "the updater command is a single shell command");
+  assert.ok(helper.buildLocalUpdateCommand({ ...setupOptions, channel: "stable" }, updater).includes("--channel stable"));
+  for (const invalid of [{ ...updater, sha256: "" }, { ...updater, url: "https://example.com/update-local.py" }, { ...updater, url: updater.url.replace("local-v0.1.1-rc.2", "latest") }]) {
+    assert.throws(() => helper.buildLocalUpdateCommand(setupOptions, invalid), /pinned-updater-required/);
+  }
+  assert.throws(() => helper.buildLocalUpdateCommand({ ...setupOptions, channel: "nightly" }, updater), /channel/);
+  assert.throws(() => helper.buildLocalUpdateCommand({ ...setupOptions, token: "never-accept-a-token" }, updater), /public-context-only/);
+});
+
+test("optional legacy paths preserve shell boundaries and are never required for a prompt", () => {
+  const command = helper.buildLocalUpdateCommand({ ...setupOptions, directory: "/private/user's $(id) directory", clientConfig: "/private/client.json" }, updater);
+  assert.ok(command.includes("--directory '/private/user'\"'\"'s $(id) directory'"));
+  assert.ok(command.includes("--client-config '/private/client.json'"));
+  assert.throws(() => helper.buildLocalUpdateCommand({ ...setupOptions, directory: "relative/path" }, updater), /absolute-path/);
+  for (const locale of ["en", "zh"]) {
+    const prompt = helper.buildLocalSetupPrompt({ ...setupOptions, locale }, updater);
+    assert.ok(prompt.includes(projectId));
+    assert.ok(prompt.includes("--replace-source"));
+    assert.ok(prompt.includes("UNKNOWN"));
+    assert.ok(prompt.includes("0.144.6"));
+    assert.ok(prompt.includes("--skills-directory"));
+    assert.equal((prompt.match(/python3 -I -c/g) || []).length, 1);
+  }
 });
 
 test("the project guide is reachable without blocking existing task reads", () => {
   const section = load("app/projects/[projectId]/session-tasks.tsx", { require: (name) =>
-    name === "@/lib/i18n" ? i18n
-      : name === "./local-mode-guide" ? component
+    name === "@/lib/i18n" ? i18n : name === "./local-mode-guide" ? component
       : name === "@tanstack/react-query" ? { useQuery: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }) }
-      : name === "@/lib/api" ? {}
-      : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
+      : name === "@/lib/api" ? {} : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
       : name === "@/app/tasks/task-actions" ? { SessionTaskActions: () => null }
-      : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) }
-      : require(name) });
+      : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(section.ProjectSessionTasks, { projectId })));
   assert.ok(html.includes("Set up local mode"));
   assert.ok(html.includes('aria-expanded="false"'));
   assert.ok(html.includes("No local session tasks"));
-  assert.equal(html.includes("local_sync install"), false, "an unopened guide runs no setup");
+  assert.equal(html.includes("python3 -I -c"), false);
 });
 
-test("both languages show the released target while keeping local authorization and native verification pending", () => {
+test("both languages offer one complete prompt before any private path entry", () => {
   for (const locale of ["en", "zh"]) {
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.LocalModeGuide, { projectId, initiallyOpen: true })));
-    for (const text of ["Codex", "Claude Code", "DeepSeek harness", projectId, "task:sync", "hypertest_get_task", "hypertest_sync_task", "NOT_FOUND", "local-v0.1.0", "darwin-arm64-py313", "2.1.218", "0.144.6", "0.1.5-rc.1", "0.1.5-rc.2"]) assert.ok(html.includes(text), text);
-    for (const text of locale === "en" ? ["Pinned Local release installation", "Hooks disabled", "Waiting for existing Project authorization", "This machine&#x27;s session needs verification", "Linux remains candidate-only"] : ["固定版本 Local 发行安装", "Hooks 默认关闭", "等待已有项目授权", "本机真实会话待核验", "Linux 仍为候选"]) assert.ok(html.includes(text), text);
-    assert.equal(html.includes(locale === "en" ? "Local release is not published" : "Local 发行尚未发布"), false);
-    assert.equal(html.includes("python3.13 -I -c"), false, "no bootstrap command before private paths and authorization are acknowledged");
-    assert.equal(html.includes("local_sync install"), false, "no commands before private paths and authorization are acknowledged");
+    for (const text of ["Codex", "Claude Code", "DeepSeek harness", projectId, "task:sync", "--channel candidate", "0.144.6", "update-local.py", updater.sha256]) assert.ok(html.includes(text), text);
+    for (const text of locale === "en" ? ["Copy install / upgrade prompt", "Candidate release; native-host acceptance pending", "Optional paths and direct command"] : ["复制安装 / 升级 Prompt", "候选发行，真实宿主验收待完成", "可选路径与直接执行命令"]) assert.ok(html.includes(text), text);
+    assert.equal(html.includes("Matching source commit"), false);
+    assert.equal(html.includes("New private virtual environment"), false);
     assert.equal(/type="password"|name="token"|READY|RELEASE_READY|VERIFIED/.test(html), false);
+    assert.equal((html.match(/aria-label="Local install \/ upgrade prompt"/g) || []).length, locale === "en" ? 1 : 0);
   }
-  const source = fs.readFileSync(path.join(__dirname, "..", "app/projects/[projectId]/local-mode-guide.tsx"), "utf8");
-  assert.equal(/fetch\(|useMutation|localStorage|sessionStorage|dangerouslySetInnerHTML/.test(source), false);
-});
-
-test("an empty published target list retains the explicit source-only fallback in both languages", () => {
-  for (const locale of ["en", "zh"]) {
-    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(sourceComponent.LocalModeGuide, { projectId, initiallyOpen: true })));
-    for (const text of locale === "en" ? ["Local release is not published", "Hooks disabled", "Native session not verified", "cannot be submitted as shown"] : ["Local 发行尚未发布", "Hooks 默认关闭", "真实宿主会话未验收", "不能直接提交"]) assert.ok(html.includes(text), text);
-    assert.ok(html.includes("NOT_RUN"));
-    assert.equal(html.includes("python3.13 -I -c"), false);
-    assert.equal(/type="password"|name="token"|READY|RELEASE_READY|VERIFIED/.test(html), false);
+  for (const target of ["app/projects/[projectId]/local-mode-guide.tsx", "app/tasks/source-client-upgrade.tsx"]) {
+    const source = fs.readFileSync(path.join(__dirname, "..", target), "utf8");
+    assert.equal(/fetch\(|useMutation|localStorage|sessionStorage|dangerouslySetInnerHTML/.test(source), false);
   }
 });

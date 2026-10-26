@@ -1,5 +1,9 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+## 2026-10-26 统一更新增量
+
+发行 workflow 额外分发固定摘要 `update-local.py`，目录声明 `hypertest.local-update/v1`，为三个宿主生成同一条安装 / 升级命令；updater 纳入 Local source digest。动态发现只选择固定 tag 的已发布目录，再验证 bootstrap、目标包和离线依赖。旧目录没有更新协议时不会用于覆盖已有安装。新 bootstrap 自动走受管升级、保留配置及账本，并核对实际 daemon；具体公开状态、摘要和回归见[本轮交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。下文旧发行构建及资格保持原历史范围。
+
 ## 2026-10-26 接入 Skill 打包增量
 
 新版候选将仓库 `skills/hypertest-local-task-onboarding/` 的五份文件原样放入 `hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/`，并纳入 Local source digest、wheel RECORD 和 manifest。显式 `install-skill` 可安装/升级到所选 Agent 技能目录，不默认修改用户全局技能。候选 tag 的构建不携带旧 `local-v0.1.0` 验收文件，Linux/Mac 均保留 CANDIDATE；稳定版的精确源码验收要求继续生效。精确版本、发布状态与检查见[本轮交付](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。后文早期“只含代码与 JSON”描述是原包范围，不覆盖此增量。

@@ -51,6 +51,25 @@ def command(record: dict, host: str = "codex", *, enable_hooks: bool = False) ->
     return shlex.join(args)
 
 
+
+def update_command(url: str, digest: str, host: str = "codex", *, channel: str = "stable",
+                   extra_args: list[str] | None = None) -> str:
+    """One command pins the updater; channel metadata subsequently trusts HTTPS."""
+    if (host not in {"codex", "claude-code", "deepseek-harness"}
+            or channel not in {"stable", "candidate"}
+            or re.fullmatch(r"[a-f0-9]{64}", digest) is None
+            or re.fullmatch(re.escape(REPOSITORY) + r"/releases/download/local-v\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?/update-local\.py", url) is None):
+        raise ValueError("Fixed Local updater release URL/digest, host and channel required")
+    code = ("import hashlib,sys,urllib.request,urllib.parse; "
+            f"r=urllib.request.urlopen({url!r},timeout=45); "
+            "u=urllib.parse.urlsplit(r.url); "
+            "(u.scheme=='https' and u.hostname in {'github.com','release-assets.githubusercontent.com','objects.githubusercontent.com'} and u.username is None and u.password is None) or sys.exit('BLOCKED: updater redirect'); "
+            "b=r.read(1048577); r.close(); "
+            f"(len(b)<=1048576 and hashlib.sha256(b).hexdigest()=={digest!r}) or sys.exit('BLOCKED: updater digest'); "
+            "exec(compile(b,'<verified HyperTest Local updater>','exec'))")
+    return shlex.join(["python3", "-I", "-c", code, "--harness", host, "--channel", channel, *(extra_args or [])])
+
+
 def skill_command(record: dict, host: str) -> str:
     root = Path(f"/ABS/PRIVATE/hypertest-local-{host}")
     release = root / (record["release_tag"] + "-" + record["manifest_sha256"][:12])
@@ -100,11 +119,26 @@ def main():
             or len({(row["release_tag"], row["source_commit"], row["bootstrap_sha256"]) for row in records}) != 1):
         parser.error("Bundles must share one source/tag/bootstrap and have unique targets")
     args.output.mkdir(parents=True, exist_ok=True)
-    catalog = {"schema_version": "hypertest.local-install-catalog/v1", "publication": "NOT_ASSERTED", "targets": records}
+    updater = Path(__file__).with_name("update-local.py").read_bytes()
+    updater_digest = hashlib.sha256(updater).hexdigest()
+    updater_url = f"{REPOSITORY}/releases/download/{records[0]['release_tag']}/update-local.py"
+    (args.output / "update-local.py").write_bytes(updater)
+    catalog = {"schema_version": "hypertest.local-install-catalog/v1", "publication": "NOT_ASSERTED",
+               "updater_protocol": "hypertest.local-update/v1", "targets": records,
+               "updater": {"url": updater_url, "sha256": updater_digest,
+                           "source_commit": records[0]["source_commit"]}}
     (args.output / "local-install-catalog.json").write_text(json.dumps(catalog, sort_keys=True, indent=2) + "\n")
     notes = [f"# HyperTest Local {records[0]['release_tag']}", "", f"Source: `{records[0]['source_commit']}`.", "",
              "Review these fixed digests through your trusted release channel before executing. Replace only the absolute private paths and selected host. Existing authorized task:sync configuration is required; no token belongs in this command.", "",
              "Host MCP, automatic triggers and real sync acceptance are listed per exact target below. Installation itself does not establish acceptance on your machine. Hooks remain off unless explicitly selected with accepted host version evidence.", ""]
+    channel = "candidate" if records[0]["distribution_state"] == "CANDIDATE" else "stable"
+    notes += ["## One command to install or update", "",
+        "Run the same command again to update. The pinned updater discovers the newest Local release through the selected GitHub HTTPS channel, selects an exact published OS/architecture/Python target, verifies the installer and wheelhouse, and preserves the owned installation's authorization, Hooks, policy and pending journals. Release metadata is trusted through GitHub HTTPS; it is not independently signed.", "",
+        "Existing standard installations are detected automatically. For a legacy location append `--directory /ABS/PRIVATE/host-installation`; for first installation append `--client-config /ABS/PRIVATE/authorized-client.json` from an existing private Project authorization. No token belongs in the command. Use `--check` to inspect availability without changing local files. Agent guidance can be included with `--skills-directory /ABS/SELECTED/agent-skills`. A host reload is still required to refresh its MCP tool catalog.", "",
+        "Stable and candidate channels remain separate. Candidate configuration does not establish real host acceptance; unsupported targets or missing Python fail before installation. No automatic downgrade occurs.", ""]
+    for host in ("codex", "claude-code", "deepseek-harness"):
+        notes += [host + ":", "", "```sh", update_command(updater_url, updater_digest, host, channel=channel), "```", ""]
+    notes += ["## Fixed historical target commands", ""]
     for record in records:
         notes += [f"## {record['target_id']} ({record['distribution_state']})", "", "```json",
                   json.dumps(record["hosts"], indent=2), "```", "",

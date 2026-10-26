@@ -1,5 +1,11 @@
 # HyperTest Local 统一发行与一键安装设计
 
+## 2026-10-26 统一安装 / 升级入口
+
+新增同一个固定摘要 updater 与项目页 / 任务页的一条 Prompt，自动区分首次安装、收据升级及已是当前版本；选中渠道后固定 tag / source / 目标与摘要，再离线安装锁定依赖。已有安装通过 `upgrade-owned` 保留 Hooks、授权、workspace / policy 和未决账本；升级后核对真实 daemon 运行来源。旧 F2 源码四步安装保留为下文历史，新接入使用[本轮命令、发行及部署记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。
+
+`candidate` 明确选择新版候选，`stable` 不暗中切换候选或降级；旧稳定版尚无统一更新协议时给出具体缺口。自动发现使用 GitHub HTTPS 发行渠道，选中后验证固定摘要，不将动态目录宣称为独立签名。初次仍需既有私有 Project `task:sync` 配置；安装不签发授权。旧发行资产、资格和真实宿主验收按原记录保留。
+
 ## 2026-10-26 接入 Skill 与新版候选
 
 `local-v0.1.1-rc.1` 新增完整的 `hypertest-local-task-onboarding` 指南和显式 `install-skill` 安装/升级入口，并包含当前 ADR-024 绑定客户端。下载、固定摘要命令、当前发布状态和回归见[本轮交付](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。两个目标均为候选，真实宿主验收未观察；新绑定 caller 仍仅 Codex CLI `0.144.6`。旧 `local-v0.1.0` 正式资产和历史验收保持原身份，不将候选提升为旧包的已验收升级。下文 F2 私有源码安装保留其历史身份，新的安装优先按本轮固定候选及其实际能力核验。

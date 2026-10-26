@@ -89,6 +89,9 @@ def main():
     child.add_argument("--harness", required=True, choices=tuple(HOST_PROVIDERS))
     child.add_argument("--version", required=True)
     child.add_argument("--python", required=True, type=Path)
+    child = commands.add_parser("runtime-check", help="Verify the selected local transport runtime without syncing or running tests")
+    child.add_argument("--config", required=True, type=Path)
+    child.add_argument("--start", action="store_true", help="Start or safely replace a mismatched authenticated daemon")
     for name in ("bind-task", "get-task-binding", "capabilities"):
         child = commands.add_parser(name)
         child.add_argument("--config", required=True, type=Path)
@@ -102,6 +105,25 @@ def main():
             child.add_argument("--expected-version", required=True, type=int)
     args = parser.parse_args()
     try:
+        if args.command == "runtime-check":
+            from hypertest.interactive_client.__main__ import ensure_daemon, observe_runtime
+            from hypertest.interactive_client.runtime import runtime_identity
+            from hypertest.interactive_client.security import private_read
+            config = (ClientConfig.load(args.config, validate_credentials=False) if args.start else
+                      ClientConfig.model_validate(json.loads(private_read(args.config))))
+            if args.start:
+                result = asyncio.run(ensure_daemon(config, args.config))
+            else:
+                observed = asyncio.run(observe_runtime(config))
+                expected = runtime_identity(config)
+                result = {"status": "MATCH" if observed.get("runtime") == expected else observed["state"],
+                          "expected": expected, "observed": observed.get("runtime")}
+                if observed.get("runtime") is not None and result["status"] != "MATCH":
+                    result["status"] = "MISMATCH"
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            if result["status"] != "MATCH":
+                raise SystemExit(1)
+            return
         if args.command == "install-skill":
             from hypertest.local_sync.skills import install_skill
             print(json.dumps(install_skill(directory=args.directory, skills_directory=args.skills_directory),

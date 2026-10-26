@@ -131,6 +131,20 @@ def test_doctor_missing_state_directory_is_strictly_read_only(installation):
     assert result["mcp"] == "RELOAD_AND_NATIVE_PROBE_REQUIRED"
 
 
+def test_doctor_separates_written_receipt_from_observed_old_runtime(installation, monkeypatch):
+    from hypertest.interactive_client import __main__ as entry
+    installer.install(**installation)
+    before = installation["client_config"].read_bytes()
+    async def old_runtime(config):
+        return {"state": "READY", "runtime": {"release_version": "local-v0.0.9"}}
+    monkeypatch.setattr(entry, "observe_runtime", old_runtime)
+    result = installer.doctor(directory=installation["directory"], host="codex")
+    assert result["receipt_version"] == "local-v0.1.0"
+    assert result["running_version"] == "local-v0.0.9"
+    assert result["native_acceptance"] == "NOT_OBSERVED"
+    assert installation["client_config"].read_bytes() == before
+
+
 def test_doctor_blocks_overlong_darwin_socket_without_changing_state(installation, monkeypatch):
     installer.install(**installation)
     config = json.loads(installation["client_config"].read_text())
