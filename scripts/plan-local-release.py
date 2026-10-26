@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select only exact committed publication targets; never broaden native acceptance."""
+"""Select exact committed publication targets independently of native acceptance."""
 from __future__ import annotations
 
 import argparse
@@ -33,23 +33,24 @@ def plan(root: Path, tag: str) -> dict:
         if stable and row["publication"] != "RELEASE":
             continue
         acceptance_file = row["acceptance_file"]
-        if stable:
+        if stable and acceptance_file is not None:
             if (not isinstance(acceptance_file, str)
                     or re.fullmatch(r"docs/local-acceptance/[a-z0-9_-]+\.json", acceptance_file) is None):
-                raise ValueError("Formal targets require committed exact source-bound acceptance")
+                raise ValueError("Host acceptance must use committed exact source-bound evidence")
             evidence = json.loads((root / acceptance_file).read_bytes())
             target = {key: row[key] for key in ("system", "machine", "python")}
-            if (evidence.get("release_tag") != tag or evidence.get("target") != target
+            if (evidence.get("schema_version") != "hypertest.local-host-acceptance/v1"
+                    or evidence.get("release_tag") != tag or evidence.get("target") != target
                     or set(evidence.get("hosts", {})) != {"codex", "claude-code", "deepseek-harness"}
                     or any(host.get("native_acceptance") != "ACCEPTED" for host in evidence["hosts"].values())):
                 raise ValueError("Formal target has incomplete or different native host acceptance")
-        else:
+        elif not stable:
             # A formal-tag evidence record must not be relabeled for a prerelease.
             acceptance_file = ""
         selected.append({key: row[key] for key in ("target", "runner", "python", "system", "machine")}
                         | {"acceptance_file": acceptance_file or ""})
     if not selected:
-        raise ValueError("No accepted targets selected; use an explicit prerelease for candidate-only outputs")
+        raise ValueError("No RELEASE publication targets selected; use an explicit prerelease for candidate-only outputs")
     return {"include": selected}
 
 

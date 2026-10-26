@@ -615,20 +615,31 @@ def test_matching_versions_cannot_replace_wheel_identity_or_origin(dependency_lo
         builder.validate_catalog_lock(path, lock)
 
 
-def test_formal_release_selects_only_real_accepted_target_not_candidate_os(tmp_path):
+def test_formal_release_requires_explicit_publication_target_without_inventing_acceptance(tmp_path):
     root = tmp_path / "source"
     (root / "scripts").mkdir(parents=True)
     catalog = json.loads((ROOT / "scripts/local-release-targets.json").read_bytes())
-    # This negative fixture starts without qualification regardless of which
-    # exact targets the repository has subsequently accepted for publication.
+    # Publication is explicit even when native host acceptance is unavailable.
     for target in catalog["targets"]:
         target.update(publication="CANDIDATE", acceptance_file=None)
     (root / "scripts/local-release-targets.json").write_text(json.dumps(catalog))
     assert len(release_plan.plan(root, TAG)["include"]) == 2
-    with pytest.raises(ValueError, match="No accepted targets"):
-        release_plan.plan(root, "local-v0.1.0")
+    with pytest.raises(ValueError, match="No RELEASE publication targets"):
+        release_plan.plan(root, "local-v0.1.1")
     row = catalog["targets"][1]
     row["publication"] = "RELEASE"
+    (root / "scripts/local-release-targets.json").write_text(json.dumps(catalog))
+    selected = release_plan.plan(root, "local-v0.1.1")["include"]
+    assert [item["target"] for item in selected] == ["darwin-arm64-py313"]
+    assert selected[0]["acceptance_file"] == ""
+
+
+def test_provided_publication_acceptance_still_requires_exact_tag_target_and_hosts(tmp_path):
+    root = tmp_path / "source"
+    (root / "scripts").mkdir(parents=True)
+    catalog = json.loads((ROOT / "scripts/local-release-targets.json").read_bytes())
+    catalog["targets"][0].update(publication="CANDIDATE", acceptance_file=None)
+    row = catalog["targets"][1]
     row["acceptance_file"] = "docs/local-acceptance/darwin-arm64-py313.json"
     (root / "scripts/local-release-targets.json").write_text(json.dumps(catalog))
     path = root / row["acceptance_file"]
@@ -642,6 +653,17 @@ def test_formal_release_selects_only_real_accepted_target_not_candidate_os(tmp_p
     assert all(item["acceptance_file"] == "" for item in candidates)
     selected = release_plan.plan(root, "local-v0.1.0")["include"]
     assert [item["target"] for item in selected] == ["darwin-arm64-py313"]
+    with pytest.raises(ValueError, match="different native host acceptance"):
+        release_plan.plan(root, "local-v0.1.1")
+    evidence["target"]["python"] = "3.12"
+    path.write_text(json.dumps(evidence))
+    with pytest.raises(ValueError, match="different native host acceptance"):
+        release_plan.plan(root, "local-v0.1.0")
+    evidence["target"]["python"] = "3.13"
+    evidence["hosts"]["codex"]["native_acceptance"] = "NOT_ACCEPTED"
+    path.write_text(json.dumps(evidence))
+    with pytest.raises(ValueError, match="different native host acceptance"):
+        release_plan.plan(root, "local-v0.1.0")
 
 
 def test_release_source_allowlist_never_copies_cloud_implementation():
@@ -685,8 +707,12 @@ def prepared_bootstrap_install(bundle, tmp_path):
     return args, python, manifest
 
 
-def test_bootstrap_owned_upgrade_preserves_hooks_policy_and_pending_journals(bundle, tmp_path, monkeypatch):
+@pytest.mark.parametrize("distribution_state", ["CANDIDATE", "RELEASE"])
+def test_bootstrap_owned_upgrade_preserves_hooks_policy_and_pending_journals(bundle, tmp_path, monkeypatch,
+                                                                          distribution_state):
     args, python, manifest = prepared_bootstrap_install(bundle, tmp_path)
+    manifest["distribution_state"] = distribution_state
+    args.allow_candidate = distribution_state == "CANDIDATE"
     directory = tmp_path / "legacy-installation"
     directory.mkdir(mode=0o700)
     args.directory = directory
@@ -715,6 +741,35 @@ def test_bootstrap_owned_upgrade_preserves_hooks_policy_and_pending_journals(bun
     assert json.loads(receipt.read_bytes())["enable_hooks"] is True
     assert args.client_config.read_bytes() == original_client
     assert pending.read_bytes() == b"synthetic SENT original-key pending journal"
+
+
+def test_formal_distribution_without_native_acceptance_reaches_private_authorization_preflight(bundle, tmp_path):
+    _, manifest = bundle
+    manifest["distribution_state"] = "RELEASE"
+    args = argparse.Namespace(allow_candidate=False, harness="codex", client_config=tmp_path / "missing-client.json",
+        host_config=tmp_path / "host.toml", install_root=tmp_path / "installation", enable_hooks=False)
+    with pytest.raises(FileNotFoundError):
+        bootstrap.install_release(args, manifest, {})
+    assert all(row["native_acceptance"] == "NOT_ACCEPTED" for row in manifest["hosts"].values())
+    assert not args.install_root.exists() and not args.host_config.exists()
+
+
+@pytest.mark.parametrize("acceptance,version,error", [
+    ("NOT_ACCEPTED", "1.2.3", "accepted native integration"),
+    ("ACCEPTED", "9.9.9", "exact accepted installed host version"),
+])
+def test_formal_distribution_hook_enablement_keeps_native_acceptance_and_version_gate(
+        bundle, tmp_path, acceptance, version, error):
+    _, manifest = bundle
+    manifest["distribution_state"] = "RELEASE"
+    manifest["hosts"]["codex"] = {"native_acceptance": acceptance, "mcp": acceptance,
+        "automatic_trigger": acceptance, "versions": ["1.2.3"]}
+    args = argparse.Namespace(allow_candidate=False, harness="codex", client_config=tmp_path / "client.json",
+        host_config=tmp_path / "host.toml", install_root=tmp_path / "installation", enable_hooks=True,
+        workspace=tmp_path / "selected-workspace", harness_version=version)
+    with pytest.raises(ValueError, match=error):
+        bootstrap.install_release(args, manifest, {})
+    assert not args.install_root.exists() and not args.host_config.exists()
 
 
 def test_bootstrap_same_runtime_rechecks_live_identity_without_rewriting_configuration(bundle, tmp_path, monkeypatch):

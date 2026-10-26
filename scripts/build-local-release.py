@@ -370,6 +370,7 @@ def instructions(manifest: dict) -> bytes:
 
 Source commit: `{manifest['source_commit']}`. This build does not assert publication.
 Read the target-specific hosts matrix in local-release-manifest.json.
+Formal distribution and native host acceptance are recorded independently.
 Configuration is not native sync acceptance on this machine.
 The Local distribution version is independent of the backend package version.
 
@@ -444,9 +445,8 @@ def build(args: argparse.Namespace) -> dict:
             raise ValueError("Acceptance file must be a fixed-source relative file")
         hosts, acceptance = accepted_hosts(acceptance_path, source_digest, args.tag, target)
         state = "RELEASE" if args.release else "CANDIDATE"
-        if args.release and (tag_state != "VERIFIED" or any(
-                row["native_acceptance"] != "ACCEPTED" for row in hosts.values())):
-            raise ValueError("Formal release requires the fixed tag and accepted native MCP/hooks for every host")
+        if args.release and tag_state != "VERIFIED":
+            raise ValueError("Formal release requires the verified fixed source tag")
         if acceptance is not None:
             assets["host-acceptance.json"] = acceptance
         wheel_name, wheel_bytes = make_local_wheel(source, version, commit, dependencies, epoch)
@@ -466,6 +466,7 @@ def build(args: argparse.Namespace) -> dict:
         "source_commit": commit, "source_repository": REPOSITORY, "source_project_version": project["version"],
         "local_source_sha256": source_digest,
         "tag_verification": tag_state, "distribution_state": state, "publication": "NOT_ASSERTED",
+        "publication_policy": "DISTRIBUTION_INDEPENDENT_OF_NATIVE_HOST_ACCEPTANCE",
         "requires_python": ">=3.12", "target": target, "wheel": wheel_name,
         "source_assets": {"deepseek-root-bridge": {"path": "hypertest/local_sync/deepseek_root_bridge.mjs",
             "sha256": bridge_digest}, "local-task-onboarding": {"path": SKILL_WHEEL_ROOT,
@@ -497,7 +498,7 @@ def main():
     parser.add_argument("--tag", required=True)
     parser.add_argument("--ref", help="Full 40-character commit; optional for an existing fixed tag")
     parser.add_argument("--require-tag", action="store_true")
-    parser.add_argument("--release", action="store_true", help="Require committed acceptance for all three native host integrations")
+    parser.add_argument("--release", action="store_true", help="Build a formal distribution from a verified tag; host acceptance stays independent")
     parser.add_argument("--acceptance-file", help="Project-relative committed target-specific host acceptance evidence")
     parser.add_argument("--wheelhouse", type=Path, required=True)
     parser.add_argument("--dependency-lock", type=Path, required=True)

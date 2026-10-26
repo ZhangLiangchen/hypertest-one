@@ -263,13 +263,12 @@ def install_release(args: argparse.Namespace, manifest: dict, verified: dict[str
     if not existing and getattr(args, "enable_hooks", False) and not (getattr(args, "workspace", None) or getattr(args, "artifact_source", None)):
         raise ValueError("Automatic Hooks require an explicitly selected workspace or approved private artifact policy")
     target_id()
-    if manifest["distribution_state"] == "RELEASE" and (
-            accepted.get("native_acceptance") != "ACCEPTED"
-            or accepted.get("mcp") != "ACCEPTED" or accepted.get("automatic_trigger") != "ACCEPTED"):
-        raise ValueError("This release has no accepted integration for the selected host")
-    if (getattr(args, "enable_hooks", False) and manifest["distribution_state"] == "RELEASE"
-            and getattr(args, "harness_version", None) not in accepted.get("versions", [])):
-        raise ValueError("Automatic Hooks require an exact accepted installed host version")
+    if getattr(args, "enable_hooks", False) and manifest["distribution_state"] == "RELEASE":
+        if (accepted.get("native_acceptance") != "ACCEPTED" or accepted.get("mcp") != "ACCEPTED"
+                or accepted.get("automatic_trigger") != "ACCEPTED"):
+            raise ValueError("Automatic Hooks require accepted native integration for the selected host")
+        if getattr(args, "harness_version", None) not in accepted.get("versions", []):
+            raise ValueError("Automatic Hooks require an exact accepted installed host version")
     actual_target = {"system": platform.system(), "machine": platform.machine(),
                      "python": f"{sys.version_info.major}.{sys.version_info.minor}"}
     if any(manifest.get("target", {}).get(field) != value for field, value in actual_target.items()):

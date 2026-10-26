@@ -1,5 +1,9 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+## 2026-10-26 正式发布与宿主验收分别记录
+
+按用户将最新候选升级为正式版并更新 Latest 的指令，本轮采用 `local-v0.1.1`。稳定目标须在固定源码目录中明确为 `RELEASE`，正式构建须匹配真实 Git tag；提供验收文件时仍核对确切 tag/source/target，无文件时保持各宿主 `NOT_ACCEPTED`。`distribution_state=RELEASE` 记录正式公开选择，不自动升级为原生宿主验收。新增启用正式版 Hooks 仍要求实际宿主/版本资格，已有受管配置升级保留原 Hooks、授权和未决账本。本节取代下文历史版本的“正式发行必须三宿主已验收”通用前置条件，不改写旧资产或旧证明。精确发行、Latest 与安装入口见[本轮正式发行](LOCAL_STABLE_RELEASE_20261026.md)。
+
 ## 2026-10-26 统一更新增量
 
 发行 workflow 额外分发固定摘要 `update-local.py`，目录声明 `hypertest.local-update/v1`，为三个宿主生成同一条安装 / 升级命令；updater 纳入 Local source digest。动态发现只选择固定 tag 的已发布目录，再验证 bootstrap、目标包和离线依赖。旧目录没有更新协议时不会用于覆盖已有安装。新 bootstrap 自动走受管升级、保留配置及账本，并核对实际 daemon；具体公开状态、摘要和回归见[本轮交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。下文旧发行构建及资格保持原历史范围。

@@ -7,7 +7,7 @@
       "python": "3.12",
       "system": "Linux",
       "machine": "x86_64",
-      "publication": "CANDIDATE",
+      "publication": "RELEASE",
       "acceptance_file": null
     },
     {
@@ -17,7 +17,7 @@
       "system": "Darwin",
       "machine": "arm64",
       "publication": "RELEASE",
-      "acceptance_file": "docs/local-acceptance/darwin-arm64-py313.json"
+      "acceptance_file": null
     }
   ]
 }

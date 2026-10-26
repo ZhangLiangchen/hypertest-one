@@ -61,8 +61,10 @@ jobs:
         run: |
           args=()
           if [[ "$GITHUB_REF_NAME" =~ ^local-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            test -n "$LOCAL_ACCEPTANCE_FILE"
-            args+=(--release --acceptance-file "$LOCAL_ACCEPTANCE_FILE")
+            args+=(--release)
+            if [[ -n "$LOCAL_ACCEPTANCE_FILE" ]]; then
+              args+=(--acceptance-file "$LOCAL_ACCEPTANCE_FILE")
+            fi
           fi
           python scripts/build-local-release.py --root "$GITHUB_WORKSPACE" \
             --tag "$GITHUB_REF_NAME" --ref "$GITHUB_SHA" --require-tag \

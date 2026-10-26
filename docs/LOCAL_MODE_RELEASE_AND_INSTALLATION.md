@@ -1,5 +1,9 @@
 # HyperTest Local 统一发行与一键安装设计
 
+## 2026-10-26 Local v0.1.1 正式发行
+
+本轮按用户要求将最新 rc.2 的功能以 `local-v0.1.1` 正式公开并更新 GitHub Latest，下载和实际状态见[正式发行记录](LOCAL_STABLE_RELEASE_20261026.md)。`stable` 可选择新的正式版本；已有 rc.2 的固定摘要 updater 也可发现它，不覆盖旧 tag 或资产。正式发布与宿主验收分别记录，安装不自动启用新 Hooks或增加平台权限，真实宿主验收状态保持原义。
+
 ## 2026-10-26 统一安装 / 升级入口
 
 新增同一个固定摘要 updater 与项目页 / 任务页的一条 Prompt，自动区分首次安装、收据升级及已是当前版本；选中渠道后固定 tag / source / 目标与摘要，再离线安装锁定依赖。已有安装通过 `upgrade-owned` 保留 Hooks、授权、workspace / policy 和未决账本；升级后核对真实 daemon 运行来源。旧 F2 源码四步安装保留为下文历史，新接入使用[本轮命令、发行及部署记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。
