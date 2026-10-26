@@ -1,0 +1,4 @@
+interface:
+  display_name: "HyperTest 本地任务接入"
+  short_description: "安装并核验本地 Hooks，绑定已有任务，可靠同步用例与报告"
+  default_prompt: "使用 $hypertest-local-task-onboarding 接入当前工作区，绑定指定的现有 Local Task，并完整读回核验同步结果。"
