@@ -28,7 +28,9 @@ class UnixConnection(http.client.HTTPConnection):
 
 
 @pytest.mark.parametrize("category,path,payload,headers", [
-    ("FRAMING", "/v1/messages", b"{}", {"Content-Length": "private-invalid-length"}),
+    # Invalid framing is refused from the headers before any body is read. Send
+    # headers only so a separate body write cannot race the server's close.
+    ("FRAMING", "/v1/messages", None, {"Content-Length": "private-invalid-length"}),
     ("JSON", "/v1/messages", b"{private-invalid-json", {}),
     ("ENDPOINT", "/private-unadmitted-path", messages(), {}),
     ("MODEL", "/v1/messages", messages(model="private-unadmitted-model"), {}),
