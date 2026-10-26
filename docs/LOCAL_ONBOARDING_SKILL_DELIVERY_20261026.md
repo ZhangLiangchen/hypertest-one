@@ -20,7 +20,16 @@
 
 ## 发行范围
 
-本轮选择 `local-v0.1.1-rc.1`，由现有 GitHub Actions 在 `linux-x86_64-py312` 与 `darwin-arm64-py313` 上构建。候选构建不读取旧正式发行验收作为新资格，所有宿主保留 `NOT_ACCEPTED`；稳定 tag 仍要求精确 tag/source/target 的原生验收。生成的安装命令带 `--allow-candidate`，不生成已验收自动 Hooks 命令。Hooks 需要另行明确配置及真实宿主核验。
+[local-v0.1.1-rc.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.1-rc.1) 已于 **2026-10-26 12:40:55（Asia/Singapore）**公开，`draft=false / prerelease=true / latest=false`。固定源码为 `b51e3c51cc3bf4f847667242534100f3698e9f29`，Local source digest 为 `6f95d2b9f8e68c5af4e5c35fecc8c94f03d543831e38435bd8f302eb5157496b`。由现有 GitHub Actions 在 `linux-x86_64-py312` 与 `darwin-arm64-py313` 上构建。候选构建不读取旧正式发行验收作为新资格，所有宿主保留 `NOT_ACCEPTED`；稳定 tag 仍要求精确 tag/source/target 的原生验收。生成的安装命令带 `--allow-candidate`，不生成已验收自动 Hooks 命令。Hooks 需要另行明确配置及真实宿主核验。
+
+完整固定摘要安装命令及独立技能安装步骤见公开资产 [LOCAL_INSTALL.md](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.1-rc.1/LOCAL_INSTALL.md)，机器可读目标见 [catalog](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.1-rc.1/local-install-catalog.json)。只替换用户实际选定的绝对路径，不替换版本、完整源码或摘要。已有 runtime 配置应使用 `upgrade-owned`；bootstrap 的默认关闭 Hooks 安装模板不替代保留原配置的升级。
+
+| 目标包 | Bundle SHA-256 | 包内 manifest SHA-256 |
+| --- | --- | --- |
+| [Mac arm64 / Python 3.13](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.1-rc.1/hypertest-local-v0.1.1-rc.1-darwin-arm64-py313.zip) | `9e88df899bae9c00dc31de18b6cf8bc9a9580f4a27e34adf2fcde14aa77ab2ba` | `71c40970594d112bc13db91eb47d97fe6b85754f9ca4e53fda65bcb7c0f9899a` |
+| [Linux x86_64 / Python 3.12](https://github.com/ZhangLiangchen/hypertest-one/releases/download/local-v0.1.1-rc.1/hypertest-local-v0.1.1-rc.1-linux-x86_64-py312.zip) | `0466aac1d8440ad8d7b55feb481331cd837fd2dff335b591074af5fa008b381f` | `f9e2f7c4fab0f8898d3c18abf1bcba80ff2ed39fb70da558b53e0d21b230964e` |
+
+两个目标的 Local wheel 相同，SHA-256 为 `49b13b88339b3d9e8b14ce5ef367c84f26978afae1d0b0dc566944d1bc39f622`。bootstrap 字节未变化，SHA-256 仍为 `cd8a2757e3019d6945f697dc1c8db8b650c2744a6e421bae5ba420b7ef25927a`。
 
 候选包含当前 Local 源码中的 ADR-024 绑定工具与独立可选 Memory 客户端；不打包 Cloud SDK、Worker 或 Memory Gateway，不新增任何权限。新 BIND 和手动绑定 Task 的显式新 SYNC 仍只支持已实现的 Codex CLI `0.144.6` caller 路径；Claude Code / DeepSeek 不因此获得新绑定资格。旧 auto Task 恢复、授权 GET 与原 key 对账仍保留。
 
@@ -32,6 +41,8 @@
 
 首轮误混入无关 legacy `test_local_bootstrap.py`，其6项数据库 fixture 因默认测试连接认证失败而未执行；同轮80项通过。随后缩回上述三个相关无数据库测试文件并全部通过。没有用业务库准备或 reset fixtures，认证失败的连接未写入数据。
 
-精确源码、Actions 运行、候选下载及资产摘要在实际构建发布后补充。构建和公开下载检查不代表真实宿主绑定/同步 E2E、SUT 执行或用户功能验收；真实宿主验收保持 `USER_OWNED / NOT_OBSERVED`。
+[固定源码 CI](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/40270050960) 的 `test`（含 lint、迁移、完整 pytest）、`web` 与 `memory-api-profile` 均成功；[候选发行 Actions](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/40270085200) 的 plan、Mac/Linux 两个 build 和 draft 均成功。两目标真实离线安装及 `install-skill` CLI 检查通过。发布前下载两个目标包，各34份 manifest 资产全部核对大小与摘要，wheel RECORD 全部匹配，五份 Skill 与固定 Git 源码逐字节一致；公开后五个资产均匿名 HTTP 200。复核修正了 Mac 自建临时目录的 `/var` symlink 路径解析，仅对构建器自有目录 resolve，不放宽用户目录拒绝规则。
+
+构建和公开下载检查不代表真实宿主绑定/同步 E2E、SUT 执行或用户功能验收；真实宿主验收保持 `USER_OWNED / NOT_OBSERVED`。
 
 本轮不修改 API、数据库 schema 或 Web 源码，不触发服务器应用构建、迁移或重启，不创建平台项目/任务/凭据，不调用模型或业务 SUT。仅复用已有 Python 测试环境执行相关自动化回归。
