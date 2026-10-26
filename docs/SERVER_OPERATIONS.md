@@ -84,7 +84,7 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 
 ### 2026-10-26 Local 多会话协作交付
 
-后续Web已按`df5155ba587c1a4acb32c805691c231b571cc866`独立部署一条Prompt安装/升级入口，API/schema与两个Worker保持；公开候选local-v0.1.1-rc.2包含新客户端。最新Web镜像、公开下载/合成安装升级回归及部署健康见[Local更新交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。下段API/Web共同来源为此前协作部署的历史身份。
+最新Web已按`72322d66417f17b6cecad2f194a6866cec18f3d3`部署项目工作台多Agent文案，见[文案更新](WEB_COPY_DELIVERY_20261026.md)。此前Web已按`df5155ba587c1a4acb32c805691c231b571cc866`独立部署一条Prompt安装/升级入口，API/schema与两个Worker保持；公开候选local-v0.1.1-rc.2包含新客户端。该轮Web镜像、公开下载/合成安装升级回归及部署健康见[Local更新交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。下段API/Web共同来源为此前协作部署的历史身份。
 
 API/Web已从干净Git checkout固定`66f69f17a249ee382d60096ef9871695be457ee5`构建并部署，schema0029；原Task与初始来源保持，协作默认未启用。独立Cloud Worker与legacy Worker未更新。新镜像、相关自动回归、只读协作路径、备份及清理见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)。下节API/Worker/Web身份是此前Cloud轮次的历史记录，不覆盖本次API/Web部署；Local新源码/打包资格不由服务端部署推定。
 
