@@ -331,6 +331,8 @@ def bundle_release(output: Path, tag: str, epoch: int) -> Path:
 
 
 def check_environment(assets: dict[str, bytes], directory: Path) -> None:
+    # Resolve only this builder-owned temporary path (macOS /var is a symlink).
+    directory = directory.resolve()
     wheels = directory / "wheelhouse"
     wheels.mkdir()
     for name, raw in assets.items():
