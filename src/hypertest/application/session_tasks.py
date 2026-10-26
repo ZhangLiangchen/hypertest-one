@@ -322,8 +322,6 @@ async def manage_task(db, task_id, expected_version, *, changes=None, action="UP
         raise HTTPException(404, "Session task not found in Project")
     if task.version != expected_version:
         raise HTTPException(409, "Task version is stale; refresh before changing it")
-    if task.collaboration_enabled and action in {"UPDATE", "AUTHORIZE"}:
-        raise HTTPException(409, "COLLABORATION_PROFILE_REQUIRED")
     if action == "AUTHORIZE" and task.binding_state != "UNBOUND":
         raise HTTPException(409, "TASK_ALREADY_BOUND")
     if action == "RESTORE" and task.deleted_at is None:

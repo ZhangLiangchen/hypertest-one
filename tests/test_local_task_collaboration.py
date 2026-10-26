@@ -119,7 +119,6 @@ async def test_legacy_write_block_original_receipts_and_exact_source_reconciliat
     task, original, enabled = await setup(f)
     assert (await sync(f, original)).status_code == 200  # original key precedes profile rejection
     assert (await sync(f, {**original, "idempotency_key": "new-fullsync", "expected_version": 2})).status_code == 409
-    assert (await f["c"].patch(f"/api/v1/tasks/{task}", json={"expected_version": 2, "title": "Bypass"})).status_code == 409
     assert (await f["c"].get(f"/api/v1/interactive/tasks/{task}", headers=f["headers"], params={
         "project_id": f["project_id"]})).json()["detail"] == "COLLABORATION_PROFILE_REQUIRED"
     assert (await f["c"].get(f"/api/v1/interactive/tasks/{task}", headers=f["headers"], params={
@@ -365,3 +364,45 @@ async def test_real_local_adapter_asgi_roundtrip_defaults_unicode_and_fixed_page
         assert sum(method == "POST" for method, _, _ in calls) == 3
     finally:
         await api.close()
+
+
+async def test_operator_edit_preserves_collaboration_and_conflicts_stale_primary_publication(context):
+    f = context
+    task, original, enabled = await setup(f)
+    initial = enabled["collaboration"]["participants"][0]
+    source = await add(f, task, initial["actor_ref"])
+    assert (await member(f, task, source, "JOIN", 3, "operator-edit-join")).status_code == 200
+    contributed = await member(f, task, source, "CONTRIBUTE", 4, "operator-edit-report", contributions=report())
+    assert contributed.status_code == 200, contributed.text
+    before = (await f["c"].get(f"/api/v1/tasks/{task}/collaboration", params={"version": 5})).json()
+    edited = await f["c"].patch(f"/api/v1/tasks/{task}", json={"expected_version": 5,
+        "title": "Operator clarified the scope", "plan_markdown": "# Reviewed management plan",
+        "status": "BLOCKED"})
+    assert edited.status_code == 200, edited.text
+    detail = edited.json()
+    assert detail["task"]["version"] == 6
+    assert detail["task"]["title"] == "Operator clarified the scope"
+    assert detail["task"]["status"] == "BLOCKED"
+    assert detail["task"]["plan_markdown"] == "# Reviewed management plan"
+    for field in ("reported_result", "owner_actor_ref", "provider", "session_id", "bound_at",
+                  "primary_participant_id", "primary_generation", "last_synced_at"):
+        assert detail["task"][field] == before["task"][field]
+    assert detail["collaboration"] == before["collaboration"]
+    assert detail["management_history"][-1]["action"] == "UPDATE"
+    fixed = await f["c"].get(f"/api/v1/tasks/{task}/collaboration", params={"version": 6})
+    assert fixed.status_code == 200 and fixed.json()["collaboration"] == before["collaboration"]
+    old = await f["c"].get(f"/api/v1/tasks/{task}/collaboration", params={"version": 5})
+    assert old.json() == before
+    stale = await member(f, task, original["session_id"], "PUBLISH", 5, "before-operator-edit",
+        primary_generation=1, summary=summary())
+    assert stale.status_code == 409 and stale.json()["detail"] == "TASK_VERSION_CONFLICT"
+    accepted = await member(f, task, original["session_id"], "PUBLISH", 6, "after-operator-edit",
+        primary_generation=1, summary=summary())
+    assert accepted.status_code == 200 and accepted.json()["version"] == 7
+    # Human management retains its established field boundary: result changes
+    # still require an explicitly sourced publication, and binding stays fixed.
+    assert (await f["c"].patch(f"/api/v1/tasks/{task}", json={"expected_version": 7,
+        "reported_result": "PASS"})).status_code == 422
+    authorization = await f["c"].patch(f"/api/v1/tasks/{task}/binding-authorization", json={
+        "expected_version": 7, "intended_actor_ref": initial["actor_ref"]})
+    assert authorization.status_code == 409 and authorization.json()["detail"] == "TASK_ALREADY_BOUND"

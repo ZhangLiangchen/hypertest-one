@@ -19,7 +19,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | 后端相关自动回归 | 70 passed；含7条多场景协作测试和原任务/绑定/分页回归 |
-| 最终协作契约回归 | 新增真实 ApiClient(ASGITransport)→LocalCollaborationAdapter→后端的第8条后，协作文件8 passed；覆盖JOIN/贡献/交接后发布、CASE/REPORT默认值、非ASCII原文跨页与真实摘要/回执/固定版本读回。与上行重叠不加总 |
+| 最终协作契约回归 | 增加真实 ApiClient(ASGITransport)→LocalCollaborationAdapter→后端与Operator人工管理后，协作文件9 passed；覆盖JOIN/贡献/交接后发布、CASE/REPORT默认值、非ASCII原文跨页与真实摘要/回执/固定版本读回。与上行重叠不加总 |
 | Local/MCP/技能相关自动回归 | 124 passed；最终微调后新协作39项再次通过，两次有重叠不加总 |
 | Web 相关自动回归 | 56 passed；含独立账本、失答恢复、固定版本内容核验与组件流程 |
 | Web 类型与静态检查 | typecheck、Ruff、技能验证、文档链接及 diff 检查按本轮范围执行 |
@@ -27,6 +27,8 @@
 | PC 合成组件检查 | 1440px英文、中文授权、中文交接三状态；修正新增Descriptions标签对比度后确认，无页面横向溢出。不作为真实宿主或用户验收 |
 
 以上是实现自动回归，不是模型/SUT执行或用户验收。CI 及部署构建结果在完成后补记，不预先宣称通过。
+
+集成审查发现首片对旧 full sync 的拒绝一并阻止了已有 Operator UPDATE，原回归还包含错误的拒绝断言。已恢复 §50.4 人工标题/计划/进度编辑，新增回归验证 reported_result/成员/主代次保持、管理快照继承固定 roster、旧版本 PUBLISH 冲突及新版发布；最终9项覆盖修正，不把 Agent PRIMARY 约束扩大成人工管理权限变更。
 
 ## Git 与部署
 
