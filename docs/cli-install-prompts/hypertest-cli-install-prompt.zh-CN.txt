@@ -1,20 +1,21 @@
-请在我指定的 Agent 运行机器上，为当前用户安装 HyperTest CLI 0.1.0 和显式归档 Skill hypertest-archive。请实际完成操作，不要只返回安装说明。常规用户级安装和必要的 PATH 配置已获授权。
+请在我指定的 Agent 运行机器上，为当前用户安装或升级到 HyperTest CLI 0.1.1 和显式归档 Skill hypertest-archive。请实际完成操作，不要只返回安装说明。常规用户级安装和必要的 PATH 配置已获授权。
 
-HyperTest One 现采用测试后显式归档：Skill → CLI → HTTPS。旧 hypertest-local MCP/Hooks 接入已弃用。请安装下方固定的 cli-v0.1.0，不要选择 local-v*/mcp-v* 或仓库全局 Latest。
+HyperTest One 现采用测试后显式归档：Skill → CLI → HTTPS。旧 hypertest-local MCP/Hooks 接入已弃用。请安装下方固定的 cli-v0.1.1，不要选择 local-v*/mcp-v* 或仓库全局 Latest。
 
-Release: https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0
-Source commit: d02ab1dd893200eb2eee398d795f9b96a41ab768
-Installer: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/install-cli-release.py
+Release: https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1
+Source commit: 01b6d1ebcd64326808771ed06ac1166b98cceb6c
+Installer: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.1/install-cli-release.py
 Installer SHA-256: 20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95
-CLI: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/hypertest-cli-0.1.0.pyz
-CLI SHA-256: c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e
+CLI: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.1/hypertest-cli-0.1.1.pyz
+CLI SHA-256: 6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735
 
 1. 确认实际执行机器与用户账号；如果我要求本机而当前会话连接远程机器，先说明差异，不要误装到远程。检测 Linux/macOS 及已有 Python 3.12+，优先复用。缺少时可通过本机已有可信工具安装用户级运行时，不替换系统 Python；确需管理员权限或操作系统不支持时，说明具体缺口。先检查已有 hypertest 命令与受管安装，保留被修改或非受管的命令，不静默降级较新版本。
 2. 在临时目录下载上述两个固定 HTTPS 文件，用本地工具计算实际 SHA-256，分别与上面两个摘要核对一致后，才允许执行下载的 Python。下载失败或摘要不符立即停止。保持 TLS 校验，不使用 curl | sh；若需显式指定 CA，只使用可信 CA 的公开证书。
 3. 将下列 PYTHON 替换成已核验的 Python 3.12+ 解释器绝对路径，在下载目录执行：
-PYTHON -I install-cli-release.py --artifact ./hypertest-cli-0.1.0.pyz --sha256 c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e --version 0.1.0
-默认启动命令为 ~/.local/bin/hypertest。让当前 Agent 与后续终端可找到该命令，仅在需要时为实际使用的用户 shell 幂等补充 PATH。保留已有 profile、凭据、CA、journal、未决请求、产物与用户修改过的 Skill；安装不自动清理旧接入配置。
-4. 执行 hypertest --version 和 hypertest profile show --json，不直接读取私有凭据文件。识别当前 Agent 宿主：Codex 使用：
+PYTHON -I install-cli-release.py --artifact ./hypertest-cli-0.1.1.pyz --sha256 6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735 --version 0.1.1
+已有 0.1.0 即使做过本地 pyz 临时修补，也应升级到本固定版本。新版本安装到独立版本目录，保留旧 pyz 和 before-stable-key-fix 备份。已有受管安装时复用收据中的安装及命令目录，非默认目录通过 --bin-dir 和 --install-dir 传入。旧 pyz 被修补不需要先卸载；启动命令被修改或目标版本目录冲突时保留原件并报告。
+默认启动命令为 ~/.local/bin/hypertest。让当前 Agent 与后续终端可找到该命令，仅在需要时为实际使用的用户 shell 幂等补充 PATH。保留已有 profile、凭据、CA、journal、未决请求、产物与用户修改过的 Skill。复用既有可信 CA 配置；使用 SSL_CERT_FILE 时，每条 HyperTest CLI 命令均显式设置该绝对路径，保持证书、主机名和有效期校验。升级不修改已冻结的归档请求、不换 key，不重发已接受或结果未知的上传。归档读回中断属于独立恢复操作，应通过 hypertest reconcile --request-id <原ID> --json 查询，不能再次提交 archive。安装不自动清理旧接入配置。
+4. 执行 hypertest --version，确认实际使用 0.1.1（如保留更高版本则如实报告）；仍命中旧命令时先排查 PATH。执行 hypertest profile show --json，不直接读取私有凭据文件。识别当前 Agent 宿主：Codex 使用：
 hypertest skill install --global --host codex --json
 其他宿主使用 hypertest skill install --directory 指向已确认的技能目录；无法确定时只询问缺少的目录。保持 Skill 禁止隐式调用，不安装 MCP、Hooks、native bridge 或 daemon。
 5. 此 Prompt 未提供 HyperTest One 服务地址。先完成安装与 Skill 配置；已有 profile 只在我明确选择后复用，否则再询问 HTTPS 服务地址用于绑定，不猜测地址或项目。通过 hypertest auth bind --server <已确认HTTPS地址> --profile <选定名称> --wait-seconds 0 --json 发起配对，仅在明确提供项目时添加 --project-id。

@@ -1,20 +1,21 @@
-Please install HyperTest CLI 0.1.0 and the explicit hypertest-archive Skill for my Agent's user account on the intended machine. Carry out the installation instead of only giving instructions. Routine user-level installation and PATH setup are authorized.
+Please install or upgrade to HyperTest CLI 0.1.1 and the explicit hypertest-archive Skill for my Agent's user account on the intended machine. Carry out the installation instead of only giving instructions. Routine user-level installation and PATH setup are authorized.
 
-HyperTest One now uses explicit post-test archival: Skill → CLI → HTTPS. The old hypertest-local MCP/Hooks integration is retired. Install the pinned cli-v0.1.0 package below; do not select a local-v*/mcp-v* release or the repository's global Latest.
+HyperTest One now uses explicit post-test archival: Skill → CLI → HTTPS. The old hypertest-local MCP/Hooks integration is retired. Install the pinned cli-v0.1.1 package below; do not select a local-v*/mcp-v* release or the repository's global Latest.
 
-Release: https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0
-Source commit: d02ab1dd893200eb2eee398d795f9b96a41ab768
-Installer: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/install-cli-release.py
+Release: https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1
+Source commit: 01b6d1ebcd64326808771ed06ac1166b98cceb6c
+Installer: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.1/install-cli-release.py
 Installer SHA-256: 20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95
-CLI: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/hypertest-cli-0.1.0.pyz
-CLI SHA-256: c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e
+CLI: https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.1/hypertest-cli-0.1.1.pyz
+CLI SHA-256: 6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735
 
 1. Confirm the execution machine and user account. If I asked for my computer but this session runs remotely, explain the mismatch before installing there. Detect Linux/macOS and an existing Python 3.12+ interpreter; reuse it. If missing, use an existing trusted local tool to install a user-level runtime when possible. Do not replace system Python; report a concrete prerequisite if administrator access or an unsupported OS blocks installation. Check an existing hypertest command and managed installation first; preserve customized/unmanaged commands and do not silently downgrade a newer version.
 2. Download both pinned HTTPS files into a temporary directory. Compute their actual SHA-256 values with local tools and compare them against both values above before executing any downloaded Python. Stop on a mismatch or failed download. Keep TLS verification enabled; no curl | sh. Use only a trusted public CA certificate if the environment requires one.
 3. Replace PYTHON below with the absolute path of the verified Python 3.12+ interpreter, then run from the download directory:
-PYTHON -I install-cli-release.py --artifact ./hypertest-cli-0.1.0.pyz --sha256 c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e --version 0.1.0
-The default launcher is ~/.local/bin/hypertest. Make it available to the current Agent and future shells, updating the user's actual shell PATH configuration only if needed and without duplicate entries. Preserve existing profiles, credentials, CA, journals, pending requests, artifacts, and modified Skill files. Do not automatically remove old integration configuration as part of installation.
-4. Run hypertest --version and hypertest profile show --json; do not open private credential files. Identify the current Agent host. For Codex, install the bundled Skill with:
+PYTHON -I install-cli-release.py --artifact ./hypertest-cli-0.1.1.pyz --sha256 6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735 --version 0.1.1
+Upgrade 0.1.0 even if its pyz was temporarily patched locally. Install the new release in its own version directory; retain the old pyz and any before-stable-key-fix backup. For an existing managed installation, reuse its recorded bin/install directories with --bin-dir and --install-dir when non-default. A modified old pyz does not require removing the installation; a modified launcher or conflicting target version must be preserved and reported.
+The default launcher is ~/.local/bin/hypertest. Make it available to the current Agent and future shells, updating the user's actual shell PATH configuration only if needed and without duplicate entries. Preserve existing profiles, credentials, CA, journals, pending requests, artifacts, and modified Skill files. Reuse the trusted CA configuration; if it uses SSL_CERT_FILE, set that absolute path explicitly for every HyperTest CLI command and keep certificate, hostname, and expiry verification enabled. Never rewrite frozen archive requests, change their keys, or resubmit an accepted/unknown upload during this upgrade. An interrupted archive readback is a separate recovery operation using hypertest reconcile --request-id <original ID> --json, never another archive submission. Do not automatically remove old integration configuration as part of installation.
+4. Run hypertest --version and confirm 0.1.1 (or report a preserved newer version); resolve stale PATH entries before proceeding. Run hypertest profile show --json; do not open private credential files. Identify the current Agent host. For Codex, install the bundled Skill with:
 hypertest skill install --global --host codex --json
 For another host, use hypertest skill install --directory with its confirmed skills directory, or ask only for the missing directory. Keep implicit invocation disabled. Do not install MCP, Hooks, a native bridge, or a daemon.
 5. No HyperTest One server address is supplied. Finish installation and Skill setup first. Reuse an existing profile only when I have selected it; otherwise ask for the HTTPS server address before binding. Never guess a server or project. Start a new binding with hypertest auth bind --server <confirmed HTTPS origin> --profile <selected name> --wait-seconds 0 --json, adding --project-id only for an explicitly supplied project.

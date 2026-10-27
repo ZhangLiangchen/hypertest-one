@@ -11,13 +11,13 @@ export type CliRelease = { published: false } | {
 };
 export const CLI_RELEASE: CliRelease = {
   published: true,
-  version: "0.1.0",
-  sourceCommit: "d02ab1dd893200eb2eee398d795f9b96a41ab768",
-  releaseUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0",
-  installerUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/install-cli-release.py",
+  version: "0.1.1",
+  sourceCommit: "01b6d1ebcd64326808771ed06ac1166b98cceb6c",
+  releaseUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1",
+  installerUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.1/install-cli-release.py",
   installerSha256: "20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95",
-  artifactUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/hypertest-cli-0.1.0.pyz",
-  artifactSha256: "c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e",
+  artifactUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.1/hypertest-cli-0.1.1.pyz",
+  artifactSha256: "6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735",
 };
 const quote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 

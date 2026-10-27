@@ -1,6 +1,6 @@
 # HyperTest CLI 授权与全局使用指南
 
-更新：2026-10-27。**[cli-v0.1.0 已公开](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)，固定源 Git 为 `d02ab1dd893200eb2eee398d795f9b96a41ab768`。公开下载摘要、Linux/Python 3.13 包安装与 Skill 安装已核验。部署与 USER_OWNED 验收仍分别记录在[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)。** 架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)，任务拆分见[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
+更新：2026-10-27。**[cli-v0.1.1 已公开](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)，固定源 Git 为 `01b6d1ebcd64326808771ed06ac1166b98cceb6c`。公开下载摘要、Linux/Python 3.13 包安装与 Skill 安装已核验。stable_key 修复、发行与 Web 部署分别记录在[本轮交付](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)，本机升级与未决读回仍需在原机器完成。** 架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)，任务拆分见[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
 
 ## 1. 一次绑定，按需归档
 
@@ -17,13 +17,13 @@ HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼�
 没有打开平台页面时，可从下列入口复制完整 Prompt：
 
 - [中文安装 Prompt](cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt) · [English installation prompt](cli-install-prompts/hypertest-cli-install-prompt.en.txt)
-- [cli-v0.1.0 GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)：发行说明提供完整中文 Prompt，附件提供中英文文本。
+- [cli-v0.1.1 GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)：发行说明提供完整中文 Prompt，附件提供中英文文本。
 
 通用发行 Prompt 不绑定某台服务器。Agent 先完成 CLI 与适用 Skill 的安装，再询问实际 HyperTest One HTTPS 地址以发起绑定；已有明确地址或有效绑定时复用，不猜测域名或项目。若会话运行在远程服务器/容器，应先明确实际安装目标，不能把远端安装称为本机安装。
 
 Agent 根据 Prompt 完成以下操作：
 
-1. 检查操作系统、Python ≥3.12、现有命令与受管安装，使用固定 `cli-v0.1.0` 的下载地址；分别核对安装器和 CLI 包的 SHA256 后执行安装。不会跟随仓库 Latest 安装旧 `local-v*` 包。
+1. 检查操作系统、Python ≥3.12、现有命令与受管安装，使用固定 `cli-v0.1.1` 的下载地址；分别核对安装器和 CLI 包的 SHA256 后执行安装。不会跟随仓库 Latest 安装旧 `local-v*` 包。
 2. 在当前用户目录安装 `hypertest` 并处理 PATH。保留旧版本、私有 profile、journal、未决请求、非受管命令和被修改的文件；冲突时报告具体位置，不强制覆盖。
 3. 安装 `hypertest-archive` Skill。Codex 使用 `hypertest skill install --global --host codex`；其他宿主先核实其技能目录，再用显式 `--directory`，不猜测目录或声明已验证发现能力。
 4. 读取安全元数据，复用 server/身份匹配的已绑定 profile；需要绑定时发起短时配对，显示授权地址与短码，由用户在网页核对短码、客户端、项目和期限并确认。上传身份由平台自动关联。Agent 不代替用户批准，也不要求复制 token 或 Operator key。
@@ -31,22 +31,30 @@ Agent 根据 Prompt 完成以下操作：
 
 网页批准尚未完成时，Agent 应明确报告“已安装，待网页授权”，不能宣称已绑定。配对出现 SENT/UNKNOWN/失答时保留原 request ID，按第 4 节查询/恢复；不得换 key 重新绑定。已有旧 Local 配置的清理由用户单独发起，方法见第 8 节。
 
+### 从 0.1.0 升级及历史请求
+
+0.1.0 存在资产 `stable_key` 被时间字段循环覆盖为 `report_created_at` 的缺陷：多个同类型资产可能报 `DUPLICATE_ASSET_KEY`，单资产也可能以错误标识提交。请复制当前页面或发行页的安装 Prompt 升级到 0.1.1，已经临时修补旧 pyz 的机器也使用相同流程。
+
+安装器将新版放入独立的 `releases/0.1.1/` 并更新收据匹配的受管启动命令；旧 `releases/0.1.0/`、临时修补包和 `before-stable-key-fix` 备份保留。非默认受管安装复用原安装目录与命令目录，不创建另一套不明确的启动入口。无需重新授权；已有 profile、CA、收据及 journal 继续使用。若启动命令或目标新版目录存在修改，保留冲突并报告，不强制覆盖。
+
+升级不改写旧请求正文/key，不自动重传或重命名服务端历史资产。对已接受但完整读回中断的提交，后续在原 CLI 状态目录中执行 `hypertest reconcile --request-id 原请求ID --json`；保持原 profile 和可信 CA，需指定 CA 时每条命令显式设置 `SSL_CERT_FILE`。只有固定接受版本完整读回核对后才能确认成功；历史错误 key 的修正需单独核查，不能通过升级自动推定原始标识。
+
 ### 手动安装或固定版本升级
 
 以下保留给需要自行操作或排查的用户；页面中的手动命令与 Prompt 使用同一份发行元数据。
 
-发行包为无第三方 Python 依赖的 `hypertest-cli-0.1.0.pyz`，附 release manifest 与独立安装器 `install-cli-release.py`。运行要求为 **Linux 或 macOS、Python ≥3.12**。本轮已实测 Linux/Python 3.13 的合成包安装、命令执行与 Skill 安装；macOS 尚未实际验收，不据此宣称已通过。
+发行包为无第三方 Python 依赖的 `hypertest-cli-0.1.1.pyz`，附 release manifest 与独立安装器 `install-cli-release.py`。运行要求为 **Linux 或 macOS、Python ≥3.12**。本轮已实测 Linux/Python 3.13 的合成包安装、命令执行与 Skill 安装；macOS 尚未实际验收，不据此宣称已通过。
 
-从「CLI 授权」页或 [cli-v0.1.0 发行记录](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)下载 CLI 包和安装器到同一目录。
+从「CLI 授权」页或 [cli-v0.1.1 发行记录](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)下载 CLI 包和安装器到同一目录。
 先核验安装器 SHA256 为 `20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`，再运行下列命令（`python3` 需为 3.12 或更高版本）。网页的手动安装入口还提供先校验安装器、再执行安装的一条命令。
 
 ```sh
 python3 install-cli-release.py \
-  --artifact ./hypertest-cli-0.1.0.pyz \
-  --sha256 c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e --version 0.1.0
+  --artifact ./hypertest-cli-0.1.1.pyz \
+  --sha256 6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735 --version 0.1.1
 ```
 
-安装器核验实际包字节和版本，默认将版本文件保存在 `~/.local/share/hypertest-cli/releases/0.1.0/`，在 `~/.local/bin/hypertest` 创建使用当前 Python 的启动入口，并写入受管安装收据。如目录已有非本工具拥有或被修改的命令，保留原件并报冲突。可用 `--bin-dir PATH --install-dir PRIVATE_PATH` 选择位置；安装目录须由当前用户拥有且权限为 `0700`。
+安装器核验实际包字节和版本，默认将版本文件保存在 `~/.local/share/hypertest-cli/releases/0.1.1/`，在 `~/.local/bin/hypertest` 创建使用当前 Python 的启动入口，并写入受管安装收据。如目录已有非本工具拥有或被修改的命令，保留原件并报冲突。可用 `--bin-dir PATH --install-dir PRIVATE_PATH` 选择位置；安装目录须由当前用户拥有且权限为 `0700`。
 
 将 `~/.local/bin` 加入当前用户 PATH，使终端及其启动的 Agent 可使用：
 

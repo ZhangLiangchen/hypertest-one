@@ -11,7 +11,7 @@
 
 未打开平台页面时，复制 [中文安装 Prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt) 或 [English installation prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.en.txt)。通用 Prompt 先安装，再在需要绑定时询问实际 HTTPS 平台地址；不猜测服务器或默认授权全部项目。
 
-当前 CLI：[cli-v0.1.0 Release 与安装 Prompt](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)。运行要求为 Linux/macOS、Python ≥3.12；已记录的 Linux/Python 3.13 检查不代表 macOS 或各宿主均已验收。首版 Skill 自动全局安装支持 Codex，其他宿主使用已核实的显式技能目录。
+当前 CLI：[cli-v0.1.1 Release 与安装/升级 Prompt](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)。0.1.1 修复归档资产 `stable_key` 被时间字段覆盖的问题，0.1.0 用户（包括已临时修补 pyz 的用户）应升级；旧包、备份、授权及未决请求保持。运行要求为 Linux/macOS、Python ≥3.12；已记录的 Linux/Python 3.13 检查不代表 macOS 或各宿主均已验收。首版 Skill 自动全局安装支持 Codex，其他宿主使用已核实的显式技能目录。
 
 [完整安装与授权指南](docs/CLI_AUTHORIZATION_GUIDE.md) · [CLI Prompt 安装交付](docs/CLI_PROMPT_INSTALL_DELIVERY_20261027.md) · [显式归档交付](docs/LOCAL_ARCHIVE_DELIVERY_20261027.md)
 
