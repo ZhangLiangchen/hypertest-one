@@ -9,10 +9,10 @@
 | 维度 | 本轮记录 |
 | --- | --- |
 | 源码实现 | 已完成归档 API/模型、配对授权、统一 CLI、显式 Skill、PC Web、旧接入退休及只读恢复 |
-| 固定 Git 来源 | 待本轮统一提交、推送后填写完整 SHA |
+| 固定 Git 来源 | 首片实现/CLI 源码 `d02ab1dd893200eb2eee398d795f9b96a41ab768` 已提交并推送；API/Web 构建来源另记 |
 | API/Web 部署 | 待部署记录；尚未在本文记录新运行身份、健康检查或完成切换 |
 | Schema | 新增 additive 0030 Local archive、0031 CLI authorization；实际业务库应用版本待部署填写 |
-| CLI/Skill 发行 | 构建、安装与发行元数据入口已实现；公开 tag、资产 URL、源码与摘要待实际发行后填写 |
+| CLI/Skill 发行 | [cli-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0) 已公开；四资产公开下载摘要一致，Linux/Python 3.13 安装/版本/Skill 安装冒烟通过 |
 | USER_OWNED | 未执行。真实本地安装、网页授权、归档体验及业务结果由用户验收 |
 
 既有 API/Web/Worker 的部署身份以当前 TODO 及原交付记录为准，本文未填写的新身份不替代旧身份。旧 `local-v*`、`mcp-v*` 资产及其验收记录保持原义。
@@ -86,8 +86,11 @@ CLI zipapp 的运行条件为 Linux/macOS、Python 3.12 或更高版本；新包
 - API/Web 构建来源、镜像 ID、实际 schema：待填写。
 - 归档 Web overlay 与旧 Local 新写退休的运行配置：待填写。
 - 服务启动、健康接口及本次一条关键路径：待填写。
-- `cli-vSEMVER` tag、固定 release URL、zipapp/installer/manifest 的 SHA-256：待填写。
-- 公开包安装、命令及 Skill 冒烟范围：待填写。
+- `cli-v0.1.0` 源码：`d02ab1dd893200eb2eee398d795f9b96a41ab768`；独立发行不修改旧 local/mcp tag，也未改变仓库全局 Latest。
+- zipapp SHA-256：`c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e`（39205 字节）。
+- installer SHA-256：`20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`。
+- manifest SHA-256：`ac3833587b35a29d1ef0278112dc530bf68f1474fe047fd1f5dd733a0d156145`。
+- 四个公开资产（含 SHA256SUMS）均下载核对实际摘要；同字节 zipapp 在独立临时安装位置完成安装、`--version`、显式 Skill 安装，随后清理该临时位置。未读取本机既有授权或操作用户 Agent 配置；macOS/真实宿主仍待用户验收。
 - 独立 Cloud Worker/Memory 的实际运行身份是否受影响：按部署事实记录，不从共享项目或自测结果推定。
 
 剩余工作继续由[当前 TODO](TODO.md)统一跟踪。用户真实验收保持 USER_OWNED，部署健康和客户端发行完成均不自动关闭该项。

@@ -9,7 +9,16 @@ export type CliRelease = { published: false } | {
   artifactUrl: string;
   artifactSha256: string;
 };
-export const CLI_RELEASE: CliRelease = { published: false };
+export const CLI_RELEASE: CliRelease = {
+  published: true,
+  version: "0.1.0",
+  sourceCommit: "d02ab1dd893200eb2eee398d795f9b96a41ab768",
+  releaseUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0",
+  installerUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/install-cli-release.py",
+  installerSha256: "20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95",
+  artifactUrl: "https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/hypertest-cli-0.1.0.pyz",
+  artifactSha256: "c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e",
+};
 const quote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
 /** Both files are downloaded first. Execute only installer bytes matching the pinned digest. */

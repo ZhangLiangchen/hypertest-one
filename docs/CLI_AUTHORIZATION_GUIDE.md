@@ -1,6 +1,6 @@
 # HyperTest CLI 授权与全局使用指南
 
-更新：2026-10-27。**本文命令已在源码中实现；定向 CLI 回归及专用测试库联调已通过。正式 `cli-v0.1.0` 发行仍等待固定源 Git SHA 后构建、核验并公布资产摘要。部署、公开发行与 USER_OWNED 验收分别记录，不以源码回归代替。** 架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)，任务拆分见[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
+更新：2026-10-27。**[cli-v0.1.0 已公开](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)，固定源 Git 为 `d02ab1dd893200eb2eee398d795f9b96a41ab768`。公开下载摘要、Linux/Python 3.13 包安装与 Skill 安装已核验。部署与 USER_OWNED 验收仍分别记录在[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)。** 架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)，任务拆分见[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
 
 ## 1. 一次绑定，按需归档
 
@@ -14,12 +14,13 @@ profile 固定 server、client 和 uploader actor，只能访问网页明确批�
 
 发行包为无第三方 Python 依赖的 `hypertest-cli-0.1.0.pyz`，附 release manifest 与独立安装器 `install-cli-release.py`。运行要求为 **Linux 或 macOS、Python ≥3.12**。本轮已实测 Linux/Python 3.13 的合成包安装、命令执行与 Skill 安装；macOS 尚未实际验收，不据此宣称已通过。
 
-正式发行完成后，从「CLI 授权」页或正式 `cli-v0.1.0` 发行记录取得固定版本资产，以及 CLI 包和安装器各自的 SHA256。当前尚未公布正式摘要，以下 `CLI_ASSET_SHA256` 必须替换为实际发行值，不可直接执行占位命令。先核验安装器文件的官方摘要，再运行：
+从「CLI 授权」页或 [cli-v0.1.0 发行记录](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)下载 CLI 包和安装器到同一目录。
+先核验安装器 SHA256 为 `20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`，再运行下列命令（`python3` 需为 3.12 或更高版本）。网页还提供先校验安装器、再执行安装的一条命令。
 
 ```sh
-python3.13 install-cli-release.py \
+python3 install-cli-release.py \
   --artifact ./hypertest-cli-0.1.0.pyz \
-  --sha256 CLI_ASSET_SHA256 --version 0.1.0
+  --sha256 c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e --version 0.1.0
 ```
 
 安装器核验实际包字节和版本，默认将版本文件保存在 `~/.local/share/hypertest-cli/releases/0.1.0/`，在 `~/.local/bin/hypertest` 创建使用当前 Python 的启动入口，并写入受管安装收据。如目录已有非本工具拥有或被修改的命令，保留原件并报冲突。可用 `--bin-dir PATH --install-dir PRIVATE_PATH` 选择位置；安装目录须由当前用户拥有且权限为 `0700`。
