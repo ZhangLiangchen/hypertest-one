@@ -90,25 +90,26 @@ def normalize_asset(asset: dict, directory: Path) -> dict:
               else {"path", "artifact_uri"})
     if kind not in {"PLAN", "REPORT", "CASE"} or set(asset) - base_fields - fields:
         raise CLIError("INVALID_ASSET")
-    key = asset.get("stable_key")
-    if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", key):
+    stable_key = asset.get("stable_key")
+    if not isinstance(stable_key, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", stable_key):
         raise CLIError("INVALID_STABLE_KEY")
     origin = asset.get("origin", {})
     if not isinstance(origin, dict) or set(origin) - ORIGIN_FIELDS:
         raise CLIError("INVALID_ORIGIN")
     limits = {"origin_provider": 64, "origin_session_ref": 512, "producer": 512, "source_ref": 2048,
               "test_started_at": 64, "test_finished_at": 64, "report_created_at": 64}
-    origin = {key: (text_field(origin[key], limits[key]) if origin.get(key) is not None else None)
-              for key in sorted(ORIGIN_FIELDS)}
-    for key in ("test_started_at", "test_finished_at", "report_created_at"):
-        if origin[key] is not None:
+    origin = {origin_key: (text_field(origin[origin_key], limits[origin_key])
+                          if origin.get(origin_key) is not None else None)
+              for origin_key in sorted(ORIGIN_FIELDS)}
+    for timestamp_key in ("test_started_at", "test_finished_at", "report_created_at"):
+        if origin[timestamp_key] is not None:
             try:
-                parsed = datetime.fromisoformat(origin[key].replace("Z", "+00:00"))
+                parsed = datetime.fromisoformat(origin[timestamp_key].replace("Z", "+00:00"))
                 if parsed.tzinfo is None:
                     raise ValueError("timezone required")
             except ValueError as exc:
                 raise CLIError("INVALID_ORIGIN_TIMESTAMP") from exc
-    result = {"kind": kind, "stable_key": key,
+    result = {"kind": kind, "stable_key": stable_key,
               "title": text_field(asset.get("title"), 512, required=True),
               "reported_result": asset.get("reported_result", "UNKNOWN" if kind == "REPORT" else "NOT_RUN"),
               "origin": origin}

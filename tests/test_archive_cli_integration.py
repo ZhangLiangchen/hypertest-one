@@ -13,23 +13,19 @@ from hypertest.cli.state import CLIError, State
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.interactive import InteractiveActorIdentity
 from hypertest.main import app
 
 
 @pytest.mark.parametrize("child_target", [False, True])
 async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch, child_target):
     monkeypatch.setattr(get_settings(), "connector_operator_key", "cli-contract-operator")
+    monkeypatch.setattr(get_settings(), "connector_operator_identity", "cli-contract-" + uuid4().hex)
     operator = {"X-Hypertest-Operator-Key": "cli-contract-operator"}
     async with AsyncSessionLocal() as db:
         projects = [str((await create_project(db, ProjectCreate(
             key=public_key("CLIWIRE"), name="Synthetic CLI wire fixture"))).id) for _ in range(2)]
-        actor = InteractiveActorIdentity(actor_ref="cli-wire-" + uuid4().hex, registered_by="fixture")
-        db.add(actor)
-        await db.commit()
-        actor_id = str(actor.id)
     loop = asyncio.get_running_loop()
-    calls = []
+    calls, readback_pages = [], []
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://localhost") as client:
         class ASGIHTTP:
             def __init__(self, server, *, token=None, proof=None):
@@ -49,11 +45,13 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
                         raise CLIError("ASGI_HTTP_" + str(response.status_code), 3,
                                        status=response.status_code)
                     value = response.json()
+                    if method == "GET" and path.startswith(PREFIX + "/submissions/") and "content" in value:
+                        readback_pages.append(value)
                     if method == "POST" and path == AUTH_PREFIX + "/requests":
                         # The synthetic operator represents the single explicit Web confirmation.
                         approved = await client.post(path + "/" + value["request_id"] + "/approve",
                             headers=operator, json={"idempotency_key": str(uuid4()),
-                                "actor_identity_id": actor_id, "project_ids": projects,
+                                "project_ids": projects,
                                 "scopes": ["archive:read", "archive:write"],
                                 "expires_in_days": 30, "short_code": value["short_code"]})
                         assert approved.status_code == 200, approved.text
@@ -66,9 +64,10 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
         assert code == 0 and bound["profile_saved"], bound
         assert len(state.safe_profiles()[0]["grants"]) == 2
         project = projects[1]
+        actor_ref = state.profile("default", project_id=project)["actor_ref"]
         created = await client.post(PREFIX + "/tasks", headers=operator, json={
             "project_id": project, "idempotency_key": str(uuid4()), "title": "CLI fixture task",
-            "owner_uploader_actor_ref": "interactive:" + actor_id})
+            "owner_uploader_actor_ref": actor_ref})
         assert created.status_code == 200, created.text
         task_id = created.json()["task"]["id"]
         child_id = None
@@ -80,10 +79,19 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
             child_id = child.json()["subtasks"][0]["id"]
         original = "# Original FAIL\r\n保留原文与来源\n" + ("Observed failed assertion.\n" * 1100)
         (tmp_path / "report.txt").write_bytes(original.encode())
+        (tmp_path / "plan.txt").write_text("# Test plan\nSynthetic CLI contract check\n")
+        (tmp_path / "summary.txt").write_text("# Summary\nObserved FAIL\n")
+        (tmp_path / "details.txt").write_text("# Details\nAssertion failure\n")
         manifest = {"profile": PROFILE, "project_id": project, "task_id": task_id,
-            "assets": [{"kind": "REPORT", "stable_key": "original", "title": "Original failure",
+            "assets": [{"kind": "PLAN", "stable_key": "test-plan", "title": "Test plan", "path": "plan.txt"},
+                       {"kind": "REPORT", "stable_key": "original", "title": "Original failure",
                         "path": "report.txt", "reported_result": "FAIL",
-                        "origin": {"origin_provider": "codex", "origin_session_ref": "declared-session"}}]}
+                        "origin": {"origin_provider": "codex", "origin_session_ref": "declared-session",
+                                   "report_created_at": "2026-10-27T01:02:00+00:00"}},
+                       {"kind": "REPORT", "stable_key": "summary", "title": "Summary",
+                        "path": "summary.txt", "reported_result": "FAIL"},
+                       {"kind": "REPORT", "stable_key": "details", "title": "Details",
+                        "path": "details.txt", "reported_result": "FAIL"}]}
         if child_id:
             manifest.update(subtask_id=child_id, subtask_update={"status": "COMPLETED", "reported_result": "FAIL"})
         path = tmp_path / "manifest.json"
@@ -96,6 +104,12 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
         submission_reads = [path for method, path in calls if method == "GET"
                             and path == PREFIX + "/submissions/" + result["submission_id"]]
         assert len(submission_reads) >= 2  # Actual server pagination is fully reassembled.
+        snapshot = json.loads("".join(page["content"] for page in readback_pages))
+        assets = {(asset["kind"], asset["stable_key"]): asset for asset in snapshot["assets"]}
+        assert set(assets) == {("PLAN", "test-plan"), ("REPORT", "original"),
+                               ("REPORT", "summary"), ("REPORT", "details")}
+        assert assets[("REPORT", "original")]["markdown"] == original
+        assert assets[("REPORT", "original")]["origin"]["report_created_at"] == "2026-10-27T01:02:00+00:00"
         details = await client.get(PREFIX + f"/tasks/{task_id}", headers=operator, params={"project_id": project})
         assert details.status_code == 200
         assert details.json()["task"]["reported_result"] == "NOT_RUN"

@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from hypertest.api.archive_schemas import ArchiveSubmit
-from hypertest.cli import PREFIX, PROFILE, archive, auth, skills
-from hypertest.cli.manifest import load_manifest
+from hypertest.cli import CLI_VERSION, PREFIX, PROFILE, archive, auth, skills
+from hypertest.cli.manifest import load_manifest, normalize_asset
 from hypertest.cli.state import CLIError, State
 from hypertest.cli.transport import HTTP, server_url
 from hypertest.sync_core import canonical_json, digest
@@ -128,6 +128,7 @@ def test_archive_preserves_original_body_and_complete_fixed_readback(state, tmp_
         subtask_id=child, manifest=manifest(tmp_path, child=child), http_factory=server.factory)
     assert code == 0 and result["status"] == "ARCHIVED" and result["readback_complete"]
     assert result["target_kind"] == ("SUBTASK" if child else "TASK")
+    assert server.snapshot["assets"][0]["stable_key"] == "report"
     assert server.snapshot["assets"][0]["markdown"] == "Original FAIL\r\n中文报告\n"
     assert server.snapshot["assets"][0]["reported_result"] == "FAIL"
     assert all(call[3]["archive_version"] == 2 for call in server.calls
@@ -137,6 +138,54 @@ def test_archive_preserves_original_body_and_complete_fixed_readback(state, tmp_
         http_factory=server.factory)
     assert code == 0 and second == result
     assert sum(call[0] == "POST" for call in server.calls) == 1
+
+
+@pytest.mark.parametrize("kind", ["PLAN", "REPORT", "CASE"])
+@pytest.mark.parametrize("origin", [{}, {
+    "test_started_at": "2026-10-27T01:00:00Z",
+    "test_finished_at": "2026-10-27T09:01:00+08:00",
+    "report_created_at": "2026-10-27T01:02:00+00:00",
+}])
+def test_normalization_preserves_each_asset_key_with_or_without_timestamps(tmp_path, kind, origin):
+    (tmp_path / "artifact.txt").write_text("Synthetic artifact")
+    asset = {"kind": kind, "stable_key": "original-key_1:v2", "title": "Asset", "origin": origin}
+    asset.update({"steps": ["Inspect result"]} if kind == "CASE" else {"path": "artifact.txt"})
+    result = normalize_asset(asset, tmp_path)
+    assert result["stable_key"] == "original-key_1:v2"
+    assert all(result["origin"][key] == value for key, value in origin.items())
+
+
+@pytest.mark.parametrize("timestamp_key", ["test_started_at", "test_finished_at", "report_created_at"])
+@pytest.mark.parametrize("timestamp", ["not-a-time", "2026-10-27T01:00:00"])
+def test_invalid_origin_timestamps_are_rejected_before_network(state, tmp_path, timestamp_key, timestamp):
+    path = manifest(tmp_path)
+    value = json.loads(path.read_text())
+    value["assets"][0]["origin"][timestamp_key] = timestamp
+    path.write_text(json.dumps(value))
+    server = ArchiveServer()
+    with pytest.raises(CLIError, match="INVALID_ORIGIN_TIMESTAMP"):
+        archive.archive(state, profile_name=None, project_id=P, task_id=T, subtask_id=None,
+                        manifest=path, http_factory=server.factory)
+    assert not server.calls
+
+
+def test_distinct_report_keys_survive_upload_and_duplicate_keys_are_rejected(state, tmp_path):
+    path = manifest(tmp_path)
+    value = json.loads(path.read_text())
+    value["assets"] = [{**value["assets"][0], "stable_key": key} for key in ("report-b", "report-a")]
+    path.write_text(json.dumps(value))
+    server = ArchiveServer()
+    result, code = archive.archive(state, profile_name=None, project_id=P, task_id=T, subtask_id=None,
+                                  manifest=path, http_factory=server.factory)
+    assert code == 0 and result["readback_complete"]
+    assert [asset["stable_key"] for asset in server.snapshot["assets"]] == ["report-a", "report-b"]
+    value["assets"][1]["stable_key"] = "report-b"
+    path.write_text(json.dumps(value))
+    before = len(server.calls)
+    with pytest.raises(CLIError, match="DUPLICATE_ASSET_KEY"):
+        archive.archive(state, profile_name=None, project_id=P, task_id=T, subtask_id=None,
+                        manifest=path, http_factory=server.factory)
+    assert len(server.calls) == before
 
 
 def test_uncertain_post_survives_restart_and_only_gets_original_key(state, tmp_path):
@@ -377,20 +426,20 @@ def test_lightweight_release_fixture_installs_bundled_skill_and_preserves_modifi
     monkeypatch.setattr(builder, "run_git", lambda *args: "a" * 40 if args[0] == "rev-parse" else "")
     output = tmp_path / "release"
     monkeypatch.setattr(sys, "argv", ["build-cli-release.py", "--source-sha", "a" * 40,
-                                      "--version", "0.1.0", "--output-dir", str(output)])
+                                      "--version", CLI_VERSION, "--output-dir", str(output)])
     builder.main()
-    artifact = output / "hypertest-cli-0.1.0.pyz"
-    release = json.loads((output / "hypertest-cli-0.1.0.manifest.json").read_text())
+    artifact = output / f"hypertest-cli-{CLI_VERSION}.pyz"
+    release = json.loads((output / f"hypertest-cli-{CLI_VERSION}.manifest.json").read_text())
     with zipfile.ZipFile(artifact) as bundle:
         assert not any(name.endswith(("mcp_server.py", "hooks.py", "ipc.py")) for name in bundle.namelist())
         assert "hypertest/cli/assets/skills/hypertest-archive/SKILL.md" in bundle.namelist()
     command = [sys.executable, str(repository / "scripts/install-cli-release.py"), "--artifact", str(artifact),
-               "--sha256", release["sha256"], "--version", "0.1.0", "--bin-dir", str(tmp_path / "bin"),
+               "--sha256", release["sha256"], "--version", CLI_VERSION, "--bin-dir", str(tmp_path / "bin"),
                "--install-dir", str(tmp_path / "installed")]
     installed = subprocess.run(command, capture_output=True, text=True)
     assert installed.returncode == 0, installed.stderr
     cli = tmp_path / "bin/hypertest"
-    assert subprocess.check_output([str(cli), "--version"], text=True).strip() == "hypertest 0.1.0"
+    assert subprocess.check_output([str(cli), "--version"], text=True).strip() == f"hypertest {CLI_VERSION}"
     result = subprocess.run([str(cli), "skill", "install", "--directory", str(tmp_path / "skills"), "--json"],
         env={**os.environ, "HYPERTEST_CLI_HOME": str(tmp_path / "cli-state")}, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr + result.stdout
