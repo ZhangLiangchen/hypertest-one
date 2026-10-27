@@ -26,4 +26,6 @@
 
 ## 部署
 
-本提交时待从已推送 Git 构建并部署 Web，完成后记录精确 SHA/image 与最小健康检查。API 保持 `006100788751a416b0d6f1dbe8d78c96d3155a5f`、schema `0032_cli_archive_uploader`，CLI 保持公开 0.1.1。
+Web 已从已推送 Git `c4d0e1efd125a67b2f42819206b59feea7cd4608` 构建并部署，镜像 `sha256:ef68d7820681055b21763b2a50d2fb9aaa1062a4db54322c9ff3a3ecb87abc38`。Next 构建、Lint/类型检查通过；五容器 healthy，统一任务路由与旧地址兼容页均 HTTP 200，API 健康 HTTP 200，网络保护保持。仅替换 Web 镜像，其他镜像保持。部署记录：`/opt/hypertest/container-builds/local-task-unified-20261027/`。API 保持 `006100788751a416b0d6f1dbe8d78c96d3155a5f`、schema `0032_cli_archive_uploader`，CLI 保持公开 0.1.1。
+
+部署后只读浏览器核对用户给出的两个任务：原归档地址正确进入统一任务页，显示既有 1 个计划及 3 份原始报告；历史任务仍可读取计划和报告。无应用 pageerror、无业务写请求、无横向溢出。此核对使用服务器 loopback HTTP，页面按既有规则拒绝生成 HTTPS 上传 Prompt；Prompt 复制已在前述 HTTPS 合成来源验证，未放宽 TLS。它不替代本机 CLI 原请求的完整读回确认，也不表示测试通过。

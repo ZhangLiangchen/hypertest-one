@@ -22,6 +22,8 @@ CLI 授权页已补客户端「添加项目」入口、同profile增量授权Pro
 
 CLI 0.1.1 已修复资产 stable_key 被时间字段循环覆盖的问题并公开发行，CLI Git `01b6d1ebcd64326808771ed06ac1166b98cceb6c`。当前Web Git `75a5a96060dfcf83ee7c154a39a5f20b0bddf6e9`，页面/Release/仓库安装Prompt均固定新版；旧0.1.0仅保留历史与缺陷提示，已临时修补的本机也按受管流程升级并保留旧包、备份、授权及未决journal。API0061007/schema0032不变，见[修复交付](docs/CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。Mac升级与用户原提交读回中断未在本轮执行，不将该独立问题标为修复，不重发原请求。
 
+本地任务新归档已沿用旧版详情布局：统一 `/tasks/[taskId]` 入口，归档以 `mode=archive&projectId=...` 明确类型/项目，原 `/archives` 链接仅兼容跳转；计划、用例和原始报告独立分区，复用左侧固定目录及概览样式。Web 当前 Git `c4d0e1efd125a67b2f42819206b59feea7cd4608`，API0061007/schema0032/CLI0.1.1保持。不得因页面统一合并或迁移旧SessionTask与新LocalArchiveTask身份/历史，见[页面交付](docs/LOCAL_TASK_UNIFIED_UI_DELIVERY_20261027.md)。
+
 ## 快速原型阶段：自测与验证约束
 
 - **当前项目处于快速原型阶段：保留关键自测，降低日常检查强度，避免过度自测拖慢开发效率。** 日常验证以本次改动的实际风险和最小足够范围为准，不以测试数量、覆盖率或完整验证矩阵作为普通交付目标。

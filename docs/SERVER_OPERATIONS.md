@@ -82,6 +82,10 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 - 保留现有 SSH 访问、公钥和人工密码恢复、主机密钥校验、TLS、VPN 白名单及其他网络
   访问限制；不将私钥、token 或密码写入源码、日志或交付物，不改动无关服务。
 
+### 2026-10-27 本地任务详情统一
+
+Web 已按 Git `c4d0e1efd125a67b2f42819206b59feea7cd4608` 部署新旧本地任务的统一布局和 `/tasks` 入口；旧 `/archives` 兼容跳转。仅 Web 更新，API/schema/CLI及其他服务镜像保持。构建与健康见[交付](LOCAL_TASK_UNIFIED_UI_DELIVERY_20261027.md)。
+
 ### 2026-10-27 CLI stable_key 修复与安装升级入口
 
 Web 已独立按 Git `75a5a96060dfcf83ee7c154a39a5f20b0bddf6e9` 部署，将安装 Prompt 与固定摘要更新到公开 `cli-v0.1.1`。API0061007/schema0032、固定ops、nginx及Worker保持。CLI源码、发行摘要、升级保全和Web健康见[本轮交付](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。下方c3d3f40等为前轮Web记录。
