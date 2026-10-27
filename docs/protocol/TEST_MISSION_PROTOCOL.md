@@ -1701,6 +1701,8 @@ CLI 在冻结新请求前读取固定目标空间基线并核当前权限；保�
 
 Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词和 Project/Task/Subtask ID 不作为鉴权字段。用户授权的文件范围足够明确时直接完成归档，未知必要输入才澄清。Skill 不隐式读聊天、自动触发 CLI 或执行 SUT；结果 UNKNOWN 时只引导原请求查询，不循环换 key 重发。
 
+2026-10-27 页面 Prompt 可显式授权 Agent 根据本次测试上下文和限定的相关输出目录解析实际产物路径、生成有限 manifest，并按明确服务器/项目/上传身份匹配既有连接；不要求用户逐项填写路径或配置占位。该授权仅覆盖可确定归属于本次任务的计划、用例与报告，默认排除秘密、聊天/推理及无关文件。Agent 列出清单后无需再次确认，但目标、范围、身份或受信 CA 确实不明确时须澄清，不得全盘扫描、猜测任务、切换身份绕过权限或自动扩大范围。最终 CLI 显式目标、有限清单与原 key 恢复合同不变。
+
 新档案请求与旧 Local bind/sync/collaboration namespace 分离。`hypertest legacy reconcile --config FILE --request-id KEY` 显式选择既有私有账本，歧义时用 `namespace/key`，执行旧 SYNC/BIND/协作原 key GET/固定版读回；不能生成新的旧 POST、伪造 native caller 或启动 MCP/Hooks/daemon。切换后新的旧操作返回明确退休错误，旧历史仍按原协议读回；公开旧 tag 与已接受回执不重标。旧 compact journal 缺少原正文时返回 `LEGACY_ACCEPTED_READBACK`、`original_request_verified=false`，不声称原请求内容比对；完整冻结请求通过比对才返回 `LEGACY_RECOVERED`。旧 CREATE 保留原 Web journal 恢复；CLI 不获得 Operator key。`hypertest legacy retire --directory DIR --host HOST` 只按旧安装收据移除自有配置，漂移时拒绝并保留，停止进程须核私有 IPC 的 runtime/配置指纹；原件、未决 key 和账本保留。
 
 ### 51.4 CLI 授权页面与一次绑定
