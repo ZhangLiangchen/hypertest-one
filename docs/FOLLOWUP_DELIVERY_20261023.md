@@ -1,6 +1,6 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
-2026-10-27 Local 实施：按已确认的 ADR-027 完成独立归档 API/模型、CLI 配对授权、全局 CLI/显式 Skill、PC Web、受管旧配置清理及旧 Local 新写退休；保留原 key 只读恢复、旧浏览器未决 CREATE、来源与历史语义。相关定向自测已完成，结果按模块分别记录于[本轮归档交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)，不重复累计。**部署、公开 CLI 发行和 USER_OWNED 验收分别记录，当前尚待填写新的实际部署/发行身份；未执行用户业务验收。** 下段“纯文档”是此前方案阶段记录，不再表示当前源码未实施。
+2026-10-27 Local 实施：按已确认的 ADR-027 完成独立归档 API/模型、CLI 配对授权、全局 CLI/显式 Skill、PC Web、受管旧配置清理及旧 Local 新写退休；保留原 key 只读恢复、旧浏览器未决 CREATE、来源与历史语义。相关定向自测已完成，结果按模块分别记录于[本轮归档交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)，不重复累计。**API/Web 已按 Git `1512d11f99c5e500e4fc56c685410ffa9e533530` 部署、schema0031，五容器及新授权 BFF 只读路径健康；cli-v0.1.0 已公开。USER_OWNED 业务验收未执行。** 下段“纯文档”是此前方案阶段记录，不再表示当前源码未实施。
 
 2026-10-27 Local 重构方案：用户已确定由 MCP/Hooks 同步转为测试后显式 Skill/CLI 归档。[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录改造原因、新 Task/Subtask/Submission 模型、独立权限、CLI/Skill、旧入口退出及历史恢复；四份基础文档添加目标合同。本轮补充[CLI 授权操作指南](CLI_AUTHORIZATION_GUIDE.md)：全局授权页、一键绑定、用户级 profile/Skill、明确项目授权，上传必填 Project/Task、可选 Subtask，省略时写任务根空间；同步根/子任务版本及授权原 key 恢复合同。**本轮为纯文档交付，产品实现未开始**，未移除正在使用的配置、未部署新接口、未发行CLI或执行用户验收。后续工作按当前TODO的归档重构项推进，下方已交付版本和历史资格保持。
 

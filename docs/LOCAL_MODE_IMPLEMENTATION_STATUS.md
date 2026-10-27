@@ -8,7 +8,7 @@
 
 每次绑定的全局 credential 通过 `CliAuthorizationGrant` 映射到各 Project 独立 integration grant，保持原 `token_hash` 唯一约束及逐项目撤权。旧 SYNC/BIND/协作由 CLI 读取明确旧账本恢复；CREATE 保留原 Web journal 恢复。旧 compact journal 原正文不可重建，读回结果明确 `original_request_verified=false`。
 
-实现回归、部署身份、CLI/Skill 发行分别见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)；USER_OWNED 功能验收未执行。下方旧 `local-v*` 发行、摘要及宿主验收均保持历史身份，不重标为新 CLI 资格。
+API/Web 已按 Git `1512d11f99c5e500e4fc56c685410ffa9e533530` 部署，业务 schema0031；`cli-v0.1.0` 已公开并核验下载摘要与 Linux 安装冒烟。实现回归、精确镜像和发行摘要见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)；USER_OWNED 功能验收未执行。下方旧 `local-v*` 发行、摘要及宿主验收均保持历史身份，不重标为新 CLI 资格。
 
 ## 2026-10-26 一条命令 / Prompt 更新增量
 

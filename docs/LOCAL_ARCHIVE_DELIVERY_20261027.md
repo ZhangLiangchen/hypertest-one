@@ -2,7 +2,7 @@
 
 更新：2026-10-27（UTC）。本轮按用户确认的 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)实施本地 Agent 后置归档，替换测试过程中的 MCP/Hooks 同步。开发任务见[重构计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)，操作说明见[CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。
 
-**实现及相关自测已完成；部署、公开发行和 USER_OWNED 功能验收分别记录。下表中尚未填写的交付项不能由源码、自测或历史发行推定通过。**
+**实现、测试服务器部署和 cli-v0.1.0 公开发行已完成；USER_OWNED 功能验收未执行。部署健康、自测与实际用户测试分别记录。**
 
 ## 交付状态
 
@@ -10,12 +10,12 @@
 | --- | --- |
 | 源码实现 | 已完成归档 API/模型、配对授权、统一 CLI、显式 Skill、PC Web、旧接入退休及只读恢复 |
 | 固定 Git 来源 | 首片实现/CLI 源码 `d02ab1dd893200eb2eee398d795f9b96a41ab768` 已提交并推送；API/Web 构建来源另记 |
-| API/Web 部署 | 待部署记录；尚未在本文记录新运行身份、健康检查或完成切换 |
-| Schema | 新增 additive 0030 Local archive、0031 CLI authorization；实际业务库应用版本待部署填写 |
+| API/Web 部署 | 2026-10-27 04:21 UTC 前，已从推送并 fetch 固定的 `1512d11f99c5e500e4fc56c685410ffa9e533530` 构建部署；新入口与旧写退休已生效 |
+| Schema | 业务库已从0029依次向前应用0030/0031，当前 `0031_cli_authorization`；旧业务与历史未转换 |
 | CLI/Skill 发行 | [cli-v0.1.0](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0) 已公开；四资产公开下载摘要一致，Linux/Python 3.13 安装/版本/Skill 安装冒烟通过 |
 | USER_OWNED | 未执行。真实本地安装、网页授权、归档体验及业务结果由用户验收 |
 
-既有 API/Web/Worker 的部署身份以当前 TODO 及原交付记录为准，本文未填写的新身份不替代旧身份。旧 `local-v*`、`mcp-v*` 资产及其验收记录保持原义。
+API/Web 和固定 ops 来源采用本轮新身份；独立 Cloud Worker 与 legacy Worker 源码/镜像保持原身份。旧 `local-v*`、`mcp-v*` 资产及其验收记录保持原义。
 
 ## 已实现的用户流程
 
@@ -78,19 +78,23 @@ CLI zipapp 的运行条件为 Linux/macOS、Python 3.12 或更高版本；新包
 
 这些结果不等于全量后端/Web 回归、真实模型/SUT 测试、全部宿主矩阵或 USER_OWNED 功能验收。浏览器安装/网页操作的用户验收尚未执行。
 
-## 部署与发行待填记录
+## 部署与发行记录
 
-本节由本轮实际部署/发行完成后更新；当前不得据此宣称服务已切换或公开资产可下载。
+服务器复用已有干净 Git checkout，从已推送历史 fetch 并固定提交；仅构建 API/Web，沿用容器网络守卫启动。构建成功包含 Web 类型检查与新页面生成，无本地/服务器重复完整回归。
 
-- 推送完整 Git SHA：待填写。
-- API/Web 构建来源、镜像 ID、实际 schema：待填写。
-- 归档 Web overlay 与旧 Local 新写退休的运行配置：待填写。
-- 服务启动、健康接口及本次一条关键路径：待填写。
+- API/Web 与固定 ops 完整 Git SHA：`1512d11f99c5e500e4fc56c685410ffa9e533530`。实现源及 CLI 包来源为前序 `d02ab1dd893200eb2eee398d795f9b96a41ab768`，后两提交接入真实发行元数据并更新对应测试。
+- API image：`sha256:65c0a2be39fd5bea2ed05efb99365260b774055e98c7d3c42b7e9d94509f27dc`。
+- Web image：`sha256:aa45c064d8a64fc9c7fe3b8dbb1600963b804963a537c0714bb2b7fc8d9759cd`。
+- schema：`0031_cli_authorization`，迁移前已保存逻辑 DB 备份 `/opt/hypertest/backups/archive-20261027-1512d11/database.dump`；未重置业务库、删数据卷或运行业务 fixtures。
+- `HYPERTEST_ARCHIVE_WEB=enabled`；新归档 BFF 使用既有受保护 TLS/CA/Unix socket。运行配置未启用旧 Local 写开关；在线 capabilities 确认 retired 且不再展示旧 Local 新写工具。新私有路由外的公开 HTTPS listener/白名单保留原字节，包括现有手工 allow 条目。
+- nginx 配置语法通过；守卫启动后五容器 healthy，API health 与 `/cli-authorizations` 均 HTTP 200；归档/授权 setup 为 configured；新 Web BFF 经 TLS socket、Operator 边界到 API 成功读取 typed actor list（只读，无新授权/任务）。
 - `cli-v0.1.0` 源码：`d02ab1dd893200eb2eee398d795f9b96a41ab768`；独立发行不修改旧 local/mcp tag，也未改变仓库全局 Latest。
 - zipapp SHA-256：`c96c8bb0380658d9eee2efd890eee6de95e9fbec11ec6d3255ba49448334713e`（39205 字节）。
 - installer SHA-256：`20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`。
 - manifest SHA-256：`ac3833587b35a29d1ef0278112dc530bf68f1474fe047fd1f5dd733a0d156145`。
 - 四个公开资产（含 SHA256SUMS）均下载核对实际摘要；同字节 zipapp 在独立临时安装位置完成安装、`--version`、显式 Skill 安装，随后清理该临时位置。未读取本机既有授权或操作用户 Agent 配置；macOS/真实宿主仍待用户验收。
-- 独立 Cloud Worker/Memory 的实际运行身份是否受影响：按部署事实记录，不从共享项目或自测结果推定。
+- 独立 Cloud Worker 未部署/重启，仍 active，进程启动时间保持 `2026-10-23 16:29:49 UTC`；legacy Worker image 仍 `sha256:ff650c8a9f59d311f51614a3183f4327bd1125f4d9e6edd511b8b7ff96e3bf4c`。现有 Cloud/Memory 配置保持 enabled，权限、凭据和网关上游未修改；不据服务健康宣称业务重新验收。
+- PostgreSQL image 仍 `sha256:327daa8fae7178d61f93142f146b098467b345e10997b9eb79f63bd58e5c8f3c`；nginx image 仍 `sha256:8f59ff5046a70e421d35ed7d1e862a963215c9689b36cb8f64a6c42f9cf2955d`。守卫启动按现行规则重启应用栈，未更换无关镜像。
+- 本轮新增合成 test DB 容器与临时安装位置已移除；保留 CLI 发行资产、旧镜像、迁移备份及构建记录。结束时磁盘约14 GiB可用。
 
 剩余工作继续由[当前 TODO](TODO.md)统一跟踪。用户真实验收保持 USER_OWNED，部署健康和客户端发行完成均不自动关闭该项。

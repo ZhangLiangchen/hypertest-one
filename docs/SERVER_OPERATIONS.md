@@ -84,6 +84,8 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 
 ### 2026-10-27 显式 Local 归档部署配置
 
+API/Web 与固定 ops 已按 `1512d11f99c5e500e4fc56c685410ffa9e533530` 部署，schema0031；cli-v0.1.0 已公开，USER_OWNED 未验收。镜像与健康结果见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)。
+
 新 Local 入口使用独立的 `HYPERTEST_ARCHIVE_WEB=enabled` 与
 `ops/container/compose.archive.yml`。该开关只启用归档和 CLI 授权 Web BFF，
 复用既有受保护 HTTPS Unix socket、公开 CA 与 Web 私有 Operator 文件；

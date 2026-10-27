@@ -4,7 +4,7 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
-| Local 显式 Skill 与 CLI 后置归档重构 | **源码实现及定向自测已完成，部署/发行待本轮实际记录**。独立归档 Task/可选 Subtask、CLI 配对授权与全局 profile、显式 Skill、根/子任务归档、PC Web 与原 key 恢复；代码默认退休旧 Local 新写，按收据清理自有 MCP/Hooks/bridge。每次上传必填 Project/Task ID，Subtask 可选。见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)、[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[授权指南](CLI_AUTHORIZATION_GUIDE.md) | 完成固定 Git 推送、API/Web 部署及0030/0031非破坏迁移、独立CLI/Skill发行与对应最小冒烟，并在交付记录填写实际身份。USER_OWNED尚未验收；真实本地受管配置清理由用户在明确安装位置执行，不能由服务端切换推定。旧历史/未决key保留，下方旧交付不重标 |
+| Local 显式 Skill 与 CLI 后置归档重构 | **实现、API/Web部署及cli-v0.1.0公开发行已完成；schema0031**。独立归档 Task/可选 Subtask、CLI 配对授权与全局 profile、显式 Skill、根/子任务归档、PC Web 与原 key 恢复；代码默认退休旧 Local 新写，按收据清理自有 MCP/Hooks/bridge。每次上传必填 Project/Task ID，Subtask 可选。见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)、[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[授权指南](CLI_AUTHORIZATION_GUIDE.md) | 部署固定Git 1512d11，公开CLI源d02ab1d；相关回归、构建、迁移及健康通过。USER_OWNED尚未验收；真实本地受管配置清理由用户在明确安装位置执行，不能由服务端切换推定。旧历史/未决key保留，下方旧交付不重标 |
 | Local 一条命令 / Prompt 安装升级 | **已实现并部署Web；local-v0.1.1正式公开并设为Latest**；updater 自动发现渠道/目标、保留原收据配置与Hooks、核对真实daemon、同命令安装Skill；stable发现和两目标发行构建通过。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)及[实现原记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md) | 正式发布不升级真实宿主验收，仍USER_OWNED；首次需已有私有Project授权，未知目标/Python明确报缺口 |
 | Local 多会话任务协作 | **ADR-026 首片已实现并部署API/Web，schema0029**；ENABLE/精确授权/JOIN/撤销、独立贡献、主会话汇总/交接、固定版本/原key恢复、MCP与PC详情已连通。见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md) | PR #26已合入main，正式local-v0.1.1已包含协作客户端；真实宿主接入/USER_OWNED验收保留；标准A2A adapter、跨actor与跨root私有UNKNOWN自动枚举不在首片 |
 | Local 接入 Skill 与新版包 | **PR #25 已合入；Skill已随local-v0.1.1正式公开**；单一技能源码纳入wheel、固定摘要与显式安装/升级。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)和[原实现记录](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md) | 新版宿主验收保持 USER_OWNED / NOT_OBSERVED；旧正式版与候选不重标 |
@@ -15,7 +15,7 @@
 | P0-1 Web未决请求持久保全 | **已实现并部署**；独立IndexedDB、双标签、原key恢复、固定版本完整读回 | USER_OWNED 功能验收保留；浏览器清除站点数据不能推导未执行。见[P0原记录](P0_RECOVERY_DELIVERY_20261023.md) |
 | P0-2 取消、失联与人工收尾 | **已实现并部署**；fence/lease/对账、人工入口、明确SDK恢复不支持 | USER_OWNED 功能验收保留；UNKNOWN/HELD及原件/历史不由声明清除 |
 | P1-1 Cloud框架依赖与受控HTTPS | **首片实现并部署，整体部分完成**：FRAMEWORK_LOCKED_V1及公开GET/HEAD目录adapter、canonical账本、原key恢复、Worker/权限集成与合成故障回归；新开关保持关闭 | 真实Project/目标/IP/只读资源/期限/预算尚未授权。依赖闭包与离线安装供应、认证/写API/query/body、其他工具链与浏览器仍待独立开发。未宣称一般框架或真实API任务已通过 |
-| P1-2 Local新任务绑定扩展 | **旧合同研究与拒绝边界已核对；新宿主绑定扩展由ADR-027归档路线替代，不再作为新流程待办**。当前已部署Codex仅已核0.144.6；Claude/DeepSeek caller继续unsupported，不放宽身份 | 旧Codex真实parent/child绑定E2E仍USER_OWNED/NOT_OBSERVED；历史发行不升级。切换前保留现有拒绝与原key恢复，后续实施显式CLI归档。见[caller原记录](LOCAL_CALLER_FOLLOWUP_20261023.md) |
+| P1-2 Local新任务绑定扩展 | **旧合同研究与拒绝边界已核对；新宿主绑定扩展由ADR-027归档路线替代，不再作为新流程待办**。当前已部署Codex仅已核0.144.6；Claude/DeepSeek caller继续unsupported，不放宽身份 | 旧Codex真实parent/child绑定E2E仍USER_OWNED/NOT_OBSERVED；历史发行不升级。已部署新归档；旧来源只读恢复与历史拒绝边界保留，不再扩展旧BIND入口。见[caller原记录](LOCAL_CALLER_FOLLOWUP_20261023.md) |
 | P2-1 真实SDK原会话恢复 | **独立缺口/设计已记录，未实现**；保持supports_resume=false | 需确定允许续接的非终态、原session/home/workspace、旧prompt enqueue歧义处理、新generation与预算处置。不能删除闭锁直接调用resume或重放prompt |
 | P2-1 平台回归CI | **快速原型阶段改为按需手动执行**：关闭push/PR自动触发，保留workflow_dispatch及原后端/Web/最小API依赖检查；tag发行构建独立保留 | 日常按改动范围做关键自测，手动CI不作为普通交付前置条件；停用自动触发不等于CI PASS，也不等于SUT CI执行adapter |
 | P2-1 SUT CI adapter | **独立设计已记录，未实现** | 需选择provider/API版本、项目/workflow、runner/环境及触发/读/取消权限、独立凭据引用与预算；不得借Git权限或管理服务器token触发 |
