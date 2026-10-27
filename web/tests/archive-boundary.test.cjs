@@ -21,6 +21,7 @@ test("Local BFF requires independent enablement, operator file and same-origin J
   assert.equal((await route(req("tasks", post("https://evil.example")), "tasks", "archive", "POST")).status, 403);
   assert.equal((await route(req("tasks", { ...post(), headers: { "content-type": "application/json" } }), "tasks", "archive", "POST")).status, 403);
   assert.equal((await route(req("requests", post()), "requests", "cli-authorization", "POST")).status, 404, "browser cannot redeem or create credentials");
+  assert.equal((await route(req("actors"), "actors", "cli-authorization", "GET")).status, 404, "CLI approval does not enumerate legacy identities");
   assert.equal((await route(req(`tasks/${task}/submissions`, post()), `tasks/${task}/submissions`, "archive", "POST")).status, 404, "browser cannot impersonate an uploader");
   assert.equal(calls.length, 0);
   const result = await route(req("tasks", post()), "tasks", "archive", "POST");

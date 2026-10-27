@@ -1,5 +1,7 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
+2026-10-27 CLI 项目授权简化：移除旧 ACTIVE 身份下拉框，新批准仅核对短码、项目、权限和有效期；服务端用不可变映射解析专用CLI actor，保留原授权/任务/回执。相关实现和定向检查已完成，部署状态见[本轮交付](CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)。
+
 2026-10-27 CLI HTTPS 排障：确认服务由自有 Connector CA 直接签发，无缺失中间链；默认系统信任复现失败，显式 CA 验证通过。提供 CA 公共证书、固定摘要和命令级信任配置，见[修复指引](CLI_TLS_TRUST_20261027.md)。未改服务私钥/访问限制或发起配对，本机验证与原请求恢复待用户执行。
 
 2026-10-27 CLI 安装体验：本轮把新 CLI 的推荐安装入口改为“复制 Prompt，交给本机 Agent”。页面 Prompt 带明确平台/项目，通用发行 Prompt 先安装再在需要时询问平台；复用固定 cli-v0.1.0 与两个摘要，安装 Skill 并发起配对，网页批准仍由用户完成。README 与[授权指南](CLI_AUTHORIZATION_GUIDE.md)同步，旧 Local 安装指引标为历史。**Web 已按 Git `8b90efb878c51568c9e35901ad31116b742a5f7f` 部署；发行说明与中英文 Prompt 附件已公开并核验，定向检查、构建和部署健康通过。** 精确状态见[Prompt 安装交付](CLI_PROMPT_INSTALL_DELIVERY_20261027.md)；不重建 CLI 包，不自动测试或上传，USER_OWNED 验收未执行。

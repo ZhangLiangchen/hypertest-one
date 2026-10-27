@@ -7,12 +7,14 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from hypertest.application import interactive
 from hypertest.application.services import ConflictError, NotFoundError
+from hypertest.common.ids import uuid7
 from hypertest.connector.security import token_hash
 from hypertest.domain.cli_authorization import (
+    CliArchiveUploader,
     CliAuthorizationGrant,
     CliAuthorizationReceipt,
     CliAuthorizationRequest,
@@ -140,23 +142,47 @@ async def create(db, payload):
     return response
 
 
+async def archive_uploader(db, operator):
+    # Serializes the first approval across distinct pairing requests. The
+    # mapping is permanent: a revoked actor cannot be bypassed by re-pairing.
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+                     {"key": "cli-archive-uploader:" + operator})
+    mapping = await db.get(CliArchiveUploader, operator)
+    if mapping is None:
+        actor_id = uuid7()
+        actor = InteractiveActorIdentity(id=actor_id,
+            actor_ref="cli-archive:" + str(actor_id), registered_by=operator)
+        db.add(actor)
+        await db.flush()
+        db.add(CliArchiveUploader(operator_ref=operator, actor_identity_id=actor_id))
+        await db.flush()
+    else:
+        actor = await db.get(InteractiveActorIdentity, mapping.actor_identity_id,
+                             with_for_update={"read": True}, populate_existing=True)
+    if actor is None or actor.status != "ACTIVE":
+        raise HTTPException(403, "CLI_UPLOADER_NOT_ACTIVE")
+    return actor
+
+
 async def approve(db, request_id, payload, operator):
     row = await request_record(db, request_id, lock=True)
     data = {**payload.model_dump(mode="json"), "operator": operator}
+    if "actor_identity_id" not in payload.model_fields_set:
+        data.pop("actor_identity_id")
     old = await prior(db, row, "APPROVE", payload.idempotency_key, data)
     if old:
         return old
+    if "actor_identity_id" in payload.model_fields_set:
+        raise HTTPException(422, "CLI_UPLOADER_SELECTION_RETIRED")
     clock = await interactive.now(db)
     if row.status != "PENDING" or row.expires_at <= clock:
         raise ConflictError("CLI_PAIRING_NOT_PENDING_OR_EXPIRED")
     if not hmac.compare_digest(payload.short_code, row.short_code):
         raise HTTPException(403, "CLI_PAIRING_CODE_MISMATCH")
-    actor = await db.get(InteractiveActorIdentity, payload.actor_identity_id, with_for_update={"read": True})
-    if actor is None or actor.status != "ACTIVE":
-        raise HTTPException(403, "CLI_UPLOADER_NOT_ACTIVE")
     for project_id in payload.project_ids:
         if not await db.get(Project, project_id):
             raise NotFoundError("CLI_PROJECT_NOT_FOUND")
+    actor = await archive_uploader(db, operator)
     existing = await db.get(InteractiveClientRegistration, (actor.id, row.client_instance_id))
     if existing and existing.status != "ACTIVE":
         raise HTTPException(403, "CLI_CLIENT_REVOKED")

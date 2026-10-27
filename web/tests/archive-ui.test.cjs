@@ -14,12 +14,14 @@ const installComponent = load("app/cli-authorizations/cli-install-prompt.tsx", {
 const archive = load("lib/archive.ts", { require: () => ({ ApiError: Error }) });
 const task = { id: taskId, project_id: p, title: "Synthetic archive fixture", objective: "Declared test sources", owner_uploader_actor_ref: "interactive:actor", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN" };
 const operation = { ready: true, blocked: false, pending: null, busy: false, error: null };
-function renderPage(path, locale, query, search = new URLSearchParams({ projectId: p })) {
+function renderPage(path, locale, query, search = new URLSearchParams({ projectId: p }), observe) {
+  const antd = require("antd");
+  const Form = observe ? Object.assign((props) => { if (props.form) observe.approve = props.onFinish; return React.createElement(antd.Form, props); }, antd.Form) : antd.Form;
   const component = load(path, { URLSearchParams, require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
     : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
-      : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
-        : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => ({ data: query[queryKey[0]], isLoading: false, isError: false }), useQueryClient: () => ({ invalidateQueries() {} }) }
-          : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : require(name),
+      : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => observe?.operation || operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
+        : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
+          : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : name === "antd" ? { ...antd, Form } : require(name),
   });
   return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.default)));
 }
@@ -27,6 +29,16 @@ test("archive instruction requires project/task and only adds an explicitly sele
   const root = archive.archiveSkillInstruction(p, taskId);
   assert.ok(root.startsWith("$hypertest-archive")); assert.ok(root.includes(`--project-id ${p} --task-id ${taskId}`)); assert.equal(root.includes("--subtask-id"), false);
   assert.ok(archive.archiveSkillInstruction(p, taskId, "child", true).includes("--subtask-id child"));
+});
+test("CLI approval submits short-code project authorization without choosing an actor", async () => {
+  const sent = [];
+  const observe = { operation: { ...operation, submit: async (...args) => { sent.push(args); return null; } } };
+  renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true }, "cli-request": { request_id: taskId, status: "PENDING", short_code: "ABC123", client_name: "Synthetic CLI", expires_at: "2026-10-27T23:00:00Z" }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId }), observe);
+  await observe.approve({ actor_identity_id: "historical-actor", project_ids: [p], expires_in_days: 30 });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0][0], `requests/${taskId}/approve`);
+  assert.equal(sent[0][1]("original-key"), `requests/by-key?request_id=${taskId}&operation=APPROVE&idempotency_key=original-key`);
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0][2])), { project_ids: [p], scopes: ["archive:read", "archive:write"], expires_in_days: 30, short_code: "ABC123" });
 });
 test("root archives render bilingual explicit upload, optional children and original version controls", () => {
   for (const locale of ["en", "zh"]) {
@@ -50,12 +62,14 @@ test("CLI authorization page supports explicit project approval without secret f
   assert.throws(() => release.cliInstallCommand({ ...published, version: "0.1.0;malicious" }), /METADATA_INVALID/);
   const request = { request_id: taskId, status: "PENDING", client_name: "Synthetic CLI", server_url: "https://web.example", short_code: "ABC123", credential_fingerprint: "a".repeat(16), expires_at: "2026-10-27T23:00:00Z", approval: null, grants: [] };
   for (const locale of ["en", "zh"]) {
-    const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, "cli-request": request, "cli-actors": { items: [{ actor_identity_id: "a", actor_ref: "interactive:a", status: "ACTIVE" }] }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId, projectId: "$(touch /tmp/forbidden)" }));
+    const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, "cli-request": request, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId, projectId: "$(touch /tmp/forbidden)" }));
     assert.ok(html.includes("ABC123")); assert.ok(html.includes("archive:read")); assert.ok(html.includes("archive:write"));
     assert.ok(html.includes("hypertest skill install --global --host codex"));
     assert.ok(html.includes(release.CLI_RELEASE.artifactUrl));
     assert.equal(html.includes("$(touch"), false); assert.equal(/type="password"|name="token"|Operator-Key/.test(html), false);
     assert.ok(html.includes(locale === "en" ? "Approve CLI" : "批准 CLI"));
+    assert.equal(html.includes(locale === "en" ? "Existing uploader identity" : "既有上传身份"), false);
+    assert.equal(html.includes("actor_identity_id"), false);
     assert.ok(html.includes('id="cli-install"'));
     assert.ok(html.includes(locale === "en" ? "Copy installation prompt" : "复制安装 Prompt"));
     assert.ok(html.includes(locale === "en" ? "Manual installation and binding" : "手动安装与绑定"));

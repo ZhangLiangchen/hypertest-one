@@ -13,7 +13,10 @@ const list = (value: unknown) => Array.isArray(value) ? [...value].sort().join("
 export function validateCliApproval(original: LocalWebPending, value: CliRequest): CliRequest {
   const approval = value.approval;
   if (!approval || value.request_id !== original.path.split("/")[1] || approval.idempotency_key !== original.operation_key
-    || approval.actor_identity_id !== original.payload.actor_identity_id || list(approval.project_ids) !== list(original.payload.project_ids)
+    || typeof approval.actor_identity_id !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(approval.actor_identity_id)
+    || approval.actor_ref !== `interactive:${approval.actor_identity_id}`
+    // Earlier frozen approvals selected an actor; their original identity must still match.
+    || ("actor_identity_id" in original.payload && approval.actor_identity_id !== original.payload.actor_identity_id) || list(approval.project_ids) !== list(original.payload.project_ids)
     || list(approval.scopes) !== list(original.payload.scopes) || approval.expires_in_days !== original.payload.expires_in_days
     || value.short_code !== original.payload.short_code || !["APPROVED", "BOUND"].includes(value.status)) throw new Error("CLI_AUTH_RECEIPT_MISMATCH");
   return value;

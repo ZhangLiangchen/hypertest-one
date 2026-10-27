@@ -1229,7 +1229,9 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 新归档业务由 LocalArchiveTask、可选 LocalArchiveSubtask、LocalArchiveSubmission、LocalArchiveAssetRevision 与 LocalArchivePublication 承担。Task/子任务创建与授权由 Web 的 Operator 管理路径负责；CLI 仅以独立 `archive:read/write` 的 integration 身份读写获准目标。每次归档显式提供 Project ID、Task ID 和可选 Subtask ID；未指定子任务使用 Task 根空间，指定无效子任务明确拒绝。根与各子任务拥有独立归档版本，整体管理版本与汇总另行维护。原会话来源可缺省或由上传者声明，不读取 native root registry，不复用 BIND/JOIN 作为准入条件。
 
-Web 增加全局「CLI 授权」页和安装/绑定指导。用户级全局 CLI 通过一条 auth bind 命令发起短时配对，用户在既有 Web 登录下核短码并一次批准 actor、明确 Project allowlist、archive scopes 与期限；CLI 完成固定授权兑换、核验并原子保存 profile 后退出。凭据不进入命令/Skill/日志，CLI 私存预生成 secret 与独立 verifier，服务端仅持验证材料；原 key 恢复无需重发未知签发或返回明文 secret。`0031_cli_authorization` 保存配对请求、各 Project 的 `CliAuthorizationGrant` 映射与不可变操作回执；单次绑定 credential 通过该映射解析到独立 integration grant，不复制相同 token_hash，也不绕过现有 actor/client/grant 的当前状态、scope 与期限检查。
+Web 增加全局「CLI 授权」页和安装/绑定指导。用户级全局 CLI 通过一条 auth bind 命令发起短时配对，用户在既有 Web 登录下核对短码和客户端，一次批准明确 Project allowlist、archive scopes 与期限；CLI 完成固定授权兑换、核验并原子保存 profile 后退出。凭据不进入命令/Skill/日志，CLI 私存预生成 secret 与独立 verifier，服务端仅持验证材料；原 key 恢复无需重发未知签发或返回明文 secret。`0031_cli_authorization` 保存配对请求、各 Project 的 `CliAuthorizationGrant` 映射与不可变操作回执；单次绑定 credential 通过该映射解析到独立 integration grant，不复制相同 token_hash，也不绕过现有 actor/client/grant 的当前状态、scope 与期限检查。
+
+2026-10-27 授权入口增补：Web 不再加载或提交历史 actor 选项。API 以稳定 `connector_operator_identity` 解析专用 CLI 上传身份；additive 迁移 `0032_cli_archive_uploader` 新增不可变 `CliArchiveUploader`，以唯一 Operator 引用和唯一 actor 外键保存一对一关系。首次有效 APPROVE 在既有权限、短码、客户端、项目和期限检查后，同事务建立 actor、映射与批准回执；同 Operator 跨设备复用，撤销后不得自动新建身份绕过当前状态检查。旧 `/cli-authorizations/actors` 返回 410；旧 APPROVED/BOUND、原 actor、grant 与回执保留，带 actor 的旧正文仅支持已接受原回执的精确恢复。任务 owner 管理仍按该项目有效归档 grant 独立进行，不借新配对改写历史归属。身份与兼容规则分别由领域§56.5、TMP§51.4拥有。
 
 profile 以 server/client/actor 隔离，可跨工作目录和 Agent 会话复用已批准项目，不能据全局安装扩大权限或推导上传目标。配对查询仅在命令进程内有界进行，无本地回调服务器、后台轮询或续签。授权服务与归档服务分离 operation namespace；服务端撤销、本机退出和历史只读恢复保持各自语义。操作流程见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
 

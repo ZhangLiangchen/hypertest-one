@@ -12,6 +12,15 @@ from hypertest.db.base import Base
 from hypertest.domain.interactive import utcnow
 
 
+class CliArchiveUploader(Base):
+    """Stable archive identity per consenting Operator, separate from old actors."""
+    __tablename__ = "cli_archive_uploaders"
+    operator_ref: Mapped[str] = mapped_column(String(128), primary_key=True)
+    actor_identity_id: Mapped[UUID] = mapped_column(
+        ForeignKey("interactive_actor_identities.id", ondelete="RESTRICT"), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class CliAuthorizationRequest(Base):
     __tablename__ = "cli_authorization_requests"
     __table_args__ = (

@@ -33,13 +33,22 @@ test("archive ACK is not accepted when frozen receipt or version is inconsistent
     const changed = structuredClone(result); mutate(changed); assert.throws(() => h.module.validateManagement(original, changed), /RECEIPT_MISMATCH/);
   }
 });
-test("CLI approval receipt cannot widen projects or replace identity; revocation needs its original key", () => {
+test("CLI approval freezes project permissions and retains exact identity checks for earlier receipts", () => {
   const client = load("lib/cli-authorization.ts", { require: () => ({ ApiError }) });
-  const original = { path: "requests/pairing/approve", operation_key: "original", payload: { actor_identity_id: "actor", project_ids: ["p1"], scopes: ["archive:read", "archive:write"], expires_in_days: 7, short_code: "123456" } };
-  const value = { request_id: "pairing", status: "APPROVED", short_code: "123456", approval: { idempotency_key: "original", ...original.payload } };
-  assert.equal(client.validateCliApproval(original, value).status, "APPROVED");
-  for (const field of ["actor_identity_id", "project_ids", "expires_in_days", "scopes", "idempotency_key"]) {
-    const changed = structuredClone(value); changed.approval[field] = field === "project_ids" ? ["p1", "p2"] : "changed"; assert.throws(() => client.validateCliApproval(original, changed), /RECEIPT_MISMATCH/);
+  for (const legacy of [false, true]) {
+    const actor = legacy ? "00000000-0000-4000-8000-000000000001" : "00000000-0000-4000-8000-000000000002";
+    const original = { path: "requests/pairing/approve", operation_key: "original", payload: { ...(legacy ? { actor_identity_id: actor } : {}), project_ids: ["p1"], scopes: ["archive:read", "archive:write"], expires_in_days: 7, short_code: "123456" } };
+    const value = { request_id: "pairing", status: "APPROVED", short_code: "123456", approval: { idempotency_key: "original", actor_identity_id: actor, actor_ref: `interactive:${actor}`, ...original.payload } };
+    assert.equal(client.validateCliApproval(original, value).status, "APPROVED");
+    for (const field of ["project_ids", "expires_in_days", "scopes", "idempotency_key", ...(legacy ? ["actor_identity_id"] : [])]) {
+      const changed = structuredClone(value); changed.approval[field] = field === "project_ids" ? ["p1", "p2"] : "changed"; assert.throws(() => client.validateCliApproval(original, changed), /RECEIPT_MISMATCH/);
+    }
+    for (const field of ["request_id", "short_code", "status"]) {
+      const changed = structuredClone(value); changed[field] = "changed"; assert.throws(() => client.validateCliApproval(original, changed), /RECEIPT_MISMATCH/);
+    }
+    for (const mutate of [(a) => { delete a.actor_identity_id; }, (a) => { a.actor_identity_id = "not-a-uuid"; }, (a) => { delete a.actor_ref; }, (a) => { a.actor_ref = "interactive:another-actor"; }]) {
+      const changed = structuredClone(value); mutate(changed.approval); assert.throws(() => client.validateCliApproval(original, changed), /RECEIPT_MISMATCH/);
+    }
   }
   assert.throws(() => client.validateCliRevocation({ path: "grants/g/revoke", operation_key: "original" }, { grant_id: "g", status: "REVOKED", idempotency_key: "other" }), /RECEIPT_MISMATCH/);
 });

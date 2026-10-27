@@ -6,7 +6,7 @@
 
 Web 全局「CLI 授权」页位于 `/cli-authorizations`，提供安装与绑定指引、配对确认、授权列表和撤销入口。完成一次用户级绑定后，同一电脑、同一操作系统用户下的终端和 Agent 可从任意目录复用 profile，不按仓库或会话重复绑定。
 
-profile 固定 server、client 和 uploader actor，只能访问网页明确批准的 Project。其他电脑、操作系统用户或服务身份须分别授权。每次上传仍须填写 Project ID、Task ID；Subtask ID 可选，不从 profile、当前目录或上次操作推导。
+profile 固定 server、client 和 uploader actor，只能访问网页明确批准的 Project。平台在首次批准时，为当前管理身份自动建立专用 CLI 上传身份；同一管理身份批准其他设备时复用该上传身份，各设备仍分别绑定并取得明确的项目授权。网页不再列出旧 Local 或验收身份供选择。每次上传仍须填写 Project ID、Task ID；Subtask ID 可选，不从 profile、当前目录或上次操作推导。
 
 测试期间无需运行 CLI，也不要求提前创建平台任务。完成测试后，用户在 Web 选择项目并创建或选择归档 Task，需要分组时再创建 Subtask，然后显式调用 Skill 或 CLI。命令执行完毕即退出，没有 MCP、Hooks、daemon、localhost callback、后台同步或自动续签。
 
@@ -26,7 +26,7 @@ Agent 根据 Prompt 完成以下操作：
 1. 检查操作系统、Python ≥3.12、现有命令与受管安装，使用固定 `cli-v0.1.0` 的下载地址；分别核对安装器和 CLI 包的 SHA256 后执行安装。不会跟随仓库 Latest 安装旧 `local-v*` 包。
 2. 在当前用户目录安装 `hypertest` 并处理 PATH。保留旧版本、私有 profile、journal、未决请求、非受管命令和被修改的文件；冲突时报告具体位置，不强制覆盖。
 3. 安装 `hypertest-archive` Skill。Codex 使用 `hypertest skill install --global --host codex`；其他宿主先核实其技能目录，再用显式 `--directory`，不猜测目录或声明已验证发现能力。
-4. 读取安全元数据，复用 server/身份匹配的已绑定 profile；需要绑定时发起短时配对，显示授权地址与短码，由用户在网页核对身份、项目和期限并确认。Agent 不代替用户批准，也不要求复制 token 或 Operator key。
+4. 读取安全元数据，复用 server/身份匹配的已绑定 profile；需要绑定时发起短时配对，显示授权地址与短码，由用户在网页核对短码、客户端、项目和期限并确认。上传身份由平台自动关联。Agent 不代替用户批准，也不要求复制 token 或 Operator key。
 5. 检查版本、Skill 安装结果与绑定状态，报告已完成项和待用户处理项。安装过程不创建测试任务、不执行测试、不上传产物，也不安装 MCP、Hooks、bridge 或后台同步进程。
 
 网页批准尚未完成时，Agent 应明确报告“已安装，待网页授权”，不能宣称已绑定。配对出现 SENT/UNKNOWN/失答时保留原 request ID，按第 4 节查询/恢复；不得换 key 重新绑定。已有旧 Local 配置的清理由用户单独发起，方法见第 8 节。
@@ -70,12 +70,14 @@ hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 正常流程：
 
 1. CLI 在用户私有目录预存请求 ID、原操作 key、credential secret 和独立 verifier，发起配对后显示短码和网页地址。
-2. 用户通过既有 Web 访问控制进入授权页，核对短码，选择既有上传 actor、明确项目 allowlist 和 1–90 天有效期，确认 `archive:read`、`archive:write` 两项权限。
+2. 用户通过既有 Web 访问控制进入授权页，核对短码和客户端，明确项目 allowlist 和 1–90 天有效期，确认 `archive:read`、`archive:write` 两项权限。无需选择历史上传身份；平台按当前管理身份建立或复用专用 CLI 上传身份。
 3. 用户在网页确认一次；CLI 在命令存活期间查询批准结果，兑换固定授权，核对原 key 回执及当前授权状态，原子保存 profile 后退出。
 
 默认用户数据目录为 `~/.hypertest-cli`；它保存私有 profile、配对记录、冻结请求和归档 journal，文件权限为 `0600`。`HYPERTEST_CLI_HOME` 可显式选择另一私有目录，但切换目录不会迁移原记录。不要让 Skill 读取这些文件，也不要把它们加入待上传目录。
 
 绑定命令和网页 URL 不含长期 token、verifier 或 Operator key。短码仅用于核对，不是查询或兑换凭证。profile 可合并同 server/client/actor 下新获准的项目；不同身份的同名 profile 会被拒绝覆盖，应选用新 profile 名。绑定不会获得旧 `task:sync`、Cloud、Memory 或 Operator 权限。
+
+已批准或已绑定的旧请求继续使用原上传身份恢复，不自动迁移 profile、grant 或任务 owner。历史身份从本页的选择入口退出，但其任务、报告和回执保留。新授权也不会自动接管旧身份拥有的任务；任务创建页仍只列出该项目具有有效归档授权的上传者，任务 owner 与客户端授权分别管理。专用上传身份或客户端被撤销时，新的批准会被拒绝，不自动换一个身份绕过撤销。
 
 配对窗口为 10 分钟，与所批准 grant 的有效期分开。过期、拒绝、撤销或失答不会自动触发新的绑定或扩权。
 

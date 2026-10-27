@@ -2588,7 +2588,11 @@ Task 元数据、创建/调整子任务目录及上传授权、任务汇总更�
 
 CLI 用户级 profile 固定规范化 server、client、uploader actor 与各 Project 的显式 grant 引用，可跨目录/会话复用；不保存隐式上传目标、不自动获得全部项目。Web 全局「CLI 授权」页管理安装/绑定指导、配对批准、当前授权与撤销。既有 Task owner 选择与客户端 grant 签发是两项检查，任一不足均拒绝归档。
 
-CliAuthorizationRequest 保存 CLI 在联网前生成的非秘密 request_id、原 CREATE key、server/client 身份、credential_hash、独立 verifier challenge、请求预选项目、短码及请求期限。credential secret/verifier 仅存 CLI 私有目录；短码或公开 URL 不授予兑换/查询权限。Web Operator 使用稳定 APPROVE key 一次批准并原子冻结既有 actor、项目 allowlist、archive scopes、授权期限与原 credential/challenge 指纹，批准后不可改写或扩权。
+CliAuthorizationRequest 保存 CLI 在联网前生成的非秘密 request_id、原 CREATE key、server/client 身份、credential_hash、独立 verifier challenge、请求预选项目、短码及请求期限。credential secret/verifier 仅存 CLI 私有目录；短码或公开 URL 不授予兑换/查询权限。Web Operator 使用稳定 APPROVE key 一次批准并原子冻结服务端解析的专用 CLI actor、项目 allowlist、archive scopes、授权期限与原 credential/challenge 指纹，批准后不可改写或扩权。新批准正文不选择 actor；Web 核对短码、客户端、项目、权限和期限，不枚举历史 ACTIVE 身份。
+
+2026-10-27 授权入口增补：新增 `CliArchiveUploader`，保存稳定 `connector_operator_identity` 对应的 `operator_ref`、`actor_identity_id` 和创建时间。`operator_ref` 为主键，`actor_identity_id` 以唯一且 `ON DELETE RESTRICT` 的外键指向 integration actor；映射接受后不可修改或删除。首次有效 APPROVE 通过 Operator、短码、当前客户端、项目与期限检查后，在同一事务创建专用 actor、映射及批准回执，失败不残留可用映射。同一 Operator 后续批准和跨设备授权复用该 actor；不同 Operator 不共享映射。解析不依赖 actor 名称、客户端主机名或历史身份列表。已撤销的映射 actor 或客户端导致拒绝，不删除映射、改绑或创建替代身份来恢复权限。additive 迁移 `0032_cli_archive_uploader` 仅新增该映射及约束，不将旧 ACTIVE actor 回填为专用身份。
+
+旧请求的 APPROVED/BOUND、已接受 APPROVE 回执、grant、profile 以及 Task owner 保留原 actor。可选旧 actor 字段仅为已接受原 key 的精确原正文恢复保留；同 key 异输入拒绝，没有已接受回执时携带 actor 的新批准拒绝。旧待批准请求可使用不含 actor 的新批准正文，由服务端解析专用身份；已冻结或可能发送的旧批准不得改正文重试，仍只查询原 key。`/cli-authorizations/actors` 停止枚举并返回 410，不删除历史 actor。任务管理页独立按项目有效归档 grant 选择 Task owner，不因新配对映射改写旧任务归属。
 
 CLI 对固定批准结果形成独立原 key 的 REDEEM；服务端在校验私有 proof 后原子创建各 Project 独立 integration grant，并通过 `CliAuthorizationGrant(request_id, project_id, grant_id)` 关联原配对请求的 credential_hash；保存非秘密回执并将请求转为 BOUND。credential_hash 仅在配对请求内唯一保存，各 Project grant 的 token_hash 保持原有独立唯一值，不将同一 CLI hash 复制到多条 grant。鉴权只对 archive scope 按显式 Project 解析映射，再执行当前 actor/client/grant 状态、期限、scope 校验；撤销一个项目 grant 不扩大或抹去其他项目授权。PENDING → APPROVED → BOUND 为正常路径；未绑定请求可拒绝或过期，终态不可恢复成新授权。短时配对期限与 grant 期限独立，重查 BOUND 必须检查 grant 当前是否撤销/到期，不能把历史已批准当作当前有效。既有 scope 不自动转换为 archive 权限；CLI 永不持有 Operator key。
 

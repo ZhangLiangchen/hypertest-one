@@ -1710,12 +1710,17 @@ Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词
 | HTTP 操作 | 权限与契约 |
 | --- | --- |
 | `POST /requests` | CLI 发起配对；联网前已持久保存 request_id、原 CREATE key、credential secret 与独立 verifier。只提交 credential_hash、verifier challenge、非秘密 client 信息及可选预选项目；尚无归档权限 |
-| `POST /requests/{id}/approve` | 既有 Web Operator；核配对短码、稳定 APPROVE key，一次冻结 actor、项目 allowlist、archive:read/write、期限和原指纹；遵守现有 Web 访问/CSRF 边界 |
+| `POST /requests/{id}/approve` | 既有 Web Operator；核配对短码、稳定 APPROVE key，一次冻结服务端解析的专用 CLI actor、项目 allowlist、archive:read/write、期限和原指纹；新正文不传 actor，遵守现有 Web 访问/CSRF 边界 |
 | `POST /requests/{id}/redeem` | CLI 持有私有 verifier proof；独立 REDEEM key 绑定批准结果，只允许兑换原固定授权，不接收扩权字段、不返回长期 secret |
 | `GET /requests/by-key`、`GET /requests/{id}` | CLI 私有 proof 或有管理权限的 Web 身份；按原操作 key/阶段读取固定回执及当前状态；公开 ID/短码不足以获取授权详情 |
 | `GET /grants`、`POST /grants/{id}/revoke` | Web Operator 查看/撤销 CLI 授权；撤销有原管理 key，不清历史，CLI 的 archive scope 不获得该管理权 |
+| `GET /actors` | 保留 Operator 认证后返回 410 / `CLI_UPLOADER_SELECTION_RETIRED`；不再为新配对枚举历史 ACTIVE 身份，不删除其历史记录 |
 
-`hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default` 从任意工作目录启动配对。可选 `--project-id UUID` 只预选项目。CLI 显示/打开现有 Web 授权页与短码，命令、URL、日志、stdout 不携带 credential secret/verifier/Operator key。用户在 Web 一次批准既有上传 actor、明确项目、scope 和期限；CLI 在短时窗口内有界查询，兑换并核对原 grant/client/credential 指纹，原子保存用户级 profile 后退出。无 localhost callback、daemon 或后台续签。
+`hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default` 从任意工作目录启动配对。可选 `--project-id UUID` 只预选项目。CLI 显示/打开现有 Web 授权页与短码，命令、URL、日志、stdout 不携带 credential secret/verifier/Operator key。用户在 Web 核对短码和客户端，一次批准明确项目、scope 和期限，无需选择历史上传身份；CLI 在短时窗口内有界查询，兑换并核对原 grant/client/credential 指纹，原子保存用户级 profile 后退出。无 localhost callback、daemon 或后台续签。
+
+2026-10-27 授权入口增补：服务端使用稳定 `connector_operator_identity` 查找不可变 `CliArchiveUploader` 映射，在首次有效 APPROVE 通过短码、客户端、项目和期限检查后同事务创建专用 integration actor 与映射。同一 Operator 跨设备复用该 actor，各设备的项目授权仍单独批准；客户端自报身份、短码或旧 ACTIVE 列表不能决定 actor。专用 actor 或客户端已撤销时拒绝批准，不另建身份绕过撤销。
+
+新 APPROVE 不发送 `actor_identity_id`。该可选旧字段仅保留用于已接受旧 APPROVE 的精确原 key/原正文回执恢复；同 key 异正文仍拒绝，无已接受回执的带 actor 新写拒绝。旧 APPROVED/BOUND 按原 actor 兑换或恢复，不替换为新专用 actor，不改写旧 grant、Task owner 和回执。旧 PENDING 配对可接受符合新合同的批准；但已冻结或可能发送的旧 APPROVE 只能按原 key 查询，不能去掉 actor 改正文后重发。
 
 CREATE 固定配对上下文，APPROVE 固定实际授权，REDEEM 绑定该批准结果；三者分别有原 key/冻结正文/状态，不把尚未批准的项目预选当作 grant。原请求同 key 异输入拒绝。配对窗口例如10分钟，与 grant 期限分开。正常流程中的查询只在 auth bind 命令存活期间进行，不在测试中同步。
 

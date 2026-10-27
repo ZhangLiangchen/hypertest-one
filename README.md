@@ -6,7 +6,7 @@
 
 1. 打开 HyperTest One 全局「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent。页面自动带入平台地址；从项目入口进入时带入预选 Project ID。
 2. Agent 下载固定版 CLI，核验安装器及包的两个 SHA256，安装 CLI 与适用的 `hypertest-archive` Skill，并发起网页配对。已有匹配的绑定可复用。
-3. 用户在网页核对短码、上传身份、项目范围及期限后确认。安装/绑定不会创建测试任务、执行测试或上传产物。
+3. 用户在网页核对短码、客户端、项目范围及期限后确认。平台自动关联当前管理身份的专用 CLI 上传身份，无需从旧 Local 身份中选择。安装/绑定不会创建测试任务、执行测试或上传产物。
 4. 测试完成后显式调用 `$hypertest-archive`，每次填写 Project ID、Task ID 和明确产物范围；Subtask ID 可选，省略时归档到任务根空间。
 
 未打开平台页面时，复制 [中文安装 Prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt) 或 [English installation prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.en.txt)。通用 Prompt 先安装，再在需要绑定时询问实际 HTTPS 平台地址；不猜测服务器或默认授权全部项目。

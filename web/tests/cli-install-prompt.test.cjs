@@ -19,7 +19,8 @@ test("both Agent prompts pin the published installer and CLI and distinguish ins
     assert.ok(prompt.includes("hypertest skill install --global --host codex --json"));
     assert.ok(prompt.includes("hypertest auth reconcile --request-id"));
     assert.ok(prompt.includes("hypertest auth bind --resume --request-id"));
-    assert.ok(prompt.includes(locale === "zh" ? "由我在 Web 确认" : "I must approve"));
+    assert.ok(prompt.includes(locale === "zh" ? "由我在 Web 核对短码并确认项目、权限和有效期" : "I must match the short code and approve the projects, permissions, and expiry on the Web page"));
+    assert.ok(prompt.includes(locale === "zh" ? "不要代替我批准" : "do not approve for me"));
     assert.ok(prompt.includes(locale === "zh" ? "不上传产物" : "Do not create test tasks"));
     assert.equal(prompt.includes("--enable-hooks"), false);
   }

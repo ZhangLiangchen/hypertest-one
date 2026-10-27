@@ -18,5 +18,5 @@ PYTHON -I install-cli-release.py --artifact ./hypertest-cli-0.1.0.pyz --sha256 c
 hypertest skill install --global --host codex --json
 其他宿主使用 hypertest skill install --directory 指向已确认的技能目录；无法确定时只询问缺少的目录。保持 Skill 禁止隐式调用，不安装 MCP、Hooks、native bridge 或 daemon。
 5. 此 Prompt 未提供 HyperTest One 服务地址。先完成安装与 Skill 配置；已有 profile 只在我明确选择后复用，否则再询问 HTTPS 服务地址用于绑定，不猜测地址或项目。通过 hypertest auth bind --server <已确认HTTPS地址> --profile <选定名称> --wait-seconds 0 --json 发起配对，仅在明确提供项目时添加 --project-id。
-将 CLI 返回的授权链接和短码交给我，由我在 Web 确认上传身份、项目、权限和有效期；不要代替我批准或索取 Operator key。--wait-seconds 0 返回 PENDING/退出码4属于正常待批准，保留原 request_id。我批准后，用 hypertest auth bind --resume --request-id <原ID> --wait-seconds 0 --json 仅推进尚未发送的下一阶段。UNKNOWN 或失答时用 hypertest auth reconcile --request-id <原ID> --json 查询，不能换请求重复配对。安装完成与授权待完成分别报告。
+将 CLI 返回的授权链接和短码交给我，由我在 Web 核对短码并确认项目、权限和有效期；不要代替我批准或索取 Operator key。--wait-seconds 0 返回 PENDING/退出码4属于正常待批准，保留原 request_id。我批准后，用 hypertest auth bind --resume --request-id <原ID> --wait-seconds 0 --json 仅推进尚未发送的下一阶段。UNKNOWN 或失答时用 hypertest auth reconcile --request-id <原ID> --json 查询，不能换请求重复配对。安装完成与授权待完成分别报告。
 6. 已绑定后，用选定 profile（及明确提供的项目）执行 hypertest doctor。最后报告版本、实际命令路径、Skill 位置、授权状态和剩余操作；成功后仅清理本轮临时下载文件。安装过程中不创建测试任务、不执行测试、不上传产物。后续归档须显式请求，提供项目 ID、任务 ID；子任务 ID 可选。

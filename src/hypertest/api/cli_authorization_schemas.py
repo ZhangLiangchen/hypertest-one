@@ -39,7 +39,9 @@ class PairingCreate(Strict):
 
 class PairingApprove(Strict):
     idempotency_key: Key
-    actor_identity_id: UUID
+    # Accepted only to recover the exact receipt of a pre-retirement approval.
+    # New approvals must omit the field, including an explicit null.
+    actor_identity_id: UUID | None = Field(default=None, deprecated=True)
     project_ids: list[UUID] = Field(min_length=1, max_length=100)
     scopes: list[str] = Field(min_length=2, max_length=2)
     expires_in_days: int = Field(default=30, ge=1, le=90)

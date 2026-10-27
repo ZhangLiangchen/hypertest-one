@@ -19,7 +19,6 @@ from hypertest.config import get_settings
 from hypertest.connector.security import require_operator
 from hypertest.db.session import get_db
 from hypertest.domain.cli_authorization import CliAuthorizationGrant
-from hypertest.domain.interactive import InteractiveActorIdentity
 
 router = APIRouter(prefix="/cli-authorizations", tags=["cli-authorization"])
 
@@ -50,11 +49,8 @@ async def create(payload: PairingCreate, request: Request, db: AsyncSession = De
 
 
 @router.get("/actors")
-async def actors(_operator: str = Depends(require_operator), db: AsyncSession = Depends(get_db)):
-    rows = await db.scalars(select(InteractiveActorIdentity).where(
-        InteractiveActorIdentity.status == "ACTIVE").order_by(InteractiveActorIdentity.created_at))
-    return {"items": [{"actor_identity_id": str(row.id), "actor_ref": row.actor_ref,
-                        "status": row.status} for row in rows]}
+async def actors(_operator: str = Depends(require_operator)):
+    raise HTTPException(410, "CLI_UPLOADER_SELECTION_RETIRED")
 
 
 @router.get("/requests/by-key")
