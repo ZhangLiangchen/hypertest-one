@@ -523,3 +523,61 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cli-install-manual > summary { color: var(--ht-muted); }
 .cli-install-prompt-text { display: block; width: 100%; resize: vertical; margin-top: 8px; padding: 16px; border: 1px solid var(--ht-control-border); border-radius: var(--ht-radius-control); background: var(--ht-canvas); color: var(--ht-ink); font: inherit; line-height: 1.8; }
 #cli-install { scroll-margin-top: 104px; }
+
+/* CLI access is grouped by client; project grants remain individually traceable. */
+.cli-client-tree, .cli-project-children, .cli-grant-records { list-style: none; padding: 0; margin: 0; }
+.cli-client-tree { margin-top: 20px; }
+.cli-client-node { border-top: 1px solid var(--ht-line); }
+.cli-client-node:last-child { border-bottom: 1px solid var(--ht-line); }
+.cli-client-heading { display: flex; align-items: center; gap: 24px; padding: 8px 0; }
+.cli-client-heading > .ant-btn { flex-shrink: 0; }
+.cli-client-toggle { display: flex; flex: 1; align-items: center; gap: 16px; min-width: 0; min-height: 76px; padding: 12px 8px; border: 0; border-radius: var(--ht-radius-control); background: transparent; color: var(--ht-ink); font: inherit; text-align: left; cursor: pointer; }
+.cli-client-toggle:hover { background: var(--ht-surface-soft); }
+.cli-client-caret { flex-shrink: 0; color: var(--ht-muted); font-size: 12px; }
+.cli-client-icon { flex-shrink: 0; color: var(--ht-muted); font-size: 22px; }
+.cli-client-label { display: grid; gap: 6px; min-width: 0; }
+.cli-client-label > strong { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.cli-client-identity { color: var(--ht-muted); font-size: 12px; overflow-wrap: anywhere; }
+.cli-client-identity code { font-size: 11px; }
+.cli-client-count { display: grid; flex-shrink: 0; gap: 6px; margin-left: auto; padding-left: 20px; font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+.cli-client-count > span { color: var(--ht-muted); font-size: 12px; }
+.cli-project-children { margin: 4px 0 24px 28px; padding-left: 24px; border-left: 1px solid var(--ht-line); }
+.cli-project-node { position: relative; padding: 18px 0 0; }
+.cli-project-node::before { content: ""; position: absolute; top: 30px; left: -24px; width: 16px; border-top: 1px solid var(--ht-line); }
+.cli-project-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.cli-project-heading > .anticon { margin-top: 4px; color: var(--ht-muted); font-size: 17px; }
+.cli-project-heading > div { min-width: 0; }
+.cli-project-heading a { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.cli-project-heading .entity-key { margin-top: 4px; }
+.cli-record-count { margin-left: auto; color: var(--ht-muted); font-size: 12px; }
+.cli-grant-records { margin-left: 29px; }
+.cli-grant-record { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--ht-line); font-size: 13px; }
+.cli-project-node:last-child .cli-grant-record:last-child { border-bottom: 0; }
+.cli-grant-summary { min-width: 0; }
+.cli-grant-summary .ant-tag { margin-inline-end: 0; }
+.cli-grant-meta { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 8px; color: var(--ht-muted); font-size: 12px; overflow-wrap: anywhere; }
+.cli-grant-meta code { font-size: 11px; }
+.cli-grant-actions { min-width: 0; text-align: right; }
+.cli-grant-actions .archive-operation-notice { max-width: 560px; text-align: left; }
+.cli-add-project { margin: 4px 0 16px 52px; padding: 20px 0; border-block: 1px solid var(--ht-line); }
+.cli-add-project-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.cli-add-project-heading h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.cli-add-project > .ant-typography { max-width: 75ch; }
+.cli-add-project-label { display: block; margin-bottom: 8px; font-size: 13px; }
+.cli-add-project-controls { display: flex; align-items: flex-start; gap: 12px; }
+.cli-add-project-controls > .ant-select { flex: 1; min-width: 0; }
+.cli-add-project-controls > .ant-btn { flex-shrink: 0; }
+.cli-add-project-feedback { margin-block: 12px; color: var(--ht-muted); font-size: 12px; line-height: 1.8; }
+.cli-request-result { padding-top: 4px; }
+.cli-request-client { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cli-request-client > .anticon { color: var(--ht-muted); font-size: 24px; }
+.cli-request-client > strong { min-width: 0; overflow-wrap: anywhere; font-size: 20px; font-weight: 600; }
+.cli-request-status { display: inline-flex; align-items: center; gap: 6px; color: var(--ht-muted); font-size: 13px; font-weight: 500; }
+.cli-request-status.is-bound { color: #22734c; }
+.cli-request-status.is-waiting { color: var(--ht-warning); }
+.cli-request-meta { display: flex; gap: 8px 24px; flex-wrap: wrap; margin: 12px 0 16px 36px; color: var(--ht-muted); font-size: 13px; }
+.cli-request-result > .ant-typography { margin-left: 36px; }
+.cli-pairing-details { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--ht-line); }
+.cli-pairing-details > summary { width: fit-content; cursor: pointer; padding-block: 4px; color: var(--ht-muted); font-size: 13px; }
+.cli-pairing-details > .ant-descriptions { margin-top: 20px; }
+.cli-pairing-details .ant-descriptions-item-content { overflow-wrap: anywhere; }

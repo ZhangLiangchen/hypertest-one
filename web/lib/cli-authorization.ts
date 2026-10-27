@@ -2,7 +2,7 @@ import { ApiError } from "@/lib/api";
 import type { LocalWebPending } from "@/lib/archive-operation";
 export type CliGrant = { grant_id: string; request_id: string; client_instance_id: string; client_name: string; actor_ref: string; project_id: string; scopes: string[]; expires_at: string; status: string; credential_fingerprint: string; idempotency_key?: string };
 export type CliApproval = { idempotency_key: string; actor_identity_id: string; actor_ref: string; project_ids: string[]; scopes: string[]; expires_in_days: number; expires_at: string; approval_digest: string };
-export type CliRequest = { request_id: string; status: "PENDING" | "APPROVED" | "BOUND" | "DENIED" | "EXPIRED"; client_instance_id: string; client_name: string; server_url: string; short_code: string; expires_at: string; credential_fingerprint: string; approval: CliApproval | null; grants: CliGrant[] };
+export type CliRequest = { request_id: string; status: "PENDING" | "APPROVED" | "BOUND" | "DENIED" | "EXPIRED"; client_instance_id: string; client_name: string; server_url: string; requested_project_id?: string | null; short_code: string; expires_at: string; credential_fingerprint: string; approval: CliApproval | null; grants: CliGrant[] };
 export async function cliAuthorizationApi<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/cli-authorizations/${path}`, { ...init, headers: { "Content-Type": "application/json", ...init?.headers }, cache: "no-store" });
   const body = await response.json().catch(() => ({}));

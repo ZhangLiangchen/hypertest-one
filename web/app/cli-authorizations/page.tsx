@@ -1,11 +1,11 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Checkbox, Descriptions, Empty, Form, Input, Select, Space, Table, Tag, Typography } from "antd";
-import Link from "next/link";
+import { CheckCircleFilled, ClockCircleOutlined, LaptopOutlined } from "@ant-design/icons";
+import { Alert, Button, Checkbox, Descriptions, Form, Input, Select, Space, Tag, Typography } from "antd";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { errorText, getProjects } from "@/lib/api";
-import { cliAuthorizationApi, validateCliApproval, validateCliRevocation, type CliGrant, type CliRequest } from "@/lib/cli-authorization";
+import { cliAuthorizationApi, validateCliApproval, type CliGrant, type CliRequest } from "@/lib/cli-authorization";
 import { useLocalWebOperation } from "@/lib/archive-operation";
 import { CLI_RELEASE, cliInstallCommand } from "@/lib/cli-release";
 import { cliBindCommand } from "@/lib/cli-install-prompt";
@@ -13,19 +13,34 @@ import { useI18n } from "@/lib/i18n";
 import { WorkspaceHeading } from "@/app/workspace-ui";
 import { ArchiveOperationNotice } from "@/app/archives/archive-shared";
 import { CliInstallPrompt } from "./cli-install-prompt";
+import { AuthorizedCliClients } from "./cli-client-tree";
 
 const sendApproval = (path: string, payload: Record<string, unknown>) => cliAuthorizationApi<CliRequest>(path, { method: "POST", body: JSON.stringify(payload) });
 const recoverApproval = (path: string) => cliAuthorizationApi<CliRequest>(path);
-const sendRevocation = (path: string, payload: Record<string, unknown>) => cliAuthorizationApi<CliGrant>(path, { method: "POST", body: JSON.stringify(payload) });
-const recoverRevocation = (path: string) => cliAuthorizationApi<CliGrant>(path);
-function RevokeGrant({ grant, onChanged }: { grant: CliGrant; onChanged: () => void }) {
-  const { t } = useI18n();
-  const operation = useLocalWebOperation("auth", "global", `revoke:${grant.grant_id}`, sendRevocation, recoverRevocation, validateCliRevocation);
-  return <><Button danger disabled={operation.blocked || grant.status === "REVOKED"} loading={operation.busy} onClick={() => void operation.submit(`grants/${grant.grant_id}/revoke`, (key) => `grants/${grant.grant_id}/operations/by-key?idempotency_key=${key}`, {}).then((value) => { if (value) onChanged(); })}>{t("Revoke", "撤销")}</Button><ArchiveOperationNotice operation={operation} onAccepted={onChanged} /></>;
+const validProjectId = (value?: string | null) => value && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value) ? value : null;
+
+function PairingDetails({ request }: { request: CliRequest }) {
+  const { t, formatDate } = useI18n();
+  return <Descriptions column={2} items={[
+    { key: "code", label: t("Match this code in your terminal", "与终端核对短码"), children: <Typography.Text className="cli-pairing-code">{request.short_code}</Typography.Text> }, { key: "state", label: t("State", "状态"), children: <Tag>{request.status}</Tag> },
+    { key: "client", label: t("Client", "客户端"), children: request.client_name }, { key: "server", label: t("Server", "服务器"), children: request.server_url },
+    { key: "fingerprint", label: t("Client credential fingerprint", "客户端凭据指纹"), children: <Typography.Text code>{request.credential_fingerprint}</Typography.Text> }, { key: "expires", label: t("Pairing expires", "配对有效期至"), children: formatDate(request.expires_at) },
+  ]} />;
+}
+
+function CliRequestResult({ request }: { request: CliRequest }) {
+  const { t, formatDate } = useI18n();
+  const status = request.status === "BOUND" ? t("Bound", "已绑定") : request.status === "APPROVED" ? t("Approved · awaiting CLI", "已批准 · 等待 CLI 确认") : request.status === "EXPIRED" ? t("Pairing expired", "配对已过期") : t("Pairing denied", "配对已拒绝");
+  return <div className="cli-request-result">
+    <div className="cli-request-client"><LaptopOutlined aria-hidden /><strong>{request.client_name}</strong><span className={`cli-request-status${request.status === "BOUND" ? " is-bound" : request.status === "APPROVED" ? " is-waiting" : ""}`} role="status">{request.status === "BOUND" ? <CheckCircleFilled aria-hidden /> : request.status === "APPROVED" ? <ClockCircleOutlined aria-hidden /> : null}{status}</span></div>
+    {request.approval ? <p className="cli-request-meta"><span>{request.approval.project_ids.length} {t("projects approved in this request", "个项目获本次批准")}</span><span>{t("Grant valid until", "授权有效期至")} {formatDate(request.approval.expires_at)}</span></p> : null}
+    {request.status === "APPROVED" ? <Typography.Paragraph className="muted">{t("Return to your local Agent to continue this request and save the authorization.", "请返回本地 Agent 继续原请求并保存授权。")}</Typography.Paragraph> : null}
+    <details className="cli-pairing-details"><summary>{t("Pairing details", "配对详情")}</summary><PairingDetails request={request} /></details>
+  </div>;
 }
 export default function CliAuthorizationsPage() {
-  const { t, locale, formatDate } = useI18n(); const search = useSearchParams(); const cache = useQueryClient();
-  const requestId = search.get("request_id") || ""; const projectHint = search.get("projectId") || ""; const preselectedProject = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(projectHint) ? projectHint : null;
+  const { t, locale } = useI18n(); const search = useSearchParams(); const cache = useQueryClient();
+  const requestId = search.get("request_id") || ""; const preselectedProject = validProjectId(search.get("projectId"));
   const [server, setServer] = useState(""), [inputRequest, setInputRequest] = useState(requestId); const [form] = Form.useForm();
   useEffect(() => { setServer(window.location.origin); }, []);
   const setup = useQuery({ queryKey: ["archive-web-setup"], queryFn: () => cliAuthorizationApi<{ configured: boolean }>("setup"), retry: false });
@@ -33,6 +48,7 @@ export default function CliAuthorizationsPage() {
   const projects = useQuery({ queryKey: ["projects"], queryFn: () => getProjects(), enabled, retry: false });
   const grants = useQuery({ queryKey: ["cli-grants"], queryFn: () => cliAuthorizationApi<{ items: CliGrant[] }>("grants"), enabled, retry: false });
   const request = useQuery({ queryKey: ["cli-request", requestId], queryFn: () => cliAuthorizationApi<CliRequest>(`requests/${requestId}`), enabled: enabled && Boolean(requestId), retry: false });
+  const requestedProject = validProjectId(request.data?.requested_project_id) || preselectedProject;
   const operation = useLocalWebOperation("auth", "global", `approve:${requestId}`, sendApproval, recoverApproval, validateCliApproval);
   const installCommand = cliInstallCommand();
   let bindCommand = "";
@@ -72,29 +88,23 @@ export default function CliAuthorizationsPage() {
       <Form layout="vertical" onFinish={() => { if (/^[a-f0-9-]{36}$/i.test(inputRequest)) window.location.assign(`/cli-authorizations?request_id=${encodeURIComponent(inputRequest)}`); }}><Form.Item label={t("Open a pairing request", "打开配对请求")}><Space.Compact style={{ width: "100%" }}><Input aria-label={t("Pairing request ID", "配对请求 ID")} value={inputRequest} onChange={(event) => setInputRequest(event.target.value)} placeholder="Request ID" /><Button htmlType="submit" disabled={!/^[a-f0-9-]{36}$/i.test(inputRequest)}>{t("Open", "打开")}</Button></Space.Compact></Form.Item></Form>
       <Typography.Paragraph>{t("After testing, copy the archive instruction from a task page. Project ID and Task ID are required; Subtask ID is optional.", "测试结束后，从任务页复制归档指令。项目 ID 和任务 ID 必填，子任务 ID 可选。")}</Typography.Paragraph><Typography.Paragraph className="muted">{t("The Skill runs only when explicitly selected. Uploading to the task root creates no default subtask. Revoke server access below; local logout only disables the local profile.", "Skill 仅在显式选择时运行。上传到根空间不会创建默认子任务。下方撤销操作终止服务器授权；本机 logout 仅停用本机 profile。")}</Typography.Paragraph>
     </section></div>
-    {requestId ? <section className="workspace-panel archive-section"><div className="activity-heading"><Typography.Title level={2}>{t("Approve this CLI", "批准此 CLI")}</Typography.Title><Button onClick={() => void request.refetch()} loading={request.isFetching}>{t("Refresh request", "刷新请求")}</Button></div>
+    {requestId ? <section className="workspace-panel archive-section"><div className="activity-heading"><Typography.Title level={2}>{request.data && request.data.status !== "PENDING" ? t("CLI binding status", "CLI 绑定状态") : t("Approve this CLI", "批准此 CLI")}</Typography.Title><Button onClick={() => void request.refetch()} loading={request.isFetching}>{t("Refresh request", "刷新请求")}</Button></div>
       {request.isError ? <Alert type="error" showIcon message={t("Pairing request could not be read", "无法读取配对请求")} description={errorText(request.error, locale)} /> : null}
-      {request.data ? <><Descriptions column={2} items={[
-        { key: "code", label: t("Match this code in your terminal", "与终端核对短码"), children: <Typography.Text className="cli-pairing-code">{request.data.short_code}</Typography.Text> }, { key: "state", label: t("State", "状态"), children: <Tag>{request.data.status}</Tag> },
-        { key: "client", label: t("Client", "客户端"), children: request.data.client_name }, { key: "server", label: t("Server", "服务器"), children: request.data.server_url },
-        { key: "fingerprint", label: t("Client credential fingerprint", "客户端凭据指纹"), children: <Typography.Text code>{request.data.credential_fingerprint}</Typography.Text> }, { key: "expires", label: t("Pairing expires", "配对有效期至"), children: formatDate(request.data.expires_at) },
-      ]} />
-      {request.data.status === "PENDING" ? <Form form={form} layout="vertical" onFinish={approve} disabled={operation.blocked} initialValues={{ project_ids: preselectedProject ? [preselectedProject] : [], expires_in_days: 30 }} requiredMark="optional">
+      {request.data ? request.data.status === "PENDING" ? <><PairingDetails request={request.data} />
+      <Form key={requestId} form={form} layout="vertical" onFinish={approve} disabled={operation.blocked} initialValues={{ project_ids: requestedProject ? [requestedProject] : [], expires_in_days: 30 }} requiredMark="optional">
         <Form.Item name="project_ids" label={t("Allowed projects", "允许的项目")} rules={[{ required: true, type: "array", min: 1, message: t("Explicitly select at least one project.", "请明确选择至少一个项目。") }]}><Select mode="multiple" loading={projects.isLoading} options={projects.data?.filter((project) => !project.deleted_at).map((project) => ({ value: project.id, label: `${project.name} · ${project.id}` }))} /></Form.Item>
         <Form.Item name="expires_in_days" label={t("Grant validity", "授权有效期")} rules={[{ required: true }]}><Select options={[1, 7, 30, 90].map((days) => ({ value: days, label: `${days} ${t("days", "天")}` }))} /></Form.Item>
         <Typography.Paragraph>{t("Permissions", "权限")}: <Tag>archive:read</Tag><Tag>archive:write</Tag></Typography.Paragraph>
         <Form.Item name="code_confirmed" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t("Check the terminal code first.", "请先核对终端短码。"))) }]}><Checkbox>{t("The code matches the CLI I started, and I approve these projects and permissions.", "短码与我启动的 CLI 一致，我批准上述项目及权限。")}</Checkbox></Form.Item>
         {projects.isError ? <Alert type="error" showIcon className="archive-operation-notice" message={t("Projects could not be loaded", "无法读取项目")} description={errorText(projects.error, locale)} /> : null}
         <Button type="primary" htmlType="submit" loading={operation.busy} disabled={operation.blocked || projects.isError}>{t("Approve CLI", "批准 CLI")}</Button>
-      </Form> : <Alert type={request.data.status === "BOUND" ? "success" : "info"} showIcon message={request.data.status === "BOUND" ? t("Binding completed", "绑定已完成") : request.data.status === "APPROVED" ? t("Approved. Return to the CLI to finish binding.", "已批准，请返回 CLI 完成绑定。") : t("This pairing request is closed", "此配对请求已结束")} description={request.data.approval ? `${request.data.client_name} · ${request.data.approval.project_ids.length} ${t("projects", "个项目")} · ${formatDate(request.data.approval.expires_at)}` : undefined} />}</> : null}
+      </Form></> : <CliRequestResult request={request.data} /> : null}
       <ArchiveOperationNotice operation={operation} onAccepted={changed} />
     </section> : null}
     <section className="workspace-panel"><div className="activity-heading"><Typography.Title level={2}>{t("Authorized clients and projects", "已授权客户端与项目")}</Typography.Title><Button loading={grants.isFetching} onClick={() => void grants.refetch()}>{t("Refresh grants", "刷新授权")}</Button></div>
       {grants.isError ? <Alert type="error" showIcon message={t("Grants could not be refreshed", "无法刷新授权")} description={errorText(grants.error, locale)} /> : null}
-      <Table rowKey="grant_id" loading={grants.isLoading} dataSource={grants.data?.items || []} pagination={{ pageSize: 10, hideOnSinglePage: true }} scroll={{ x: 1150 }} locale={{ emptyText: <Empty description={t("No CLI grants", "暂无 CLI 授权")} /> }} columns={[
-        { title: t("Client", "客户端"), key: "client", render: (_, grant) => <><Typography.Text strong>{grant.client_name}</Typography.Text><div className="entity-key">{grant.credential_fingerprint}</div></> },
-        { title: t("Project", "项目"), key: "project", render: (_, grant) => <Link href={`/projects/${grant.project_id}`}>{projects.data?.find((p) => p.id === grant.project_id)?.name || grant.project_id}</Link> }, { title: t("Scopes", "权限"), dataIndex: "scopes", render: (scopes: string[]) => scopes.join(", ") }, { title: t("Expires", "有效期至"), dataIndex: "expires_at", render: formatDate }, { title: t("Status", "状态"), dataIndex: "status", render: (value: string) => <Tag>{value}</Tag> }, { title: t("Action", "操作"), key: "revoke", render: (_, grant) => <RevokeGrant grant={grant} onChanged={changed} /> },
-      ]} />
+      {projects.isError ? <Alert type="warning" showIcon message={t("Project names and new authorizations are unavailable", "项目名称与新增授权暂不可用")} description={t("Refresh the project list to add access. Existing grants remain available below.", "请刷新项目列表后添加授权。下方已有授权仍可查看。")} action={<Button onClick={() => void projects.refetch()}>{t("Refresh projects", "刷新项目")}</Button>} /> : null}
+      {grants.isLoading ? <Typography.Paragraph role="status" className="muted">{t("Loading authorized clients…", "正在读取已授权客户端…")}</Typography.Paragraph> : <AuthorizedCliClients grants={grants.data?.items || []} projects={projects.data || []} server={server} canAddProject={enabled && !projects.isLoading && !projects.isError && Boolean(projects.data)} onChanged={changed} />}
     </section>
   </main>;
 }

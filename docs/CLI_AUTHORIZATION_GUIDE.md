@@ -4,7 +4,7 @@
 
 ## 1. 一次绑定，按需归档
 
-Web 全局「CLI 授权」页位于 `/cli-authorizations`，提供安装与绑定指引、配对确认、授权列表和撤销入口。完成一次用户级绑定后，同一电脑、同一操作系统用户下的终端和 Agent 可从任意目录复用 profile，不按仓库或会话重复绑定。
+Web 全局「CLI 授权」页位于 `/cli-authorizations`，提供安装与绑定指引、配对确认、客户端与项目折叠列表、添加项目和撤销入口。完成一次用户级绑定后，同一电脑、同一操作系统用户下的终端和 Agent 可从任意目录复用 profile，不按仓库或会话重复绑定。
 
 profile 固定 server、client 和 uploader actor，只能访问网页明确批准的 Project。平台在首次批准时，为当前管理身份自动建立专用 CLI 上传身份；同一管理身份批准其他设备时复用该上传身份，各设备仍分别绑定并取得明确的项目授权。网页不再列出旧 Local 或验收身份供选择。每次上传仍须填写 Project ID、Task ID；Subtask ID 可选，不从 profile、当前目录或上次操作推导。
 
@@ -85,6 +85,28 @@ CLI 使用 Python `ssl.create_default_context` 校验 HTTPS。若服务使用私
 
 当前测试服务使用自有 **HyperTest One Connector CA**，不是系统默认信任的公有 CA。已核验其直接签发服务证书，无缺失中间证书。CA 公共证书、固定摘要与本机配置见[HTTPS 信任修复](CLI_TLS_TRUST_20261027.md)；安装 CLI 本身不会自动将它加入操作系统信任。
 
+### 为已绑定的 CLI 添加项目
+
+平台新增项目后，既有 CLI 不会自动获得该项目权限。在「CLI 授权」页找到目标客户端，点击「添加项目」，选择尚未拥有有效授权的项目，将生成的授权 Prompt 复制给该电脑上的 Agent。页面按客户端展开项目，同名但身份不同的客户端分开显示；同一项目的多次授权记录保留各自状态和撤销入口。
+
+Agent 按以下顺序完成增量授权：
+
+1. 用 `hypertest profile show --json` 读取安全元数据，按 Prompt 中的服务器、客户端 ID 和上传身份匹配既存 profile。CLI 输出的 `client_id` 对应网页的 `client_instance_id`。客户端名称仅用于辨认，不能代替身份匹配；没有匹配项或有多个匹配项时先说明情况，不猜测使用 `default` 或新建替代客户端。
+2. 复用匹配的 profile、私有数据目录和既有 CA 信任配置，为此次明确新增项目发起新配对。`--project-id` 只预选本次项目，仍需网页批准：
+
+   ```sh
+   hypertest auth bind --server https://YOUR_HYPERTEST_HOST \
+     --profile EXISTING_PROFILE --project-id NEW_PROJECT_UUID
+   ```
+
+3. 用户打开此次授权地址，核对短码、客户端与待新增项目，再批准权限和期限。复制 Prompt 或选择项目本身不会生效；Agent 不代替用户点击批准。
+4. CLI 完成兑换后，将新项目 grant 追加到同一 profile，保留原有项目授权。如命令已退出，按此次原 request ID 执行 `hypertest auth bind --resume --request-id PAIRING_REQUEST_UUID`，不再创建替代配对；失答或 UNKNOWN 继续遵守第 4 节的原 key 恢复规则。
+5. 用 `hypertest doctor --profile EXISTING_PROFILE --project-id NEW_PROJECT_UUID --json` 在线检查新增项目权限，报告结果。
+
+这个流程无需重新安装 CLI、退出原 profile 或撤销已有授权。它创建独立的新项目授权，不修改此前批准单的项目范围或期限。已撤销或到期的项目可以在用户明确选择后重新配对授权；客户端或上传身份本身被撤销时，平台仍会拒绝，不能以换身份绕过。若旧 profile 的上传身份与当前平台自动关联身份不同，应报告 `PROFILE_IDENTITY_CONFLICT`，保留原 profile 和请求，不自动迁移。
+
+完成配对后，页面以客户端名称及绿色「已绑定」状态显示结果，配对详情可折叠查看。该状态描述本次配对完成；项目的当前有效性仍以各项授权状态和期限为准。
+
 ## 4. 查看、恢复和撤销授权
 
 ```sh
@@ -108,7 +130,7 @@ hypertest auth bind --resume --request-id PAIRING_REQUEST_UUID
 hypertest doctor --profile default --project-id PROJECT_UUID --json
 ```
 
-Web「CLI 授权」页可撤销指定项目 grant，撤销后服务端拒绝继续使用该权限，已接受历史保持。`hypertest auth logout --profile default` 只停用本机 profile，不等同服务端撤销；它保留凭据记录、journal、冻结请求和其他 profile，并返回未决请求 ID。授权到期后由用户显式重新绑定，无后台续签。
+Web「CLI 授权」页展开客户端与项目后，可撤销指定 grant，撤销后服务端拒绝继续使用该 grant，已接受历史保持。同一项目如有多条有效授权，撤销其中一条不代表其他授权同时撤销；完整停止该客户端对项目的访问，需要逐条撤销该项目的有效授权。`hypertest auth logout --profile default` 只停用本机 profile，不等同服务端撤销；它保留凭据记录、journal、冻结请求和其他 profile，并返回未决请求 ID。授权到期后由用户显式重新绑定，无后台续签。
 
 ## 5. 全局安装并显式调用 Skill
 

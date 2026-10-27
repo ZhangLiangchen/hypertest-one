@@ -10,19 +10,22 @@ const workspace = load("app/workspace-ui.tsx", { require: (name) => name === "@/
 const records = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
 const release = load("lib/cli-release.ts", { URL });
 const install = load("lib/cli-install-prompt.ts", { URL, require: (name) => name === "./cli-release" ? release : require(name) });
+const cliProjects = load("lib/cli-project-authorization.ts", { URL });
 const installComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? install : require(name) });
 const archive = load("lib/archive.ts", { require: () => ({ ApiError: Error }) });
 const task = { id: taskId, project_id: p, title: "Synthetic archive fixture", objective: "Declared test sources", owner_uploader_actor_ref: "interactive:actor", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN" };
 const operation = { ready: true, blocked: false, pending: null, busy: false, error: null };
 function renderPage(path, locale, query, search = new URLSearchParams({ projectId: p }), observe) {
   const antd = require("antd");
-  const Form = observe ? Object.assign((props) => { if (props.form) observe.approve = props.onFinish; return React.createElement(antd.Form, props); }, antd.Form) : antd.Form;
-  const component = load(path, { URLSearchParams, require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
+  const Form = observe ? Object.assign((props) => { if (props.form) { observe.approve = props.onFinish; observe.initialValues = props.initialValues; } return React.createElement(antd.Form, props); }, antd.Form) : antd.Form;
+  const pageRequire = (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
     : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
       : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => observe?.operation || operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
         : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
-          : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : name === "antd" ? { ...antd, Form } : require(name),
-  });
+          : name === "@/lib/cli-project-authorization" ? cliProjects
+          : name.startsWith("./cli-") ? load(`app/cli-authorizations/${name.slice(2)}.tsx`, { require: pageRequire })
+          : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : name === "antd" ? { ...antd, Form } : require(name);
+  const component = load(path, { URLSearchParams, require: pageRequire });
   return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.default)));
 }
 test("archive instruction requires project/task and only adds an explicitly selected subtask", () => {
@@ -39,6 +42,40 @@ test("CLI approval submits short-code project authorization without choosing an 
   assert.equal(sent[0][0], `requests/${taskId}/approve`);
   assert.equal(sent[0][1]("original-key"), `requests/by-key?request_id=${taskId}&operation=APPROVE&idempotency_key=original-key`);
   assert.deepEqual(JSON.parse(JSON.stringify(sent[0][2])), { project_ids: [p], scopes: ["archive:read", "archive:write"], expires_in_days: 30, short_code: "ABC123" });
+});
+test("CLI approval preselects the request project hint while still requiring explicit short-code consent", () => {
+  const observe = {};
+  const html = renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true }, "cli-request": { request_id: taskId, status: "PENDING", short_code: "ABC123", client_name: "Synthetic CLI", expires_at: "2026-10-27T23:00:00Z", requested_project_id: p }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId }), observe);
+  assert.deepEqual(Array.from(observe.initialValues.project_ids), [p]);
+  assert.ok(html.includes("The code matches the CLI I started"));
+  assert.ok(html.includes('type="checkbox"'));
+});
+test("completed pairing is a compact client status with folded details, while approved still awaits the CLI", () => {
+  for (const locale of ["zh", "en"]) {
+    for (const status of ["BOUND", "APPROVED"]) {
+      const request = { request_id: taskId, status, client_name: "Synthetic Laptop", short_code: "ABC123", expires_at: "2026-10-27T23:00:00Z", approval: { project_ids: [p], expires_at: "2027-01-01T23:00:00Z" } };
+      const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, "cli-request": request, projects: [], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId }));
+      assert.ok(html.includes('class="cli-request-result"'));
+      assert.ok(html.includes('<strong>Synthetic Laptop</strong>'));
+      assert.ok(html.includes('<details class="cli-pairing-details">'));
+      assert.equal(html.includes('ant-alert-success'), false);
+      assert.ok(html.includes(status === "BOUND" ? 'cli-request-status is-bound' : 'cli-request-status is-waiting'));
+      if (status === "APPROVED") assert.ok(html.includes(locale === "en" ? "awaiting CLI" : "等待 CLI 确认"));
+    }
+  }
+});
+test("client tree keeps one project child with all grant records and exposes Add project", () => {
+  const grant = { grant_id: "g1", project_id: p, client_instance_id: taskId, client_name: "Synthetic Laptop", actor_ref: `interactive:${p}`, status: "ACTIVE", scopes: ["archive:read", "archive:write"], expires_at: "2027-01-01T23:00:00Z", credential_fingerprint: "first-fingerprint" };
+  for (const locale of ["zh", "en"]) {
+    const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [grant, { ...grant, grant_id: "g2", status: "REVOKED", credential_fingerprint: "old-fingerprint" }] } }, new URLSearchParams());
+    assert.equal((html.match(/class="cli-client-node"/g) || []).length, 1);
+    assert.equal((html.match(/class="cli-project-node"/g) || []).length, 1);
+    assert.ok(html.includes('aria-expanded="false"'));
+    assert.ok(html.includes(locale === "en" ? "Add project" : "添加项目"));
+    assert.ok(html.includes("first-fingerprint"));
+    assert.ok(html.includes("old-fingerprint"));
+    assert.ok(html.includes(locale === "en" ? "Revoked" : "已撤销"));
+  }
 });
 test("root archives render bilingual explicit upload, optional children and original version controls", () => {
   for (const locale of ["en", "zh"]) {
