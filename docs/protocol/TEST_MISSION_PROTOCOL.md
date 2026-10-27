@@ -1667,35 +1667,56 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 | `GET /capabilities` | 归档授权；分别返回 implemented/configured、profile、正文/条数上限和支持的产物类型 |
 | `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task、title、可选 uploader；管理 key 与适用 expected_task_version |
 | `POST /tasks/{id}/authorize` | Operator；明确 owner/子任务 uploader，expected_task_version；不签发或扩大 integration grant |
-| `POST /tasks/{id}/publications` | Operator；expected_task_version、精确子任务版本清单、显式汇总与原 key |
+| `POST /tasks/{id}/publications` | Operator；expected_task_version、root_archive_version、精确子任务归档版本清单、显式汇总与原 key |
 | `GET /operations/by-key` | Operator 按 Project/原管理 key 恢复创建、授权或汇总，返回原固定管理回执 |
-| `GET /tasks/{id}`、`GET /tasks/{id}/subtasks/{subtask_id}` | Operator 或获准的 archive:read；后者可选择固定子任务 version 并分页读取完整快照 |
-| `POST /tasks/{id}/subtasks/{subtask_id}/submissions` | archive:write，CLI 同时需 archive:read 完成确认；上传者由认证得出，归档正文见下节 |
+| `GET /tasks/{id}` | Operator 或获准的 archive:read；返回任务管理信息及根/子任务归档版本 |
+| `GET /tasks/{id}/archive`、`GET /tasks/{id}/subtasks/{subtask_id}/archive` | Operator 或获准的 archive:read；选择明确 archive_version，分页读取目标空间完整快照 |
+| `POST /tasks/{id}/submissions` | archive:write，CLI 同时需 archive:read 完成确认；上传者由认证得出，归档正文见下节 |
 | `GET /submissions/by-key` | archive:read；Project/原操作 key，按原上传 actor 权限返回瘦回执，NOT_FOUND 不授权重传 |
-| `GET /submissions/{id}` | archive:read；固定接受子任务快照及引用资产正文，分页参数与下节一致 |
+| `GET /submissions/{id}` | archive:read；固定接受的 TASK/SUBTASK 空间快照及引用资产正文，分页参数与下节一致 |
 
-所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
+每次归档显式传 Project ID、Task ID，Subtask ID 可选，路径和正文目标必须一致。省略 Subtask 时 target_kind=TASK；指定时 target_kind=SUBTASK，目标不存在/跨任务/越权均拒绝，不能回退 Task 或推断子任务。所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
 
 ### 51.2 Manifest、上传与完整读回
 
-私有 manifest 携 `profile/project_id/task_id/subtask_id`、`assets` 及可选 `subtask_update`。每个 asset 明确 kind、stable_key、标题/结果、origin 和本地文件路径或结构化 CASE 内容；目录必须展开成用户批准的有限文件清单。Agent 不能将命令、任意聊天/凭据目录或远程抓取要求嵌入 manifest。CLI 安全读取实际文件并构造 typed wire body，本地绝对路径不作为上传原件。
+私有 manifest 携必填 `profile/project_id/task_id`、可选 `subtask_id`、`assets` 及仅对子任务有效的可选 `subtask_update`；profile 在 wire 中为协议标识，不是 CLI 的本机连接 profile 名。CLI 显式参数与 manifest 目标不一致时拒绝，不静默覆盖。每个 asset 明确 kind、stable_key、标题/结果、origin 和本地文件路径或结构化 CASE 内容；目录必须展开成用户批准的有限文件清单。Agent 不能将命令、任意聊天/凭据目录或远程抓取要求嵌入 manifest。CLI 安全读取实际文件并构造 typed wire body，本地绝对路径不作为上传原件。
 
-wire body 为 `{profile, project_id, task_id, subtask_id, idempotency_key, expected_subtask_version, assets, subtask_update?}`。assets 为明确 upsert 集合，每项带完整内容与来源；省略资产不删除，更新子任务字段必须显式出现且非 null。CASE 使用§45.1的结构化业务字段；PLAN/REPORT 使用 UTF-8 正文，原始报告保持原文，source_ref/artifact_uri 只作引用，不触发服务端下载。新 profile 明确定义部分更新语义，不将旧 hypertest_sync_task 重新解释为 PATCH。
+wire body 为 `{profile, project_id, task_id, subtask_id?, idempotency_key, expected_archive_version, assets, subtask_update?}`；省略或 null subtask_id 规范化为同一 TASK 目标后冻结摘要，target_kind 由此唯一确定。assets 为明确 upsert 集合，每项带完整内容与来源；省略资产不删除，更新子任务字段必须显式出现且非 null；TASK 目标不接受 subtask_update 或整体 Task 状态/结果写入。CASE 使用§45.1的结构化业务字段；PLAN/REPORT 使用 UTF-8 正文，原始报告保持原文，source_ref/artifact_uri 只作引用，不触发服务端下载。新 profile 明确定义部分更新语义，不将旧 hypertest_sync_task 重新解释为 PATCH。
 
 首片沿用 stable_key 128字符、单计划/报告262144字符、每批200用例/16报告、每用例100 steps 等业务字段上限，typed JSON 总量上限2MiB。以最终 UTF-8 请求字节核总量；不沿用 MCP 的1MiB消息限制，也不无界扩大。能力不支持、超限、路径/秘密检查失败时整批拒绝；不静默截断、隐式拆分或仅保存 hash 后称原件已上传。
 
-CLI 在冻结新请求前读取固定子任务基线并核当前权限；保存最终完整请求、文件字节和预期合并结果后单次发送。重复同一私有 request_id 复用原 key 和冻结内容；已确认完成且内容未变时可直接返回原结果。显式后续新归档使用新的本地请求记录，服务端仍按领域§56处理版本与 UNCHANGED。
+CLI 在冻结新请求前读取固定目标空间基线并核当前权限；保存最终完整请求、文件字节和预期合并结果后单次发送。重复同一私有 request_id 复用原 key 和冻结内容；已确认完成且内容未变时可直接返回原结果。显式后续新归档使用新的本地请求记录，服务端仍按领域§56处理版本与 UNCHANGED。
 
-瘦回执包含 `{profile, submission_id, project_id, task_id, subtask_id, uploader_actor_ref, idempotency_key, request_digest, outcome, accepted_version}`，outcome 为 ACCEPTED 或 UNCHANGED。客户端核请求/目标/上传者及版本（变化为 expected+1，无变化为 expected），再读取该 Submission 的完整固定快照。
+瘦回执包含 `{profile, submission_id, project_id, task_id, target_kind, subtask_id, uploader_actor_ref, idempotency_key, request_digest, outcome, accepted_version}`，outcome 为 ACCEPTED 或 UNCHANGED；subtask_id 对 TASK 返回 null，accepted_version 是该目标的 archive_version。客户端核请求/目标/上传者及版本（变化为 expected+1，无变化为 expected），再读取该 Submission 的完整固定快照。
 
-分页 envelope 为 `{profile, submission_id, subtask_id, version, offset, total_chars, next_offset, content, complete}`；按 Unicode 字符计 offset，单页上限24000字符，所有页面固定同 submission/version。读回包括完整子任务状态、资产 key/revision、原文/结构化内容和逐资产来源；按冻结预期验证，不能用 current head 或仅摘要代替原文。
+分页 envelope 为 `{profile, submission_id, project_id, task_id, target_kind, subtask_id, archive_version, offset, total_chars, next_offset, content, complete}`；按 Unicode 字符计 offset，单页上限24000字符，所有页面固定同目标/submission/archive_version。读回包括完整目标空间快照（SUBTASK 含子任务状态）、资产 key/revision、原文/结构化内容和逐资产来源；按冻结预期验证，不能用 current head 或仅摘要代替原文。
 
 ### 51.3 CLI、Skill 与恢复结果
 
-`hypertest archive --profile NAME --task-id UUID --subtask-id UUID --manifest FILE --json` 完成一次归档。`profile` 管理私有连接引用，`doctor` 只读诊断能力，`status` 查看本地请求状态，`reconcile --request-id UUID` 查询原 key/继续固定读回，`skill install` 安装明确目标中的归档 Skill。`status --remote` 才执行远端查询，`--dry-run` 不创建业务提交。
+`hypertest archive --profile NAME --project-id UUID --task-id UUID [--subtask-id UUID] --manifest FILE --json` 完成一次归档（方括号表示可选，不输入方括号）。`auth` 完成全局配对/状态/恢复/本机退出，`profile` 管理按 server/client/actor 隔离的私有连接引用，`doctor` 只读诊断能力，`status` 查看本地请求状态，`reconcile --request-id UUID` 查询原 key/继续固定读回，`skill install --global --host codex` 或 `--directory DIR` 安装明确目标中的归档 Skill；宿主支持按实际核验声明。CLI 必须显式接收 project-id/task-id，不从 cwd/profile 推导，缺失则零业务 POST。多个平台配置需明确选用 profile；任务 ID 不触发隐式换平台或身份。`status --remote` 才执行远端查询，`--dry-run` 不创建业务提交。
 
-`--json` 至少返回 `{status, request_id, task_id, subtask_id, submission_id?, accepted_version?, readback_complete, task_url?, code?}`；status 区分 ARCHIVED、UNCHANGED、PREVIEW、PENDING、UNKNOWN、REJECTED。只有完整读回或已验证的同一原请求可返回 ARCHIVED/UNCHANGED；预览成功不能冒充归档成功。普通命令成功为退出码0，参数/本地输入错误2，明确拒绝3，未决/UNKNOWN/读回未完4，配置/能力缺口5；stderr 日志与 stdout JSON 分开。
+`--json` 至少返回 `{status, request_id, project_id, task_id, target_kind, subtask_id, submission_id?, accepted_version?, readback_complete, task_url?, code?}`；status 区分 ARCHIVED、UNCHANGED、PREVIEW、PENDING、UNKNOWN、REJECTED。只有完整读回或已验证的同一原请求可返回 ARCHIVED/UNCHANGED；预览成功不能冒充归档成功。普通命令成功为退出码0，参数/本地输入错误2，明确拒绝3，未决/UNKNOWN/读回未完4，配置/能力缺口5；stderr 日志与 stdout JSON 分开。
 
-Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词和 Task/Subtask ID 不作为鉴权字段。用户授权的文件范围足够明确时直接完成归档，未知必要输入才澄清。Skill 不隐式读聊天、自动触发 CLI 或执行 SUT；结果 UNKNOWN 时只引导原请求查询，不循环换 key 重发。
+Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词和 Project/Task/Subtask ID 不作为鉴权字段。用户授权的文件范围足够明确时直接完成归档，未知必要输入才澄清。Skill 不隐式读聊天、自动触发 CLI 或执行 SUT；结果 UNKNOWN 时只引导原请求查询，不循环换 key 重发。
 
 新档案请求与旧 Local bind/sync/collaboration namespace 分离。`reconcile` 可显式选择旧 profile 和已知私有账本，执行旧原 key GET/固定版读回；不能生成新的旧 POST、伪造 native caller 或启动 MCP/Hooks/daemon。切换后新的旧操作返回明确退休错误，旧历史仍按原协议读回；公开旧 tag 与已接受回执不重标。
+
+### 51.4 CLI 授权页面与一次绑定
+
+下列为待实现的独立 `/api/v1/cli-authorizations` 合同，与归档提交、旧 task:sync 授权的 namespace 分开；不复用当前一次返回明文 token 的注册接口来假定失答可恢复。
+
+| HTTP 操作 | 权限与契约 |
+| --- | --- |
+| `POST /requests` | CLI 发起配对；联网前已持久保存 request_id、原 CREATE key、credential secret 与独立 verifier。只提交 credential_hash、verifier challenge、非秘密 client 信息及可选预选项目；尚无归档权限 |
+| `POST /requests/{id}/approve` | 既有 Web Operator；核配对短码、稳定 APPROVE key，一次冻结 actor、项目 allowlist、archive:read/write、期限和原指纹；遵守现有 Web 访问/CSRF 边界 |
+| `POST /requests/{id}/redeem` | CLI 持有私有 verifier proof；独立 REDEEM key 绑定批准结果，只允许兑换原固定授权，不接收扩权字段、不返回长期 secret |
+| `GET /requests/by-key`、`GET /requests/{id}` | CLI 私有 proof 或有管理权限的 Web 身份；按原操作 key/阶段读取固定回执及当前状态；公开 ID/短码不足以获取授权详情 |
+| `GET /grants`、`POST /grants/{id}/revoke` | Web Operator 查看/撤销 CLI 授权；撤销有原管理 key，不清历史，CLI 的 archive scope 不获得该管理权 |
+
+`hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default` 从任意工作目录启动配对。可选 `--project-id UUID` 只预选项目。CLI 显示/打开现有 Web 授权页与短码，命令、URL、日志、stdout 不携带 credential secret/verifier/Operator key。用户在 Web 一次批准既有上传 actor、明确项目、scope 和期限；CLI 在短时窗口内有界查询，兑换并核对原 grant/client/credential 指纹，原子保存用户级 profile 后退出。无 localhost callback、daemon 或后台续签。
+
+CREATE 固定配对上下文，APPROVE 固定实际授权，REDEEM 绑定该批准结果；三者分别有原 key/冻结正文/状态，不把尚未批准的项目预选当作 grant。原请求同 key 异输入拒绝。配对窗口例如10分钟，与 grant 期限分开。正常流程中的查询只在 auth bind 命令存活期间进行，不在测试中同步。
+
+`hypertest auth status --request-id UUID --json` 和 `auth reconcile --request-id UUID --json` 只按原 key 查询，使用私有 proof 核对非秘密回执，已 BOUND 时可恢复 profile 保存。任何已发送/可能已发送操作的失答、UNKNOWN 或 NOT_FOUND 均不重 POST、不换 key 签发；确认前一阶段后，明确从未发送的下一阶段可用 `auth bind --resume --request-id UUID` 首次推进。CLI 预存 credential 使绑定成功后的失答无需再次获取明文 token；原 key 查询不充当新的授权。
+
+已有 profile 的 server/client/actor 不匹配则拒绝覆盖并提示使用新 profile；相同身份新增项目需 Web 明确批准后原子合并。授权状态输出仅含 request_id、阶段、状态、grant/client 指纹、actor、获准项目/scopes/期限等安全字段，不显示 secret/hash 验证材料。auth logout --profile NAME 停用本机 profile；服务端撤销由页面明确执行。两者不清 journal/未决 key，不自动扩权或重绑；过期/撤销后归档和读回仍按当前有效授权判定。操作指南见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。

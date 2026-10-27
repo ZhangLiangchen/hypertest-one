@@ -4,7 +4,7 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
-| Local 显式 Skill 与 CLI 后置归档重构 | **方向已确定，方案已整理；产品实现未开始**。新增独立归档 Task/Subtask/profile、统一 hypertest CLI 和 hypertest-archive Skill，替换 Local MCP/Hooks/daemon 接入；四份基础规范已添加目标合同。见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md) | 按计划实现 API/迁移、CLI、显式 Skill、PC Web、受管旧配置清理和旧写退休；保留历史与原 key 只读恢复。部署、cli-v*发行及USER_OWNED验收尚未执行；下方旧交付不重标 |
+| Local 显式 Skill 与 CLI 后置归档重构 | **方向已确定，方案已整理；产品实现未开始**。新增独立归档 Task/可选 Subtask、全局 hypertest CLI 和显式 Skill；增加全局 CLI 授权页、指导与一键绑定。每次上传必填 Project/Task ID，可选 Subtask ID；替换 Local MCP/Hooks/daemon 接入，四份基础规范已同步目标合同。见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md) | 按计划和[授权指南](CLI_AUTHORIZATION_GUIDE.md)实现 API/迁移、配对授权/撤销、全局 CLI/Skill、根及子任务归档、PC Web、受管旧配置清理和旧写退休；保留历史与原 key 只读恢复。部署、cli-v*发行及USER_OWNED验收尚未执行；下方旧交付不重标 |
 | Local 一条命令 / Prompt 安装升级 | **已实现并部署Web；local-v0.1.1正式公开并设为Latest**；updater 自动发现渠道/目标、保留原收据配置与Hooks、核对真实daemon、同命令安装Skill；stable发现和两目标发行构建通过。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)及[实现原记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md) | 正式发布不升级真实宿主验收，仍USER_OWNED；首次需已有私有Project授权，未知目标/Python明确报缺口 |
 | Local 多会话任务协作 | **ADR-026 首片已实现并部署API/Web，schema0029**；ENABLE/精确授权/JOIN/撤销、独立贡献、主会话汇总/交接、固定版本/原key恢复、MCP与PC详情已连通。见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md) | PR #26已合入main，正式local-v0.1.1已包含协作客户端；真实宿主接入/USER_OWNED验收保留；标准A2A adapter、跨actor与跨root私有UNKNOWN自动枚举不在首片 |
 | Local 接入 Skill 与新版包 | **PR #25 已合入；Skill已随local-v0.1.1正式公开**；单一技能源码纳入wheel、固定摘要与显式安装/升级。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)和[原实现记录](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md) | 新版宿主验收保持 USER_OWNED / NOT_OBSERVED；旧正式版与候选不重标 |

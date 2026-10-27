@@ -2542,40 +2542,54 @@ HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architec
 
 | 实体 | 最小字段与关系 |
 | --- | --- |
-| LocalArchiveTask | UUID、project_id、title/objective、creator_actor_ref（Web Operator）、owner_uploader_actor_ref（integration actor，可未指定）、version、status、reported_result、created_at/updated_at |
-| LocalArchiveSubtask | UUID、project_id/task_id、title/分工、authorized_uploader_actor_ref、version、status、reported_result、创建与接受时间 |
-| LocalArchiveSubmission | UUID、profile/operation、project_id/task_id/subtask_id、认证后的 uploader actor/client、idempotency_key、完整冻结请求/digest、expected_subtask_version、outcome、accepted_version、snapshot_ref、accepted_at |
-| LocalArchiveAssetRevision | UUID、project_id/task_id/subtask_id、kind/stable_key/revision、完整内容、reported_result、逐资产 origin metadata、submission_id、accepted_at |
-| LocalArchivePublication | UUID、task_id/task_version、精确子任务版本清单、采纳的资产修订引用、任务汇总正文及 status/reported_result、管理提交者与时间 |
+| LocalArchiveTask | UUID、project_id、title/objective、creator_actor_ref（Web Operator）、owner_uploader_actor_ref（integration actor，可未指定）、version（管理）、archive_version（根归档）、status、reported_result、created_at/updated_at |
+| LocalArchiveSubtask | UUID、project_id/task_id、title/分工、authorized_uploader_actor_ref、archive_version、status、reported_result、创建与接受时间 |
+| LocalArchiveSubmission | UUID、profile/operation、project_id/task_id、target_kind、subtask_id（可空）、认证后的 uploader actor/client、idempotency_key、完整冻结请求/digest、expected_archive_version、outcome、accepted_version、snapshot_ref、accepted_at |
+| LocalArchiveAssetRevision | UUID、project_id/task_id、target_kind、subtask_id（可空）、kind/stable_key/revision、完整内容、reported_result、逐资产 origin metadata、submission_id、accepted_at |
+| LocalArchivePublication | UUID、task_id/task_version、root_archive_version、精确子任务归档版本清单、采纳的资产修订引用、任务汇总正文及 status/reported_result、管理提交者与时间 |
 
-Task 和 Subtask 的 version 从 1 起；不含 BOUND/UNBOUND、native root、primary generation 或宿主 caller 字段。管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存未授权草稿，归档拒绝；已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有接受的归档提交，其 owner 不可改写。
+Task 管理 version、Task 根 archive_version 和 Subtask archive_version 分别从 1 起；不含 BOUND/UNBOUND、native root、primary generation 或宿主 caller 字段。Subtask 可选：未指定时 target_kind=TASK 且 subtask_id=null，直接归档到 Task；指定时 target_kind=SUBTASK 且 subtask_id 非空。以检查约束固定这两个合法组合，不创建隐藏子任务、不推断唯一子任务、不将无效子任务回退至 Task。
 
-Project/Task/Subtask/Submission/AssetRevision 以复合外键保证归属一致，不能把另一 Task 的 Subtask ID 或另一 Project 的资产拼入请求。读取、新写及汇总均核当前授权和目标可用性。新增权限 `archive:read`、`archive:write` 使用 integration grant，旧 `task:sync`、`cloud:work`、Memory scope 不自动获得权限；actor/client/Project 授权与 Task/Subtask 所有权同时成立才可访问。
+管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存未授权草稿，归档拒绝；已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有根或子任务接受的归档提交，其 owner 不可改写。
 
-同一会话可作为多个归档工作项的声明来源，一个子任务可包含多个会话的材料。`origin_provider/origin_session_ref/producer/source_ref/test_started_at/test_finished_at/report_created_at` 可按资产记录且允许缺省；它们不产生参与关系、写权或 session 全局唯一约束。服务器固定真实 uploader 和 accepted_at，不把上传者替换成声明的原会话，不将缺失的历史测试时间补为平台创建时间。
+Project/Task/Submission/AssetRevision 及非空 Subtask 以复合外键保证归属一致，不能把另一 Task 的 Subtask ID 或另一 Project 的资产拼入请求。读取、新写及汇总均核当前授权和目标可用性。新增权限 archive:read、archive:write 使用 integration grant，旧 task:sync、cloud:work、Memory scope 不自动获得权限；actor/client/Project 授权、Task owner 与指定时的 Subtask uploader 同时成立才可访问。每次请求显式提供 Project/Task，不从客户端全局 profile 推导目标。
+
+同一会话可作为多个归档工作项的声明来源，一个任务或子任务可包含多个会话的材料。origin_provider/origin_session_ref/producer/source_ref/test_started_at/test_finished_at/report_created_at 可按资产记录且允许缺省；它们不产生参与关系、写权或 session 全局唯一约束。服务器固定真实 uploader 和 accepted_at，不把上传者替换成声明的原会话，不将缺失的历史测试时间补为平台创建时间。
 
 ### 56.2 资产修订、状态与接受事务
 
-首片 kind 为 PLAN、CASE、REPORT，正文和结构按 TMP§51。归档请求是显式的完整资产 upsert 集合：每个所选资产携完整内容/结果/来源，省略已有资产保留其当前版本及历史；子任务 status/reported_result 只接受明确出现的更新，缺省沿用当前值，null 不代表清空。首片不提供隐式删除、CLEAR 或资产搬迁。
+首片 kind 为 PLAN、CASE、REPORT，正文和结构按 TMP§51。归档请求是显式的完整资产 upsert 集合：每个所选资产携完整内容/结果/来源，省略已有资产保留其当前版本及历史。subtask_update 仅对 SUBTASK 目标有效；子任务 status/reported_result 只接受明确出现的更新，缺省沿用当前值，null 不代表清空。TASK 目标带 subtask_update 则拒绝；根归档不修改 Task 整体状态/结果，整体汇总通过管理 Publication 更新。首片不提供隐式删除、CLEAR 或资产搬迁。
 
-资产修订在 `(subtask_id, kind, stable_key, revision)` 内唯一，只追加；同名 key 跨子任务互不覆盖。比较内容包含结果和来源 metadata，不能仅按正文 digest 去重。新的测试发生可以用新 stable_key 或显式来源发生记录区分；原 FAIL/UNKNOWN 和被替代原文保持。
+资产修订只追加：根空间在 `(task_id, kind, stable_key, revision) WHERE subtask_id IS NULL` 内唯一，子任务空间在 `(subtask_id, kind, stable_key, revision) WHERE subtask_id IS NOT NULL` 内唯一，不能依赖普通 nullable 唯一键实现根约束。同名 key 跨空间互不覆盖。比较内容包含结果和来源 metadata，不能仅按正文 digest 去重。新的测试发生可以用新 stable_key 或显式来源发生记录区分；原 FAIL/UNKNOWN 和被替代原文保持。
 
 Task/子任务进度使用 DRAFT、IN_PROGRESS、BLOCKED、COMPLETED、CANCELLED；reported_result 使用 NOT_RUN、PASS、FAIL、ERROR、SKIPPED、UNKNOWN、BLOCKED。新建默认 DRAFT/NOT_RUN。归档接受只表示管理材料已保存，不从文件上传、所有子任务完成或 Skill 关键词自动推进 Task 完成或 PASS，也不生成旧 VERIFIED/RELEASE_READY。
 
-一次有内容变化的归档只递增目标子任务 version，原子保存 Submission、资产新修订、该子任务完整冻结快照、回执和 Audit/Outbox；失败无已接受部分批次。业务接受前核 scope、owner、目标关系与 expected_subtask_version，使用稳定锁顺序协调父任务授权与子任务写入。兄弟子任务无需共同提交 task.version。
+一次有内容变化的归档只递增目标空间的 archive_version，原子保存 Submission、资产新修订、该空间完整冻结快照、回执和 Audit/Outbox；失败无已接受部分批次。业务接受前核 scope、owner、目标关系与 expected_archive_version，使用稳定锁顺序协调父任务授权与目标写入。根、各子任务的归档不递增 Task 管理 version，也不要求携带兄弟空间版本。
 
 ### 56.3 幂等、无变化与恢复
 
-操作 key 在 `(project_id, uploader_actor_ref, operation, idempotency_key)` 内唯一，完整请求摘要绑定 profile、Task/Subtask、原客户端、预期版本、所有字段和文件正文；用同 key 选择另一目标不得成为新操作。当前授权检查后先查原 key，同输入返回原接受结果与版本，异输入冲突，再对新 key 检查预期版本。
+操作 key 在 `(project_id, uploader_actor_ref, operation, idempotency_key)` 内唯一，完整请求摘要绑定 profile、Task、target_kind、可空 Subtask、原客户端、预期归档版本、所有字段和文件正文；用同 key 选择另一目标不得成为新操作。当前授权检查后先查原 key，同输入返回原接受结果与版本，异输入冲突，再对新 key 检查预期版本。
 
-新 key 的请求在当前版本和授权有效、合并后领域内容完全相同时接受为 UNCHANGED。保留其不可变 Submission/回执及当时 N 版快照引用，不递增子任务 version 或资产修订；不能先按当前内容返回 UNCHANGED 来绕过旧版本冲突。后续同 key 查询始终返回原 outcome/N 版，不重新计算 current head。
+新 key 的请求在当前版本和授权有效、合并后领域内容完全相同时接受为 UNCHANGED。保留其不可变 Submission/回执及当时 N 版快照引用，不递增目标 archive_version 或资产修订；不能先按当前内容返回 UNCHANGED 来绕过旧版本冲突。后续同 key 查询始终返回原 outcome/N 版，不重新计算 current head。
 
-本地私有请求在网络前冻结并记 SENT。失答、UNKNOWN、NOT_FOUND 只查原 key；有效 ACK 后只继续该固定版本完整读回。一个子任务的未决写阻止依赖它的新意图，不阻塞无依赖兄弟子任务；CLI 不通过跨 root 私有目录扫描寻找未知请求。Submission 接受结果与客户端传输状态分别记录，传输 UNKNOWN 不覆盖 reported_result。
+本地私有请求在网络前冻结并记 SENT。失答、UNKNOWN、NOT_FOUND 只查原 key；有效 ACK 后只继续该固定版本完整读回。一个归档空间的未决写阻止依赖它的新意图，不阻塞无依赖的其他空间；CLI 不通过跨 root 私有目录扫描寻找未知请求。Submission 接受结果与客户端传输状态分别记录，传输 UNKNOWN 不覆盖 reported_result。
 
 ### 56.4 任务管理与整体汇总
 
-Task 元数据、创建/调整子任务目录及上传授权、任务汇总更新使用 expected_task_version 并递增 Task version；这些管理变更不伪造一次归档或更改旧接受快照。子任务的归档内容版本独立。Operator 管理写也具有独立 operation key、冻结管理快照及原 key 查询，不使用上传者 scope 扩权。
+Task 元数据、创建/调整子任务目录及上传授权、任务汇总更新使用 expected_task_version 并递增 Task version；这些管理变更不伪造一次归档或更改旧接受快照。根和子任务的 archive_version 均独立。Operator 管理写也具有独立 operation key、冻结管理快照及原 key 查询，不使用上传者 scope 扩权。
 
-首片整体汇总由 Web Operator 显式提交，以 expected_task_version 加 `{subtask_id, version}` 清单声明采用范围，列出未纳入/未完成项。接受事务同时验证任务版本、子任务目录/授权状态、所有引用版本及资产归属，并保存 Publication；部分项不能确认时明确拒绝。此时任务 reported_result 是提交者明确报告的汇总，不由平台自动算 PASS。
+首片整体汇总由 Web Operator 显式提交，以 expected_task_version、root_archive_version 加 `{subtask_id, archive_version}` 清单声明采用范围，列出未纳入/未完成项。无子任务时清单为空，仍引用根版本。接受事务同时验证任务管理版本、子任务目录/授权状态、所有引用版本及资产归属，并保存 Publication；部分项不能确认时明确拒绝。此时任务 reported_result 是提交者明确报告的汇总，不由平台自动算 PASS。
 
-后续子任务新版本保留已发布的历史版本向量，UI 可提示存在未纳入的新材料；不能用最新子任务正文拼接过去的 Publication。历史查看、原 key 回执和固定版本恢复不依赖旧 MCP/Hooks 运行。
+后续根或子任务新版本保留已发布的历史版本向量，UI 可提示存在未纳入的新材料；不能用最新正文拼接过去的 Publication。历史查看、原 key 回执和固定版本恢复不依赖旧 MCP/Hooks 运行。
+
+### 56.5 全局 CLI 配对与授权
+
+CLI 用户级 profile 固定规范化 server、client、uploader actor 与各 Project 的显式 grant 引用，可跨目录/会话复用；不保存隐式上传目标、不自动获得全部项目。Web 全局「CLI 授权」页管理安装/绑定指导、配对批准、当前授权与撤销。既有 Task owner 选择与客户端 grant 签发是两项检查，任一不足均拒绝归档。
+
+CliAuthorizationRequest 保存 CLI 在联网前生成的非秘密 request_id、原 CREATE key、server/client 身份、credential_hash、独立 verifier challenge、请求预选项目、短码及请求期限。credential secret/verifier 仅存 CLI 私有目录；短码或公开 URL 不授予兑换/查询权限。Web Operator 使用稳定 APPROVE key 一次批准并原子冻结既有 actor、项目 allowlist、archive scopes、授权期限与原 credential/challenge 指纹，批准后不可改写或扩权。
+
+CLI 对固定批准结果形成独立原 key 的 REDEEM；服务端在校验私有 proof 后原子创建/关联 integration grant 与原 credential_hash，保存非秘密回执并将请求转为 BOUND。PENDING → APPROVED → BOUND 为正常路径；未绑定请求可拒绝或过期，终态不可恢复成新授权。短时配对期限与 grant 期限独立，重查 BOUND 必须检查 grant 当前是否撤销/到期，不能把历史已批准当作当前有效。既有 scope 不自动转换为 archive 权限；CLI 永不持有 Operator key。
+
+CREATE、APPROVE、REDEEM 各自冻结正文/key，并有独立回执；相同 key 异输入拒绝。可能已发送的操作 UNKNOWN/NOT_FOUND 只能查询原 key，不能重放或重新签发。CLI 已持有 secret，凭受私有 proof 保护的原回执核对固定授权和指纹即可恢复 profile，不取回明文 token；确认前一阶段后，只有明确从未发送的下一阶段允许由显式 resume 首次发送。授权账本与归档账本 namespace 分开。
+
+profile 原子保存/合并，只合并同 server/client/actor 的已批准项目授权；身份不匹配须使用明确的新 profile，不覆盖旧身份/账本。服务端撤销使对应 grant 后续不可用，已接受产物/回执保持；读回仍需当前有效授权。auth logout 只停用本机 profile，不冒充撤销，不清除未决 credential、journal 或历史。没有自动续签、后台轮询或跨机器复制模型登录。

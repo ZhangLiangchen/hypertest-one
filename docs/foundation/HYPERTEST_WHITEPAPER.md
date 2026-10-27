@@ -915,7 +915,9 @@ Local 发行不包含 Cloud runtime；Cloud 实施进度与最终树验收按独
 
 ## Local 显式后置归档方向 ADR-027
 
-新 Local 流程让 Agent 按项目原有工具独立完成测试，保留正式文件，随后由用户在 HyperTest One 创建测试任务和子任务，并显式调用 `hypertest-archive` Skill。Skill 整理获准产物，`hypertest` CLI 按需通过 HTTPS 归档并读回，完成后退出；测试过程中无需平台任务、Hooks、MCP、SessionStart 或后台同步。
+新 Local 流程让 Agent 按项目原有工具独立完成测试，保留正式文件，随后由用户在 HyperTest One 选择项目、创建测试任务和可选子任务，并显式调用 `hypertest-archive` Skill。每次归档明确 Project ID、Task ID，按需提供 Subtask ID；简单任务直接归档到任务本身。Skill 整理获准产物，`hypertest` CLI 按需通过 HTTPS 归档并读回，完成后退出；测试过程中无需平台任务、Hooks、MCP、SessionStart 或后台同步。
+
+Web 提供全局 CLI 授权页、操作指导和一键绑定命令；用户一次确认明确项目与归档权限后，全局 CLI 可跨目录和 Agent 会话复用。授权和任务目标分别表达，凭据不进入 Agent 指令或上传清单，全局安装不意味着所有项目均可访问。
 
 HyperTest One 在这条路径中管理业务任务、子任务、产物修订、真实 reported result 和来源。上传者由授权认证，原测试会话只是可选来源声明；一个任务可归档多个会话的材料，原会话结束后仍可上传留存文件。归档完成、测试进度和质量结果分别表达，不因上传成功产生 PASS、独立执行证明或 RELEASE_READY。
 

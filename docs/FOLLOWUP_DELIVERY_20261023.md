@@ -1,6 +1,6 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
-2026-10-27 Local 重构方案：用户已确定由 MCP/Hooks 同步转为测试后显式 Skill/CLI 归档。[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录改造原因、新 Task/Subtask/Submission 模型、独立权限、CLI/Skill、旧入口退出及历史恢复；四份基础文档添加目标合同。**本轮为纯文档交付，产品实现未开始**，未移除正在使用的配置、未部署新接口、未发行CLI或执行用户验收。后续工作按当前TODO的归档重构项推进，下方已交付版本和历史资格保持。
+2026-10-27 Local 重构方案：用户已确定由 MCP/Hooks 同步转为测试后显式 Skill/CLI 归档。[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录改造原因、新 Task/Subtask/Submission 模型、独立权限、CLI/Skill、旧入口退出及历史恢复；四份基础文档添加目标合同。本轮补充[CLI 授权操作指南](CLI_AUTHORIZATION_GUIDE.md)：全局授权页、一键绑定、用户级 profile/Skill、明确项目授权，上传必填 Project/Task、可选 Subtask，省略时写任务根空间；同步根/子任务版本及授权原 key 恢复合同。**本轮为纯文档交付，产品实现未开始**，未移除正在使用的配置、未部署新接口、未发行CLI或执行用户验收。后续工作按当前TODO的归档重构项推进，下方已交付版本和历史资格保持。
 
 2026-10-26 正式发行：按用户要求将最新 rc.2 功能发布为 `local-v0.1.1`，GitHub Latest 已指向该正式版，stable updater 已能发现。六份公开资产、Mac/Linux发行构建及相关自测通过；正式发布与宿主验收分别记录，旧候选/验收原件不改写。精确源码、摘要和状态见[正式发行记录](LOCAL_STABLE_RELEASE_20261026.md)。本轮不改服务器部署镜像/数据库，不开展模型、SUT或用户验收。
 

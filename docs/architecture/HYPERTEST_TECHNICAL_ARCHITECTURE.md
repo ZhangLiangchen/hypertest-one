@@ -1227,7 +1227,11 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 状态为已接受方向、实现未开始。新链路为 `显式 Skill → hypertest CLI → ArchiveAdapter / TaskSyncCore → HTTPS Archive API → PostgreSQL`。API 接受和存储测试资产，不启动 Agent 或测试；CLI 在一次命令进程中完成配置、校验、冻结、发送和读回，无常驻 daemon、IPC、Hook 或 MCP server。
 
-新归档业务由 LocalArchiveTask、LocalArchiveSubtask、LocalArchiveSubmission、LocalArchiveAssetRevision 与 LocalArchivePublication 承担。Task/子任务创建与授权由 Web 的 Operator 管理路径负责；CLI 仅以独立 `archive:read/write` 的 integration 身份读写获准目标。原会话来源可缺省或由上传者声明，不读取 native root registry，不复用 BIND/JOIN 作为准入条件。
+新归档业务由 LocalArchiveTask、可选 LocalArchiveSubtask、LocalArchiveSubmission、LocalArchiveAssetRevision 与 LocalArchivePublication 承担。Task/子任务创建与授权由 Web 的 Operator 管理路径负责；CLI 仅以独立 `archive:read/write` 的 integration 身份读写获准目标。每次归档显式提供 Project ID、Task ID 和可选 Subtask ID；未指定子任务使用 Task 根空间，指定无效子任务明确拒绝。根与各子任务拥有独立归档版本，整体管理版本与汇总另行维护。原会话来源可缺省或由上传者声明，不读取 native root registry，不复用 BIND/JOIN 作为准入条件。
+
+Web 增加全局「CLI 授权」页和安装/绑定指导。用户级全局 CLI 通过一条 auth bind 命令发起短时配对，用户在既有 Web 登录下核短码并一次批准 actor、明确 Project allowlist、archive scopes 与期限；CLI 完成固定授权兑换、核验并原子保存 profile 后退出。凭据不进入命令/Skill/日志，CLI 私存预生成 secret 与独立 verifier，服务端仅持验证材料；原 key 恢复无需重发未知签发或返回明文 secret。
+
+profile 以 server/client/actor 隔离，可跨工作目录和 Agent 会话复用已批准项目，不能据全局安装扩大权限或推导上传目标。配对查询仅在命令进程内有界进行，无本地回调服务器、后台轮询或续签。授权服务与归档服务分离 operation namespace；服务端撤销、本机退出和历史只读恢复保持各自语义。操作流程见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
 
 复用现有私有凭据读取、HTTPS、TaskSyncCore、冻结快照和账本库，并消除它们对旧 daemon/MCP 入口的依赖。ArchiveAdapter、旧 Local 只读恢复 adapter 和 CloudSyncAdapter 分别保有 profile、授权及账本 namespace，不共享全局 journal。新旧业务 API、领域不靠通用 Task 表或放宽旧 caller fence 合并。
 

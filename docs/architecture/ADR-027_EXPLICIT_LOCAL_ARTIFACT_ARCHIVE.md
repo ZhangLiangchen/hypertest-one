@@ -16,8 +16,8 @@ MCP 本身支持读写工具调用和 HTTP 传输，频繁同步来自当前触�
 
 1. 新 Local 流程以 **用户显式指令 → Skill → CLI → HTTPS 归档 API** 为唯一正式接入路径；不保留新的 Local MCP 接入选项，不注册任何 SessionStart、PostToolUse、Stop 或子代理事件。
 2. 测试开始前无需创建平台 Task、绑定来源、安装 Hook 或保持平台连接。Agent 使用项目既有工具完成测试；首次归档时才需要 CLI、Skill 和有效授权。
-3. 用户在 Web 创建或选择 Local 归档任务及子任务，获得明确 ID，再在本地指定产物范围调用 Skill。也允许显式归档阶段性材料；归档不以测试成功为前提。
-4. CLI 是可独立使用的短命进程，无 daemon、定时任务、后台监听或自动刷新。Skill 只在明确归档请求中加载完整指引和执行 CLI。
+3. 用户在 Web 创建或选择 Project 下的 Local 归档任务，按需创建子任务，再在本地指定产物范围调用 Skill。每次上传必填 Project ID、Task ID，Subtask ID 可选；省略时归档到 Task 本身。也允许显式归档阶段性材料；归档不以测试成功为前提。
+4. CLI 在用户级全局安装和授权，可跨工作目录、Agent 会话复用；全局可用不扩大项目权限。CLI 是可独立使用的短命进程，无 daemon、定时任务、后台监听或自动刷新。Skill 只在明确归档请求中加载完整指引和执行 CLI。
 5. 新 profile 为 `local-artifact-archive/v1alpha1`。新增 Local 专用归档实体，沿用 Project；不共用 CloudTask/CloudAttempt，不新增跨 Local/Cloud 的通用 Task 根表。
 6. Local 的产品职责为测试资产归档、查询与汇总，测试仍由本地 Agent 和项目工具完成。Cloud 执行能力、Memory 独立权限及旧执行领域保持各自边界。
 
@@ -27,8 +27,9 @@ MCP 本身支持读写工具调用和 HTTP 传输，频繁同步来自当前触�
 
 ```mermaid
 flowchart LR
-    A[本地自主测试并保留原始文件] --> B[Web 创建任务和子任务]
-    B --> C[复制带任务和子任务 ID 的归档指令]
+    A[本地自主测试并保留原始文件] --> B[Web 选择项目与任务及可选子任务]
+    B --> C[复制明确目标的归档指令]
+    I[CLI 授权页与一次全局绑定] --> F
     C --> D[显式调用 hypertest-archive Skill]
     D --> E[整理获准文件与 manifest]
     E --> F[hypertest CLI 校验并提交 HTTPS]
@@ -42,9 +43,9 @@ flowchart LR
 | `hypertest-archive` Skill | 解释明确上传指令、解析目标 ID 和文件范围、整理 manifest、调用 CLI、解释结果 |
 | `hypertest` CLI | 私有配置、HTTPS、文件读取与校验、冻结请求、账本、提交、回执核验、固定版本读回和原 key 恢复 |
 | HyperTest One API | 认证及目标授权、父子关系检查、版本约束、原子接受、历史与回执 |
-| PC Web | 创建任务/子任务、设置上传授权、复制指令、查看原件/来源/修订、显式汇总 |
+| PC Web | 全局 CLI 授权页、安装/绑定指导、项目授权与撤销；创建任务/可选子任务、复制指令、查看原件/来源/修订、显式汇总 |
 
-每次归档明确指定 Task ID、Subtask ID 和产物路径或清单。关键词只表达用户意图，不进入鉴权协议或成为 CLI 必填字段。任务和子任务 ID 是目标地址，不是凭据。
+每次归档明确指定 Project ID、Task ID 和产物路径或清单；Subtask ID 可选。不指定子任务时使用 Task 根归档空间，不创建默认子任务；指定无效或越权子任务则拒绝，不回退到根空间。CLI 不从 cwd、profile、上次上传或唯一子任务猜测目标；命令与 manifest 的目标必须一致。关键词只表达用户意图，不进入鉴权协议或成为 CLI 必填字段。所有目标 ID 都是地址，不是凭据。
 
 原会话结束后，用户可以在新会话或终端归档已有文件。归档发生时不补造 SessionStart、caller context、BIND/JOIN 或测试执行记录；尚未留存的原件不能从摘要、对话记忆或散列中恢复。
 
@@ -54,46 +55,54 @@ flowchart LR
 
 | 新对象 | 职责 |
 | --- | --- |
-| LocalArchiveTask | 一次业务测试需求，所属 Project、管理创建者、owner_uploader_actor_ref、管理版本、状态及显式汇总 |
-| LocalArchiveSubtask | 工作项或归档分组，所属 Task、authorized_uploader_actor_ref、独立版本和 reported result；可按会话默认划分 |
+| LocalArchiveTask | 一次业务测试需求，所属 Project、管理创建者、owner_uploader_actor_ref、管理版本、根归档版本、状态及显式汇总 |
+| LocalArchiveSubtask | 工作项或归档分组，所属 Task、authorized_uploader_actor_ref、独立归档版本和 reported result；由用户按需创建，可按会话划分 |
 | LocalArchiveSubmission | 一次不可变归档请求、原 key、接受结果与固定版本；同内容提交也有可恢复的回执 |
-| LocalArchiveAssetRevision | 子任务内按 kind/stable_key 追加的计划、用例和原始报告修订 |
-| LocalArchivePublication | 任务整体汇总，冻结所采用的子任务版本与产物引用 |
+| LocalArchiveAssetRevision | Task 根空间或指定 Subtask 内按 kind/stable_key 追加的计划、用例和原始报告修订 |
+| LocalArchivePublication | 任务整体汇总，冻结 Task 根归档版本、所采用的子任务版本与产物引用 |
 
 子任务 ID 不复用 participant ID、contribution ID 或宿主 session ID。同一子任务可以追加多次提交，同一会话可以为多个业务工作项提供来源材料；来源字符串不承担写入权限或全局唯一约束。
 
 上传者由认证信息确定，Web Operator 创建者与 integration uploader 分开记录。未指定有效 uploader 的 Task 可保存为未授权草稿；首次接受归档后 owner 不可改写。`origin_provider`、`origin_session_ref`、测试发生时间和报告生成时间是可选的逐资产来源声明，平台接受时间由服务器生成。同一批多会话材料分别保留各自来源。UI 分别展示上传者和原测试来源，不将材料声明展示为已核验 native 会话。报告中的 PASS/FAIL/UNKNOWN 原样保留；归档成功与整体测试完成分别表达。
 
-不同子任务的上传使用各自 `expected_subtask_version`；不因兄弟子任务更新而争用任务版本。任务元数据、子任务目录/授权调整和汇总使用 `expected_task_version`。整体汇总在同一事务验证明确的子任务版本向量，之后的新上传不改写旧汇总。
+所有上传均使用目标空间的 `expected_archive_version`：Task 根空间和各 Subtask 的 `archive_version` 分别推进；Task 的管理 `version` 与根归档版本分开，避免根上传与子任务上传相互争用。任务元数据、子任务目录/授权调整和汇总使用 `expected_task_version`。整体汇总在同一事务验证 Task 根归档版本及明确的子任务版本向量，之后的新上传不改写旧汇总。
 
 ## 5. 授权与可靠交付
 
-新权限为 `archive:read` 与 `archive:write`；CLI 完整归档需同时具备两者。沿用 integration actor/client/Project 的私有授权设施，服务端再核 Task owner、Subtask uploader 和父子关系。首片限定子任务上传 actor 与 Task owner 相同，允许该 actor 在不同会话或客户端归档；跨 actor 协作不在首片。
+新权限为 `archive:read` 与 `archive:write`；CLI 完整归档需同时具备两者。沿用 integration actor/client/Project 的私有授权设施，服务端再核 Project、Task owner，以及指定子任务时的 Subtask uploader 和父子关系。首片限定子任务上传 actor 与 Task owner 相同，允许该 actor 在不同会话或客户端归档；跨 actor 协作不在首片。
 
 `task:sync`、`cloud:work` 和 Memory scope 不自动获得归档权限。Web 使用其既有 Operator 管理边界选择上传 actor；CLI 不取得 Operator key，也不自助扩大授权。凭据仅由客户端从私有配置读取，不写入 Skill、manifest、命令参数、日志或响应；私有文件不被宣称为同 UID 进程隔离。
 
+PC Web 增加全局「CLI 授权」页，提供版本明确的安装/升级指引、无秘密的一键绑定命令、已授权客户端/项目/期限与撤销入口。拟议命令为 `hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default`；可选 `--project-id` 仅预选项目，不产生权限。具体操作见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
+
+CLI 发起短时配对，用户在既有 Web 登录下核对短码并一次确认既有上传 actor、项目 allowlist、`archive:read/write` 和期限；CLI 完成原请求兑换、确认并保存全局 profile 后退出。短码/URL 不能兑换凭据，命令不携带 token；不需要本地回调服务。CLI 在发送前私有持久保存高熵 credential、独立配对 verifier 和原 key，服务端只接收必要验证材料；失答后凭原 key 确认固定授权，无需重新签发或取回明文 secret。精确配对/恢复合同由 TMP§51.4、领域§56.5拥有。
+
+profile 固定规范化 server、client、uploader actor 及显式获准项目，不与仓库绑定；凭据按服务器与身份隔离，不因切换目录/任务自动换 profile。增加项目、scope 或改变 actor 需新的 Web 确认，已有批准不被隐式扩大。服务端撤销和本机退出分别表达，保留已接受档案与私有未决账本；只有命令存活期间为配对完成做有界查询，不后台轮询或续签。
+
 上传仅从显式批准的清单读取文件，文件内容为数据，不能驱动 shell 命令或授权。首片支持 UTF-8 计划/原始文本报告与结构化用例，保留原文和稳定业务 key。接口按条数、字符数及总字节有界，超限明确拒绝，不截断、不隐式分批；截图、视频和压缩包的二进制存储协议独立后续设计，不以本地路径或 URL 引用冒充已上传文件。
 
-每次请求明确 upsert 所选资产的完整内容/结果/来源，省略旧资产不删除；子任务状态/结果只更新明确出现的字段，不将缺省或 null 当作清空。CLI 依据固定基线冻结本次预期合并结果，读回完整接受快照；这属于新归档协议，不改变旧 full sync 的含义。
+每次请求明确 upsert 所选资产的完整内容/结果/来源，省略旧资产不删除；子任务状态/结果只更新明确出现的字段，不将缺省或 null 当作清空。根归档不接受 `subtask_update`，也不更新 Task 整体状态/结果；整体汇总仍由 Web 显式发布。CLI 依据固定基线冻结本次预期合并结果，读回完整接受快照；这属于新归档协议，不改变旧 full sync 的含义。
 
 复用 TaskSyncCore 的冻结、账本、回执和读回机制，通过新的 ArchiveAdapter 接入。请求、文件字节、目标、结果、来源和预期版本在发送前固定；POST 前持久化 SENT。失答、UNKNOWN、NOT_FOUND 只查询原 key，不改正文/版本、不换 key 重发。
 
-幂等 key 绑定 actor、Project、Task、Subtask、profile 与完整请求。当前授权检查后先查原 key，再检查新请求版本；同 key 同输入返回原结果，异输入拒绝。同内容且当前版本匹配的新意图返回 UNCHANGED，仍保存可恢复的 Submission/回执，业务版本和资产修订不增。一次新的测试活动须保留新的来源发生记录或明确资产 key，不能仅按文件 hash 抹掉它。
+幂等 key 绑定 actor、Project、Task、target_kind、可空 Subtask、profile 与完整请求。当前授权检查后先查原 key，再检查新请求版本；同 key 同输入返回原结果，异输入拒绝。同内容且当前版本匹配的新意图返回 UNCHANGED，仍保存可恢复的 Submission/回执，业务版本和资产修订不增。一次新的测试活动须保留新的来源发生记录或明确资产 key，不能仅按文件 hash 抹掉它。
 
 只有回执字段和固定接受版本的完整内容核对一致，CLI 才返回归档完成。上传传输状态不覆盖 reported result，也不升级 legacy VERIFIED、Verdict 或 RELEASE_READY。
 
 ## 6. CLI 与显式 Skill
 
-协议由 [TMP §51](../protocol/TEST_MISSION_PROTOCOL.md#51-adr-027-local-显式归档协议目标合同)拥有。首版公开命令为 `hypertest profile`、`doctor`、`archive`、`status`、`reconcile` 和 `skill install`。`archive` 是一个主动作，不要求用户依次运行多个内部准备命令。`--dry-run` 完成所需校验并预览目标/产物，不提交业务变更；`--json` 返回稳定结构，日志写 stderr 且不含凭据。
+协议由 [TMP §51](../protocol/TEST_MISSION_PROTOCOL.md#51-adr-027-local-显式归档协议目标合同)拥有。首版公开命令为 `hypertest auth`、`profile`、`doctor`、`archive`、`status`、`reconcile` 和 `skill install`。`archive` 是一个主动作，不要求用户依次运行多个内部准备命令。`--dry-run` 完成所需校验并预览目标/产物，不提交业务变更；`--json` 返回稳定结构，日志写 stderr 且不含凭据。
 
 拟议调用：
 
 ```bash
-hypertest archive --profile my-project --task-id TASK_UUID \
-  --subtask-id SUBTASK_UUID --manifest ./archive-manifest.json --json
+hypertest archive --profile default --project-id PROJECT_UUID --task-id TASK_UUID \
+  --manifest ./archive-manifest.json --json
+
+# 需要归档到子任务时才增加 --subtask-id SUBTASK_UUID
 ```
 
-Skill 随 CLI 同一受控版本分发，名称为 `hypertest-archive`。在支持显式调用策略的宿主上关闭隐式调用，例如 Codex 的 `allow_implicit_invocation: false`；Web 给出包含显式 Skill 引用、Task ID、Subtask ID 的可复制指令。其他宿主采用各自明确的 Skill 选择方式，未核验的能力不标支持。自然语言“测试完成”本身不自动启动归档，也不推导 PASS。机制依据见 [OpenAI Skills](https://learn.chatgpt.com/docs/build-skills)。
+Skill 随 CLI 同一受控版本分发，名称为 `hypertest-archive`。在支持显式调用策略的宿主上关闭隐式调用，例如 Codex 的 `allow_implicit_invocation: false`；Web 给出包含显式 Skill 引用、Project ID、Task ID 和可选 Subtask ID 的可复制指令。支持用户级 `hypertest skill install --global --host codex`，其他宿主仅按核验能力提供全局安装；不在各项目植入自动同步指令。其他宿主采用各自明确的 Skill 选择方式，未核验的能力不标支持。自然语言“测试完成”本身不自动启动归档，也不推导 PASS。机制依据见 [OpenAI Skills](https://learn.chatgpt.com/docs/build-skills)。
 
 Skill 不监听聊天、修改测试指令、定期读取状态或扫描整个工作区；由用户在归档调用中指定正式产物范围。CLI 结果 UNKNOWN 时引导原请求查询，REJECTED 时报告具体拒绝原因，不启动自动重试循环。用户明确给出的归档指令已经授权该范围提交，不再增加固定二次确认。
 
@@ -117,12 +126,12 @@ CLI 与 Skill 采用独立 `cli-vSEMVER` 发行线及固定来源/资产摘要�
 
 ## 8. 开发顺序与完成条件
 
-1. **领域和 API**：实现新表、独立授权、任务/子任务管理、原子归档、幂等回执、固定版本读取和显式汇总；迁移保持旧表和历史。
-2. **CLI**：增加统一入口和 ArchiveAdapter，复用私有配置/账本；提供 JSON、诊断、原 key 恢复及旧账本只读兼容。
-3. **Skill 与 PC Web**：实现显式 Skill、任务/子任务创建、复制指令及原件/版本/来源展示，取消新流程中的绑定与 Hook 信任步骤。
+1. **领域和 API**：实现新表、CLI 配对授权及撤销、任务/可选子任务管理、根及子任务原子归档、幂等回执、固定版本读取和显式汇总；迁移保持旧表和历史。
+2. **CLI**：增加统一入口和 ArchiveAdapter，复用私有配置/账本；提供全局 profile、一次绑定、JSON、诊断、授权/归档原 key 恢复及旧账本只读兼容。
+3. **Skill 与 PC Web**：实现全局 CLI 授权页与操作指南、全局显式 Skill、任务/可选子任务创建、复制指令及原件/版本/来源展示，取消旧 native 会话绑定与 Hook 信任步骤。
 4. **退出旧接入和发行**：移除新包 MCP/Hooks/daemon 依赖，完成精确配置迁移、旧写准入退休及独立 CLI 安装发行。
 5. **部署与交付**：按仓库测试服务器流程从已推送 Git 构建、非破坏迁移和最小冒烟；代码自测、部署、客户端发行、USER_OWNED 功能验收分别记录。
 
 关键自动化验证集中在本次新增授权/跨目标拒绝、版本冲突、same-key/UNKNOWN、原文与失败历史保全、旧配置精确移除和原 key 只读恢复；普通命令与文案不另建全量宿主矩阵。纯方案文档只做文档静态检查，不触发服务部署或业务验收。
 
-交付完成应同时满足：新 Local 测试过程中无 HyperTest 自动同步；可在测试结束后以任务/子任务 ID 显式归档；CLI 与 Skill 可独立安装使用；旧自有 MCP/Hooks 配置可安全移除；历史与未决原请求仍可读回；官方新入口不再引导用户启用旧同步。
+交付完成应同时满足：新 Local 测试过程中无 HyperTest 自动同步；可在测试结束后以项目/任务 ID 和可选子任务 ID 显式归档；CLI 与 Skill 可独立安装使用；旧自有 MCP/Hooks 配置可安全移除；历史与未决原请求仍可读回；官方新入口不再引导用户启用旧同步。
