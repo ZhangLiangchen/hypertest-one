@@ -81,6 +81,8 @@ hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 
 CLI 使用 Python `ssl.create_default_context` 校验 HTTPS。若服务使用私有 CA，先将该公开 CA 证书加入本机 Python 信任，或在启动 CLI 的终端明确设置 `SSL_CERT_FILE=/absolute/path/trusted-ca.pem`。文件只应包含受信任的公开 CA 证书，不放任何私钥；不要关闭 TLS 校验，也没有 `--insecure` 选项。
 
+当前测试服务使用自有 **HyperTest One Connector CA**，不是系统默认信任的公有 CA。已核验其直接签发服务证书，无缺失中间证书。CA 公共证书、固定摘要与本机配置见[HTTPS 信任修复](CLI_TLS_TRUST_20261027.md)；安装 CLI 本身不会自动将它加入操作系统信任。
+
 ## 4. 查看、恢复和撤销授权
 
 ```sh

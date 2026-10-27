@@ -4,6 +4,7 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
+| CLI HTTPS 本机信任 | 已定位自有 CA 未受本机信任；公共 CA、摘要与[修复指引](CLI_TLS_TRUST_20261027.md)已提供，服务器指定 CA 的严格 TLS 验证通过 | 本机按命令级 CA 配置复核，并只恢复原配对请求；未确认项目权限 |
 | CLI Prompt 安装入口 | **实现、Web部署及GitHub Prompt发布完成**：全局授权页/项目指引可复制，创建页、归档详情与全局指引有入口；固定 cli-v0.1.0 双摘要、Skill安装与网页绑定。中英文附件和Release中文全文已公开，原CLI包/历史身份保持。见[本轮交付](CLI_PROMPT_INSTALL_DELIVERY_20261027.md) | Web固定Git `8b90efb878c51568c9e35901ad31116b742a5f7f`；定向回归、类型检查、构建与健康通过。USER_OWNED真实本机安装和授权验收尚未执行 |
 | Local 显式 Skill 与 CLI 后置归档重构 | **实现、API/Web部署及cli-v0.1.0公开发行已完成；schema0031**。独立归档 Task/可选 Subtask、CLI 配对授权与全局 profile、显式 Skill、根/子任务归档、PC Web 与原 key 恢复；代码默认退休旧 Local 新写，按收据清理自有 MCP/Hooks/bridge。每次上传必填 Project/Task ID，Subtask 可选。见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)、[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[授权指南](CLI_AUTHORIZATION_GUIDE.md) | 部署固定Git 1512d11，公开CLI源d02ab1d；相关回归、构建、迁移及健康通过。USER_OWNED尚未验收；真实本地受管配置清理由用户在明确安装位置执行，不能由服务端切换推定。旧历史/未决key保留，下方旧交付不重标 |
 | 旧 Local 一条命令 / Prompt 安装升级（历史） | **当时已实现并部署Web；local-v0.1.1正式公开并设为Latest，现由ADR-027 CLI接入替代**；updater 自动发现渠道/目标、保留原收据配置与Hooks、核对真实daemon、同命令安装Skill；stable发现和两目标发行构建通过。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)及[实现原记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md) | 正式发布不升级真实宿主验收，仍USER_OWNED；首次需已有私有Project授权，未知目标/Python明确报缺口 |
