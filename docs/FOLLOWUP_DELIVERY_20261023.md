@@ -1,5 +1,7 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
+2026-10-27 页面归档 Prompt：创建页和归档详情页新增复制模板入口，自动带入明确目标与当前HTTPS地址，用户补齐产物范围、Profile及本机CA后显式交给Agent。**Web已按Git `40ec1e3ce250faea8039da4477f64b6b26573090`部署**，API/schema/CLI不变；29项定向回归、类型/构建、PC合成浏览器及部署健康通过。真实归档未执行，见[交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。
+
 2026-10-27 CLI 授权页改进：已新增客户端「添加项目」入口与增量授权 Prompt，客户端/项目折叠树保留全部授权记录，绑定完成改为名称及绿色状态。**Web已按Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`部署**，API/schema0032/CLI包保持。14项定向回归、PC合成浏览器检查、类型/构建与部署健康通过；真实追加授权仍USER_OWNED。见[本轮交付](CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)。
 
 2026-10-27 CLI 项目授权简化：移除旧 ACTIVE 身份下拉框，新批准仅核对短码、项目、权限和有效期；服务端用不可变映射解析专用CLI actor，保留原授权/任务/回执。**API/Web已按Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`部署，schema0032；定向检查、构建、迁移与健康通过，安装Prompt发行说明同步完成。** 精确状态见[本轮交付](CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)，USER_OWNED未执行。

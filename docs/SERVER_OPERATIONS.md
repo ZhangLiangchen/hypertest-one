@@ -84,6 +84,8 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 
 ### 2026-10-27 CLI 项目授权简化
 
+最新Web已独立更新到Git `40ec1e3ce250faea8039da4477f64b6b26573090`，为创建页/详情页增加可复制归档Prompt。API/schema/固定ops继续保持本节身份，无迁移；镜像和健康见[归档Prompt交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。下方CLI授权树为前轮Web身份。
+
 后续Web已独立更新到Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`：新增客户端添加项目、折叠授权树及紧凑绑定状态，API/schema/固定ops保持本节身份。Web镜像与相关验证见[授权页交付](CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)。
 
 当前API/Web来源为Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`，schema `0032_cli_archive_uploader`。新批准自动解析稳定Operator的专用CLI上传身份，旧身份枚举入口退休；迁移不回填或删除历史。固定ops保持1512d11，无需更改nginx/TLS/CA或Worker。镜像、数据库逻辑备份与部署健康见[本轮交付](CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)。下方1512d11/8b90efb为前轮部署身份。

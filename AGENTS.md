@@ -16,6 +16,8 @@ CLI 授权已移除手选历史 ACTIVE 上传身份，用户只核短码/客户�
 
 CLI 授权页已补客户端「添加项目」入口、同profile增量授权Prompt及客户端→项目折叠树；绑定后展示名称和绿色状态。Web已按Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`部署，API保持0061007、schema0032、cli-v0.1.0不变。定向回归、PC合成浏览器和健康检查见[授权页交付](docs/CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)，真实追加授权仍USER_OWNED。
 
+页面归档Prompt已加入本地任务创建页和详情页，自动填写Project/Task及可选Subtask目标；产物范围、Profile、本机CA由用户补齐，未补齐不执行上传。Web已按Git `40ec1e3ce250faea8039da4477f64b6b26573090`部署，API0061007/schema0032/CLI包不变，见[Prompt交付](docs/ARCHIVE_PROMPT_DELIVERY_20261027.md)。真实归档仍USER_OWNED。
+
 ## 快速原型阶段：自测与验证约束
 
 - **当前项目处于快速原型阶段：保留关键自测，降低日常检查强度，避免过度自测拖慢开发效率。** 日常验证以本次改动的实际风险和最小足够范围为准，不以测试数量、覆盖率或完整验证矩阵作为普通交付目标。
