@@ -159,7 +159,7 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
   const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
     : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/cloud" ? cloud
       : name === "@/lib/cloud-operation" ? { useCloudOperation: () => { operationHookCalls++; return operation; } }
-        : name === "@/lib/archive" ? {} : name === "@/lib/archive-operation" ? { useArchiveOperation: () => ({ ready: true, blocked: false, busy: false, pending: null, manage: async (path, payload) => { localWrites.push({path, payload}); return null; } }) } : name === "@/app/archives/archive-shared" ? { ArchiveOperationNotice: () => null }
+        : name === "@/app/archives/archive-prompt" ? { ArchivePrompt: () => React.createElement("div", { "data-archive-prompt": true }) } : name === "@/lib/archive" ? {} : name === "@/lib/archive-operation" ? { useArchiveOperation: () => ({ ready: true, blocked: false, busy: false, pending: null, manage: async (path, payload) => { localWrites.push({path, payload}); return null; } }) } : name === "@/app/archives/archive-shared" ? { ArchiveOperationNotice: () => null }
         : name === "@/lib/local-create-operation" ? { useLocalCreateOperation: () => ({ ready: true, busy: false, success: false, pending: null, submit: async (payload) => { localWrites.push(payload); return null; }, resetError() {} }) }
         : name === "../../cloud/task-form" ? cloudForm : name === "../../cloud/cloud-shared" ? notices
           : name === "@/lib/uuid" ? { createUuid: () => "stable-key" }
@@ -172,6 +172,7 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
 test("unified creation shares title and objective without nesting the Cloud form", () => {
   for (const mode of ["cloud", "local"]) for (const locale of ["en", "zh"]) {
     const { html, operationHookCalls } = unifiedCreationHarness({ mode, locale });
+    assert.equal(html.includes("data-archive-prompt"), mode === "local");
     assert.equal((html.match(/id="title"/g) || []).length, 1);
     assert.equal((html.match(/id="objective"/g) || []).length, 1);
     assert.equal(operationHookCalls, 1);

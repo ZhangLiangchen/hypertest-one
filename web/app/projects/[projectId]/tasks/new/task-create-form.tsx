@@ -11,6 +11,7 @@ import { useCloudOperation } from "@/lib/cloud-operation";
 import { useLocalCreateOperation } from "@/lib/local-create-operation";
 import { useI18n } from "@/lib/i18n";
 import { WorkspaceLoading } from "@/app/workspace-ui";
+import { ArchivePrompt } from "@/app/archives/archive-prompt";
 import { ArchiveOperationNotice } from "@/app/archives/archive-shared";
 import { CloudCapabilitiesNotice, CloudOperationNotice } from "../../cloud/cloud-shared";
 import { CloudTaskForm } from "../../cloud/task-form";
@@ -56,6 +57,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
       <Button htmlType="submit" type="primary" disabled={localBlocked || cloudBlocked} loading={local.busy}>{t("Create archive task", "创建归档任务")}</Button>
     </div> : null}
   </Form></section>
+  {mode === "local" ? <section className="workspace-panel archive-section" style={{ marginTop: 24 }}><Typography.Title level={2}>{t("Archive prompt template", "归档 Prompt 模板")}</Typography.Title><ArchivePrompt projectId={projectId} /></section> : null}
   <ArchiveOperationNotice operation={local} onAccepted={(value) => accepted(value as ArchiveManagement)} />
   {legacy.pending ? <Alert type="warning" showIcon style={{ marginTop: 20 }} message={t("An earlier local creation is unresolved", "旧本地任务创建仍未决")} description={<Typography.Text code copyable>{legacy.pending.idempotency_key}</Typography.Text>} action={<Button loading={legacy.busy} onClick={() => void legacy.reconcile().then((detail) => { if (detail) router.push(`/tasks/${detail.task.id}`); })}>{t("Query original request", "查询原请求")}</Button>} /> : null}
   <CloudOperationNotice operation={cloudOperation} />

@@ -162,6 +162,14 @@ $hypertest-archive
 
 ## 6. Manifest 与支持的产物
 
+### 从页面复制归档 Prompt
+
+创建测试任务页选择「本地归档」后，下方提供「复制归档模板」和折叠全文。创建前模板明确保留 Task ID 占位；创建成功后跳转任务页，「上传目标」中可直接复制已填真实 Project ID、Task ID 的归档 Prompt。选择子任务时加入对应 Subtask ID，选择任务根空间时省略子任务。
+
+复制后补齐允许上传的绝对路径及内容范围、排除项、既有 Profile 与本机 CA 配置，再交给本地 Agent。平台自动填写当前 HTTPS 地址，不固定个人 Mac 路径或假定 default profile。任何占位未补齐时，模板要求先澄清，不能自动扫描或上传；复制动作不调用 CLI，也不创建任务或上传文件。剪贴板不可用时，可展开全文选中并手动复制。
+
+模板固定要求先只读核权限、所有权与目标，保留原件、凭据、回执和 journal，UNKNOWN 只查原请求；报告服务端确认结果及失败/未确认项。上传成功不代表测试 PASS 或任务完成。模板由 `web/lib/archive.ts` 统一生成中英文内容。
+
 manifest 是 UTF-8 JSON。`profile` 是协议标识，与 CLI 的本机连接 `--profile default` 含义不同。以下为格式示例，目标 UUID、文件路径和结果须替换为本次真实内容：
 
 ```json

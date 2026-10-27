@@ -12,14 +12,14 @@ const release = load("lib/cli-release.ts", { URL });
 const install = load("lib/cli-install-prompt.ts", { URL, require: (name) => name === "./cli-release" ? release : require(name) });
 const cliProjects = load("lib/cli-project-authorization.ts", { URL });
 const installComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? install : require(name) });
-const archive = load("lib/archive.ts", { require: () => ({ ApiError: Error }) });
+const archive = load("lib/archive.ts", { URL, require: () => ({ ApiError: Error }) });
 const task = { id: taskId, project_id: p, title: "Synthetic archive fixture", objective: "Declared test sources", owner_uploader_actor_ref: "interactive:actor", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN" };
 const operation = { ready: true, blocked: false, pending: null, busy: false, error: null };
 function renderPage(path, locale, query, search = new URLSearchParams({ projectId: p }), observe) {
   const antd = require("antd");
   const Form = observe ? Object.assign((props) => { if (props.form) { observe.approve = props.onFinish; observe.initialValues = props.initialValues; } return React.createElement(antd.Form, props); }, antd.Form) : antd.Form;
   const pageRequire = (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
-    : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
+    : name === "../archive-prompt" ? load("app/archives/archive-prompt.tsx", { require: pageRequire }) : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
       : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => observe?.operation || operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
         : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
           : name === "@/lib/cli-project-authorization" ? cliProjects
@@ -30,8 +30,8 @@ function renderPage(path, locale, query, search = new URLSearchParams({ projectI
 }
 test("archive instruction requires project/task and only adds an explicitly selected subtask", () => {
   const root = archive.archiveSkillInstruction(p, taskId);
-  assert.ok(root.startsWith("$hypertest-archive")); assert.ok(root.includes(`--project-id ${p} --task-id ${taskId}`)); assert.equal(root.includes("--subtask-id"), false);
-  assert.ok(archive.archiveSkillInstruction(p, taskId, "child", true).includes("--subtask-id child"));
+  assert.ok(root.startsWith("$hypertest-archive")); assert.ok(root.includes(`Project ID: ${p}`)); assert.ok(root.includes(`Task ID: ${taskId}`)); assert.equal(root.includes("Subtask ID:"), false);
+  assert.ok(archive.archiveSkillInstruction(p, taskId, p, true).includes(`Subtask ID: ${p}`));
 });
 test("CLI approval submits short-code project authorization without choosing an actor", async () => {
   const sent = [];
@@ -80,7 +80,9 @@ test("client tree keeps one project child with all grant records and exposes Add
 test("root archives render bilingual explicit upload, optional children and original version controls", () => {
   for (const locale of ["en", "zh"]) {
     const html = renderPage("app/archives/[taskId]/page.tsx", locale, { "archive-task": { task, subtasks: [], publications: [], submission_history: [], management_history: [] }, "archive-snapshot": { ...task, assets: [] }, "archive-actors": { items: [] } });
-    assert.ok(html.includes(`--project-id ${p} --task-id ${taskId}`)); assert.equal(html.includes("--subtask-id"), false);
+    assert.ok(html.includes(`Project ID: ${p}`)); assert.ok(html.includes(`Task ID: ${taskId}`)); assert.equal(html.includes("Subtask ID:"), false);
+    assert.ok(html.includes(locale === "en" ? "Copy archive prompt" : "复制归档 Prompt"));
+    assert.ok(html.includes("SSL_CERT_FILE"));
     assert.ok(html.includes(locale === "en" ? "Task root (no Subtask ID)" : "任务根空间（无需子任务 ID）"));
     assert.ok(html.includes(locale === "en" ? "Optional subtasks" : "可选子任务"));
     assert.ok(html.includes('id="archive-version"')); assert.equal(html.includes("hypertest_bind_task"), false);

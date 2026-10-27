@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { errorText } from "@/lib/api";
-import { archiveApi, archiveSkillInstruction, getArchiveActors, getArchiveSnapshot, getArchiveTask, type ArchiveAsset, type ArchiveManagement, type ArchiveSnapshot, type ArchiveTask } from "@/lib/archive";
+import { archiveApi, getArchiveActors, getArchiveSnapshot, getArchiveTask, type ArchiveAsset, type ArchiveManagement, type ArchiveSnapshot, type ArchiveTask } from "@/lib/archive";
 import { useArchiveOperation } from "@/lib/archive-operation";
 import { useI18n } from "@/lib/i18n";
 import { WorkspaceHeading, WorkspaceLoading, ProjectNavigation } from "@/app/workspace-ui";
 import { ReportedResultTag } from "@/app/tasks/task-records";
 import { ArchiveOperationNotice } from "../archive-shared";
+import { ArchivePrompt } from "../archive-prompt";
 
 const statuses = ["DRAFT", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"];
 const results = ["NOT_RUN", "PASS", "FAIL", "ERROR", "SKIPPED", "UNKNOWN", "BLOCKED"];
@@ -62,8 +63,7 @@ export default function ArchiveTaskPage() {
       <Typography.Paragraph>{t("Uploader", "上传身份")}: <Typography.Text code>{task.owner_uploader_actor_ref || t("Not assigned", "未指定")}</Typography.Text></Typography.Paragraph>
       {!task.owner_uploader_actor_ref ? <Alert type="info" showIcon message={t("Assign an uploader before archiving", "归档前请指定上传身份")} style={{ marginBottom: 16 }} /> : null}
       <label htmlFor="archive-target">{t("Destination", "归档位置")}</label><Select id="archive-target" className="archive-target" value={target} onChange={(value) => { setTarget(value); setVersion(undefined); setSubmissionId(undefined); setAsset(null); }} options={[{ value: "", label: t("Task root (no Subtask ID)", "任务根空间（无需子任务 ID）") }, ...children.map((c) => ({ value: c.id, label: `${c.title} · ${c.id}` }))]} />
-      <Typography.Paragraph className="archive-command" copyable={{ text: archiveSkillInstruction(projectId, taskId, target || undefined, locale === "en") }}><code>{archiveSkillInstruction(projectId, taskId, target || undefined, locale === "en")}</code></Typography.Paragraph>
-      <Typography.Paragraph className="muted">{t("Replace the artifact scope before sending this explicit instruction to your Agent. Successful archiving does not set a PASS result or complete the task.", "填写产物范围后，将这条显式指令交给 Agent。归档成功不会自动将任务标记为通过或完成。")}</Typography.Paragraph>
+      <ArchivePrompt projectId={projectId} taskId={taskId} subtaskId={target || undefined} />
     </section>
     <section className="workspace-panel archive-section" aria-labelledby="archive-children-heading"><div className="activity-heading"><Typography.Title id="archive-children-heading" level={2}>{t("Optional subtasks", "可选子任务")}</Typography.Title><Button onClick={() => open("subtask")} disabled={operation.blocked}>{t("Add subtask", "添加子任务")}</Button></div>
       <Table size="small" rowKey="id" dataSource={children} pagination={false} locale={{ emptyText: t("No subtasks. Uploads can go directly to the task root.", "没有子任务，可直接上传到任务根空间。") }} columns={[
