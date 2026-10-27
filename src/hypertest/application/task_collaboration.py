@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, text
 
 from hypertest.api.task_collaboration_schemas import COLLABORATION_PROFILE
+from hypertest.application.local_retirement import require_legacy_local_write
 from hypertest.application.management import record_change
 from hypertest.application.services import canonical_json_sha256
 from hypertest.application.session_tasks import project, public, version_snapshot
@@ -157,6 +158,7 @@ async def _change(db, task_id, payload, *, actor_ref=None, authorization_check=N
                 or old.input_digest != digest or old.operation != payload.operation):
             raise HTTPException(409, "COLLABORATION_KEY_CONFLICT")
         return old.response
+    require_legacy_local_write()
     if parent.deleted_at is not None or task.deleted_at is not None:
         raise HTTPException(409, "COLLABORATION_TASK_DELETED")
     if task.version != payload.expected_version:

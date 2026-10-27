@@ -34,10 +34,10 @@ export async function cloudServerTransportReady(): Promise<boolean> {
   try { await transport(); return true; } catch { return false; }
 }
 
-export async function trustedServerRequest(path: string, key: string, init: { method?: "GET" | "POST"; body?: string } | undefined, domain: "cloud" | "memory"): Promise<Response> {
+export async function trustedServerRequest(path: string, key: string, init: { method?: "GET" | "POST"; body?: string } | undefined, domain: "cloud" | "memory" | "archive" | "cli-authorization"): Promise<Response> {
   try {
     const settings = await transport();
-    const allowedPath = domain === "memory" ? /^memory\// : /^(?:cloud|projects)\//;
+    const allowedPath = domain === "memory" ? /^memory\// : domain === "archive" ? /^local-archive\// : domain === "cli-authorization" ? /^cli-authorizations\// : /^(?:cloud|projects)\//;
     if (!key || /[\r\n]/.test(key) || !allowedPath.test(path) || path.includes("\\") || /[\0\r\n#]/.test(path)
       || path.split("?")[0].split("/").some((part) => part === "." || part === "..")
       || (init?.body !== undefined && (init.method !== "POST" || Buffer.byteLength(init.body) > 12 * 1024 * 1024))) throw unavailable();

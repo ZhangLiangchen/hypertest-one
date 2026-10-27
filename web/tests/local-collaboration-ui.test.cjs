@@ -21,33 +21,23 @@ function harness() {
 const button = (tree, label) => nodes(tree).find((node) => node.type === ui.Button && text(node) === label);
 const input = (tree, suffix) => nodes(tree).find((node) => node.props?.id?.endsWith(`-${suffix}`));
 
-test("exact session authorization preserves bilingual input across a version conflict and explicitly adopts the reviewed version", async () => {
-  const h = harness(); button(h.render(), "Authorize session").props.onClick();
-  input(h.render(), "session").props.onChange({ target: { value: "new-real-root" } });
-  input(h.render(), "assignment").props.onChange({ target: { value: "Preserve original review draft" } });
-  h.operation.error = new Error("TASK_VERSION_CONFLICT"); h.task.version = 6; h.setLocale("zh");
-  let tree = h.render(); assert.equal(input(tree, "session").props.value, "new-real-root"); assert.equal(input(tree, "assignment").props.value, "Preserve original review draft");
-  const review = nodes(tree).find((node) => node.type === ui.Button && text(node).startsWith("使用已核对的最新版本")); review.props.onClick();
-  tree = h.render(); await nodes(tree).find((node) => node.type === "form").props.onSubmit({ preventDefault() {} });
-  assert.equal(h.requests.length, 1); assert.equal(h.requests[0].actor_ref, "owner-a"); assert.equal(h.requests[0].expected_version, 6); assert.equal(h.requests[0].session_id, "new-real-root"); assert.equal(h.requests[0].assignment, "Preserve original review draft");
-  assert.equal(input(h.render(), "session").props.value, "new-real-root", "failure retains the form");
-});
-
-test("only joined sessions can become primary, and handoff carries explicit unresolved materials", async () => {
-  const h = harness(), table = nodes(h.render()).find((node) => node.type === ui.Table && node.props.dataSource === h.state.participants);
-  const actions = table.props.columns.find((column) => column.key === "actions");
-  assert.equal(button(actions.render(null, h.state.participants[2]), "Make primary"), undefined);
-  button(actions.render(null, h.state.participants[1]), "Make primary").props.onClick();
-  input(h.render(), "materials").props.onChange({ target: { value: "Accepted report\nOriginal FAIL revision" } });
-  input(h.render(), "unresolved").props.onChange({ target: { value: "Old journal unobserved" } });
-  await nodes(h.render()).find((node) => node.type === "form").props.onSubmit({ preventDefault() {} });
-  assert.deepEqual(JSON.parse(JSON.stringify(h.requests[0].handoff)), { materials: ["Accepted report", "Original FAIL revision"], unresolved_items: ["Old journal unobserved"], private_journals_observed: false });
-  assert.equal(h.requests[0].participant_id, "member-b"); assert.equal(h.requests[0].expected_primary_generation, 3);
+test("retired Local collaboration keeps participation and contributions visible without new writes", () => {
+  const h = harness();
+  for (const locale of ["en", "zh"]) {
+    h.setLocale(locale); const tree = h.render();
+    assert.equal(button(tree, locale === "en" ? "Authorize session" : "授权会话加入"), undefined);
+    assert.equal(nodes(tree).some((node) => node.type === "form"), false);
+    const table = nodes(tree).find((node) => node.type === ui.Table && node.props.dataSource === h.state.participants);
+    const actions = table.props.columns.find((column) => column.key === "actions");
+    for (const participant of h.state.participants) assert.equal(actions.render(null, participant), "—");
+    assert.ok(text(tree).includes(locale === "en" ? "explicit CLI archives" : "CLI 显式归档"));
+  }
+  assert.equal(h.requests.length, 0);
 });
 
 test("pending operations offer original-key recovery, while initial binding and original FAIL keep their meanings", async () => {
   const h = harness(); h.operation.pending = { operation: "AUTHORIZE", idempotency_key: "original-key", expected_version: 4 }; h.operation.blocked = true;
-  const tree = h.render(); assert.equal(button(tree, "Authorize session").props.disabled, true);
+  const tree = h.render(); assert.equal(button(tree, "Authorize session"), undefined);
   const tables = nodes(tree).filter((node) => node.type === ui.Table), participants = tables[0];
   assert.equal(text(participants.props.columns.find((c) => c.key === "time").render(null, h.state.participants[0])), "Initial binding retained");
   const result = tables[1].props.columns.find((c) => c.key === "result").render(null, h.state.contributions[0]); assert.equal(result.props.result, "FAIL");

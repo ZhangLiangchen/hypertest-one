@@ -44,6 +44,7 @@ dev = [
 ]
 
 [project.scripts]
+hypertest = "hypertest.cli.__main__:main"
 hypertest-deepseek = "hypertest.deepseek_probe:main"
 hypertest-cloud = "hypertest.cloud.__main__:main"
 hypertest-local = "hypertest.local_sync.__main__:main"
@@ -58,6 +59,9 @@ build-backend = "hatchling.build"
 packages = ["src/hypertest"]
 
 [tool.hatch.build.targets.wheel.force-include]
+"skills/hypertest-archive/SKILL.md" = "hypertest/cli/assets/skills/hypertest-archive/SKILL.md"
+"skills/hypertest-archive/agents/openai.yaml" = "hypertest/cli/assets/skills/hypertest-archive/agents/openai.yaml"
+"skills/hypertest-archive/references/manifest.md" = "hypertest/cli/assets/skills/hypertest-archive/references/manifest.md"
 "skills/hypertest-local-task-onboarding/SKILL.md" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/SKILL.md"
 "skills/hypertest-local-task-onboarding/agents/openai.yaml" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/agents/openai.yaml"
 "skills/hypertest-local-task-onboarding/references/setup.md" = "hypertest/local_sync/assets/skills/hypertest-local-task-onboarding/references/setup.md"

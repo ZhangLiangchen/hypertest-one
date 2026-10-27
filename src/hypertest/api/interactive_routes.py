@@ -215,8 +215,16 @@ async def capabilities():
                 },
             }
         )
+    from hypertest.config import get_settings
+    retired = not get_settings().local_session_writes_enabled
+    retired_tools = {"hypertest_sync_task", "hypertest_bind_task", "hypertest_join_task",
+                     "hypertest_contribute_task", "hypertest_publish_task"}
+    if retired:
+        entries = [(name, schema) for name, schema in entries if name not in retired_tools]
     return {
         "profile": PROFILE,
+        "local_sync_retired": retired,
+        "local_archive_profile": "local-artifact-archive/v1alpha1",
         "tools": [
             {"name": name, "inputSchema": schema, "description": {
                 "hypertest_sync_task": "Save this Codex session's task, plan, cases and raw reports with their reported results. Management only: never starts tests or needs execution binding. Keep expected_version and a stable original idempotency key.",
@@ -233,8 +241,8 @@ async def capabilities():
         "execution_tools": execution,
         "host_attestation_schema": "hypertest.host-attestation/v1alpha1",
         "local_task_collaboration": {"profile": COLLABORATION_PROFILE,
-            "operations": ["JOIN", "CONTRIBUTE", "PUBLISH", "GET"],
-            "operator_operations": ["ENABLE", "AUTHORIZE", "REVOKE", "HANDOFF"]},
+            "operations": ["GET"] if retired else ["JOIN", "CONTRIBUTE", "PUBLISH", "GET"],
+            "operator_operations": [] if retired else ["ENABLE", "AUTHORIZE", "REVOKE", "HANDOFF"]},
     }
 
 

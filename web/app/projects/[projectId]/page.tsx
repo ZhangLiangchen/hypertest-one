@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { errorText, getProject, getProjectRuns } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { ProjectArchiveTasks } from "./archive-tasks";
 import { ProjectSessionTasks } from "./session-tasks";
 import { ProjectActions } from "../project-actions";
 import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
@@ -78,7 +79,8 @@ export default function ProjectPage() {
       {project.error ? <Alert type="warning" showIcon message={t("Project refresh failed", "项目刷新失败")} description={t("Previously loaded project details and your draft remain available. Retry to get the latest state.", "已加载的项目资料和草稿仍会保留，请重试获取最新状态。")} action={<Button onClick={() => void project.refetch()} loading={project.isFetching}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 20 }} /> : null}
 
       {(createMounted || fromRun || hasDraft) && <RunCreateDialog key={params.projectId} project={project.data} fromRun={fromRun} createOpen={createOpen} setCreateOpen={setCreateOpen} onDraftChange={setHasDraft} />}
-      <ProjectSessionTasks projectId={params.projectId} projectDeleted={Boolean(project.data.deleted_at)} />
+      <ProjectArchiveTasks projectId={params.projectId} projectDeleted={Boolean(project.data.deleted_at)} />
+      <details className="session-legacy-history"><summary>{t("Legacy local session history", "旧本地会话历史")}</summary><ProjectSessionTasks projectId={params.projectId} projectDeleted={Boolean(project.data.deleted_at)} /></details>
 
       <details className="session-legacy-history" open={fromRun ? true : undefined}>
         <summary>{t("Managed test run history", "受管测试运行历史")}</summary>

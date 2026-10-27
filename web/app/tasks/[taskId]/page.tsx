@@ -10,7 +10,6 @@ import { useI18n } from "@/lib/i18n";
 import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 import { SessionTaskRecords } from "../task-records";
 import { SessionTaskActions } from "../task-actions";
-import { LocalTaskBinding } from "../local-task-binding";
 import { LocalTaskCollaboration } from "../local-task-collaboration";
 import { TaskQuickNavigation } from "../task-quick-navigation";
 
@@ -29,7 +28,7 @@ export default function SessionTaskPage() {
     <div className="task-detail-layout">
       <TaskQuickNavigation key={query.data.task.id} detail={query.data} />
       <div className="task-detail-content">
-        <LocalTaskBinding task={query.data.task} />
+        <Alert type="info" showIcon style={{ marginBottom: 20 }} message={t("Legacy local session history", "旧本地会话历史")} description={t("New session synchronization is retired. Plans, reports, participation and original receipts remain readable. Use a new archive task for explicit CLI uploads.", "新的会话同步已停用。计划、报告、参与关系与原回执仍可查看；新的 CLI 上传请使用归档任务。")} action={<Button href={`/projects/${query.data.task.project_id}/tasks/new?mode=local`}>{t("Create archive task", "创建归档任务")}</Button>} />
         <LocalTaskCollaboration task={query.data.task} />
         <SessionTaskRecords detail={query.data} />
       </div>

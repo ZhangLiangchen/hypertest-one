@@ -22,25 +22,9 @@ from hypertest.local_sync.installer import (
 
 
 async def hook(config_path: Path):
-    from hypertest.local_sync.hooks import persist_trigger, sanitize_event, selected_trigger
-    config = ClientConfig.load(config_path, validate_credentials=False)
-    raw = sys.stdin.buffer.read(256 * 1024 + 1)
-    if len(raw) > 256 * 1024:
-        raise ClientError("LOCAL_EVENT_TOO_LARGE")
-    event = sanitize_event(json.loads(raw))
-    trigger = selected_trigger(config, event)
-    if trigger is None:
-        return {"status": "IGNORED"}
-    if config.local_sync.get("artifact_source") and trigger.event == "SessionStart":
-        from hypertest.local_sync.sources import session_context
-        return {"status": "BOUND", "_hook_context": session_context(config, event)}
-    pending = persist_trigger(config, trigger)
-    # This is the same daemon and OS ownership lock as MCP autostart; no model
-    # or independent uploader is launched when MCP is absent or still loading.
-    from hypertest.interactive_client.__main__ import ensure_daemon
-    await ensure_daemon(config, config_path)
-    client = LocalClient(config.socket_path, config.local_token_file)
-    return await client.exchange("local-hook", {"event": event, "event_id": pending.stem})
+    # Hooks left in a host's historical config must be cheap and side-effect free
+    # until receipt-owned retirement removes them. Never read artifacts or IPC.
+    return {"status": "IGNORED", "code": "LOCAL_SYNC_RETIRED"}
 
 
 def main():
@@ -104,6 +88,13 @@ def main():
             child.add_argument("--session-id", required=True)
             child.add_argument("--expected-version", required=True, type=int)
     args = parser.parse_args()
+    if args.command == "hook":
+        # Historical host configurations may still call this entry point until
+        # the user runs receipt-owned retirement. No reads, IPC or network.
+        return
+    if args.command not in {"uninstall", "recover-install", "doctor"}:
+        print("LOCAL_SYNC_RETIRED: use hypertest archive; recover old requests with hypertest legacy reconcile", file=sys.stderr)
+        raise SystemExit(3)
     try:
         if args.command == "runtime-check":
             from hypertest.interactive_client.__main__ import ensure_daemon, observe_runtime

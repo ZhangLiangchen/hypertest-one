@@ -16,7 +16,9 @@ export function SiteHeader() {
   const path = usePathname();
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideOpened, setGuideOpened] = useState(false);
-  const location = path.startsWith("/cloud-tasks/") ? t("Cloud task", "云端任务")
+  const location = path.startsWith("/cli-authorizations") ? t("CLI authorization", "CLI 授权")
+    : path.startsWith("/archives/") ? t("Local archive", "本地归档")
+    : path.startsWith("/cloud-tasks/") ? t("Cloud task", "云端任务")
     : path.startsWith("/runs/") ? t("Test run", "测试运行")
       : path.startsWith("/tasks/") ? t("Local task", "本地任务")
         : path.endsWith("/tasks/new") ? t("Create test task", "创建测试任务")
@@ -30,6 +32,7 @@ export function SiteHeader() {
       {path !== "/" && <span className="header-location">/ {location}</span>}
     </nav>
     <div className="topbar-actions">
+      <Link href="/cli-authorizations" aria-current={path.startsWith("/cli-authorizations") ? "page" : undefined}>{t("CLI authorization", "CLI 授权")}</Link>
       <Button className="guide-button" type="text" icon={<QuestionCircleOutlined aria-hidden />} onClick={() => { setGuideOpened(true); setGuideOpen(true); }} aria-label={t("Workflow guide", "使用指南")}><span>{t("Guide", "使用指南")}</span></Button>
       <Select
         className="locale-select"

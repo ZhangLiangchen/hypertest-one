@@ -1,0 +1,6 @@
+interface:
+  display_name: "HyperTest Archive"
+  short_description: "Explicitly archive completed local test artifacts"
+  default_prompt: "Use $hypertest-archive to upload my selected test artifacts to the specified HyperTest One project and task."
+policy:
+  allow_implicit_invocation: false

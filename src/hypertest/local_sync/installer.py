@@ -237,6 +237,9 @@ def install(*, directory: Path, host: str, host_config: Path, client_config: Pat
             event_bridge: str | None = None, workspace: Path | None = None,
             artifact_source: Path | None = None, harness_binary: Path | None = None,
             expected_receipt: dict | None = None) -> dict:
+    from hypertest.config import get_settings
+    if not get_settings().local_session_writes_enabled:
+        raise ClientError("LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI")
     if host not in HOST_PROVIDERS or not re.fullmatch(r"local-v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?", version):
         raise ClientError("LOCAL_RELEASE_OR_HOST_INVALID")
     directory, host_config, client_config = directory.expanduser().absolute(), host_config.expanduser().absolute(), client_config.expanduser().absolute()

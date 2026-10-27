@@ -10,8 +10,6 @@ export function TaskQuickNavigation({ detail }: { detail: SessionTaskDetail }) {
   const navigation = useRef<HTMLElement>(null);
   const initialAnchor = useRef(true);
   const items = [
-    ...(detail.task.binding_state === "UNBOUND" && !detail.task.deleted_at
-      ? [{ id: "task-binding", label: t("Bind local Agent", "绑定本地 Agent") }] : []),
     { id: "task-collaboration", label: t("Session collaboration", "会话协作") },
     { id: "task-overview", label: t("Task overview", "任务概览") },
     { id: "task-plan", label: t("Test plan", "测试计划") },

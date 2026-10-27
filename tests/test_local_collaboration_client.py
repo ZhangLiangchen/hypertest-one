@@ -10,6 +10,7 @@ from test_session_task_mcp import NoExecutionHost
 
 from hypertest.api.interactive_routes import capabilities
 from hypertest.api.task_collaboration_schemas import CollaborationMemberOperation
+from hypertest.config import get_settings
 from hypertest.interactive_client.api_client import ApiError
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.journal import Journal
@@ -108,7 +109,9 @@ class CollaborationTransport:
 
 
 @pytest.fixture
-def collaboration(local):
+def collaboration(local, monkeypatch):
+    # Underlying coordinator fixtures retain the historical collaboration contract.
+    monkeypatch.setattr(get_settings(), "local_session_writes_enabled", True)
     config, _, journal, _, identity = local
     identity = {**identity, "task_id": str(uuid4())}
     event = configure_artifact_source(config, identity)
@@ -292,7 +295,7 @@ async def test_hooks_contribute_approved_root_files_without_publishing_or_changi
 
 
 @pytest.mark.parametrize("operation", ["JOIN", "CONTRIBUTE", "PUBLISH"])
-async def test_mcp_host_metadata_fences_child_and_passes_parent_context(collaboration, operation):
+async def test_retired_mcp_collaboration_rejects_both_child_and_parent_context(collaboration, operation):
     from mcp.shared.memory import create_connected_server_and_client_session
 
     config, api, journal, _, identity, _ = collaboration
@@ -308,10 +311,11 @@ async def test_mcp_host_metadata_fences_child_and_passes_parent_context(collabor
     name = {"JOIN": "hypertest_join_task", "CONTRIBUTE": "hypertest_contribute_task", "PUBLISH": "hypertest_publish_task"}[operation]
     async with create_connected_server_and_client_session(create_server(DaemonClient(), local_host="codex")) as client:
         rejected = await client.call_tool(name, request(identity, operation), meta={"threadId": "real-child"})
-        assert rejected.isError and rejected.content[0].text == "NATIVE_CALLER_CONTEXT_MISMATCH"
+        assert rejected.isError and rejected.content[0].text == "LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"
+        parent = await client.call_tool(name, request(identity, operation), meta={"threadId": identity["session_id"]})
+        assert parent.isError and parent.content[0].text == "LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"
         assert api.calls == []
-        accepted = await client.call_tool(name, request(identity, operation), meta={"threadId": identity["session_id"]})
-        assert not accepted.isError and accepted.structuredContent["_sync"]["readback_complete"]
+        assert journal.db.execute("SELECT count(*) FROM intents").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize("operation", ["JOIN", "CONTRIBUTE", "PUBLISH"])

@@ -65,6 +65,25 @@ def test_memory_disabled_preserves_existing_nginx_output_byte_for_byte():
         assert hashlib.sha256(stack.render_nginx(values).encode()).hexdigest() == expected
 
 
+def test_archive_only_exposes_scoped_web_transport_without_cloud_or_memory(tmp_path):
+    values = {**configuration(), "HYPERTEST_MEMORY_GATEWAY": "disabled", "HYPERTEST_ARCHIVE_WEB": "enabled"}
+    stack.validate(values, live=False)
+    rendered = stack.render_nginx(values)
+    private = rendered.split("# Private filesystem transport.")[1]
+    assert "location /api/v1/local-archive/" in private
+    assert "location /api/v1/cli-authorizations/" in private
+    assert "location /api/v1/cloud/" not in private
+    assert "location /api/v1/memory/" not in private
+    assert "location / { return 404; }" in private
+    assert "listen unix:/run/hypertest-cloud-web/api.sock ssl;" in private
+    env = tmp_path / "compose.env"
+    env.write_text("\n".join(f"{key}={value}" for key, value in values.items()))
+    command = stack.compose_command(env, "config")
+    assert str(ROOT / "ops/container/compose.archive.yml") in command
+    assert str(ROOT / "ops/container/compose.cloud.yml") not in command
+    assert str(ROOT / "ops/container/compose.memory.yml") not in command
+
+
 @pytest.mark.parametrize("key,value", [
     ("HYPERTEST_MEMORY_GATEWAY", "true"),
     ("HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN", "http://memory.example.invalid:8443"),

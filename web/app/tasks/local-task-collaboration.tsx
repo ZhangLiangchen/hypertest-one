@@ -26,7 +26,7 @@ export function LocalTaskCollaboration({ task }: { task: SessionTask }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const doc = query.data, state = doc?.collaboration;
   const currentTask = doc?.task || task;
-  const canManage = !task.deleted_at && task.binding_state !== "UNBOUND";
+  const canManage = false; // ADR-027 retires new legacy writes; original-key read recovery stays available.
   const primary = state?.participants.find((item) => item.id === state.primary_participant_id && item.status === "ACTIVE");
   const name = (value: string) => ({ ENABLE: t("Enable collaboration", "启用多会话协作"), AUTHORIZE: t("Authorize session", "授权会话加入"), REVOKE: t("Revoke session", "撤销会话权限"), HANDOFF: t("Hand off primary role", "交接主会话"), JOIN: t("Session joined", "会话已加入"), CONTRIBUTE: t("Contribution accepted", "贡献已接受"), PUBLISH: t("Summary published", "汇总已发布") }[value] || value);
   function open(action: CollaborationOperation, participant = "") {
@@ -59,7 +59,7 @@ export function LocalTaskCollaboration({ task }: { task: SessionTask }) {
   return <section id="task-collaboration" tabIndex={-1} className="data-surface session-record session-collaboration" aria-labelledby="local-collaboration-heading">
     <div className="session-collaboration-heading">
       <div><Typography.Title id="local-collaboration-heading" level={2}>{t("Session collaboration", "会话协作")}</Typography.Title>
-        <Typography.Paragraph className="muted">{t("Independent local sessions can contribute to one task. The current primary session publishes the overall summary; each contribution retains its source and reported result.", "多个独立本地会话可共同完成一个任务。当前主会话负责整体汇总，各项贡献保留原始来源和报告结果。")}</Typography.Paragraph></div>
+        <Typography.Paragraph className="muted">{t("Legacy session participation, contributions and published summaries retain their original sources and reported results. New work uses explicit CLI archives.", "旧会话参与关系、贡献与汇总保留原始来源和报告结果。新的工作使用 CLI 显式归档。")}</Typography.Paragraph></div>
       <Space wrap>
         <Button onClick={() => void query.refetch()} loading={query.isFetching}>{t("Refresh sessions", "刷新会话")}</Button>
         {canManage && state && !draft ? <Button type="primary" disabled={operation.blocked} onClick={() => open(state.enabled ? "AUTHORIZE" : "ENABLE")}>{state.enabled ? name("AUTHORIZE") : name("ENABLE")}</Button> : null}
@@ -70,7 +70,7 @@ export function LocalTaskCollaboration({ task }: { task: SessionTask }) {
     {state ? <>
       <Descriptions column={3} layout="vertical" items={[
         { key: "enabled", label: t("Collaboration", "协作状态"), children: <Tag color={state.enabled ? "blue" : undefined}>{state.enabled ? t("Enabled", "已启用") : t("Single session", "单会话")}</Tag> },
-        { key: "primary", label: t("Current primary session", "当前主会话"), children: primary ? <span className="entity-key">{participantLabel(primary)}</span> : state.enabled ? t("No primary; overall publishing is paused", "暂无主会话，整体汇总暂停") : t("Enable collaboration after initial binding", "首次绑定后可启用协作") },
+        { key: "primary", label: t("Current primary session", "当前主会话"), children: primary ? <span className="entity-key">{participantLabel(primary)}</span> : state.enabled ? t("No primary; overall publishing is paused", "暂无主会话，整体汇总暂停") : t("No primary recorded", "未记录主会话") },
         { key: "generation", label: t("Primary generation", "主会话代次"), children: state.enabled ? state.primary_generation : "—" },
       ]} />
       {state.enabled ? <Table<TaskParticipant> rowKey="id" size="small" dataSource={state.participants} pagination={{ pageSize: 20, hideOnSinglePage: true }} scroll={{ x: 960 }} columns={[
@@ -82,7 +82,7 @@ export function LocalTaskCollaboration({ task }: { task: SessionTask }) {
           {item.status === "ACTIVE" && item.id !== state.primary_participant_id ? <Button size="small" disabled={operation.blocked || !!draft} onClick={() => open("HANDOFF", item.id)}>{t("Make primary", "设为主会话")}</Button> : null}
           <Button size="small" danger disabled={operation.blocked || !!draft} onClick={() => open("REVOKE", item.id)}>{t("Revoke access", "撤销权限")}</Button>
         </Space> : "—" },
-      ]} locale={{ emptyText: t("No participants have joined.", "暂无参与会话。") }} /> : <Typography.Paragraph className="muted">{task.binding_state === "UNBOUND" ? t("Bind the first local session before enabling collaboration.", "请先绑定首个本地会话，再启用多会话协作。") : t("Existing task history and initial source stay attached when collaboration is enabled. Older clients cannot submit new full snapshots after enabling it.", "启用后保留已有任务历史与初始来源；旧客户端将无法继续提交新的完整任务快照。")}</Typography.Paragraph>}
+      ]} locale={{ emptyText: t("No participants have joined.", "暂无参与会话。") }} /> : <Typography.Paragraph className="muted">{task.binding_state === "UNBOUND" ? t("No session was bound to this historical task.", "此历史任务未绑定会话。") : t("This task retained its single-session history.", "此任务保留原单会话历史。")}</Typography.Paragraph>}
     </> : null}
     {operation.storageError ? <Alert type="error" showIcon message={t("Private operation journal unavailable", "私有操作账本不可用")} description={t("New changes are blocked. Restore browser storage access and reload; keep this browser's pending requests.", "当前禁止新变更。请恢复浏览器存储访问后刷新，并保留此浏览器中的未决请求。") } style={{ marginBlock: 16 }} /> : null}
     {operation.pending ? <Alert type="warning" showIcon message={t("A frozen operation is awaiting confirmation", "一项已冻结操作正在等待确认")} description={<>

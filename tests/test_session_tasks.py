@@ -29,6 +29,8 @@ from hypertest.main import app
 
 @pytest.fixture
 async def context(monkeypatch):
+    # Historical profile fixtures opt in; deployed defaults reject new writes.
+    monkeypatch.setattr(get_settings(), "local_session_writes_enabled", True)
     monkeypatch.setattr(get_settings(), "connector_operator_key", "task-sync-fixture-operator")
     async with AsyncSessionLocal() as db:
         p = await create_project(db, ProjectCreate(key=public_key("TASK"), name="Task management QA"))

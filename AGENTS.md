@@ -4,11 +4,11 @@
 
 剩余工作统一看[当前TODO](docs/TODO.md)与[本轮跟进](docs/FOLLOWUP_DELIVERY_20261023.md)；实现、部署和USER_OWNED验收分别记录，不从历史候选状态重复安排已完成工作。
 
-## Local 下一阶段重构方向（2026-10-27）
+## Local 显式归档重构（2026-10-27）
 
 用户已确定按[ADR-027](docs/architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将 Local Agent 接入改为测试结束后显式调用 `hypertest-archive` Skill 与 `hypertest` CLI 归档。新流程移除 HyperTest 自有 MCP、全部 Hooks、native bridge 与常驻同步依赖，不再以 SessionStart/BIND/JOIN 为归档前提；上传者由独立归档授权确定，原会话仅为来源声明。新增全局 CLI 授权页、操作指导和一键绑定，用户级 profile 可跨目录/会话复用明确获准项目；每次上传必填 Project ID、Task ID，Subtask ID 可选，省略时直接归档到 Task 根空间，不补造默认子任务。具体任务见[开发计划](docs/LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)与[CLI 授权指南](docs/CLI_AUTHORIZATION_GUIDE.md)。
 
-**当前仅完成方案，产品实现、部署、CLI/Skill 发行尚未开始。** 下文 ADR-018/020/024/026 继续约束已部署版本和旧历史；新归档按领域§56、TMP§51、技术架构§50的目标合同实施。新链路可用后关闭旧 Local 新写，按受管收据精确移除自有配置，保留其他插件配置、凭据、全部旧任务/报告/回执、源文件和未决 key，只读恢复不再依赖 MCP/Hooks。不得以“移除接入”删除历史、伪造 native 来源、自动重发未知请求或连带停用 Cloud/Memory。
+**新归档源码及定向自测已完成，部署、CLI/Skill 公开发行与 USER_OWNED 验收分别以[本轮交付](docs/LOCAL_ARCHIVE_DELIVERY_20261027.md)记录；尚未填写的部署/发行身份不视为完成。** 下文 ADR-018/020/024/026 继续约束已部署版本和旧历史；新归档按领域§56、TMP§51、技术架构§50实施。代码默认关闭旧 Local 新写，部署切换与本地安装迁移分别记录；本地按受管收据精确移除自有配置，保留其他插件配置、凭据、全部旧任务/报告/回执、源文件和未决 key，只读恢复不再依赖 MCP/Hooks。不得以“移除接入”删除历史、伪造 native 来源、自动重发未知请求或连带停用 Cloud/Memory。
 
 ## 快速原型阶段：自测与验证约束
 

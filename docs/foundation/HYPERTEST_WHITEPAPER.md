@@ -23,7 +23,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ### Local 入口：Codex 测试任务与产物管理（ADR-018 优先）
 
-**2026-10-27 后续方向已确定，尚未实现：** [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将新的 Local 接入改为用户显式调用 Skill 与 CLI 的后置产物归档，移除该模式 MCP/Hooks 和实时会话绑定依赖。下文 ADR-018/024/026 描述已交付版本及其历史合同；在新链路完成切换前继续适用，不据方案文字宣称已移除旧运行能力。
+**2026-10-27 后置归档首片实现完成：** [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将新的 Local 接入改为用户显式调用 Skill 与 CLI 的后置产物归档，移除该模式 MCP/Hooks 和实时会话绑定依赖。下文 ADR-018/024/026 继续解释旧版本及历史合同；新 API、CLI/Skill 与 PC Web 已实现，部署、发行及 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)，用户机器的旧配置须显式按收据退休。
 
 [ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)已接受并启动实施：显式启用的 Local 任务可以由多个获授权真实 root 参与、分别追加贡献，由一个当前主会话汇总。任务 UUID、初始绑定和历史保持；未启用任务继续使用下列单会话合同。源码、部署、客户端发行与用户功能验收分别记录。
 
@@ -921,4 +921,4 @@ Web 提供全局 CLI 授权页、操作指导和一键绑定命令；用户一�
 
 HyperTest One 在这条路径中管理业务任务、子任务、产物修订、真实 reported result 和来源。上传者由授权认证，原测试会话只是可选来源声明；一个任务可归档多个会话的材料，原会话结束后仍可上传留存文件。归档完成、测试进度和质量结果分别表达，不因上传成功产生 PASS、独立执行证明或 RELEASE_READY。
 
-[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)已确定替换方向，[开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录待实现范围。新归档实体与旧 SessionTask、CloudTask 分别持有身份和历史，只共享 Project；移除旧 Local MCP/Hooks 接入时保留既有报告、授权、私有未决账本与原 key 只读恢复。方案、实现、部署、CLI 发行和用户验收分别记录。
+[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)首片实现已完成，[开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录实施范围，[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)区分实现、部署、发行与用户验收。新归档实体与旧 SessionTask、CloudTask 分别持有身份和历史，只共享 Project；移除旧 Local MCP/Hooks 接入时保留既有报告、授权、私有未决账本与原 key 只读恢复。方案、实现、部署、CLI 发行和用户验收分别记录。

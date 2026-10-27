@@ -1,0 +1,36 @@
+# Explicit archive Web admission. Reuse the protected TLS socket, without
+# enabling Cloud execution, issuing credentials or mounting keys into clients.
+services:
+  web:
+    user: "1000:1000"
+    environment:
+      HYPERTEST_ARCHIVE_WEB_ENABLED: "true"
+      HYPERTEST_ARCHIVE_WEB_ORIGIN: ${HYPERTEST_CLOUD_API_ORIGIN:?existing canonical HTTPS origin required}
+      HYPERTEST_ARCHIVE_WEB_OPERATOR_KEY_FILE: /run/hypertest-cloud-web-auth/operator-key
+      HYPERTEST_CLOUD_API_ORIGIN: ${HYPERTEST_CLOUD_API_ORIGIN}
+      HYPERTEST_CLOUD_API_SOCKET: /run/hypertest-cloud-web/api.sock
+      HYPERTEST_CLOUD_API_CA_FILE: /run/hypertest-cloud-web-ca/ca.crt
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_SOCKET_DIR:?private Web socket directory required}
+        target: /run/hypertest-cloud-web
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_API_CA_FILE:?trusted issuer CA required}
+        target: /run/hypertest-cloud-web-ca/ca.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_OPERATOR_KEY_FILE:?existing Web-owned private operator file required}
+        target: /run/hypertest-cloud-web-auth/operator-key
+        read_only: true
+        bind: {create_host_path: false}
+  nginx:
+    entrypoint: [/bin/sh, -c]
+    command: ["umask 000; exec nginx -g 'daemon off;'"]
+    volumes:
+      - type: bind
+        source: ${HYPERTEST_CLOUD_WEB_SOCKET_DIR}
+        target: /run/hypertest-cloud-web
+        bind: {create_host_path: false}

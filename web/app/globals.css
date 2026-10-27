@@ -500,3 +500,18 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .session-collaboration-form { display: grid; gap: 16px; margin-block: 24px; padding-block: 24px; border-block: 1px solid var(--ht-line); }
 .session-collaboration-form label { display: grid; gap: 8px; }
 .session-collaboration-fields { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
+
+/* Explicit Local archives inherit the shared desktop workspace surfaces. */
+.archive-section { margin-bottom: 24px; }
+.archive-target { display: block; width: 100%; margin-block: 8px 16px; }
+.archive-command { padding: 16px; background: var(--ht-canvas); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.archive-command code { font-size: 13px; }
+.archive-guide-steps { padding-inline-start: 24px; line-height: 1.9; }
+.archive-operation-notice { margin-block: 20px; }
+.archive-status-select { min-width: 200px; }
+.archive-artifact, .archive-publication { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--ht-line); }
+.archive-artifact pre, .archive-summary { white-space: pre-wrap; overflow-wrap: anywhere; }
+.archive-summary { font-family: inherit; line-height: 1.8; }
+.cli-bind-guide { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; margin-bottom: 24px; }
+.cli-pairing-code { font-variant-numeric: tabular-nums; font-size: 26px; letter-spacing: 0.08em; }
+.cli-authorization-projects { display: grid; gap: 10px; }

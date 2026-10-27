@@ -513,7 +513,7 @@ async def mcp_binding_boundary(native_binding):
 
 
 @pytest.mark.parametrize("operation", ["bind", "manual-sync", "manual-sync-old-target"])
-async def test_child_meta_cannot_write_known_parent_through_mcp_and_private_ipc(mcp_binding_boundary, operation):
+async def test_retired_mcp_rejects_writes_to_known_parent_without_changing_history(mcp_binding_boundary, operation):
     from mcp.shared.memory import create_connected_server_and_client_session
 
     from hypertest.interactive_client.mcp_server import create_server
@@ -521,8 +521,9 @@ async def test_child_meta_cannot_write_known_parent_through_mcp_and_private_ipc(
     _, api, journal, service, ipc_client, payload, _ = mcp_binding_boundary
     async with create_connected_server_and_client_session(create_server(ipc_client, local_host="codex")) as client:
         if operation.startswith("manual-sync"):
-            parent = await client.call_tool("hypertest_bind_task", payload, meta={"threadId": payload["session_id"]})
-            assert not parent.isError and parent.structuredContent["_sync"]["readback_complete"]
+            # Establish a historical bound record directly; the current MCP entry cannot bind.
+            parent = await service.coordinator.bind_task(payload, native_caller_context=native_caller(payload))
+            assert parent["_sync"]["readback_complete"]
             if operation == "manual-sync-old-target":
                 # A's private target files predate the local manual/auto flag.
                 path = service.coordinator._target_path(payload)
@@ -537,7 +538,7 @@ async def test_child_meta_cannot_write_known_parent_through_mcp_and_private_ipc(
         before = write_state(service.coordinator, journal)
         posts = sum(call[0] == "POST" for call in api.calls)
         result = await client.call_tool(tool, arguments, meta={"threadId": "actual-child-thread"})
-        assert result.isError and result.content[0].text == "NATIVE_CALLER_CONTEXT_MISMATCH"
+        assert result.isError and result.content[0].text == "LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"
         assert sum(call[0] == "POST" for call in api.calls) == posts
         assert write_state(service.coordinator, journal) == before
 
@@ -550,17 +551,14 @@ async def test_bind_arguments_cannot_supply_or_override_mcp_native_caller(mcp_bi
 
     _, api, journal, service, ipc_client, payload, _ = mcp_binding_boundary
     arguments = deepcopy(payload)
-    expected = "NATIVE_CALLER_CONTEXT_REQUIRED"
     if spoof == "argument-meta":
         arguments["_meta"] = {"threadId": payload["session_id"]}
-        expected = "Input validation error: Additional properties are not allowed ('_meta' was unexpected)"
     elif spoof == "argument-caller-context":
         arguments["native_caller_context"] = native_caller(payload)
-        expected = "Input validation error: Additional properties are not allowed ('native_caller_context' was unexpected)"
     before = write_state(service.coordinator, journal)
     async with create_connected_server_and_client_session(create_server(ipc_client, local_host="codex")) as client:
         result = await client.call_tool("hypertest_bind_task", arguments)
-        assert result.isError and result.content[0].text == expected
+        assert result.isError and result.content[0].text == "LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"
     assert api.calls == [] and write_state(service.coordinator, journal) == before
 
 
@@ -581,7 +579,7 @@ async def test_unsupported_host_mcp_binding_fails_closed_but_original_key_get_re
     before = write_state(service.coordinator, journal)
     async with create_connected_server_and_client_session(create_server(ipc_client, local_host=host)) as client:
         result = await client.call_tool("hypertest_bind_task", arguments, meta=metadata)
-        assert result.isError and result.content[0].text == "NATIVE_CALLER_CONTEXT_UNSUPPORTED"
+        assert result.isError and result.content[0].text == "LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"
         assert api.calls == [] and write_state(service.coordinator, journal) == before
         queried = await client.call_tool("hypertest_get_task_binding", {
             "project_id": payload["project_id"], "idempotency_key": "unknown-original-key"})

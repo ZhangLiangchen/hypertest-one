@@ -82,6 +82,21 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 - 保留现有 SSH 访问、公钥和人工密码恢复、主机密钥校验、TLS、VPN 白名单及其他网络
   访问限制；不将私钥、token 或密码写入源码、日志或交付物，不改动无关服务。
 
+### 2026-10-27 显式 Local 归档部署配置
+
+新 Local 入口使用独立的 `HYPERTEST_ARCHIVE_WEB=enabled` 与
+`ops/container/compose.archive.yml`。该开关只启用归档和 CLI 授权 Web BFF，
+复用既有受保护 HTTPS Unix socket、公开 CA 与 Web 私有 Operator 文件；
+不要求启用 Cloud Worker、模型执行或 Memory。相应受保护 nginx 路由由新版
+`stack.py` 生成，不新增 TCP 入口，不改变 VPN 白名单或 TLS 身份。
+
+部署需要同时更新固定 ops 来源、API、Web，并向前应用 `0030_local_archive`
+和 `0031_cli_authorization`；迁移新增归档/配对表并扩展授权 scope，保留旧任务与回执。
+`HYPERTEST_LOCAL_SESSION_WRITES_ENABLED` 默认为关闭，新部署不再接受旧 Local
+新写入，旧查询与原 key 恢复保留。不要以回滚 Web 为由重新启用自动同步。
+本轮源码、镜像、schema、公开 CLI 发行与健康检查的实际结果以
+[归档交付记录](LOCAL_ARCHIVE_DELIVERY_20261027.md)为准。
+
 ### 2026-10-26 Local 多会话协作交付
 
 最新Web已按`57cb59543a0e1b2102eccb06d917ba4e88bed071`部署本地任务详情左侧悬浮快速导航，见[导航交付](TASK_QUICK_NAVIGATION_DELIVERY_20261026.md)。此前按`72322d66417f17b6cecad2f194a6866cec18f3d3`部署项目工作台多Agent文案，见[文案更新](WEB_COPY_DELIVERY_20261026.md)。此前Web已按`df5155ba587c1a4acb32c805691c231b571cc866`独立部署一条Prompt安装/升级入口，API/schema与两个Worker保持；公开候选local-v0.1.1-rc.2包含新客户端。该轮Web镜像、公开下载/合成安装升级回归及部署健康见[Local更新交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。下段API/Web共同来源为此前协作部署的历史身份。

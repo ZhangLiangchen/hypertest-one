@@ -64,6 +64,10 @@ async def authenticate(db, token: str, scope: str | None = None, *, project_id=N
         .where(InteractiveIntegrationGrant.token_hash == token_hash(token))
         .execution_options(populate_existing=True)
     )
+    if grant is None and scope in {"archive:read", "archive:write"}:
+        from hypertest.application.cli_authorization import authenticate_credential
+
+        grant = await authenticate_credential(db, token_hash(token), scope, project_id)
     return await authenticate_integration_record(
         db, grant, scope, project_id=project_id, run_id=run_id
     )

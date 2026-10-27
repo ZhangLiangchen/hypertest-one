@@ -18,6 +18,25 @@ export class ApiError extends Error {
 
 export function errorText(error: unknown, locale: Locale): string {
   const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const archiveProblems: Record<string, [string, string]> = {
+    ARCHIVE_WEB_UNAVAILABLE: ["CLI authorization and archive management are not configured on this server.", "此服务器尚未配置 CLI 授权与归档管理入口。"],
+    ARCHIVE_TASK_VERSION_CONFLICT: ["The task changed. Your draft is retained; refresh and reopen this action to review its latest version.", "任务版本已变化。草稿已保留，请刷新并重新打开操作，核对最新版本。"],
+    ARCHIVE_ROOT_VERSION_CONFLICT: ["New root artifacts arrived. Review the latest versions before publishing a new summary.", "任务根空间已有新产物，请核对最新版本后重新发布汇总。"],
+    ARCHIVE_SUBTASK_VERSION_CONFLICT: ["A subtask archive changed. Review the latest versions before publishing.", "子任务归档版本已变化，请核对最新版本后再发布。"],
+    ARCHIVE_OPERATION_KEY_CONFLICT: ["The original key belongs to different input. Query it without resubmitting.", "原请求标识对应不同输入，请查询原请求，不要重发。"],
+    ARCHIVE_ORIGINAL_KEY_REQUIRED: ["The result is uncertain. Query the original request; do not submit it again.", "操作结果未决，请查询原请求，不要再次提交。"],
+    ARCHIVE_READBACK_UNAVAILABLE: ["The complete fixed snapshot could not be verified. Retry the read; previously loaded records are preserved.", "未能核对完整固定快照。请重试读取，已加载记录保留。"],
+    ARCHIVE_ACCEPTED_OWNER_IMMUTABLE: ["The uploader cannot change after an accepted archive. Keep the original ownership.", "已有归档提交后不可更改上传所有者，请保留原归属。"],
+    ARCHIVE_UPLOADER_UNAVAILABLE: ["The uploader has no valid archive grant for this project. Authorize the CLI first.", "上传身份没有此项目的有效归档授权，请先完成 CLI 授权。"],
+    ARCHIVE_SUBTASK_OWNER_MISMATCH: ["A subtask can only authorize its task's uploader.", "子任务只能授权给任务所属的上传身份。"],
+    ARCHIVE_RECEIPT_MISMATCH: ["The receipt does not match the frozen request. Query the original request without resubmitting.", "回执与固定请求不一致，请查询原请求，不要重发。"],
+    ARCHIVE_REQUEST_REJECTED: ["The request was rejected. Check its fields, target and authorization.", "请求被拒绝，请核对字段、目标与授权。"],
+    CLI_AUTH_RECEIPT_MISMATCH: ["The authorization receipt does not match the approved request. Query its original key.", "授权回执与批准请求不一致，请查询原 key。"],
+    CLI_PAIRING_NOT_PENDING_OR_EXPIRED: ["This pairing request has expired or is no longer pending. Refresh its state.", "配对请求已过期或已不处于待批准状态，请刷新查看。"],
+    CLI_UPLOADER_NOT_ACTIVE: ["This uploader identity is inactive. Select an existing active identity.", "此上传身份未启用，请选择已有的有效身份。"],
+    CLI_AUTHORIZATION_KEY_CONFLICT: ["The original authorization key conflicts. Query it without issuing another grant.", "原授权 key 冲突，请查询原请求，不要重新签发授权。"],
+  };
+  if (archiveProblems[detail]) return archiveProblems[detail][locale === "en" ? 0 : 1];
   if (locale === "en") {
     const bindingProblems: Record<string, string> = {
       TASK_VERSION_CONFLICT: "The task version changed. Refresh, then reopen this operation to review the latest version; your input is preserved.",

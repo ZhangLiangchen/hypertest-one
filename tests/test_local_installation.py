@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from hypertest.config import get_settings
 from hypertest.interactive_client.errors import ClientError
 from hypertest.interactive_client.security import private_create
 from hypertest.local_sync import installer
@@ -15,6 +16,8 @@ from hypertest.local_sync.manifest import artifact_read
 
 @pytest.fixture
 def installation(tmp_path, monkeypatch):
+    # These fixtures exercise historical installation preservation semantics.
+    monkeypatch.setattr(get_settings(), "local_session_writes_enabled", True)
     monkeypatch.setattr(installer, "probe_native_version", lambda host, executable=None: {
         "harness_version": "0.144.6" if host == "codex" else "2.1.218",
         "executable": "/verified/native-cli", "probe": "NATIVE_VERSION_COMMAND"})
@@ -303,3 +306,14 @@ def test_approved_artifact_strategy_is_private_and_preserves_explicit_business_f
     strategy.chmod(0o644)
     with pytest.raises(ClientError, match="PRIVATE_FILE_REQUIRED"):
         installer.install(**installation, artifact_source=strategy)
+
+
+def test_retired_local_installation_rejects_before_modifying_owned_files(installation, monkeypatch):
+    monkeypatch.setattr(get_settings(), "local_session_writes_enabled", False)
+    before_host = installation["host_config"].read_bytes()
+    before_client = installation["client_config"].read_bytes()
+    with pytest.raises(ClientError, match="LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"):
+        installer.install(**installation)
+    assert installation["host_config"].read_bytes() == before_host
+    assert installation["client_config"].read_bytes() == before_client
+    assert not installation["directory"].exists()

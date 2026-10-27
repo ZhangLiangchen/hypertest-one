@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, text
 
 from hypertest.api.task_schemas import PROFILE
+from hypertest.application.local_retirement import require_legacy_local_write
 from hypertest.application.services import canonical_json_sha256
 from hypertest.common.ids import uuid7
 from hypertest.domain.models import AuditEvent, OutboxEvent, Project
@@ -94,6 +95,7 @@ async def sync_task(db, payload, actor_ref, *, operator=False,
         if old.input_digest != digest:
             raise HTTPException(409, "Sync idempotency key conflicts with original input")
         return receipt_projection(old)
+    require_legacy_local_write()
     if parent.deleted_at is not None:
         raise HTTPException(404, "Project not found")
     task = await db.scalar(select(SessionTask).where(
@@ -305,6 +307,7 @@ async def read_report(db, task_id, report_id):
 
 
 async def manage_task(db, task_id, expected_version, *, changes=None, action="UPDATE"):
+    require_legacy_local_write()
     from hypertest.application.management import record_change
 
     candidate = await db.get(SessionTask, task_id)

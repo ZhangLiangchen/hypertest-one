@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, func, select, text
 
 from hypertest.api.task_schemas import PROFILE
+from hypertest.application.local_retirement import require_legacy_local_write
 from hypertest.application.management import record_change
 from hypertest.application.services import canonical_json_sha256
 from hypertest.application.session_tasks import get_task, project, public
@@ -85,6 +86,7 @@ async def create_task(db, project_id, payload):
         if old.operation != "CREATE" or old.input_digest != digest:
             raise HTTPException(409, "TASK_OPERATION_KEY_CONFLICT")
         return await creation_view(db, project_id, payload.idempotency_key)
+    require_legacy_local_write()
     if parent.deleted_at is not None:
         raise HTTPException(404, "Project not found")
     intended = payload.intended_actor_ref
@@ -137,6 +139,7 @@ async def bind_task(db, payload, actor_ref, *, authorization_check):
         if old.operation != "BIND" or old.input_digest != digest:
             raise HTTPException(409, "TASK_OPERATION_KEY_CONFLICT")
         return old.response
+    require_legacy_local_write()
     if parent.deleted_at is not None:
         raise HTTPException(404, "Project not found")
     task = await db.scalar(select(SessionTask).where(SessionTask.id == payload.task_id,

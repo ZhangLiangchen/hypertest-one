@@ -2471,7 +2471,7 @@ Cloud 配置、凭据及任务写入先取得 Project 共享行锁并持续到�
 
 ## 52. ADR-020 Local 客户端不变量
 
-2026-10-27：[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新 Local 后置归档方向，目标领域见§56，尚未实现。现有 SessionTask 和本节客户端的历史语义不被新归档身份覆盖；旧写入口在实现切换后退休，历史及原 key 读取保留。
+2026-10-27：[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新 Local 后置归档合同，首片领域实现见§56及[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。现有 SessionTask 和本节客户端的历史语义不被新归档身份覆盖；旧写入口在实现切换后退休，历史及原 key 读取保留。
 
 本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
@@ -2536,7 +2536,7 @@ HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architec
 
 ## 56. ADR-027 Local 显式后置归档目标合同
 
-本节为[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)的新归档领域规范，状态为已接受方向、实现未开始。新增实体只与 Cloud/旧 SessionTask 共享 Project；其迁移必须 additive，旧身份、结果、修订、授权和回执不转换或删除。
+本节为[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)的新归档领域规范，首片已实现；部署、发行与 USER_OWNED 验收另见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。新增实体只与 Cloud/旧 SessionTask 共享 Project；迁移 `0030_local_archive`、`0031_cli_authorization` 为 additive，旧身份、结果、修订、授权和回执不转换或删除。
 
 ### 56.1 身份、所有权与关系
 
@@ -2544,9 +2544,11 @@ HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architec
 | --- | --- |
 | LocalArchiveTask | UUID、project_id、title/objective、creator_actor_ref（Web Operator）、owner_uploader_actor_ref（integration actor，可未指定）、version（管理）、archive_version（根归档）、status、reported_result、created_at/updated_at |
 | LocalArchiveSubtask | UUID、project_id/task_id、title/分工、authorized_uploader_actor_ref、archive_version、status、reported_result、创建与接受时间 |
-| LocalArchiveSubmission | UUID、profile/operation、project_id/task_id、target_kind、subtask_id（可空）、认证后的 uploader actor/client、idempotency_key、完整冻结请求/digest、expected_archive_version、outcome、accepted_version、snapshot_ref、accepted_at |
-| LocalArchiveAssetRevision | UUID、project_id/task_id、target_kind、subtask_id（可空）、kind/stable_key/revision、完整内容、reported_result、逐资产 origin metadata、submission_id、accepted_at |
+| LocalArchiveSubmission | UUID、profile/operation、project_id/task_id、target_kind、subtask_id（可空）、认证后的 uploader actor/client、idempotency_key、完整冻结请求/digest、expected_archive_version、outcome、accepted_version、snapshot_id、created_at（服务器接受时间） |
+| LocalArchiveAssetRevision | UUID、project_id/task_id、target_kind、subtask_id（可空）、kind/stable_key/revision、完整内容、reported_result、逐资产 origin metadata、submission_id、created_at（对外资产投影为 accepted_at） |
 | LocalArchivePublication | UUID、task_id/task_version、root_archive_version、精确子任务归档版本清单、采纳的资产修订引用、任务汇总正文及 status/reported_result、管理提交者与时间 |
+| LocalArchiveSnapshot | 独立目标空间的 archive_version 与不可变完整 document；根与子任务分别唯一，初始 v1 为空资产 |
+| LocalArchiveOperation | Operator 管理原 key、operation、完整请求/摘要、task_version 及固定管理响应；独立于上传 Submission |
 
 Task 管理 version、Task 根 archive_version 和 Subtask archive_version 分别从 1 起；不含 BOUND/UNBOUND、native root、primary generation 或宿主 caller 字段。Subtask 可选：未指定时 target_kind=TASK 且 subtask_id=null，直接归档到 Task；指定时 target_kind=SUBTASK 且 subtask_id 非空。以检查约束固定这两个合法组合，不创建隐藏子任务、不推断唯一子任务、不将无效子任务回退至 Task。
 
@@ -2588,8 +2590,12 @@ CLI 用户级 profile 固定规范化 server、client、uploader actor 与各 Pr
 
 CliAuthorizationRequest 保存 CLI 在联网前生成的非秘密 request_id、原 CREATE key、server/client 身份、credential_hash、独立 verifier challenge、请求预选项目、短码及请求期限。credential secret/verifier 仅存 CLI 私有目录；短码或公开 URL 不授予兑换/查询权限。Web Operator 使用稳定 APPROVE key 一次批准并原子冻结既有 actor、项目 allowlist、archive scopes、授权期限与原 credential/challenge 指纹，批准后不可改写或扩权。
 
-CLI 对固定批准结果形成独立原 key 的 REDEEM；服务端在校验私有 proof 后原子创建/关联 integration grant 与原 credential_hash，保存非秘密回执并将请求转为 BOUND。PENDING → APPROVED → BOUND 为正常路径；未绑定请求可拒绝或过期，终态不可恢复成新授权。短时配对期限与 grant 期限独立，重查 BOUND 必须检查 grant 当前是否撤销/到期，不能把历史已批准当作当前有效。既有 scope 不自动转换为 archive 权限；CLI 永不持有 Operator key。
+CLI 对固定批准结果形成独立原 key 的 REDEEM；服务端在校验私有 proof 后原子创建各 Project 独立 integration grant，并通过 `CliAuthorizationGrant(request_id, project_id, grant_id)` 关联原配对请求的 credential_hash；保存非秘密回执并将请求转为 BOUND。credential_hash 仅在配对请求内唯一保存，各 Project grant 的 token_hash 保持原有独立唯一值，不将同一 CLI hash 复制到多条 grant。鉴权只对 archive scope 按显式 Project 解析映射，再执行当前 actor/client/grant 状态、期限、scope 校验；撤销一个项目 grant 不扩大或抹去其他项目授权。PENDING → APPROVED → BOUND 为正常路径；未绑定请求可拒绝或过期，终态不可恢复成新授权。短时配对期限与 grant 期限独立，重查 BOUND 必须检查 grant 当前是否撤销/到期，不能把历史已批准当作当前有效。既有 scope 不自动转换为 archive 权限；CLI 永不持有 Operator key。
 
 CREATE、APPROVE、REDEEM 各自冻结正文/key，并有独立回执；相同 key 异输入拒绝。可能已发送的操作 UNKNOWN/NOT_FOUND 只能查询原 key，不能重放或重新签发。CLI 已持有 secret，凭受私有 proof 保护的原回执核对固定授权和指纹即可恢复 profile，不取回明文 token；确认前一阶段后，只有明确从未发送的下一阶段允许由显式 resume 首次发送。授权账本与归档账本 namespace 分开。
 
 profile 原子保存/合并，只合并同 server/client/actor 的已批准项目授权；身份不匹配须使用明确的新 profile，不覆盖旧身份/账本。服务端撤销使对应 grant 后续不可用，已接受产物/回执保持；读回仍需当前有效授权。auth logout 只停用本机 profile，不冒充撤销，不清除未决 credential、journal 或历史。没有自动续签、后台轮询或跨机器复制模型登录。
+
+### 56.6 旧本地账本的恢复边界
+
+新 CLI 只读取用户明确指定私有配置下的旧 `client.sqlite3` 与批准快照，支持既有 SYNC/BIND/协作 namespace，不修改原 journal 或迁移为新归档 Submission。完整原请求在场时逐字段核对原回执与固定版本；旧 compact 记录缺少原正文时只保存新的只读恢复记录，并明确 `LEGACY_ACCEPTED_READBACK`、`original_request_verified=false`，不得重建原正文或补造原请求比较。旧 CREATE 的原 key 与冻结管理请求仍由原 Web IndexedDB journal 拥有，通过 Web 只读恢复，不向 CLI 转授 Operator 身份。

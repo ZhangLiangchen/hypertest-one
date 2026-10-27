@@ -1,8 +1,8 @@
 # ADR-027：Local 显式 Skill 与 CLI 后置产物归档
 
-日期：2026-10-27（Asia/Singapore）。状态：**架构方向已接受，产品实现未开始**。
+日期：2026-10-27（Asia/Singapore）。状态：**架构决定已采用，首片产品实现完成**。部署、CLI/Skill 发行及 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)；源码与自动回归不替代用户功能验收。
 
-用户决定将 Local 模式改为测试完成后显式归档：移除该模式现有 MCP、Hooks 和常驻同步依赖，新增 HyperTest One CLI 与 `hypertest-archive` Skill。本决定拥有新流程及旧入口退出范围；实施任务见[重构开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。本文中的命令、实体和接口均为待实现目标，不表示现有客户端或服务器已切换。
+用户决定将 Local 模式改为测试完成后显式归档：移除该模式现有 MCP、Hooks 和常驻同步依赖，新增 HyperTest One CLI 与 `hypertest-archive` Skill。本决定拥有新流程及旧入口退出范围；实施任务见[重构开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。本文中的命令、实体和接口已有首片实现。旧客户端机器仍须显式执行受管退休；不据源码完成推定用户机器配置已移除或部署、发行已经完成。
 
 ## 1. 改造原因
 
@@ -21,7 +21,7 @@ MCP 本身支持读写工具调用和 HTTP 传输，频繁同步来自当前触�
 5. 新 profile 为 `local-artifact-archive/v1alpha1`。新增 Local 专用归档实体，沿用 Project；不共用 CloudTask/CloudAttempt，不新增跨 Local/Cloud 的通用 Task 根表。
 6. Local 的产品职责为测试资产归档、查询与汇总，测试仍由本地 Agent 和项目工具完成。Cloud 执行能力、Memory 独立权限及旧执行领域保持各自边界。
 
-本决定替代 ADR-020 在**新 Local 接入流程**中的自动 Hooks/MCP 默认方案，以及 ADR-024/026 在该新归档 profile 中的 native BIND/JOIN 前置条件。旧 SessionTask 记录、绑定、参与关系、回执和历史仍按原合同解释。切换前已部署旧版本继续受旧合同约束；本次文档提交不改变运行行为。
+本决定替代 ADR-020 在**新 Local 接入流程**中的自动 Hooks/MCP 默认方案，以及 ADR-024/026 在该新归档 profile 中的 native BIND/JOIN 前置条件。旧 SessionTask 记录、绑定、参与关系、回执和历史仍按原合同解释。切换前已部署旧版本继续受旧合同约束；实际部署版本、旧写准入切换及客户端发行身份由本轮交付记录拥有，不改写下方旧版历史。
 
 ## 3. 用户流程与组件职责
 
@@ -73,9 +73,9 @@ flowchart LR
 
 `task:sync`、`cloud:work` 和 Memory scope 不自动获得归档权限。Web 使用其既有 Operator 管理边界选择上传 actor；CLI 不取得 Operator key，也不自助扩大授权。凭据仅由客户端从私有配置读取，不写入 Skill、manifest、命令参数、日志或响应；私有文件不被宣称为同 UID 进程隔离。
 
-PC Web 增加全局「CLI 授权」页，提供版本明确的安装/升级指引、无秘密的一键绑定命令、已授权客户端/项目/期限与撤销入口。拟议命令为 `hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default`；可选 `--project-id` 仅预选项目，不产生权限。具体操作见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
+PC Web 增加全局「CLI 授权」页，提供版本明确的安装/升级指引、无秘密的一键绑定命令、已授权客户端/项目/期限与撤销入口。已实现的绑定命令为 `hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default`；可选 `--project-id` 仅预选项目，不产生权限。具体操作见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
 
-CLI 发起短时配对，用户在既有 Web 登录下核对短码并一次确认既有上传 actor、项目 allowlist、`archive:read/write` 和期限；CLI 完成原请求兑换、确认并保存全局 profile 后退出。短码/URL 不能兑换凭据，命令不携带 token；不需要本地回调服务。CLI 在发送前私有持久保存高熵 credential、独立配对 verifier 和原 key，服务端只接收必要验证材料；失答后凭原 key 确认固定授权，无需重新签发或取回明文 secret。精确配对/恢复合同由 TMP§51.4、领域§56.5拥有。
+CLI 发起短时配对，用户在既有 Web 登录下核对短码并一次确认既有上传 actor、项目 allowlist、`archive:read/write` 和期限；CLI 完成原请求兑换、确认并保存全局 profile 后退出。短码/URL 不能兑换凭据，命令不携带 token；不需要本地回调服务。CLI 在发送前私有持久保存高熵 credential、独立配对 verifier 和原 key，服务端只接收必要验证材料；失答后凭原 key 确认固定授权，无需重新签发或取回明文 secret。精确配对/恢复合同由 TMP§51.4、领域§56.5拥有。每次绑定的全局 credential 经 `CliAuthorizationRequest → CliAuthorizationGrant` 显式映射到各 Project 独立 integration grant；各 grant 保持独立、唯一的 `token_hash`，不会把同一 credential hash 写入多个 grant。归档鉴权按显式 Project 选择映射，再复用当前 actor/client/grant 的状态、scope 与期限校验。
 
 profile 固定规范化 server、client、uploader actor 及显式获准项目，不与仓库绑定；凭据按服务器与身份隔离，不因切换目录/任务自动换 profile。增加项目、scope 或改变 actor 需新的 Web 确认，已有批准不被隐式扩大。服务端撤销和本机退出分别表达，保留已接受档案与私有未决账本；只有命令存活期间为配对完成做有界查询，不后台轮询或续签。
 
@@ -91,9 +91,9 @@ profile 固定规范化 server、client、uploader actor 及显式获准项目�
 
 ## 6. CLI 与显式 Skill
 
-协议由 [TMP §51](../protocol/TEST_MISSION_PROTOCOL.md#51-adr-027-local-显式归档协议目标合同)拥有。首版公开命令为 `hypertest auth`、`profile`、`doctor`、`archive`、`status`、`reconcile` 和 `skill install`。`archive` 是一个主动作，不要求用户依次运行多个内部准备命令。`--dry-run` 完成所需校验并预览目标/产物，不提交业务变更；`--json` 返回稳定结构，日志写 stderr 且不含凭据。
+协议由 [TMP §51](../protocol/TEST_MISSION_PROTOCOL.md#51-adr-027-local-显式归档协议目标合同)拥有。首版公开命令为 `hypertest auth`、`profile`、`doctor`、`archive`、`status`、`reconcile` 、`skill install`，以及用于旧安装维护的 `legacy retire/reconcile`。`archive` 是一个主动作，不要求用户依次运行多个内部准备命令。`--dry-run` 完成所需校验并预览目标/产物，不提交业务变更；`--json` 返回稳定结构，日志写 stderr 且不含凭据。
 
-拟议调用：
+已实现的调用形式（须使用实际目标和获准产物）：
 
 ```bash
 hypertest archive --profile default --project-id PROJECT_UUID --task-id TASK_UUID \
@@ -117,8 +117,10 @@ CLI 与 Skill 采用独立 `cli-vSEMVER` 发行线及固定来源/资产摘要�
 | 旧接入 Skill 和自动同步提示 | 从新包与默认安装中移除，以显式归档 Skill 替代；精确升级自有文件，保留用户修改的冲突副本 |
 | 本地旧进程和状态 | 停止自有同步触发/daemon；保留私有授权、journal、冻结请求、源文件及安装/迁移收据 |
 | 旧服务端写入口 | 在新链路可用后的明确切换点关闭新 CREATE/BIND/full-sync/ENABLE/JOIN/CONTRIBUTE/PUBLISH 等 Local 会话写入准入；已接受回执与固定版本读取继续可用 |
-| 旧请求恢复 | 新 CLI 提供显式选择旧 profile/账本的只读查询；不重放旧 POST，不合并新旧 namespace，不扫描其他 root 私有账本 |
+| 旧请求恢复 | `hypertest legacy reconcile --config FILE --request-id KEY` 对明确旧账本的 SYNC/BIND/协作原 key 只读查询及固定版本读回；CREATE 保留原 Web journal 恢复，不重放旧 POST，不合并 namespace，不扫描其他 root |
 | 旧业务记录与发行物 | 保留 SessionTask、成员、贡献、报告、回执、失败原件、tag/digest；不自动转换为归档实体，也不重标旧验收 |
+
+旧 compact journal 未保存完整原正文时，CLI 只报告 `LEGACY_ACCEPTED_READBACK` 与 `original_request_verified=false`；不得从接受快照重建或宣称比较了不存在的原请求。完整冻结请求恢复核对原内容后才报告 `LEGACY_RECOVERED`。原 journal 不改写，恢复记录单独保留。
 
 切换前在途且已经进入服务端事务的请求按原协议完成接受或拒绝，结果仍可按原 key 查询。已在本地冻结但未决的记录不因卸载或切换被清除；无回执不能推断未执行。无需等待所有历史 UNKNOWN 消失才发布新流程，也不得把它们重发至新归档接口。
 
@@ -132,6 +134,8 @@ CLI 与 Skill 采用独立 `cli-vSEMVER` 发行线及固定来源/资产摘要�
 4. **退出旧接入和发行**：移除新包 MCP/Hooks/daemon 依赖，完成精确配置迁移、旧写准入退休及独立 CLI 安装发行。
 5. **部署与交付**：按仓库测试服务器流程从已推送 Git 构建、非破坏迁移和最小冒烟；代码自测、部署、客户端发行、USER_OWNED 功能验收分别记录。
 
-关键自动化验证集中在本次新增授权/跨目标拒绝、版本冲突、same-key/UNKNOWN、原文与失败历史保全、旧配置精确移除和原 key 只读恢复；普通命令与文案不另建全量宿主矩阵。纯方案文档只做文档静态检查，不触发服务部署或业务验收。
+上述领域/API、CLI、Skill、PC Web、轻量发行构建和旧入口退休代码均已完成；`0030_local_archive` 与 `0031_cli_authorization` 为新增迁移。服务端新旧写准入错误为 `LOCAL_SYNC_RETIRED_USE_EXPLICIT_ARCHIVE`，既有回执查询保留。部署、发行和 USER_OWNED 状态以[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)逐项记录。
+
+关键自动化验证集中在本次新增授权/跨目标拒绝、版本冲突、same-key/UNKNOWN、原文与失败历史保全、旧配置精确移除和原 key 只读恢复；普通命令与文案不另建全量宿主矩阵。本轮规范状态更新只检查文档差异；产品代码自测与部署记录另列，不触发额外业务验收。
 
 交付完成应同时满足：新 Local 测试过程中无 HyperTest 自动同步；可在测试结束后以项目/任务 ID 和可选子任务 ID 显式归档；CLI 与 Skill 可独立安装使用；旧自有 MCP/Hooks 配置可安全移除；历史与未决原请求仍可读回；官方新入口不再引导用户启用旧同步。

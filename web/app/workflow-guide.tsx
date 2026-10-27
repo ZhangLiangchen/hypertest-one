@@ -10,7 +10,7 @@ export function WorkflowGuide({ open, onClose }: { open: boolean; onClose: () =>
     <Steps direction="vertical" current={-1} items={[
       { title: t("Choose a project", "选择测试项目"), description: t("Keep each project's tasks, cases and reports together.", "集中管理项目的任务、用例和报告。") },
       { title: t("Choose a testing mode", "选择测试方式"), description: t("Test locally with Codex, Claude Code or DeepSeek Harness. Cloud testing supports DeepSeek Harness + Codex.", "本地可使用 Codex、Claude Code 或 DeepSeek Harness；云端支持 DeepSeek Harness + Codex 测试。") },
-      { title: t("Collect testing artifacts", "归集测试产物"), description: t("Collect local session work and cloud testing artifacts under their project, preserving sources and versions.", "将本地会话同步的任务、计划、用例与报告，以及云端任务产物归集到所属项目，保留来源和版本。") },
+      { title: t("Collect testing artifacts", "归集测试产物"), description: t("Explicitly archive local artifacts with the CLI Skill after testing. Cloud artifacts remain under their Project, with sources and versions preserved.", "本地测试结束后显式调用 CLI Skill 归档产物；云端产物归集到所属项目，保留来源和版本。") },
       { title: t("Review results and history", "查看结果与历史"), description: t("Read Agent-reported results, original reports and revisions. Task progress and test results are shown separately.", "查看 Agent 报告结果、原始报告和修订。任务进度与测试结果分别展示。") },
     ]} />
     <Typography.Paragraph className="muted">{t("Existing managed test runs and their execution records remain available under each project's history.", "既有受管测试运行及其执行记录仍可在项目历史入口查看。")}</Typography.Paragraph>

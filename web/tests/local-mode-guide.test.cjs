@@ -193,32 +193,28 @@ test("optional legacy paths preserve shell boundaries and are never required for
   }
 });
 
-test("the project guide is reachable without blocking existing task reads", () => {
-  const section = load("app/projects/[projectId]/session-tasks.tsx", { require: (name) =>
+test("the archive project guide is reachable without blocking archive reads", () => {
+  const section = load("app/projects/[projectId]/archive-tasks.tsx", { require: (name) =>
     name === "@/lib/i18n" ? i18n : name === "./local-mode-guide" ? component
       : name === "@tanstack/react-query" ? { useQuery: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }) }
-      : name === "@/lib/api" ? {} : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
-      : name === "@/app/tasks/task-actions" ? { SessionTaskActions: () => null }
+      : ["@/lib/api", "@/lib/archive"].includes(name) ? {} : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
       : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
-  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(section.ProjectSessionTasks, { projectId })));
-  assert.ok(html.includes("Set up local mode"));
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(section.ProjectArchiveTasks, { projectId, projectDeleted: false })));
+  assert.ok(html.includes("CLI and archive guide"));
   assert.ok(html.includes('aria-expanded="false"'));
-  assert.ok(html.includes("No local session tasks"));
+  assert.ok(html.includes("No local archives yet"));
   assert.equal(html.includes("python3 -I -c"), false);
 });
 
-test("both languages offer one complete prompt before any private path entry", () => {
+test("both languages guide explicit archives and link global CLI authorization without legacy setup", () => {
   for (const locale of ["en", "zh"]) {
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.LocalModeGuide, { projectId, initiallyOpen: true })));
-    for (const text of ["Codex", "Claude Code", "DeepSeek harness", projectId, "task:sync", "--channel candidate", "0.144.6", "update-local.py", updater.sha256]) assert.ok(html.includes(text), text);
-    for (const text of locale === "en" ? ["Copy install / upgrade prompt", "Candidate release; native-host acceptance pending", "Optional paths and direct command"] : ["复制安装 / 升级 Prompt", "候选发行，真实宿主验收待完成", "可选路径与直接执行命令"]) assert.ok(html.includes(text), text);
-    assert.equal(html.includes("Matching source commit"), false);
-    assert.equal(html.includes("New private virtual environment"), false);
-    assert.equal(/type="password"|name="token"|READY|RELEASE_READY|VERIFIED/.test(html), false);
-    assert.equal((html.match(/aria-label="Local install \/ upgrade prompt"/g) || []).length, locale === "en" ? 1 : 0);
-  }
-  for (const target of ["app/projects/[projectId]/local-mode-guide.tsx", "app/tasks/source-client-upgrade.tsx"]) {
-    const source = fs.readFileSync(path.join(__dirname, "..", target), "utf8");
-    assert.equal(/fetch\(|useMutation|localStorage|sessionStorage|dangerouslySetInnerHTML/.test(source), false);
+    assert.ok(html.includes(projectId)); assert.ok(html.includes(`/cli-authorizations?projectId=${projectId}`));
+    assert.ok(html.includes("hypertest-archive"));
+    for (const text of locale === "en" ? ["Install and authorize the CLI once", "Task root", "Archive after local testing"] : ["安装 CLI 并完成一次授权", "任务根空间", "本地测试结束后归档"]) {
+      if (text === "Task root" || text === "任务根空间") continue;
+      assert.ok(html.includes(text), text);
+    }
+    assert.equal(/task:sync|--channel candidate|update-local.py|0\.144\.6|type="password"|name="token"|RELEASE_READY|VERIFIED/.test(html), false);
   }
 });

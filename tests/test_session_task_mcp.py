@@ -241,7 +241,7 @@ async def test_accepted_receipt_cannot_change_original_task_id(management):
     assert journal.get("session-task:" + args["project_id"], "sync-1")["state"] == "UNKNOWN"
 
 
-async def test_official_mcp_sdk_exposes_management_tools_without_binding(management):
+async def test_official_mcp_sdk_keeps_history_read_and_rejects_retired_sync(management):
     from mcp.shared.memory import create_connected_server_and_client_session
 
     from hypertest.interactive_client.mcp_server import create_server
@@ -256,10 +256,11 @@ async def test_official_mcp_sdk_exposes_management_tools_without_binding(managem
 
     async with create_connected_server_and_client_session(create_server(LocalBoundary())) as client:
         tools = await client.list_tools()
-        assert {tool.name for tool in tools.tools} == {"hypertest_sync_task", "hypertest_get_task"}
+        assert "hypertest_get_task" in {tool.name for tool in tools.tools}
+        assert "hypertest_sync_task" not in {tool.name for tool in tools.tools}
         result = await client.call_tool("hypertest_sync_task", payload())
-        assert result.structuredContent["status"] == "ACCEPTED" and not result.isError
-    assert [call[1] for call in api.calls] == ["interactive/tasks/sync"]
+        assert result.isError and result.content[0].text == "LOCAL_SYNC_RETIRED_USE_HYPERTEST_CLI"
+    assert api.calls == []
 
 
 @pytest.mark.parametrize("host", [None, "codex", "deepseek-harness", "claude-code"])

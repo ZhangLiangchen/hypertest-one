@@ -1158,7 +1158,7 @@ Cloud canonical SSH操作与追加观察独立持久：先SENT后一次发送，
 
 ## 46. ADR-020 LocalSyncCoordinator 与统一 Local 发行
 
-2026-10-27：[ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新 Local 接入的替换方向，目标架构见§50；产品实现未开始。本节继续描述当前已交付实现及旧历史，切换时保留其授权、原 key 和固定版本恢复语义。
+2026-10-27：[ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新 Local 接入的替换方向，首片实现架构见§50，部署与发行身份见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。本节继续描述当前已交付实现及旧历史，切换时保留其授权、原 key 和固定版本恢复语义。
 
 本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
@@ -1225,14 +1225,14 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 ## 50. ADR-027 Local 显式归档目标架构
 
-状态为已接受方向、实现未开始。新链路为 `显式 Skill → hypertest CLI → ArchiveAdapter / TaskSyncCore → HTTPS Archive API → PostgreSQL`。API 接受和存储测试资产，不启动 Agent 或测试；CLI 在一次命令进程中完成配置、校验、冻结、发送和读回，无常驻 daemon、IPC、Hook 或 MCP server。
+首片产品实现已完成；部署、CLI/Skill 发行与 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。新链路为 `显式 Skill → hypertest CLI → ArchiveAdapter / TaskSyncCore → HTTPS Archive API → PostgreSQL`。API 接受和存储测试资产，不启动 Agent 或测试；CLI 在一次命令进程中完成配置、校验、冻结、发送和读回，无常驻 daemon、IPC、Hook 或 MCP server。
 
 新归档业务由 LocalArchiveTask、可选 LocalArchiveSubtask、LocalArchiveSubmission、LocalArchiveAssetRevision 与 LocalArchivePublication 承担。Task/子任务创建与授权由 Web 的 Operator 管理路径负责；CLI 仅以独立 `archive:read/write` 的 integration 身份读写获准目标。每次归档显式提供 Project ID、Task ID 和可选 Subtask ID；未指定子任务使用 Task 根空间，指定无效子任务明确拒绝。根与各子任务拥有独立归档版本，整体管理版本与汇总另行维护。原会话来源可缺省或由上传者声明，不读取 native root registry，不复用 BIND/JOIN 作为准入条件。
 
-Web 增加全局「CLI 授权」页和安装/绑定指导。用户级全局 CLI 通过一条 auth bind 命令发起短时配对，用户在既有 Web 登录下核短码并一次批准 actor、明确 Project allowlist、archive scopes 与期限；CLI 完成固定授权兑换、核验并原子保存 profile 后退出。凭据不进入命令/Skill/日志，CLI 私存预生成 secret 与独立 verifier，服务端仅持验证材料；原 key 恢复无需重发未知签发或返回明文 secret。
+Web 增加全局「CLI 授权」页和安装/绑定指导。用户级全局 CLI 通过一条 auth bind 命令发起短时配对，用户在既有 Web 登录下核短码并一次批准 actor、明确 Project allowlist、archive scopes 与期限；CLI 完成固定授权兑换、核验并原子保存 profile 后退出。凭据不进入命令/Skill/日志，CLI 私存预生成 secret 与独立 verifier，服务端仅持验证材料；原 key 恢复无需重发未知签发或返回明文 secret。`0031_cli_authorization` 保存配对请求、各 Project 的 `CliAuthorizationGrant` 映射与不可变操作回执；单次绑定 credential 通过该映射解析到独立 integration grant，不复制相同 token_hash，也不绕过现有 actor/client/grant 的当前状态、scope 与期限检查。
 
 profile 以 server/client/actor 隔离，可跨工作目录和 Agent 会话复用已批准项目，不能据全局安装扩大权限或推导上传目标。配对查询仅在命令进程内有界进行，无本地回调服务器、后台轮询或续签。授权服务与归档服务分离 operation namespace；服务端撤销、本机退出和历史只读恢复保持各自语义。操作流程见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
 
 复用现有私有凭据读取、HTTPS、TaskSyncCore、冻结快照和账本库，并消除它们对旧 daemon/MCP 入口的依赖。ArchiveAdapter、旧 Local 只读恢复 adapter 和 CloudSyncAdapter 分别保有 profile、授权及账本 namespace，不共享全局 journal。新旧业务 API、领域不靠通用 Task 表或放宽旧 caller fence 合并。
 
-在新 API/CLI/Skill/Web 可用后执行旧接入切换：新 Local 分发不含 MCP/Hooks/bridge/daemon；按安装收据精确清理自有宿主配置；服务端关闭旧 Local 会话新写准入，保留历史读取和原 key 回执。CLI 显式 legacy recovery 不启动旧 daemon，不重放 POST。共享库、Cloud、独立 Memory 服务和其他插件配置按真实依赖保留。具体顺序与开发文件见[计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)，精确合同由 TMP§51、领域§56 与 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)拥有。
+在新 API/CLI/Skill/Web 可用后执行旧接入切换：新 CLI 使用标准库 zipapp，不包含 MCP/Hooks/bridge/daemon；按安装收据精确清理自有宿主配置；服务端关闭旧 Local 会话新写准入，保留历史读取和原 key 回执。CLI 显式 `legacy retire` 按旧收据精确处理配置，停止进程前核私有 IPC runtime 与配置指纹；`legacy reconcile` 仅对真实已有 SYNC/BIND/协作账本执行 GET，不启动旧 daemon，不重放 POST。compact 旧账本原正文缺失时明确标记未比较原请求；CREATE 恢复继续归属原 Web journal。共享库、Cloud、独立 Memory 服务和其他插件配置按真实依赖保留。具体顺序与开发文件见[计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)，精确合同由 TMP§51、领域§56 与 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)拥有。

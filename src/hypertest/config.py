@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     connector_allow_insecure_loopback: bool = False
     interactive_grant_ttl_seconds: int = Field(default=120, ge=10, le=120)
     interactive_bind_grace_seconds: int = Field(default=120, ge=10, le=300)
+    # ADR-027 cutover: old receipts and versions remain readable. This switch is
+    # for historical fixture replay/rollback, never a new client install option.
+    local_session_writes_enabled: bool = False
     # ADR-019: independent opt-in Cloud worker; no Local authorization coupling.
     cloud_enabled: bool = False
     cloud_worker_enabled: bool = False

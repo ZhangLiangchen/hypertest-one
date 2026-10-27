@@ -1,12 +1,12 @@
 # Local 后置显式归档改造与开发计划
 
-更新：2026-10-27（Asia/Singapore）。**方向已确定，产品开发未开始。** 本轮只交付方案文档；不表示已移除 Hooks/MCP、部署新 API 或发布新 CLI。
+更新：2026-10-27（Asia/Singapore）。**ADR-027 首片产品实现完成。** 归档 API、全局 CLI 配对授权、CLI/显式 Skill、PC Web、旧入口退休和受管配置清理已有实现；部署与 CLI/Skill 发行分别记录在[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)，USER_OWNED 功能验收未执行。用户机器上的旧配置须通过显式退休命令处理。
 
 架构决定见 [ADR-027：显式 Local 测试产物归档](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)。剩余工作统一由[当前 TODO](TODO.md)与[本轮跟进](FOLLOWUP_DELIVERY_20261023.md)跟踪；此前 `local-v0.1.1` 正式发行及宿主验收状态保持原义。
 
 ## 1. 改造目标与依据
 
-当前 Local 接入把测试过程与平台同步耦合：安装器为工具结束、回合结束等事件注册 Hook；已有批准文件时，即使内容不变，也可能经历文件读取、校验、协调器锁及在线 baseline 读取。DeepSeek 桥还会等待 Hook 返回。源码依据见 `src/hypertest/local_sync/installer.py`、`hooks.py`、`sources.py`、`coordinator.py` 与 `deepseek_root_bridge.mjs`。
+此前 Local 接入把测试过程与平台同步耦合：安装器为工具结束、回合结束等事件注册 Hook；已有批准文件时，即使内容不变，也可能经历文件读取、校验、协调器锁及在线 baseline 读取。DeepSeek 桥还会等待 Hook 返回。源码依据见 `src/hypertest/local_sync/installer.py`、`hooks.py`、`sources.py`、`coordinator.py` 与 `deepseek_root_bridge.mjs`。
 
 这些路径说明存在额外工作和等待来源，但本轮没有性能测量，不量化耗时或收益。MCP 同样能够上传与写入；问题在于过程耦合、自动触发及接入复杂度，不能归因于“MCP 无法归档”或声称 HTTP 天然更快。
 
@@ -34,7 +34,7 @@ $hypertest-archive
 产物归档到任务本身；需要分组时另加“子任务ID：SUBTASK_UUID”。
 ```
 
-一次绑定的目标命令（待实现）：
+一次绑定及全局 Skill 安装命令：
 
 ```bash
 hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
@@ -45,11 +45,12 @@ hypertest skill install --global --host codex
 
 ## 3. 新领域与权限边界
 
-新增 `local-artifact-archive/v1alpha1`，以及归档 Task、Subtask、Submission、AssetRevision、Publication；具体字段与 API 由 ADR-027、领域§56和 TMP§51 的目标合同拥有。
+新增 `local-artifact-archive/v1alpha1`，以及归档 Task、Subtask、Submission、AssetRevision、Publication；具体字段与 API 由 ADR-027、领域§56和 TMP§51 拥有；迁移为 `0030_local_archive` 与 `0031_cli_authorization`。
 
 - 归档 Task/Subtask 属于 Project；每次上传必填 Project/Task，Subtask 可选。省略时写 Task 根空间，不创建隐藏子任务；指定错误/越权子任务明确拒绝，不回退根空间。Subtask 是用户选择的业务归档单元，不是原生子代理或子会话身份。
 - Submission 固定上传者、目标、完整请求、原 key、接受版本及回执；资产按稳定业务 key 保留不可变修订，禁止覆盖失败报告或旧原件。
 - uploader 由当前授权识别，不要求 native SessionStart、父会话绑定、MCP caller context 或指定宿主版本。可选 provider/session/source 仅为声明的来源 metadata，不提升为独立身份或执行证明。
+- 一次绑定的全局 credential 经配对请求与 `CliAuthorizationGrant` 映射到各获准 Project 的独立 integration grant；不向多个 grant 复制同一 `token_hash`，撤销与期限按项目 grant 单独生效。
 - 归档权限独立签发和校验，不从 `task:sync`、`cloud:work`、Project 可见性或“知道任务 ID”自动获得；归档授权不赋予 Cloud 执行、Memory 或 Operator 权限。
 - CLI 内部读取私有配置/系统凭据引用；Skill、命令参数、manifest、日志及回执不包含 token。首次授权通过全局 CLI 授权页和无秘密的一键命令发起，由既有 Web 身份明确批准；不能让安装器或 Agent 自行申请 Operator key、签发 grant。
 - 任务进度、测试 reported result、传输状态分别保存。上传成功不自动推导测试 PASS、整体 COMPLETED、VERIFIED Evidence 或 RELEASE_READY。
@@ -61,7 +62,7 @@ hypertest skill install --global --host codex
 
 `hypertest-archive` 只在用户显式调用时编排：确认本次目标和文件范围、整理结构化资产、生成 manifest、调用 CLI、解释归档结果。Skill 是指令，不持有凭据、不承担 HTTP 重试和账本事务；仅有结束语或模型判断不构成新上传授权。
 
-统一 `hypertest` 入口首版范围如下，命令形式为待实现设计，不是当前可用命令：
+统一 `hypertest` 入口的首片实现如下；安装目标、实际发行资产与摘要见本轮交付：
 
 | 命令 | 首版职责 |
 | --- | --- |
@@ -72,6 +73,8 @@ hypertest skill install --global --host codex
 | `hypertest status --request-id …` | 查看私有请求账本和接受/读回状态；需要联网时明确按原请求读取 |
 | `hypertest reconcile --request-id …` | 恢复原请求的查询与固定版本读回；SENT/UNKNOWN/NOT_FOUND 不重 POST |
 | `hypertest skill install --global --host codex` 或 `--directory …` | 向用户级全局或选定技能目录安装/升级 `hypertest-archive`，按收据保留自定义内容 |
+| `hypertest legacy retire --directory … --host …` | 依据旧安装收据精确移除自有配置，核私有 IPC 与 runtime 指纹后停自有进程；不按进程名操作 |
+| `hypertest legacy reconcile --config … --request-id …` | 对旧 SYNC/BIND/协作账本只 GET 原 key 和固定版本；歧义时指定 `namespace/key` |
 
 提供 `--json` 稳定输出，供 Skill 读取 `status/code/request_id/project_id/task_id/target_kind/subtask_id/submission_id/accepted_version/readback_complete/task_url` 等非秘密信息；人类输出保持简洁。退出码按 TMP§51：0成功、2本地输入错误、3明确拒绝、4未决/读回未完、5配置/能力缺口，具体拒绝码区分授权和版本冲突。`archive` 只有有效回执及完整内容读回后才报归档成功；`--dry-run` 返回 PREVIEW，不伪装已归档。
 
@@ -85,11 +88,11 @@ CLI 使用短命进程直接通过 HTTPS 调用独立归档 API；复用 `ApiCli
 
 每次提交先持久保存完整冻结请求、目标、稳定 key 和 expected version，再记录可能发送；原 key 查重先于版本冲突判断。同 key 异输入拒绝。超时、SENT、UNKNOWN、失答及 NOT_FOUND 只 GET 原 key；有效 ACK 后逐字段及原件比较固定接受版本。并发、撤权及接受后删除等路径保持历史和最小授权边界。
 
-新包采用 `cli-vSEMVER` 独立版本、固定来源和摘要，包含轻量 CLI、必要 HTTP/校验依赖及归档 Skill；不安装 MCP SDK、宿主 MCP 配置、Hook、daemon、Cloud SDK 或模型工具。支持 OS/Python 目标按实际发行能力声明，不为无 native caller 依赖的归档引入三宿主生命周期矩阵。
+新包采用 `cli-vSEMVER` 独立版本、固定来源和摘要，使用 Python 标准库 zipapp，包含轻量 CLI、复用的可靠交付库及归档 Skill；不安装 MCP SDK、宿主 MCP 配置、Hook、daemon、Cloud SDK 或模型工具。支持 OS/Python 目标按实际发行能力声明，不为无 native caller 依赖的归档引入三宿主生命周期矩阵。
 
 ## 6. 实际源码处置与升级范围
 
-下表为已存在源码的改造清单，**不是已删除声明**；实施时逐项确认共享消费者后处理。
+下表保留改造涉及的原源码范围；实际新实现集中在 `src/hypertest/{api,application,domain}/` 的归档/授权模块、`src/hypertest/cli/`、`skills/hypertest-archive/`、`scripts/{build,install}-cli-release.py` 及独立 Web 页面/BFF。旧源文件仍有历史和共享消费者，不能把接入退休解释为全部删除。
 
 | 现有位置 | 计划处置 |
 | --- | --- |
@@ -112,9 +115,11 @@ CLI 使用短命进程直接通过 HTTPS 调用独立归档 API；复用 `ApiCli
 
 ## 7. 旧协议退休与 PC Web
 
-新归档可用后，默认 Local 产品流程统一走显式归档；旧 MCP/Hooks Local 新建、BIND、SYNC、JOIN、CONTRIBUTE、PUBLISH 等新写逐项明确退休。服务端在原 key 对账/已接受请求识别之后拒绝新的旧协议写意图，返回可操作的退休错误；不得要求未知旧请求换 key 重试或用新 API 覆盖。
+新归档可用后，默认 Local 产品流程统一走显式归档；旧 MCP/Hooks Local 新建、BIND、SYNC、JOIN、CONTRIBUTE、PUBLISH 等新写逐项明确退休。服务端默认关闭旧会话新写，在原 key 对账/已接受请求识别之后拒绝新的旧协议写意图，返回 `410 LOCAL_SYNC_RETIRED_USE_EXPLICIT_ARCHIVE`；不得要求未知旧请求换 key 重试或用新 API 覆盖。
 
-保留获授权的旧 Task/报告/修订、固定版本、原 CREATE/BIND/SYNC/协作 receipt 的只读查询与恢复入口。旧 PENDING 若无法证明从未发送，保持未决并按原 key 查询；能明确证明未发送的旧意图保留为不可新发，不以“恢复”名义推进旧 POST。迁移不补造回执、不清 UNKNOWN、不将历史 SessionTask 自动转成归档任务。服务端退休与客户端升级需协调，且不影响独立 Cloud、Memory 或 legacy 执行域。
+保留获授权的旧 Task/报告/修订、固定版本、原 CREATE/BIND/SYNC/协作 receipt 的只读查询与恢复入口。旧 PENDING 若无法证明从未发送，保持未决并按原 key 查询；能明确证明未发送的旧意图保留为不可新发，不以“恢复”名义推进旧 POST。旧 CLI 本地实际账本包含 SYNC/BIND/协作；CREATE 保存在原 Web IndexedDB journal，继续通过 Web 只读恢复，不向 CLI 提供 Operator key。旧 compact journal 缺少原正文时输出 `LEGACY_ACCEPTED_READBACK`、`original_request_verified=false`，只确认原接受版本完整读回，不补造原请求比较。
+
+迁移不补造回执、不清 UNKNOWN、不将历史 SessionTask 自动转成归档任务。服务端退休与客户端升级需协调，且不影响独立 Cloud、Memory 或 legacy 执行域。
 
 PC 宽屏 Web 新增全局「CLI 授权」页，提供官方安装/升级、无秘密绑定命令、配对核对与一次批准、已授权客户端/项目/scopes/期限和撤销入口。授权仅授予选定的项目，不以全局安装自动扩大范围；操作指导同页可见。任务页引用授权页，不要求为每个任务重新绑定。
 
@@ -124,12 +129,12 @@ PC 宽屏 Web 新增归档 Task/可选 Subtask 创建与类型化列表、详情
 
 | 阶段 | 可执行任务与产出 | 最小相关检查 |
 | --- | --- | --- |
-| A：合同与拆分 | [x] 本轮确定 ADR-027、四份基础文档目标增补及发行命名；[ ] 实施时落实 typed schema、数据库约束与退休错误码 | 文档差异、引用和新旧合同一致性 |
-| B：服务端闭环 | [ ] 新增归档模型/迁移、根与子任务目标、CLI 配对/批准/兑换/撤销、提交/修订、回执及固定版本读取；保留旧历史 | 专用 test DB 验证跨项目/跨目标/撤权拒绝、短码不可兑换、配对过期/原key恢复、同key异输入拒绝、根及子任务并发版本、旧历史保全与迁移 |
-| C：CLI 与 Skill | [ ] 实现七类首版命令及全局 profile、manifest、冻结账本、ArchiveAdapter、JSON/退出码；编写 `hypertest-archive` | 本地合成文件/HTTP fixture 验证一次提交、授权/归档失答与重启原 key 查询、已批准身份不覆盖、固定读回及敏感字段不外泄 |
-| D：PC Web | [ ] 全局 CLI 授权页与操作指引、一键绑定、创建 Task/可选 Subtask、带明确 Project/Task 的复制指令、详情及独立 BFF 权限 | 定向组件/契约检查；需要时类型检查/构建；PC 中英文与关键键盘路径 |
-| E：升级与退休 | [ ] 轻量独立包、精确清理自有配置、保留旧原件；接入旧协议只读恢复并关闭新写 | 合成配置检验其他配置保留、修改冲突、无 MCP/daemon 安装、旧 UNKNOWN 不重 POST |
-| F：交付 | [ ] 推送固定 Git，按变更部署 API/Web/必要迁移；独立构建发布 CLI；记录剩余用户验收 | 仅相关服务健康与一条不触发测试的关键路径；发行安装/命令冒烟按真实目标记录 |
+| A：合同与拆分 | [x] ADR-027、基础规范、typed schema、数据库约束与退休错误码已落实 | 文档差异、引用和新旧合同一致性 |
+| B：服务端闭环 | [x] 新增归档模型/迁移、根与子任务目标、CLI 配对/批准/兑换/撤销、提交/修订、回执及固定版本读取；保留旧历史 | 专用 test DB 验证跨项目/跨目标/撤权拒绝、短码不可兑换、配对过期/原key恢复、同key异输入拒绝、根及子任务并发版本、旧历史保全与迁移 |
+| C：CLI 与 Skill | [x] 实现七类主命令及 legacy 维护命令及全局 profile、manifest、冻结账本、ArchiveAdapter、JSON/退出码；编写 `hypertest-archive` | 本地合成文件/HTTP fixture 验证一次提交、授权/归档失答与重启原 key 查询、已批准身份不覆盖、固定读回及敏感字段不外泄 |
+| D：PC Web | [x] 全局 CLI 授权页与操作指引、一键绑定、创建 Task/可选 Subtask、带明确 Project/Task 的复制指令、详情及独立 BFF 权限 | 定向组件/契约检查；需要时类型检查/构建；PC 中英文与关键键盘路径 |
+| E：升级与退休 | [x] 轻量独立包、精确清理自有配置、保留旧原件；接入旧协议只读恢复并关闭新写 | 合成配置检验其他配置保留、修改冲突、无 MCP/daemon 安装、旧 UNKNOWN 不重 POST |
+| F：交付 | 部署、CLI/Skill 发行进度分别见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)，不从源码完成推导；USER_OWNED 待用户验收 | 仅相关服务健康与一条不触发测试的关键路径；发行安装/命令冒烟按真实目标记录 |
 
 实现时优先复用现有干净 checkout、依赖和专用 test DB。只有本轮授权隔离、凭据、幂等/UNKNOWN、版本、迁移及历史保全涉及的关键行为与拒绝路径保留必要自测；不追加全量回归、宿主矩阵、重复环境或额外验收体系。测试 fixtures 不写入业务库，不启动真实模型或 SUT。
 
@@ -138,9 +143,9 @@ PC 宽屏 Web 新增归档 Task/可选 Subtask 创建与类型化列表、详情
 | 维度 | 本轮状态 | 后续记录要求 |
 | --- | --- | --- |
 | 方案 | 方向已确定 | 本文与 ADR-027 说明取舍、边界及执行顺序 |
-| 实现 | 开发未开始 | 按阶段记录代码、迁移和相关自动回归；未运行/跳过/失败如实记录 |
-| 部署 | 未部署 | 单列固定完整 Git SHA、schema、受影响镜像及最小健康检查 |
-| CLI/Skill 发行 | 未发布 | 单列版本、目标、摘要、依赖与安装升级结果；不覆盖旧资产 |
+| 实现 | 首片已完成 | 新 API/授权、CLI/Skill、Web、退休与恢复代码及变更范围回归见本轮交付 |
+| 部署 | 由本轮交付独立记录 | 固定完整 Git SHA、schema、受影响镜像及最小健康检查不由实现状态推定 |
+| CLI/Skill 发行 | 由本轮交付独立记录 | 构建与安装器已有实现；实际版本、目标、摘要、发布/安装结果单列，不覆盖旧资产 |
 | USER_OWNED | 未执行 | 用户完成真实归档体验与功能验收；实现回归、安装成功和健康检查不能替代 |
 
-首版完成意味着：用户无需在测试期间接入 HyperTest，完成一次全局 CLI 授权后，结束测试时能从 PC Web 选择项目/任务和可选子任务，显式调用 Skill，经按需 CLI 可靠归档并查看保真的产物与修订；旧记录和未决请求仍可按原权限只读恢复。文档完成不代表这些能力已经实现。
+首版完成意味着：用户无需在测试期间接入 HyperTest，完成一次全局 CLI 授权后，结束测试时能从 PC Web 选择项目/任务和可选子任务，显式调用 Skill，经按需 CLI 可靠归档并查看保真的产物与修订；旧记录和未决请求仍可按原权限只读恢复。首片源码与变更范围自动回归已经完成；部署健康、客户端发行及用户体验验收仍是独立事实。

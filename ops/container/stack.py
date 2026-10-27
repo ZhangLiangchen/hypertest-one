@@ -90,6 +90,8 @@ def validate(values: dict[str, str], *, live: bool) -> None:
         validate_cloud_web(values, live=live)
     if memory_gateway_enabled(values):
         validate_memory_gateway(values, live=live)
+    if archive_web_enabled(values):
+        validate_web_facade(values, live=live)
     if live:
         subprocess.run(["docker", "volume", "inspect", values["HYPERTEST_POSTGRES_VOLUME"]], check=True, stdout=subprocess.DEVNULL)
         platform = read_env(Path(values["HYPERTEST_PLATFORM_ENV_FILE"]))
@@ -124,6 +126,8 @@ def compose_command(env_file: Path, *args: str) -> list[str]:
         command.extend(["-f", str(REPO / "ops/container/compose.cloud.yml")])
     if env_file.exists() and memory_gateway_enabled(read_env(env_file)):
         command.extend(["-f", str(REPO / "ops/container/compose.memory.yml")])
+    if env_file.exists() and archive_web_enabled(read_env(env_file)):
+        command.extend(["-f", str(REPO / "ops/container/compose.archive.yml")])
     return [*command, *args]
 
 
@@ -138,6 +142,13 @@ def cloud_web_enabled(values: dict[str, str]) -> bool:
     mode = values.get("HYPERTEST_CLOUD_WEB", "disabled")
     if mode not in {"enabled", "disabled"}:
         raise ValueError("HYPERTEST_CLOUD_WEB must be enabled or disabled")
+    return mode == "enabled"
+
+
+def archive_web_enabled(values: dict[str, str]) -> bool:
+    mode = values.get("HYPERTEST_ARCHIVE_WEB", "disabled")
+    if mode not in {"enabled", "disabled"}:
+        raise ValueError("HYPERTEST_ARCHIVE_WEB must be enabled or disabled")
     return mode == "enabled"
 
 
@@ -331,12 +342,14 @@ def render_nginx(values: dict[str, str]) -> str:
         ssl_protocols TLSv1.2 TLSv1.3;
         error_page 497 =308 https://{name}:{port}$request_uri;"""
     rendered = prefix + tls + public
-    cloud, memory = cloud_web_enabled(values), memory_gateway_enabled(values)
+    cloud, memory, archive = cloud_web_enabled(values), memory_gateway_enabled(values), archive_web_enabled(values)
     if cloud:
         validate_cloud_web(values, live=False)
     if memory:
         validate_memory_gateway(values, live=False)
-    if cloud or memory:
+    if archive:
+        validate_web_facade(values, live=False)
+    if cloud or memory or archive:
         rendered = rendered.rsplit("}", 1)[0] + _cloud_web_listener(values) + "}\n"
     if memory:
         rendered = rendered.rsplit("}", 1)[0] + _memory_worker_listener(values) + "}\n"
@@ -365,6 +378,14 @@ def _cloud_web_listener(values: dict[str, str]) -> str:
 """ if cloud_web_enabled(values) else ""
     if memory_gateway_enabled(values):
         routes += f"""        location /api/v1/memory/ {{
+            client_max_body_size 128k;
+{forwarding}        }}
+"""
+    if archive_web_enabled(values):
+        routes += f"""        location /api/v1/local-archive/ {{
+            client_max_body_size 2m;
+{forwarding}        }}
+        location /api/v1/cli-authorizations/ {{
             client_max_body_size 128k;
 {forwarding}        }}
 """

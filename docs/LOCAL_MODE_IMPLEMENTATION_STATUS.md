@@ -1,10 +1,14 @@
 # HyperTest Local 实现与发行状态
 
-## 2026-10-27 后置显式归档重构方案
+## 2026-10-27 后置显式归档首片实现
 
-用户已确定移除 Local Agent 接入中的 MCP/Hooks，新增 `hypertest` CLI 和 `hypertest-archive` 显式归档 Skill。任务及可选子任务可在测试后创建，上传者与原会话来源分开；新增全局 CLI 授权页、一键绑定及[操作指南](CLI_AUTHORIZATION_GUIDE.md)设计。全局 profile 复用明确授权，每次归档必填 Project/Task、可选 Subtask，根与子任务独立版本；旧配置精确清理、旧新写退休与历史只读恢复见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)和[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
+用户已确定移除 Local Agent 接入中的 MCP/Hooks，新增 `hypertest` CLI 和 `hypertest-archive` 显式归档 Skill。任务及可选子任务可在测试后创建，上传者与原会话来源分开；新增全局 CLI 授权页、一键绑定及[操作指南](CLI_AUTHORIZATION_GUIDE.md)。全局 profile 复用明确授权，每次归档必填 Project/Task、可选 Subtask，根与子任务独立版本；旧配置精确清理、旧新写退休与历史只读恢复见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)和[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
 
-本轮仅完成方案及规范目标增补，归档 API、CLI 授权/配对、全局 CLI/Skill、Web 改造和升级清理均未实现，未部署或发行。当前公开 `local-v0.1.1` 与下方记录保持原资格，不能把方向确定写成 MCP/Hooks 已移除。
+首片产品代码已实现：`0030_local_archive`、`0031_cli_authorization` 新增独立归档与配对表；全局 CLI/显式 Skill、PC Web 授权/归档页、受管配置退休及旧原 key 只读恢复已经连通。服务端默认关闭旧 Local 新写，历史读取与已接受回执保留；新 CLI 包不安装 MCP/Hooks/bridge/daemon。用户机器的旧配置须显式执行 `hypertest legacy retire`，不据新源码推断已经清理。
+
+每次绑定的全局 credential 通过 `CliAuthorizationGrant` 映射到各 Project 独立 integration grant，保持原 `token_hash` 唯一约束及逐项目撤权。旧 SYNC/BIND/协作由 CLI 读取明确旧账本恢复；CREATE 保留原 Web journal 恢复。旧 compact journal 原正文不可重建，读回结果明确 `original_request_verified=false`。
+
+实现回归、部署身份、CLI/Skill 发行分别见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)；USER_OWNED 功能验收未执行。下方旧 `local-v*` 发行、摘要及宿主验收均保持历史身份，不重标为新 CLI 资格。
 
 ## 2026-10-26 一条命令 / Prompt 更新增量
 

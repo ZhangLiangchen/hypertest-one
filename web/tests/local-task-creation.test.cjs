@@ -159,11 +159,12 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
   const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
     : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/cloud" ? cloud
       : name === "@/lib/cloud-operation" ? { useCloudOperation: () => { operationHookCalls++; return operation; } }
+        : name === "@/lib/archive" ? {} : name === "@/lib/archive-operation" ? { useArchiveOperation: () => ({ ready: true, blocked: false, busy: false, pending: null, manage: async (path, payload) => { localWrites.push({path, payload}); return null; } }) } : name === "@/app/archives/archive-shared" ? { ArchiveOperationNotice: () => null }
         : name === "@/lib/local-create-operation" ? { useLocalCreateOperation: () => ({ ready: true, busy: false, success: false, pending: null, submit: async (payload) => { localWrites.push(payload); return null; }, resetError() {} }) }
         : name === "../../cloud/task-form" ? cloudForm : name === "../../cloud/cloud-shared" ? notices
           : name === "@/lib/uuid" ? { createUuid: () => "stable-key" }
             : name === "@tanstack/react-query" ? { useQuery: query, useMutation: () => ({ mutate: (payload) => localWrites.push(payload) }), useQueryClient: () => ({ invalidateQueries() {}, setQueryData() {} }) }
-              : name === "@/lib/api" ? {} : name === "next/link" ? link : name === "next/navigation" ? { useRouter: () => ({ push: (href) => navigation.push(href) }) } : require(name) });
+              : name === "@/lib/api" ? {} : name === "next/link" ? link : name === "next/navigation" ? { useRouter: () => ({ push: (href) => navigation.push(href) }), useSearchParams: () => new URLSearchParams() } : require(name) });
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(TaskCreateForm, { projectId: "project-1" })));
   return { html, forms, shared, submissions, localWrites, navigation, operationHookCalls };
 }
@@ -175,17 +176,17 @@ test("unified creation shares title and objective without nesting the Cloud form
     assert.equal((html.match(/id="objective"/g) || []).length, 1);
     assert.equal(operationHookCalls, 1);
     assert.ok(html.includes(locale === "en" ? "Cloud execution" : "云端执行"));
-    assert.ok(html.includes(locale === "en" ? "Local execution" : "本地执行"));
+    assert.ok(html.includes(locale === "en" ? "Local archive" : "本地归档"));
     assert.ok(html.indexOf("</form>") < html.indexOf('id="new-cloud-task-title"'), "the Cloud form is a sibling of the shared form");
     assert.equal((html.match(/<form\b/g) || []).length, 2);
     assert.ok(html.includes('href="/projects/project-1/cloud?tab=resources" target="_blank"'), "resource setup retains this page's draft");
     if (mode === "local") {
-      assert.ok(html.includes(locale === "en" ? "Authorized local client" : "获准绑定的本地客户端"));
-      assert.ok(html.includes(locale === "en" ? "The task will wait for client authorization" : "任务将等待客户端授权"));
+      assert.ok(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"));
+      assert.ok(html.includes(locale === "en" ? "Archive destination" : "归档目标"));
       assert.ok(html.includes('hidden=""'), "the Cloud draft stays mounted but hidden in Local mode");
     } else {
       assert.ok(html.includes(locale === "en" ? "Create draft and review versions" : "创建草稿并核对版本"));
-      assert.equal(html.includes(locale === "en" ? "Authorized local client" : "获准绑定的本地客户端"), false);
+      assert.equal(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"), false);
     }
   }
 });
@@ -314,7 +315,8 @@ test("unified task creation preserves Local setup and keeps binding mutations ou
   assert.ok(project.includes('"Create test task", "创建测试任务"'));
   assert.ok(project.includes('<ProjectNavigation'));
   assert.ok(navigation.includes('/cloud?tab=tasks'));
-  assert.ok(list.includes("<LocalModeGuide"));
+  assert.equal(list.includes("<LocalModeGuide"), false);
+  assert.ok(fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/archive-tasks.tsx"), "utf8").includes("<LocalModeGuide"));
   assert.ok(list.includes("SessionTaskActions"));
   assert.ok(form.includes('value: "cloud"'));
   assert.ok(form.includes('value: "local"'));

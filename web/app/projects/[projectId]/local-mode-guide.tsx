@@ -1,26 +1,16 @@
 "use client";
-
 import { LaptopOutlined } from "@ant-design/icons";
 import { Button, Typography } from "antd";
+import Link from "next/link";
 import { useId, useState } from "react";
-
-import { LocalSetupContent } from "@/app/tasks/source-client-upgrade";
 import { useI18n } from "@/lib/i18n";
-
-/** Installs no software in the browser and reads no local profile or credentials. */
 export function LocalModeGuide({ projectId, initiallyOpen = false }: { projectId: string; initiallyOpen?: boolean }) {
-  const { t } = useI18n();
-  const id = useId();
-  const [open, setOpen] = useState(initiallyOpen);
-  return <div style={{ marginBlock: 16 }}>
-    <Button icon={<LaptopOutlined aria-hidden />} aria-expanded={open} aria-controls={`${id}-guide`} onClick={() => setOpen((value) => !value)}>
-      {open ? t("Hide local mode setup", "收起本地模式接入") : t("Set up local mode", "接入本地模式")}
-    </Button>
-    {open ? <section id={`${id}-guide`} aria-labelledby={`${id}-heading`} className="data-surface" style={{ marginTop: 12, padding: 24 }}>
-      <Typography.Title id={`${id}-heading`} level={3} style={{ marginTop: 0 }}>{t("Connect this project's local Agent", "接入此项目的本地 Agent")}</Typography.Title>
-      <Typography.Paragraph>{t("Target Project", "目标项目")}: <Typography.Text code>{projectId}</Typography.Text></Typography.Paragraph>
-      <LocalSetupContent projectId={projectId} />
-      <Typography.Paragraph style={{ marginTop: 24, maxWidth: "75ch" }}>{t("After setup, open the intended task and copy its binding or collaboration request to the real parent Agent session. Installation preserves sync history; it does not bind a task or start tests.", "接入完成后，打开目标任务，将绑定或协作请求交给真实父会话中的 Agent。安装会保留同步历史，不会绑定任务或启动测试。")}</Typography.Paragraph>
-    </section> : null}
-  </div>;
+  const { t } = useI18n(); const id = useId(); const [open, setOpen] = useState(initiallyOpen);
+  return <div style={{ marginBlock: 16 }}><Button icon={<LaptopOutlined aria-hidden />} aria-expanded={open} aria-controls={`${id}-guide`} onClick={() => setOpen(!open)}>{t("CLI and archive guide", "CLI 与归档指引")}</Button>
+    {open ? <section id={`${id}-guide`} className="data-surface" style={{ marginTop: 12, padding: 24 }} aria-labelledby={`${id}-heading`}>
+      <Typography.Title id={`${id}-heading`} level={3}>{t("Archive after local testing", "本地测试结束后归档")}</Typography.Title>
+      <ol className="archive-guide-steps"><li><Link href={`/cli-authorizations?projectId=${projectId}`}>{t("Install and authorize the CLI once", "安装 CLI 并完成一次授权")}</Link>{t(" for this Project.", "，明确允许当前项目。")}</li><li>{t("Create a task and optional subtasks, then copy its archive instruction.", "创建任务与可选子任务，复制任务中的归档指令。")}</li><li>{t("Explicitly invoke hypertest-archive with the approved file paths. The CLI uploads, verifies the accepted version, then exits.", "显式调用 hypertest-archive 并提供获准文件路径。CLI 上传并核对接受版本后退出。")}</li></ol>
+      <Typography.Paragraph>{t("Project ID", "项目 ID")}: <Typography.Text code copyable>{projectId}</Typography.Text></Typography.Paragraph>
+      <Typography.Paragraph className="muted">{t("Testing needs no platform connection or background sync. Without a Subtask ID, artifacts go directly to the task root.", "测试期间无需连接平台或后台同步。未指定子任务 ID 时，产物直接归档到任务本身。")}</Typography.Paragraph>
+    </section> : null}</div>;
 }
