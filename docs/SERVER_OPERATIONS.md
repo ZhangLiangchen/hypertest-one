@@ -82,11 +82,15 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 - 保留现有 SSH 访问、公钥和人工密码恢复、主机密钥校验、TLS、VPN 白名单及其他网络
   访问限制；不将私钥、token 或密码写入源码、日志或交付物，不改动无关服务。
 
+### 2026-10-27 CLI 项目授权简化
+
+当前API/Web来源为Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`，schema `0032_cli_archive_uploader`。新批准自动解析稳定Operator的专用CLI上传身份，旧身份枚举入口退休；迁移不回填或删除历史。固定ops保持1512d11，无需更改nginx/TLS/CA或Worker。镜像、数据库逻辑备份与部署健康见[本轮交付](CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)。下方1512d11/8b90efb为前轮部署身份。
+
 ### 2026-10-27 显式 Local 归档部署配置
 
 显式归档首版 API/Web 与固定 ops 按 `1512d11f99c5e500e4fc56c685410ffa9e533530` 部署，schema0031；cli-v0.1.0 已公开，USER_OWNED 未验收。镜像与健康结果见[归档交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)。
 
-当前 Web 已独立更新到 Git `8b90efb878c51568c9e35901ad31116b742a5f7f` 的 CLI Prompt 安装入口，中英文 Prompt 同步公开到 GitHub Release；API、固定 ops、schema 与 CLI 包保持上述身份。构建、Web健康及精确image见[Prompt安装交付](CLI_PROMPT_INSTALL_DELIVERY_20261027.md)。
+此前 Web 独立更新到 Git `8b90efb878c51568c9e35901ad31116b742a5f7f` 的 CLI Prompt 安装入口，中英文 Prompt 同步公开到 GitHub Release；API、固定 ops、schema 与 CLI 包保持上述身份。构建、Web健康及精确image见[Prompt安装交付](CLI_PROMPT_INSTALL_DELIVERY_20261027.md)。
 
 新 Local 入口使用独立的 `HYPERTEST_ARCHIVE_WEB=enabled` 与
 `ops/container/compose.archive.yml`。该开关只启用归档和 CLI 授权 Web BFF，

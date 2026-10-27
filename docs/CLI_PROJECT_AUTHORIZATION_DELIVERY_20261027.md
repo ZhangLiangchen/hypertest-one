@@ -18,8 +18,35 @@
 - Web `archive-ui`、`archive-operation`、`archive-boundary`：11通过；回执补强后受影响4项再次通过，不另累计。Prompt 4项通过；首次旧文案断言失配已按“用户核短码并批准项目”新文案修正，未削弱人工批准要求。
 - Web类型检查、后端目标Ruff、Prompt文本一致性与差异检查通过。设计静态扫描无 findings；未作浏览器用户验收。
 
+## GitHub 安装 Prompt 更新
+
+已更新 [cli-v0.1.0 Release](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0) 的推荐安装说明和完整中文 Prompt：用户核对短码、客户端、项目、权限与期限，平台自动关联专用 CLI 上传身份。指南与 Prompt 源码链接固定为 Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`；原 CLI 0.1.0 功能说明原文保留。
+
+新增以下附件，内容与该 Git 中生成的中英文 Prompt 逐字节一致：
+
+| 附件 | Asset ID | 大小 | SHA256 |
+| --- | --- | --- | --- |
+| [hypertest-cli-install-prompt.20261027-2.zh-CN.txt](https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/hypertest-cli-install-prompt.20261027-2.zh-CN.txt) | 680675479 | 4076 bytes | `50d418d6b60d1afcbd033e2aa385ab158abfdfed4f4fc482ce715a580b66ba50` |
+| [hypertest-cli-install-prompt.20261027-2.en.txt](https://github.com/ZhangLiangchen/hypertest-one/releases/download/cli-v0.1.0/hypertest-cli-install-prompt.20261027-2.en.txt) | 680675477 | 4626 bytes | `9981d2e348714d81d27e92fdb4d55ccf69214de014372aaaa242c4d944804fa2` |
+
+两文件均经无授权 HTTPS 公开下载，字节、大小和 SHA256 与源码及 GitHub 资产摘要一致。原四个 CLI/安装器/manifest/SHA256SUMS 和上轮两个 Prompt 附件的 ID、大小、摘要及更新时间均保持，未覆盖历史附件。Release 推荐链接已指向本轮带日期附件，并说明旧 Prompt 仅供历史追溯。更新前后 metadata、精确正文及核验记录保存于 `/opt/hypertest/cli-releases/0.1.0/project-authorization-20261027/`。本次仅更新安装说明，不重新发行 CLI 二进制，也不代表本机安装或授权验收完成。
+
 ## 部署与发行状态
 
-待从推送的固定 Git 构建 API/Web、备份业务库并向前迁移0032、检查健康和身份列表退休路径。Prompt发行说明更新及精确Git/image随后记录。
+API/Web 已从干净复用 checkout 的推送 Git `006100788751a416b0d6f1dbe8d78c96d3155a5f` 构建并部署，数据库向前升级至 `0032_cli_archive_uploader`。
+
+| 组件 | 本轮身份 |
+| --- | --- |
+| API | `sha256:2fd7d36542f90f4961b87a958e2576cb509db29d48378516df83e39d17045002` |
+| Web | `sha256:53ea16f9292fbee2c14d6b2136eedcf503354950083c5b8ec16657fd4484881e` |
+| 固定 ops | 继续使用 `1512d11f99c5e500e4fc56c685410ffa9e533530`，无新部署配置需求 |
+
+部署前逻辑 DB 备份位于 `/opt/hypertest/backups/cli-identity-20261027-0061007/database.dump`。迁移只追加映射表及约束，无业务fixture写入、旧身份回填或记录删除。
+
+五容器 healthy、网络守卫 protected；API health与授权页均HTTP200、CLI setup configured、授权grants只读路径HTTP200；使用现有受保护Operator凭据核验旧actor列表HTTP410 / CLI_UPLOADER_SELECTION_RETIRED。未执行真实用户批准。
+
+legacy Worker、PostgreSQL和nginx镜像保持；独立Cloud Worker active，启动时间仍为2026-10-23 16:29:49 UTC。TLS/CA、SSH/VPN限制和数据卷保持。运行记录及构建日志位于 `/opt/hypertest/container-builds/cli-identity-0061007/`。本轮临时测试库容器及tmpfs已删除，复用依赖/构建缓存保留，根盘可用约13GiB。
+
+当前 cli-v0.1.0 可继续使用，无需重装。用户刷新授权页后核对原请求状态；旧已批准/绑定请求按原回执恢复，已过期请求不自动延长，不自动换key配对。
 
 USER_OWNED：尚未执行真实用户批准、CLI兑换或产物上传；本轮不代用户签发授权。
