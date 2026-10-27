@@ -156,8 +156,11 @@ const uiHelper = { ...helper,
 const setupComponent = load("app/tasks/source-client-upgrade.tsx", {
   require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/local-mode-install" ? uiHelper : require(name),
 });
+const cliRelease = load("lib/cli-release.ts", { URL });
+const cliInstall = load("lib/cli-install-prompt.ts", { URL, require: (name) => name === "./cli-release" ? cliRelease : require(name) });
+const cliInstallComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? cliInstall : require(name) });
 const component = load("app/projects/[projectId]/local-mode-guide.tsx", {
-  require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/tasks/source-client-upgrade" ? setupComponent : require(name),
+  require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/tasks/source-client-upgrade" ? setupComponent : name === "@/app/cli-authorizations/cli-install-prompt" ? cliInstallComponent : require(name),
 });
 
 test("one updater command selects a channel and verifies pinned code before release discovery", () => {
@@ -200,7 +203,7 @@ test("the archive project guide is reachable without blocking archive reads", ()
       : ["@/lib/api", "@/lib/archive"].includes(name) ? {} : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
       : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(section.ProjectArchiveTasks, { projectId, projectDeleted: false })));
-  assert.ok(html.includes("CLI and archive guide"));
+  assert.ok(html.includes("CLI installation prompt &amp; archive guide"));
   assert.ok(html.includes('aria-expanded="false"'));
   assert.ok(html.includes("No local archives yet"));
   assert.equal(html.includes("python3 -I -c"), false);
@@ -211,6 +214,8 @@ test("both languages guide explicit archives and link global CLI authorization w
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.LocalModeGuide, { projectId, initiallyOpen: true })));
     assert.ok(html.includes(projectId)); assert.ok(html.includes(`/cli-authorizations?projectId=${projectId}`));
     assert.ok(html.includes("hypertest-archive"));
+    assert.ok(html.includes(locale === "en" ? "Copy installation prompt" : "复制安装 Prompt"));
+    assert.ok(html.includes(cliRelease.CLI_RELEASE.artifactSha256));
     for (const text of locale === "en" ? ["Install and authorize the CLI once", "Task root", "Archive after local testing"] : ["安装 CLI 并完成一次授权", "任务根空间", "本地测试结束后归档"]) {
       if (text === "Task root" || text === "任务根空间") continue;
       assert.ok(html.includes(text), text);

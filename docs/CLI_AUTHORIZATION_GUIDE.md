@@ -10,12 +10,35 @@ profile 固定 server、client 和 uploader actor，只能访问网页明确批�
 
 测试期间无需运行 CLI，也不要求提前创建平台任务。完成测试后，用户在 Web 选择项目并创建或选择归档 Task，需要分组时再创建 Subtask，然后显式调用 Skill 或 CLI。命令执行完毕即退出，没有 MCP、Hooks、daemon、localhost callback、后台同步或自动续签。
 
-## 2. 安装与升级
+## 2. 把安装 Prompt 交给本地 Agent（推荐）
+
+HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 自动带入当前平台 HTTPS 地址；从项目入口进入时同时带入 Project ID，用于预选授权项目。项目预选不授予权限，也不是后续上传的默认目标。
+
+没有打开平台页面时，可从下列入口复制完整 Prompt：
+
+- [中文安装 Prompt](cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt) · [English installation prompt](cli-install-prompts/hypertest-cli-install-prompt.en.txt)
+- [cli-v0.1.0 GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)：发行说明提供完整中文 Prompt，附件提供中英文文本。
+
+通用发行 Prompt 不绑定某台服务器。Agent 先完成 CLI 与适用 Skill 的安装，再询问实际 HyperTest One HTTPS 地址以发起绑定；已有明确地址或有效绑定时复用，不猜测域名或项目。若会话运行在远程服务器/容器，应先明确实际安装目标，不能把远端安装称为本机安装。
+
+Agent 根据 Prompt 完成以下操作：
+
+1. 检查操作系统、Python ≥3.12、现有命令与受管安装，使用固定 `cli-v0.1.0` 的下载地址；分别核对安装器和 CLI 包的 SHA256 后执行安装。不会跟随仓库 Latest 安装旧 `local-v*` 包。
+2. 在当前用户目录安装 `hypertest` 并处理 PATH。保留旧版本、私有 profile、journal、未决请求、非受管命令和被修改的文件；冲突时报告具体位置，不强制覆盖。
+3. 安装 `hypertest-archive` Skill。Codex 使用 `hypertest skill install --global --host codex`；其他宿主先核实其技能目录，再用显式 `--directory`，不猜测目录或声明已验证发现能力。
+4. 读取安全元数据，复用 server/身份匹配的已绑定 profile；需要绑定时发起短时配对，显示授权地址与短码，由用户在网页核对身份、项目和期限并确认。Agent 不代替用户批准，也不要求复制 token 或 Operator key。
+5. 检查版本、Skill 安装结果与绑定状态，报告已完成项和待用户处理项。安装过程不创建测试任务、不执行测试、不上传产物，也不安装 MCP、Hooks、bridge 或后台同步进程。
+
+网页批准尚未完成时，Agent 应明确报告“已安装，待网页授权”，不能宣称已绑定。配对出现 SENT/UNKNOWN/失答时保留原 request ID，按第 4 节查询/恢复；不得换 key 重新绑定。已有旧 Local 配置的清理由用户单独发起，方法见第 8 节。
+
+### 手动安装或固定版本升级
+
+以下保留给需要自行操作或排查的用户；页面中的手动命令与 Prompt 使用同一份发行元数据。
 
 发行包为无第三方 Python 依赖的 `hypertest-cli-0.1.0.pyz`，附 release manifest 与独立安装器 `install-cli-release.py`。运行要求为 **Linux 或 macOS、Python ≥3.12**。本轮已实测 Linux/Python 3.13 的合成包安装、命令执行与 Skill 安装；macOS 尚未实际验收，不据此宣称已通过。
 
 从「CLI 授权」页或 [cli-v0.1.0 发行记录](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)下载 CLI 包和安装器到同一目录。
-先核验安装器 SHA256 为 `20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`，再运行下列命令（`python3` 需为 3.12 或更高版本）。网页还提供先校验安装器、再执行安装的一条命令。
+先核验安装器 SHA256 为 `20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`，再运行下列命令（`python3` 需为 3.12 或更高版本）。网页的手动安装入口还提供先校验安装器、再执行安装的一条命令。
 
 ```sh
 python3 install-cli-release.py \
@@ -32,11 +55,11 @@ export PATH="$HOME/.local/bin:$PATH"
 hypertest --version
 ```
 
-升级时下载新固定版本及对应摘要，重复安装命令并更换版本参数；原版本、授权配置、journal 和未决请求保留。新安装或升级不会配置宿主 MCP/Hooks，也不会自动绑定或签发授权。既有旧 Local 接入的显式退出见第 8 节。
+升级时下载新固定版本及对应摘要，重复安装命令并更换版本参数；原版本、授权配置、journal 和未决请求保留。安装器本身只安装 CLI，不配置宿主 MCP/Hooks，也不绑定或签发授权。安装 Prompt 会继续安装适用 Skill 并引导配对，授权仍由用户在网页确认。既有旧 Local 接入的显式退出见第 8 节。
 
 ## 3. 一条命令启动绑定，在 Web 确认一次
 
-从「CLI 授权」页复制服务器专属命令，或将以下地址替换为实际 HTTPS 服务地址：
+安装 Prompt 会在 CLI 就绪后发起这一步；已有匹配且可用的 profile 时直接复用。需要单独绑定时，从「CLI 授权」页的手动入口复制服务器专属命令，或将以下地址替换为实际 HTTPS 服务地址：
 
 ```sh
 hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
@@ -84,6 +107,8 @@ hypertest doctor --profile default --project-id PROJECT_UUID --json
 Web「CLI 授权」页可撤销指定项目 grant，撤销后服务端拒绝继续使用该权限，已接受历史保持。`hypertest auth logout --profile default` 只停用本机 profile，不等同服务端撤销；它保留凭据记录、journal、冻结请求和其他 profile，并返回未决请求 ID。授权到期后由用户显式重新绑定，无后台续签。
 
 ## 5. 全局安装并显式调用 Skill
+
+安装 Prompt 已包含适用宿主的 Skill 安装；以下命令可用于单独安装或检查。
 
 ```sh
 hypertest skill install --global --host codex

@@ -9,12 +9,14 @@ const p = "00000000-0000-4000-8000-000000000001", taskId = "00000000-0000-4000-8
 const workspace = load("app/workspace-ui.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "next/link" ? link : require(name) });
 const records = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
 const release = load("lib/cli-release.ts", { URL });
+const install = load("lib/cli-install-prompt.ts", { URL, require: (name) => name === "./cli-release" ? release : require(name) });
+const installComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? install : require(name) });
 const archive = load("lib/archive.ts", { require: () => ({ ApiError: Error }) });
 const task = { id: taskId, project_id: p, title: "Synthetic archive fixture", objective: "Declared test sources", owner_uploader_actor_ref: "interactive:actor", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN" };
 const operation = { ready: true, blocked: false, pending: null, busy: false, error: null };
 function renderPage(path, locale, query, search = new URLSearchParams({ projectId: p })) {
   const component = load(path, { URLSearchParams, require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
-    : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-authorization" ? {}
+    : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
       : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
         : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => ({ data: query[queryKey[0]], isLoading: false, isError: false }), useQueryClient: () => ({ invalidateQueries() {} }) }
           : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : require(name),
@@ -33,6 +35,8 @@ test("root archives render bilingual explicit upload, optional children and orig
     assert.ok(html.includes(locale === "en" ? "Task root (no Subtask ID)" : "任务根空间（无需子任务 ID）"));
     assert.ok(html.includes(locale === "en" ? "Optional subtasks" : "可选子任务"));
     assert.ok(html.includes('id="archive-version"')); assert.equal(html.includes("hypertest_bind_task"), false);
+    assert.ok(html.includes(`/cli-authorizations?projectId=${p}#cli-install`));
+    assert.ok(html.includes(locale === "en" ? "CLI installation prompt &amp; authorization" : "CLI 安装 Prompt 与授权"));
   }
 });
 test("CLI authorization page supports explicit project approval without secret fields or shell-injected query text", () => {
@@ -52,5 +56,14 @@ test("CLI authorization page supports explicit project approval without secret f
     assert.ok(html.includes(release.CLI_RELEASE.artifactUrl));
     assert.equal(html.includes("$(touch"), false); assert.equal(/type="password"|name="token"|Operator-Key/.test(html), false);
     assert.ok(html.includes(locale === "en" ? "Approve CLI" : "批准 CLI"));
+    assert.ok(html.includes('id="cli-install"'));
+    assert.ok(html.includes(locale === "en" ? "Copy installation prompt" : "复制安装 Prompt"));
+    assert.ok(html.includes(locale === "en" ? "Manual installation and binding" : "手动安装与绑定"));
+    assert.match(html, /<textarea[^>]+readOnly=""/);
+    assert.ok(html.includes('<details class="cli-install-manual">'), "manual commands stay in the collapsed secondary section");
+    const manual = html.slice(html.indexOf('<details class="cli-install-manual">'), html.indexOf("</section>"));
+    assert.ok(manual.includes(locale === "en" ? "PENDING with exit code 4" : "PENDING 和退出码 4"));
+    assert.ok(manual.includes(locale === "en" ? "Keep the original request_id" : "请保留原 request_id"));
+    assert.ok(manual.includes("hypertest auth bind --resume --request-id"));
   }
 });

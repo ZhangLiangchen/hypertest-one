@@ -183,6 +183,8 @@ test("unified creation shares title and objective without nesting the Cloud form
     if (mode === "local") {
       assert.ok(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"));
       assert.ok(html.includes(locale === "en" ? "Archive destination" : "归档目标"));
+      assert.ok(html.includes('href="/cli-authorizations?projectId=project-1#cli-install" target="_blank"'), "installation guidance keeps the task draft open");
+      assert.ok(html.includes(locale === "en" ? "CLI installation prompt &amp; authorization" : "CLI 安装 Prompt 与授权"));
       assert.ok(html.includes('hidden=""'), "the Cloud draft stays mounted but hidden in Local mode");
     } else {
       assert.ok(html.includes(locale === "en" ? "Create draft and review versions" : "创建草稿并核对版本"));

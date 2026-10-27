@@ -1,5 +1,26 @@
 # HyperTest One
 
+## 本地 Agent 接入：复制安装 Prompt
+
+当前本地接入采用 **显式 Skill → hypertest CLI → HTTPS 归档**。Agent 使用项目原有工具完成测试，用户随后选择平台任务并显式上传产物；测试期间无需 MCP、Hooks、native bridge 或后台同步。
+
+1. 打开 HyperTest One 全局「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent。页面自动带入平台地址；从项目入口进入时带入预选 Project ID。
+2. Agent 下载固定版 CLI，核验安装器及包的两个 SHA256，安装 CLI 与适用的 `hypertest-archive` Skill，并发起网页配对。已有匹配的绑定可复用。
+3. 用户在网页核对短码、上传身份、项目范围及期限后确认。安装/绑定不会创建测试任务、执行测试或上传产物。
+4. 测试完成后显式调用 `$hypertest-archive`，每次填写 Project ID、Task ID 和明确产物范围；Subtask ID 可选，省略时归档到任务根空间。
+
+未打开平台页面时，复制 [中文安装 Prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt) 或 [English installation prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.en.txt)。通用 Prompt 先安装，再在需要绑定时询问实际 HTTPS 平台地址；不猜测服务器或默认授权全部项目。
+
+当前 CLI：[cli-v0.1.0 Release 与安装 Prompt](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.0)。运行要求为 Linux/macOS、Python ≥3.12；已记录的 Linux/Python 3.13 检查不代表 macOS 或各宿主均已验收。首版 Skill 自动全局安装支持 Codex，其他宿主使用已核实的显式技能目录。
+
+[完整安装与授权指南](docs/CLI_AUTHORIZATION_GUIDE.md) · [CLI Prompt 安装交付](docs/CLI_PROMPT_INSTALL_DELIVERY_20261027.md) · [显式归档交付](docs/LOCAL_ARCHIVE_DELIVERY_20261027.md)
+
+旧 HyperTest Local 的 `local-v*` 包、MCP/Hooks 接入和 `$hypertest-local-task-onboarding` 已弃用。不要为新接入安装它们，也不要使用仓库 Latest 标签推断当前 CLI 版本。旧安装可按[受管退出指南](docs/CLI_AUTHORIZATION_GUIDE.md#8-退出旧-mcphooks-接入并保留恢复)精确清理；保留其他插件、凭据、源产物、历史和未决 key。
+
+## 历史 Local 接入记录
+
+以下 ADR-026 与 2026-10-23 记录保留当时的源码、发行和验收身份；新接入使用上方 ADR-027 CLI/Skill 流程。
+
 [ADR-026 Local 多会话协作](docs/architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)首片源码已实现：同一测试任务可显式授权多个真实会话，各自保存贡献，由当前主会话汇总并交接。自动回归、部署和客户端发行分别见[本轮交付](docs/MULTI_SESSION_LOCAL_DELIVERY_20261026.md)；未启用任务与公开旧包保持原合同。
 
 ## 2026-10-23 生产 Web 上线补记
@@ -7,7 +28,7 @@
 PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已上线。实际 Web 源码为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`；内部真实浏览器六条命令及已有用例 / 原始报告、外部严格 CA HTTPS 已验证。文中“待合并 / 待最终 gate”属于下方验收冻结时点；精确 image、保全、补证顺序和临时授权清理见[生产部署记录](docs/LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。原 `local-v0.1.0` 包 / tag / 三摘要与三宿主证明保持不变；本次后续纯文档提交不代表部署新 Web 源码。
 
 
-Codex 会话中的测试任务、计划、用例和原始报告可通过 [Session Task MCP 同步](docs/CODEX_SESSION_TASK_SYNC.md)保存到 HyperTest One。一个实际会话对应一个任务；Agent 使用被测项目已有框架执行测试，平台负责管理、读取和版本历史。该入口使用独立 `task:sync` 授权，保留已有受管执行路径与历史。
+旧 [Session Task MCP 同步](docs/CODEX_SESSION_TASK_SYNC.md)曾将 Codex 会话中的测试任务、计划、用例和原始报告保存到 HyperTest One，使用独立 `task:sync` 授权。该旧 profile 的新写入口已停用，历史和原 key 只读恢复保留；它不是当前 CLI 归档接入方式。
 
 
 ## Cloud SDK + Codex 集成候选（默认关闭）
@@ -429,11 +450,13 @@ The first production file-import Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` corr
 
 **Stage 2** changes backend runtime context and Codex guidance to distinguish the application's requirements from instructions about testing it. Authoritative scope is clarified in [domain §12](docs/domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#12-requirement) and [TMP §9](docs/protocol/TEST_MISSION_PROTOCOL.md#9-mission-context). This stage is no longer backend-identical to d20/302. Its new freeze passed **303 backend tests / 3 warnings (48.70s)**, Ruff, test-DB Alembic head 0008 and a fresh independent **20-test Web/typecheck/build/audit-0** verification. Source-input manifest is `4e6447f0b851c197b8634ad16e01c9e6506a2c5d540fd6a97027213f9cb50c90`; it includes uncommitted changes above 73d and is not that commit SHA. The final release SHA/deployment and a fresh-Project real-model cycle using the same PRD/source/configuration/Policy content belong to the [latest delivery record](/Users/liangchenzhang/PycharmProjects/hypertest-one-handoff/prd-import-vpn-acceptance-2026-10-17.md). No prior accepted state is rewritten, PARTIAL is not accepted, and Gate rules are not relaxed.
 
-## HyperTest Local
+## HyperTest Local 历史发行（已弃用）
 
-当前正式发行：[local-v0.1.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.1)，已设为仓库 Latest，提供 Mac arm64/Python3.13 与 Linux x86_64/Python3.12 包。安装、同命令升级与固定摘要见[正式发行记录](docs/LOCAL_STABLE_RELEASE_20261026.md)；发行状态与真实宿主验收分别记录。
+本节保留旧 Local 包与宿主验收的历史身份，不作为当前安装指引。新接入使用本文顶部的 CLI 安装 Prompt；不再安装旧 MCP/Hooks、bridge 或常驻同步。
 
-本地模式首次接入、已有任务绑定及恢复使用 [hypertest-local-task-onboarding Skill](skills/hypertest-local-task-onboarding/SKILL.md)，调用方式为 `$hypertest-local-task-onboarding`。仓库 `skills/` 是唯一维护位置；新版 Local 候选包内置同一份完整指南，并提供显式 `install-skill` 安装/升级入口，不默认写全局技能目录。也可把完整技能目录复制到所用 Agent 的技能目录（Codex 可用 `~/.codex/skills/`）。指南不新增授权；旧 `local-v0.1.0` 资产保持不变。新版下载、安装和验收边界见[本轮包更新](docs/LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。
+历史正式发行：[local-v0.1.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/local-v0.1.1)，当时设为仓库 Latest，提供 Mac arm64/Python3.13 与 Linux x86_64/Python3.12 包。历史安装、同命令升级与固定摘要见[正式发行记录](docs/LOCAL_STABLE_RELEASE_20261026.md)；发行状态与真实宿主验收分别记录。
+
+旧本地模式首次接入、已有任务绑定及恢复当时使用 [hypertest-local-task-onboarding Skill](skills/hypertest-local-task-onboarding/SKILL.md)，调用方式为 `$hypertest-local-task-onboarding`。仓库 `skills/` 是唯一维护位置；新版 Local 候选包内置同一份完整指南，并提供显式 `install-skill` 安装/升级入口，不默认写全局技能目录。也可把完整技能目录复制到所用 Agent 的技能目录（Codex 可用 `~/.codex/skills/`）。指南不新增授权；旧 `local-v0.1.0` 资产保持不变。新版下载、安装和验收边界见[本轮包更新](docs/LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md)。
 
 ## 2026-10-23 新增真实矩阵（已通过）
 
@@ -442,7 +465,7 @@ The first production file-import Run `01a14a80-f686-7ae1-86a9-5624fd2ce8a5` corr
 本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](docs/local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
 
 
-本源码分支仅交付 Local（ADR-020）与 TaskSyncCore（ADR-021）的 Local 消费方。
+下列为当时 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的发行范围，不描述当前 ADR-027 CLI 包。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
 Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
 真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、

@@ -4,8 +4,9 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
+| CLI Prompt 安装入口 | **实现进行中**：全局授权与相关项目/任务入口以安装 Prompt 为主，Agent 下载固定 cli-v0.1.0、核验双 SHA、安装 Skill 并引导网页绑定；README/指南同步，原 CLI 包与历史发行身份保持。见[本轮交付](CLI_PROMPT_INSTALL_DELIVERY_20261027.md) | 中英文 Prompt 发行附件/Release 说明、定向检查与 Web 部署完成后记录；USER_OWNED 真实本机安装和授权验收保留 |
 | Local 显式 Skill 与 CLI 后置归档重构 | **实现、API/Web部署及cli-v0.1.0公开发行已完成；schema0031**。独立归档 Task/可选 Subtask、CLI 配对授权与全局 profile、显式 Skill、根/子任务归档、PC Web 与原 key 恢复；代码默认退休旧 Local 新写，按收据清理自有 MCP/Hooks/bridge。每次上传必填 Project/Task ID，Subtask 可选。见[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)、[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[授权指南](CLI_AUTHORIZATION_GUIDE.md) | 部署固定Git 1512d11，公开CLI源d02ab1d；相关回归、构建、迁移及健康通过。USER_OWNED尚未验收；真实本地受管配置清理由用户在明确安装位置执行，不能由服务端切换推定。旧历史/未决key保留，下方旧交付不重标 |
-| Local 一条命令 / Prompt 安装升级 | **已实现并部署Web；local-v0.1.1正式公开并设为Latest**；updater 自动发现渠道/目标、保留原收据配置与Hooks、核对真实daemon、同命令安装Skill；stable发现和两目标发行构建通过。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)及[实现原记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md) | 正式发布不升级真实宿主验收，仍USER_OWNED；首次需已有私有Project授权，未知目标/Python明确报缺口 |
+| 旧 Local 一条命令 / Prompt 安装升级（历史） | **当时已实现并部署Web；local-v0.1.1正式公开并设为Latest，现由ADR-027 CLI接入替代**；updater 自动发现渠道/目标、保留原收据配置与Hooks、核对真实daemon、同命令安装Skill；stable发现和两目标发行构建通过。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)及[实现原记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md) | 正式发布不升级真实宿主验收，仍USER_OWNED；首次需已有私有Project授权，未知目标/Python明确报缺口 |
 | Local 多会话任务协作 | **ADR-026 首片已实现并部署API/Web，schema0029**；ENABLE/精确授权/JOIN/撤销、独立贡献、主会话汇总/交接、固定版本/原key恢复、MCP与PC详情已连通。见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md) | PR #26已合入main，正式local-v0.1.1已包含协作客户端；真实宿主接入/USER_OWNED验收保留；标准A2A adapter、跨actor与跨root私有UNKNOWN自动枚举不在首片 |
 | Local 接入 Skill 与新版包 | **PR #25 已合入；Skill已随local-v0.1.1正式公开**；单一技能源码纳入wheel、固定摘要与显式安装/升级。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)和[原实现记录](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md) | 新版宿主验收保持 USER_OWNED / NOT_OBSERVED；旧正式版与候选不重标 |
 | PC 任务详情快速导航 | **已实现并部署**；左侧悬浮目录、章节跳转/滚动高亮、用例/报告数量、中英文与键盘导航；Web源码57cb595，32项相关回归、构建及只读浏览器检查通过 | USER_OWNED功能验收保留；见[导航交付](TASK_QUICK_NAVIGATION_DELIVERY_20261026.md) |

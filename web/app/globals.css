@@ -515,3 +515,11 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cli-bind-guide { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; margin-bottom: 24px; }
 .cli-pairing-code { font-variant-numeric: tabular-nums; font-size: 26px; letter-spacing: 0.08em; }
 .cli-authorization-projects { display: grid; gap: 10px; }
+.cli-install-prompt > .ant-typography { max-width: 72ch; }
+.cli-install-prompt-actions { margin-block: 4px 12px; }
+.cli-install-prompt-actions [role="status"] { font-size: 12px; }
+.cli-install-prompt-details, .cli-install-manual { margin-block: 12px; }
+.cli-install-prompt-details > summary, .cli-install-manual > summary { cursor: pointer; padding-block: 8px; }
+.cli-install-manual > summary { color: var(--ht-muted); }
+.cli-install-prompt-text { display: block; width: 100%; resize: vertical; margin-top: 8px; padding: 16px; border: 1px solid var(--ht-control-border); border-radius: var(--ht-radius-control); background: var(--ht-canvas); color: var(--ht-ink); font: inherit; line-height: 1.8; }
+#cli-install { scroll-margin-top: 104px; }
