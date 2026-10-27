@@ -1584,6 +1584,7 @@ ReconcileCloudOperation 只追加原 key 的确定观察、原材料和有权 re
 
 ## 47. ADR-020 Local Hooks 与显式 MCP 协作
 
+2026-10-27：[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新的 Local 显式 Skill/CLI 后置归档方向，目标协议见§51，尚未实现。本节与§45继续解释已交付版本及旧回执；新归档不复用 native BIND/JOIN 合同。
 
 本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
@@ -1652,3 +1653,49 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 响应status为OBSERVED或UNKNOWN，response使用hypertest-https-response/v1：原operation_id/request_digest/state/http_status/body_base64/body_sha256/byte_count/reason/observed_at。OBSERVED必须完整原件/摘要与canonical metadata一致，并经当前fence/秘密扫描；UNKNOWN不含body/HTTP状态，只用固定reason。HTTP状态与正文不是reported_result。REFUSED/UNKNOWN或丢响应不能推导未执行。
 
 框架冻结检查只读锁文件并对固定Python/Node执行--version，不自动安装、联网或执行声明argv，不声称依赖闭包或限制了任意SDK shell语义。一般凭据HTTP/写操作/浏览器/CI不通过本profile准入；UNKNOWN阻止收尾并保持原预算及历史。
+
+## 51. ADR-027 Local 显式归档协议目标合同
+
+本节为已接受、待实现的 `local-artifact-archive/v1alpha1`，由 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)采用，领域语义见[领域§56](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#56-adr-027-local-显式后置归档目标合同)。它通过普通 HTTPS 请求/响应工作，不需要 MCP、Hook、SessionStart、source binding、常驻连接或 Agent 执行通道。
+
+### 51.1 目标接口与授权
+
+下表均以 `/api/v1/local-archive` 为前缀，是待实现路径；现有服务器不因本文出现这些路径而获得能力。
+
+| HTTP 操作 | 权限与契约 |
+| --- | --- |
+| `GET /capabilities` | 归档授权；分别返回 implemented/configured、profile、正文/条数上限和支持的产物类型 |
+| `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task、title、可选 uploader；管理 key 与适用 expected_task_version |
+| `POST /tasks/{id}/authorize` | Operator；明确 owner/子任务 uploader，expected_task_version；不签发或扩大 integration grant |
+| `POST /tasks/{id}/publications` | Operator；expected_task_version、精确子任务版本清单、显式汇总与原 key |
+| `GET /operations/by-key` | Operator 按 Project/原管理 key 恢复创建、授权或汇总，返回原固定管理回执 |
+| `GET /tasks/{id}`、`GET /tasks/{id}/subtasks/{subtask_id}` | Operator 或获准的 archive:read；后者可选择固定子任务 version 并分页读取完整快照 |
+| `POST /tasks/{id}/subtasks/{subtask_id}/submissions` | archive:write，CLI 同时需 archive:read 完成确认；上传者由认证得出，归档正文见下节 |
+| `GET /submissions/by-key` | archive:read；Project/原操作 key，按原上传 actor 权限返回瘦回执，NOT_FOUND 不授权重传 |
+| `GET /submissions/{id}` | archive:read；固定接受子任务快照及引用资产正文，分页参数与下节一致 |
+
+所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
+
+### 51.2 Manifest、上传与完整读回
+
+私有 manifest 携 `profile/project_id/task_id/subtask_id`、`assets` 及可选 `subtask_update`。每个 asset 明确 kind、stable_key、标题/结果、origin 和本地文件路径或结构化 CASE 内容；目录必须展开成用户批准的有限文件清单。Agent 不能将命令、任意聊天/凭据目录或远程抓取要求嵌入 manifest。CLI 安全读取实际文件并构造 typed wire body，本地绝对路径不作为上传原件。
+
+wire body 为 `{profile, project_id, task_id, subtask_id, idempotency_key, expected_subtask_version, assets, subtask_update?}`。assets 为明确 upsert 集合，每项带完整内容与来源；省略资产不删除，更新子任务字段必须显式出现且非 null。CASE 使用§45.1的结构化业务字段；PLAN/REPORT 使用 UTF-8 正文，原始报告保持原文，source_ref/artifact_uri 只作引用，不触发服务端下载。新 profile 明确定义部分更新语义，不将旧 hypertest_sync_task 重新解释为 PATCH。
+
+首片沿用 stable_key 128字符、单计划/报告262144字符、每批200用例/16报告、每用例100 steps 等业务字段上限，typed JSON 总量上限2MiB。以最终 UTF-8 请求字节核总量；不沿用 MCP 的1MiB消息限制，也不无界扩大。能力不支持、超限、路径/秘密检查失败时整批拒绝；不静默截断、隐式拆分或仅保存 hash 后称原件已上传。
+
+CLI 在冻结新请求前读取固定子任务基线并核当前权限；保存最终完整请求、文件字节和预期合并结果后单次发送。重复同一私有 request_id 复用原 key 和冻结内容；已确认完成且内容未变时可直接返回原结果。显式后续新归档使用新的本地请求记录，服务端仍按领域§56处理版本与 UNCHANGED。
+
+瘦回执包含 `{profile, submission_id, project_id, task_id, subtask_id, uploader_actor_ref, idempotency_key, request_digest, outcome, accepted_version}`，outcome 为 ACCEPTED 或 UNCHANGED。客户端核请求/目标/上传者及版本（变化为 expected+1，无变化为 expected），再读取该 Submission 的完整固定快照。
+
+分页 envelope 为 `{profile, submission_id, subtask_id, version, offset, total_chars, next_offset, content, complete}`；按 Unicode 字符计 offset，单页上限24000字符，所有页面固定同 submission/version。读回包括完整子任务状态、资产 key/revision、原文/结构化内容和逐资产来源；按冻结预期验证，不能用 current head 或仅摘要代替原文。
+
+### 51.3 CLI、Skill 与恢复结果
+
+`hypertest archive --profile NAME --task-id UUID --subtask-id UUID --manifest FILE --json` 完成一次归档。`profile` 管理私有连接引用，`doctor` 只读诊断能力，`status` 查看本地请求状态，`reconcile --request-id UUID` 查询原 key/继续固定读回，`skill install` 安装明确目标中的归档 Skill。`status --remote` 才执行远端查询，`--dry-run` 不创建业务提交。
+
+`--json` 至少返回 `{status, request_id, task_id, subtask_id, submission_id?, accepted_version?, readback_complete, task_url?, code?}`；status 区分 ARCHIVED、UNCHANGED、PREVIEW、PENDING、UNKNOWN、REJECTED。只有完整读回或已验证的同一原请求可返回 ARCHIVED/UNCHANGED；预览成功不能冒充归档成功。普通命令成功为退出码0，参数/本地输入错误2，明确拒绝3，未决/UNKNOWN/读回未完4，配置/能力缺口5；stderr 日志与 stdout JSON 分开。
+
+Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词和 Task/Subtask ID 不作为鉴权字段。用户授权的文件范围足够明确时直接完成归档，未知必要输入才澄清。Skill 不隐式读聊天、自动触发 CLI 或执行 SUT；结果 UNKNOWN 时只引导原请求查询，不循环换 key 重发。
+
+新档案请求与旧 Local bind/sync/collaboration namespace 分离。`reconcile` 可显式选择旧 profile 和已知私有账本，执行旧原 key GET/固定版读回；不能生成新的旧 POST、伪造 native caller 或启动 MCP/Hooks/daemon。切换后新的旧操作返回明确退休错误，旧历史仍按原协议读回；公开旧 tag 与已接受回执不重标。

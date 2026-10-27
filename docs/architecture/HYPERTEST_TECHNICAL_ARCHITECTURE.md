@@ -1158,6 +1158,7 @@ Cloud canonical SSH操作与追加观察独立持久：先SENT后一次发送，
 
 ## 46. ADR-020 LocalSyncCoordinator 与统一 Local 发行
 
+2026-10-27：[ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新 Local 接入的替换方向，目标架构见§50；产品实现未开始。本节继续描述当前已交付实现及旧历史，切换时保留其授权、原 key 和固定版本恢复语义。
 
 本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
@@ -1221,3 +1222,13 @@ Web经现严格TLS/CA/UDS、服务端Operator身份访问Gateway；独立Memory 
 Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，仅只读挂载专用UDS。host按冻结目录与当前fence发一次GET/HEAD：公开IP全结果核验并pin连接、原hostname的严格TLS、零redirect/proxy/retry、整段deadline及有界流输出。无鉴权首片不给Agent任何网络身份或平台token，不读本机秘密，不绕过LOCAL_ONLY环境限制。
 
 平台0028两张不可变表保存原SENT与非秘密OBSERVED/UNKNOWN；原HTTP正文留host私有原件，须scan与当前fence接受才能返回。原key只读恢复不再发送，HTTP未知统一阻止原生命周期收尾/预算结算，不能由Operator声明消除。与SSH的远端签名/helper/终态协议保持独立。运行前核FRAMEWORK_LOCKED_V1的锁文件和固定工具身份；既有入口准入继续，离线检查不承担依赖安装或新的测试引擎职责。精确边界见[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)、TMP§50与领域§55。
+
+## 50. ADR-027 Local 显式归档目标架构
+
+状态为已接受方向、实现未开始。新链路为 `显式 Skill → hypertest CLI → ArchiveAdapter / TaskSyncCore → HTTPS Archive API → PostgreSQL`。API 接受和存储测试资产，不启动 Agent 或测试；CLI 在一次命令进程中完成配置、校验、冻结、发送和读回，无常驻 daemon、IPC、Hook 或 MCP server。
+
+新归档业务由 LocalArchiveTask、LocalArchiveSubtask、LocalArchiveSubmission、LocalArchiveAssetRevision 与 LocalArchivePublication 承担。Task/子任务创建与授权由 Web 的 Operator 管理路径负责；CLI 仅以独立 `archive:read/write` 的 integration 身份读写获准目标。原会话来源可缺省或由上传者声明，不读取 native root registry，不复用 BIND/JOIN 作为准入条件。
+
+复用现有私有凭据读取、HTTPS、TaskSyncCore、冻结快照和账本库，并消除它们对旧 daemon/MCP 入口的依赖。ArchiveAdapter、旧 Local 只读恢复 adapter 和 CloudSyncAdapter 分别保有 profile、授权及账本 namespace，不共享全局 journal。新旧业务 API、领域不靠通用 Task 表或放宽旧 caller fence 合并。
+
+在新 API/CLI/Skill/Web 可用后执行旧接入切换：新 Local 分发不含 MCP/Hooks/bridge/daemon；按安装收据精确清理自有宿主配置；服务端关闭旧 Local 会话新写准入，保留历史读取和原 key 回执。CLI 显式 legacy recovery 不启动旧 daemon，不重放 POST。共享库、Cloud、独立 Memory 服务和其他插件配置按真实依赖保留。具体顺序与开发文件见[计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)，精确合同由 TMP§51、领域§56 与 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)拥有。

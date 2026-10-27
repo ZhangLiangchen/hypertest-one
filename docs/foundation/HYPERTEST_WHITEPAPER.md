@@ -23,6 +23,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ### Local 入口：Codex 测试任务与产物管理（ADR-018 优先）
 
+**2026-10-27 后续方向已确定，尚未实现：** [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将新的 Local 接入改为用户显式调用 Skill 与 CLI 的后置产物归档，移除该模式 MCP/Hooks 和实时会话绑定依赖。下文 ADR-018/024/026 描述已交付版本及其历史合同；在新链路完成切换前继续适用，不据方案文字宣称已移除旧运行能力。
+
 [ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)已接受并启动实施：显式启用的 Local 任务可以由多个获授权真实 root 参与、分别追加贡献，由一个当前主会话汇总。任务 UUID、初始绑定和历史保持；未启用任务继续使用下列单会话合同。源码、部署、客户端发行与用户功能验收分别记录。
 
 **默认单会话合同中，一个 Codex 会话对应一个测试任务；ADR-026 协作合同中，一个任务可接纳多个真实会话的贡献。Agent 将计划、用例、原始报告及 reported result 同步到 HyperTest One；HyperTest 本身不承担测试执行。**
@@ -910,3 +912,11 @@ Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重�
 Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
 升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
 Local 发行不包含 Cloud runtime；Cloud 实施进度与最终树验收按独立 Cloud 状态记录，不由 Local 发行成绩推定。
+
+## Local 显式后置归档方向 ADR-027
+
+新 Local 流程让 Agent 按项目原有工具独立完成测试，保留正式文件，随后由用户在 HyperTest One 创建测试任务和子任务，并显式调用 `hypertest-archive` Skill。Skill 整理获准产物，`hypertest` CLI 按需通过 HTTPS 归档并读回，完成后退出；测试过程中无需平台任务、Hooks、MCP、SessionStart 或后台同步。
+
+HyperTest One 在这条路径中管理业务任务、子任务、产物修订、真实 reported result 和来源。上传者由授权认证，原测试会话只是可选来源声明；一个任务可归档多个会话的材料，原会话结束后仍可上传留存文件。归档完成、测试进度和质量结果分别表达，不因上传成功产生 PASS、独立执行证明或 RELEASE_READY。
+
+[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)已确定替换方向，[开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录待实现范围。新归档实体与旧 SessionTask、CloudTask 分别持有身份和历史，只共享 Project；移除旧 Local MCP/Hooks 接入时保留既有报告、授权、私有未决账本与原 key 只读恢复。方案、实现、部署、CLI 发行和用户验收分别记录。

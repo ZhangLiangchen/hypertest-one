@@ -1,9 +1,10 @@
 # HyperTest One 当前 TODO
 
-更新：2026-10-26（Asia/Singapore）。以本表和链接中的精确范围区分开发、部署与用户功能验收；历史交付原件不重标。本次后续交付见[FOLLOWUP_DELIVERY_20261023](FOLLOWUP_DELIVERY_20261023.md)，PC 界面统一见[原 Web 交付](LIQUID_GLASS_WEB_DELIVERY_20261025.md)，后续优化见[Web 性能交付](WEB_PERFORMANCE_DELIVERY_20261025.md)。
+更新：2026-10-27（Asia/Singapore）。以本表和链接中的精确范围区分开发、部署与用户功能验收；历史交付原件不重标。本次后续交付见[FOLLOWUP_DELIVERY_20261023](FOLLOWUP_DELIVERY_20261023.md)，PC 界面统一见[原 Web 交付](LIQUID_GLASS_WEB_DELIVERY_20261025.md)，后续优化见[Web 性能交付](WEB_PERFORMANCE_DELIVERY_20261025.md)。
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
+| Local 显式 Skill 与 CLI 后置归档重构 | **方向已确定，方案已整理；产品实现未开始**。新增独立归档 Task/Subtask/profile、统一 hypertest CLI 和 hypertest-archive Skill，替换 Local MCP/Hooks/daemon 接入；四份基础规范已添加目标合同。见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md) | 按计划实现 API/迁移、CLI、显式 Skill、PC Web、受管旧配置清理和旧写退休；保留历史与原 key 只读恢复。部署、cli-v*发行及USER_OWNED验收尚未执行；下方旧交付不重标 |
 | Local 一条命令 / Prompt 安装升级 | **已实现并部署Web；local-v0.1.1正式公开并设为Latest**；updater 自动发现渠道/目标、保留原收据配置与Hooks、核对真实daemon、同命令安装Skill；stable发现和两目标发行构建通过。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)及[实现原记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md) | 正式发布不升级真实宿主验收，仍USER_OWNED；首次需已有私有Project授权，未知目标/Python明确报缺口 |
 | Local 多会话任务协作 | **ADR-026 首片已实现并部署API/Web，schema0029**；ENABLE/精确授权/JOIN/撤销、独立贡献、主会话汇总/交接、固定版本/原key恢复、MCP与PC详情已连通。见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md) | PR #26已合入main，正式local-v0.1.1已包含协作客户端；真实宿主接入/USER_OWNED验收保留；标准A2A adapter、跨actor与跨root私有UNKNOWN自动枚举不在首片 |
 | Local 接入 Skill 与新版包 | **PR #25 已合入；Skill已随local-v0.1.1正式公开**；单一技能源码纳入wheel、固定摘要与显式安装/升级。见[正式发行](LOCAL_STABLE_RELEASE_20261026.md)和[原实现记录](LOCAL_ONBOARDING_SKILL_DELIVERY_20261026.md) | 新版宿主验收保持 USER_OWNED / NOT_OBSERVED；旧正式版与候选不重标 |
@@ -14,7 +15,7 @@
 | P0-1 Web未决请求持久保全 | **已实现并部署**；独立IndexedDB、双标签、原key恢复、固定版本完整读回 | USER_OWNED 功能验收保留；浏览器清除站点数据不能推导未执行。见[P0原记录](P0_RECOVERY_DELIVERY_20261023.md) |
 | P0-2 取消、失联与人工收尾 | **已实现并部署**；fence/lease/对账、人工入口、明确SDK恢复不支持 | USER_OWNED 功能验收保留；UNKNOWN/HELD及原件/历史不由声明清除 |
 | P1-1 Cloud框架依赖与受控HTTPS | **首片实现并部署，整体部分完成**：FRAMEWORK_LOCKED_V1及公开GET/HEAD目录adapter、canonical账本、原key恢复、Worker/权限集成与合成故障回归；新开关保持关闭 | 真实Project/目标/IP/只读资源/期限/预算尚未授权。依赖闭包与离线安装供应、认证/写API/query/body、其他工具链与浏览器仍待独立开发。未宣称一般框架或真实API任务已通过 |
-| P1-2 Local新任务绑定扩展 | **研究与拒绝边界已核对**；Codex保持已核0.144.6路径；Claude/DeepSeek无可信逐调用MCP归因则继续unsupported；不为扩覆盖放宽身份 | 新宿主adapter需要可靠host-native transport证据；Codex真实parent/child绑定E2E仍USER_OWNED/NOT_OBSERVED。local-v0.1.1正式公开不赋予新宿主资格，旧local-v0.1.0不重标。见[caller核对](LOCAL_CALLER_FOLLOWUP_20261023.md) |
+| P1-2 Local新任务绑定扩展 | **旧合同研究与拒绝边界已核对；新宿主绑定扩展由ADR-027归档路线替代，不再作为新流程待办**。当前已部署Codex仅已核0.144.6；Claude/DeepSeek caller继续unsupported，不放宽身份 | 旧Codex真实parent/child绑定E2E仍USER_OWNED/NOT_OBSERVED；历史发行不升级。切换前保留现有拒绝与原key恢复，后续实施显式CLI归档。见[caller原记录](LOCAL_CALLER_FOLLOWUP_20261023.md) |
 | P2-1 真实SDK原会话恢复 | **独立缺口/设计已记录，未实现**；保持supports_resume=false | 需确定允许续接的非终态、原session/home/workspace、旧prompt enqueue歧义处理、新generation与预算处置。不能删除闭锁直接调用resume或重放prompt |
 | P2-1 平台回归CI | **快速原型阶段改为按需手动执行**：关闭push/PR自动触发，保留workflow_dispatch及原后端/Web/最小API依赖检查；tag发行构建独立保留 | 日常按改动范围做关键自测，手动CI不作为普通交付前置条件；停用自动触发不等于CI PASS，也不等于SUT CI执行adapter |
 | P2-1 SUT CI adapter | **独立设计已记录，未实现** | 需选择provider/API版本、项目/workflow、runner/环境及触发/读/取消权限、独立凭据引用与预算；不得借Git权限或管理服务器token触发 |

@@ -1,5 +1,7 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
+2026-10-27 Local 重构方案：用户已确定由 MCP/Hooks 同步转为测试后显式 Skill/CLI 归档。[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)与[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录改造原因、新 Task/Subtask/Submission 模型、独立权限、CLI/Skill、旧入口退出及历史恢复；四份基础文档添加目标合同。**本轮为纯文档交付，产品实现未开始**，未移除正在使用的配置、未部署新接口、未发行CLI或执行用户验收。后续工作按当前TODO的归档重构项推进，下方已交付版本和历史资格保持。
+
 2026-10-26 正式发行：按用户要求将最新 rc.2 功能发布为 `local-v0.1.1`，GitHub Latest 已指向该正式版，stable updater 已能发现。六份公开资产、Mac/Linux发行构建及相关自测通过；正式发布与宿主验收分别记录，旧候选/验收原件不改写。精确源码、摘要和状态见[正式发行记录](LOCAL_STABLE_RELEASE_20261026.md)。本轮不改服务器部署镜像/数据库，不开展模型、SUT或用户验收。
 
 2026-10-26 Local 更新：PR #26已合入main；一条命令/Prompt的安装与升级已实现，local-v0.1.1-rc.2候选公开，Web按df5155b部署。自动识别收据、保留Hooks/授权/账本、真实daemon版本检查与公开入口合成安装/升级回归通过。实现、发行摘要、CI与镜像见[本轮记录](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)；API/Worker/schema身份保持，真实宿主验收仍USER_OWNED。

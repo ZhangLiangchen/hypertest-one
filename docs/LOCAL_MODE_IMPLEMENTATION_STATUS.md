@@ -1,5 +1,11 @@
 # HyperTest Local 实现与发行状态
 
+## 2026-10-27 后置显式归档重构方案
+
+用户已确定移除 Local Agent 接入中的 MCP/Hooks，新增 `hypertest` CLI 和 `hypertest-archive` 显式归档 Skill。任务/子任务在测试后创建，上传者与原会话来源分开；旧配置精确清理、旧新写退休与历史只读恢复见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)和[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
+
+本轮仅完成方案及规范目标增补，归档 API、CLI、Skill、Web 改造和升级清理均未实现，未部署或发行。当前公开 `local-v0.1.1` 与下方记录保持原资格，不能把方向确定写成 MCP/Hooks 已移除。
+
 ## 2026-10-26 一条命令 / Prompt 更新增量
 
 统一安装 / 升级入口、明确渠道、旧收据迁移、运行来源核对和网页单 Prompt 已实现；代码回归、候选公开及 Web 部署分别记录在[本轮交付](LOCAL_ONE_COMMAND_DELIVERY_20261026.md)。ADR-026 与新安装入口不沿用旧三宿主资格，真实宿主验收仍为 USER_OWNED。

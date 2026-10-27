@@ -2471,6 +2471,7 @@ Cloud 配置、凭据及任务写入先取得 Project 共享行锁并持续到�
 
 ## 52. ADR-020 Local 客户端不变量
 
+2026-10-27：[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定新 Local 后置归档方向，目标领域见§56，尚未实现。现有 SessionTask 和本节客户端的历史语义不被新归档身份覆盖；旧写入口在实现切换后退休，历史及原 key 读取保留。
 
 本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
 统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
@@ -2532,3 +2533,49 @@ Observation固定原Operation与request digest、原worker/generation、OBSERVED
 QUERY可用原key或原operation UUID，由原work grant身份只读；不能刷新发送许可。未有OBSERVED的HTTP intent统一纳入既有远端未决检查，阻止COMPLETE/结算/RETRY/RESUME/RECONCILE；声明不改变UNKNOWN或HELD。OBSERVED也只表示已观察的HTTP响应，不代表测试PASS、独立来源或已部署版本。旧固定Task快照不加入后来响应，新的快照独立投影http_operation_results。
 
 HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architecture/ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)及TMP§50拥有。默认关闭，显式目标授权和USER_OWNED验收不能由源码/组件回归代替。
+
+## 56. ADR-027 Local 显式后置归档目标合同
+
+本节为[ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)的新归档领域规范，状态为已接受方向、实现未开始。新增实体只与 Cloud/旧 SessionTask 共享 Project；其迁移必须 additive，旧身份、结果、修订、授权和回执不转换或删除。
+
+### 56.1 身份、所有权与关系
+
+| 实体 | 最小字段与关系 |
+| --- | --- |
+| LocalArchiveTask | UUID、project_id、title/objective、creator_actor_ref（Web Operator）、owner_uploader_actor_ref（integration actor，可未指定）、version、status、reported_result、created_at/updated_at |
+| LocalArchiveSubtask | UUID、project_id/task_id、title/分工、authorized_uploader_actor_ref、version、status、reported_result、创建与接受时间 |
+| LocalArchiveSubmission | UUID、profile/operation、project_id/task_id/subtask_id、认证后的 uploader actor/client、idempotency_key、完整冻结请求/digest、expected_subtask_version、outcome、accepted_version、snapshot_ref、accepted_at |
+| LocalArchiveAssetRevision | UUID、project_id/task_id/subtask_id、kind/stable_key/revision、完整内容、reported_result、逐资产 origin metadata、submission_id、accepted_at |
+| LocalArchivePublication | UUID、task_id/task_version、精确子任务版本清单、采纳的资产修订引用、任务汇总正文及 status/reported_result、管理提交者与时间 |
+
+Task 和 Subtask 的 version 从 1 起；不含 BOUND/UNBOUND、native root、primary generation 或宿主 caller 字段。管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存未授权草稿，归档拒绝；已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有接受的归档提交，其 owner 不可改写。
+
+Project/Task/Subtask/Submission/AssetRevision 以复合外键保证归属一致，不能把另一 Task 的 Subtask ID 或另一 Project 的资产拼入请求。读取、新写及汇总均核当前授权和目标可用性。新增权限 `archive:read`、`archive:write` 使用 integration grant，旧 `task:sync`、`cloud:work`、Memory scope 不自动获得权限；actor/client/Project 授权与 Task/Subtask 所有权同时成立才可访问。
+
+同一会话可作为多个归档工作项的声明来源，一个子任务可包含多个会话的材料。`origin_provider/origin_session_ref/producer/source_ref/test_started_at/test_finished_at/report_created_at` 可按资产记录且允许缺省；它们不产生参与关系、写权或 session 全局唯一约束。服务器固定真实 uploader 和 accepted_at，不把上传者替换成声明的原会话，不将缺失的历史测试时间补为平台创建时间。
+
+### 56.2 资产修订、状态与接受事务
+
+首片 kind 为 PLAN、CASE、REPORT，正文和结构按 TMP§51。归档请求是显式的完整资产 upsert 集合：每个所选资产携完整内容/结果/来源，省略已有资产保留其当前版本及历史；子任务 status/reported_result 只接受明确出现的更新，缺省沿用当前值，null 不代表清空。首片不提供隐式删除、CLEAR 或资产搬迁。
+
+资产修订在 `(subtask_id, kind, stable_key, revision)` 内唯一，只追加；同名 key 跨子任务互不覆盖。比较内容包含结果和来源 metadata，不能仅按正文 digest 去重。新的测试发生可以用新 stable_key 或显式来源发生记录区分；原 FAIL/UNKNOWN 和被替代原文保持。
+
+Task/子任务进度使用 DRAFT、IN_PROGRESS、BLOCKED、COMPLETED、CANCELLED；reported_result 使用 NOT_RUN、PASS、FAIL、ERROR、SKIPPED、UNKNOWN、BLOCKED。新建默认 DRAFT/NOT_RUN。归档接受只表示管理材料已保存，不从文件上传、所有子任务完成或 Skill 关键词自动推进 Task 完成或 PASS，也不生成旧 VERIFIED/RELEASE_READY。
+
+一次有内容变化的归档只递增目标子任务 version，原子保存 Submission、资产新修订、该子任务完整冻结快照、回执和 Audit/Outbox；失败无已接受部分批次。业务接受前核 scope、owner、目标关系与 expected_subtask_version，使用稳定锁顺序协调父任务授权与子任务写入。兄弟子任务无需共同提交 task.version。
+
+### 56.3 幂等、无变化与恢复
+
+操作 key 在 `(project_id, uploader_actor_ref, operation, idempotency_key)` 内唯一，完整请求摘要绑定 profile、Task/Subtask、原客户端、预期版本、所有字段和文件正文；用同 key 选择另一目标不得成为新操作。当前授权检查后先查原 key，同输入返回原接受结果与版本，异输入冲突，再对新 key 检查预期版本。
+
+新 key 的请求在当前版本和授权有效、合并后领域内容完全相同时接受为 UNCHANGED。保留其不可变 Submission/回执及当时 N 版快照引用，不递增子任务 version 或资产修订；不能先按当前内容返回 UNCHANGED 来绕过旧版本冲突。后续同 key 查询始终返回原 outcome/N 版，不重新计算 current head。
+
+本地私有请求在网络前冻结并记 SENT。失答、UNKNOWN、NOT_FOUND 只查原 key；有效 ACK 后只继续该固定版本完整读回。一个子任务的未决写阻止依赖它的新意图，不阻塞无依赖兄弟子任务；CLI 不通过跨 root 私有目录扫描寻找未知请求。Submission 接受结果与客户端传输状态分别记录，传输 UNKNOWN 不覆盖 reported_result。
+
+### 56.4 任务管理与整体汇总
+
+Task 元数据、创建/调整子任务目录及上传授权、任务汇总更新使用 expected_task_version 并递增 Task version；这些管理变更不伪造一次归档或更改旧接受快照。子任务的归档内容版本独立。Operator 管理写也具有独立 operation key、冻结管理快照及原 key 查询，不使用上传者 scope 扩权。
+
+首片整体汇总由 Web Operator 显式提交，以 expected_task_version 加 `{subtask_id, version}` 清单声明采用范围，列出未纳入/未完成项。接受事务同时验证任务版本、子任务目录/授权状态、所有引用版本及资产归属，并保存 Publication；部分项不能确认时明确拒绝。此时任务 reported_result 是提交者明确报告的汇总，不由平台自动算 PASS。
+
+后续子任务新版本保留已发布的历史版本向量，UI 可提示存在未纳入的新材料；不能用最新子任务正文拼接过去的 Publication。历史查看、原 key 回执和固定版本恢复不依赖旧 MCP/Hooks 运行。
