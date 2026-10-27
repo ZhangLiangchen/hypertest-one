@@ -36,7 +36,8 @@ test("root archives render bilingual explicit upload, optional children and orig
   }
 });
 test("CLI authorization page supports explicit project approval without secret fields or shell-injected query text", () => {
-  assert.equal(release.cliInstallCommand(), null);
+  assert.equal(release.cliInstallCommand({ published: false }), null);
+  assert.ok(release.cliInstallCommand().includes(release.CLI_RELEASE.artifactSha256));
   const published = { published: true, version: "0.1.0", sourceCommit: "a".repeat(40), releaseUrl: "https://example.invalid/cli-v0.1.0", installerUrl: "https://example.invalid/install-cli-release.py", artifactUrl: "https://example.invalid/hypertest-cli-0.1.0.pyz", installerSha256: "b".repeat(64), artifactSha256: "c".repeat(64) };
   const command = release.cliInstallCommand(published);
   assert.ok(command.includes("python3 -I -c")); assert.ok(command.includes(published.installerSha256)); assert.ok(command.includes(published.artifactSha256));
@@ -48,6 +49,7 @@ test("CLI authorization page supports explicit project approval without secret f
     const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, "cli-request": request, "cli-actors": { items: [{ actor_identity_id: "a", actor_ref: "interactive:a", status: "ACTIVE" }] }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId, projectId: "$(touch /tmp/forbidden)" }));
     assert.ok(html.includes("ABC123")); assert.ok(html.includes("archive:read")); assert.ok(html.includes("archive:write"));
     assert.ok(html.includes("hypertest skill install --global --host codex"));
+    assert.ok(html.includes(release.CLI_RELEASE.artifactUrl));
     assert.equal(html.includes("$(touch"), false); assert.equal(/type="password"|name="token"|Operator-Key/.test(html), false);
     assert.ok(html.includes(locale === "en" ? "Approve CLI" : "批准 CLI"));
   }
