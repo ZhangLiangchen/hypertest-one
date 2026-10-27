@@ -14,6 +14,8 @@ CLI 推荐安装方式已改为复制 Prompt 给本机 Agent，平台授权/项�
 
 CLI 授权已移除手选历史 ACTIVE 上传身份，用户只核短码/客户端并批准项目、权限和期限。API 在首次合法批准时按稳定 Operator 建立不可变专用上传身份映射，跨设备复用；历史actor/grant/Task owner/回执保留。API/Web已按Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`部署、schema0032，见[项目授权交付](docs/CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)。cli-v0.1.0继续可用，旧请求按原key恢复，不自动改绑或延长过期配对。
 
+CLI 授权页已补客户端「添加项目」入口、同profile增量授权Prompt及客户端→项目折叠树；绑定后展示名称和绿色状态。Web已按Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`部署，API保持0061007、schema0032、cli-v0.1.0不变。定向回归、PC合成浏览器和健康检查见[授权页交付](docs/CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)，真实追加授权仍USER_OWNED。
+
 ## 快速原型阶段：自测与验证约束
 
 - **当前项目处于快速原型阶段：保留关键自测，降低日常检查强度，避免过度自测拖慢开发效率。** 日常验证以本次改动的实际风险和最小足够范围为准，不以测试数量、覆盖率或完整验证矩阵作为普通交付目标。

@@ -1,5 +1,7 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
+2026-10-27 CLI 授权页改进：已新增客户端「添加项目」入口与增量授权 Prompt，客户端/项目折叠树保留全部授权记录，绑定完成改为名称及绿色状态。**Web已按Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`部署**，API/schema0032/CLI包保持。14项定向回归、PC合成浏览器检查、类型/构建与部署健康通过；真实追加授权仍USER_OWNED。见[本轮交付](CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)。
+
 2026-10-27 CLI 项目授权简化：移除旧 ACTIVE 身份下拉框，新批准仅核对短码、项目、权限和有效期；服务端用不可变映射解析专用CLI actor，保留原授权/任务/回执。**API/Web已按Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`部署，schema0032；定向检查、构建、迁移与健康通过，安装Prompt发行说明同步完成。** 精确状态见[本轮交付](CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)，USER_OWNED未执行。
 
 2026-10-27 CLI HTTPS 排障：确认服务由自有 Connector CA 直接签发，无缺失中间链；默认系统信任复现失败，显式 CA 验证通过。提供 CA 公共证书、固定摘要和命令级信任配置，见[修复指引](CLI_TLS_TRUST_20261027.md)。未改服务私钥/访问限制或发起配对，本机验证与原请求恢复待用户执行。
