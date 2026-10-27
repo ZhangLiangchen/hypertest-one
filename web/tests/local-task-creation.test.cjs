@@ -131,7 +131,7 @@ test("a bound task does not claim an Agent sync before actual artifacts arrive",
   assert.equal(html.includes("Synced from the source Agent session"), false);
 });
 
-function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {}, queries = {} } = {}) {
+function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {}, queries = {}, localResult = null } = {}) {
   const antd = require("antd"), forms = [], submissions = [], localWrites = [], navigation = [];
   const config = { id: "config-1", revision: 1, configuration: { environment: { connection: "NONE" },
     sut: { url: "https://git.example.org/team/sut.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } },
@@ -156,10 +156,10 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
   };
   const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
   const notices = load("app/projects/[projectId]/cloud/cloud-shared.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cloud-recovery" ? load("lib/cloud-recovery.ts") : name === "next/link" ? link : require(name) });
-  const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
+  const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/task-url" ? load("lib/task-url.ts") : name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
     : name === "antd" ? { ...antd, Form } : name === "@/lib/local-task-binding" ? helpers : name === "@/lib/cloud" ? cloud
       : name === "@/lib/cloud-operation" ? { useCloudOperation: () => { operationHookCalls++; return operation; } }
-        : name === "@/app/archives/archive-prompt" ? { ArchivePrompt: () => React.createElement("div", { "data-archive-prompt": true }) } : name === "@/lib/archive" ? {} : name === "@/lib/archive-operation" ? { useArchiveOperation: () => ({ ready: true, blocked: false, busy: false, pending: null, manage: async (path, payload) => { localWrites.push({path, payload}); return null; } }) } : name === "@/app/archives/archive-shared" ? { ArchiveOperationNotice: () => null }
+        : name === "@/app/archives/archive-prompt" ? { ArchivePrompt: () => React.createElement("div", { "data-archive-prompt": true }) } : name === "@/lib/archive" ? {} : name === "@/lib/archive-operation" ? { useArchiveOperation: () => ({ ready: true, blocked: false, busy: false, pending: null, manage: async (path, payload) => { localWrites.push({path, payload}); return localResult; } }) } : name === "@/app/archives/archive-shared" ? { ArchiveOperationNotice: () => null }
         : name === "@/lib/local-create-operation" ? { useLocalCreateOperation: () => ({ ready: true, busy: false, success: false, pending: null, submit: async (payload) => { localWrites.push(payload); return null; }, resetError() {} }) }
         : name === "../../cloud/task-form" ? cloudForm : name === "../../cloud/cloud-shared" ? notices
           : name === "@/lib/uuid" ? { createUuid: () => "stable-key" }
@@ -327,4 +327,13 @@ test("unified task creation preserves Local setup and keeps binding mutations ou
   assert.ok(fs.readFileSync(path.join(__dirname, "../lib/local-create-operation.ts"), "utf8").includes("getLocalTaskCreation"));
   assert.equal(form.includes("createRun"), false);
   assert.equal(form.includes("bootstrap"), false);
+});
+
+
+test("an accepted local archive creation opens the shared task route without changing the destination", async () => {
+  const { forms, navigation, localWrites } = unifiedCreationHarness({ mode: "local", localResult: { task: { id: "archive-task-1" } } });
+  await forms[0].onFinish({ mode: "local", title: "Archive task", objective: "Store completed reports" });
+  assert.deepEqual(navigation, ["/tasks/archive-task-1?mode=archive&projectId=project-1"]);
+  assert.equal(localWrites.length, 1);
+  assert.equal(localWrites[0].path, "tasks");
 });

@@ -198,7 +198,7 @@ test("optional legacy paths preserve shell boundaries and are never required for
 
 test("the archive project guide is reachable without blocking archive reads", () => {
   const section = load("app/projects/[projectId]/archive-tasks.tsx", { require: (name) =>
-    name === "@/lib/i18n" ? i18n : name === "./local-mode-guide" ? component
+    name === "@/lib/task-url" ? load("lib/task-url.ts") : name === "@/lib/i18n" ? i18n : name === "./local-mode-guide" ? component
       : name === "@tanstack/react-query" ? { useQuery: () => ({ data: { items: [], total: 0 }, isLoading: false, isError: false }) }
       : ["@/lib/api", "@/lib/archive"].includes(name) ? {} : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
       : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });

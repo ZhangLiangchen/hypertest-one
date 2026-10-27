@@ -7,6 +7,7 @@ import { useState } from "react";
 import { getArchiveTasks } from "@/lib/archive";
 import { errorText } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { archiveTaskHref } from "@/lib/task-url";
 import { ReportedResultTag } from "@/app/tasks/task-records";
 import { LocalModeGuide } from "./local-mode-guide";
 export function ProjectArchiveTasks({ projectId, projectDeleted }: { projectId: string; projectDeleted: boolean }) {
@@ -20,7 +21,7 @@ export function ProjectArchiveTasks({ projectId, projectDeleted }: { projectId: 
     <div className="data-surface"><Table rowKey="id" loading={query.isLoading} dataSource={query.data?.items || []} pagination={{ current: page, pageSize: 20, total: query.data?.total || 0, onChange: setPage, hideOnSinglePage: true, showSizeChanger: false }} scroll={{ x: 1050 }}
       locale={{ emptyText: <Empty description={t("No local archives yet", "暂无本地归档任务")}>{!projectDeleted ? <Button type="primary" href={`/projects/${projectId}/tasks/new?mode=local`}>{t("Create archive task", "创建归档任务")}</Button> : null}</Empty> }}
       columns={[
-        { title: t("Task", "任务"), key: "task", render: (_, task) => <><Link className="entity-title" href={`/archives/${task.id}?projectId=${projectId}`}>{task.title}</Link><div><Typography.Text className="entity-key" copyable>{task.id}</Typography.Text></div></> },
+        { title: t("Task", "任务"), key: "task", render: (_, task) => <><Link className="entity-title" href={archiveTaskHref(task.id, projectId)}>{task.title}</Link><div><Typography.Text className="entity-key" copyable>{task.id}</Typography.Text></div></> },
         { title: t("Status", "状态"), dataIndex: "status", render: (value: string) => <Tag>{label(value)}</Tag> },
         { title: t("Published result", "已发布汇总结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> },
         { title: t("Uploader", "上传身份"), dataIndex: "owner_uploader_actor_ref", render: (value: string | null) => value ? <Typography.Text className="entity-key">{value}</Typography.Text> : <Tag color="gold">{t("Not authorized", "待授权")}</Tag> },

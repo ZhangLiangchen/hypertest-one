@@ -72,7 +72,7 @@ test("task management reads only task APIs without credentials or execution muta
     assert.equal(options.headers.Authorization, undefined);
     assert.equal(options.headers["X-Hypertest-Operator-Key"], undefined);
   }
-  for (const file of ["app/tasks/[taskId]/page.tsx", "app/tasks/task-records.tsx", "app/projects/[projectId]/session-tasks.tsx"]) {
+  for (const file of ["app/tasks/legacy-task-detail.tsx", "app/tasks/task-records.tsx", "app/projects/[projectId]/session-tasks.tsx"]) {
     const source = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
     assert.equal(/useRunOperations|createRun|requestExecution|bootstrap|evaluateGate|dangerouslySetInnerHTML|useMutation/.test(source), false, file);
   }

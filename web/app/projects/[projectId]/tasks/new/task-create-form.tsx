@@ -10,6 +10,7 @@ import { cloudCapabilities, cloudConfiguration, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { useLocalCreateOperation } from "@/lib/local-create-operation";
 import { useI18n } from "@/lib/i18n";
+import { archiveTaskHref } from "@/lib/task-url";
 import { WorkspaceLoading } from "@/app/workspace-ui";
 import { ArchivePrompt } from "@/app/archives/archive-prompt";
 import { ArchiveOperationNotice } from "@/app/archives/archive-shared";
@@ -35,7 +36,7 @@ export function TaskCreateForm({ projectId }: { projectId: string }) {
   const loadingCloud = cloudSetupQuery.isPending || cloudConfigured && (capabilities.isPending || configuration.isPending);
   const showCloudForm = Boolean(latestConfig) || (cloudConfigured && !loadingCloud && !cloudReadFailed);
   const localBlocked = local.blocked || Boolean(legacy.pending), cloudBlocked = cloudOperation.busy || Boolean(cloudOperation.pending) || cloudOperation.receipt?.operation === "CREATE_TASK";
-  const accepted = (value: ArchiveManagement) => { void cache.invalidateQueries({ queryKey: ["archive-tasks", projectId] }); router.push(`/archives/${value.task.id}?projectId=${projectId}`); };
+  const accepted = (value: ArchiveManagement) => { void cache.invalidateQueries({ queryKey: ["archive-tasks", projectId] }); router.push(archiveTaskHref(value.task.id, projectId)); };
   async function refreshCloud() { const setup = await cloudSetupQuery.refetch(); if (setup.data?.configured) await Promise.all([capabilities.refetch(), configuration.refetch()]); }
   async function submit(values: Values) {
     if (values.mode !== "local" || localBlocked || cloudBlocked) return;

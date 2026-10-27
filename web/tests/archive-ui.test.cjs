@@ -19,14 +19,14 @@ function renderPage(path, locale, query, search = new URLSearchParams({ projectI
   const antd = require("antd");
   const Form = observe ? Object.assign((props) => { if (props.form) { observe.approve = props.onFinish; observe.initialValues = props.initialValues; } return React.createElement(antd.Form, props); }, antd.Form) : antd.Form;
   const pageRequire = (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
-    : name === "../archive-prompt" ? load("app/archives/archive-prompt.tsx", { require: pageRequire }) : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
+    : name === "@/app/archives/archive-prompt" || name === "../archive-prompt" ? load("app/archives/archive-prompt.tsx", { require: pageRequire }) : name === "./task-quick-navigation" ? load("app/tasks/task-quick-navigation.tsx", { require: pageRequire }) : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
       : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => observe?.operation || operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
         : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
           : name === "@/lib/cli-project-authorization" ? cliProjects
           : name.startsWith("./cli-") ? load(`app/cli-authorizations/${name.slice(2)}.tsx`, { require: pageRequire })
           : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : name === "antd" ? { ...antd, Form } : require(name);
   const component = load(path, { URLSearchParams, require: pageRequire });
-  return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.default)));
+  return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.default, { taskId, projectId: p })));
 }
 test("archive instruction requires project/task and only adds an explicitly selected subtask", () => {
   const root = archive.archiveSkillInstruction(p, taskId);
@@ -79,7 +79,7 @@ test("client tree keeps one project child with all grant records and exposes Add
 });
 test("root archives render bilingual explicit upload, optional children and original version controls", () => {
   for (const locale of ["en", "zh"]) {
-    const html = renderPage("app/archives/[taskId]/page.tsx", locale, { "archive-task": { task, subtasks: [], publications: [], submission_history: [], management_history: [] }, "archive-snapshot": { ...task, assets: [] }, "archive-actors": { items: [] } });
+    const html = renderPage("app/tasks/archive-task-detail.tsx", locale, { "archive-task": { task, subtasks: [], publications: [], submission_history: [], management_history: [] }, "archive-snapshot": { ...task, assets: [] }, "archive-actors": { items: [] } });
     assert.ok(html.includes(`Project ID: ${p}`)); assert.ok(html.includes(`Task ID: ${taskId}`)); assert.equal(html.includes("Subtask ID:"), false);
     assert.ok(html.includes(locale === "en" ? "Copy archive prompt" : "复制归档 Prompt"));
     assert.ok(html.includes("SSL_CERT_FILE"));
@@ -88,7 +88,30 @@ test("root archives render bilingual explicit upload, optional children and orig
     assert.ok(html.includes('id="archive-version"')); assert.equal(html.includes("hypertest_bind_task"), false);
     assert.ok(html.includes(`/cli-authorizations?projectId=${p}#cli-install`));
     assert.ok(html.includes(locale === "en" ? "CLI installation prompt &amp; authorization" : "CLI 安装 Prompt 与授权"));
+    assert.ok(html.includes('class="task-detail-layout"'));
+    assert.ok(html.includes('class="task-quick-navigation"'));
+    for (const id of ["task-overview", "task-upload", "task-subtasks", "task-artifacts", "task-plan", "task-cases", "task-reports", "task-publications", "task-submissions", "task-management"]) {
+      assert.ok(html.includes(`href="#${id}"`));
+      assert.ok(html.includes(`id="${id}"`));
+    }
+    assert.equal(html.includes('role="tablist"'), false);
   }
+});
+test("archive plan, cases and reports keep separate task sections and original asset identities", () => {
+  const base = { revision: 2, reported_result: "FAIL", origin: {}, accepted_at: "2026-10-27T12:00:00Z", submission_id: "submission-1" };
+  const assets = [
+    { ...base, id: "plan", kind: "PLAN", stable_key: "plan-original", title: "Original plan", markdown: "Retained plan text" },
+    { ...base, id: "case", kind: "CASE", stable_key: "case-original", title: "Original case", steps: ["Open form"], expected: "Accepted" },
+    { ...base, id: "report-a", kind: "REPORT", stable_key: "report-a", title: "First raw report", markdown: "Raw body loaded on expansion" },
+    { ...base, id: "report-b", kind: "REPORT", stable_key: "report-b", title: "Second raw report", markdown: "Second raw body" },
+  ];
+  const html = renderPage("app/tasks/archive-task-detail.tsx", "en", { "archive-task": { task, subtasks: [], publications: [], submission_history: [], management_history: [] }, "archive-snapshot": { ...task, assets }, "archive-actors": { items: [] } });
+  assert.ok(html.includes("Retained plan text"));
+  assert.ok(html.includes("case-original"));
+  assert.ok(html.includes("report-a"));
+  assert.ok(html.includes("report-b"));
+  assert.equal((html.match(/<details class="data-surface session-record session-history"/g) || []).length, 2);
+  assert.equal(html.includes("Raw body loaded on expansion"), false);
 });
 test("CLI authorization page supports explicit project approval without secret fields or shell-injected query text", () => {
   assert.equal(release.cliInstallCommand({ published: false }), null);
