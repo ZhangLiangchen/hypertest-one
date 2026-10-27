@@ -1,5 +1,7 @@
 # 剩余 TODO 跟进交付（2026-10-23）
 
+2026-10-27 CLI stable_key 修复：`cli-v0.1.1` 已公开，CLI 源码 `01b6d1ebcd64326808771ed06ac1166b98cceb6c`；修复时间字段覆盖资产标识，四资产实际 API 读回、重复拒绝与原 key 恢复回归通过。安装 Prompt 固定新版并保留临时修补包、备份、授权和 journal；Web 已按 Git `75a5a96060dfcf83ee7c154a39a5f20b0bddf6e9` 部署。精确验证与摘要见[本轮交付](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。Mac 本机升级及原已接受请求的读回中断仍待原机器处理，不重发或改写历史。
+
 2026-10-27 归档Prompt易用性改进：取消手填产物/Profile/CA占位，Agent在明确本次测试范围内解析清单和连接，列出后直接执行；必要歧义才询问。Web已按Git `c3d3f40680420a41517d195861324defc0f81269`部署，10项定向回归、类型/构建和健康通过；真实上传未执行。见[后续交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。
 
 2026-10-27 页面归档 Prompt：创建页和归档详情页新增复制模板入口，自动带入明确目标与当前HTTPS地址，用户补齐产物范围、Profile及本机CA后显式交给Agent。**Web已按Git `40ec1e3ce250faea8039da4477f64b6b26573090`部署**，API/schema/CLI不变；29项定向回归、类型/构建、PC合成浏览器及部署健康通过。真实归档未执行，见[交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。

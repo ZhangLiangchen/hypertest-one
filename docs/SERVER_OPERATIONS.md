@@ -82,6 +82,10 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 - 保留现有 SSH 访问、公钥和人工密码恢复、主机密钥校验、TLS、VPN 白名单及其他网络
   访问限制；不将私钥、token 或密码写入源码、日志或交付物，不改动无关服务。
 
+### 2026-10-27 CLI stable_key 修复与安装升级入口
+
+Web 已独立按 Git `75a5a96060dfcf83ee7c154a39a5f20b0bddf6e9` 部署，将安装 Prompt 与固定摘要更新到公开 `cli-v0.1.1`。API0061007/schema0032、固定ops、nginx及Worker保持。CLI源码、发行摘要、升级保全和Web健康见[本轮交付](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。下方c3d3f40等为前轮Web记录。
+
 ### 2026-10-27 CLI 项目授权简化
 
 最新Web已更新到Git `c3d3f40680420a41517d195861324defc0f81269`，归档Prompt改为Agent自动解析产物与连接，见[后续交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。API/schema/固定ops保持。此前Web按Git `40ec1e3ce250faea8039da4477f64b6b26573090`，为创建页/详情页增加可复制归档Prompt。API/schema/固定ops继续保持本节身份，无迁移；镜像和健康见[归档Prompt交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。下方CLI授权树为前轮Web身份。

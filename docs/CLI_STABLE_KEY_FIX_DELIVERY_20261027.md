@@ -37,7 +37,7 @@ CLI/tag 源码为 `01b6d1ebcd64326808771ed06ac1166b98cceb6c`，由干净、已�
 
 `web/lib/cli-release.ts`、中英文安装 Prompt、README 与授权指南固定新版和摘要。Prompt 指导 Agent 升级临时修补过的 0.1.0，保留旧 pyz/备份，复用受管安装位置与既有授权/可信 CA；检查实际 PATH 命中的版本，不改写或重发历史未决归档。
 
-本提交时 Web 部署待执行；完成后在此追加实际源码、镜像与健康结果。API 保持 `006100788751a416b0d6f1dbe8d78c96d3155a5f`、schema `0032_cli_archive_uploader`，固定 ops 和 Worker 无本次变更。
+Web 已从推送 Git `75a5a96060dfcf83ee7c154a39a5f20b0bddf6e9` 构建并部署，镜像 `sha256:94913cfe3a66b935fbcfe8b7ace4e848d9941f479fe6b771a26e97b7e31abcab`。Next 构建、Lint/类型检查通过，五个容器 healthy；CLI 授权页 HTTP 200 且包含新版 `cli-v0.1.1` 与固定 CLI 摘要，API 健康 HTTP 200，网络保护保持。仅 Web 镜像更新，其他服务镜像保持；部署记录位于 `/opt/hypertest/container-builds/cli-stable-key-20261027/`。API 保持 `006100788751a416b0d6f1dbe8d78c96d3155a5f`、schema `0032_cli_archive_uploader`，固定 ops 和 Worker 无本次变更。
 
 ## 本机与历史边界
 
