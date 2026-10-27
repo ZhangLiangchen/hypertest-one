@@ -1,5 +1,7 @@
 # 页面归档 Prompt 交付（2026-10-27）
 
+**当前模板已改为 Agent 自动整理产物和连接配置，见文末后续改进。下文手填占位说明为首版历史。**
+
 本地任务创建页新增「归档 Prompt 模板」，支持复制和折叠查看全文。任务创建成功后进入详情页，「上传目标」提供已填真实项目和任务 ID 的「复制归档 Prompt」，选中子任务时同步填写 Subtask ID，根空间不携带子任务。
 
 ## 实现
@@ -24,3 +26,13 @@
 Web 已从推送 Git `40ec1e3ce250faea8039da4477f64b6b26573090` 的干净复用 checkout 构建并部署，正式构建通过。镜像为 `sha256:ae2ea53e1c0ac861ae11fdf737cb8b550aa4579d0f2c947ca81b75785a9122ee`。
 
 五容器 healthy、网络守卫 protected；API health、任务创建路由及归档详情路由均 HTTP 200。API 保持0061007、schema保持0032、固定ops保持1512d11；其他容器镜像及CLI发行包不变，无数据库迁移。运行记录位于 `/opt/hypertest/container-builds/archive-prompt-20261027/`。
+
+## 后续改进：由 Agent 自动解析范围与连接
+
+用户反馈手填占位不便后，移除了产物路径、排除项、Profile 和 CA 的填写要求。Prompt 直接授权 Agent 在本次测试上下文与相关输出目录中整理现有计划/用例/报告，形成有限清单，默认排除秘密、聊天/推理、缓存、依赖和无关文件；通过安全 profile 元数据匹配既有连接，复用受信 CA。列出清单后直接上传，无需二次确认；范围、目标、身份或信任确实无法解析才澄清。仍不扫描整个用户目录、不猜测任务、不新建授权，不重发 UNKNOWN。
+
+创建前说明目标尚未指定，只允许采用本次对话中用户明确选择的已有任务，不能自动选择最近任务；详情页继续自动填真实目标。页面帮助和复制成功反馈已同步，操作指南与 TMP §51.3 明确了委托解析边界。CLI 包与 Skill 发行未改，已有 CLI 可继续使用。
+
+本轮 `archive-prompt` 与 `archive-ui` **10 passed**，类型检查、差异检查及正式构建通过。仅修改模板和帮助文字，复用前轮复制交互检查，未重复浏览器矩阵或执行真实归档。
+
+Web 已按 Git `c3d3f40680420a41517d195861324defc0f81269` 部署，镜像 `sha256:3c25aeea8c1d70deaac21cb8ad8cf342046c3a037461ae71e7435532e7ab69da`。五容器 healthy，API health、创建/详情路由 HTTP 200，网络守卫 protected。API/schema/固定ops及其他镜像保持；运行记录 `/opt/hypertest/container-builds/archive-agent-prompt-20261027/`。真实产物归档仍 USER_OWNED / NOT_RUN。

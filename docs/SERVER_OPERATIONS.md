@@ -84,7 +84,7 @@ test DB，reset 只作用于该测试库的合成数据；不得对业务库执�
 
 ### 2026-10-27 CLI 项目授权简化
 
-最新Web已独立更新到Git `40ec1e3ce250faea8039da4477f64b6b26573090`，为创建页/详情页增加可复制归档Prompt。API/schema/固定ops继续保持本节身份，无迁移；镜像和健康见[归档Prompt交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。下方CLI授权树为前轮Web身份。
+最新Web已更新到Git `c3d3f40680420a41517d195861324defc0f81269`，归档Prompt改为Agent自动解析产物与连接，见[后续交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。API/schema/固定ops保持。此前Web按Git `40ec1e3ce250faea8039da4477f64b6b26573090`，为创建页/详情页增加可复制归档Prompt。API/schema/固定ops继续保持本节身份，无迁移；镜像和健康见[归档Prompt交付](ARCHIVE_PROMPT_DELIVERY_20261027.md)。下方CLI授权树为前轮Web身份。
 
 后续Web已独立更新到Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`：新增客户端添加项目、折叠授权树及紧凑绑定状态，API/schema/固定ops保持本节身份。Web镜像与相关验证见[授权页交付](CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)。
 

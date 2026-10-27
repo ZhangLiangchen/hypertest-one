@@ -4,7 +4,7 @@
 
 | 项目 | 开发 / 当前处置 | 剩余条件 |
 | --- | --- | --- |
-| 页面归档 Prompt | **实现与Web部署完成**：本地任务创建页可复制模板，详情页自动填入项目/任务及选定子任务ID；中英文、手动复制回退、范围与TLS/原key约束齐备。Web Git `40ec1e3ce250faea8039da4477f64b6b26573090`，见[交付](ARCHIVE_PROMPT_DELIVERY_20261027.md) | 29项相关回归、类型/构建、PC合成浏览器及健康检查通过；真实产物归档仍USER_OWNED |
+| 页面归档 Prompt | **实现与Web部署完成**：创建/详情页复制后由Agent自动整理本次产物、匹配既有profile及CA，不再要求手填占位；Web Git `c3d3f40680420a41517d195861324defc0f81269`，见[交付](ARCHIVE_PROMPT_DELIVERY_20261027.md) | 本轮10项定向回归、类型/构建与健康通过；复制交互复用前轮结果，真实归档仍USER_OWNED |
 | CLI 新增项目与授权树 | **实现与Web部署完成**：客户端「添加项目」生成增量授权Prompt，客户端→项目折叠并保留全部grant，绑定结果采用名称+绿色状态；Web Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`，见[本轮交付](CLI_AUTHORIZATION_UI_DELIVERY_20261027.md) | 14项定向回归、PC合成浏览器检查、类型/构建与健康通过；API/schema/CLI包保持，真实追加授权仍USER_OWNED |
 | CLI 项目授权简化 | **实现、API/Web部署和0032迁移完成**：移除历史身份选择，后台按稳定Operator管理专用CLI上传归属；Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`，Prompt发行说明已同步，见[本轮交付](CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md) | 授权/归档/Web定向检查、构建及健康通过；真实用户批准和CLI兑换仍USER_OWNED，旧历史与回执保持 |
 | CLI HTTPS 本机信任 | 已定位自有 CA 未受本机信任；公共 CA、摘要与[修复指引](CLI_TLS_TRUST_20261027.md)已提供，服务器指定 CA 的严格 TLS 验证通过 | 本机按命令级 CA 配置复核，并只恢复原配对请求；未确认项目权限 |

@@ -18,6 +18,8 @@ CLI 授权页已补客户端「添加项目」入口、同profile增量授权Pro
 
 页面归档Prompt已加入本地任务创建页和详情页，自动填写Project/Task及可选Subtask目标；产物范围、Profile、本机CA由用户补齐，未补齐不执行上传。Web已按Git `40ec1e3ce250faea8039da4477f64b6b26573090`部署，API0061007/schema0032/CLI包不变，见[Prompt交付](docs/ARCHIVE_PROMPT_DELIVERY_20261027.md)。真实归档仍USER_OWNED。
 
+页面归档Prompt后续已取消手填占位：Agent依据本次测试上下文整理有限产物清单，匹配既有profile及受信CA，列出清单后直接上传；仅必要歧义才询问。上段40ec1e3为首版历史，当前Web Git `c3d3f40680420a41517d195861324defc0f81269`，API/schema/CLI不变，见[后续改进](docs/ARCHIVE_PROMPT_DELIVERY_20261027.md#后续改进由-agent-自动解析范围与连接)。真实归档未执行。
+
 ## 快速原型阶段：自测与验证约束
 
 - **当前项目处于快速原型阶段：保留关键自测，降低日常检查强度，避免过度自测拖慢开发效率。** 日常验证以本次改动的实际风险和最小足够范围为准，不以测试数量、覆盖率或完整验证矩阵作为普通交付目标。
