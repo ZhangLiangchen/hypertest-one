@@ -30,7 +30,8 @@
 - 仅重建 `web-wireguard`。API（`hypertest-mac-api:cdc70d3`）、BFF、PostgreSQL、Worker 配置与 PowerContext 容器、镜像、数据卷保持不变，未执行迁移。
 - 现场核实：`web-wireguard` healthy；`/` 与 `/cli-authorizations` 均 HTTP 200；`GET /api/cli-authorizations/setup` 返回 `{"configured":true,"cli_server_origin":"https://localhost:18444"}`；`GET /api/archive/setup` 仍只返回 `{"configured":true}`；`/api/v1/health` 为 200 / `status: ok`。
 - 用页面同一解析与生成逻辑对现场 setup 模拟：HTTP 站点 + 配置 origin 生成完整中文 Prompt，包含「目标 HyperTest One 服务器：https://localhost:18444」和 `hypertest auth bind --server 'https://localhost:18444' ...`；无配置时通用 Prompt 与仓库发行文本逐字节一致。
-- 未在真实浏览器执行视觉与剪贴板验收；未重新运行全量后端回归，也未创建任务、执行测试或上传产物。用户功能验收为 USER_OWNED。
+- 用本机 Headless Chrome（`--dump-dom`，虚拟时间预算 12 秒）实际加载 `http://10.66.66.3:3000/cli-authorizations`：DOM 中不再出现「无法生成安装 Prompt」，只读 Prompt 文本域为 2891 字符，含「目标 HyperTest One 服务器：https://localhost:18444。」、`hypertest auth bind --server 'https://localhost:18444' ...`、Skill 安装命令与 `SSL_CERT_FILE` 说明；页面同时显示「复制安装 Prompt」按钮和手动绑定命令。
+- 未执行真实浏览器中的剪贴板点击、视觉截图或完整 Agent 安装执行；未重新运行全量后端回归，也未创建任务、执行测试或上传产物。用户功能验收为 USER_OWNED。
 
 ## 已知边界
 
