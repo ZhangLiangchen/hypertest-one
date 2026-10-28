@@ -11,7 +11,7 @@ const records = load("app/tasks/task-records.tsx", { require: (name) => name ===
 const release = load("lib/cli-release.ts", { URL });
 const install = load("lib/cli-install-prompt.ts", { URL, require: (name) => name === "./cli-release" ? release : require(name) });
 const cliProjects = load("lib/cli-project-authorization.ts", { URL });
-const installComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? install : require(name) });
+const installComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? install : name === "@/lib/clipboard" ? { copyText: async () => {} } : require(name) });
 const archive = load("lib/archive.ts", { URL, require: () => ({ ApiError: Error }) });
 const task = { id: taskId, project_id: p, title: "Synthetic archive fixture", objective: "Declared test sources", owner_uploader_actor_ref: "interactive:actor", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN" };
 const operation = { ready: true, blocked: false, pending: null, busy: false, error: null };
@@ -24,6 +24,7 @@ function renderPage(path, locale, query, search = new URLSearchParams({ projectI
         : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
           : name === "@/lib/cli-project-authorization" ? cliProjects
           : name.startsWith("./cli-") ? load(`app/cli-authorizations/${name.slice(2)}.tsx`, { require: pageRequire })
+          : name === "@/lib/clipboard" ? { copyText: async () => {} }
           : name === "next/link" ? link : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => search } : name === "antd" ? { ...antd, Form } : require(name);
   const component = load(path, { URLSearchParams, require: pageRequire });
   return renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.default, { taskId, projectId: p })));

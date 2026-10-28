@@ -19,6 +19,7 @@ function harness(clipboard, options = {}) {
     window: { location: { origin } }, navigator: { clipboard },
     require: (name) => name === "react" ? hooks : name === "antd" ? { Alert: "Alert", Button: "Button", Space: "Space", Typography: { Paragraph: "Paragraph" } }
       : name === "@/lib/i18n" ? { useI18n: () => ({ locale, t: (en, zh) => locale === "zh" ? zh : en }) }
+        : name === "@/lib/clipboard" ? { copyText: (value) => clipboard.writeText(value) }
         : name === "@/lib/cli-install-prompt" ? { cliInstallPrompt: (values) => { requested.push(values); return `Install prompt: ${values.server || "generic"} ${values.projectId}`; },
           cliServerOrigin: (configured, site) => [configured, site].map((value) => {
             if (!value) return undefined;

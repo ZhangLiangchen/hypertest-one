@@ -3,6 +3,7 @@ import { CopyOutlined } from "@ant-design/icons";
 import { Alert, Button, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { archiveSkillInstruction, type ArchiveTaskInputs } from "@/lib/archive";
+import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/lib/i18n";
 
 export function ArchivePrompt({ projectId, taskId, subtaskId, taskInputs }: { projectId: string; taskId?: string; subtaskId?: string; taskInputs?: ArchiveTaskInputs }) {
@@ -15,7 +16,7 @@ export function ArchivePrompt({ projectId, taskId, subtaskId, taskInputs }: { pr
   let prompt = "";
   try { prompt = archiveSkillInstruction(projectId, taskId, subtaskId, locale === "en", server, taskInputs); } catch { /* Invalid context must never become an upload instruction. */ }
   async function copy() {
-    try { await navigator.clipboard.writeText(prompt); setCopied("copied"); }
+    try { await copyText(prompt); setCopied("copied"); }
     catch { setCopied("failed"); setExpanded(true); }
   }
   return <div className="archive-prompt">

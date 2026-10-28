@@ -5,7 +5,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const load = require("./load-helper.cjs");
 const archive = load("lib/archive.ts", { URL, require: () => ({ ApiError: Error }) });
 const i18n = load("lib/i18n.tsx", { require });
-const { ArchivePrompt } = load("app/archives/archive-prompt.tsx", { require: (name) => name === "@/lib/archive" ? archive : name === "@/lib/i18n" ? i18n : require(name) });
+const { ArchivePrompt } = load("app/archives/archive-prompt.tsx", { require: (name) => name === "@/lib/archive" ? archive : name === "@/lib/i18n" ? i18n : name === "@/lib/clipboard" ? { copyText: async () => {} } : require(name) });
 const p = "00000000-0000-4000-8000-000000000001", task = "00000000-0000-4000-8000-000000000002";
 test("archive templates bind exact targets and delegate bounded artifact and connection resolution", () => {
   for (const en of [false, true]) {

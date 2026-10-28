@@ -7,7 +7,7 @@ const i18n = load("lib/i18n.tsx", { require });
 const projectId = "01a15807-6162-7759-a0cf-614d34f977af";
 const cliRelease = load("lib/cli-release.ts", { URL });
 const cliInstall = load("lib/cli-install-prompt.ts", { URL, require: (name) => name === "./cli-release" ? cliRelease : require(name) });
-const cliInstallComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? cliInstall : require(name) });
+const cliInstallComponent = load("app/cli-authorizations/cli-install-prompt.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cli-install-prompt" ? cliInstall : name === "@/lib/clipboard" ? { copyText: async () => {} } : require(name) });
 const component = load("app/projects/[projectId]/local-mode-guide.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/cli-authorizations/cli-install-prompt" ? cliInstallComponent : require(name) });
 
 test("the archive project guide is reachable without blocking archive reads", () => {

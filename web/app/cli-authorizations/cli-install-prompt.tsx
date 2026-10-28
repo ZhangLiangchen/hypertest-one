@@ -3,6 +3,7 @@ import { CopyOutlined } from "@ant-design/icons";
 import { Alert, Button, Space, Typography } from "antd";
 import { useEffect, useId, useState } from "react";
 import { cliInstallPrompt, cliServerOrigin } from "@/lib/cli-install-prompt";
+import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/lib/i18n";
 
 /** `server` is the deployment-configured CLI HTTPS origin; a plain-HTTP site cannot supply it. */
@@ -18,7 +19,7 @@ export function CliInstallPrompt({ projectId, server, caCertificate }: { project
   try { prompt = cliInstallPrompt({ locale, server: target, projectId, caCertificate }); } catch { invalid = true; }
   async function copy() {
     if (!prompt) return;
-    try { await navigator.clipboard.writeText(prompt); setCopyState("copied"); }
+    try { await copyText(prompt); setCopyState("copied"); }
     catch { setCopyState("failed"); setExpanded(true); }
   }
   return <div className="cli-install-prompt">

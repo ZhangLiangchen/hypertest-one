@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { cliAuthorizationApi, validateCliRevocation, type CliGrant } from "@/lib/cli-authorization";
 import { useLocalWebOperation } from "@/lib/archive-operation";
+import { copyText } from "@/lib/clipboard";
 import { cliProjectAuthorizationPrompt, groupCliGrants, type CliClientGroup } from "@/lib/cli-project-authorization";
 import { useI18n } from "@/lib/i18n";
 import type { Project } from "@/lib/types";
@@ -42,7 +43,7 @@ export function AddCliProject({ client, projects, server, onClose }: { client: C
   }
   async function copy() {
     if (!prompt) return;
-    try { await navigator.clipboard.writeText(prompt); setCopyState("copied"); }
+    try { await copyText(prompt); setCopyState("copied"); }
     catch { setCopyState("failed"); setExpanded(true); }
   }
   return <section className="cli-add-project" aria-labelledby={`${id}-title`}>
