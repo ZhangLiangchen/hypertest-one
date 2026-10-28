@@ -9,12 +9,12 @@ HyperTest One 是面向测试工作的控制平面：管理项目、测试任务
 当前 Local 接入采用 **显式 Skill → `hypertest` CLI → HTTPS 归档**。Agent 使用项目自己的工具完成测试；用户随后选择平台项目、任务，并显式归档本次产物。测试期间无需 HyperTest MCP、Hooks、native bridge 或后台同步。
 
 1. 在 Web 全局「CLI 授权」页复制安装 Prompt，交给本机 Agent。页面提供平台地址；从项目进入时可预选项目。
-2. Agent 安装固定版本的 CLI 和 `hypertest-archive` Skill，复用匹配的已有 profile 或发起配对。用户在网页核对短码、客户端、项目权限及期限并批准。
+2. Agent 安装固定版本的 CLI 和 `hypertest-archive` Skill，复用匹配的已有 profile 或发起配对。用户在网页核对短码和客户端，并批准默认的全项目永久归档授权。
 3. 测试完成后，在 Web 选择或创建本地任务，复制归档 Prompt 并显式交给 Agent。上传须明确 Project ID、Task ID 和产物范围；Subtask ID 可选，省略时归档到 Task 根空间。
 
 没有打开平台页面时，可复制[中文安装 Prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt)或 [English installation prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.en.txt)。[CLI 授权与使用指南](docs/CLI_AUTHORIZATION_GUIDE.md)涵盖安装、授权、归档、排障和旧安装的受管退出。
 
-当前发行是 [cli-v0.1.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)，要求 Linux/macOS 和 Python ≥3.12；实际宿主验收范围见指南及[发行记录](docs/CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。0.1.0 存在资产 `stable_key` 缺陷，应按受管流程升级。旧 `local-v*` 的 MCP/Hooks 接入已弃用，不用于新接入；被新归档替代且不兼容的旧任务、报告及兼容入口可按 [ADR-028](docs/architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 定向清理；未知外部操作不自动重发。无关凭据和用户源文件保留。
+当前发行是 [cli-v0.1.2](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.2)，要求 Linux/macOS 和 Python ≥3.12；真实设备安装与功能验收另行确认。0.1.0 存在资产 `stable_key` 缺陷，应按受管流程升级。旧 `local-v*` 的 MCP/Hooks 接入已弃用，不用于新接入；被新归档替代且不兼容的旧任务、报告及兼容入口可按 [ADR-028](docs/architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 定向清理；未知外部操作不自动重发。无关凭据和用户源文件保留。
 
 ## Cloud 与兼容路径
 

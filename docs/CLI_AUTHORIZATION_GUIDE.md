@@ -1,8 +1,6 @@
 # HyperTest CLI 授权与全局使用指南
 
-更新：2026-10-27。**[cli-v0.1.1 已公开](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)，固定源 Git 为 `01b6d1ebcd64326808771ed06ac1166b98cceb6c`。公开下载摘要、Linux/Python 3.13 包安装与 Skill 安装已核验。stable_key 修复、发行与 Web 部署分别记录在[本轮交付](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)，本机升级与未决读回仍需在原机器完成。** 架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)，任务拆分见[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
-
-> 本文的全项目、永不过期授权需要包含该协议变更的 CLI 版本；已公开的 `cli-v0.1.1` 不支持该新授权格式。发布新版前，请勿将旧包与新默认授权配对视为可用；发行与用户安装验收分别记录。
+更新：2026-10-28。[cli-v0.1.2](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.2) 已公开，固定源 Git 为 `ca280c447505bcb810a8d9f0da87cf1e6ba0b4bc`；CLI 包公开下载摘要已核对。全项目永久归档授权需要 0.1.2；真实设备安装和用户验收分别记录。0.1.1 的 stable_key 修复及其历史发行见[原交付记录](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)。
 
 ## 1. 一次绑定，按需归档
 
@@ -21,25 +19,25 @@ HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼�
 没有打开平台页面时，可从下列入口复制完整 Prompt：
 
 - [中文安装 Prompt](cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt) · [English installation prompt](cli-install-prompts/hypertest-cli-install-prompt.en.txt)
-- [cli-v0.1.1 GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)：发行说明提供完整中文 Prompt，附件提供中英文文本。
+- [cli-v0.1.2 GitHub Release](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.2)：提供固定版本的 CLI 包、安装器和摘要。
 
 通用发行 Prompt 不绑定某台服务器。Agent 先完成 CLI 与适用 Skill 的安装，再询问实际 HyperTest One HTTPS 地址以发起绑定；已有明确地址或有效绑定时复用，不猜测域名或项目。若会话运行在远程服务器/容器，应先明确实际安装目标，不能把远端安装称为本机安装。
 
 Agent 根据 Prompt 完成以下操作：
 
-1. 检查操作系统、Python ≥3.12、现有命令与受管安装，使用固定 `cli-v0.1.1` 的下载地址；分别核对安装器和 CLI 包的 SHA256 后执行安装。不会跟随仓库 Latest 安装旧 `local-v*` 包。
+1. 检查操作系统、Python ≥3.12、现有命令与受管安装，使用固定 `cli-v0.1.2` 的下载地址；分别核对安装器和 CLI 包的 SHA256 后执行安装。不会跟随仓库 Latest 安装旧 `local-v*` 包。
 2. 在当前用户目录安装 `hypertest` 并处理 PATH。保留旧版本、私有 profile、journal、未决请求、非受管命令和被修改的文件；冲突时报告具体位置，不强制覆盖。
 3. 安装 `hypertest-archive` Skill。Codex 使用 `hypertest skill install --global --host codex`；其他宿主先核实其技能目录，再用显式 `--directory`，不猜测目录或声明已验证发现能力。
-4. 读取安全元数据，复用 server/身份匹配的已绑定 profile；需要绑定时发起短时配对，显示授权地址与短码，由用户在网页核对短码、客户端、项目和期限并确认。上传身份由平台自动关联。Agent 不代替用户批准，也不要求复制 token 或 Operator key。
+4. 读取安全元数据，复用 server/身份匹配的已绑定 profile；需要绑定时发起短时配对，显示授权地址与短码，由用户在网页核对短码、客户端及默认全部项目永久授权并确认。上传身份由平台自动关联。Agent 不代替用户批准，也不要求复制 token 或 Operator key。
 5. 检查版本、Skill 安装结果与绑定状态，报告已完成项和待用户处理项。安装过程不创建测试任务、不执行测试、不上传产物，也不安装 MCP、Hooks、bridge 或后台同步进程。
 
 网页批准尚未完成时，Agent 应明确报告“已安装，待网页授权”，不能宣称已绑定。配对出现 SENT/UNKNOWN/失答时保留原 request ID，按第 4 节查询/恢复；不得换 key 重新绑定。已有旧 Local 配置的清理由用户单独发起，方法见第 8 节。
 
-### 从 0.1.0 升级及历史请求
+### 从旧版本升级及历史请求
 
-0.1.0 存在资产 `stable_key` 被时间字段循环覆盖为 `report_created_at` 的缺陷：多个同类型资产可能报 `DUPLICATE_ASSET_KEY`，单资产也可能以错误标识提交。请按当前安装 Prompt 或下方手动命令升级到 0.1.1；安装 Prompt 已不再描述旧版本升级特例，已经临时修补旧 pyz 的机器同样直接安装固定版本。
+0.1.0 存在资产 `stable_key` 被时间字段循环覆盖为 `report_created_at` 的缺陷：多个同类型资产可能报 `DUPLICATE_ASSET_KEY`，单资产也可能以错误标识提交。该问题已在 0.1.1 修复；请按当前安装 Prompt 或下方手动命令升级到 0.1.2。已临时修补旧 pyz 的机器同样安装固定版本。0.1.1 不支持新的全项目授权格式。
 
-安装器将新版放入独立的 `releases/0.1.1/` 并更新收据匹配的受管启动命令；旧 `releases/0.1.0/`、临时修补包和 `before-stable-key-fix` 备份保留。非默认受管安装复用原安装目录与命令目录，不创建另一套不明确的启动入口。无需重新授权；已有 profile、CA、收据及 journal 继续使用。若启动命令或目标新版目录存在修改，保留冲突并报告，不强制覆盖。
+安装器将新版放入独立的 `releases/0.1.2/` 并更新收据匹配的受管启动命令；旧版本、临时修补包和 `before-stable-key-fix` 备份保留。非默认受管安装复用原安装目录与命令目录，不创建另一套不明确的启动入口。已有 profile、CA 和 journal 保留；符合条件的存量授权按下文升级，必要时用原 request ID 查询当前授权。若启动命令或目标新版目录存在修改，保留冲突并报告，不强制覆盖。
 
 升级不改写旧请求正文/key，不自动重传或重命名服务端历史资产。对已接受但完整读回中断的提交，后续在原 CLI 状态目录中执行 `hypertest reconcile --request-id 原请求ID --json`；保持原 profile 和可信 CA，需指定 CA 时每条命令显式设置 `SSL_CERT_FILE`。只有固定接受版本完整读回核对后才能确认成功；历史错误 key 的修正需单独核查，不能通过升级自动推定原始标识。
 
@@ -47,18 +45,18 @@ Agent 根据 Prompt 完成以下操作：
 
 以下保留给需要自行操作或排查的用户；页面中的手动命令与 Prompt 使用同一份发行元数据。
 
-发行包为无第三方 Python 依赖的 `hypertest-cli-0.1.1.pyz`，附 release manifest 与独立安装器 `install-cli-release.py`。运行要求为 **Linux 或 macOS、Python ≥3.12**。本轮已实测 Linux/Python 3.13 的合成包安装、命令执行与 Skill 安装；macOS 尚未实际验收，不据此宣称已通过。
+发行包为无第三方 Python 依赖的 `hypertest-cli-0.1.2.pyz`，附 release manifest 与独立安装器 `install-cli-release.py`。运行要求为 **Linux 或 macOS、Python ≥3.12**；0.1.2 的真实设备安装及功能验收尚须分别确认。
 
-从「CLI 授权」页或 [cli-v0.1.1 发行记录](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)下载 CLI 包和安装器到同一目录。
+从「CLI 授权」页或 [cli-v0.1.2 发行记录](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.2)下载 CLI 包和安装器到同一目录。
 先核验安装器 SHA256 为 `20413d4dbfcbaa1f145e1502f85a62c8a00e4a8914ab8c0c1a1a9768a8f65c95`，再运行下列命令（`python3` 需为 3.12 或更高版本）。网页的手动安装入口还提供先校验安装器、再执行安装的一条命令。
 
 ```sh
 python3 install-cli-release.py \
-  --artifact ./hypertest-cli-0.1.1.pyz \
-  --sha256 6b258850b14ece41a5489f995e3ca832ea673b575b4859b2649b5992444ad735 --version 0.1.1
+  --artifact ./hypertest-cli-0.1.2.pyz \
+  --sha256 8ced453a46473b3fc88453134f83a29df3754799200b121fb27d8f550d72f90d --version 0.1.2
 ```
 
-安装器核验实际包字节和版本，默认将版本文件保存在 `~/.local/share/hypertest-cli/releases/0.1.1/`，在 `~/.local/bin/hypertest` 创建使用当前 Python 的启动入口，并写入受管安装收据。如目录已有非本工具拥有或被修改的命令，保留原件并报冲突。可用 `--bin-dir PATH --install-dir PRIVATE_PATH` 选择位置；安装目录须由当前用户拥有且权限为 `0700`。
+安装器核验实际包字节和版本，默认将版本文件保存在 `~/.local/share/hypertest-cli/releases/0.1.2/`，在 `~/.local/bin/hypertest` 创建使用当前 Python 的启动入口，并写入受管安装收据。如目录已有非本工具拥有或被修改的命令，保留原件并报冲突。可用 `--bin-dir PATH --install-dir PRIVATE_PATH` 选择位置；安装目录须由当前用户拥有且权限为 `0700`。
 
 将 `~/.local/bin` 加入当前用户 PATH，使终端及其启动的 Agent 可使用：
 
@@ -234,4 +232,4 @@ hypertest legacy retire --directory /absolute/path/old-local-install --host code
 
 `--host` 支持 `codex`、`claude-code`、`deepseek-harness`（`deepseek` 为别名）。`legacy cleanup` 是 `legacy retire` 的命令别名。工具按旧收据核对自有 MCP、Hooks 和 bridge 配置，只移除匹配的受管片段；其他插件及用户修改保留。仅在私有 IPC 与运行身份匹配时停止已有本产品 runtime，不按进程名批量结束进程，不启动 daemon。旧安装事务未恢复、归属不明或片段被修改时明确报错并保留原件。成功后按返回的 `reload_required` 重载宿主配置。
 
-按 [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md)，旧 SessionTask 接口与数据将在对应迁移和部署后退出；旧 Web CREATE journal 和旧 SessionTask 原 key 查询不再是当前恢复路径。`cli-v0.1.1` 发行包仍含历史 `legacy reconcile` 命令；服务端退休后该命令不再能查询旧任务。本仓库后续 CLI 源码移除该命令，不代表已发布包已更新。保留当前归档请求的 `hypertest reconcile`：它与旧 SessionTask 恢复不同。无论旧记录是否可查，都不能推定未知外部操作未执行或自动重发。
+按 [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md)，旧 SessionTask 接口与数据将在对应迁移和部署后退出；旧 Web CREATE journal 和旧 SessionTask 原 key 查询不再是当前恢复路径。`cli-v0.1.1` 发行包仍含历史 `legacy reconcile` 命令；服务端退休后该命令不再能查询旧任务。`cli-v0.1.2` 已移除该旧命令。保留当前归档请求的 `hypertest reconcile`：它与旧 SessionTask 恢复不同。无论旧记录是否可查，都不能推定未知外部操作未执行或自动重发。
