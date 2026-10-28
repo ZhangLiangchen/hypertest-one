@@ -41,6 +41,22 @@ test("local task ACK checks the branch values from the original request", () => 
   result.task.sut_branch = "other";
   assert.throws(() => h.module.validateManagement(original, result), /RECEIPT_MISMATCH/);
 });
+test("local task ACK checks an explicitly requested owner while allowing server assignment when omitted", () => {
+  const h = harness();
+  for (const owner of [undefined, null, "interactive:actor"]) {
+    const payload = { project_id: "project-a", idempotency_key: "original", title: "Task", objective: "Objective", ...(owner === undefined ? {} : { owner_uploader_actor_ref: owner }) };
+    const original = { project_id: "project-a", operation_key: "original", path: "tasks", payload };
+    const assigned = owner === undefined ? "interactive:assigned" : owner;
+    const result = { task: { id: "task-a", project_id: "project-a", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN", title: "Task", objective: "Objective", owner_uploader_actor_ref: assigned }, subtasks: [], receipt: { project_id: "project-a", task_id: "task-a", task_version: 1, idempotency_key: "original", operation: "CREATE", request_payload: { operation: "CREATE", task_id: null, request: structuredClone(payload) } } };
+    assert.equal(h.module.validateManagement(original, result).task.owner_uploader_actor_ref, assigned);
+    const alteredReceipt = structuredClone(result); alteredReceipt.receipt.request_payload.request.owner_uploader_actor_ref = "interactive:tampered";
+    assert.throws(() => h.module.validateManagement(original, alteredReceipt), /RECEIPT_MISMATCH/);
+    if (owner !== undefined) {
+      result.task.owner_uploader_actor_ref = owner === null ? "interactive:other" : null;
+      assert.throws(() => h.module.validateManagement(original, result), /RECEIPT_MISMATCH/);
+    }
+  }
+});
 test("CLI approval freezes project permissions and retains exact identity checks for earlier receipts", () => {
   const client = load("lib/cli-authorization.ts", { require: () => ({ ApiError }) });
   for (const legacy of [false, true]) {

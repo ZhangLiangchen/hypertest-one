@@ -29,7 +29,7 @@ export function validateManagement(original: LocalWebPending, result: ArchiveMan
     || (original.path !== "tasks" && result.task.id !== original.path.split("/")[1])) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
   if (["CREATE", "UPDATE"].includes(action) && ["title", "objective"].some((field) => field in original.payload && original.payload[field] !== result.task[field as "title" | "objective"])) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
   if (action === "CREATE" && (result.task.archive_version !== 1 || result.task.reported_result !== "NOT_RUN" || result.task.status !== "DRAFT"
-    || original.payload.owner_uploader_actor_ref !== result.task.owner_uploader_actor_ref)) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
+    || ("owner_uploader_actor_ref" in original.payload && original.payload.owner_uploader_actor_ref !== result.task.owner_uploader_actor_ref))) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
   if (action === "CREATE" && (["sut_branch", "framework_branch"] as const).some((field) => field in original.payload && original.payload[field] !== (result.task[field] ?? null))) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
   return result;
 }

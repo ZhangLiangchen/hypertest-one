@@ -2563,7 +2563,7 @@ Task 管理 version、Task 根 archive_version 和 Subtask archive_version 分�
 
 `0033_project_repositories` 为 Project 增加可空 `test_framework_repository_url`，为 LocalArchiveTask 增加可空 `sut_repository_url`、`test_framework_repository_url`、`sut_branch`、`framework_branch`。创建新 Local Task 时，服务端固定当时 Project 的两个地址与请求中显式选择的两个分支；空值表示未声明，不从历史项目默认分支推导。创建请求可携 `expected_project_version`，新 Web 在用户确认所见仓库时提交；服务端在 Project 锁内检查版本，过期拒绝，避免将分支固定到用户未看到的新仓库。旧客户端省略此字段保持兼容。原 key 对账优先于版本检查，已接受的原请求在项目随后变更时仍返回原固定结果。创建后这些字段不可变；项目地址变更不改写原任务，旧任务保持 NULL，不伪造来源或重新解释历史。分支是用户声明的任务输入，不是已解析 commit、工作区身份、授权或已验证执行事实；测试资产仍按现有来源声明与认证上传者语义处理。两个可选分支各 1–255 字符，拒绝 ASCII 空格和控制字符。Cloud 的资源配置版本和任务双 selector 按 §51 / TMP §46 独立冻结，不因项目字段变化自动重写。
 
-管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存草稿；定向项目授权拒绝归档，全项目 CLI 授权可归档。已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有根或子任务接受的归档提交，其 owner 不可改写。
+管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存草稿；定向项目授权拒绝归档，全项目 CLI 授权可归档。任务创建页不要求选择上传身份，创建请求省略 owner 字段；服务端在项目仅有一个有效归档 actor 时自动指定该 actor，否则保持未指定。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有根或子任务接受的归档提交，其 owner 不可改写。
 
 Project/Task/Submission/AssetRevision 及非空 Subtask 以复合外键保证归属一致，不能把另一 Task 的 Subtask ID 或另一 Project 的资产拼入请求。读取、新写及汇总均核当前授权和目标可用性。新增权限 archive:read、archive:write 使用 integration grant，旧 task:sync、cloud:work、Memory scope 不自动获得权限；定向项目授权须同时满足 actor/client/Project、Task owner 与指定时的 Subtask uploader；有效全项目 CLI 授权可访问任意 Local 任务和子任务，包括 owner 为空或其他身份的任务。认证后始终按真实 uploader 保存提交与修订，不改写既有 owner、来源或历史结果。每次请求显式提供 Project/Task，不从客户端全局 profile 推导目标。
 

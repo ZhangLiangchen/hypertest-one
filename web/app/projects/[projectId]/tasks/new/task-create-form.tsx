@@ -1,10 +1,10 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Form, Input, Radio, Select, Space, Typography } from "antd";
+import { Alert, Button, Form, Input, Radio, Space, Typography } from "antd";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ApiError, errorText } from "@/lib/api";
-import { getArchiveActors, type ArchiveManagement } from "@/lib/archive";
+import { ApiError } from "@/lib/api";
+import { type ArchiveManagement } from "@/lib/archive";
 import { useArchiveOperation } from "@/lib/archive-operation";
 import { cloudCapabilities, cloudConfiguration, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
@@ -17,12 +17,11 @@ import { CloudCapabilitiesNotice, CloudOperationNotice } from "../../cloud/cloud
 import { CloudTaskForm } from "../../cloud/task-form";
 import type { Project } from "@/lib/types";
 
-type Values = { mode: "cloud" | "local"; title: string; objective: string; owner_uploader_actor_ref?: string; sut_branch?: string; framework_branch?: string };
+type Values = { mode: "cloud" | "local"; title: string; objective: string; sut_branch?: string; framework_branch?: string };
 export function TaskCreateForm({ projectId, project, onModeChange }: { projectId: string; project?: Project; onModeChange?: (mode: "local" | "cloud") => void }) {
-  const { t, locale } = useI18n(); const router = useRouter(); const search = useSearchParams(); const cache = useQueryClient(); const [form] = Form.useForm<Values>();
+  const { t } = useI18n(); const router = useRouter(); const search = useSearchParams(); const cache = useQueryClient(); const [form] = Form.useForm<Values>();
   const mode = Form.useWatch("mode", { form, preserve: true }) || (search.get("mode") === "local" ? "local" : "cloud");
   const title = Form.useWatch("title", { form, preserve: true }) || "", objective = Form.useWatch("objective", { form, preserve: true }) || "";
-  const actors = useQuery({ queryKey: ["archive-actors", projectId], queryFn: () => getArchiveActors(projectId), retry: false });
   const local = useArchiveOperation(projectId, "create-task");
   const cloudOperation = useCloudOperation(projectId);
   const cloudSetupQuery = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup, retry: false });
@@ -40,7 +39,7 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
   async function refreshCloud() { const setup = await cloudSetupQuery.refetch(); if (setup.data?.configured) await Promise.all([capabilities.refetch(), configuration.refetch()]); }
   async function submit(values: Values) {
     if (values.mode !== "local" || localBlocked || cloudBlocked) return;
-    const result = await local.manage("tasks", { title: values.title, objective: values.objective, owner_uploader_actor_ref: values.owner_uploader_actor_ref || null,
+    const result = await local.manage("tasks", { title: values.title, objective: values.objective,
       sut_branch: values.sut_branch?.trim() || null, framework_branch: values.framework_branch?.trim() || null,
       ...(project ? { expected_project_version: project.row_version } : {}) });
     if (result) accepted(result);
@@ -50,7 +49,7 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
     onValuesChange={(changed) => { if (changed.mode === "local" || changed.mode === "cloud") onModeChange?.(changed.mode); }}
     onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}>
     <Typography.Title id="task-details-title" level={2}>{t("Task details", "任务信息")}</Typography.Title>
-    <Form.Item name="mode" label={t("Execution mode", "执行方式")}><Radio.Group options={[{ value: "cloud", label: t("Cloud testing", "云端测试") }, { value: "local", label: t("Local testing", "本地测试") }]} /></Form.Item>
+    <Form.Item name="mode" label={t("Execution mode", "执行方式")} rules={[{ required: true }]}><Radio.Group options={[{ value: "cloud", label: t("Cloud testing", "云端测试") }, { value: "local", label: t("Local testing", "本地测试") }]} /></Form.Item>
     <Form.Item name="title" label={t("Task title", "任务标题")} rules={[{ required: true, whitespace: true, message: t("Enter a task title.", "请输入任务标题。") }, { max: 512 }]}><Input maxLength={512} autoFocus autoComplete="off" /></Form.Item>
     <Form.Item name="objective" label={t("Testing objective", "测试目标")} rules={[{ required: true, whitespace: true, message: t("Describe the testing objective.", "请描述测试目标。") }, { max: 16000 }]}><Input.TextArea rows={4} maxLength={16000} /></Form.Item>
     {mode === "local" ? <div className="form-section"><Typography.Title level={3}>{t("Local test setup", "本地测试配置")}</Typography.Title>
@@ -62,9 +61,7 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
         <Form.Item name="sut_branch" label={t("SUT branch", "被测对象分支")} extra={project?.repository_url || t("SUT repository not configured", "尚未配置被测对象仓库")} rules={[{ required: true, whitespace: true, message: t("Enter the SUT branch name.", "请输入被测对象分支名称。") }, { max: 255 }]}><Input maxLength={255} placeholder="main" autoComplete="off" /></Form.Item>
         <Form.Item name="framework_branch" label={t("Test framework branch", "测试框架分支")} extra={project?.test_framework_repository_url || t("Test framework repository not configured", "尚未配置测试框架仓库")} rules={[{ required: true, whitespace: true, message: t("Enter the test framework branch name.", "请输入测试框架分支名称。") }, { max: 255 }]}><Input maxLength={255} placeholder="main" autoComplete="off" /></Form.Item>
       </div>
-      <Form.Item name="owner_uploader_actor_ref" label={t("Authorized uploader", "获准上传的身份")} extra={t("All-project CLI authorizations can archive this task. Project-scoped uploaders require a task assignment.", "全部项目 CLI 授权可直接归档此任务；按项目授权的上传身份需要分配给任务。") }><Select allowClear loading={actors.isLoading} placeholder={t("Authorize later", "稍后授权")} options={actors.data?.items.map((actor) => ({ value: actor.actor_ref, label: actor.label }))} /></Form.Item>
-      <Space wrap style={{ marginBottom: 20 }}><Button onClick={() => void actors.refetch()} loading={actors.isFetching}>{t("Refresh uploaders", "刷新上传身份")}</Button><Link href={`/cli-authorizations?projectId=${projectId}#cli-install`} target="_blank" rel="noopener noreferrer">{t("CLI installation prompt & authorization (new tab)", "CLI 安装 Prompt 与授权（新标签页）")}</Link></Space>
-      {actors.isError ? <Alert type="warning" showIcon message={t("Uploaders could not be loaded", "无法读取上传身份")} description={errorText(actors.error, locale)} style={{ marginBottom: 20 }} /> : null}
+      <div style={{ marginBottom: 20 }}><Link href={`/cli-authorizations?projectId=${projectId}#cli-install`} target="_blank" rel="noopener noreferrer">{t("CLI installation prompt & authorization (new tab)", "CLI 安装 Prompt 与授权（新标签页）")}</Link></div>
       <Button htmlType="submit" type="primary" disabled={localBlocked || cloudBlocked} loading={local.busy}>{t("Create local test task", "创建本地测试任务")}</Button>
     </div> : null}
   </Form></section>

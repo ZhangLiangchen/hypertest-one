@@ -1239,7 +1239,7 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 Web 增加全局「CLI 授权」页和安装/绑定指导。用户级全局 CLI 通过一条 auth bind 命令发起短时配对，用户在既有 Web 登录下核对短码和客户端，一次批准默认覆盖现有及未来全部 Project 的 archive:read/write，授权不设到期时间；CLI 完成固定授权兑换、核验并原子保存 profile 后退出。凭据不进入命令/Skill/日志，CLI 私存预生成 secret 与独立 verifier，服务端仅持验证材料；原 key 恢复无需重发未知签发或返回明文 secret。`0031_cli_authorization` 保存配对请求、各 Project 的 `CliAuthorizationGrant` 映射与不可变操作回执；全项目授权在访问项目时解析到独立 integration grant（写事务提交时持久化，只读请求回滚），不复制相同 token_hash，也不绕过 actor/client/grant 当前状态、scope 与可选期限检查。
 
-2026-10-27 授权入口增补：Web 不再加载或提交历史 actor 选项。API 以稳定 `connector_operator_identity` 解析专用 CLI 上传身份；additive 迁移 `0032_cli_archive_uploader` 新增不可变 `CliArchiveUploader`，以唯一 Operator 引用和唯一 actor 外键保存一对一关系。首次有效 APPROVE 在既有权限、短码、客户端、项目和期限检查后，同事务建立 actor、映射与批准回执；同 Operator 跨设备复用，撤销后不得自动新建身份绕过当前状态检查。旧 `/cli-authorizations/actors` 返回 410；旧 APPROVED/BOUND、原 actor、grant 与回执保留，带 actor 的旧正文仅支持已接受原回执的精确恢复。任务 owner 管理仍按该项目有效归档授权（包括全项目授权）独立进行，不借新配对改写历史归属。身份与兼容规则分别由领域§56.5、TMP§51.4拥有。
+2026-10-27 授权入口增补：Web 不再加载或提交历史 actor 选项。API 以稳定 `connector_operator_identity` 解析专用 CLI 上传身份；additive 迁移 `0032_cli_archive_uploader` 新增不可变 `CliArchiveUploader`，以唯一 Operator 引用和唯一 actor 外键保存一对一关系。首次有效 APPROVE 在既有权限、短码、客户端、项目和期限检查后，同事务建立 actor、映射与批准回执；同 Operator 跨设备复用，撤销后不得自动新建身份绕过当前状态检查。旧 `/cli-authorizations/actors` 返回 410；旧 APPROVED/BOUND、原 actor、grant 与回执保留，带 actor 的旧正文仅支持已接受原回执的精确恢复。任务创建页不要求选择上传身份，创建请求省略 owner 字段；服务端在项目仅有一个有效归档 actor 时自动指定该 actor，否则保持未指定。任务详情的 owner 管理仍按该项目有效归档授权（包括全项目授权）独立进行，不借新配对改写历史归属。身份与兼容规则分别由领域§56.5、TMP§51.4拥有。
 
 profile 以 server/client/actor 隔离，可跨工作目录和 Agent 会话复用批准范围；默认全项目授权覆盖以后新增项目，但不能据此推导上传目标。配对查询仅在命令进程内有界进行，无本地回调服务器、后台轮询或续签。授权服务与归档服务分离 operation namespace；服务端撤销、本机退出和历史只读恢复保持各自语义。操作流程见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
 

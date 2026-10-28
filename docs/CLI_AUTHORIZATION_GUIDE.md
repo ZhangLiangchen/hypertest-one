@@ -87,7 +87,7 @@ hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 
 绑定命令和网页 URL 不含长期 token、verifier 或 Operator key。短码仅用于核对，不是查询或兑换凭证。profile 可合并同 server/client/actor 下获准的授权；不同身份的同名 profile 会被拒绝覆盖，应选用新 profile 名。绑定不会获得旧 `task:sync`、Cloud、Memory 或 Operator 权限。
 
-已批准或已绑定的旧请求继续使用原上传身份恢复，不自动迁移 profile、grant 或任务 owner。历史身份从本页的选择入口退出，但其任务、报告和回执保留。新全项目授权可读写旧身份拥有的 Local 任务和子任务，但不会改写任务 owner 或历史上传者；任务创建页列出该项目有有效归档授权的上传者（包括有效全项目授权的上传者），任务 owner 与客户端授权分别管理。专用上传身份或客户端被撤销时，新的批准会被拒绝，不自动换一个身份绕过撤销。
+已批准或已绑定的旧请求继续使用原上传身份恢复，不自动迁移 profile、grant 或任务 owner。历史身份从本页的选择入口退出，但其任务、报告和回执保留。新全项目授权可读写旧身份拥有的 Local 任务和子任务，但不会改写任务 owner 或历史上传者；任务创建页无需选择上传身份并省略 owner 字段；服务端在项目仅有一个有效归档 actor 时自动指定该 actor，否则保持未指定。任务详情中的 owner 与客户端授权分别管理。专用上传身份或客户端被撤销时，新的批准会被拒绝，不自动换一个身份绕过撤销。
 
 配对窗口为 10 分钟，与所批准 grant 的有效期分开。过期、拒绝、撤销或失答不会自动触发新的绑定或扩权。
 

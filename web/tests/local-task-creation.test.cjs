@@ -56,11 +56,15 @@ test("unified creation shares title and objective without nesting the Cloud form
     assert.equal(operationHookCalls, 1);
     assert.ok(html.includes(locale === "en" ? "Cloud testing" : "云端测试"));
     assert.ok(html.includes(locale === "en" ? "Local testing" : "本地测试"));
+    const modeLabel = html.match(/<label[^>]*for="mode"[^>]*>.*?<\/label>/)?.[0];
+    assert.ok(modeLabel);
+    assert.doesNotMatch(modeLabel, /<span[^>]*>\s*(?:\(optional\)|（可选）)\s*<\/span>/i);
     assert.ok(html.indexOf("</form>") < html.indexOf('id="new-cloud-task-title"'), "the Cloud form is a sibling of the shared form");
     assert.equal((html.match(/<form\b/g) || []).length, 2);
     assert.ok(html.includes('href="/projects/project-1/cloud?tab=resources" target="_blank"'), "resource setup retains this page's draft");
     if (mode === "local") {
-      assert.ok(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"));
+      assert.equal(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"), false);
+      assert.equal(html.includes(locale === "en" ? "Refresh uploaders" : "刷新上传身份"), false);
       assert.ok(html.includes(locale === "en" ? "Local test setup" : "本地测试配置"));
       assert.ok(html.includes(locale === "en" ? "Create local test task" : "创建本地测试任务"));
       assert.ok(html.includes('href="/cli-authorizations?projectId=project-1#cli-install" target="_blank"'), "installation guidance keeps the task draft open");
@@ -196,6 +200,7 @@ test("an accepted local archive creation opens the shared task route without cha
   assert.deepEqual(navigation, ["/tasks/archive-task-1?mode=archive&projectId=project-1"]);
   assert.equal(localWrites.length, 1);
   assert.equal(localWrites[0].path, "tasks");
+  assert.equal(Object.hasOwn(localWrites[0].payload, "owner_uploader_actor_ref"), false);
 });
 
 test("local task freezes the selected branches against the displayed project revision", async () => {
