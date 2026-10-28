@@ -63,7 +63,7 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   if (!projectId) return <main className="workspace-page"><Alert type="error" showIcon message={t("A Project ID is required", "需要明确的项目 ID")} description={t("Open this archive from its Project workspace.", "请从所属项目工作区打开此归档任务。") } /></main>;
   if (query.isLoading) return <main className="workspace-page"><WorkspaceLoading label={t("Loading archive", "正在读取归档")} /></main>;
   if (!task) return <main className="workspace-page"><WorkspaceHeading title={t("Local archive", "本地归档")} backHref={`/projects/${projectId}`} backLabel={t("Project", "项目")} /><Alert type="error" showIcon message={t("Archive unavailable", "无法读取归档")} description={errorText(query.error, locale)} action={<Button onClick={() => void query.refetch()}>{t("Retry", "重试")}</Button>} /></main>;
-  return <main className="workspace-page">
+  return <main className="workspace-page archive-task-page">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}`} backLabel={t("Project tasks", "项目任务")}
       actions={<Space><Button onClick={() => open("update")} disabled={operation.blocked}>{t("Edit task", "编辑任务")}</Button><Button icon={<ReloadOutlined aria-hidden />} onClick={() => { void query.refetch(); void snapshot.refetch(); }} loading={query.isFetching || snapshot.isFetching}>{t("Refresh", "刷新")}</Button></Space>} />
     <ProjectNavigation projectId={projectId} active="local" />
@@ -82,12 +82,20 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
         { id: "task-management", label: t("Management history", "管理历史") },
       ]} />
       <div className="task-detail-content">
-        <section id="task-overview" tabIndex={-1} className="data-surface session-record" aria-label={t("Task overview", "任务概览")}>
-          <Descriptions column={3} layout="vertical" items={[
+        <section id="task-overview" tabIndex={-1} className="data-surface session-record archive-overview" aria-label={t("Task overview", "任务概览")}>
+          <div className="archive-overview-lead">
+            <div className="archive-objective">
+              <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
+              <p className="session-literal">{task.objective || t("No objective supplied.", "尚未填写测试目标。")}</p>
+            </div>
+            <div className="archive-overview-status">
+              <div><span>{t("Task status", "任务状态")}</span><Tag color={task.status === "IN_PROGRESS" ? "blue" : task.status === "BLOCKED" ? "gold" : undefined}>{label(task.status)}</Tag></div>
+              <div><span>{t("Reported result", "报告结果")}</span><ReportedResultTag result={task.reported_result} /></div>
+            </div>
+          </div>
+          <Descriptions className="archive-overview-details" column={3} layout="vertical" items={[
             { key: "id", label: t("Task ID", "任务 ID"), children: <Typography.Text code copyable>{task.id}</Typography.Text> },
             { key: "mode", label: t("Execution mode", "执行方式"), children: t("Local Agent · explicit archive", "本地执行 · 显式归档") },
-            { key: "status", label: t("Task status", "任务状态"), children: <Tag color={task.status === "IN_PROGRESS" ? "blue" : task.status === "BLOCKED" ? "gold" : undefined}>{label(task.status)}</Tag> },
-            { key: "result", label: t("Reported result", "报告结果"), children: <ReportedResultTag result={task.reported_result} /> },
             { key: "created", label: t("Created", "创建时间"), children: formatDate(task.created_at) },
             { key: "updated", label: t("Updated", "更新时间"), children: formatDate(task.updated_at) },
             { key: "management", label: t("Management version", "管理版本"), children: task.version },
@@ -103,9 +111,7 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
               { key: "framework-branch", label: t("Test framework branch", "测试框架分支"), children: task.framework_branch || t("Not recorded", "未记录") },
             ]} />
           </> : null}
-          <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
-          <p className="session-literal">{task.objective || t("No objective supplied.", "尚未填写测试目标。")}</p>
-          <Typography.Paragraph className="muted">{t("The local Agent performs testing. Archive completed plans, cases and reports explicitly with the CLI. Uploading artifacts does not mark the task complete or change its reported result.", "测试由本地 Agent 完成，通过 CLI 显式归档已完成的计划、用例与报告。上传产物不会自动完成任务或改变报告结果。")}</Typography.Paragraph>
+          <Typography.Paragraph className="muted archive-overview-note">{t("The local Agent performs testing. Archive completed plans, cases and reports explicitly with the CLI. Uploading artifacts does not mark the task complete or change its reported result.", "测试由本地 Agent 完成，通过 CLI 显式归档已完成的计划、用例与报告。上传产物不会自动完成任务或改变报告结果。")}</Typography.Paragraph>
         </section>
         <ArchiveOperationNotice operation={operation} onAccepted={accepted} />
         {draft ? <section id="task-archive-edit" tabIndex={-1} className="data-surface session-record"><Typography.Title level={2}>{draft.mode === "subtask" ? t("Add subtask", "添加子任务") : draft.mode === "publish" ? t("Publish task summary", "发布任务汇总") : draft.mode === "authorize" ? t("Manage upload access", "管理上传身份") : t("Edit task", "编辑任务")}</Typography.Title>
@@ -115,13 +121,13 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
         {draft.mode === "publish" ? <><Typography.Paragraph>{t("This summary freezes root version", "此次汇总固定根归档版本")} v{draft.root} · {t("management version", "管理版本")} {draft.version}</Typography.Paragraph><Form.Item name="selected_children" label={t("Included subtask versions", "纳入的子任务版本")} extra={t("Unselected and unfinished subtasks remain visible below and are not silently counted as complete.", "未选择及未完成的子任务仍保留显示，不会被自动视作完成。") }><Select mode="multiple" options={draft.children.map((c) => ({ value: c.subtask_id, label: `${c.title} · v${c.archive_version} · ${label(c.status)}` }))} /></Form.Item><Form.Item name="asset_revision_ids" label={t("Referenced artifact revisions", "引用的产物修订")}><Select mode="multiple" loading={publicationAssets.isFetching} options={publicationAssets.data?.filter((item) => !item.space || includedChildren.includes(item.space)).map((item) => ({ value: item.id, label: `${item.title} · ${item.kind} · r${item.revision}` }))} /></Form.Item>{publicationAssets.isError ? <Alert type="warning" showIcon message={t("Artifact references could not be loaded", "无法读取产物引用")} action={<Button onClick={() => void publicationAssets.refetch()}>{t("Retry", "重试")}</Button>} /> : null}<Form.Item name="summary" label={t("Summary, omissions and unfinished work", "汇总、未纳入范围与未完成工作")} rules={[{ required: true, whitespace: true }, { max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item><Space align="start"><Form.Item name="status" label={t("Task progress", "任务进度")} rules={[{ required: true }]}><Select className="archive-status-select" options={statuses.map((value) => ({ value, label: label(value) }))} /></Form.Item><Form.Item name="reported_result" label={t("Explicit reported result", "明确报告结果")} rules={[{ required: true }]}><Select className="archive-status-select" options={results.map((value) => ({ value, label: value }))} /></Form.Item></Space></> : null}
         <Space><Button type="primary" htmlType="submit" loading={operation.busy}>{draft.mode === "publish" ? t("Publish summary", "发布汇总") : t("Save", "保存")}</Button><Button onClick={() => setDraft(null)}>{t("Cancel", "取消")}</Button></Space>
       </Form></section> : null}
-        <section id="task-upload" tabIndex={-1} className="data-surface session-record" aria-labelledby="archive-upload-heading">
+        <section id="task-upload" tabIndex={-1} className="data-surface session-record archive-upload" aria-labelledby="archive-upload-heading">
           <div className="activity-heading"><Typography.Title id="archive-upload-heading" level={2}>{t("Archive test artifacts", "归档测试产物")}</Typography.Title><Button onClick={() => open("authorize")} disabled={operation.blocked}>{t("Manage upload access", "管理上传身份")}</Button></div>
           <Typography.Paragraph className="muted">{t("Uploader", "上传身份")}: <Typography.Text code>{task.owner_uploader_actor_ref || t("Not assigned", "未指定")}</Typography.Text></Typography.Paragraph>
           {!task.owner_uploader_actor_ref ? <Alert type="info" showIcon message={t("Assign a project-scoped uploader, or use an all-project CLI authorization", "请指定按项目授权的上传身份，或使用全部项目 CLI 授权")} style={{ marginBottom: 16 }} /> : null}
-          <label htmlFor="archive-target">{t("Destination", "归档位置")}</label><Select id="archive-target" className="archive-target" value={target} onChange={(value) => { setTarget(value); setVersion(undefined); setSubmissionId(undefined); }} options={[{ value: "", label: t("Task root (no Subtask ID)", "任务根空间（无需子任务 ID）") }, ...children.map((c) => ({ value: c.id, label: `${c.title} · ${c.id}` }))]} />
+          <div className="archive-upload-workflow"><label htmlFor="archive-target">{t("Destination", "归档位置")}</label><Select id="archive-target" className="archive-target" value={target} onChange={(value) => { setTarget(value); setVersion(undefined); setSubmissionId(undefined); }} options={[{ value: "", label: t("Task root (no Subtask ID)", "任务根空间（无需子任务 ID）") }, ...children.map((c) => ({ value: c.id, label: `${c.title} · ${c.id}` }))]} />
           <ArchivePrompt projectId={projectId} taskId={taskId} subtaskId={target || undefined} taskInputs={{ sut_repository_url: task.sut_repository_url, test_framework_repository_url: task.test_framework_repository_url, sut_branch: task.sut_branch, framework_branch: task.framework_branch }} />
-          <Link className="archive-install-link" href={`/cli-authorizations?projectId=${projectId}#cli-install`}>{t("CLI installation prompt & authorization", "CLI 安装 Prompt 与授权")}</Link>
+          <Link className="archive-install-link" href={`/cli-authorizations?projectId=${projectId}#cli-install`}>{t("CLI installation prompt & authorization", "CLI 安装 Prompt 与授权")}</Link></div>
         </section>
         <section id="task-subtasks" tabIndex={-1} className="session-task-section" aria-labelledby="archive-children-heading">
           <div className="activity-heading"><Typography.Title id="archive-children-heading" level={2}>{t("Optional subtasks", "可选子任务")} ({children.length})</Typography.Title><Button onClick={() => open("subtask")} disabled={operation.blocked}>{t("Add subtask", "添加子任务")}</Button></div>

@@ -502,6 +502,28 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .session-collaboration-fields { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
 
 /* Explicit Local archives inherit the shared desktop workspace surfaces. */
+/* Local task details: lead with the objective and reported state, then keep
+   record identity and archive controls close to their supporting context. */
+.archive-task-page .task-detail-content > section { margin-block: 24px; }
+.archive-task-page .task-detail-content > section:first-child { margin-top: 0; }
+.archive-task-page .session-task-section > h2.ant-typography,
+.archive-task-page .session-task-section .activity-heading { margin-bottom: 14px; }
+.archive-overview-lead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 0.38fr); gap: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--ht-line); }
+.archive-objective h3.ant-typography { margin: 0 0 8px; font-size: 17px; }
+.archive-objective p { max-width: 75ch; margin: 0; }
+.archive-overview-status { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 20px 32px; }
+.archive-overview-status > div { display: grid; justify-items: start; gap: 8px; }
+.archive-overview-status > div > span:first-child { color: var(--ht-muted); font-size: 12px; }
+.archive-overview-status .ant-tag { margin-inline-end: 0; }
+.archive-overview-details { padding-top: 24px; }
+.archive-overview-note.ant-typography { margin: 0; max-width: 75ch; }
+.archive-upload .activity-heading { margin-bottom: 16px; }
+.archive-upload-workflow { margin-top: 20px; padding: 20px; border: 1px solid var(--ht-line); border-radius: var(--ht-radius-control); background: var(--ht-canvas); }
+.archive-upload-workflow > label { display: block; font-weight: 600; }
+.archive-upload-workflow .archive-target { max-width: 560px; }
+.archive-upload-workflow .archive-prompt > .ant-typography { max-width: 75ch; }
+.archive-upload-workflow .archive-install-link { font-size: 13px; }
+
 .archive-section { margin-bottom: 24px; }
 .archive-target { display: block; width: 100%; margin-block: 8px 16px; }
 .archive-command { padding: 16px; background: var(--ht-canvas); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
