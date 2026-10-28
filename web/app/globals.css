@@ -531,7 +531,7 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .archive-version-controls label { color: var(--ht-muted); font-size: 13px; font-weight: 500; }
 .archive-version-controls .archive-version-input { width: 104px; }
 .archive-version-input .ant-input-number-input { font-variant-numeric: tabular-nums; font-weight: 600; }
-.archive-version-input .ant-input-number-handler-wrap { opacity: 1; }
+.archive-version-input.ant-input-number .ant-input-number-handler-wrap { opacity: 1; }
 
 .archive-section { margin-bottom: 24px; }
 .archive-command { padding: 16px; background: var(--ht-canvas); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
