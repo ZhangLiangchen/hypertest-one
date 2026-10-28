@@ -8,6 +8,7 @@
 - [产品白皮书](foundation/HYPERTEST_WHITEPAPER.md)、[技术架构](architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)、[测试任务协议](protocol/TEST_MISSION_PROTOCOL.md)、[领域模型与状态机](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)：按 [AGENTS.md](../AGENTS.md) 的优先级及后续 ADR 增补阅读。
 - [当前系统架构总览（2026-10-28）](architecture/SYSTEM_ARCHITECTURE_OVERVIEW_20261028.md)：当前实现、部署拓扑与外部集成（DeepSeek Harness、PowerContext 等）的全景快照；运行状态仍须现场核实。
 - [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)：新 Local 显式归档及安装授权；旧 SessionTask 的合同与恢复只适用于仍存在的旧路径，清理按 ADR-028 执行。
+- [CLI 全项目授权交付（2026-10-28）](CLI_GLOBAL_AUTHORIZATION_DELIVERY_20261028.md)：存量授权迁移、0.1.2 发行、本机部署和用户验收边界。
 - [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md)：快速原型期替代不兼容旧实现与定向清除旧数据的决策。
 - [服务器操作](SERVER_OPERATIONS.md)：现行本机容器测试环境的操作规则和入口；运行身份以现场检查为准。
 - [PowerContext 服务](POWERCONTEXT_SERVICE.md)及 [Cloud 实现状态](CLOUD_IMPLEMENTATION_STATUS.md)：各自能力与范围，部署和验收以具体轮次记录为准。
