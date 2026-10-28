@@ -1068,7 +1068,7 @@ CloudTask 是稳定业务任务，CloudAttempt 是一次可追溯执行尝试；
 
 ### 45.3 项目资源、固定输入与工作区
 
-项目可以保存 SUT / framework 两个 credential-free origin、默认分支、测试工作目录 / 入口、环境地址和连接方式；允许同仓，但各自角色和实际 SHA 必须明确。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
+项目可以保存 SUT / framework 两个 credential-free origin、测试工作目录 / 入口、环境地址和连接方式；允许同仓，但各自角色和实际 SHA 必须明确。新 Cloud 资源配置无需默认分支；旧配置的默认 selector 原样保留，两个实际 selector 在创建任务时确定。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
 
 CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA、MR base / head 和实际使用 head 或 merge commit，返回不可变 CloudInputResolution。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
 
@@ -1226,6 +1226,8 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 平台0028两张不可变表保存原SENT与非秘密OBSERVED/UNKNOWN；原HTTP正文留host私有原件，须scan与当前fence接受才能返回。原key只读恢复不再发送，HTTP未知统一阻止原生命周期收尾/预算结算，不能由Operator声明消除。与SSH的远端签名/helper/终态协议保持独立。运行前核FRAMEWORK_LOCKED_V1的锁文件和固定工具身份；既有入口准入继续，离线检查不承担依赖安装或新的测试引擎职责。精确边界见[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)、TMP§50与领域§55。
 
 ## 50. ADR-027 Local 显式归档目标架构
+
+新建 Project 须分别登记 SUT 与测试框架仓库（可相同）；历史项目允许缺失。用户在创建 Local 任务时声明各自分支，API 对旧客户端允许省略。API 固定创建时的两个 Project 地址及所选分支，旧任务不回填，项目后续修改不改写已接受任务。这些值只是任务输入声明，不表示已检出、执行或独立验证来源。Cloud 仍使用独立的 ProjectCloudConfigRevision 和任务双 selector，显式冻结输入及授权；Project 通用地址不自动覆盖既有 Cloud 资源和任务。
 
 首片产品实现已完成；部署、CLI/Skill 发行与 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。新链路为 `显式 Skill → hypertest CLI → ArchiveAdapter / TaskSyncCore → HTTPS Archive API → PostgreSQL`。API 接受和存储测试资产，不启动 Agent 或测试；CLI 在一次命令进程中完成配置、校验、冻结、发送和读回，无常驻 daemon、IPC、Hook 或 MCP server。
 

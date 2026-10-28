@@ -7,8 +7,8 @@ const helpers = load("lib/record-management.ts");
 const i18n = load("lib/i18n.tsx", { require });
 
 test("manual edit payloads preserve the chosen version and exclude immutable identity and test results", () => {
-  const project = helpers.projectEditPayload({ name: "  项目  ", description: "", repository_url: "  ", default_branch: " main ", key: "OTHER", row_version: 99, status: "ARCHIVED" }, 4);
-  assert.equal(JSON.stringify(project), JSON.stringify({ expected_version: 4, name: "项目", description: null, repository_url: null, default_branch: "main" }));
+  const project = helpers.projectEditPayload({ name: "  项目  ", description: "", repository_url: "  ", test_framework_repository_url: " https://git.example/framework ", default_branch: " main ", key: "OTHER", row_version: 99, status: "ARCHIVED" }, 4);
+  assert.equal(JSON.stringify(project), JSON.stringify({ expected_version: 4, name: "项目", description: null, repository_url: null, test_framework_repository_url: "https://git.example/framework" }));
   const task = helpers.taskEditPayload({ title: "  新标题 ", objective: "  literal objective\n", plan_markdown: "# Plan\n  preserve bytes", reported_result: "PASS", status: "COMPLETED", session_id: "other", cases: [] }, 7);
   assert.equal(JSON.stringify(task), JSON.stringify({ expected_version: 7, title: "新标题", objective: "  literal objective\n", plan_markdown: "# Plan\n  preserve bytes" }));
   assert.equal(JSON.stringify(helpers.TASK_STATUSES), JSON.stringify(["DRAFT", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"]));

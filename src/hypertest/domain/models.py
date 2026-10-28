@@ -67,6 +67,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     repository_url: Mapped[str | None] = mapped_column(Text)
+    test_framework_repository_url: Mapped[str | None] = mapped_column(Text)
     default_branch: Mapped[str] = mapped_column(String(255), default="main", nullable=False)
     status: Mapped[ProjectStatus] = mapped_column(
         enum_column(ProjectStatus, "ck_projects_status", 32),

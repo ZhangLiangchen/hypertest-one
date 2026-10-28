@@ -16,7 +16,7 @@ type ProjectFormValues = {
   name: string;
   description?: string;
   repository_url?: string;
-  default_branch: string;
+  test_framework_repository_url?: string;
 };
 
 export function CreateProjectDialog({ open, onClose, projects }: { open: boolean; onClose: () => void; projects: Project[] }) {
@@ -37,7 +37,7 @@ export function CreateProjectDialog({ open, onClose, projects }: { open: boolean
       name: values.name.trim(),
       description: values.description?.trim() || undefined,
       repository_url: values.repository_url?.trim() || undefined,
-      default_branch: values.default_branch.trim(),
+      test_framework_repository_url: values.test_framework_repository_url?.trim() || undefined,
     }),
     onSuccess: (project) => {
       queryClient.setQueryData(["project", project.id], project);
@@ -96,7 +96,6 @@ export function CreateProjectDialog({ open, onClose, projects }: { open: boolean
           name="create-project"
           form={form}
           layout="vertical"
-          initialValues={{ default_branch: "main" }}
           onFinish={(values) => creation.mutate(values)}
           onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}
           onValuesChange={() => { if (creation.isError) creation.reset(); }}
@@ -129,18 +128,19 @@ export function CreateProjectDialog({ open, onClose, projects }: { open: boolean
           </Form.Item>
           <Form.Item
             name="repository_url"
-            label={t("Repository origin", "仓库源地址（origin）")}
-            extra={<>{t("Optional. Use the repository's origin address, not its checkout folder. In an existing checkout, run: ", "可选，用于预填新测试运行。填写仓库的 origin 地址，不是检出目录。在已有 Git 检出中执行：")}<Typography.Text code copyable>git remote get-url origin</Typography.Text>{t(". A local Git source path is valid only when it is the origin value itself. Choose the Worker checkout directory after creating a run.", "。本地 Git 源路径只有与 origin 输出本身一致时才有效；Worker 工作目录将在创建运行后选择。")}</>}
-            rules={[{ max: 2048, message: t("Use at most 2,048 characters for the repository address.", "仓库地址最多 2,048 个字符。") }]}
+            label={t("SUT repository origin", "被测对象（SUT）仓库地址")}
+            extra={t("Use the repository origin without credentials. Select its branch when creating a task.", "填写不包含凭据的仓库源地址；创建测试任务时选择分支。")}
+            rules={[{ required: true, whitespace: true, message: t("Enter the SUT repository address.", "请输入被测对象仓库地址。") }, { max: 2048, message: t("Use at most 2,048 characters for the repository address.", "仓库地址最多 2,048 个字符。") }]}
           >
             <Input placeholder="https://github.com/your-team/your-repository" maxLength={2048} />
           </Form.Item>
           <Form.Item
-            name="default_branch"
-            label={t("Default branch", "默认分支")}
-            rules={[{ required: true, whitespace: true, message: t("Enter the default branch.", "请输入默认分支。") }]}
+            name="test_framework_repository_url"
+            label={t("Test framework repository origin", "测试框架仓库地址")}
+            extra={t("Use the same address as the SUT if tests live in the same repository. Select its branch when creating a task.", "若测试框架与被测对象位于同一仓库，可以填写相同地址；创建测试任务时选择分支。")}
+            rules={[{ required: true, whitespace: true, message: t("Enter the test framework repository address.", "请输入测试框架仓库地址。") }, { max: 2048, message: t("Use at most 2,048 characters for the repository address.", "仓库地址最多 2,048 个字符。") }]}
           >
-            <Input placeholder="main" />
+            <Input placeholder="https://github.com/your-team/test-framework" maxLength={2048} />
           </Form.Item>
           <Typography.Paragraph className="muted">{t("Closing keeps your draft while you stay on this page.", "关闭窗口会保留当前页面内的草稿。")}</Typography.Paragraph>
           <Space style={{ display: "flex", justifyContent: "flex-end" }}>

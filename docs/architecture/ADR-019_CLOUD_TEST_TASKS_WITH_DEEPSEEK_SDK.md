@@ -43,6 +43,8 @@ ADR-022 的 Memory Gateway 是独立 Proposed / NOT IMPLEMENTED 提案，不在�
 
 Project 是长期被测对象与资产目录，同一个 Project 可以同时拥有多个 CloudTask 和多个 SessionTask，不设置排他的项目模式。Cloud 的项目资源配置是可选云端能力，不成为 Local 使用项目前提；Local 不要求 Git / 环境 / 模型云端凭据、Job、执行绑定或源码上传，不远程启动或接管本地 Agent，也不为本地 Git、shell、SSH 或 CI 提供额外执行授权。本地 Agent 可以使用另行授权的远端框架或 CI；Local 表示会话来源和协作方式，不证明测试框架或 SUT 一定位于本机。
 
+项目创建登记 SUT 与测试框架两个仓库地址（可相同），Cloud 资源设置可由这两个地址预填但仍须显式配置并受现有授权约束；新资源修订不要求默认 selector。用户在每个 CloudTask 选择两个 selector，后续解析和 dispatch 固定实际身份；历史资源默认 selector、既有配置版本与任务 manifest 不改写。已有项目缺失地址仍可读取和补充，不将缺省值猜成来源身份。
+
 面向用户的 `product_mode=CLOUD|LOCAL` 从 `task_kind=CLOUD_TASK|SESSION_TASK` 派生，表达不可变的任务类型 / 来源，不新增持久化可变 mode 列，不允许将既有任务转换身份。项目统一列表仅是只读 `ProjectTaskSummary` 查询投影（当前默认关闭源码已加入、尚未更新测试服务器常驻Cloud服务），以 `(task_kind, task_id)` 标识来源对象，显示模式 / 来源标签并支持筛选；同 UUID 的不同类型不能混淆，也不能用单个无类型 task FK 将两张任务表伪装成一张。具体字段与授权见领域 §51、TMP §46；详情、写入、状态和历史仍归各 profile。
 
 这里的 Cloud / Local 与 ADR-015 / 016 的 legacy `execution_mode=CLOUD|LOCAL` 属于不同契约；后者继续解释既有 TestRun、HarnessMode、Connector、Binding 和 Runner 历史。不得用新的产品来源标签重写旧模式或把旧 LOCAL 绑定要求施加给会话同步。

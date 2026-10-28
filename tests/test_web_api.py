@@ -38,6 +38,7 @@ async def bootstrap_from_web(
             "key": f"WEB_{public_key('IT')[-12:]}",
             "name": "Web integration project",
             "repository_url": repository_url,
+            "test_framework_repository_url": repository_url,
         },
     )
     assert response.status_code == 201, response.text

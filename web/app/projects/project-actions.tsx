@@ -23,7 +23,7 @@ export function ProjectActions({ project, compact }: { project: Project; compact
     if (!action || action.mode === "delete" || action.mode === "restore") return;
     const record = action.record;
     form.resetFields();
-    form.setFieldsValue({ name: record.name, description: record.description || "", repository_url: record.repository_url || "", default_branch: record.default_branch, status: record.status as "ACTIVE" | "ARCHIVED" });
+    form.setFieldsValue({ name: record.name, description: record.description || "", repository_url: record.repository_url || "", test_framework_repository_url: record.test_framework_repository_url || "", status: record.status as "ACTIVE" | "ARCHIVED" });
   }, [action, form]);
   const [notice, contextHolder] = message.useMessage();
   const refresh = () => {
@@ -68,8 +68,8 @@ export function ProjectActions({ project, compact }: { project: Project; compact
             <Typography.Paragraph className="muted">{t("The project key stays fixed. Repository changes apply to future run drafts; saved run snapshots remain intact.", "项目标识保持固定。仓库修改用于后续新建运行的预填，已保存运行的快照会保留。")}</Typography.Paragraph>
             <Form.Item name="name" label={t("Project name", "项目名称")} rules={[{ required: true, whitespace: true, message: t("Enter a project name.", "请输入项目名称。") }, { max: 255 }]}><Input maxLength={255} autoFocus /></Form.Item>
             <Form.Item name="description" label={t("Description", "项目描述")} rules={[{ max: 16000 }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item>
-            <Form.Item name="repository_url" label={t("Repository origin", "仓库源地址（origin）")} extra={t("Use an origin address without embedded credentials. Leave blank to clear it.", "填写不包含凭据的 origin 地址；留空可清除。") } rules={[{ max: 2048 }]}><Input maxLength={2048} /></Form.Item>
-            <Form.Item name="default_branch" label={t("Default branch", "默认分支")} rules={[{ required: true, whitespace: true, message: t("Enter the default branch.", "请输入默认分支。") }, { max: 255 }]}><Input maxLength={255} /></Form.Item>
+            <Form.Item name="repository_url" label={t("SUT repository origin", "被测对象（SUT）仓库地址")} extra={t("Use an origin address without embedded credentials. Leave blank to clear it.", "填写不包含凭据的仓库源地址；留空可清除。") } rules={[{ max: 2048 }]}><Input maxLength={2048} /></Form.Item>
+            <Form.Item name="test_framework_repository_url" label={t("Test framework repository origin", "测试框架仓库地址")} extra={t("Use the same address if both are in one repository. Leave blank to clear it.", "若测试框架与被测对象位于同一仓库，可填写相同地址；留空可清除。") } rules={[{ max: 2048 }]}><Input maxLength={2048} /></Form.Item>
           </>}
         </Form>}
     </ManagementDialog>

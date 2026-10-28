@@ -222,6 +222,7 @@ key                 varchar(64)
 name                varchar(255)
 description         text
 repository_url      text
+test_framework_repository_url text nullable
 default_branch      varchar(255)
 status              varchar(32)
 deleted_at          timestamptz nullable
@@ -238,7 +239,7 @@ Project 不以 repository URL 为唯一键，长期允许 multi-repo。
 
 ### 8.1 项目人工管理（2026-10-23）
 
-Operator 可编辑 `name / description / repository_url / default_branch`，并将项目状态设为 `ACTIVE / ARCHIVED`；`id / key` 固定。修改仓库或默认分支只影响项目配置，不改写已有 SourceSnapshot、任务来源、冻结输入或测试历史。归档是项目管理状态，不取消任务、不停止执行，也不生成质量结论。
+Operator 可编辑 `name / description / repository_url / test_framework_repository_url / default_branch`，并将项目状态设为 `ACTIVE / ARCHIVED`；`id / key` 固定。`repository_url` 是 SUT 仓库，`test_framework_repository_url` 是测试框架仓库；公开新建 Project 请求必须提供两个非空地址，可以相同，均采用无凭据 origin 校验。Project 新写/修改的 origin 还拒绝 URL query、fragment、ASCII 空格及控制字符，减少这些位置的凭据泄漏；这不是对任意路径内容的全面秘密扫描。此增补不重写历史 Project 或扩大旧 SourceSnapshot 准入规则。历史 Project 的两项存储/读取保持可空，不自动回填。创建项目的用户界面不要求选择分支；`default_branch` 保留既有兼容字段和历史值，不自动回填或覆盖。修改仓库或默认分支只影响项目配置，不改写已有 SourceSnapshot、任务来源、冻结输入或测试历史。归档是项目管理状态，不取消任务、不停止执行，也不生成质量结论。
 
 编辑、软删除和恢复都必须提供与当前 `row_version` 匹配的 `expected_version`，在同一事务中更新项目、递增版本并写入 Audit / Outbox。旧版本拒绝，不以最后写入覆盖并发修改。
 
@@ -2308,7 +2309,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 | 对象 | 必需字段、关系与不变量 |
 | --- | --- |
-| ProjectCloudConfigRevision | Project FK、递增 revision、创建者/时间；SUT 与 framework 仓库地址及默认 ref、受控 Git 访问方式、环境连接描述、credential-version 引用。同仓库合法，角色和版本仍分别记录；修改追加修订，不影响已下发任务 |
+| ProjectCloudConfigRevision | Project FK、递增 revision、创建者/时间；SUT 与 framework 仓库地址、可选的历史兼容默认 ref、受控 Git 访问方式、环境连接描述、credential-version 引用。同仓库合法，角色和版本仍分别记录；修改追加修订，不影响已下发任务 |
 | ProjectCredential / CredentialVersion | Project FK、类型、用途、允许目标、权限范围、状态/有效期、创建/轮换审计；不可变 version 与专用加密秘密存储的引用。普通业务数据只保存 metadata/ref/version，不保存原文。秘密在专用持久层加密，主密钥与数据库/备份隔离；撤销/轮换不改写已用版本 |
 | CloudInputResolution | DRAFT Task FK、解析操作 key、source_draft_version、accepted_task_version、config version 与选择器摘要、双仓库完整 SHA/MR checkout 身份、PRD/资源版本、观察时间与来源；不可变解析结果及 digest。接受结果核验原 draft version 并递增 Task version；dispatch 须匹配 accepted_task_version，不能为改变后的 DRAFT 复用旧解析快照。只由受限输入预检 Worker 产生，不启动 Harness/测试 |
 | CloudTask | UUID、Project FK、固定创建者、profile、title、输入、配置修订/资源引用、status、reported_result、递增 version、latest_attempt FK、创建/更新时间；首次下发后输入 manifest/digest 不变，latest_attempt 必须属于本 Task |
@@ -2361,6 +2362,8 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 环境保存期望部署身份与下发时观察（含 observed_at / source / UNKNOWN）；每次测试另记录实际部署身份和不确定项。Git checkout SHA、测试框架 SHA 和实际 SUT build 分开，连通性或 framework HEAD 不代替 SUT 版本证明。若任务要求匹配部署版本而不能确认，则该测试前置条件 BLOCKED；允许测试现有部署时可保存 UNKNOWN 来源并在结论说明缺口。
 
 首次 dispatch 后不修改输入；配置默认值或分支移动不影响原 manifest。更换 PRD、目标版本、环境、授权上限、credential 版本或预算上限创建显式关联的新 CloudTask。相同冻结输入的显式复测可建立新 Attempt，须重新验证当前权限并受原 Task 累计预算约束，不因重试自动重置额度。允许范围内的凭据临时物化/短令牌续期不得扩大冻结授权。
+
+新增 Cloud 资源配置允许省略两仓的 `default_selector`；创建任务必须独立指定两个 selector，再沿既有解析及 dispatch 规则固定完整 commit。历史资源中的 selector 原样保留且可作为兼容默认，不修改原 revision、已接受请求的序列化/摘要或已冻结任务。Project 的两个通用地址仅可在配置表单中显式预填，不能自动创建/更改 Cloud 资源修订或赋予凭据权限。
 
 预算的 `accounting_unit` 随输入冻结：缺省 / 既有任务按 `CONSERVATIVE_MICROUNITS` 解释，不迁移或改写旧任务；单独批准的模型接入可显式选 `REQUEST_CREDITS`。后者虽沿用 `total_cost_microunits` / `cost_microunits` 字段名，值表示按已冻结请求费率计算的计数额度，不能解释为 USD、供应商 token 账单、真实费用或退款。Codex OAuth 首片仅接受显式 `REQUEST_CREDITS`，不假定可观测其货币价格。
 
@@ -2544,7 +2547,7 @@ HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architec
 
 | 实体 | 最小字段与关系 |
 | --- | --- |
-| LocalArchiveTask | UUID、project_id、title/objective、creator_actor_ref（Web Operator）、owner_uploader_actor_ref（integration actor，可未指定）、version（管理）、archive_version（根归档）、status、reported_result、created_at/updated_at |
+| LocalArchiveTask | UUID、project_id、title/objective、creator_actor_ref（Web Operator）、owner_uploader_actor_ref（integration actor，可未指定）、可空 SUT/框架仓库地址及分支声明、version（管理）、archive_version（根归档）、status、reported_result、created_at/updated_at |
 | LocalArchiveSubtask | UUID、project_id/task_id、title/分工、authorized_uploader_actor_ref、archive_version、status、reported_result、创建与接受时间 |
 | LocalArchiveSubmission | UUID、profile/operation、project_id/task_id、target_kind、subtask_id（可空）、认证后的 uploader actor/client、idempotency_key、完整冻结请求/digest、expected_archive_version、outcome、accepted_version、snapshot_id、created_at（服务器接受时间） |
 | LocalArchiveAssetRevision | UUID、project_id/task_id、target_kind、subtask_id（可空）、kind/stable_key/revision、完整内容、reported_result、逐资产 origin metadata、submission_id、created_at（对外资产投影为 accepted_at） |
@@ -2553,6 +2556,8 @@ HTTPS授权与框架冻结的精确字段及网络边界由[ADR-025](../architec
 | LocalArchiveOperation | Operator 管理原 key、operation、完整请求/摘要、task_version 及固定管理响应；独立于上传 Submission |
 
 Task 管理 version、Task 根 archive_version 和 Subtask archive_version 分别从 1 起；不含 BOUND/UNBOUND、native root、primary generation 或宿主 caller 字段。Subtask 可选：未指定时 target_kind=TASK 且 subtask_id=null，直接归档到 Task；指定时 target_kind=SUBTASK 且 subtask_id 非空。以检查约束固定这两个合法组合，不创建隐藏子任务、不推断唯一子任务、不将无效子任务回退至 Task。
+
+`0033_project_repositories` 为 Project 增加可空 `test_framework_repository_url`，为 LocalArchiveTask 增加可空 `sut_repository_url`、`test_framework_repository_url`、`sut_branch`、`framework_branch`。创建新 Local Task 时，服务端固定当时 Project 的两个地址与请求中显式选择的两个分支；空值表示未声明，不从历史项目默认分支推导。创建请求可携 `expected_project_version`，新 Web 在用户确认所见仓库时提交；服务端在 Project 锁内检查版本，过期拒绝，避免将分支固定到用户未看到的新仓库。旧客户端省略此字段保持兼容。原 key 对账优先于版本检查，已接受的原请求在项目随后变更时仍返回原固定结果。创建后这些字段不可变；项目地址变更不改写原任务，旧任务保持 NULL，不伪造来源或重新解释历史。分支是用户声明的任务输入，不是已解析 commit、工作区身份、授权或已验证执行事实；测试资产仍按现有来源声明与认证上传者语义处理。两个可选分支各 1–255 字符，拒绝 ASCII 空格和控制字符。Cloud 的资源配置版本和任务双 selector 按 §51 / TMP §46 独立冻结，不因项目字段变化自动重写。
 
 管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存未授权草稿，归档拒绝；已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有根或子任务接受的归档提交，其 owner 不可改写。
 

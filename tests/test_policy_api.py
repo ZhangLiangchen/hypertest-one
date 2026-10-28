@@ -33,6 +33,8 @@ async def project_id(client: AsyncClient) -> UUID:
         json={
             "key": public_key("POLICY_API"),
             "name": "Policy API integration",
+            "repository_url": "https://git.example.invalid/sut.git",
+            "test_framework_repository_url": "https://git.example.invalid/framework.git",
         },
     )
     assert response.status_code == 201

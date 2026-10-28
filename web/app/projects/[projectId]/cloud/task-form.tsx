@@ -7,15 +7,16 @@ import { cloudSelector } from "@/lib/cloud";
 import type { CloudConfigRevision } from "@/lib/cloud";
 import type { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
+import type { Project } from "@/lib/types";
 
 type Values = { title: string; sut_kind: "BRANCH" | "SHA" | "MR"; sut_ref: string; sut_strategy: "HEAD" | "MERGE"; sut_base?: string;
   framework_kind: "BRANCH" | "SHA" | "MR"; framework_ref: string; framework_strategy: "HEAD" | "MERGE"; framework_base?: string;
   prd: string; prd_version: string; objective: string; basic_flow: string; test_scope: string; entrypoints: string;
   side_effect_limits: string; authorization_hours: number; total_seconds: number; accounting_unit: "REQUEST_CREDITS" | "CONSERVATIVE_MICROUNITS"; cost: number; max_attempts: number };
 
-export function CloudTaskForm({ config: latestConfig, operation, enabled, onCreated, sharedFields, resourcesHref }: {
+export function CloudTaskForm({ config: latestConfig, operation, enabled, onCreated, sharedFields, resourcesHref, project }: {
   config?: CloudConfigRevision; operation: ReturnType<typeof useCloudOperation>; enabled: boolean; onCreated: (taskId: string) => void;
-  sharedFields?: { title: string; objective: string }; resourcesHref?: string;
+  sharedFields?: { title: string; objective: string }; resourcesHref?: string; project?: Project;
 }) {
   const { t } = useI18n(); const [form] = Form.useForm<Values>(); const [issue, setIssue] = useState<string | null>(null);
   const [baselineConfig, setBaselineConfig] = useState(latestConfig);
@@ -49,12 +50,13 @@ export function CloudTaskForm({ config: latestConfig, operation, enabled, onCrea
     <Typography.Title id="new-cloud-task-title" level={2}>{t("Create a cloud test task", "创建云端测试任务")}</Typography.Title>
     <Typography.Paragraph className="muted">{t("Create the draft, resolve both repository versions, review their exact SHAs, then dispatch. Creating a draft does not start an Agent.", "先创建草稿，再解析双仓版本、核对确切 SHA，最后下发；创建草稿不会启动 Agent。 ")}</Typography.Paragraph>
     {latestConfig && latestConfig.id !== config.id ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("This draft retains its selected resource revision", "草稿保留原选定的资源修订")} description={t("Project defaults changed while you were editing. This task will still use the resource revision shown below; your draft has not been replaced.", "编辑期间项目默认配置已变化。本任务仍使用下方显示的资源修订，当前草稿未被替换。 ")} /> : null}
+    {project && (project.repository_url !== config.configuration.sut.url || project.test_framework_repository_url !== config.configuration.framework.url) ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Saved Cloud resources differ from project repositories", "已保存的云端资源与项目仓库不同")} description={t("This task uses the saved Cloud resource revision shown below. Update project resources first if you want to use the current project addresses.", "本任务使用下方已保存的云端资源修订；如需使用当前项目地址，请先更新项目资源。 ")} /> : null}
     {remote ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Selected environment is not supported by this runtime", "当前运行配置不支持所选环境")} description={t("Switch Project resources to workspace-local fixtures before dispatch. The saved remote configuration remains intact.", "请先将项目资源改为工作区内测试再下发；已保存远端配置会保留。 ")} /> : null}
     {issue ? <Alert showIcon type="error" message={issue} style={{ marginBottom: 20 }} /> : null}
-    <Form form={form} className="workspace-form" layout="vertical" onFinish={(values) => void create(values)} scrollToFirstError initialValues={{ sut_kind: config.configuration.sut.default_selector.kind, sut_ref: config.configuration.sut.default_selector.value,
-      framework_kind: config.configuration.framework.default_selector.kind, framework_ref: config.configuration.framework.default_selector.value,
-      sut_strategy: config.configuration.sut.default_selector.checkout_strategy, sut_base: config.configuration.sut.default_selector.base_ref,
-      framework_strategy: config.configuration.framework.default_selector.checkout_strategy, framework_base: config.configuration.framework.default_selector.base_ref,
+    <Form form={form} className="workspace-form" layout="vertical" onFinish={(values) => void create(values)} scrollToFirstError initialValues={{ sut_kind: config.configuration.sut.default_selector?.kind || "BRANCH", sut_ref: config.configuration.sut.default_selector?.value,
+      framework_kind: config.configuration.framework.default_selector?.kind || "BRANCH", framework_ref: config.configuration.framework.default_selector?.value,
+      sut_strategy: config.configuration.sut.default_selector?.checkout_strategy || "HEAD", sut_base: config.configuration.sut.default_selector?.base_ref,
+      framework_strategy: config.configuration.framework.default_selector?.checkout_strategy || "HEAD", framework_base: config.configuration.framework.default_selector?.base_ref,
       prd_version: "v1", total_seconds: 1800, accounting_unit: "REQUEST_CREDITS", cost: 1000, max_attempts: 3, authorization_hours: 24,
       side_effect_limits: "Read approved repositories; execute project tests only in the isolated workspace. No deployment, push, issue write or remote environment changes." }}>
       {!sharedFields ? <Form.Item name="title" label={t("Task title", "任务名称")} rules={[{ required: true }]}><Input maxLength={512} /></Form.Item> : null}

@@ -54,8 +54,15 @@ class Selector(Input):
 
 class Repository(Input):
     url: str = Field(min_length=1, max_length=2048)
-    default_selector: Selector
+    default_selector: Selector | None = None
     credential_version_id: UUID | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_optional_selector(self, handler):
+        result = handler(self)
+        if self.default_selector is None:
+            result.pop("default_selector", None)
+        return result
 
     @field_validator("url")
     @classmethod

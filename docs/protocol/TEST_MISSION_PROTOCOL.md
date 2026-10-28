@@ -1337,7 +1337,8 @@ MCP按会话读取返回有界 envelope `{task_id,version,format:'application/js
 
 | HTTP入口 | 请求与行为 |
 | --- | --- |
-| `PATCH /projects/{id}` | `{expected_version, name?, description?, repository_url?, default_branch?, status?}`；`expected_version`匹配项目row_version，状态仅ACTIVE/ARCHIVED；id/key固定 |
+| `POST /projects` | 新建 Project 必须提供非空 `repository_url`（SUT）和 `test_framework_repository_url`（测试框架）；可相同，均执行无凭据 origin 校验并拒绝 query、fragment、ASCII 空格和控制字符。已有项目读取允许旧字段为空；UI 不要求指定 `default_branch` |
+| `PATCH /projects/{id}` | `{expected_version, name?, description?, repository_url?, test_framework_repository_url?, default_branch?, status?}`；前两项仓库地址分别为 SUT 和测试框架；`expected_version`匹配项目row_version，状态仅ACTIVE/ARCHIVED；id/key固定 |
 | `DELETE /projects/{id}?expected_version=N` | 软删除项目；存在未删除SessionTask或任何legacy/native测试轮次时409，不级联删除 |
 | `POST /projects/{id}/restore` | `{expected_version}`；清除软删除标记并保留原状态 |
 | `GET /projects?include_deleted=true` | 显式读取包含已删除项目的回收站列表，返回row_version与deleted_at |
@@ -1459,7 +1460,7 @@ Codex 官方生命周期观察通过专属有界 UDS 发送序号化 READY / DEL
 
 | 操作概念 | 输入/结果及授权 |
 | --- | --- |
-| ConfigureCloudProject | 仓库角色/地址、默认 ref、环境连接 metadata、credential ref/version；追加配置修订，`cloud:configure` |
+| ConfigureCloudProject | 仓库角色/地址、可选历史兼容默认 ref、环境连接 metadata、credential ref/version；追加配置修订，`cloud:configure` |
 | Store/RotateProjectCredential | 专门秘密入口接收 token/私钥与类型、目标/用途、有效期；加密持久化，返回非秘密 ref/version；`credential:manage`。原文不进入普通操作回执/读取接口 |
 | Create/UpdateCloudTask | `title, selectors, config_revision, prd, objective, basic_flow, framework_entrypoints, environment_ref, authorization_manifest, budgets`；DRAFT 可改，`cloud:dispatch` |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
@@ -1477,6 +1478,8 @@ Codex 官方生命周期观察通过专属有界 UDS 发送序号化 READY / DEL
 ### 46.4 下发输入与冻结快照
 
 DRAFT 请求中，SUT selector 支持 branch、关联 feat、MR 或完整 SHA；framework 有独立 ref，允许同仓。feat 是变更标签，需要关联可解析 Git selector。PRD 必须冻结正文或附件版本；来源 URL 仅作出处。环境连接描述与 SSH/应用私钥 ref 分开，应用签名密钥不能拿来 SSH 登录。
+
+Cloud 新资源配置可省略两仓 `default_selector`，缺省不序列化该字段；历史配置及其请求摘要原样保留。新 Task 输入须显式提供 `sut_selector` 和 `framework_selector`；历史配置的 selector 可供兼容预填，但资源设置不再要求先选择分支。Project 通用仓库地址只用于用户可见的配置预填，不自动写 Cloud 资源修订或隐含授权。
 
 Environment的可选`cloud_access_policy=LOCAL_ONLY|WEB_ONLY|None`随配置冻结，None序列化省略保旧digest；LOCAL_ONLY在Cloud创建 / 更新 / 解析 / 下发 / 领取 / 物化及prompt前拒绝，WEB_ONLY只允许HTTPS且不授网或启用当前未实现的HTTPSruntime。它不新增scope / Project排他mode或Task转换；仅收紧用户已经批准的资源访问。
 
@@ -1669,7 +1672,7 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 | `GET /capabilities` | 归档授权；分别返回 implemented/configured、profile、正文/条数上限和支持的产物类型 |
 | `GET /actors`、`GET /tasks` | 前者 Operator 获取当前可用归档上传 actor；后者 Operator 或 archive:read 获取项目内当前获准任务的有界目录 |
 | `POST /tasks/{id}/update` | Operator；显式 title/objective 管理变更，原管理 key 与 expected_task_version；结果通过 Publication 更新 |
-| `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task、title、可选 uploader；管理 key 与适用 expected_task_version |
+| `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task、title、可选 uploader；管理 key 与适用 expected_task_version。创建 Task 可选 `sut_branch`、`framework_branch` 和 `expected_project_version`，API 固定当时 Project 的 `repository_url` 与 `test_framework_repository_url`；四项作为声明在任务读取及原创建回执中返回 |
 | `POST /tasks/{id}/authorize` | Operator；明确 owner/子任务 uploader，expected_task_version；不签发或扩大 integration grant |
 | `POST /tasks/{id}/publications` | Operator；expected_task_version、root_archive_version、精确子任务归档版本清单、显式汇总与原 key |
 | `GET /operations/by-key` | Operator 按 Project/原管理 key 恢复创建、授权或汇总，返回原固定管理回执 |
@@ -1680,6 +1683,8 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 | `GET /submissions/{id}` | archive:read；固定接受的 TASK/SUBTASK 空间快照及引用资产正文，分页参数与下节一致 |
 
 每次归档显式传 Project ID、Task ID，Subtask ID 可选，路径和正文目标必须一致。省略 Subtask 时 target_kind=TASK；指定时 target_kind=SUBTASK，目标不存在/跨任务/越权均拒绝，不能回退 Task 或推断子任务。所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
+
+Local Task 的分支声明各为可选、1–255 字符，拒绝 ASCII 空格及控制字符；不能据此推定已获取对应 Git 对象或已验证执行。新 Web 创建时提交所见 `expected_project_version`，服务端在锁内对新 key 校验版本，变更则 409；旧客户端省略保持兼容。原 CREATE key 与其实际请求字段保持幂等，先核对原 key、再检查新请求项目版本，重查返回原固定回执；项目后续变更不替换该 Task 的仓库/分支，旧 Task 不补造缺失值。Cloud Task 双 selector、资源配置修订与冻结 manifest 仍依 §46 独立处理。
 
 ### 51.2 Manifest、上传与完整读回
 

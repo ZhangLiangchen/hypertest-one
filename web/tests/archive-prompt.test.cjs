@@ -36,6 +36,31 @@ test("unsafe destinations or server addresses cannot enter copied instructions",
     assert.throws(() => archive.archiveSkillInstruction(p, task, undefined, false, server));
   }
 });
+test("task context preserves branches while omitting unsafe historical repository addresses", () => {
+  const prompt = archive.archiveSkillInstruction(p, task, undefined, true, undefined, {
+    sut_repository_url: "https://git.example/team/sut.git", test_framework_repository_url: "https://user:secret@git.example/repo?token=secret", sut_branch: "feature/test", framework_branch: "main" });
+  assert.ok(prompt.includes("https://git.example/team/sut.git"));
+  assert.ok(prompt.includes("feature/test"));
+  assert.equal(prompt.includes("user:secret"), false);
+  assert.equal(prompt.includes("token=secret"), false);
+  assert.ok(prompt.includes("An unsafe repository address was omitted"));
+});
+test("SSH git username is retained while credentials and untrusted usernames are omitted", () => {
+  for (const url of ["ssh://git@git.example/team/repo.git", "git@git.example:team/repo.git"]) {
+    const prompt = archive.archiveSkillInstruction(p, task, undefined, true, undefined, {
+      sut_repository_url: url, sut_branch: "main" });
+    assert.ok(prompt.includes(url));
+    assert.equal(prompt.includes("An unsafe repository address was omitted"), false);
+  }
+  for (const url of ["ssh://git:secret@git.example/team/repo.git", "ssh://secret@git.example/team/repo.git",
+    "https://git@git.example/team/repo.git", "ssh://git@git.example/team/repo.git?token=secret",
+    "ssh://git@git.example/team/repo.git#secret", "file:///secret"]) {
+    const prompt = archive.archiveSkillInstruction(p, task, undefined, true, undefined, {
+      sut_repository_url: url, sut_branch: "main" });
+    assert.equal(prompt.includes(url), false);
+    assert.ok(prompt.includes("An unsafe repository address was omitted"));
+  }
+});
 test("both creation preview and task prompt have bilingual copy controls and manual selection", () => {
   for (const locale of ["en", "zh"]) for (const taskId of [undefined, task]) {
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(ArchivePrompt, { projectId: p, taskId })));

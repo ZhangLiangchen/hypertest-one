@@ -4,10 +4,10 @@ const load = require("./load-helper.cjs");
 
 // Exercise the actual form handlers/effects without a browser or a second
 // operation stream. Full React/AntD rendering remains a separate UI check.
-function harness(submit) {
+function harness(submit, { project, latest } = {}) {
   const states = [], effects = [], calls = [];
   let cursor = 0, formCursor = 0, dirty = false, saved = 0;
-  const resourceForm = { values: {}, setFieldsValue() {} };
+  const resourceForm = { values: {}, setFieldsValue(values) { Object.assign(this.values, values); } };
   const credentialForm = { values: { credential_id: "credential-1", kind: "GIT_TOKEN" }, setFieldValue(name, value) { this.values[name] = value; } };
   const Form = Object.assign(() => null, { Item: "Form.Item", useForm: () => [formCursor++ === 0 ? resourceForm : credentialForm], useWatch: (name, form) => form.values[name] });
   const react = {
@@ -34,15 +34,20 @@ function harness(submit) {
     let tree, passes = 0;
     do {
       dirty = false; cursor = 0; formCursor = 0;
-      tree = CloudResources({ credentials, versions: [], enabled: true, operation, onSaved: () => { saved++; } });
+      tree = CloudResources({ project, latest, credentials, versions: [], enabled: true, operation, onSaved: () => { saved++; } });
       while (effects.length) effects.shift()();
       assert.ok(++passes < 10, "form effects must settle");
     } while (dirty);
     return tree;
   };
   const nodes = (value) => !value || typeof value !== "object" ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children)];
-  return { calls, operation, credentialForm,
+  return { calls, operation, credentialForm, resourceForm,
     render,
+    async configure(values) {
+      const form = nodes(render()).find((node) => node.type === Form && node.props.form === resourceForm);
+      form.props.onFinish(values);
+      await new Promise(setImmediate); render();
+    },
     refresh(version) { credentials = [{ ...credential, version }]; render(); },
     saved: () => saved,
     async rotate() {
@@ -53,6 +58,17 @@ function harness(submit) {
     },
   };
 }
+
+test("new cloud resources prefill project repositories without inventing default branches", async () => {
+  const project = { repository_url: "https://git.example/sut", test_framework_repository_url: "https://git.example/framework" };
+  const current = harness(async () => ({ operation: "CONFIGURE", config_id: "new", version: 1 }), { project });
+  current.render();
+  assert.equal(current.resourceForm.values.sut_url, project.repository_url);
+  assert.equal(current.resourceForm.values.framework_url, project.test_framework_repository_url);
+  await current.configure({ ...current.resourceForm.values, environment_name: "Workspace", connection: "NONE", expected_deployment: "UNKNOWN" });
+  assert.equal(current.calls[0].configuration.sut.default_selector, undefined);
+  assert.equal(current.calls[0].configuration.framework.default_selector, undefined);
+});
 
 test("Consecutive accepted rotations advance only to their fully read-back receipt versions", async () => {
   const current = harness(async (request) => ({ operation: "STORE_CREDENTIAL", credential_id: request.credential_id, version: request.expected_version + 1 }));

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -33,6 +34,19 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def project_repository_origin(value: str | None) -> str | None:
+    if value is None:
+        return None
+    validate_repository_origin(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        raise ValueError("repository origin is not a valid credential-free Git address") from None
+    if parsed.query or parsed.fragment or any(ord(char) <= 32 or ord(char) == 127 for char in value):
+        raise ValueError("repository origin must not contain a query, fragment, or whitespace")
+    return value
+
+
 class ProjectCreate(BaseModel):
     model_config = ConfigDict(hide_input_in_errors=True)
 
@@ -40,12 +54,23 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     repository_url: str | None = None
+    test_framework_repository_url: str | None = None
     default_branch: str = "main"
 
-    @field_validator("repository_url")
+    @field_validator("repository_url", "test_framework_repository_url")
     @classmethod
     def credential_free_repository(cls, value: str | None) -> str | None:
-        return validate_repository_origin(value) if value is not None else None
+        return project_repository_origin(value)
+
+
+class ProjectCreateRequest(ProjectCreate):
+    """New API projects explicitly identify both repositories.
+
+    The base model remains usable for historical/internal project construction.
+    """
+
+    repository_url: str = Field(min_length=1, max_length=2048, pattern=r"\S")
+    test_framework_repository_url: str = Field(min_length=1, max_length=2048, pattern=r"\S")
 
 
 class ProjectRead(ORMModel):
@@ -54,6 +79,7 @@ class ProjectRead(ORMModel):
     name: str
     description: str | None
     repository_url: str | None
+    test_framework_repository_url: str | None
     default_branch: str
     status: ProjectStatus
     created_at: datetime
@@ -71,13 +97,14 @@ class ProjectUpdate(ManagementVersion):
     name: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"\S")
     description: str | None = Field(default=None, max_length=16000)
     repository_url: str | None = None
+    test_framework_repository_url: str | None = None
     default_branch: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"\S")
     status: ProjectStatus | None = None
 
-    @field_validator("repository_url")
+    @field_validator("repository_url", "test_framework_repository_url")
     @classmethod
     def credential_free_repository(cls, value: str | None) -> str | None:
-        return validate_repository_origin(value) if value is not None else None
+        return project_repository_origin(value)
 
     @model_validator(mode="after")
     def non_null_fields(self):

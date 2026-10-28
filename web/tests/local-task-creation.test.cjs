@@ -131,11 +131,12 @@ test("a bound task does not claim an Agent sync before actual artifacts arrive",
   assert.equal(html.includes("Synced from the source Agent session"), false);
 });
 
-function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {}, queries = {}, localResult = null } = {}) {
+function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {}, queries = {}, localResult = null, project = undefined, noDefaultSelectors = false } = {}) {
   const antd = require("antd"), forms = [], submissions = [], localWrites = [], navigation = [];
   const config = { id: "config-1", revision: 1, configuration: { environment: { connection: "NONE" },
     sut: { url: "https://git.example.org/team/sut.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } },
     framework: { url: "https://git.example.org/team/framework.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } } } };
+  if (noDefaultSelectors) { delete config.configuration.sut.default_selector; delete config.configuration.framework.default_selector; }
   const shared = { title: "Shared task title", objective: "Shared testing objective" };
   const Form = Object.assign((props) => {
     forms.push(props);
@@ -165,7 +166,7 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
           : name === "@/lib/uuid" ? { createUuid: () => "stable-key" }
             : name === "@tanstack/react-query" ? { useQuery: query, useMutation: () => ({ mutate: (payload) => localWrites.push(payload) }), useQueryClient: () => ({ invalidateQueries() {}, setQueryData() {} }) }
               : name === "@/lib/api" ? {} : name === "next/link" ? link : name === "next/navigation" ? { useRouter: () => ({ push: (href) => navigation.push(href) }), useSearchParams: () => new URLSearchParams() } : require(name) });
-  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(TaskCreateForm, { projectId: "project-1" })));
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(TaskCreateForm, { projectId: "project-1", project })));
   return { html, forms, shared, submissions, localWrites, navigation, operationHookCalls };
 }
 
@@ -176,14 +177,15 @@ test("unified creation shares title and objective without nesting the Cloud form
     assert.equal((html.match(/id="title"/g) || []).length, 1);
     assert.equal((html.match(/id="objective"/g) || []).length, 1);
     assert.equal(operationHookCalls, 1);
-    assert.ok(html.includes(locale === "en" ? "Cloud execution" : "云端执行"));
-    assert.ok(html.includes(locale === "en" ? "Local archive" : "本地归档"));
+    assert.ok(html.includes(locale === "en" ? "Cloud testing" : "云端测试"));
+    assert.ok(html.includes(locale === "en" ? "Local testing" : "本地测试"));
     assert.ok(html.indexOf("</form>") < html.indexOf('id="new-cloud-task-title"'), "the Cloud form is a sibling of the shared form");
     assert.equal((html.match(/<form\b/g) || []).length, 2);
     assert.ok(html.includes('href="/projects/project-1/cloud?tab=resources" target="_blank"'), "resource setup retains this page's draft");
     if (mode === "local") {
       assert.ok(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"));
-      assert.ok(html.includes(locale === "en" ? "Archive destination" : "归档目标"));
+      assert.ok(html.includes(locale === "en" ? "Local test setup" : "本地测试配置"));
+      assert.ok(html.includes(locale === "en" ? "Create local test task" : "创建本地测试任务"));
       assert.ok(html.includes('href="/cli-authorizations?projectId=project-1#cli-install" target="_blank"'), "installation guidance keeps the task draft open");
       assert.ok(html.includes(locale === "en" ? "CLI installation prompt &amp; authorization" : "CLI 安装 Prompt 与授权"));
       assert.ok(html.includes('hidden=""'), "the Cloud draft stays mounted but hidden in Local mode");
@@ -278,6 +280,15 @@ test("the embedded Cloud form creates only a draft using shared fields and reque
   assert.deepEqual(harness.navigation, ["/cloud-tasks/cloud-task-1?projectId=project-1"]);
 });
 
+test("cloud tasks without saved defaults require selecting each repository revision", () => {
+  const harness = unifiedCreationHarness({ noDefaultSelectors: true });
+  const cloudForm = harness.forms.find((form) => form.initialValues?.accounting_unit);
+  assert.equal(cloudForm.initialValues.sut_ref, undefined);
+  assert.equal(cloudForm.initialValues.framework_ref, undefined);
+  assert.equal(cloudForm.initialValues.sut_kind, "BRANCH");
+  assert.equal(cloudForm.initialValues.framework_kind, "BRANCH");
+});
+
 test("an unresolved Cloud creation keeps its original key visible and prevents a Local create", () => {
   const harness = unifiedCreationHarness({ mode: "local", operation: { pending: { operation_key: "web:original-unknown", operation: "CREATE_TASK" } } });
   assert.equal(harness.forms[0].disabled, true);
@@ -294,7 +305,7 @@ test("the task directory reopens both task kinds and marks only unbound Local ro
   const records = load("app/tasks/task-records.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : require(name) });
   const rows = [{ task_id: "cloud-task-1", task_kind: "CLOUD_TASK", product_mode: "CLOUD", title: "Cloud draft", status: "DRAFT", reported_result: "NOT_RUN", version: 1 },
     { task_id: "local-task-1", task_kind: "SESSION_TASK", product_mode: "LOCAL", title: "Local draft", status: "DRAFT", reported_result: "NOT_RUN", version: 1, provider: null, last_synced_at: null }];
-  const page = load("app/projects/[projectId]/cloud/page.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi : name === "@/lib/cloud" ? cloud
+  const page = load("app/projects/[projectId]/cloud/page.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi : name === "@/lib/cloud" ? cloud : name === "../../project-workspace-heading" ? { ProjectWorkspaceHeading: () => null }
     : name === "@/lib/api" ? {} : name === "@/lib/cloud-operation" ? { useCloudOperation: () => ({ blocked: false }) }
       : name === "@/app/tasks/task-records" ? records : name === "./cloud-shared" ? { CloudCapabilitiesNotice: () => null, CloudOperationNotice: () => null }
         : name === "./resources" ? { CloudResources: () => null } : name === "./task-form" ? { CloudTaskForm: () => null }
@@ -314,8 +325,11 @@ test("unified task creation preserves Local setup and keeps binding mutations ou
   const navigation = fs.readFileSync(path.join(__dirname, "../app/workspace-ui.tsx"), "utf8");
   const list = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/session-tasks.tsx"), "utf8");
   const form = fs.readFileSync(path.join(__dirname, "../app/projects/[projectId]/tasks/new/task-create-form.tsx"), "utf8");
-  assert.ok(project.includes('/tasks/new'));
-  assert.ok(project.includes('"Create test task", "创建测试任务"'));
+  const heading = fs.readFileSync(path.join(__dirname, "../app/projects/project-workspace-heading.tsx"), "utf8");
+  assert.ok(project.includes('<ProjectWorkspaceHeading'));
+  assert.ok(heading.includes('/tasks/new?mode=${mode}'));
+  assert.ok(heading.includes('"Create local test task", "创建本地测试任务"'));
+  assert.ok(heading.includes('"Create cloud test task", "创建云端测试任务"'));
   assert.ok(project.includes('<ProjectNavigation'));
   assert.ok(navigation.includes('/cloud?tab=tasks'));
   assert.equal(list.includes("<LocalModeGuide"), false);
@@ -336,4 +350,21 @@ test("an accepted local archive creation opens the shared task route without cha
   assert.deepEqual(navigation, ["/tasks/archive-task-1?mode=archive&projectId=project-1"]);
   assert.equal(localWrites.length, 1);
   assert.equal(localWrites[0].path, "tasks");
+});
+
+test("local task freezes the selected branches against the displayed project revision", async () => {
+  const project = { id: "project-1", row_version: 7, repository_url: "https://git.example/sut", test_framework_repository_url: "https://git.example/framework" };
+  const { html, forms, localWrites } = unifiedCreationHarness({ mode: "local", project });
+  assert.ok(html.includes("SUT branch") && html.includes("Test framework branch"));
+  await forms[0].onFinish({ mode: "local", title: "Test", objective: "Run framework", sut_branch: " feature/a ", framework_branch: " tests/a " });
+  assert.equal(localWrites[0].payload.sut_branch, "feature/a");
+  assert.equal(localWrites[0].payload.framework_branch, "tests/a");
+  assert.equal(localWrites[0].payload.expected_project_version, 7);
+});
+
+test("legacy project missing repository addresses cannot create a local task from stale inputs", async () => {
+  const { html, forms, localWrites } = unifiedCreationHarness({ mode: "local", project: { id: "project-1", row_version: 2, repository_url: "https://git.example/sut" } });
+  assert.ok(html.includes("Project repository addresses are incomplete"));
+  await forms[0].onFinish({ mode: "local", title: "Test", objective: "Test", sut_branch: "main", framework_branch: "main" });
+  assert.equal(localWrites.length, 0);
 });

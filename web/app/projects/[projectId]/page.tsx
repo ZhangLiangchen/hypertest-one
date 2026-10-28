@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftOutlined, ArrowRightOutlined, BranchesOutlined, PlusOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, ArrowRightOutlined, PlusOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card, Empty, Space, Spin, Table, Tag, Typography } from "antd";
 import dynamic from "next/dynamic";
@@ -12,8 +12,8 @@ import { errorText, getProject, getProjectRuns } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { ProjectArchiveTasks } from "./archive-tasks";
 import { ProjectSessionTasks } from "./session-tasks";
-import { ProjectActions } from "../project-actions";
-import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
+import { ProjectWorkspaceHeading } from "../project-workspace-heading";
+import { ProjectNavigation, WorkspaceLoading } from "@/app/workspace-ui";
 
 const RunCreateDialog = dynamic(() => import("./run-create-dialog"), {
   ssr: false,
@@ -63,15 +63,7 @@ export default function ProjectPage() {
 
   return (
     <main className="workspace-page">
-      <WorkspaceHeading backHref="/" backLabel={t("Projects", "项目")} title={project.data.name}
-        description={project.data.description || t("Project testing workspace", "项目测试工作台")}
-        actions={<Space wrap><ProjectActions project={project.data} /><Button type="primary" icon={<PlusOutlined aria-hidden />} href={project.data.deleted_at ? undefined : `/projects/${params.projectId}/tasks/new`} disabled={Boolean(project.data.deleted_at)}>{t("Create test task", "创建测试任务")}</Button></Space>}
-        metadata={<>
-          <span className="muted">{t("Project key", "项目标识")}: <span className="entity-key">{project.data.key}</span></span>
-          <Tag color="blue">{label(project.data.status)}</Tag>
-          <Tag icon={<BranchesOutlined aria-hidden />}>{project.data.default_branch}</Tag>
-          {project.data.repository_url ? <Tag style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{project.data.repository_url}</Tag> : null}
-        </>} />
+      <ProjectWorkspaceHeading project={project.data} projectId={params.projectId} mode="local" />
       <ProjectNavigation projectId={params.projectId} active="local" />
 
       {project.data.deleted_at ? <Alert type="warning" showIcon message={t("This project is in the recycle bin", "此项目已移入回收站")} description={t("History remains readable. Restore the project to edit it or continue task synchronization.", "历史仍可查看。请先恢复项目，再编辑或继续同步任务。") } style={{ marginBottom: 20 }} /> : null}

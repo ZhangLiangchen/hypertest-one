@@ -2,18 +2,18 @@
 import { CopyOutlined } from "@ant-design/icons";
 import { Alert, Button, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
-import { archiveSkillInstruction } from "@/lib/archive";
+import { archiveSkillInstruction, type ArchiveTaskInputs } from "@/lib/archive";
 import { useI18n } from "@/lib/i18n";
 
-export function ArchivePrompt({ projectId, taskId, subtaskId }: { projectId: string; taskId?: string; subtaskId?: string }) {
+export function ArchivePrompt({ projectId, taskId, subtaskId, taskInputs }: { projectId: string; taskId?: string; subtaskId?: string; taskInputs?: ArchiveTaskInputs }) {
   const { t, locale } = useI18n();
   const [server, setServer] = useState<string>();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
-  useEffect(() => { setServer(window.location.origin); }, []);
+  useEffect(() => { setServer(window.location.protocol === "https:" ? window.location.origin : undefined); }, []);
   useEffect(() => { setCopied("idle"); }, [projectId, taskId, subtaskId, server, locale]);
   let prompt = "";
-  try { prompt = archiveSkillInstruction(projectId, taskId, subtaskId, locale === "en", server); } catch { /* Invalid context must never become an upload instruction. */ }
+  try { prompt = archiveSkillInstruction(projectId, taskId, subtaskId, locale === "en", server, taskInputs); } catch { /* Invalid context must never become an upload instruction. */ }
   async function copy() {
     try { await navigator.clipboard.writeText(prompt); setCopied("copied"); }
     catch { setCopied("failed"); setExpanded(true); }

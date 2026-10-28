@@ -33,6 +33,14 @@ test("archive ACK is not accepted when frozen receipt or version is inconsistent
     const changed = structuredClone(result); mutate(changed); assert.throws(() => h.module.validateManagement(original, changed), /RECEIPT_MISMATCH/);
   }
 });
+test("local task ACK checks the branch values from the original request", () => {
+  const h = harness(); const payload = { project_id: "project-a", idempotency_key: "original", title: "Task", objective: "Objective", owner_uploader_actor_ref: null, sut_branch: "feature/a", framework_branch: "tests/a", expected_project_version: 7 };
+  const original = { project_id: "project-a", operation_key: "original", path: "tasks", payload };
+  const result = { task: { id: "task-a", project_id: "project-a", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN", title: "Task", objective: "Objective", owner_uploader_actor_ref: null, sut_branch: "feature/a", framework_branch: "tests/a" }, subtasks: [], receipt: { project_id: "project-a", task_id: "task-a", task_version: 1, idempotency_key: "original", operation: "CREATE", request_payload: { operation: "CREATE", task_id: null, request: payload } } };
+  assert.equal(h.module.validateManagement(original, result).task.sut_branch, "feature/a");
+  result.task.sut_branch = "other";
+  assert.throws(() => h.module.validateManagement(original, result), /RECEIPT_MISMATCH/);
+});
 test("CLI approval freezes project permissions and retains exact identity checks for earlier receipts", () => {
   const client = load("lib/cli-authorization.ts", { require: () => ({ ApiError }) });
   for (const legacy of [false, true]) {

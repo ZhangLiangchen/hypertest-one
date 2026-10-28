@@ -91,6 +91,7 @@ async def test_project_rejection_creates_no_rows_or_input_artifacts():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://hypertest") as client:
         response = await client.post("/api/v1/projects", json={
             "key": key, "name": "Rejected origin", "repository_url": HTTP_TOKEN_ORIGIN,
+            "test_framework_repository_url": "https://git.example.invalid/framework.git",
         })
     assert response.status_code == 422
     assert FAKE_TOKEN not in response.text
@@ -107,6 +108,8 @@ async def test_source_and_bootstrap_rejection_writes_no_snapshot_run_or_artifact
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://hypertest") as client:
         created = await client.post("/api/v1/projects", json={
             "key": public_key("ORIGIN"), "name": "Repository origin rejection",
+            "repository_url": "https://git.example.invalid/sut.git",
+            "test_framework_repository_url": "https://git.example.invalid/framework.git",
         })
         assert created.status_code == 201
         project_id = created.json()["id"]

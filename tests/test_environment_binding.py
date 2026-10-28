@@ -77,6 +77,8 @@ def resolver(monkeypatch, *, image_id: str = IMAGE_A):
 async def project(client: AsyncClient) -> tuple[UUID, str]:
     response = await client.post("/api/v1/projects", json={
         "key": public_key("ENV"), "name": "Controlled environment binding contracts",
+        "repository_url": "https://git.example.invalid/sut.git",
+        "test_framework_repository_url": "https://git.example.invalid/framework.git",
     })
     assert response.status_code == 201, response.text
     project_id = UUID(response.json()["id"])

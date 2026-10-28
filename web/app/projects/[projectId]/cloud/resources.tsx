@@ -3,17 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Col, Divider, Form, Input, InputNumber, Row, Select, Table, Tag, Typography } from "antd";
 import { useI18n } from "@/lib/i18n";
-import { cloudSelector, credentialFreeUrl } from "@/lib/cloud";
-import type { CloudConfiguration, CloudConfigRevision, CloudCredential, CloudCredentialVersion, CloudSelector } from "@/lib/cloud";
+import { credentialFreeUrl } from "@/lib/cloud";
+import type { CloudConfiguration, CloudConfigRevision, CloudCredential, CloudCredentialVersion } from "@/lib/cloud";
 import type { useCloudOperation } from "@/lib/cloud-operation";
+import type { Project } from "@/lib/types";
 
-type ResourceValues = { sut_url: string; sut_ref: string; sut_kind: CloudSelector["kind"]; sut_strategy: CloudSelector["checkout_strategy"]; sut_base?: string; sut_credential?: string;
-  framework_url: string; framework_ref: string; framework_kind: CloudSelector["kind"]; framework_strategy: CloudSelector["checkout_strategy"]; framework_base?: string; framework_credential?: string;
+type ResourceValues = { sut_url: string; sut_credential?: string;
+  framework_url: string; framework_credential?: string;
   environment_name: string; connection: "NONE" | "HTTPS" | "SSH"; host?: string; port?: number; user?: string; host_key?: string; environment_credential?: string; network_requirements?: string; expected_deployment?: string };
 type CredentialValues = { credential_id?: string; kind: string; label: string; purpose: string; targets: string; actions: string[]; expires_at?: string; secret: string };
 
-export function CloudResources({ latest, credentials, versions, operation, enabled, onSaved }: {
+export function CloudResources({ latest, project, credentials, versions, operation, enabled, onSaved }: {
   latest?: CloudConfigRevision; credentials: CloudCredential[]; versions: CloudCredentialVersion[];
+  project?: Project;
   operation: ReturnType<typeof useCloudOperation>; enabled: boolean; onSaved: () => void;
 }) {
   const { t, formatDate } = useI18n();
@@ -31,9 +33,12 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
   const [baseVersion, setBaseVersion] = useState(0);
   const [draftTouched, setDraftTouched] = useState(false);
   const [baseConfiguration, setBaseConfiguration] = useState<CloudConfiguration | null>(null);
-  const sutKind = Form.useWatch("sut_kind", form) || "BRANCH";
-  const frameworkKind = Form.useWatch("framework_kind", form) || "BRANCH";
   useEffect(() => () => { fileGeneration.current++; }, []);
+
+  useEffect(() => {
+    if (latest || loaded !== null || draftTouched || !project) return;
+    form.setFieldsValue({ sut_url: project.repository_url || "", framework_url: project.test_framework_repository_url || "" });
+  }, [project, latest, loaded, draftTouched, form]);
 
   useEffect(() => {
     if (!rotationId) setRotationBaseline(null);
@@ -53,10 +58,8 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
   useEffect(() => {
     if (!latest || loaded !== null || draftTouched) return;
     const config = latest.configuration;
-    form.setFieldsValue({ sut_url: config.sut.url, sut_ref: config.sut.default_selector.value, sut_kind: config.sut.default_selector.kind,
-      sut_strategy: config.sut.default_selector.checkout_strategy, sut_base: config.sut.default_selector.base_ref, sut_credential: config.sut.credential_version_id || undefined,
-      framework_url: config.framework.url, framework_ref: config.framework.default_selector.value, framework_kind: config.framework.default_selector.kind,
-      framework_strategy: config.framework.default_selector.checkout_strategy, framework_base: config.framework.default_selector.base_ref, framework_credential: config.framework.credential_version_id || undefined,
+    form.setFieldsValue({ sut_url: config.sut.url, sut_credential: config.sut.credential_version_id || undefined,
+      framework_url: config.framework.url, framework_credential: config.framework.credential_version_id || undefined,
       environment_name: config.environment.name, connection: config.environment.connection, host: config.environment.host || undefined,
       port: config.environment.port || undefined, user: config.environment.user || undefined, host_key: config.environment.host_key || undefined,
       environment_credential: config.environment.credential_version_id || undefined, network_requirements: config.environment.network_requirements,
@@ -75,8 +78,8 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
     setResourceIssue(null);
     try {
       const configuration: CloudConfiguration = {
-        sut: { url: values.sut_url.trim(), default_selector: cloudSelector(values.sut_kind, values.sut_ref, values.sut_strategy, values.sut_base), credential_version_id: values.sut_credential || null },
-        framework: { url: values.framework_url.trim(), default_selector: cloudSelector(values.framework_kind, values.framework_ref, values.framework_strategy, values.framework_base), credential_version_id: values.framework_credential || null },
+        sut: { url: values.sut_url.trim(), ...(baseConfiguration?.sut.url === values.sut_url.trim() && baseConfiguration.sut.default_selector ? { default_selector: baseConfiguration.sut.default_selector } : {}), credential_version_id: values.sut_credential || null },
+        framework: { url: values.framework_url.trim(), ...(baseConfiguration?.framework.url === values.framework_url.trim() && baseConfiguration.framework.default_selector ? { default_selector: baseConfiguration.framework.default_selector } : {}), credential_version_id: values.framework_credential || null },
         environment: { ...baseConfiguration?.environment, name: values.environment_name.trim(), connection: values.connection,
           host: values.host?.trim() || null, port: values.port || null, user: values.user?.trim() || null,
           host_key: values.host_key?.trim() || null, credential_version_id: values.environment_credential || null,
@@ -84,7 +87,7 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
       };
       const result = await operation.submit({ operation: "CONFIGURE", expected_version: baseVersion, configuration });
       if (result) { setLoaded(result.config_id || null); setBaseVersion(result.version); setBaseConfiguration(configuration); onSaved(); }
-    } catch { setResourceIssue(t("Review both repository references before saving.", "请先核对两个仓库的分支引用。")); }
+    } catch { setResourceIssue(t("Review both repository addresses before saving.", "请先核对两个仓库的地址。")); }
   }
 
   async function saveCredential(values: CredentialValues) {
@@ -109,20 +112,17 @@ export function CloudResources({ latest, credentials, versions, operation, enabl
   return <div className="workspace-section-stack">
     <section className="overview-section workspace-panel" aria-labelledby="cloud-resources-title">
       <Typography.Title id="cloud-resources-title" level={2}>{t("Project repositories and environment", "项目仓库与测试环境")}</Typography.Title>
-      <Typography.Paragraph className="muted">{t("Save reusable resources once. Each dispatched task freezes its own exact versions and authorization.", "资源可保存复用；每个下发任务分别冻结确切版本和授权。")}</Typography.Paragraph>
+      <Typography.Paragraph className="muted">{t("Project repository addresses prefill new resources. Choose versions for each task before dispatch; saved resource revisions remain unchanged.", "新资源预填项目仓库地址；为每个任务选择版本后再下发，已保存的资源修订保持不变。")}</Typography.Paragraph>
       {resourceIssue ? <Alert showIcon type="error" message={resourceIssue} style={{ marginBottom: 20 }} /> : null}
       {latest && latest.revision !== baseVersion ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("A newer resource revision is available", "存在更新的资源修订")}
         description={t("Your draft still uses its original version. Read the saved revision before replacing your draft; it will not be rebased automatically.", "草稿仍使用原版本。替换草稿前请核对已保存修订，系统不会自动改变提交基线。 ")}
         action={<Button disabled={operation.blocked} onClick={() => { setDraftTouched(false); setLoaded(null); }}>{t("Load latest saved resources", "载入最新已保存资源")}</Button>} /> : null}
       {baseConfiguration?.environment.cloud_access_policy ? <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("Saved environment routing is retained", "保留已保存的环境路由限制")} description={baseConfiguration.environment.cloud_access_policy} /> : null}
       {baseConfiguration?.environment.ssh_access ? <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("Fixed SSH diagnostic bindings are read-only here", "固定 SSH 诊断绑定在此只读")} description={t("The approved profile and connection identity are preserved. This form does not create or expand diagnostic access.", "保留受权配置和连接身份；此表单不会创建或扩展诊断访问。 ")} /> : null}
-      <Form form={form} className="workspace-form" layout="vertical" onValuesChange={() => setDraftTouched(true)} initialValues={{ sut_ref: "main", sut_kind: "BRANCH", sut_strategy: "HEAD", framework_ref: "main", framework_kind: "BRANCH", framework_strategy: "HEAD", connection: "NONE", environment_name: "Workspace test fixtures", expected_deployment: "UNKNOWN" }} onFinish={(values) => void configure(values)} scrollToFirstError>
+      <Form form={form} className="workspace-form" layout="vertical" onValuesChange={() => setDraftTouched(true)} initialValues={{ connection: "NONE", environment_name: "Workspace test fixtures", expected_deployment: "UNKNOWN" }} onFinish={(values) => void configure(values)} scrollToFirstError>
         <div className="form-grid">{(["sut", "framework"] as const).map((role) => <section className="form-section" key={role}>
           <Typography.Title level={3}>{role === "sut" ? t("System under test", "被测对象") : t("Test framework", "测试框架")}</Typography.Title>
           <Form.Item name={`${role}_url`} label={t("Git repository URL", "Git 仓库地址")} rules={[{ required: true }, { validator: (_, value) => !value || credentialFreeUrl(value) ? Promise.resolve() : Promise.reject(new Error(t("Use a credential-free HTTPS or SSH URL.", "请使用不含凭据的 HTTPS 或 SSH 地址。"))) }]}><Input autoComplete="off" placeholder="https://git.example.com/team/repository.git" /></Form.Item>
-          <Form.Item name={`${role}_kind`} label={t("Default version selector", "默认版本选择")}><Select options={[{ value: "BRANCH", label: t("Branch", "分支") }, { value: "SHA", label: t("Full SHA", "完整 SHA") }, { value: "MR", label: "MR" }]} /></Form.Item>
-          <Form.Item name={`${role}_ref`} label={t("Default branch, SHA or MR number", "默认分支、SHA 或 MR 编号")} rules={[{ required: true }]}><Input maxLength={255} /></Form.Item>
-          {(role === "sut" ? sutKind : frameworkKind) === "MR" ? <><Form.Item name={`${role}_base`} label={t("MR base ref", "MR base 引用")} rules={[{ required: true }]}><Input maxLength={255} /></Form.Item><Form.Item name={`${role}_strategy`} label={t("Checkout strategy", "检出方式")}><Select options={[{ value: "HEAD", label: "HEAD" }, { value: "MERGE", label: "MERGE" }]} /></Form.Item></> : null}
           <Form.Item name={`${role}_credential`} label={t("Repository credential version", "仓库凭据版本")}><Select allowClear options={credentialOptions(["GIT_TOKEN", "GIT_SSH_KEY"])} placeholder={t("Public repository / select saved credential", "公开仓库 / 选择已保存凭据")} /></Form.Item>
         </section>)}</div>
         <section className="form-section" aria-labelledby="cloud-environment-title">

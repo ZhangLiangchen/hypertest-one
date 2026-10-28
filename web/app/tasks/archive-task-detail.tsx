@@ -94,6 +94,15 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
             { key: "archive", label: t("Root archive version", "根归档版本"), children: `v${task.archive_version}` },
             { key: "project", label: t("Project ID", "项目 ID"), children: <Typography.Text code copyable>{projectId}</Typography.Text> },
           ]} />
+          {(task.sut_repository_url || task.test_framework_repository_url || task.sut_branch || task.framework_branch) ? <>
+            <Typography.Title level={3}>{t("Task repository inputs", "任务仓库输入")}</Typography.Title>
+            <Descriptions column={2} layout="vertical" items={[
+              { key: "sut-repo", label: t("SUT repository", "被测对象仓库"), children: task.sut_repository_url || t("Not recorded", "未记录") },
+              { key: "sut-branch", label: t("SUT branch", "被测对象分支"), children: task.sut_branch || t("Not recorded", "未记录") },
+              { key: "framework-repo", label: t("Test framework repository", "测试框架仓库"), children: task.test_framework_repository_url || t("Not recorded", "未记录") },
+              { key: "framework-branch", label: t("Test framework branch", "测试框架分支"), children: task.framework_branch || t("Not recorded", "未记录") },
+            ]} />
+          </> : null}
           <Typography.Title level={3}>{t("Objective", "测试目标")}</Typography.Title>
           <p className="session-literal">{task.objective || t("No objective supplied.", "尚未填写测试目标。")}</p>
           <Typography.Paragraph className="muted">{t("The local Agent performs testing. Archive completed plans, cases and reports explicitly with the CLI. Uploading artifacts does not mark the task complete or change its reported result.", "测试由本地 Agent 完成，通过 CLI 显式归档已完成的计划、用例与报告。上传产物不会自动完成任务或改变报告结果。")}</Typography.Paragraph>
@@ -111,7 +120,7 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
           <Typography.Paragraph className="muted">{t("Uploader", "上传身份")}: <Typography.Text code>{task.owner_uploader_actor_ref || t("Not assigned", "未指定")}</Typography.Text></Typography.Paragraph>
           {!task.owner_uploader_actor_ref ? <Alert type="info" showIcon message={t("Assign an uploader before archiving", "归档前请指定上传身份")} style={{ marginBottom: 16 }} /> : null}
           <label htmlFor="archive-target">{t("Destination", "归档位置")}</label><Select id="archive-target" className="archive-target" value={target} onChange={(value) => { setTarget(value); setVersion(undefined); setSubmissionId(undefined); }} options={[{ value: "", label: t("Task root (no Subtask ID)", "任务根空间（无需子任务 ID）") }, ...children.map((c) => ({ value: c.id, label: `${c.title} · ${c.id}` }))]} />
-          <ArchivePrompt projectId={projectId} taskId={taskId} subtaskId={target || undefined} />
+          <ArchivePrompt projectId={projectId} taskId={taskId} subtaskId={target || undefined} taskInputs={{ sut_repository_url: task.sut_repository_url, test_framework_repository_url: task.test_framework_repository_url, sut_branch: task.sut_branch, framework_branch: task.framework_branch }} />
           <Link className="archive-install-link" href={`/cli-authorizations?projectId=${projectId}#cli-install`}>{t("CLI installation prompt & authorization", "CLI 安装 Prompt 与授权")}</Link>
         </section>
         <section id="task-subtasks" tabIndex={-1} className="session-task-section" aria-labelledby="archive-children-heading">

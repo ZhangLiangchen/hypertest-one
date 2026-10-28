@@ -21,6 +21,7 @@ export function errorText(error: unknown, locale: Locale): string {
   const archiveProblems: Record<string, [string, string]> = {
     ARCHIVE_WEB_UNAVAILABLE: ["CLI authorization and archive management are not configured on this server.", "此服务器尚未配置 CLI 授权与归档管理入口。"],
     ARCHIVE_TASK_VERSION_CONFLICT: ["The task changed. Your draft is retained; refresh and reopen this action to review its latest version.", "任务版本已变化。草稿已保留，请刷新并重新打开操作，核对最新版本。"],
+    ARCHIVE_PROJECT_VERSION_CONFLICT: ["The project changed. Refresh the project and review its repositories before creating the task.", "项目已更新。请刷新项目并核对仓库地址后再创建任务。"],
     ARCHIVE_ROOT_VERSION_CONFLICT: ["New root artifacts arrived. Review the latest versions before publishing a new summary.", "任务根空间已有新产物，请核对最新版本后重新发布汇总。"],
     ARCHIVE_SUBTASK_VERSION_CONFLICT: ["A subtask archive changed. Review the latest versions before publishing.", "子任务归档版本已变化，请核对最新版本后再发布。"],
     ARCHIVE_OPERATION_KEY_CONFLICT: ["The original key belongs to different input. Query it without resubmitting.", "原请求标识对应不同输入，请查询原请求，不要重发。"],

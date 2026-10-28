@@ -4,6 +4,7 @@ export type Project = {
   name: string;
   description?: string | null;
   repository_url?: string | null;
+  test_framework_repository_url?: string | null;
   default_branch: string;
   status: string;
   row_version: number;
@@ -99,6 +100,7 @@ export type ProjectUpdate = {
   name?: string;
   description?: string | null;
   repository_url?: string | null;
+  test_framework_repository_url?: string | null;
   default_branch?: string;
   status?: "ACTIVE" | "ARCHIVED";
 };
@@ -181,6 +183,7 @@ export type ProjectCreate = {
   name: string;
   description?: string;
   repository_url?: string;
+  test_framework_repository_url?: string;
   default_branch?: string;
 };
 

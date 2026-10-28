@@ -53,6 +53,8 @@ flowchart LR
 
 领域字段、关系和状态由[领域 §56](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#56-adr-027-local-显式后置归档目标合同)拥有。
 
+新建项目须登记 SUT 仓库与测试框架仓库（可相同），创建 Local 任务时分别选择分支；服务端将当时的两个地址和所选分支固定为任务声明。API 对旧客户端允许未指定分支，历史项目的空仓库字段保留。项目创建不再要求填写默认分支；旧 Project 默认分支为兼容数据，旧任务不补造仓库或分支。分支并非解析后的 commit 或独立执行证明；新的声明不改变本 ADR 的后置归档、Uploader 授权、原 key 恢复及 reported-result 边界。归档 Prompt 如附任务声明，以数据而非指令呈现，仅纳入受限安全格式；历史不安全地址省略并提醒，不改原始记录。这一过滤不是任意路径内容的秘密扫描。Cloud 仍按独立资源修订和任务 selector 冻结，不随 Project 修改重写既有 Cloud 输入。
+
 | 新对象 | 职责 |
 | --- | --- |
 | LocalArchiveTask | 一次业务测试需求，所属 Project、管理创建者、owner_uploader_actor_ref、管理版本、根归档版本、状态及显式汇总 |

@@ -37,7 +37,9 @@ BASE_INPUT = {
 async def create_original(client: AsyncClient, **changes: Any) -> tuple[str, dict, dict]:
     project = await client.post(
         "/api/v1/projects",
-        json={"key": public_key("BOOTSTRAP"), "name": "Bootstrap request identity"},
+        json={"key": public_key("BOOTSTRAP"), "name": "Bootstrap request identity",
+              "repository_url": "https://git.example.invalid/sut.git",
+              "test_framework_repository_url": "https://git.example.invalid/framework.git"},
     )
     assert project.status_code == 201, project.text
     path = f"/api/v1/projects/{project.json()['id']}/runs/bootstrap"

@@ -120,6 +120,9 @@ class ArchiveTaskCreate(ArchiveManagement):
     title: str = Field(min_length=1, max_length=512, pattern=r"\S")
     objective: str = Field(default="", max_length=16000)
     owner_uploader_actor_ref: str | None = Field(default=None, max_length=255)
+    expected_project_version: int | None = Field(default=None, ge=1)
+    sut_branch: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"^[^\x00-\x20\x7f]+$")
+    framework_branch: str | None = Field(default=None, min_length=1, max_length=255, pattern=r"^[^\x00-\x20\x7f]+$")
 
 
 class ArchiveTaskUpdate(ArchiveManagement):

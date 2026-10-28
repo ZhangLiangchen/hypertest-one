@@ -13,7 +13,7 @@ from hypertest.api.schemas import (
     PlannerRead,
     PolicySnapshotCreate,
     PolicySnapshotRead,
-    ProjectCreate,
+    ProjectCreateRequest,
     ProjectRead,
     ProjectUpdate,
     RequirementRead,
@@ -70,7 +70,7 @@ def translate_domain_error(exc: Exception) -> HTTPException:
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-async def post_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db)):
+async def post_project(payload: ProjectCreateRequest, db: AsyncSession = Depends(get_db)):
     try:
         return await create_project(db, payload)
     except RuntimeError as exc:

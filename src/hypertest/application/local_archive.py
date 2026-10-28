@@ -135,7 +135,7 @@ async def children(db, task_id):
 
 
 async def manage(db, payload, actor, operation, task_id=None):
-    await project(db, payload.project_id, lock=True)
+    project_row = await project(db, payload.project_id, lock=True)
     await key_lock(db, "management", payload.project_id, actor, payload.idempotency_key)
     frozen = {"operation": operation, "task_id": str(task_id) if task_id else None,
               "request": payload.model_dump(mode="json", exclude_unset=True)}
@@ -149,6 +149,8 @@ async def manage(db, payload, actor, operation, task_id=None):
     timestamp = await clock(db)
     publication = None
     if operation == "CREATE":
+        if payload.expected_project_version is not None and project_row.row_version != payload.expected_project_version:
+            raise HTTPException(409, "ARCHIVE_PROJECT_VERSION_CONFLICT")
         owner = payload.owner_uploader_actor_ref
         if "owner_uploader_actor_ref" not in payload.model_fields_set:
             available = await actors(db, payload.project_id)
@@ -157,6 +159,9 @@ async def manage(db, payload, actor, operation, task_id=None):
         await ensure_actor(db, payload.project_id, owner)
         task = LocalArchiveTask(id=uuid7(), project_id=payload.project_id, creator_actor_ref=actor,
             owner_uploader_actor_ref=owner, title=payload.title, objective=payload.objective,
+            sut_repository_url=project_row.repository_url,
+            test_framework_repository_url=project_row.test_framework_repository_url,
+            sut_branch=payload.sut_branch, framework_branch=payload.framework_branch,
             version=1, archive_version=1, status="DRAFT", reported_result="NOT_RUN", created_at=timestamp, updated_at=timestamp)
         db.add(task)
         await db.flush()

@@ -13,7 +13,8 @@ import { cloudCapabilities, cloudConfiguration, cloudCredentials, cloudDirectory
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
-import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
+import { ProjectNavigation, WorkspaceLoading } from "@/app/workspace-ui";
+import { ProjectWorkspaceHeading } from "../../project-workspace-heading";
 import { CloudCapabilitiesNotice, CloudOperationNotice } from "./cloud-shared";
 
 function LoadingPanel() {
@@ -26,7 +27,7 @@ const CloudTaskForm = dynamic(() => import("./task-form").then((module) => modul
 export default function CloudProjectPage() {
   const { projectId } = useParams<{ projectId: string }>(); const router = useRouter();
   const search = useSearchParams(); const requestedTab = search.get("tab");
-  const { t, label, formatDate } = useI18n(); const [tab, setTab] = useState(["tasks", "resources", "new"].includes(requestedTab || "") ? requestedTab! : "tasks"); const [mode, setMode] = useState(""); const [page, setPage] = useState(1);
+  const { t, label, formatDate } = useI18n(); const [tab, setTab] = useState(["tasks", "resources", "new"].includes(requestedTab || "") ? requestedTab! : "tasks"); const [mode, setMode] = useState("CLOUD"); const [page, setPage] = useState(1);
   const operation = useCloudOperation(projectId);
   const project = useQuery({ queryKey: ["project", projectId], queryFn: () => getProject(projectId, true) });
   const setup = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup });
@@ -41,10 +42,7 @@ export default function CloudProjectPage() {
   const enabled = capabilities.data?.enabled === true && project.isSuccess && !project.isError && !project.data?.deleted_at;
   function refresh() { void configuration.refetch(); void credentials.refetch(); void tasks.refetch(); void capabilities.refetch(); }
   return <main className="workspace-page">
-    <WorkspaceHeading title={<>{project.data?.name || t("Project", "项目")} · {t("Cloud testing", "云端测试")}</>}
-      description={t("Configure resources, create a task, freeze exact versions, then follow artifacts and execution results.", "配置资源、创建任务、冻结确切版本，随后查看阶段产物与执行结果。 ")}
-      backHref={`/projects/${projectId}`} backLabel={t("Project workspace", "项目工作台")}
-      actions={<Button icon={<ReloadOutlined aria-hidden />} onClick={refresh} disabled={!configured}>{t("Refresh", "刷新")}</Button>} />
+    <ProjectWorkspaceHeading project={project.data} projectId={projectId} mode="cloud" />
     <ProjectNavigation projectId={projectId} active="cloud" />
     {setup.isLoading ? <WorkspaceLoading label={t("Checking Cloud access", "正在检查云端访问")} /> : <CloudCapabilitiesNotice configured={configured} capabilities={capabilities.data} />}
     {project.isError || project.data?.deleted_at ? <Alert showIcon type="error" style={{ marginTop: 20 }} message={project.data?.deleted_at ? t("Project is in the recycle bin", "项目已在回收站") : t("Project could not be read", "无法读取项目")}
@@ -54,8 +52,8 @@ export default function CloudProjectPage() {
     <div style={{ marginTop: 24 }}><CloudOperationNotice operation={operation} /></div>
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "tasks", label: t("Project tasks", "项目任务"), children: <section aria-labelledby="cloud-task-list-heading">
-        <div className="activity-heading"><Typography.Title id="cloud-task-list-heading" level={2}>{t("Cloud and Local tasks", "Cloud 与 Local 任务")}</Typography.Title><Button type="primary" onClick={() => setTab(latest ? "new" : "resources")} disabled={!enabled}>{latest ? t("Create cloud task", "创建云端任务") : t("Configure resources", "配置项目资源")}</Button></div>
-        <Space wrap style={{ marginBottom: 20 }}><Segmented aria-label={t("Task source", "任务来源")} value={mode} onChange={(value) => { setMode(String(value)); setPage(1); }} options={[{ value: "", label: t("All sources", "全部来源") }, { value: "CLOUD", label: "Cloud" }, { value: "LOCAL", label: "Local" }]} /><Typography.Text type="secondary">{t("Task identities and histories remain independent.", "两类任务的身份和历史各自保留。 ")}</Typography.Text></Space>
+        <div className="activity-heading"><Typography.Title id="cloud-task-list-heading" level={2}>{t("Cloud test tasks", "云端测试任务")}</Typography.Title><Button icon={<ReloadOutlined aria-hidden />} onClick={refresh} disabled={!configured}>{t("Refresh", "刷新")}</Button></div>
+        <Space wrap style={{ marginBottom: 20 }}><Segmented aria-label={t("Task source", "任务来源")} value={mode} onChange={(value) => { setMode(String(value)); setPage(1); }} options={[{ value: "CLOUD", label: t("Cloud", "云端") }, { value: "LOCAL", label: t("Legacy local sessions", "旧本地会话") }, { value: "", label: t("Both", "全部") }]} /><Typography.Text type="secondary">{t("Local archive tasks are shown on the Local tasks page; legacy local sessions retain their own history here.", "本地归档任务在本地任务页查看；此处保留旧本地会话历史。")}</Typography.Text></Space>
         <div className="data-surface"><Table rowKey={(row) => `${row.task_kind}:${row.task_id}`} loading={tasks.isLoading && configured} dataSource={tasks.data?.items || []} scroll={{ x: 850 }}
           locale={{ emptyText: <Empty description={configured ? t("No tasks match this source.", "此来源尚无任务。") : t("Configure Cloud Web access to read this directory. Local tasks remain in the project workspace.", "配置云端 Web 访问后可读取此目录；Local 任务仍在项目工作台。 ")} /> }}
           pagination={{ current: page, pageSize: 20, total: tasks.data?.total || 0, hideOnSinglePage: true, showSizeChanger: false, onChange: setPage }} columns={[
@@ -67,8 +65,8 @@ export default function CloudProjectPage() {
             { title: t("Agent synced", "Agent 同步"), key: "synced", render: (_, row) => row.product_mode === "LOCAL" ? row.last_synced_at ? formatDate(String(row.last_synced_at)) : t("Not synced yet", "尚未同步") : "—" },
           ]} /></div>
       </section> },
-      { key: "resources", label: t("Project resources", "项目资源"), children: <CloudResources key={projectId} latest={latest} credentials={credentials.data?.credentials || []} versions={credentials.data?.versions || []} operation={operation} enabled={enabled} onSaved={refresh} /> },
-      { key: "new", label: t("New cloud task", "新增云端任务"), children: <CloudTaskForm key={projectId} config={latest} operation={operation} enabled={enabled} onCreated={(taskId) => router.push(`/cloud-tasks/${taskId}?projectId=${projectId}`)} /> },
+      { key: "resources", label: t("Project resources", "项目资源"), children: <CloudResources key={projectId} project={project.data} latest={latest} credentials={credentials.data?.credentials || []} versions={credentials.data?.versions || []} operation={operation} enabled={enabled} onSaved={refresh} /> },
+      { key: "new", label: t("New cloud task", "新增云端任务"), children: <CloudTaskForm key={projectId} config={latest} project={project.data} operation={operation} enabled={enabled} onCreated={(taskId) => router.push(`/cloud-tasks/${taskId}?projectId=${projectId}`)} /> },
     ]} />
   </main>;
 }

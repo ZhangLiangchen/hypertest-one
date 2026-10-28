@@ -26,7 +26,7 @@ export default function LegacyTaskDetail({ taskId }: { taskId: string }) {
     <div className="task-detail-layout">
       <TaskQuickNavigation key={query.data.task.id} detail={query.data} />
       <div className="task-detail-content">
-        <Alert type="info" showIcon style={{ marginBottom: 20 }} message={t("Legacy local session history", "旧本地会话历史")} description={t("New session synchronization is retired. Plans, reports, participation and original receipts remain readable. Use a new archive task for explicit CLI uploads.", "新的会话同步已停用。计划、报告、参与关系与原回执仍可查看；新的 CLI 上传请使用归档任务。")} action={<Button href={`/projects/${query.data.task.project_id}/tasks/new?mode=local`}>{t("Create archive task", "创建归档任务")}</Button>} />
+        <Alert type="info" showIcon style={{ marginBottom: 20 }} message={t("Legacy local session history", "旧本地会话历史")} description={t("New session synchronization is retired. Plans, reports, participation and original receipts remain readable. Create a local test task for explicit CLI uploads.", "新的会话同步已停用。计划、报告、参与关系与原回执仍可查看；新的 CLI 上传请创建本地测试任务。")} action={<Button href={`/projects/${query.data.task.project_id}/tasks/new?mode=local`}>{t("Create local test task", "创建本地测试任务")}</Button>} />
         <LocalTaskCollaboration task={query.data.task} />
         <SessionTaskRecords detail={query.data} />
       </div>

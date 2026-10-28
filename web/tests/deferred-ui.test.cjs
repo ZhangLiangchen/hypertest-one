@@ -111,9 +111,25 @@ test("dashboard handlers keep the deferred creation component after its first op
   assert.equal(nodes(render()).find((node) => node.type === Dialog).props.open, true);
 });
 
+test("project list shows both repository addresses without a project branch", () => {
+  const r = runtime(), locale = { value: "en" };
+  const project = { id: "p1", name: "Project", key: "P1", status: "ACTIVE", repository_url: "https://git.example/sut", test_framework_repository_url: "https://git.example/framework", default_branch: "legacy" };
+  const dependencies = { react: r.hooks, antd: ui, "@/lib/i18n": i18n(locale), "next/dynamic": { default: () => "Dialog" }, "next/link": { default: "a" }, "@ant-design/icons": {}, "@/lib/api": {},
+    "@tanstack/react-query": { useQuery: () => ({ data: [project] }) }, "@/app/projects/project-actions": { ProjectActions: "ProjectActions" }, "@/app/workspace-ui": { WorkspaceHeading: "WorkspaceHeading", WorkspaceLoading: "WorkspaceLoading" } };
+  const { default: Page } = load("app/page.tsx", { require: (name) => name in dependencies ? dependencies[name] : require(name) });
+  const table = nodes(r.render(Page)).find((node) => node.type === ui.Table);
+  const sut = table.props.columns.find((column) => column.key === "repository");
+  const framework = table.props.columns.find((column) => column.key === "framework");
+  assert.equal(sut.title, "SUT repository");
+  assert.equal(framework.title, "Test framework repository");
+  assert.ok(JSON.stringify(sut.render(null, project)).includes(project.repository_url));
+  assert.ok(JSON.stringify(framework.render(null, project)).includes(project.test_framework_repository_url));
+  assert.equal(JSON.stringify(sut.render(null, project)).includes("legacy"), false);
+});
+
 test("extracted project dialog preserves draft, validation and the original creation request", async () => {
   const r = runtime(), locale = { value: "en" }, requests = [], navigations = [], invalidations = [], validations = [];
-  const form = { values: { key: " qa_one ", name: "  Project one  ", description: " original description ", repository_url: " https://git.invalid/repo ", default_branch: " main " },
+  const form = { values: { key: " qa_one ", name: "  Project one  ", description: " original description ", repository_url: " https://git.invalid/repo ", test_framework_repository_url: " https://git.invalid/framework " },
     getFieldValue(name) { return this.values[name]; }, setFieldValue(name, value) { this.values[name] = value; }, getFieldsError: () => [{ name: ["name"], errors: ["invalid"] }],
     validateFields: async (names) => { validations.push(names); }, scrollToField() {} };
   const Form = Object.assign(() => null, { Item: "Field", useForm: () => [form], useWatch: (name) => form.values[name] });
@@ -132,7 +148,7 @@ test("extracted project dialog preserves draft, validation and the original crea
   assert.equal(reopened.props.title, "创建项目"); assert.equal(reopened.props.forceRender, true);
   assert.ok(validations.length >= 2, "opening and language changes revalidate existing errors");
   await nodes(reopened).find((node) => node.type === Form).props.onFinish(form.values);
-  assert.deepEqual(JSON.parse(JSON.stringify(requests)), [{ key: "QA_ONE", name: "Project one", description: "original description", repository_url: "https://git.invalid/repo", default_branch: "main" }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(requests)), [{ key: "QA_ONE", name: "Project one", description: "original description", repository_url: "https://git.invalid/repo", test_framework_repository_url: "https://git.invalid/framework" }]);
   assert.deepEqual(navigations, ["/projects/created-project"]);
   assert.equal(invalidations.length, 1);
   creation.isPending = true;

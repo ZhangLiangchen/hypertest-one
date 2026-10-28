@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightOutlined, BranchesOutlined, FolderOpenOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, FolderOpenOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Empty, Input, Select, Table, Tag, Typography } from "antd";
 import Link from "next/link";
@@ -42,11 +42,12 @@ export default function DashboardPage() {
         {status === "deleted" ? <Typography.Paragraph className="table-footnote">{t("Deleted projects retain their keys and history. Restore a project here to use it again.", "已删除项目保留原标识与历史。需要继续使用时，请在此恢复。")}</Typography.Paragraph> : null}
         {projects.isLoading ? <WorkspaceLoading label={t("Loading projects…", "正在加载项目…")} /> : projects.data?.length ? <Table
           rowKey="id" pagination={{pageSize: 10, hideOnSinglePage: true}} scroll={{ x: 900 }}
-          dataSource={projects.data.filter((project) => (status === "deleted" ? Boolean(project.deleted_at) : !project.deleted_at && (status === "all" || project.status === status)) && `${project.name} ${project.key} ${project.repository_url || ""}`.toLowerCase().includes(search.trim().toLowerCase()))}
+          dataSource={projects.data.filter((project) => (status === "deleted" ? Boolean(project.deleted_at) : !project.deleted_at && (status === "all" || project.status === status)) && `${project.name} ${project.key} ${project.repository_url || ""} ${project.test_framework_repository_url || ""}`.toLowerCase().includes(search.trim().toLowerCase()))}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("No matching projects. Try a different search or reset the filters.", "未找到匹配项目。请修改搜索内容，或重置筛选。")}><Button onClick={() => { setSearch(""); setStatus("all"); }}>{t("Reset filters", "重置筛选")}</Button></Empty> }}
           columns={[
             {title: t("Project", "项目"), key: "name", width: "38%", sorter: (a, b) => a.name.localeCompare(b.name), render: (_, project) => <div className="project-name-cell"><span className="project-avatar" aria-hidden>{project.name.slice(0, 1).toUpperCase()}</span><div><Link className="entity-title" href={`/projects/${project.id}`}>{project.name}</Link><div className="entity-key">{project.key}</div><p className="cell-description">{project.description || t("No description", "暂无描述")}</p></div></div>},
-            {title: t("Repository / branch", "仓库 / 分支"), key: "repository", render: (_, project) => <div className="repository-cell"><span>{project.repository_url || t("Repository not set", "尚未设置仓库")}</span><small><BranchesOutlined aria-hidden /> {project.default_branch}</small></div>},
+            {title: t("SUT repository", "被测对象仓库"), key: "repository", render: (_, project) => <div className="repository-cell"><span>{project.repository_url || t("Repository not set", "尚未设置仓库")}</span></div>},
+            {title: t("Test framework repository", "测试框架仓库"), key: "framework", render: (_, project) => <div className="repository-cell"><span>{project.test_framework_repository_url || t("Repository not set", "尚未设置仓库")}</span></div>},
             {title: t("Status", "状态"), key: "status", width: 120, render: (_, project) => <Tag className="project-status-tag" color={!project.deleted_at && project.status === "ACTIVE" ? "green" : undefined}>{project.deleted_at ? t("Deleted", "已删除") : label(project.status)}</Tag>},
             {title: t("Updated", "更新时间"), dataIndex: "updated_at", width: 160, sorter: (a, b) => a.updated_at.localeCompare(b.updated_at), render: formatDate},
             {title: t("Open", "打开"), key: "open", width: 65, render: (_, project) => <Link href={`/projects/${project.id}`} aria-label={`${t("Open project", "打开项目")} ${project.name}`}><ArrowRightOutlined /></Link>},

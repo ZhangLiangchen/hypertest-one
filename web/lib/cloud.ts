@@ -4,7 +4,7 @@ export const CLOUD_CANCEL_REASON = "OPERATOR_REQUESTED_CANCELLATION";
 export type CloudResult = "NOT_RUN" | "PASS" | "FAIL" | "ERROR" | "SKIPPED" | "UNKNOWN" | "BLOCKED";
 export type CloudRecord = Record<string, unknown>;
 export type CloudSelector = { kind: "BRANCH" | "SHA" | "MR"; value: string; checkout_strategy: "HEAD" | "MERGE"; base_ref?: string };
-export type CloudRepository = { url: string; default_selector: CloudSelector; credential_version_id?: string | null };
+export type CloudRepository = { url: string; default_selector?: CloudSelector | null; credential_version_id?: string | null };
 export type CloudConfiguration = {
   sut: CloudRepository; framework: CloudRepository;
   environment: { name: string; connection: "NONE" | "HTTPS" | "SSH"; host?: string | null; port?: number | null; user?: string | null; host_key?: string | null; network_requirements?: string; credential_version_id?: string | null; expected_deployment: string; require_matching_deployment: boolean;

@@ -31,7 +31,7 @@ function shell(fromRun = null) {
     "next/navigation": { useParams: () => ({ projectId: project.id }), useSearchParams: () => ({ get: () => fromRun }) },
     "@/lib/i18n": { useI18n: () => ({ t: en => en, label: value => value, locale: "en", formatDate: value => value }) },
     "@tanstack/react-query": { useQuery: ({ queryKey }) => ({ data: queryKey[0] === "project" ? project : [] }) },
-    "@/lib/api": {}, "./session-tasks": { ProjectSessionTasks: "session-tasks" }, "./archive-tasks": { ProjectArchiveTasks: "archive-tasks" }, "../project-actions": { ProjectActions: "project-actions" },
+    "@/lib/api": {}, "./session-tasks": { ProjectSessionTasks: "session-tasks" }, "./archive-tasks": { ProjectArchiveTasks: "archive-tasks" }, "../project-workspace-heading": { ProjectWorkspaceHeading: "project-heading" },
     "@/app/workspace-ui": { ProjectNavigation: "navigation", WorkspaceHeading: "heading", WorkspaceLoading: "loading" },
   };
   const { default: Page } = load("app/projects/[projectId]/page.tsx", { require: name => { imports.push(name); return name in deps ? deps[name] : require(name); } });
