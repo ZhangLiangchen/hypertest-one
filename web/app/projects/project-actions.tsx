@@ -58,7 +58,7 @@ export function ProjectActions({ project, compact }: { project: Project; compact
     <ManagementDialog open={Boolean(action)} title={title} mode={action?.mode} version={action?.record.row_version} pending={mutation.isPending} error={mutation.error} onRefresh={refresh} onCancel={() => { if (!mutation.isPending) setAction(null); }} onConfirm={() => void submit()}>
       <Typography.Paragraph className="management-subject">{action?.record.name} <Typography.Text className="entity-key">{action?.record.key}</Typography.Text></Typography.Paragraph>
       {action?.mode === "delete" ? <Alert type="warning" showIcon message={t("Move this project to the recycle bin?", "将此项目移入回收站？")}
-        description={t("Project history and its key are retained. Restore it from the project recycle bin. Projects with active tasks cannot be deleted; delete those tasks first. Projects with managed or native run history must be archived instead.", "项目历史和标识会保留，可从项目回收站恢复。有未删除任务时，请先删除这些任务；有受管或原生测试运行历史的项目，请改为归档。")}/>
+        description={t("Project history and its key are retained. Restore it from the project recycle bin. Projects with active tasks cannot be deleted; delete those tasks first. Projects with native run history must be archived instead.", "项目历史和标识会保留，可从项目回收站恢复。有未删除任务时，请先删除这些任务；有原生测试运行历史的项目，请改为归档。")}/>
         : action?.mode === "restore" ? <Typography.Paragraph>{t("Restore this project with its existing key and history. Its previous status is retained; deleted tasks remain in the task recycle bin.", "恢复项目及原有标识和历史，沿用删除前的状态；已删除任务仍留在任务回收站。")}</Typography.Paragraph>
         : <Form form={form} layout="vertical" disabled={mutation.isPending} requiredMark="optional" onFinish={() => void submit()}>
           {action?.mode === "status" ? <>

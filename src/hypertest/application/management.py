@@ -6,16 +6,16 @@ from hypertest.application.record_helpers import public
 from hypertest.config import get_settings
 from hypertest.domain.cloud_tasks import CloudTask
 from hypertest.domain.local_archive import LocalArchiveTask
-from hypertest.domain.models import AuditEvent, OutboxEvent, Project, TestRun
+from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 from hypertest.domain.native import NativeTestRun
 
 
 def record_change(db, row, before, action, *, version, actor_ref=None):
     actor = actor_ref or "web:" + get_settings().connector_operator_identity
-    entity = "Project" if isinstance(row, Project) else "SessionTask"
-    event = ("project." if entity == "Project" else "session_task.") + action.lower()
+    entity = "Project"
+    event = "project." + action.lower()
     metadata = {"version": version, "source": "LOCAL_BINDING" if action == "BIND" else "WEB_MANAGEMENT"}
-    db.add(AuditEvent(project_id=row.id if entity == "Project" else row.project_id,
+    db.add(AuditEvent(project_id=row.id,
         actor_type="USER", actor_ref=actor, action=event, entity_type=entity,
         entity_id=row.id, before_state=before, after_state=public(row), event_metadata=metadata))
     db.add(OutboxEvent(aggregate_type=entity, aggregate_id=row.id, event_type=event,
@@ -38,7 +38,7 @@ async def manage_project(db, project_id, expected_version, *, changes=None, acti
         dependencies = []
         for model, label in ((LocalArchiveTask, "local archive tasks"),
                              (CloudTask, "cloud tasks"),
-                             (TestRun, "legacy test runs"), (NativeTestRun, "native test runs")):
+                             (NativeTestRun, "native test runs")):
             query = select(func.count()).select_from(model).where(model.project_id == row.id)
             count = await db.scalar(query)
             if count:

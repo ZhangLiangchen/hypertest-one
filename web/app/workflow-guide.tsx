@@ -14,6 +14,5 @@ export function WorkflowGuide({ open, onClose }: { open: boolean; onClose: () =>
       { title: t("Review results and history", "查看结果与历史"), description: t("Read Agent-reported results, original reports and revisions. Task progress and test results are shown separately.", "查看 Agent 报告结果、原始报告和修订。任务进度与测试结果分别展示。") },
     ]} />
     <Typography.Paragraph><Typography.Link href="/cli-authorizations#cli-install">{t("Get the CLI installation prompt for your Agent", "获取给 Agent 的 CLI 安装 Prompt")}</Typography.Link></Typography.Paragraph>
-    <Typography.Paragraph className="muted">{t("Existing managed test runs and their execution records remain available under each project's history.", "既有受管测试运行及其执行记录仍可在项目历史入口查看。")}</Typography.Paragraph>
   </Drawer>;
 }

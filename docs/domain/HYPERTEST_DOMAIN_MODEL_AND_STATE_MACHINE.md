@@ -2193,6 +2193,8 @@ NativeConclusion.UNKNOWN 是质量证据不足；NativeOperation.UNKNOWN 是副�
 
 正式 native PASS 的后续设计须按 ADR-017 §8，由与 Agent 隔离的 CI / SCM 可信身份独立核验批准项目、pipeline/job/attempt、源码 / 测试资产 / 环境、exit 和原始产物及 case 关联；另行版本化 Gate 与正式 Evidence 准入并验收失败 / 伪造 / 撤权 / 重复 / UNKNOWN。当前只有设计门槛，没有该来源 verifier、Web/MCP 接入或真实 Provider 会话身份交接证明。
 
+> **旧 TestRun 退出（ADR-028，2026-10-28）：** 用户要求清除旧受管 TestRun 及其关联执行、证据、报告；`0035_retire_legacy_test_runs` 只处理识别出的旧 Run 专属数据及相关事件，项目级共享输入不做无差别清空。独立 Native、Cloud、Archive、Memory 不由此改写。下文旧 Run 的状态机和历史合同仅用于解释旧版本，不代表现行可创建或读取。
+
 ## 50. SessionTask 管理数据与历史（ADR-018，当前阶段）
 
 > **ADR-028 退休：** SessionTask 已由 LocalArchiveTask 替代，不再提供旧创建、同步、查询与协作合同；迁移 `0034_remove_legacy_session_tasks` 清除 SessionTask 专属数据与对应审计/事件。当前 LocalArchiveTask、CloudTask、共享 Project 和独立 Memory 不迁移或清除。旧 Memory 的来源声明不因此成为新的归档事实。以下为历史合同；源码变更、迁移执行和部署分别记录。

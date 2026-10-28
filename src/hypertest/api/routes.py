@@ -3,49 +3,20 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from hypertest.api.operation_guard import guard_manual_mission_mutation, guard_synchronous_operation
 from hypertest.api.schemas import (
     ManagementVersion,
-    MissionCreate,
-    MissionExecuteRequest,
-    MissionExecutionRead,
-    MissionRead,
-    PlannerRead,
-    PolicySnapshotCreate,
-    PolicySnapshotRead,
     ProjectCreateRequest,
     ProjectRead,
     ProjectUpdate,
-    RequirementRead,
-    RiskRead,
-    SourceSnapshotCreate,
-    SourceSnapshotRead,
-    TestCaseRead,
-    TestRunCoverageRead,
-    TestRunCreate,
-    TestRunRead,
 )
-from hypertest.application.coverage import get_test_run_coverage
 from hypertest.application.management import manage_project
-from hypertest.application.planner import plan_next_mission
-from hypertest.application.runtime import MissionRuntimeError, execute_mission
+from hypertest.application.runtime import MissionRuntimeError
 from hypertest.application.services import (
     ConflictError,
     NotFoundError,
-    create_mission,
-    create_policy_snapshot,
     create_project,
-    create_source_snapshot,
-    create_test_run,
-    get_mission,
     get_project,
-    get_test_run,
-    list_missions_for_test_run,
     list_projects,
-    list_requirements_for_test_run,
-    list_risks_for_test_run,
-    list_test_cases_for_test_run,
-    list_test_runs_for_project,
 )
 from hypertest.db.session import get_db
 
@@ -104,203 +75,5 @@ async def restore_project(project_id: UUID, payload: ManagementVersion,
 async def read_project(project_id: UUID, include_deleted: bool = False, db: AsyncSession = Depends(get_db)):
     try:
         return await get_project(db, project_id, include_deleted=include_deleted)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/projects/{project_id}/test-runs", response_model=list[TestRunRead])
-async def read_project_test_runs(project_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        return await list_test_runs_for_project(db, project_id)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.post(
-    "/projects/{project_id}/source-snapshots",
-    response_model=SourceSnapshotRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def post_source_snapshot(
-    project_id: UUID,
-    payload: SourceSnapshotCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await create_source_snapshot(db, project_id, payload)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.post(
-    "/policy-snapshots",
-    response_model=PolicySnapshotRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def post_policy_snapshot(
-    payload: PolicySnapshotCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await create_policy_snapshot(db, payload)
-    except (RuntimeError, ValueError) as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.post("/test-runs", response_model=TestRunRead, status_code=status.HTTP_201_CREATED)
-async def post_test_run(payload: TestRunCreate, db: AsyncSession = Depends(get_db)):
-    try:
-        return await create_test_run(db, payload)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/test-runs/{test_run_id}", response_model=TestRunRead)
-async def read_test_run(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        return await get_test_run(db, test_run_id)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get(
-    "/test-runs/{test_run_id}/requirements",
-    response_model=list[RequirementRead],
-)
-async def read_test_run_requirements(
-    test_run_id: UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await list_requirements_for_test_run(db, test_run_id)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/test-runs/{test_run_id}/risks", response_model=list[RiskRead])
-async def read_test_run_risks(
-    test_run_id: UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        rows = await list_risks_for_test_run(db, test_run_id)
-        return [
-            RiskRead.model_validate(risk).model_copy(update={"requirement_keys": requirement_keys})
-            for risk, requirement_keys in rows
-        ]
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/test-runs/{test_run_id}/test-cases", response_model=list[TestCaseRead])
-async def read_test_run_test_cases(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        rows = await list_test_cases_for_test_run(db, test_run_id)
-        return [
-            TestCaseRead.model_validate(item).model_copy(update={"risk_keys": keys})
-            for item, keys in rows
-        ]
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/test-runs/{test_run_id}/coverage", response_model=TestRunCoverageRead)
-async def read_test_run_coverage(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        return await get_test_run_coverage(db, test_run_id)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.post(
-    "/test-runs/{test_run_id}/missions",
-    response_model=MissionRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def post_mission(
-    test_run_id: UUID,
-    payload: MissionCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        await guard_manual_mission_mutation(db, test_run_id)
-        return await create_mission(db, test_run_id, payload)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/test-runs/{test_run_id}/missions", response_model=list[MissionRead])
-async def read_test_run_missions(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        return await list_missions_for_test_run(db, test_run_id)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.post("/test-runs/{test_run_id}/plan-next", response_model=PlannerRead)
-async def post_plan_next(test_run_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        await guard_manual_mission_mutation(db, test_run_id)
-        result = await plan_next_mission(db, test_run_id)
-        return PlannerRead(reason=result.reason, mission=result.mission)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.get("/missions/{mission_id}", response_model=MissionRead)
-async def read_mission(mission_id: UUID, db: AsyncSession = Depends(get_db)):
-    try:
-        return await get_mission(db, mission_id)
-    except RuntimeError as exc:
-        raise translate_domain_error(exc) from exc
-
-
-@router.post("/missions/{mission_id}/execute", response_model=MissionExecutionRead)
-async def post_execute_mission(
-    mission_id: UUID,
-    payload: MissionExecuteRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    from hypertest.api.delivery_schemas import FindingRead, ImplementationRead
-
-    try:
-        mission = await get_mission(db, mission_id)
-        await guard_synchronous_operation(db, mission.test_run_id)
-        execution = await execute_mission(
-            db,
-            mission_id,
-            workspace=payload.workspace,
-            provider=payload.provider,
-        )
-        risk_rows = await list_risks_for_test_run(db, execution.mission.test_run_id)
-        risks_by_id = {risk.id: keys for risk, keys in risk_rows}
-        case_rows = await list_test_cases_for_test_run(db, execution.mission.test_run_id)
-        cases_by_id = {item.id: keys for item, keys in case_rows}
-        return MissionExecutionRead(
-            mission=execution.mission,
-            attempt=execution.attempt,
-            proposals=execution.proposals,
-            requirements=execution.requirements,
-            risks=[
-                RiskRead.model_validate(risk).model_copy(
-                    update={"requirement_keys": risks_by_id.get(risk.id, [])}
-                )
-                for risk in execution.risks
-            ],
-            test_cases=[
-                TestCaseRead.model_validate(item).model_copy(
-                    update={"risk_keys": cases_by_id.get(item.id, [])}
-                )
-                for item in execution.test_cases
-            ],
-            implementations=[
-                ImplementationRead.model_validate(item).model_dump(mode="json")
-                for item in execution.implementations
-            ],
-            findings=[
-                FindingRead.model_validate(item).model_dump(mode="json")
-                for item in execution.findings
-            ],
-        )
     except RuntimeError as exc:
         raise translate_domain_error(exc) from exc

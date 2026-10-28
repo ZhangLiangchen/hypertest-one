@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -22,7 +21,6 @@ def main() -> int:
     commands = [
         [str(root / ".venv/bin/uvicorn"), "hypertest.main:app", "--host", "127.0.0.1",
          "--port", api_port],
-        [sys.executable, "-m", "hypertest.worker"],
         ["npm", "--prefix", "web", "run", "dev", "--", "--hostname", "127.0.0.1",
          "--port", web_port],
     ]

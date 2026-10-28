@@ -6,12 +6,7 @@ from hypertest.api.archive_routes import router as archive_router
 from hypertest.api.cli_authorization_routes import router as cli_authorization_router
 from hypertest.api.cloud_routes import router as cloud_router
 from hypertest.api.connector_routes import router as connector_router
-from hypertest.api.delivery_routes import router as delivery_router
-from hypertest.api.harness_routes import router as harness_router
-from hypertest.api.input_routes import router as input_router
 from hypertest.api.interactive_routes import router as interactive_router
-from hypertest.api.issue_executor_routes import router as issue_executor_router
-from hypertest.api.job_routes import router as job_router
 from hypertest.api.memory_routes import router as memory_router
 from hypertest.api.native_routes import router as native_router
 from hypertest.api.routes import router
@@ -39,17 +34,12 @@ async def validation_error_response(_request: Request, error: RequestValidationE
 
 
 app.include_router(router, prefix=settings.api_prefix)
-app.include_router(delivery_router, prefix=settings.api_prefix)
-app.include_router(job_router, prefix=settings.api_prefix)
-app.include_router(input_router, prefix=settings.api_prefix)
 
-app.include_router(harness_router, prefix=settings.api_prefix)
 
 app.include_router(connector_router, prefix=settings.api_prefix)
 
-app.include_router(source_transfer_router,prefix=settings.api_prefix)
+app.include_router(source_transfer_router, prefix=settings.api_prefix)
 
-app.include_router(issue_executor_router,prefix=settings.api_prefix)
 
 app.include_router(interactive_router, prefix=settings.api_prefix)
 

@@ -19,7 +19,6 @@ export function SiteHeader() {
   const location = path.startsWith("/cli-authorizations") ? t("CLI authorization", "CLI 授权")
     : path.startsWith("/archives/") ? t("Local archive", "本地归档")
     : path.startsWith("/cloud-tasks/") ? t("Cloud task", "云端任务")
-    : path.startsWith("/runs/") ? t("Test run", "测试运行")
       : path.startsWith("/tasks/") ? t("Local task", "本地任务")
         : path.endsWith("/tasks/new") ? t("Create test task", "创建测试任务")
           : path.endsWith("/memory") ? t("Project experience", "项目经验")

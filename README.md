@@ -51,13 +51,13 @@ pip install -e '.[dev,interactive]'
 npm --prefix web ci
 ```
 
-如没有 `.env`，以 `.env.example` 为参考建立配置，并按本机实际情况设置数据库、artifact 和 workspace 路径；不要将凭据提交到仓库。启动辅助脚本会执行 `alembic upgrade head` 并启动本机 API、legacy Worker 与 Web：
+如没有 `.env`，以 `.env.example` 为参考建立配置，并按本机实际情况设置数据库、artifact 和 workspace 路径；不要将凭据提交到仓库。启动辅助脚本会执行 `alembic upgrade head` 并启动本机 API 与 Web：
 
 ```bash
 bash scripts/dev.sh
 ```
 
-默认 Web 为 `http://localhost:3000`，API 为 `http://localhost:8000`，OpenAPI 为 `http://localhost:8000/docs`。`bash scripts/dev.sh --check` 只执行迁移及 API/Worker 导入检查。该脚本不是独立 Cloud Worker 的部署方式；执行相关任务仍需各自明确配置、授权和运行环境。测试服务器的 Docker 交付方式见[服务器操作](docs/SERVER_OPERATIONS.md)。
+默认 Web 为 `http://localhost:3000`，API 为 `http://localhost:8000`，OpenAPI 为 `http://localhost:8000/docs`。`bash scripts/dev.sh --check` 只执行迁移及 API 导入检查。该脚本不是独立 Cloud Worker 的部署方式；执行相关任务仍需各自明确配置、授权和运行环境。测试服务器的 Docker 交付方式见[服务器操作](docs/SERVER_OPERATIONS.md)。
 
 验证范围按改动风险确定。后端测试需要专用的可丢弃 PostgreSQL 测试库；`HYPERTEST_TEST_DATABASE_URL` 用于指定该库，测试前按需迁移。Web 可按需要执行 `npm --prefix web test`、`npm --prefix web run typecheck` 或 `npm --prefix web run build`。平台完整 CI 由 `workflow_dispatch` 手动触发；日常 push 和 PR 不自动触发平台回归，发行标签流程另行保留。
 
@@ -65,6 +65,6 @@ bash scripts/dev.sh
 
 API 默认前缀为 `/api/v1`，运行中的 OpenAPI 文档提供请求和响应结构。涉及领域、授权、幂等和版本控制时，以基础规范中的对应合同为准。
 
-### Human input API
+<a id="human-input-api"></a>
 
-Legacy Run 的问题可通过 `GET /api/v1/test-runs/{run_id}/input-requests` 和 `GET /api/v1/input-requests/{id}` 查询；问题与回答属于任务上下文，不直接创建 Canonical Requirement 或 Evidence。回答使用 `POST /api/v1/input-requests/{id}/answer`，包含 `answer`、`expected_row_version` 和 `idempotency_key`。接受后返回原问题与 Job，恢复同一工作，不创建替代 Job。提交结果不确定时保留原答案、版本及 key，先查询状态并按原请求恢复；具体生命周期见 [Web 工作流](docs/WEB_PRODUCT_WORKFLOW.md)。
+旧受管 TestRun、任务与执行 API 按 ADR-028 退出；其关联执行、报告和证据不再提供兼容读取。现行 Local 归档及 Cloud 任务接口见运行中的 OpenAPI 和各自规范。

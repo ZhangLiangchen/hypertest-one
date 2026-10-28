@@ -1227,7 +1227,7 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 ## 50. ADR-027 Local 显式归档目标架构
 
-> **ADR-028 退休：** 产品新建任务统一使用 Local 归档或 Cloud 创建；旧 SessionTask 页面/API/协作与专属数据退出，不合并新旧身份。已发行 CLI 仍使用 `/archives` 地址，该归档地址继续跳转至当前任务页面。旧受管 TestRun 属于独立执行域，项目页不再提供旧创建入口。
+> **ADR-028 退休：** 产品新建任务统一使用 Local 归档或 Cloud 创建；旧 SessionTask 页面/API/协作与专属数据退出，不合并新旧身份。已发行 CLI 仍使用 `/archives` 地址，该归档地址继续跳转至当前任务页面。旧受管 TestRun 及其关联执行、报告、证据与旧 API 按用户决定退出；独立 Native、Cloud、Archive、Memory 不混用。
 
 > **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 

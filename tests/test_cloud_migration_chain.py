@@ -10,7 +10,8 @@ def test_cloud_migrations_have_one_head_after_local_binding_without_historical_n
     config = Config()
     config.set_main_option("script_location", str(root / "alembic"))
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0034_remove_legacy_session_tasks"]
+    assert scripts.get_heads() == ["0035_retire_legacy_test_runs"]
+    assert scripts.get_revision("0035_retire_legacy_test_runs").down_revision == "0034_remove_legacy_session_tasks"
     assert scripts.get_revision("0034_remove_legacy_session_tasks").down_revision == "0033_project_repositories"
     assert scripts.get_revision("0033_project_repositories").down_revision == "0032_cli_archive_uploader"
     assert scripts.get_revision("0032_cli_archive_uploader").down_revision == "0031_cli_authorization"

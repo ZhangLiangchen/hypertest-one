@@ -1659,6 +1659,8 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 
 框架冻结检查只读锁文件并对固定Python/Node执行--version，不自动安装、联网或执行声明argv，不声称依赖闭包或限制了任意SDK shell语义。一般凭据HTTP/写操作/浏览器/CI不通过本profile准入；UNKNOWN阻止收尾并保持原预算及历史。
 
+> **旧 TestRun 退出（ADR-028，2026-10-28）：** 旧受管 Run 创建、Mission、Job、执行、证据、报告及 Interactive Run 入口已退出；现行 LocalArchive、Cloud 与独立 Native 使用各自合同。
+
 ## 51. ADR-027 Local 显式归档协议目标合同
 
 > **ADR-028 退休：** 旧 SessionTask 创建、同步、读取、BIND/JOIN、协作与原 key 查询接口退出；新 Local 任务只通过归档接口，Cloud 继续使用独立合同。旧未知外部操作不因入口退出而被重发。浏览器中旧 SessionTask 创建/协作 journal 可被移除，现行归档、Cloud 和 CLI 授权 journal 不受影响。

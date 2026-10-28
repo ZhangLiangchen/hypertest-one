@@ -15,7 +15,7 @@
 
 ### Cloud / Local：共享 Project，分别交付
 
-**任务创建更新（ADR-028）：** 项目使用统一入口创建 Local 归档或 Cloud 任务；旧 SessionTask 不再是当前任务方案，旧创建/同步/协作入口和对应旧数据按本次迁移退出。旧受管 TestRun 是独立执行领域，已从项目页新建入口移除。实施与部署分别记录。
+**任务创建更新（ADR-028）：** 项目使用统一入口创建 Local 归档或 Cloud 任务；旧 SessionTask 不再是当前任务方案，旧创建/同步/协作入口和对应旧数据按本次迁移退出。旧受管 TestRun 及其关联执行、报告和证据按用户决定退出；独立 Native、Cloud、Archive、Memory 不混用。实施与部署分别记录。
 
 Cloud 采用 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 的六步流程：项目资源 → 任务输入 → 下发冻结 → DeepSeek 接取与 Codex 委派 → 测试产物 → 项目框架执行及报告。CloudTask / CloudAttempt、LocalArchiveTask 及旧 Local SessionTask 可共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史。
 

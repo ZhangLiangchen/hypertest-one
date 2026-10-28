@@ -156,3 +156,24 @@ test("extracted project dialog preserves draft, validation and the original crea
   assert.equal(pending.props.closable, false); assert.equal(pending.props.maskClosable, false); assert.equal(pending.props.keyboard, false);
   assert.equal(nodes(pending).find((node) => node.type === Form).props.disabled, true);
 });
+
+test("project workspace loads only the current project and archive tasks", async () => {
+  const r = runtime(), locale = { value: "en" }, queries = [], requests = [];
+  const project = { id: "project-1", name: "Project", key: "P1", status: "ACTIVE" };
+  const dependencies = {
+    react: r.hooks, antd: ui, "@/lib/i18n": i18n(locale), "next/link": { default: "a" },
+    "next/navigation": { useParams: () => ({ projectId: project.id }) }, "@ant-design/icons": {},
+    "@/lib/api": { getProject: async (...args) => { requests.push(args); return project; }, errorText: () => "failure" },
+    "@tanstack/react-query": { useQuery: (options) => { queries.push(options); return { data: project }; } },
+    "./archive-tasks": { ProjectArchiveTasks: "ProjectArchiveTasks" },
+    "../project-workspace-heading": { ProjectWorkspaceHeading: "ProjectWorkspaceHeading" },
+    "@/app/workspace-ui": { ProjectNavigation: "ProjectNavigation", WorkspaceLoading: "WorkspaceLoading" },
+  };
+  const { default: Page } = load("app/projects/[projectId]/page.tsx", { require: (name) => name in dependencies ? dependencies[name] : require(name) });
+  const tree = r.render(Page);
+  assert.equal(JSON.stringify(queries.map(({ queryKey }) => queryKey)), JSON.stringify([["project", project.id]]));
+  await queries[0].queryFn();
+  assert.deepEqual(requests, [[project.id, true]]);
+  assert.ok(nodes(tree).some((node) => node.type === "ProjectArchiveTasks"));
+  assert.equal(JSON.stringify(tree).includes("/runs/"), false);
+});

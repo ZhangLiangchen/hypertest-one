@@ -7,6 +7,8 @@
 !src/
 !src/**
 !skills/
+!skills/hypertest-archive/
+!skills/hypertest-archive/**
 !skills/hypertest-local-task-onboarding/
 !skills/hypertest-local-task-onboarding/**
 !alembic/

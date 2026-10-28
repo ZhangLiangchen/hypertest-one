@@ -1,9 +1,4 @@
-import type {
-  RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingHistory, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
-  MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, EnvironmentCatalog,
-  SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
-  ProjectUpdate,
-} from "@/lib/types";
+import type { Project, ProjectCreate, ProjectUpdate } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 
 const API_PREFIX = "/api/v1";
@@ -77,7 +72,7 @@ export function errorText(error: unknown, locale: Locale): string {
     return "仓库源地址格式无效。请检查 origin 地址，并在 Worker 主机配置 Git 访问授权。";
   }
   if (/^Project cannot be deleted:/i.test(detail)) {
-    return "此项目仍有关联数据，无法删除。有未删除任务时，请先在任务列表删除；有受管或原生测试运行历史时，请改为归档项目。";
+    return "此项目仍有关联数据，无法删除。有未删除任务时，请先在任务列表删除；有原生测试运行历史时，请改为归档项目。";
   }
   if (/version is stale/i.test(detail)) {
     return "记录已被其他操作更新，当前输入已保留。请刷新记录并核对最新版本，再重新打开编辑窗口。";
@@ -197,79 +192,3 @@ export const deleteProject = (projectId: string, expectedVersion: number) =>
 export const restoreProject = (projectId: string, expectedVersion: number) =>
   api<Project>(`/projects/${encodeURIComponent(projectId)}/restore`, { method: "POST", body: JSON.stringify({ expected_version: expectedVersion }) });
 export const getProject = (projectId: string, includeDeleted = false) => api<Project>(`/projects/${encodeURIComponent(projectId)}${includeDeleted ? "?include_deleted=true" : ""}`);
-export const getProjectRuns = (projectId: string) =>
-  api<TestRun[]>(`/projects/${projectId}/test-runs`);
-export const getRun = (runId: string) => api<TestRun>(`/test-runs/${runId}`);
-export const getRequirements = (runId: string) =>
-  api<Requirement[]>(`/test-runs/${runId}/requirements`);
-export const getRisks = (runId: string) => api<Risk[]>(`/test-runs/${runId}/risks`);
-export const getTestCases = (runId: string) => api<TestCase[]>(`/test-runs/${runId}/test-cases`);
-export const getCoverage = (runId: string) => api<Coverage>(`/test-runs/${runId}/coverage`);
-export const getMissions = (runId: string) => api<Mission[]>(`/test-runs/${runId}/missions`);
-export const getMission = (missionId: string) => api<Mission>(`/missions/${missionId}`);
-export const getInputRequests = (runId: string) => api<InputRequest[]>(`/test-runs/${runId}/input-requests`);
-export const getInputRequest = (requestId: string) => api<InputRequest>(`/input-requests/${requestId}`);
-export const answerInputRequest = (requestId: string, payload: InputAnswer) =>
-  api<InputAnswerResult>(`/input-requests/${requestId}/answer`, { method: "POST", body: JSON.stringify(payload) });
-export const planNext = (runId: string) =>
-  api<PlannerResult>(`/test-runs/${runId}/plan-next`, { method: "POST" });
-export const getMissionAttempts = (missionId: string) => api<MissionAttempt[]>(`/missions/${missionId}/attempts`);
-export const getMissionProposals = (missionId: string) => api<MissionProposal[]>(`/missions/${missionId}/proposals`);
-export const retryMission = (missionId: string) => api<Mission>(`/missions/${missionId}/retry`, { method: "POST" });
-export const cancelMission = (missionId: string) => api<Mission>(`/missions/${missionId}/cancel`, { method: "POST" });
-export const getImplementations = (runId: string) => api<TestImplementation[]>(`/test-runs/${runId}/implementations`);
-export const getImplementationContent = async (runId: string, implementationId: string) => {
-  const response = await fetch(`${API_PREFIX}/test-runs/${runId}/implementations/${implementationId}/content`);
-  if (!response.ok) throw await responseError(response, "The saved test source is unavailable or failed integrity verification.");
-  return response.text();
-};
-export const getExecutions = (runId: string) => api<TestExecution[]>(`/test-runs/${runId}/executions`);
-export const getExecution = (executionId: string) => api<ExecutionDetail>(`/executions/${executionId}`);
-export const getEvidence = (runId: string) => api<Evidence[]>(`/test-runs/${runId}/evidence`);
-export const getEvidenceContent = async (evidenceId: string) => {
-  const response = await fetch(`${API_PREFIX}/evidence/${evidenceId}/content`);
-  if (!response.ok) throw await responseError(response, "Unable to load evidence content");
-  return response.text();
-};
-export const getFindings = (runId: string) => api<Finding[]>(`/test-runs/${runId}/findings`);
-export const getFindingHistory = (findingId: string) => api<FindingHistory>(`/findings/${findingId}/history?limit=50`);
-export const transitionFinding = (findingId: string, payload: FindingTransition) =>
-  api<Finding>(`/findings/${findingId}/transition`, { method: "POST", body: JSON.stringify(payload) });
-export const getCapabilities = () => api<Capabilities>("/capabilities");
-export const getExecutionEnvironments = () => api<EnvironmentCatalog>("/execution-environments");
-export const getSourceSnapshot = (snapshotId: string) => api<SourceSnapshot>(`/source-snapshots/${snapshotId}`);
-export const getPolicySnapshot = (snapshotId: string) => api<PolicySnapshot>(`/policy-snapshots/${snapshotId}`);
-export const getPrdContent = async (snapshotId: string) => {
-  const response = await fetch(`${API_PREFIX}/source-snapshots/${snapshotId}/prd`);
-  if (!response.ok) throw await responseError(response, "The saved requirements are unavailable or failed integrity verification.");
-  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer());
-};
-export const getConfigurationContent = async (snapshotId: string) => {
-  const response = await fetch(`${API_PREFIX}/source-snapshots/${snapshotId}/configuration`);
-  if (!response.ok) throw await responseError(response, "The saved configuration is unavailable or failed integrity verification.");
-  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await response.arrayBuffer());
-};
-export const getVerdicts = (runId: string) => api<Verdict[]>(`/test-runs/${runId}/verdicts`);
-export const getJobs = (runId: string) => api<BackgroundJob[]>(`/test-runs/${runId}/jobs`);
-export const getJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}`);
-export const getJobActivity = (jobId: string, before?: string, signal?: AbortSignal) => {
-  const query = new URLSearchParams({ limit: "30" });
-  if (before) query.set("before", before);
-  return api<JobActivity>(`/jobs/${jobId}/activity?${query}`, { signal });
-};
-export const createJob = (runId: string, payload: JobCreate) =>
-  api<BackgroundJob>(`/test-runs/${runId}/jobs`, { method: "POST", body: JSON.stringify(payload) });
-export const cancelJob = (jobId: string) => api<BackgroundJob>(`/jobs/${jobId}/cancel`, { method: "POST" });
-export const retryJob = (jobId: string, idempotencyKey: string) =>
-  api<BackgroundJob>(`/jobs/${jobId}/retry`, { method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey }) });
-
-export const getRunHarness = (runId: string) => api<RunHarness>(`/test-runs/${runId}/harness`);
-export const getRunReports = (runId: string) => api<RunReport[]>(`/test-runs/${runId}/reports`);
-export const getRunReportContent = async (reportId: string) => {
-  const response = await fetch(`${API_PREFIX}/reports/${reportId}/content`);
-  if (!response.ok) throw await responseError(response, "The saved report is unavailable or failed integrity verification.");
-  return response.text();
-};
-export const recoverRunBinding = (binding: RunBinding) => api<unknown>(`/bindings/${binding.id}/recover`, {
-  method: "POST", body: JSON.stringify({ expected_epoch: binding.binding_epoch, expected_row_version: binding.row_version }),
-});

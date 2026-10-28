@@ -29,15 +29,15 @@
 - 不为移动端、竖屏或窄屏额外建设适配布局、兼容逻辑、截图或测试矩阵，也不将这些检查作为交付前置条件。
 - 既有窄屏 CSS 可作为历史实现保留，不构成产品兼容承诺或后续维护要求。PC 宽屏下的中英文、键盘操作、焦点及可读性要求继续适用。
 
-## 当前测试服务器：开发与部署规则（2026-10-24 增补）
+## 当前测试环境：本 Mac 容器（2026-10-28）
 
 各轮部署记录为历史事实，实际服务、镜像、schema、配置和磁盘余量在操作前核实，不从旧记录推断当前状态。操作规则见[服务器操作](docs/SERVER_OPERATIONS.md)，历史记录见[文档索引](docs/README.md)。
 
-本服务器是内部测试环境，允许服务中断，没有零停机要求。Compose、容器、目录和历史文档中的 `production` / “生产”命名不代表当前环境的可用性要求。
+用户确认本 Mac 即当前测试服务器，使用本机 Docker Compose，不存在需通过 SSH 连接的测试服务器。该单用户内部环境允许服务中断，没有零停机要求。历史远端地址、SSH 别名和旧服务器命令仅供追溯。
 
-后续应用服务部署统一采用 Docker。宿主 nginx 已按用户指令停用、屏蔽并卸载；容器 nginx 保持提供入口，见[宿主 nginx 移除记录](docs/HOST_NGINX_REMOVAL_20261025.md)。本次未迁移既有独立 Cloud Worker / Bridge，不据此改写它们的当前运行身份。
+应用服务通过本机 Docker 部署；当前 `hypertest-mac` Compose 配置和独立 PowerContext 目录位于 `~/.local/share/`，具体状态和入口操作前以实际配置和容器为准。保留现有 WireGuard Web、私有 BFF、TLS 和访问边界。旧远端 nginx 记录是历史，不代表当前 Mac 状态。
 
-- 用户要求部署时，已授权停止旧服务、原地构建、执行必要迁移并重启；符合 ADR-028 的定向旧数据清理已获授权，无需为服务中断再次确认。默认流程为：本地修改 → commit/push → 服务器 fetch 并固定完整 Git SHA → 停止受影响服务 → 在服务器构建新版本 → 迁移（需要时）→ 启动 → 最小冒烟检查；不要求先建隔离环境。
+- 用户要求部署时，已授权停止旧服务、原地构建、执行必要迁移并重启；符合 ADR-028 的定向旧数据清理已获授权，无需为服务中断再次确认。默认流程为：本地修改 → commit/push 并固定完整 Git SHA → 停止受影响容器 → 用该提交在本机 Docker 构建新版本 → 迁移（需要时）→ 启动 → 最小冒烟检查；不要求先建隔离环境。
 - 常规开发、构建和相关自动回归默认复用已有干净 checkout、兼容的依赖环境、构建缓存与测试基础设施；不把临时工作目录、隔离/影子环境、额外源码或构建副本、重复 virtualenv / node_modules 作为每轮默认步骤。复用环境不减少必要回归或强制检查。
 - 只有具体依赖冲突、破坏性测试或安全边界确有需要时，才采用最小范围隔离。创建前说明原因、资源和生命周期，优先复用已有测试环境，不为局部问题复制多套全栈；完成后清理本轮新增、确认可再生且不再使用的临时目录、容器、依赖环境和副本，保留不属于本次替代范围的源产物、历史与未决记录。
 - 复用环境不等于将测试 fixtures 写入业务数据库。可复用明确用于自动回归的已有 test DB，reset 仅限其中的合成测试数据；不得初始化、清空或覆盖业务库及其历史。需要数据库安全边界时，隔离最小必要的测试库即可，不默认另建整套平台。
@@ -45,7 +45,7 @@
 - 验证与改动范围相称：文档修改只检查文档差异；局部代码修改只做相关检查；部署后检查服务启动、健康接口及本次变更的一条关键路径。相关检查通过且无具体未解决问题后立即结束，不自行扩大到全量回归、多宿主矩阵、反复健康采样或额外审查。
 - 只有用户明确要求、强制检查要求或具体故障需要时，才扩大验证。不得为普通开发任务额外建设验收、证明或保全体系。
 - 按 ADR-028 可以定向删除被替代且不兼容的旧实现及对应旧数据，无需额外审批；不因此授权清空整库、删除数据卷或删除无关现行数据、凭据及宿主配置。未知外部操作不得自动重发；其他范围的破坏性操作须有明确授权。
-- 保留现有 SSH 访问、主机密钥校验、密码人工恢复、TLS、VPN 白名单及其他访问限制；不泄露或复制凭据到仓库、日志或交付物，不改动无关服务。
+- 保留现有 WireGuard、BFF、TLS 及其他访问限制；不泄露或复制凭据到仓库、日志或交付物，不改动无关服务。
 - 本节取代旧运维文档及历史发布记录对本测试服务器的可用性与发布流程约束。历史验收记录仅供追溯，不作为每次开发的执行清单；现行产品领域、授权、幂等与证据真实性继续适用；被替代的旧历史按 ADR-028 处理，不把产品证据规则扩展为开发部署 Gate。
 
 This repository is governed by four foundational documents. Any implementation, refactor, protocol change, schema change, or architecture decision MUST remain consistent with them unless an explicit Architecture Decision supersedes the relevant rule.
@@ -68,7 +68,7 @@ When details conflict:
 
 ## Non-negotiable architecture principles
 
-Legacy compatibility and retention statements below apply only while that profile remains in use; ADR-028 permits removing a replaced, incompatible profile and its associated data. Do not infer that all historical data must remain accessible.
+Legacy compatibility and retention statements below describe historical profiles only. The user has decided to retire SessionTask and the legacy managed TestRun, including their creation, execution, reports and associated data; no compatibility endpoint is required. Deployment and migration status must be verified separately. ADR-028 governs their removal. Independent Native, LocalArchive, Cloud and Memory remain separate.
 
 - **Local management path: HyperTest One manages testing tasks, cases and reports; local Agents perform testing and explicitly archive their outputs under ADR-027. This management API does not execute tests.** The following session-sync rules apply to the legacy profile: [ADR-018](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) and [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) retain the default single-session contract. [ADR-026](docs/architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md) adds explicitly enabled one-task/many-root participation: same owner actor, exact source authorization/JOIN, isolated append-only contributions and one current primary publisher. Initial binding identity/history stay immutable; child delegates do not acquire parent writer rights. Legacy full sync cannot write collaborative tasks; original-key reconciliation and old single-session tasks remain compatible. Implementation/deployment/client release/user acceptance are recorded separately.
 - **Cloud and Local share one Project:** Cloud uses independent CloudTask / CloudAttempt identities and the official DeepSeek Harness Python SDK under [ADR-019](docs/architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md). The six steps are Project resources → frozen task inputs → dispatch → DeepSeek/Codex work → accepted artifacts → project-framework execution/reporting. Codex is explicitly opt-in; Claude remains a placeholder. Source snapshots, reported results, deployment and user acceptance have separate identities and must not be upgraded or inferred from one another. Historical results and limitations are recorded in [Cloud status](docs/CLOUD_IMPLEMENTATION_STATUS.md) and [Cloud delivery](docs/CLOUD_GIT_DELIVERY_20261023.md).
@@ -105,21 +105,19 @@ The goal is for HyperTest One to remain agent-independent, model-independent, ev
 
 ## HyperTest One development and test-server delivery
 
-The `hypertest-one` server is the user's **single-user dedicated test environment**,
+This Mac and its `hypertest-mac` containers are the user's **single-user dedicated test environment**,
 used to validate HyperTest One and cloud task execution. It is not a production or
 shared multi-user service. Service interruption and restart are allowed during
 development; a running test does not by itself impose a maintenance-window gate.
-This describes the deployment environment, not a change to the ADR-018 management
-boundary or authorization to run an unrelated SUT.
+This describes the deployment environment, not authorization to run an unrelated SUT.
 
 - Default flow for HyperTest One code changes: edit locally → commit and push to
-  Git → fetch the specified branch/commit on the server and record its resolved
-  full SHA → stop affected services, build there, apply needed migrations and
-  start the updated services → run the relevant remote checks once. Stop after
+  Git → record the pushed full SHA → stop affected local containers, build from that SHA, apply needed migrations and
+  start the updated services → run the relevant checks once. Stop after
   those checks pass with no concrete unresolved issue; expand validation only for
   an explicit user request, mandatory checks or a specific failure. Run a needed
-  full suite remotely. Do not default to a full local test suite or local production build;
-  quick local checks are optional debugging aids, not a mandatory preflight matrix.
+  full suite in the test environment. Do not default to a full local test suite or local production build;
+  quick checks are optional debugging aids, not a mandatory preflight matrix.
 - Environment reuse, minimal isolation and cleanup follow the current test-server
   rules above and [server operations](docs/SERVER_OPERATIONS.md#复用现有环境与最小隔离2026-10-24-增补).
   Reuse does not reduce mandatory tests or authorize fixtures in the business DB;
@@ -135,7 +133,7 @@ boundary or authorization to run an unrelated SUT.
   trigger a server build, migration, restart or functional regression run.
 - Deploy from pushed Git history. Do not package and upload an uncommitted local
   worktree as the normal source-delivery path. Do not reset another checkout's
-  uncommitted work; fetch into a clean, separate server release when needed.
+  uncommitted work; reuse the clean local checkout or use a separate release only when necessary.
 - Routine authorized development does not require an extra deployment approval,
   a formal maintenance window, a paired cold-backup/restore rehearsal or a fixed
   15-minute observation. Choose additional checks for the actual change or an
@@ -147,13 +145,11 @@ boundary or authorization to run an unrelated SUT.
   supersede older descriptions of a production environment and routine heavy
   deployment gates. Historical commands, paths and evidence remain historical facts.
 
-## Remote operations
+## 本机容器操作
 
-- Read [server operations](docs/SERVER_OPERATIONS.md#ssh-access) before connecting to the deployed server.
-- When already running on the test server, operate locally; do not require the Mac-only SSH alias or provision its private key. Follow the test-server deployment and minimal-verification rules above.
-- On the configured local Mac, use `ssh hypertest-one` for interactive access. Automated checks must use the same alias with `BatchMode=yes` and `PreferredAuthentications=publickey`; use `bash ops/check-remote.sh` for platform health checks.
-- Keep the existing password login available for manual recovery. Automated checks must fail on key authentication errors rather than depend on a temporary `SSH_ASKPASS` helper or prompt for a password.
-- The alias and private key are local to this Mac, not provisioned in CI or cloud executors. Preserve host-key verification, existing server access, and the VPN allowlist.
+- 当前测试环境就是本 Mac，直接使用本机 Docker Compose；不尝试旧 `hypertest-one` SSH 别名。
+- 读取[服务器操作](docs/SERVER_OPERATIONS.md)及本机 `~/.local/share/hypertest-mac/README.md`，先核对 Compose、容器、镜像、schema 和可用磁盘。现有配置与历史身份均需现场核实。
+- 保持实际 WireGuard、TLS、BFF、数据库卷、独立 PowerContext 和其他未涉及的服务；针对被替代数据按 ADR-028 定向迁移。
 
 ## 旧 Local 发行与兼容
 

@@ -13,7 +13,7 @@ if [[ "$(node -p 'process.versions.node.split(".")[0]')" != 22 ]]; then
 fi
 .venv/bin/alembic upgrade head
 if [[ "${1:-}" == --check ]]; then
-  .venv/bin/python -c 'from hypertest.main import app; from hypertest.worker import run_worker; assert app.openapi()["paths"]; print("API, worker imports and database migrations verified")'
+  .venv/bin/python -c 'from hypertest.main import app; assert app.openapi()["paths"]; print("API import and database migrations verified")'
   exit 0
 fi
 

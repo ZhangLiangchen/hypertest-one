@@ -1,55 +1,6 @@
 import type { CloudDocument, CloudLiveSummary } from "./cloud";
 
 export type PollInterval = number | false;
-type StatusRecord = { status: string };
-
-const activeJobs = new Set(["QUEUED", "RUNNING", "CANCEL_REQUESTED"]);
-const settledJobs = new Set(["SUCCEEDED", "FAILED", "INTERRUPTED", "CANCELLED"]);
-const settledRuns = new Set(["COMPLETED", "CANCELLED"]);
-
-/** Waiting, blocked and unknown states retain a control observer. */
-export function runPollInterval(status?: string): PollInterval {
-  if (status && settledRuns.has(status)) return false;
-  if (!status || ["ANALYZING", "DESIGNING", "IMPLEMENTING", "EXECUTING", "DIAGNOSING", "VERIFYING"].includes(status)) return 5_000;
-  return 15_000;
-}
-
-export function jobPollInterval(status?: string): PollInterval {
-  if (status && settledJobs.has(status)) return false;
-  if (!status || activeJobs.has(status)) return 1_500;
-  return status === "WAITING_INPUT" ? 5_000 : 15_000;
-}
-
-export function jobsPollInterval(jobs?: StatusRecord[], runStatus?: string): PollInterval {
-  if (!jobs || jobs.some((job) => activeJobs.has(job.status))) return 1_500;
-  if (jobs.some((job) => !settledJobs.has(job.status))) return 5_000;
-  return runStatus && settledRuns.has(runStatus) ? false : 15_000;
-}
-
-export function inputPollInterval(requests: StatusRecord[] | undefined, jobs: StatusRecord[], runStatus?: string): PollInterval {
-  if (requests?.some((request) => ["PENDING", "ANSWERED"].includes(request.status)) || jobs.some((job) => !settledJobs.has(job.status))) return 5_000;
-  return runStatus && settledRuns.has(runStatus) ? false : 15_000;
-}
-
-export function harnessPollInterval(harness: { binding?: StatusRecord | null; issues?: StatusRecord[] } | undefined, jobs: StatusRecord[], runStatus?: string): PollInterval {
-  if (jobs.some((job) => !settledJobs.has(job.status))) return 5_000;
-  if (harness?.issues?.some((issue) => ["PENDING", "UNKNOWN"].includes(issue.status))) return 15_000;
-  if (!harness || harness.binding && !["CLOSED", "FAILED", "CANCELLED"].includes(harness.binding.status)) return 15_000;
-  return runStatus && settledRuns.has(runStatus) ? false : 15_000;
-}
-
-/** Hidden record panels keep their cache and drafts without scheduling timers. */
-export function runRecordsPollInterval(runStatus: string | undefined, visible: boolean, jobs: StatusRecord[] = []): PollInterval {
-  if (!visible) return false;
-  if (jobs.some((job) => !settledJobs.has(job.status))) return 5_000;
-  return runPollInterval(runStatus);
-}
-
-export function missionPollInterval(status?: string): PollInterval {
-  if (status && ["COMPLETED", "FAILED", "CANCELLED", "REJECTED"].includes(status)) return false;
-  return status === "WAITING_INPUT" || status === "BLOCKED" ? 15_000 : 3_000;
-}
-
 export function cloudPollingVersion(projectId: string, taskId: string, live?: CloudLiveSummary): number | undefined {
   if (!live || live.id !== taskId || live.project_id !== projectId || !Number.isSafeInteger(live.version) || live.version < 1) return undefined;
   if (live.latest_attempt_id ? live.current_attempt?.id !== live.latest_attempt_id : live.current_attempt !== null) return undefined;
