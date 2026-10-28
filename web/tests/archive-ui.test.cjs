@@ -21,7 +21,7 @@ function renderPage(path, locale, query, search = new URLSearchParams({ projectI
   const pageRequire = (name) => name === "react" && expandReports ? { ...React, useState: (value) => value === false ? [true, () => {}] : React.useState(value) } : name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspace : name === "@/app/tasks/task-records" ? records
     : name === "@/app/archives/archive-prompt" || name === "../archive-prompt" ? load("app/archives/archive-prompt.tsx", { require: pageRequire }) : name === "./task-quick-navigation" ? load("app/tasks/task-quick-navigation.tsx", { require: pageRequire }) : name === "@/lib/archive" ? archive : name === "@/lib/api" ? { errorText: (e) => e?.message || "" } : name === "@/lib/cli-release" ? release : name === "@/lib/cli-install-prompt" ? install : name === "./cli-install-prompt" ? installComponent : name === "@/lib/cli-authorization" ? {}
       : name === "@/lib/archive-operation" ? { useArchiveOperation: () => operation, useLocalWebOperation: () => observe?.operation || operation } : name.endsWith("archive-shared") ? { ArchiveOperationNotice: () => null }
-        : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
+        : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => { assert.notEqual(queryKey[0], "cli-actors", "CLI approval must not fetch historical uploader identities"); assert.notEqual(queryKey[0], "archive-actors", "Task details must not fetch historical uploader identities"); return { data: query[queryKey[0]], isLoading: false, isError: false }; }, useQueryClient: () => ({ invalidateQueries() {} }) }
           : name === "@/lib/cli-project-authorization" ? cliProjects
           : name.startsWith("./cli-") ? load(`app/cli-authorizations/${name.slice(2)}.tsx`, { require: pageRequire })
           : name === "@/lib/clipboard" ? { copyText: async () => {} }
@@ -130,6 +130,15 @@ test("root archives render bilingual explicit upload, optional children and orig
     assert.equal(html.includes('role="tablist"'), false);
   }
 });
+test("task details omit legacy uploader assignment while retaining archive guidance", () => {
+  for (const locale of ["en", "zh"]) for (const owner of [null, "interactive:legacy-owner"]) {
+    const child = { id: p, title: "Subtask", archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN", authorized_uploader_actor_ref: "interactive:legacy-owner" };
+    const html = renderPage("app/tasks/archive-task-detail.tsx", locale, { "archive-task": { task: { ...task, owner_uploader_actor_ref: owner }, subtasks: [child], publications: [], submission_history: [], management_history: [] }, "archive-snapshot": { ...task, assets: [] } });
+    for (const stale of ["interactive:legacy-owner", "Manage upload access", "上传身份", "Upload access", "上传授权", "authorized task uploader", "任务所有权"]) assert.equal(html.includes(stale), false, stale);
+    assert.ok(html.includes(locale === "en" ? "Copy archive prompt" : "复制归档 Prompt"));
+    assert.ok(html.includes(`/cli-authorizations?projectId=${p}#cli-install`));
+  }
+});
 test("archive plan, cases and reports keep separate task sections and original asset identities", () => {
   const base = { revision: 2, reported_result: "FAIL", origin: {}, accepted_at: "2026-10-27T12:00:00Z", submission_id: "submission-1" };
   const assets = [
@@ -149,7 +158,7 @@ test("archive plan, cases and reports keep separate task sections and original a
 test("expanded reports expose their copyable revision ID for a memory source", () => {
   const id = "00000000-0000-4000-8000-000000000003";
   const report = { id, kind: "REPORT", stable_key: "report-key", title: "Fixed report", revision: 2,
-    reported_result: "PASS", origin: {}, accepted_at: "2026-10-27T12:00:00Z", submission_id: "submission-1", markdown: "Original report" };
+    reported_result: "PASS", origin: {}, uploader_actor_ref: "interactive:actual-source", accepted_at: "2026-10-27T12:00:00Z", submission_id: "submission-1", markdown: "Original report" };
   for (const locale of ["en", "zh"]) {
     const html = renderPage("app/tasks/archive-task-detail.tsx", locale, { "archive-task": { task, subtasks: [], publications: [], submission_history: [], management_history: [] }, "archive-snapshot": { ...task, assets: [report] }, "archive-actors": { items: [] } }, undefined, undefined, true);
     const label = locale === "en" ? "Report asset revision ID" : "报告资产修订 ID";
@@ -158,6 +167,7 @@ test("expanded reports expose their copyable revision ID for a memory source", (
     const revision = html.slice(start, end);
     assert.ok(revision.includes(id));
     assert.match(revision, /ant-typography-copy/);
+    assert.ok(html.includes("interactive:actual-source"), "accepted artifact provenance remains visible");
   }
 });
 test("CLI authorization page supports explicit project approval without secret fields or shell-injected query text", () => {

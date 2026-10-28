@@ -4,7 +4,7 @@ import { Alert, Button, Descriptions, Empty, Form, Input, InputNumber, Select, S
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { errorText } from "@/lib/api";
-import { archiveApi, getArchiveActors, getArchiveSnapshot, getArchiveTask, type ArchiveAsset, type ArchiveSnapshot, type ArchiveTask } from "@/lib/archive";
+import { archiveApi, getArchiveSnapshot, getArchiveTask, type ArchiveAsset, type ArchiveSnapshot, type ArchiveTask } from "@/lib/archive";
 import { useArchiveOperation } from "@/lib/archive-operation";
 import { useI18n } from "@/lib/i18n";
 import { WorkspaceHeading, WorkspaceLoading, ProjectNavigation } from "@/app/workspace-ui";
@@ -16,7 +16,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 
 const statuses = ["DRAFT", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"];
 const results = ["NOT_RUN", "PASS", "FAIL", "ERROR", "SKIPPED", "UNKNOWN", "BLOCKED"];
-type ManagementDraft = { mode: "subtask" | "authorize" | "update" | "publish"; version: number; task: ArchiveTask; root: number; children: { subtask_id: string; archive_version: number; title: string; status: string }[] };
+type ManagementDraft = { mode: "subtask" | "update" | "publish"; version: number; task: ArchiveTask; root: number; children: { subtask_id: string; archive_version: number; title: string; status: string }[] };
 export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: string; projectId: string }) {
   const { t, locale, label, formatDate } = useI18n(); const cache = useQueryClient();
   const [target, setTarget] = useState(""), [version, setVersion] = useState<number | undefined>(), [submissionId, setSubmissionId] = useState<string | undefined>();
@@ -28,7 +28,6 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   const publicationAssets = useQuery({ queryKey: ["archive-publication-assets", projectId, taskId, draft?.version, draft?.root], enabled: draft?.mode === "publish", retry: false,
     queryFn: async () => { if (!draft) return []; const spaces = await Promise.all([getArchiveSnapshot(projectId, taskId, draft.root), ...draft.children.map((c) => getArchiveSnapshot(projectId, taskId, c.archive_version, c.subtask_id))]); return spaces.flatMap((space) => space.assets.map((item) => ({ ...item, space: space.subtask_id }))); } });
   const query = useQuery({ queryKey: ["archive-task", projectId, taskId], queryFn: () => getArchiveTask(projectId, taskId), enabled: Boolean(projectId), retry: false });
-  const actors = useQuery({ queryKey: ["archive-actors", projectId], queryFn: () => getArchiveActors(projectId), enabled: Boolean(projectId), retry: false });
   const operation = useArchiveOperation(projectId, taskId);
   const task = query.data?.task; const children = query.data?.subtasks || []; const child = children.find((row) => row.id === target);
   const latestVersion = child?.archive_version || task?.archive_version || 1;
@@ -39,14 +38,13 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
     if (!task) return;
     setDraft({ mode, version: task.version, task, root: task.archive_version, children: children.map((c) => ({ subtask_id: c.id, archive_version: c.archive_version, title: c.title, status: c.status })) });
     form.resetFields(); form.setFieldsValue(mode === "publish" ? { status: task.status, reported_result: task.reported_result, summary: "", selected_children: [], asset_revision_ids: [] }
-      : mode === "authorize" ? { uploader_actor_ref: task.owner_uploader_actor_ref, subtask_id: "" } : mode === "update" ? { title: task.title, objective: task.objective } : { title: "", objective: "" });
+      : mode === "update" ? { title: task.title, objective: task.objective } : { title: "", objective: "" });
   }
   async function manage(values: Record<string, unknown>) {
     if (!draft) return;
     let fields: Record<string, unknown> = { ...values, expected_task_version: draft.version };
     let action: string = draft.mode;
     if (draft.mode === "subtask") action = "subtasks";
-    if (draft.mode === "authorize") fields = { expected_task_version: draft.version, uploader_actor_ref: values.uploader_actor_ref || null, ...(values.subtask_id ? { subtask_id: values.subtask_id } : {}) };
     if (draft.mode === "publish") { action = "publications"; fields = { expected_task_version: draft.version, root_archive_version: draft.root, subtask_versions: draft.children.filter((c) => (values.selected_children as string[] || []).includes(c.subtask_id)).map(({ subtask_id, archive_version }) => ({ subtask_id, archive_version })), asset_revision_ids: values.asset_revision_ids || [], summary: values.summary, status: values.status, reported_result: values.reported_result }; }
     const result = await operation.manage(`tasks/${taskId}/${action}`, fields); if (result) accepted(result);
   }
@@ -114,17 +112,14 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
           <Typography.Paragraph className="muted archive-overview-note">{t("The local Agent performs testing. Archive completed plans, cases and reports explicitly with the CLI. Uploading artifacts does not mark the task complete or change its reported result.", "测试由本地 Agent 完成，通过 CLI 显式归档已完成的计划、用例与报告。上传产物不会自动完成任务或改变报告结果。")}</Typography.Paragraph>
         </section>
         <ArchiveOperationNotice operation={operation} onAccepted={accepted} />
-        {draft ? <section id="task-archive-edit" tabIndex={-1} className="data-surface session-record"><Typography.Title level={2}>{draft.mode === "subtask" ? t("Add subtask", "添加子任务") : draft.mode === "publish" ? t("Publish task summary", "发布任务汇总") : draft.mode === "authorize" ? t("Manage upload access", "管理上传身份") : t("Edit task", "编辑任务")}</Typography.Title>
+        {draft ? <section id="task-archive-edit" tabIndex={-1} className="data-surface session-record"><Typography.Title level={2}>{draft.mode === "subtask" ? t("Add subtask", "添加子任务") : draft.mode === "publish" ? t("Publish task summary", "发布任务汇总") : t("Edit task", "编辑任务")}</Typography.Title>
       <Form form={form} layout="vertical" onFinish={manage} disabled={operation.blocked} requiredMark="optional">
         {draft.mode === "subtask" || draft.mode === "update" ? <><Form.Item name="title" label={t("Title", "标题")} rules={[{ required: true, whitespace: true }, { max: 512 }]}><Input maxLength={512} /></Form.Item><Form.Item name="objective" label={t("Objective / responsibility", "目标 / 分工")} rules={[{ max: 16000 }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item></> : null}
-        {draft.mode === "authorize" ? <><Form.Item name="subtask_id" label={t("Authorization target", "授权目标")}><Select options={[{ value: "", label: t("Task owner", "任务上传所有者") }, ...children.map((c) => ({ value: c.id, label: c.title }))]} /></Form.Item><Form.Item name="uploader_actor_ref" label={t("Project-scoped uploader (clear to revoke)", "按项目授权的上传身份（清空表示撤销）")} extra={t("Project-scoped subtask access is limited to the assigned task owner. An all-project CLI authorization can access all tasks and subtasks.", "按项目授权的子任务访问仅限指定的任务所有者；全部项目 CLI 授权可访问所有任务及子任务。") }><Select allowClear loading={actors.isFetching} options={actors.data?.items.map((a) => ({ value: a.actor_ref, label: a.label }))} /></Form.Item></> : null}
         {draft.mode === "publish" ? <><Typography.Paragraph>{t("This summary freezes root version", "此次汇总固定根归档版本")} v{draft.root} · {t("management version", "管理版本")} {draft.version}</Typography.Paragraph><Form.Item name="selected_children" label={t("Included subtask versions", "纳入的子任务版本")} extra={t("Unselected and unfinished subtasks remain visible below and are not silently counted as complete.", "未选择及未完成的子任务仍保留显示，不会被自动视作完成。") }><Select mode="multiple" options={draft.children.map((c) => ({ value: c.subtask_id, label: `${c.title} · v${c.archive_version} · ${label(c.status)}` }))} /></Form.Item><Form.Item name="asset_revision_ids" label={t("Referenced artifact revisions", "引用的产物修订")}><Select mode="multiple" loading={publicationAssets.isFetching} options={publicationAssets.data?.filter((item) => !item.space || includedChildren.includes(item.space)).map((item) => ({ value: item.id, label: `${item.title} · ${item.kind} · r${item.revision}` }))} /></Form.Item>{publicationAssets.isError ? <Alert type="warning" showIcon message={t("Artifact references could not be loaded", "无法读取产物引用")} action={<Button onClick={() => void publicationAssets.refetch()}>{t("Retry", "重试")}</Button>} /> : null}<Form.Item name="summary" label={t("Summary, omissions and unfinished work", "汇总、未纳入范围与未完成工作")} rules={[{ required: true, whitespace: true }, { max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item><Space align="start"><Form.Item name="status" label={t("Task progress", "任务进度")} rules={[{ required: true }]}><Select className="archive-status-select" options={statuses.map((value) => ({ value, label: label(value) }))} /></Form.Item><Form.Item name="reported_result" label={t("Explicit reported result", "明确报告结果")} rules={[{ required: true }]}><Select className="archive-status-select" options={results.map((value) => ({ value, label: value }))} /></Form.Item></Space></> : null}
         <Space><Button type="primary" htmlType="submit" loading={operation.busy}>{draft.mode === "publish" ? t("Publish summary", "发布汇总") : t("Save", "保存")}</Button><Button onClick={() => setDraft(null)}>{t("Cancel", "取消")}</Button></Space>
       </Form></section> : null}
         <section id="task-upload" tabIndex={-1} className="data-surface session-record archive-upload" aria-labelledby="archive-upload-heading">
-          <div className="activity-heading"><Typography.Title id="archive-upload-heading" level={2}>{t("Archive test artifacts", "归档测试产物")}</Typography.Title><Button onClick={() => open("authorize")} disabled={operation.blocked}>{t("Manage upload access", "管理上传身份")}</Button></div>
-          <Typography.Paragraph className="muted">{t("Uploader", "上传身份")}: <Typography.Text code>{task.owner_uploader_actor_ref || t("Not assigned", "未指定")}</Typography.Text></Typography.Paragraph>
-          {!task.owner_uploader_actor_ref ? <Alert type="info" showIcon message={t("Assign a project-scoped uploader, or use an all-project CLI authorization", "请指定按项目授权的上传身份，或使用全部项目 CLI 授权")} style={{ marginBottom: 16 }} /> : null}
+          <div className="activity-heading"><Typography.Title id="archive-upload-heading" level={2}>{t("Archive test artifacts", "归档测试产物")}</Typography.Title></div>
           <div className="archive-upload-workflow"><label htmlFor="archive-target">{t("Destination", "归档位置")}</label><Select id="archive-target" className="archive-target" value={target} onChange={(value) => { setTarget(value); setVersion(undefined); setSubmissionId(undefined); }} options={[{ value: "", label: t("Task root (no Subtask ID)", "任务根空间（无需子任务 ID）") }, ...children.map((c) => ({ value: c.id, label: `${c.title} · ${c.id}` }))]} />
           <ArchivePrompt projectId={projectId} taskId={taskId} subtaskId={target || undefined} taskInputs={{ sut_repository_url: task.sut_repository_url, test_framework_repository_url: task.test_framework_repository_url, sut_branch: task.sut_branch, framework_branch: task.framework_branch }} />
           <Link className="archive-install-link" href={`/cli-authorizations?projectId=${projectId}#cli-install`}>{t("CLI installation prompt & authorization", "CLI 安装 Prompt 与授权")}</Link></div>
@@ -135,7 +130,6 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
             { title: t("Subtask", "子任务"), key: "title", render: (_, row) => <><Button type="link" onClick={() => viewSnapshot(row.id)}>{row.title}</Button><div><Typography.Text code copyable>{row.id}</Typography.Text></div></> },
             { title: t("Archive version", "归档版本"), dataIndex: "archive_version", render: (v: number) => `v${v}` },
             { title: t("Status", "状态"), dataIndex: "status", render: label }, { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> },
-            { title: t("Upload access", "上传授权"), dataIndex: "authorized_uploader_actor_ref", render: (value: string | null) => value ? t("Authorized", "已授权") : t("Revoked / unassigned", "已撤销 / 未指定") },
           ]} /></div>
         </section>
         <section id="task-artifacts" tabIndex={-1} className="data-surface session-record" aria-labelledby="archive-version-heading">
