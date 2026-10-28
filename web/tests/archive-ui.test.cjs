@@ -184,7 +184,9 @@ test("CLI authorization page supports explicit project approval without secret f
     assert.ok(html.includes(locale === "en" ? "Manual installation and binding" : "手动安装与绑定"));
     assert.match(html, /<textarea[^>]+readOnly=""/);
     assert.ok(html.includes('<details class="cli-install-manual">'), "manual commands stay in the collapsed secondary section");
-    const manual = html.slice(html.indexOf('<details class="cli-install-manual">'), html.indexOf("</section>"));
+    const manualStart = html.indexOf('<details class="cli-install-manual">');
+    const manual = html.slice(manualStart, html.indexOf("</section>", manualStart));
+    assert.ok(html.indexOf("cli-approval-panel") < html.indexOf('id="cli-install"'), "pending approval appears before setup guidance");
     assert.ok(manual.includes(locale === "en" ? "PENDING with exit code 4" : "PENDING 和退出码 4"));
     assert.ok(manual.includes(locale === "en" ? "Keep the original request_id" : "请保留原 request_id"));
     assert.ok(manual.includes("hypertest auth bind --resume --request-id"));

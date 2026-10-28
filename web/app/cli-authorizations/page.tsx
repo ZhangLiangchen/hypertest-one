@@ -61,10 +61,21 @@ export default function CliAuthorizationsPage() {
       { all_projects: true, project_ids: [], scopes: ["archive:read", "archive:write"], expires_in_days: null, short_code: request.data.short_code });
     if (result) changed();
   }
-  return <main className="workspace-page"><WorkspaceHeading title={t("CLI authorization", "CLI 授权")} backHref="/" backLabel={t("Projects", "项目")} description={t("Authorize one local CLI for all current and future projects without an expiration. Reuse it across workspaces and Agent sessions.", "为本地 CLI 授权全部现有及未来项目，默认永不过期，可跨工作目录与 Agent 会话复用。")}
+  return <main className="workspace-page cli-authorizations-page"><WorkspaceHeading title={t("CLI authorization", "CLI 授权")} backHref="/" backLabel={t("Projects", "项目")} description={t("Authorize one local CLI for all current and future projects without an expiration. Reuse it across workspaces and Agent sessions.", "为本地 CLI 授权全部现有及未来项目，默认永不过期，可跨工作目录与 Agent 会话复用。")}
     actions={<Button onClick={() => { void setup.refetch(); void grants.refetch(); if (requestId) void request.refetch(); }}>{t("Refresh", "刷新")}</Button>} />
     {setup.isError || setup.data?.configured === false ? <Alert type="warning" showIcon className="archive-operation-notice" message={t("CLI authorization is not available on this server", "此服务器尚未开放 CLI 授权")} description={t("The server operator must configure the archive Web boundary. No credential is requested or stored by this page.", "需要服务管理员配置归档 Web 入口。此页面不索取或保存凭据。") } /> : null}
-    <div className="cli-bind-guide"><section id="cli-install" className="workspace-panel"><Typography.Title level={2}>{t("Let your Agent install or upgrade the CLI", "让 Agent 安装或升级 CLI")}</Typography.Title>
+    {requestId ? <section className="workspace-panel archive-section cli-approval-panel"><div className="activity-heading"><Typography.Title level={2}>{request.data && request.data.status !== "PENDING" ? t("CLI binding status", "CLI 绑定状态") : t("Approve this CLI", "批准此 CLI")}</Typography.Title><Button onClick={() => void request.refetch()} loading={request.isFetching}>{t("Refresh request", "刷新请求")}</Button></div>
+      {request.isError ? <Alert type="error" showIcon message={t("Pairing request could not be read", "无法读取配对请求")} description={errorText(request.error, locale)} /> : null}
+      {request.data ? request.data.status === "PENDING" ? <><PairingDetails request={request.data} />
+      <Form key={requestId} form={form} layout="vertical" onFinish={approve} disabled={operation.blocked}>
+        <Typography.Paragraph>{t("Access", "授权范围")}: {t("All current and future projects", "全部现有及未来项目")} · {t("Never expires", "永不过期")}</Typography.Paragraph>
+        <Typography.Paragraph>{t("Permissions", "权限")}: <Tag>archive:read</Tag><Tag>archive:write</Tag></Typography.Paragraph>
+        <Form.Item name="code_confirmed" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t("Check the terminal code first.", "请先核对终端短码。"))) }]}><Checkbox>{t("The code matches the CLI I started, and I approve this access.", "短码与我启动的 CLI 一致，我批准上述授权。")}</Checkbox></Form.Item>
+        <Button type="primary" htmlType="submit" loading={operation.busy} disabled={operation.blocked}>{t("Approve CLI", "批准 CLI")}</Button>
+      </Form></> : <CliRequestResult request={request.data} /> : null}
+      <ArchiveOperationNotice operation={operation} onAccepted={changed} />
+    </section> : null}
+    <div className="cli-bind-guide"><section id="cli-install" className="workspace-panel cli-guide-install"><Typography.Title level={2}>{t("Let your Agent install or upgrade the CLI", "让 Agent 安装或升级 CLI")}</Typography.Title>
       <CliInstallPrompt projectId={preselectedProject || undefined} server={cliServer} caCertificate={setup.data?.cli_ca_certificate} />
       <details className="cli-install-manual"><summary>{t("Manual installation and binding", "手动安装与绑定")}</summary>
       {CLI_RELEASE.published ? <>
@@ -84,23 +95,12 @@ export default function CliAuthorizationsPage() {
       <Typography.Paragraph className="archive-command" copyable><code>hypertest skill install --global --host codex</code></Typography.Paragraph>
       <Typography.Paragraph className="archive-command" copyable><code>hypertest doctor</code></Typography.Paragraph>
       </details>
-    </section><section className="workspace-panel"><Typography.Title level={2}>{t("Approve access, then archive when ready", "批准授权，按需归档")}</Typography.Title>
+    </section><section className="workspace-panel cli-guide-approval"><Typography.Title level={2}>{t("Approve access, then archive when ready", "批准授权，按需归档")}</Typography.Title>
       <Typography.Paragraph>{t("The Agent opens a pairing link. Match the terminal code and approve access. Credentials stay in the CLI's private profile.", "Agent 会打开配对链接。请核对终端短码并批准访问；凭据保存在 CLI 私有 profile 中。")}</Typography.Paragraph>
       <Form layout="vertical" onFinish={() => { if (/^[a-f0-9-]{36}$/i.test(inputRequest)) window.location.assign(`/cli-authorizations?request_id=${encodeURIComponent(inputRequest)}`); }}><Form.Item label={t("Open a pairing request", "打开配对请求")}><Space.Compact style={{ width: "100%" }}><Input aria-label={t("Pairing request ID", "配对请求 ID")} value={inputRequest} onChange={(event) => setInputRequest(event.target.value)} placeholder="Request ID" /><Button htmlType="submit" disabled={!/^[a-f0-9-]{36}$/i.test(inputRequest)}>{t("Open", "打开")}</Button></Space.Compact></Form.Item></Form>
       <Typography.Paragraph>{t("After testing, copy the archive instruction from a task page. Project ID and Task ID are required; Subtask ID is optional.", "测试结束后，从任务页复制归档指令。项目 ID 和任务 ID 必填，子任务 ID 可选。")}</Typography.Paragraph><Typography.Paragraph className="muted">{t("The Skill runs only when explicitly selected. Uploading to the task root creates no default subtask. Revoke server access below; local logout only disables the local profile.", "Skill 仅在显式选择时运行。上传到根空间不会创建默认子任务。下方撤销操作终止服务器授权；本机 logout 仅停用本机 profile。")}</Typography.Paragraph>
     </section></div>
-    {requestId ? <section className="workspace-panel archive-section"><div className="activity-heading"><Typography.Title level={2}>{request.data && request.data.status !== "PENDING" ? t("CLI binding status", "CLI 绑定状态") : t("Approve this CLI", "批准此 CLI")}</Typography.Title><Button onClick={() => void request.refetch()} loading={request.isFetching}>{t("Refresh request", "刷新请求")}</Button></div>
-      {request.isError ? <Alert type="error" showIcon message={t("Pairing request could not be read", "无法读取配对请求")} description={errorText(request.error, locale)} /> : null}
-      {request.data ? request.data.status === "PENDING" ? <><PairingDetails request={request.data} />
-      <Form key={requestId} form={form} layout="vertical" onFinish={approve} disabled={operation.blocked}>
-        <Typography.Paragraph>{t("Access", "授权范围")}: {t("All current and future projects", "全部现有及未来项目")} · {t("Never expires", "永不过期")}</Typography.Paragraph>
-        <Typography.Paragraph>{t("Permissions", "权限")}: <Tag>archive:read</Tag><Tag>archive:write</Tag></Typography.Paragraph>
-        <Form.Item name="code_confirmed" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t("Check the terminal code first.", "请先核对终端短码。"))) }]}><Checkbox>{t("The code matches the CLI I started, and I approve this access.", "短码与我启动的 CLI 一致，我批准上述授权。")}</Checkbox></Form.Item>
-        <Button type="primary" htmlType="submit" loading={operation.busy} disabled={operation.blocked}>{t("Approve CLI", "批准 CLI")}</Button>
-      </Form></> : <CliRequestResult request={request.data} /> : null}
-      <ArchiveOperationNotice operation={operation} onAccepted={changed} />
-    </section> : null}
-    <section className="workspace-panel"><div className="activity-heading"><Typography.Title level={2}>{t("Authorized clients and projects", "已授权客户端与项目")}</Typography.Title><Button loading={grants.isFetching} onClick={() => void grants.refetch()}>{t("Refresh grants", "刷新授权")}</Button></div>
+    <section className="workspace-panel cli-authorizations-list"><div className="activity-heading"><div><Typography.Title level={2}>{t("Authorized clients and projects", "已授权客户端与项目")}</Typography.Title><p className="cli-section-description">{t("Review the clients that can access your projects and manage their grants.", "查看可以访问项目的客户端并管理其授权。")}</p></div><Button loading={grants.isFetching} onClick={() => void grants.refetch()}>{t("Refresh grants", "刷新授权")}</Button></div>
       {grants.isError ? <Alert type="error" showIcon message={t("Grants could not be refreshed", "无法刷新授权")} description={errorText(grants.error, locale)} /> : null}
       {projects.isError ? <Alert type="warning" showIcon message={t("Project names are unavailable", "项目名称暂不可用")} description={t("Refresh the project list to show names for existing project grants.", "刷新项目列表后可查看既有项目授权的名称。")} action={<Button onClick={() => void projects.refetch()}>{t("Refresh projects", "刷新项目")}</Button>} /> : null}
       {grants.isLoading ? <Typography.Paragraph role="status" className="muted">{t("Loading authorized clients…", "正在读取已授权客户端…")}</Typography.Paragraph> : <>{!grants.data?.authorizations?.length && !grants.data?.items?.length ? <Empty description={t("No CLI grants", "暂无 CLI 授权")} /> : null}<GlobalCliAuthorizations authorizations={grants.data?.authorizations || []} onChanged={changed} /><AuthorizedCliClients grants={grants.data?.items || []} projects={projects.data || []} server={cliServer || ""} canAddProject={enabled && !projects.isLoading && !projects.isError && Boolean(projects.data)} onChanged={changed} /></>}
