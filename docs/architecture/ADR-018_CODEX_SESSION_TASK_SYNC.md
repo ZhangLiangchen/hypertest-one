@@ -1,5 +1,7 @@
 # ADR-018：Codex 会话测试任务与产物同步
 
+**适用范围：旧 Local SessionTask 合同与历史。** 新 Local 接入已改为 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 的显式 Skill/CLI 归档；新归档不要求会话绑定或持续同步。本文及 ADR-024/026 继续解释旧身份、授权、回执与历史，不用于指导新归档接入。实现和部署见[归档交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)，用户功能验收另行记录。
+
 **2026-10-26 增补：[ADR-026](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)在显式启用的协作 profile 中允许一个 SessionTask 接纳多个获授权真实 root 的贡献，由当前 PRIMARY 汇总。下文一对一规则继续用于未启用任务与初始绑定；原 UUID/source/owner/历史不改写，旧 full sync 不变成多写者接口。字段及操作由领域 §50.6 / TMP §45.5 拥有。**
 
 **状态：Accepted（2026-10-21，Asia/Singapore）；实现与验收单独记录。**

@@ -1,5 +1,7 @@
 # ADR-013 正式部署与验收记录
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 日期：2026-10-19，Asia/Singapore。正式容器切换、旧数据保全及正反两条真实链路
 已完成；稳定性观察结果见下文。
 部署就绪不代表新的测试 Run 已获得质量结论。架构边界以

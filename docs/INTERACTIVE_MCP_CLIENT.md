@@ -1,5 +1,7 @@
 # Interactive Agent MCP client
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 Current Codex task/case/report management uses the two scoped synchronization tools described in [Codex session task sync](CODEX_SESSION_TASK_SYNC.md). Distribution version `0.2.0` adds this management interface; its `task:sync` grant does not require the legacy execution setup below. Existing releases and controlled execution records retain their own identities.
 
 

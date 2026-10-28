@@ -1,5 +1,7 @@
 # MCP 安装发行与 Web 引导交付（2026-10-20）
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 本轮交付正式 MCP wheel、独立本机 `setup` / `doctor`，以及
 **创建测试运行 → 我的电脑**中的三步安装指引和项目专属安装 Prompt。
 [PR #19](https://github.com/ZhangLiangchen/hypertest-one/pull/19) 已合并，

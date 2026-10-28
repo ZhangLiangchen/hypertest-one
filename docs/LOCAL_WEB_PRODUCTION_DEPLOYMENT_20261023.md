@@ -1,6 +1,8 @@
-# Local 模式项目入口生产部署记录（2026-10-23）
+# Local 模式项目入口部署记录（2026-10-23）
 
-2026-10-23 已将“项目页 → 本地会话任务 → 接入本地模式”入口部署到生产 Web。用户可选择 Claude Code、Codex 或 DeepSeek harness，查看显式 MCP 与 Hooks 自动同步两种接入命令。页面提供的是原有固定版本安装包；本次没有升级 Local runtime、后端、Cloud Worker 或生产数据库结构。
+> **历史部署与验收记录。** 下述 MCP/Hooks 页面与 `local-v*` 包是当时的旧 Local 接入，不是现行安装指引。新接入采用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 的显式 CLI/Skill 归档；请查 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)、[当前 TODO](TODO.md) 和 [服务器操作](SERVER_OPERATIONS.md)。旧任务、回执及原 key 恢复边界仍需保留；此记录不证明当前部署或用户验收状态。
+
+2026-10-23 曾将“项目页 → 本地会话任务 → 接入本地模式”入口部署到当时的 Web。用户当时可选择 Claude Code、Codex 或 DeepSeek harness，查看显式 MCP 与 Hooks 自动同步两种接入命令。页面提供的是原有固定版本安装包；本次没有升级 Local runtime、后端、Cloud Worker 或生产数据库结构。
 
 PR [#23](https://github.com/ZhangLiangchen/hypertest-one/pull/23) 合并为 `b27c8c14c80dce46bc21a02c83daba7070cf8292`，合并树与已审查 head `10de445c813dbad9e37201f1210d8595a35e206b` 一致。[CI #121](https://github.com/ZhangLiangchen/hypertest-one/actions/runs/39895747568) 的两个 job 均核对到该 head：Python **1180 passed / 21 skipped**（89 warnings），Web **140 passed**，TypeScript 检查及构建通过。CI 中的迁移验证不代表生产执行了迁移。
 

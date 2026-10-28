@@ -1,6 +1,6 @@
 # ADR-026：Local 测试任务的多会话参与与并行贡献
 
-2026-10-27：[ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定后续采用独立归档 Task/Subtask 和显式 Skill/CLI，尚未实现。本文的 participant、contribution、native JOIN 与 PRIMARY 合同继续解释旧会话任务及历史；不得将这些 ID/角色重标为新归档子任务或上传身份。
+**适用范围：旧 Local SessionTask 协作与历史合同。** [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 的独立归档 Task/Subtask 和显式 Skill/CLI 已实现并部署，见[归档交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。本文的 participant、contribution、native JOIN 与 PRIMARY 合同继续解释旧会话任务及历史；不得将这些 ID/角色重标为新归档子任务或上传身份。
 
 **状态：Accepted design / 首片源码已实现（2026-10-26，Asia/Singapore）。** 用户已要求实现测试任务与本地会话的一对多绑定；源码、自动回归、部署、Local 发行与 USER_OWNED 功能验收分别记录，见[本轮交付](../MULTI_SESSION_LOCAL_DELIVERY_20261026.md)。
 

@@ -1,6 +1,6 @@
 # ADR-020：Hooks 驱动的本地会话任务同步
 
-2026-10-27：[ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)确定下一阶段以显式 Skill/CLI 后置归档替换 Local MCP/Hooks 接入，尚未实现。本文保留已交付版本的原设计与恢复语义；新链路切换后旧新写退休，历史与原 key 读取保留，不重写下方发行和验收记录。
+**适用范围：旧 Local Hooks/MCP 接入的历史合同，不是新安装指引。** [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 的显式 Skill/CLI 归档已实现并部署，替代新 Local 接入中的 Hooks/MCP；旧 Local 新写默认关闭。旧记录、受管客户端退休及原 key 只读恢复仍须保留。实现、部署及验收范围见[归档交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)；下文发行与验收状态均为各自时间点的历史。
 
 ## 2026-10-26 统一安装 / 更新入口增补
 

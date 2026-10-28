@@ -1,5 +1,7 @@
 # Codex 会话测试任务同步
 
+> **历史资料与兼容范围：** 本文描述旧版本、旧工作流或特定交付时点，文中“当前”仅指原记录时点。新 Local 接入使用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；未完成事项见[当前 TODO](TODO.md)，实际部署须现场核实。旧合同与历史记录仍适用于各自范围。
+
 ## 多会话协作（ADR-026）
 
 显式启用的 Local 任务现有独立协作 profile：Operator 启用并授权精确会话，同一 owner 的真实 root 通过 JOIN 加入、各自追加贡献，当前 PRIMARY 显式发布整体汇总并可交接。初始绑定和旧历史不改写，未启用任务继续下文单会话合同。完整用法、源码客户端与公开旧包的区别见[本轮交付](MULTI_SESSION_LOCAL_DELIVERY_20261026.md)；API字段见TMP §45.5。

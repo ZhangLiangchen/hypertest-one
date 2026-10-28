@@ -1,5 +1,7 @@
 # HyperTest Local 统一发行与一键安装设计
 
+> **历史 Local 发行与安装文档。** 下文描述旧 SessionTask / Hooks / MCP 及各轮状态，不适用于新接入。新 Local 归档使用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；旧历史与原 key 恢复继续保留。
+
 ## 2026-10-26 Local v0.1.1 正式发行
 
 本轮按用户要求将最新 rc.2 的功能以 `local-v0.1.1` 正式公开并更新 GitHub Latest，下载和实际状态见[正式发行记录](LOCAL_STABLE_RELEASE_20261026.md)。`stable` 可选择新的正式版本；已有 rc.2 的固定摘要 updater 也可发现它，不覆盖旧 tag 或资产。正式发布与宿主验收分别记录，安装不自动启用新 Hooks或增加平台权限，真实宿主验收状态保持原义。

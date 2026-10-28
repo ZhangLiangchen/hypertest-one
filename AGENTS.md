@@ -2,27 +2,13 @@
 
 > **One Input. One Mission. One Complete Test Cycle.**
 
-剩余工作统一看[当前TODO](docs/TODO.md)与[本轮跟进](docs/FOLLOWUP_DELIVERY_20261023.md)；实现、部署和USER_OWNED验收分别记录，不从历史候选状态重复安排已完成工作。
+剩余工作看[当前 TODO](docs/TODO.md)；实现、部署和 USER_OWNED 验收分别记录，历史交付见[文档索引](docs/README.md)，不从历史候选状态重复安排已完成工作。
 
-## Local 显式归档重构（2026-10-27）
+## Local 显式归档
 
-用户已确定按[ADR-027](docs/architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将 Local Agent 接入改为测试结束后显式调用 `hypertest-archive` Skill 与 `hypertest` CLI 归档。新流程移除 HyperTest 自有 MCP、全部 Hooks、native bridge 与常驻同步依赖，不再以 SessionStart/BIND/JOIN 为归档前提；上传者由独立归档授权确定，原会话仅为来源声明。新增全局 CLI 授权页、操作指导和一键绑定，用户级 profile 可跨目录/会话复用明确获准项目；每次上传必填 Project ID、Task ID，Subtask ID 可选，省略时直接归档到 Task 根空间，不补造默认子任务。具体任务见[开发计划](docs/LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)与[CLI 授权指南](docs/CLI_AUTHORIZATION_GUIDE.md)。
+新 Local 测试结束后显式调用 `hypertest-archive` Skill 与 `hypertest` CLI，遵循 [ADR-027](docs/architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)、领域 §56、TMP §51、技术架构 §50 和 [CLI 授权指南](docs/CLI_AUTHORIZATION_GUIDE.md)。每次上传必填 Project ID、Task ID，Subtask ID 可选；省略时写 Task 根空间，不补造默认子任务。上传者由独立归档授权确定，原会话仅为来源声明。用户级 profile 只复用明确获准项目，网页批准由用户完成。
 
-**新归档已实现并部署 API/Web（Git `1512d11f99c5e500e4fc56c685410ffa9e533530`、schema0031），cli-v0.1.0 已公开；定向自测、镜像与部署健康见[本轮交付](docs/LOCAL_ARCHIVE_DELIVERY_20261027.md)，USER_OWNED 验收未执行。** 下文 ADR-018/020/024/026 继续约束旧 profile 与历史；新归档按领域§56、TMP§51、技术架构§50实施。代码默认关闭旧 Local 新写，部署切换与本地安装迁移分别记录；本地按受管收据精确移除自有配置，保留其他插件配置、凭据、全部旧任务/报告/回执、源文件和未决 key，只读恢复不再依赖 MCP/Hooks。不得以“移除接入”删除历史、伪造 native 来源、自动重发未知请求或连带停用 Cloud/Memory。
-
-CLI 推荐安装方式已改为复制 Prompt 给本机 Agent，平台授权/项目指引与 GitHub Release 提供中英文内容；Web 已按 Git `8b90efb878c51568c9e35901ad31116b742a5f7f` 部署，cli-v0.1.0 包与原摘要保持。安装、Skill 配置和配对由 Agent 完成，网页批准由用户完成；真实本机验收尚未执行，详见[Prompt 安装交付](docs/CLI_PROMPT_INSTALL_DELIVERY_20261027.md)。
-
-CLI 授权已移除手选历史 ACTIVE 上传身份，用户只核短码/客户端并批准项目、权限和期限。API 在首次合法批准时按稳定 Operator 建立不可变专用上传身份映射，跨设备复用；历史actor/grant/Task owner/回执保留。API/Web已按Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`部署、schema0032，见[项目授权交付](docs/CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)。cli-v0.1.0继续可用，旧请求按原key恢复，不自动改绑或延长过期配对。
-
-CLI 授权页已补客户端「添加项目」入口、同profile增量授权Prompt及客户端→项目折叠树；绑定后展示名称和绿色状态。Web已按Git `fc9de8665fac15d8b63e92de6b1198ccfd3d1fd9`部署，API保持0061007、schema0032、cli-v0.1.0不变。定向回归、PC合成浏览器和健康检查见[授权页交付](docs/CLI_AUTHORIZATION_UI_DELIVERY_20261027.md)，真实追加授权仍USER_OWNED。
-
-页面归档Prompt已加入本地任务创建页和详情页，自动填写Project/Task及可选Subtask目标；产物范围、Profile、本机CA由用户补齐，未补齐不执行上传。Web已按Git `40ec1e3ce250faea8039da4477f64b6b26573090`部署，API0061007/schema0032/CLI包不变，见[Prompt交付](docs/ARCHIVE_PROMPT_DELIVERY_20261027.md)。真实归档仍USER_OWNED。
-
-页面归档Prompt后续已取消手填占位：Agent依据本次测试上下文整理有限产物清单，匹配既有profile及受信CA，列出清单后直接上传；仅必要歧义才询问。上段40ec1e3为首版历史，当前Web Git `c3d3f40680420a41517d195861324defc0f81269`，API/schema/CLI不变，见[后续改进](docs/ARCHIVE_PROMPT_DELIVERY_20261027.md#后续改进由-agent-自动解析范围与连接)。真实归档未执行。
-
-CLI 0.1.1 已修复资产 stable_key 被时间字段循环覆盖的问题并公开发行，CLI Git `01b6d1ebcd64326808771ed06ac1166b98cceb6c`。当前Web Git `75a5a96060dfcf83ee7c154a39a5f20b0bddf6e9`，页面/Release/仓库安装Prompt均固定新版；旧0.1.0仅保留历史与缺陷提示，已临时修补的本机也按受管流程升级并保留旧包、备份、授权及未决journal。API0061007/schema0032不变，见[修复交付](docs/CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。Mac升级与用户原提交读回中断未在本轮执行，不将该独立问题标为修复，不重发原请求。
-
-本地任务新归档已沿用旧版详情布局：统一 `/tasks/[taskId]` 入口，归档以 `mode=archive&projectId=...` 明确类型/项目，原 `/archives` 链接仅兼容跳转；计划、用例和原始报告独立分区，复用左侧固定目录及概览样式。Web 当前 Git `c4d0e1efd125a67b2f42819206b59feea7cd4608`，API0061007/schema0032/CLI0.1.1保持。不得因页面统一合并或迁移旧SessionTask与新LocalArchiveTask身份/历史，见[页面交付](docs/LOCAL_TASK_UNIFIED_UI_DELIVERY_20261027.md)。
+新流程不依赖 HyperTest 自有 MCP、Hooks、native bridge 或常驻同步；旧 Local 新写默认关闭。旧 profile 的身份、授权、历史与原 key 只读恢复仍受 ADR-018/020/024/026 约束。按受管收据精确处理旧自有配置，保留其他插件配置、凭据、历史、源文件和未决 key；不自动重发未知请求、不伪造来源、不连带停用 Cloud/Memory。未完成事项见 [TODO](docs/TODO.md)，各轮实现、部署、发行与用户验收见[文档索引](docs/README.md)。
 
 ## 快速原型阶段：自测与验证约束
 
@@ -41,7 +27,7 @@ CLI 0.1.1 已修复资产 stable_key 被时间字段循环覆盖的问题并公�
 
 ## 当前测试服务器：开发与部署规则（2026-10-24 增补）
 
-最新API/Web已于2026-10-27按Git `006100788751a416b0d6f1dbe8d78c96d3155a5f`部署CLI项目授权简化，schema0032，固定ops保持1512d11，见[授权交付](docs/CLI_PROJECT_AUTHORIZATION_DELIVERY_20261027.md)。此前Web按Git `8b90efb878c51568c9e35901ad31116b742a5f7f`部署CLI Prompt安装入口，见[Prompt交付](docs/CLI_PROMPT_INSTALL_DELIVERY_20261027.md)；当时API/固定ops为下述1512d11、schema0031。此前API/Web已于2026-10-27按Git `1512d11f99c5e500e4fc56c685410ffa9e533530`部署显式CLI归档与授权页面，schema0031，旧Local新写关闭，见[归档交付](docs/LOCAL_ARCHIVE_DELIVERY_20261027.md)。独立Cloud Worker与legacy Worker镜像保持。此前Web于2026-10-26按Git `57cb59543a0e1b2102eccb06d917ba4e88bed071`部署本地任务详情左侧悬浮快速导航，见[导航交付](docs/TASK_QUICK_NAVIGATION_DELIVERY_20261026.md)；此前按`72322d66417f17b6cecad2f194a6866cec18f3d3`部署工作台多Agent中英文文案，见[文案更新](docs/WEB_COPY_DELIVERY_20261026.md)；此前df5155b已部署Local单Prompt安装/升级入口，并公开local-v0.1.1-rc.2候选，见[Local更新](docs/LOCAL_ONE_COMMAND_DELIVERY_20261026.md)；API保持Git `66f69f17a249ee382d60096ef9871695be457ee5`多会话协作，schema0029，见[协作交付](docs/MULTI_SESSION_LOCAL_DELIVERY_20261026.md)；独立Cloud Worker保持Git `76edb01a985b484bb1d1e1a88fcadd44b7a3532b`身份。此前API/独立Cloud Worker按该76edb01部署，新增默认关闭的受控公开HTTPS首片与框架冻结；Web已于2026-10-26按`d2d329ef575978e978f7b322a4a4123122688760`修复创建任务页的面板留白及云端读取状态并部署，见[本轮Web修复](docs/TASK_CREATE_WEB_FIX_20261026.md)；此前首屏、滚动及拆包改进见[Web性能交付](docs/WEB_PERFORMANCE_DELIVERY_20261025.md)；此前PC宽屏全页面统一见[原Web记录](docs/LIQUID_GLASS_WEB_DELIVERY_20261025.md)；当时schema0028，legacy Worker保留55de50e。P0/Memory能力与独立权限保持，见[最新跟进交付](docs/FOLLOWUP_DELIVERY_20261023.md)、[Memory原交付](docs/POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)及[P0原记录](docs/P0_RECOVERY_DELIVERY_20261023.md)。下文C4/6d49等保留历史，不替代最新部署身份或用户验收。容量处置与清理结果由[本轮磁盘清理记录](docs/DISK_CLEANUP_20261024.md)拥有；后续构建检查实际余量，不沿用旧观察或自行删除历史。
+各轮部署记录为历史事实，实际服务、镜像、schema、配置和磁盘余量在操作前核实，不从旧记录推断当前状态。操作规则见[服务器操作](docs/SERVER_OPERATIONS.md)，历史记录见[文档索引](docs/README.md)。
 
 本服务器是内部测试环境，允许服务中断，没有零停机要求。Compose、容器、目录和历史文档中的 `production` / “生产”命名不代表当前环境的可用性要求。
 
@@ -78,12 +64,12 @@ When details conflict:
 
 ## Non-negotiable architecture principles
 
-- **Local management path: HyperTest One manages testing tasks, cases and reports; local Agents perform testing and synchronize their outputs. This management API does not execute tests.** [ADR-018](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) and [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) retain the default single-session contract. [ADR-026](docs/architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md) adds explicitly enabled one-task/many-root participation: same owner actor, exact source authorization/JOIN, isolated append-only contributions and one current primary publisher. Initial binding identity/history stay immutable; child delegates do not acquire parent writer rights. Legacy full sync cannot write collaborative tasks; original-key reconciliation and old single-session tasks remain compatible. Implementation/deployment/client release/user acceptance are recorded separately.
-- **Cloud and Local share one Project:** Cloud uses independent CloudTask / CloudAttempt identities and the official DeepSeek Harness Python SDK under [ADR-019](docs/architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md). The six steps are Project resources → frozen task inputs → dispatch → DeepSeek/Codex work → accepted artifacts → project-framework execution/reporting. Claude remains a placeholder. Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。测试服务器 API/Worker 仍为 C4 `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 来源，当前 Cloud/Codex 已启用、SSH 未启用，Worker 空闲；代码默认关闭与测试服务器的实际启用配置分别记录。Web 已按物理 Git 源码 `6d496890013614de5f216a9e672b4e915fd66550`（tree `874d110b`）部署，cloud-client 定向组件回归 17 通过 / 0 失败 / 0 跳过，正式构建成功，Web healthy、根页与 Cloud setup 均 HTTP 200。用户功能验收尚未执行，上述回归与健康检查不作为本轮模型 / SUT 执行证明。实际部署见 [Cloud Git 交付记录](docs/CLOUD_GIT_DELIVERY_20261023.md)；实现与历史边界见 [Cloud status](docs/CLOUD_IMPLEMENTATION_STATUS.md).
+- **Local management path: HyperTest One manages testing tasks, cases and reports; local Agents perform testing and explicitly archive their outputs under ADR-027. This management API does not execute tests.** The following session-sync rules apply to the legacy profile: [ADR-018](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) and [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) retain the default single-session contract. [ADR-026](docs/architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md) adds explicitly enabled one-task/many-root participation: same owner actor, exact source authorization/JOIN, isolated append-only contributions and one current primary publisher. Initial binding identity/history stay immutable; child delegates do not acquire parent writer rights. Legacy full sync cannot write collaborative tasks; original-key reconciliation and old single-session tasks remain compatible. Implementation/deployment/client release/user acceptance are recorded separately.
+- **Cloud and Local share one Project:** Cloud uses independent CloudTask / CloudAttempt identities and the official DeepSeek Harness Python SDK under [ADR-019](docs/architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md). The six steps are Project resources → frozen task inputs → dispatch → DeepSeek/Codex work → accepted artifacts → project-framework execution/reporting. Codex is explicitly opt-in; Claude remains a placeholder. Source snapshots, reported results, deployment and user acceptance have separate identities and must not be upgraded or inferred from one another. Historical results and limitations are recorded in [Cloud status](docs/CLOUD_IMPLEMENTATION_STATUS.md) and [Cloud delivery](docs/CLOUD_GIT_DELIVERY_20261023.md).
 - Cloud API processes do not run Agents or tests. Only the current fenced Worker broker writes Cloud reports; root / child Agents receive no platform token, DB access or Operator key. Cloud `cloud:work` and Local `task:sync`, identities, ledgers and UNKNOWN reconciliation remain separate. Model identities must be provisioned in the cloud; do not copy local logins. Cloud disablement or failure must not block Local synchronization or history.
 - [ADR-021](docs/architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) shares TaskSyncCore semantics / library through separate LocalSyncAdapter and CloudSyncAdapter, not a generic Task table, API, token or global journal. Activity, uploads and SDK idle are not completion or PASS. ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
 - Session sync shares Project, stores versioned plans/cases/raw reports and reported results with source metadata, and uses scoped authorization, idempotency receipts and expected-version checks. It does not require Job, Harness, Runner, execution binding, source transfer, independent CI proof or Gate. Reported PASS/FAIL is preserved and does not become legacy VERIFIED Evidence or RELEASE_READY automatically. Sync UNKNOWN is reconciled by original key and never rewrites a test result.
-- [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) adds Operator-created UNBOUND Local tasks and one-time binding of the same UUID to a real native parent session. Do not invent provider/session/owner/source metadata for an unbound task. New Local clients must bind an explicit Task ID before their first asset sync; return TASK_BINDING_REQUIRED without POST when missing. Preserve confirmed legacy auto-task resume, shared Hook/MCP coordination, exact intended-actor authorization, and original-key-only CREATE/BIND reconciliation. Cloud and Local share Project, not task identity or execution rights.
+- [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) adds Operator-created UNBOUND Local tasks and one-time binding of the same UUID to a real native parent session. Do not invent provider/session/owner/source metadata for an unbound task. Legacy SessionTask clients must bind an explicit Task ID before their first asset sync; return TASK_BINDING_REQUIRED without POST when missing. Preserve confirmed legacy auto-task resume, shared Hook/MCP coordination, exact intended-actor authorization, and original-key-only CREATE/BIND reconciliation. Cloud and Local share Project, not task identity or execution rights.
 - ADR-024的新BIND及手动已绑定Task的显式MCP新sync，目前仅实现已核对上游源码的Codex CLI `0.144.6`逐调用caller路径：宿主注入的`_meta.threadId`经独立私有IPC与SessionStart root核对，child不能只填已知父ID写父Task。缺context、错配或未支持的宿主明确拒绝，零新POST；Claude/DeepSeek对应适配未实现，CLI自报session不能替代。保留已确认legacy auto任务resume、授权GET及原key只读恢复。此context是本地宿主归因，不是服务端独立身份证明；远端组件验证及真实宿主E2E未观察的边界见[绑定验收记录](docs/LOCAL_TASK_BINDING_ACCEPTANCE_20261023.md)。
 - ADR-017 native intake and ADR-010/012/013/015/016 execution paths remain separate compatibility/history; do not apply their execution admission rules to current management sync or alter historical results.
 
@@ -167,31 +153,6 @@ boundary or authorization to run an unrelated SUT.
 - Keep the existing password login available for manual recovery. Automated checks must fail on key authentication errors rather than depend on a temporary `SSH_ASKPASS` helper or prompt for a password.
 - The alias and private key are local to this Mac, not provisioned in CI or cloud executors. Preserve host-key verification, existing server access, and the VPN allowlist.
 
-## Local 实现与独立发行增补
+## 旧 Local 发行与兼容
 
-## 2026-10-23 新增真实矩阵（已通过）
-
-`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
-
-本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](docs/local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR #23 已合并，项目页 → 本地会话任务 → 接入本地模式已按 `b27c8c14c80dce46bc21a02c83daba7070cf8292` 上线，精确证据见[Local Web 历史部署记录](docs/LOCAL_WEB_PRODUCTION_DEPLOYMENT_20261023.md)。本次 Cloud 集成未重验或升级该 Local 包。
-
-
-本节记录 Local（ADR-020）与 TaskSyncCore（ADR-021）Local 消费方的独立交付边界。
-统一包包含 MCP、私有客户端与原 journal、协调器、明确产物策略、三个宿主 adapter、
-Hooks 入口及安装/诊断/恢复/升级/回退/卸载；不打包新的 Cloud SDK/Worker 或 Memory Gateway。
-真实宿主、OS/架构/Python 目标与发行状态以 LOCAL_MODE_IMPLEMENTATION_STATUS.md、
-LOCAL_MODE_RELEASE_BUILD.md、各宿主验收记录和确切 release manifest 为准。
-源码或安装成功不等于宿主已接受，不自动启用未经验证的 Hooks。
-
-Local独立发行当时以原ADR-018全文、TMP §45与领域 §50为历史基线；现行预创建、绑定及caller增补按ADR-024、TMP §45.4与领域 §50.5执行。原API/profile、task:sync、
-Project/actor owner、完整请求、expected_version与既存历史语义继续保留；hypertest_sync_task不是PATCH。
-同一真实父会话由一个有效 LocalSyncCoordinator 接受 Hook 触发与显式 MCP；子代理只回交父任务。
-只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录。
-冻结后保留完整请求/key/version；SENT/UNKNOWN/失答及 NOT_FOUND 只 GET 原 key，不自动再次 POST。
-有效 ACK 后完整读回固定接受版本才确认本次同步；传输状态不重写 reported_result，Stop 不代表 PASS/COMPLETED。
-
-Local 发行独立使用 local-vSEMVER，旧 mcp-v0.1.0/mcp-v0.2.0 历史不重标。
-安装只复用既有私有 Project 授权，不申请 Operator key、签发 grant 或复制模型登录；
-Hooks 需显式选择 workspace 或私有 approved artifact policy，版本匹配后启用。
-升级/回退/卸载保留私有身份、账本、未决 key、源产物、用户项目与其他宿主配置。
-Local 发行不包含 Cloud runtime；Cloud 实施进度与最终树验收按独立 Cloud 状态记录，不由 Local 发行成绩推定。
+旧 `local-v*` 发行、三宿主 Hook/MCP 资格和历史矩阵仅适用于各自的固定版本和 profile，不构成新 CLI 的宿主验收。旧任务、会话、授权、源产物、修订、回执与 journal 保留；不把 reported result 升级为正式 Evidence 或 Gate。失答或 UNKNOWN 只按原 key 查询和恢复，不自动重发。旧 profile 只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录；冻结后保留完整请求、key 和 version，SENT/UNKNOWN/失答及 NOT_FOUND 只查询原 key，有效 ACK 后须完整读回固定接受版本。Stop 不代表 PASS/COMPLETED。旧宿主事实及精确限制见[历史验收](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)和[文档索引](docs/README.md)。

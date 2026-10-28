@@ -1,5 +1,7 @@
 # Web 工作台操作指南 / Web workbench guide
 
+> **历史资料与兼容范围：** 本文描述旧版本、旧工作流或特定交付时点，文中“当前”仅指原记录时点。新 Local 接入使用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；未完成事项见[当前 TODO](TODO.md)，实际部署须现场核实。旧合同与历史记录仍适用于各自范围。
+
 当前生产应用为 `63bd6cc`，原 Host Bridge 为 `95e92c5`，数据库为
 `0018_harness_selection`。ADR-014 的 CLOSED 后治理与 ADR-015 双模式均已包含在发布中；
 各自隔离验收仍独立保留。严格外部 TLS 已核验，线上本地 Connector 核心周期已通过。

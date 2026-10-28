@@ -1,5 +1,7 @@
 # 云端测试任务分阶段实施计划
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 **当前增补：** P0与PowerContext已独立实现/部署，受控公开HTTPS首片与框架冻结按[ADR-025](architecture/ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)开发，默认关闭；最新剩余范围由[当前TODO](TODO.md)拥有。下文“候选/待部署/Memory Proposed”是原Cloud轮次冻结计划，保留历史，不替代当前交付或USER_OWNED验收。
 
 ## 当前交付范围与集成顺序

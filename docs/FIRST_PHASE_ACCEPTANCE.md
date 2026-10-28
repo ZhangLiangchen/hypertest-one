@@ -1,5 +1,7 @@
 # HyperTest One 第一阶段验收
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 ## 本轮状态：源码准备失败诊断与关联重试
 
 2026-10-19 从已合并 PR #12 的 `4d597d4` 开发。生产只读核对符合交接，访问限制、旧业务数据和文件摘要保持；本轮没有合并或部署。新诊断属于 Operational State，不生成测试事实或改写固定输入。

@@ -1,5 +1,7 @@
 # HyperTest Local 固定版本发行、下载与校验
 
+> **历史资料与兼容范围：** 本文描述旧版本、旧工作流或特定交付时点，文中“当前”仅指原记录时点。新 Local 接入使用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；未完成事项见[当前 TODO](TODO.md)，实际部署须现场核实。旧合同与历史记录仍适用于各自范围。
+
 ## 2026-10-26 正式发布与宿主验收分别记录
 
 按用户将最新候选升级为正式版并更新 Latest 的指令，本轮采用 `local-v0.1.1`。稳定目标须在固定源码目录中明确为 `RELEASE`，正式构建须匹配真实 Git tag；提供验收文件时仍核对确切 tag/source/target，无文件时保持各宿主 `NOT_ACCEPTED`。`distribution_state=RELEASE` 记录正式公开选择，不自动升级为原生宿主验收。新增启用正式版 Hooks 仍要求实际宿主/版本资格，已有受管配置升级保留原 Hooks、授权和未决账本。本节取代下文历史版本的“正式发行必须三宿主已验收”通用前置条件，不改写旧资产或旧证明。精确发行、Latest 与安装入口见[本轮正式发行](LOCAL_STABLE_RELEASE_20261026.md)。

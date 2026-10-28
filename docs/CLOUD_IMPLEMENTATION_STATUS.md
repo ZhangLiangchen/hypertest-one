@@ -1,8 +1,10 @@
 # 云端任务实现状态与接入入口
 
-**最新实现已部署：** API/独立Cloud Worker的Git为`76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增[受控公开HTTPS首片/框架冻结](FOLLOWUP_DELIVERY_20261023.md)，开关保持false，schema0028；Web保留e28d23c，五容器健康。既有[Web未决保全与Cloud安全收尾](P0_RECOVERY_DELIVERY_20261023.md)及[PowerContext集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)保留；Memory逐Project grant仍须独立显式配置。完整剩余范围见[当前TODO](TODO.md)，P1整体及P2执行能力未因此标完成。下文C4/6d49属于旧轮次，不替代新镜像或用户验收。SDK原会话续接未实现，人工收尾不清UNKNOWN、不释放HELD。
+> **历史实现和验收记录。** 下文保存各轮源码、部署、测试和验收时点；“当前”“最新”、开关值、版本、未完成项与操作步骤不可直接视作现状。请以 [当前 TODO](TODO.md)、[跟进交付](FOLLOWUP_DELIVERY_20261023.md) 和 [服务器操作](SERVER_OPERATIONS.md) 的后续记录为入口，实际运行状态须现场核对。Local 新接入已按 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 转为显式 CLI/Skill 归档，本文对旧 SessionTask 的描述仅保留历史与兼容边界。
 
-## 正式 Git 集成与当前部署边界
+**2026-10-23 跟进交付时的部署记录：** API/独立Cloud Worker的Git为`76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增[受控公开HTTPS首片/框架冻结](FOLLOWUP_DELIVERY_20261023.md)，开关保持false，schema0028；Web保留e28d23c，五容器健康。既有[Web未决保全与Cloud安全收尾](P0_RECOVERY_DELIVERY_20261023.md)及[PowerContext集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)保留；Memory逐Project grant仍须独立显式配置。完整剩余范围见[当前TODO](TODO.md)，P1整体及P2执行能力未因此标完成。下文C4/6d49属于旧轮次，不替代新镜像或用户验收。SDK原会话续接未实现，人工收尾不清UNKNOWN、不释放HELD。
+
+## 2026-10-23 正式 Git 集成与当时部署边界
 
 正式迁移已接续管理路径的 `0024_local_task_binding`：先 `0025_cloud_tasks`，再 `0026_cloud_ssh_operations`。C4 Git `d065ae2e27b6ff37c87a8ebe0c549a96dda45a73` 已部署到单人专用测试服务器，当前库备份后从管理 `0023` 向前升级至 `0026`；API / Web / nginx 与原 Worker / PostgreSQL 五角色健康，独立 Cloud Worker 以 Codex=true / SSH=false 空闲运行。新空库迁移、组件回归、构建、doctor、基础健康和路由检查分别记录为部署检查，用户验收 `PENDING / USER_OWNED`，未经用户明确要求不擅自开展。Web Cloud详情步骤勾选显示修正已按6d49单独部署；API / Worker / schema保持C4身份。精确 Git / image / 各轮结果见[本轮交付记录](CLOUD_GIT_DELIVERY_20261023.md)。旧隔离 fixture 的 `0023_cloud_tasks` / `0024_cloud_ssh_operations`、source pins 和接受记录保持历史身份，不以新编号改写；统一入口 / Local 绑定由[独立管理交付](UNIFIED_TASK_CREATION_DELIVERY_20261023.md)记录，不由 Cloud 部署检查推定真实 native bind 通过。
 
@@ -242,7 +244,9 @@ HYPERTEST_CLOUD_WEB_ORIGIN
 
 只有独立验收可使用显式 loopback 例外，并令 BFF 与 API 共享网络命名空间，经 `127.0.0.1` 访问且不新发布端口。该例外不授权修改生产 TLS、VPN 白名单或 SSH 访问规则。
 
-## 当前增量验收
+<a id="当前增量验收"></a>
+
+## 历史增量验收
 
 本阶段独立 PostgreSQL 已完成 `0023_cloud_tasks` 向前迁移，未使用生产数据库。各次失败与后续检查保留独立身份：
 

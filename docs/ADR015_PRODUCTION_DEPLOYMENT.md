@@ -1,5 +1,7 @@
 # ADR-015 生产部署与线上验收记录
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 日期：2026-10-19，Asia/Singapore。状态：**Production Deployed / Online Core E2E Verified / Extended Recovery Matrix Pending**。
 
 生产切换已于 **2026-10-19 13:01:10.760991 UTC** 完成。严格外部 TLS 已通过 CA 与主机名校验；线上本地 Connector 核心周期已在 **13:07:50 UTC** 完成，形成唯一正式 Docker Execution、可信 Evidence、FINAL `RELEASE_READY` 与已核验内容的报告。脱敏机器摘要见[生产证据](evidence/adr015-production-20261019.json)，原始配置、完整备份与详细尝试记录只保存在受保护的私有交接目录。

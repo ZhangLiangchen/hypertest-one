@@ -1,5 +1,7 @@
 # ADR-016 生产部署与线上验收记录
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 日期：2026-10-20，Asia/Singapore。状态：**Production Deployed / Online Current-Agent Core E2E Verified / Historical Preservation Verified / Extended Recovery Matrix Pending**。
 
 生产切换已于 **2026-10-20 06:34:11.197055 UTC** 完成，正式库为 `0020_interactive_tool_inbox`。**生产当前 Agent MCP 核心周期与最终历史保全均已通过**：同一真实 Codex Desktop Agent 经官方 MCP SDK console 完成 Proposal、可信远端 Docker Runner 的33项 HTTP 测试、五份 VERIFIED Evidence、FINAL `RELEASE_READY` 和已核验内容的报告。此前的[隔离真实 Agent 验收](ADR016_ACCEPTANCE.md)保留其27项测试和独立环境，不替代或混入本轮生产结果。

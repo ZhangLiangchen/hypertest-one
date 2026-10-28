@@ -1,5 +1,7 @@
 # PowerContext 项目经验集成计划
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 **2026-10-23：Gateway/API/Web与显式Cloud/Local源码适配已实现，本轮部署与用户验收状态见[集成交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。** 用户明确将集成加入本轮；现行合同为[ADR-022 §0](architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)。下列2026-10-22分阶段提案保留设计历史，不将源码/组件回归/部署健康改称用户验收，也不重标旧Local发行。独立服务P0历史仍由[服务记录](POWERCONTEXT_SERVICE.md)拥有。
 
 ## 1. 目标与固定边界

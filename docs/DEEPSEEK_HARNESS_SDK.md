@@ -1,5 +1,7 @@
 # DeepSeek Harness SDK：P0 兼容检查与协议探针
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 ## 当前集成候选与 Local 边界
 
 本候选只接入 DeepSeek Harness + Codex，Claude Code 保持占位；Local 0.1.0 的三宿主安装 / headless / Registry 或原生 resume 证明不构成 Cloud 验收。正式迁移顺序为 `0024_local_task_binding` → `0025_cloud_tasks` → `0026_cloud_ssh_operations`，旧 fixture source pins 不改。最终合并树、统一 Web 与常驻 Cloud 服务尚未验收或部署。能力 GET 仅报实现支持 / 开关及 `NOT_CHECKED` 的每 Attempt 准入状态，不证明 provider 认证；精确字段见[Cloud 状态](CLOUD_IMPLEMENTATION_STATUS.md#能力响应实现支持配置与准入分别读取)。

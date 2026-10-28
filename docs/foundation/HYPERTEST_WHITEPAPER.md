@@ -1,12 +1,10 @@
 # HyperTest 白皮书
 
+**阅读范围（2026-10-27 起）：** 新 Local 接入遵循 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)：Agent 测试后显式调用 Skill/CLI 归档，不以前置会话绑定或 Hooks/MCP 为前提。领域 §56、TMP §51 和技术架构 §50 分别拥有字段、协议和组件合同。下文 ADR-018/024/026、旧 Local 发行及部署结果属于相应旧 profile 或当时快照；保留其历史与恢复语义，不作为新接入指南。当前交付和未完成事项见 [TODO](../TODO.md) 与各交付记录，实际运行状态需单独核实。
+
 2026-10-23 P0 增补：Web 的 Cloud 与 Local CREATE 使用独立持久账本和原 key 对账；取消请求与停止确认分开，人工收尾声明不产生独立停止证明或预算结算权。当前 Cloud Worker 尚不支持 SDK 原会话续接。实现与部署见[P0 恢复交付](../P0_RECOVERY_DELIVERY_20261023.md)，不改变下文历史验收身份。
 
-## 2026-10-23 新增真实矩阵（已通过）
-
-`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
-
-本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+旧 Local `local-v0.1.0` 的真实宿主矩阵及其限定范围见[历史验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)与[矩阵](../local-acceptance/local-matrix-20261023.json)；该资格不自动扩展到新归档。
 
 **版本：v1.6（Codex 会话任务管理；保留 v1.4 产品职责纠偏）**
 **产品职责修订：2026-10-20，依据项目负责人明确的功能分层**
@@ -15,13 +13,13 @@
 
 ### Cloud / Local：共享 Project，分别交付
 
-Cloud 采用 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 的六步流程：项目资源 → 任务输入 → 下发冻结 → DeepSeek 接取与 Codex 委派 → 测试产物 → 项目框架执行及报告。CloudTask / CloudAttempt 与 Local SessionTask 共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史；统一创建入口与 Local 预建绑定由其独立管理规范拥有。
+Cloud 采用 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 的六步流程：项目资源 → 任务输入 → 下发冻结 → DeepSeek 接取与 Codex 委派 → 测试产物 → 项目框架执行及报告。CloudTask / CloudAttempt、LocalArchiveTask 及旧 Local SessionTask 可共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史。
 
 Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
 共享同步语义由 ADR-021 定义；Cloud 的 SDK/runtime 与 Worker 不加入已发布 Local 安装包。ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
 
-### Local 入口：Codex 测试任务与产物管理（ADR-018 优先）
+### Local 入口：显式归档与旧会话任务管理
 
 **2026-10-27 后置归档首片实现完成：** [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将新的 Local 接入改为用户显式调用 Skill 与 CLI 的后置产物归档，移除该模式 MCP/Hooks 和实时会话绑定依赖。下文 ADR-018/024/026 继续解释旧版本及历史合同；新 API、CLI/Skill 与 PC Web 已实现，部署、发行及 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)，用户机器的旧配置须显式按收据退休。
 
@@ -29,7 +27,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 **默认单会话合同中，一个 Codex 会话对应一个测试任务；ADR-026 协作合同中，一个任务可接纳多个真实会话的贡献。Agent 将计划、用例、原始报告及 reported result 同步到 HyperTest One；HyperTest 本身不承担测试执行。**
 当前优先交付持久管理与查询，不以执行材料准入、平台 Runner、独立 CI 证明或 Gate 为保存报告的前提。平台显示提交者报告的 PASS/FAIL 等及其来源；它们不自动成为正式发布判定，也不因没有平台执行而被强制改成 UNKNOWN。
-[ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md)明确共享 Project 的 SessionTask、用例/报告修订、幂等同步与旧版本保护；优先于下文对当前新入口的宽泛治理要求。ADR-017 与旧受管 Harness/Runner 的实现和历史结论继续保留，不作为本阶段同步的依赖。生产部署不包含在默认开发范围中。
+[ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md)明确旧 SessionTask 的用例/报告修订、幂等同步与旧版本保护；新归档适用 ADR-027。ADR-017 与旧受管 Harness/Runner 的实现和历史结论继续保留，不作为新归档的依赖。测试服务器交付规则见 [SERVER_OPERATIONS](../SERVER_OPERATIONS.md)。
 
 > **HyperTest One 管理测试项目、下发测试任务、记录测试结论。**
 > **Agent 执行测试分析、测试设计、测试实现，并调用被测对象已有的测试框架执行测试。**
@@ -40,7 +38,7 @@ HyperTest 不承担测试执行框架或通用执行引擎的产品职责。
 
 ### v1.5 最小迁移决定与实施边界
 
-[ADR-017](../architecture/ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)保留历史 `native-framework-intake/v1alpha1` 的材料治理与顺序贡献者交接。该兼容 profile 不增加平台执行引擎，不自动提升材料可信度；当前 Codex 任务、用例及报告管理按 ADR-018 同步，私有执行与验收原件不随产品源码分发。
+[ADR-017](../architecture/ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)保留历史 `native-framework-intake/v1alpha1` 的材料治理与顺序贡献者交接。该兼容 profile 不增加平台执行引擎，不自动提升材料可信度；旧 Codex SessionTask 按 ADR-018 同步，新 Local 归档按 ADR-027，私有执行与验收原件不随产品源码分发。
 
 下面记录 v1.4 于 2026-10-20 修订时的历史边界；其中“尚未实现 / 后续 ADR”是该时点的状态，不抹去 ADR-017 新切片，也不把目标能力全部宣称已交付。
 

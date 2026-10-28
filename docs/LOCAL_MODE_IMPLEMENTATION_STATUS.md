@@ -1,5 +1,7 @@
 # HyperTest Local 实现与发行状态
 
+> **历史资料与兼容范围：** 本文描述旧版本、旧工作流或特定交付时点，文中“当前”仅指原记录时点。新 Local 接入使用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；未完成事项见[当前 TODO](TODO.md)，实际部署须现场核实。旧合同与历史记录仍适用于各自范围。
+
 ## 2026-10-27 后置显式归档首片实现
 
 用户已确定移除 Local Agent 接入中的 MCP/Hooks，新增 `hypertest` CLI 和 `hypertest-archive` 显式归档 Skill。任务及可选子任务可在测试后创建，上传者与原会话来源分开；新增全局 CLI 授权页、一键绑定及[操作指南](CLI_AUTHORIZATION_GUIDE.md)。全局 profile 复用明确授权，每次归档必填 Project/Task、可选 Subtask，根与子任务独立版本；旧配置精确清理、旧新写退休与历史只读恢复见[ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)和[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。

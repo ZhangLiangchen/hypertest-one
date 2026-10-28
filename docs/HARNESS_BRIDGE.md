@@ -1,5 +1,7 @@
 # Host Harness Bridge
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 ADR-013 的本机 Bridge 实现使用 `hypertest.harness-bridge/v1alpha1`、`hypertest.tmp/v1alpha2`、`run-persistent-harness/v1`。它只托管宿主 Codex 原生会话与受控工具传输，不连接 Canonical PostgreSQL，不运行 Docker，不读取 GitLab 凭据。
 
 生产配置和迁移步骤见 [容器化部署](CONTAINERIZED_DEPLOYMENT.md)。启动命令为 `python -m hypertest.harness_bridge`；配置仅读取 `HYPERTEST_BRIDGE_*` 显式环境变量，不加载应用 `.env` 或 `get_settings()`。

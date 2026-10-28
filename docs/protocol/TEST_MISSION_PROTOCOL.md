@@ -1,16 +1,14 @@
 # Test Mission Protocol Specification
 
-## 2026-10-23 新增真实矩阵（已通过）
+**阅读范围（2026-10-27 起）：** 新 Local 归档协议以 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与本文 §51 为准；字段及状态由领域 §56 拥有。§45/47 的 SessionTask、Hooks/MCP、BIND/JOIN 与旧回执继续约束旧 profile 和历史，不是新归档前提。下文部署、发行与验收叙述记录各自时点，不能作为当前运行状态；交付和待办见 [TODO](../TODO.md) 及对应记录。
 
-`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
-
-本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+旧 Local `local-v0.1.0` 的真实宿主矩阵及其限定范围见[历史验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)与[矩阵](../local-acceptance/local-matrix-20261023.json)；该资格不自动扩展到新归档。
 
 **Protocol Name:** TMP  
 **Full Name:** Test Mission Protocol  
 **Version:** v0.8
 
-**Current-stage precedence:** [ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) defines Codex session task synchronization (§45). One Codex session maps to one management task; Codex submits plans, cases and raw reports. Sync never invokes Job/Harness/Runner/Gate, requires no execution binding, source transfer or independent CI proof, and preserves reported results with their source. ADR-017 §44 and legacy execution contracts remain historical/compatible paths, not prerequisites for management sync. Transport UNKNOWN is reconciled by original key and is distinct from a report's test result.
+**Profile precedence:** ADR-027 and §51 govern new Local artifact archive. [ADR-018](../architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) and §45 govern legacy SessionTask synchronization, including the separately enabled ADR-026 collaboration profile. ADR-017 §44 and legacy execution contracts retain their own meanings and are not prerequisites for archive. Transport UNKNOWN is reconciled by the original key and is distinct from a report's test result.
 **Status:** Draft  
 **Owner:** HyperTest
 **Native intake decision:** [ADR-017](../architecture/ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)；新增独立业务 profile `native-framework-intake/v1alpha1`，本机 Operator 受控 typed API / 客户端，详见 §44。旧 TMP wire、九工具、MCP、Bridge / Connector 均不升级或重解释。旧 §5–43 的 Mission/Runner/Session 契约仅约束对应 legacy profile；native 的字段、准入和单 writer 能力由 §44 与领域 §49 定义。本轮不宣称新 MCP 工具、可信 CI 接入、正式 native PASS 或生产发布。
@@ -21,7 +19,7 @@
 
 生产发布为 PR #17 / `c7cd43ad6346d8ce6c85564f7838afbb017f2da4`，正式库已向前升至 `0020_interactive_tool_inbox`；PR / main CI 为967 passed、21 skipped。同一真实当前 Codex Desktop Agent 经官方 MCP SDK console 完成生产核心周期：2 Requirements / 3 Risks / 4 Cases / 4 Implementations，唯一平台可信 Docker Execution 的33项 HTTP 测试通过，五份 VERIFIED Evidence 与两页报告内容均经 MCP 读取并核验 hash / 字节数，形成 FINAL `RELEASE_READY`。真实过期后的两次显式 Worker 恢复保留原 Run / native / workspace，epoch 1 → 2 → 3，旧 Job / Attempt 保留；最终历史保全另经39项只读检查通过。详细身份、时序与保全边界见[ADR-016 生产部署记录](../ADR016_PRODUCTION_DEPLOYMENT.md)及[生产机器证据](../evidence/adr016-production-20261020.json)。隔离验收的27项测试仍属其独立历史；本轮不宣称聊天原生工具目录热加载、运行中断线注入、两种原受管路径的新完整周期、私有 SUT 业务或新增问题单写入通过。
 
-已包含 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)，正式切换与恢复历史见[部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，兼容 Host Bridge 保留 `95e92c5`，当时 schema 为0014；ADR-015 当时 schema 升至0018，历史发布与验收范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)；当前 ADR-016 生产 schema 为0020，见[当前生产记录](../ADR016_PRODUCTION_DEPLOYMENT.md)；当前访问配置只在[运维材料](../SERVER_OPERATIONS.md)维护。[ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)的关闭后治理属于平台操作者接口，不扩展已关闭 Agent 的工具权限，也不改 TMP wire/profile 版本。受控 GitLab 真实创建已有 ADR-015 独立隔离验收；其他 Provider 与未执行扩展场景继续单独登记。
+已包含 `0013_run_bindings` / `0014_harness_operations`；本地实现证据见 [ADR-013 验收记录](../ADR013_ACCEPTANCE.md)，正式切换与恢复历史见[部署验收](../ADR013_PRODUCTION_DEPLOYMENT.md)。历史 PR #10 当时部署源码 `828225d`，兼容 Host Bridge 保留 `95e92c5`，当时 schema 为0014；ADR-015 当时 schema 升至0018，历史发布与验收范围见[生产记录](../ADR015_PRODUCTION_DEPLOYMENT.md)；ADR-016 当次部署 schema 为0020，见[历史部署记录](../ADR016_PRODUCTION_DEPLOYMENT.md)；访问配置在[运维材料](../SERVER_OPERATIONS.md)维护。[ADR-014](../architecture/ADR-014_POST_SESSION_GATE_REASSESSMENT.md)的关闭后治理属于平台操作者接口，不扩展已关闭 Agent 的工具权限，也不改 TMP wire/profile 版本。受控 GitLab 真实创建已有 ADR-015 独立隔离验收；其他 Provider 与未执行扩展场景继续单独登记。
 
 
 ADR-015 双模式、设备 / 项目授权、WSS 持久 mailbox、HTTPS 源码接收、本地问题单适配与显式恢复已实现，`0015_connector_nodes` → `0018_harness_selection` 已部署生产。核心隔离真实验收已通过，包括本地 Codex → 远端可信 Docker Runner → Evidence / Gate → 报告正反链、私有 Git 经 HTTPS 接受、原会话断线恢复及获准测试 Issue 的创建 / 负责人核验。这些隔离结果不冒称生产结果。生产切换已完成原数据、文件、认证、SSH / VPN 与服务器 Bridge 保全；严格外部 TLS、线上本地 Connector 核心周期和生产私有源码 source-only 接受补验已通过，后者未启动私有业务 Run 或问题单操作，扩展真实设备故障矩阵继续分别登记。该次发布与实际验收范围见 [ADR-015 生产部署记录](../ADR015_PRODUCTION_DEPLOYMENT.md)，隔离历史见 [ADR-015 总验收](../ADR015_ACCEPTANCE.md)，源码统计见[源码验收记录](../ADR015_ACCEPTANCE_SOURCE.md)。

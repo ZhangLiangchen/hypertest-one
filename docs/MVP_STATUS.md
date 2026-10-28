@@ -1,5 +1,7 @@
 # HyperTest One MVP status
 
+> **历史记录，不是当前状态入口。** 本文汇集 2026-10-19 至 2026-10-23 各轮冻结时的实现、部署与验收；下文“current”“生产”“待部署”等均指各自记录时点，不代表当前运行环境。当前待办和交付请查 [TODO](TODO.md)、[跟进交付](FOLLOWUP_DELIVERY_20261023.md) 与 [服务器操作](SERVER_OPERATIONS.md)，实际部署须现场核对。新 Local 接入按 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 使用显式 CLI/Skill 归档，旧 MCP/Hooks 仅保留兼容历史与恢复。
+
 ## Cloud SDK + Codex 集成状态（2026-10-23）
 
 Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 Task 固定 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT strict PASS，独立只读重放 19 项通过。重评没有新的 current GET、模型 / SSH / SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，也不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 与失败原件保持。最终合并树、统一 Web 入口与测试服务器常驻 Cloud 服务尚未进行本轮验收或部署；默认关闭。
@@ -8,7 +10,7 @@ Cloud 当前仅实现官方 Python SDK + DeepSeek Harness + 显式 opt-in Codex�
 
 This document separates the usable single-operator testing workflow from the longer-term product roadmap. The foundation documents remain authoritative for domain ownership, protocol, and evidence trust.
 
-## Current increment: current-Agent MCP execution in production
+## Historical increment: current-Agent MCP execution (2026-10-20)
 
 ADR-016 is deployed from PR #17 at **`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`** / schema **`0020_interactive_tool_inbox`**. PR and main CI passed with 967 tests passed and 21 skipped. The actual current Codex Desktop Agent used the official MCP SDK console to reason and submit proposals, without another model; the platform's trusted Docker Runner completed 33 real HTTP tests, followed by five hash-verified Evidence reads, FINAL `RELEASE_READY` and a hash-verified two-page report. Two explicit Worker recoveries retained the original Run/native/workspace and advanced epochs 1 → 2 → 3. Final independent historical preservation passed 39 checks. The original server and Connector-managed local Harness paths remain, with no new full-cycle claim for those modes, issue writes or private-SUT business acceptance. See [ADR-016 production deployment](ADR016_PRODUCTION_DEPLOYMENT.md); the earlier [27-test isolated cycle](ADR016_ACCEPTANCE.md) retains its own identities and limits.
 
@@ -34,7 +36,7 @@ The bilingual Web connects disposition history → explicit reason → durable t
 
 中文操作：打开发现并核对证据 → 填写处置原因、保存合法状态迁移 → 查看处置历史 → 在有已接受报告的 CLOSED 运行选择“重新评估质量门禁” → 填写最多 2,000 字符的非空重评原因 → “提交重评任务” → 从后台任务查看结果判定，区分最新 FINAL 与原报告的历史判定。失败使用“检查并重试门禁任务”；验证代码修复仍需创建新轮次。详见[双语操作指南](WEB_PRODUCT_WORKFLOW.md#会话关闭后的发现处置与门禁重评--post-session-disposition-and-gate-reassessment)。
 
-## Current deployed baseline and access
+## Historical deployed baseline and access (2026-10-20)
 
 Production cutover completed on 2026-10-20 at 06:34:11.197055 UTC: application **`c7cd43ad6346d8ce6c85564f7838afbb017f2da4`**, Host Harness Bridge **`95e92c5`**, schema **`0020_interactive_tool_inbox`**, and fixed operations manifest **`61b4e2800472db67d0e52cbc1507663fc8ac9d707b43e308e6fb88e32ff8214d`**. The original database container/image/volume/start identity, authentication, sessions, files and access configuration remain. Independent final preservation retained 3,698 full historical rows across 49 tables plus the original node's stable configuration, and all 7,429 old files. The production current-Agent cycle used certificate-verified HTTPS; detailed cutover, recovery, content-verification and preservation boundaries are in [the ADR-016 production record](ADR016_PRODUCTION_DEPLOYMENT.md). The earlier ADR-015 `63bd6cc` / schema0018 deployment remains [historical evidence](ADR015_PRODUCTION_DEPLOYMENT.md).
 

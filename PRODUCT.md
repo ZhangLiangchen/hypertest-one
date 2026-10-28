@@ -12,17 +12,17 @@ web
 
 ## Product Purpose
 
-一次输入，一个使命，完整测试闭环。将 PRD、固定的仓库提交和测试环境转化为可治理、可验证、可追溯的测试资产与质量判定。成功意味着用户能够清楚判断测试进度、失败原因、覆盖缺口、正式执行结果与判定依据。
+一次输入，一个使命，完整测试闭环。管理测试项目、任务、用例与报告，让 Agent 使用被测项目已有的工具链执行测试，保留可追溯的产物、结果与来源。成功意味着用户能理解测试进度、失败原因和已有证据的范围。
 
 ## Positioning
 
-面向用户是 AI Test Engineering Workbench；架构上是 Autonomous Testing Control Plane。HyperTest 编排测试 Mission；Codex 等可替换 Harness 提供智能，可信 Runner 提供执行事实，平台根据策略作出决策。Agent 会话与自述不能代替测试状态或正式证据。
+面向用户是 AI Test Engineering Workbench；架构上是 Autonomous Testing Control Plane。HyperTest 管理和编排测试工作；Codex 等可替换 Harness 执行分析、设计和测试，调用被测项目现有框架。Local 显式归档保留报告及来源；正式质量事实须满足相应 profile 的验证要求，legacy 可信 Runner 是独立兼容路径。Agent 自述不自动成为正式证据。
 
 ## Operating Context
 
 HyperTest One 仅实现并支持 PC 宽屏界面。页面、组件、交互、布局与回归验证均以 PC 宽屏操作为目标，无需兼容竖屏或移动端。这是长期产品约束，不限于单轮工作；既有窄屏 CSS 可保留为历史实现，不构成兼容承诺或维护要求。
 
-创建项目 → 提交仓库与固定 SHA → 粘贴或导入 PRD → 配置策略 → 确认不可变输入 → 提交后台测试周期 → 查看任务、执行、证据、发现和质量判定。后台 Worker 独立推进工作，关闭浏览器不取消任务。保留显式干预、取消、重试与历史查看入口。
+Local：创建项目和任务 → Agent 在本机使用项目工具测试 → 用户显式调用 Skill / CLI 归档计划、用例与报告 → 查看报告及来源。Cloud：配置项目资源与冻结任务输入 → 下发给独立 Worker → 查看任务和报告。旧 Run / Runner 流程与历史继续保留；不同路径的权限、结果和身份不能混用。
 
 ## Capabilities and Constraints
 
@@ -30,7 +30,7 @@ HyperTest One 仅实现并支持 PC 宽屏界面。页面、组件、交互、�
 - Canonical chain：Requirement → Risk → TestCase → Implementation → Execution → Evidence → Finding → Verdict。
 - Proposal 需平台验证才能进入 Canonical State；正式事实来自可信执行通道。
 - 任务完成、设计覆盖完成、执行通过、可发布是不同概念；缺失事实和未知覆盖不能呈现为成功或零缺口。
-- 固定 SourceSnapshot 与 PolicySnapshot；变更实质输入创建新 Run。重试保留历史，禁止静默重复正式执行。
+- legacy Run 使用固定 SourceSnapshot 与 PolicySnapshot；变更实质输入创建新 Run。各路径均保留历史和未知请求的原 key，不静默重放。
 - 当前支持路径与运行限制以代码和规范为准；不可将长远规划宣传为已实现功能。
 - 网络访问与授权取决于实际部署。前端改版不得改变数据、凭据、部署访问边界。
 
@@ -53,7 +53,7 @@ HyperTest One 仅实现并支持 PC 宽屏界面。页面、组件、交互、�
 ## Product Principles
 
 1. 先呈现决定下一步行动的信息：进度、阻塞原因、质量结论和证据。
-2. 所有结论可回到正式执行与可信证据；Agent Activity 为辅助信息。
+2. 区分用户报告的结果与经验证的正式结论，清楚展示各自来源和证据范围；Agent Activity 为辅助信息。
 3. 保留用户输入、已加载内容和历史，明确未知、失败和可恢复状态。
 4. 日常操作以清晰和效率为先，渐进展示底层细节。
 5. 保持 Agent 独立、可审计、可复现，避免将提供方术语作为产品导航。

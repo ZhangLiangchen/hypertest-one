@@ -1,5 +1,7 @@
 # 本地 Harness Connector 操作指南
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 本指南面向单 Operator 部署的管理员和本地设备使用者。`LOCAL_CONNECTOR` 让本机 Codex CLI、受控 Git 采集器及可选 GitLab 适配器复用本机实际可用的授权；平台 API、Worker、数据库、Verifier、Gate 和可信 Runner 保留原职责。服务器 `SERVER_HOST` / UDS Bridge 模式继续使用，已有 Run 不迁移、不回填；本地离线不会自动切换到服务器。
 
 实现依据为 [ADR-015](architecture/ADR-015_DUAL_MODE_HARNESS_AND_LOCAL_CONNECTOR.md)。本指南描述当前接口及运维方式，不表示已部署到生产，也不以配置成功替代真实 Provider、私有 Git 或 GitLab 验收。GitLab 的策略和操作账本另见 [本地受控 GitLab 提单](LOCAL_CONNECTOR_GITLAB.md)。

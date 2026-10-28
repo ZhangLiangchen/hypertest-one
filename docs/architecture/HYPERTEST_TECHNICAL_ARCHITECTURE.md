@@ -1,16 +1,14 @@
 # HyperTest Technical Architecture
 
-## ADR-024统一创建与Local绑定
+**阅读范围（2026-10-27 起）：** 新 Local 采用 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与本文 §50 的显式 Skill/CLI 归档架构；领域 §56、TMP §51 分别拥有字段和协议。下文 ADR-018/020/024/026 的 SessionTask、Hooks/MCP、BIND/JOIN 与对应部署状态只描述旧 profile 或当时快照，仍约束其历史与恢复，不是新 Local 的接入前提。交付状态见 [TODO](../TODO.md) 和交付记录；实际运行状态需单独核实。
+
+## ADR-024 旧 SessionTask 创建与 Local 绑定
 
 [ADR-026 多会话协作](ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)增加显式启用的 Local 参与关系、窄贡献操作与单一主会话汇总，具体合同见领域 §50.6 / TMP §45.5。初始 BIND、旧单会话合同及 Cloud/Local 隔离保持；实现、部署、Local 发行和真实宿主资格分别记录。
 
-项目创建入口按Cloud/Local路由到独立领域API，不新增通用Task根表或跨模式写入。Local Operator先创建UNBOUND SessionTask，真实父会话通过现有私有客户端授权一次绑定同UUID；CREATE、人工管理、BIND和sync共用version，各自保留不可变快照/回执及Audit/Outbox。source/last_synced只在真实sync产生，绑定不启动Worker/Harness/Runner。新Local客户端首次资产前需TaskID绑定，旧已存在auto根可resume；服务端legacy兼容不作为新客户端fallback。字段/接口分别由领域§50.5、TMP§45.4拥有，取舍和验收见[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)。Cloud的任务/Attempt、资源与下发仍由独立Cloud设计和实施维护；本增补不将其源码存在或统一UI解释为已验收执行。
+项目创建入口按Cloud/Local路由到独立领域API，不新增通用Task根表或跨模式写入。在 ADR-024 旧 profile 中，Local Operator 先创建 UNBOUND SessionTask，真实父会话通过私有客户端授权一次绑定同 UUID；CREATE、人工管理、BIND 和 sync 共用 version，各自保留不可变快照/回执及 Audit/Outbox。source/last_synced 只在真实 sync 产生，绑定不启动 Worker/Harness/Runner。旧 profile 的客户端首次资产前需 Task ID 绑定，已存在 auto 根可 resume；字段/接口分别由领域 §50.5、TMP §45.4 拥有，取舍和验收见[ADR-024](ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md)。新归档使用独立 LocalArchiveTask，按 ADR-027 实施。Cloud 的任务/Attempt、资源与下发仍由独立 Cloud 设计和实施维护；不将其源码存在或统一 UI 解释为已验收执行。
 
-## 2026-10-23 新增真实矩阵（已通过）
-
-`local-v0.1.0` 已公开，协调器、三宿主 Hooks/MCP、TaskSyncCore Local adapter 与固定摘要安装器已交付；首发仅 `darwin-arm64-py313`。本次直接使用原公开包，无产品 runtime 修改。Claude Code、Codex、DeepSeek harness 的用例、原始报告、真实 headless 与同源跨进程恢复必需矩阵均已独立复核通过。**DeepSeek 恢复仅指新进程的官方持久 Registry API，不是 CLI / SDK wire resume 参数，也未新增通用恢复命令。**
-
-本次 `FAIL` 是管理同步保全 fixture，业务 SUT 为 `NOT_RUN`。Claude / Codex 原始证明中的生成时 `PENDING_INDEPENDENT_REVIEW` 保持不变，后续资格单独记录。精确流程、后端、版本与限制见[新增验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)及[矩阵](../local-acceptance/local-matrix-20261023.json)。原 2026-10-22 R5/R6 证据、0.1.0 tag / 四资产 / manifest 和旧 MCP 发行保持历史身份；PR 合并与生产 Web 部署仍待最终 gate。
+旧 Local `local-v0.1.0` 的真实宿主矩阵及其限定范围见[历史验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)与[矩阵](../local-acceptance/local-matrix-20261023.json)；该资格不自动扩展到新归档。
 
 **Document Status:** Accepted v0.8 / ADR-018 Session Task Management (2026-10-21, Asia/Singapore). Implementation and acceptance tracked separately; ADR-017 and legacy histories retained below.
 
@@ -24,21 +22,21 @@
 
 Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
-Cloud 通过独立 SDK Worker 完成六步；API 不运行 Agent/测试，Local 的现有 MCP/Hooks 和人工管理路径保持。ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。 创建入口/Local 绑定按管理规范集成，不以 Cloud 文档改写其字段。
+Cloud 通过独立 SDK Worker 完成六步；API 不运行 Agent/测试。旧 Local MCP/Hooks 的历史与恢复合同保留，新 Local 接入按 ADR-027。ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。不以 Cloud 文档改写 Local 字段。
 
-### v0.8 Local 入口：Codex 会话任务同步（ADR-018 优先）
+### v0.8 旧 Local 入口：Codex 会话任务同步
 
 现阶段 HyperTest 是测试任务、用例和报告的管理平台：默认一个真实会话对应一个 SessionTask；显式启用 ADR-026 后，多个获授权 root 可以参与同一 SessionTask。Agent 在项目已有工具链中完成测试并同步产物，平台只校验与保存管理数据，不承担测试执行。
 
-当前链路为 **Codex → MCP/私有客户端 → typed API → Project/SessionTask/CaseRevision/ReportRevision/SyncReceipt + Audit/Outbox（PostgreSQL）**。共享既有 Project 与存储，不使用旧 TestRun bootstrap、Job、execution binding、Harness、Runner 或 Gate。查询不接管原生会话；session reference 是同步来源元数据，不要求宿主执行身份核验。
+该旧 profile 链路为 **Codex → MCP/私有客户端 → typed API → Project/SessionTask/CaseRevision/ReportRevision/SyncReceipt + Audit/Outbox（PostgreSQL）**。共享既有 Project 与存储，不使用旧 TestRun bootstrap、Job、execution binding、Harness、Runner 或 Gate。查询不接管原生会话；session reference 是同步来源元数据，不要求宿主执行身份核验。
 
-新入口保留 reported result 与原始报告，版本保护和幂等回执保障同步一致性；缺少独立 CI 证明不阻止管理保存、不改写报告结果。正式质量门禁与 legacy VERIFIED Evidence 保持原义。[ADR-018](ADR-018_CODEX_SESSION_TASK_SYNC.md)优先于下文把新入口视为执行材料准入的描述；§43 ADR-017 切片及旧受管模式继续作为独立历史保留。模型与协议分别由领域 §50、TMP §45 拥有。
+旧 SessionTask 同步保留 reported result 与原始报告，版本保护和幂等回执保障同步一致性；缺少独立 CI 证明不阻止管理保存、不改写报告结果。正式质量门禁与 legacy VERIFIED Evidence 保持原义。[ADR-018](ADR-018_CODEX_SESSION_TASK_SYNC.md)约束旧 SessionTask；§43 ADR-017 切片及旧受管模式继续作为独立历史保留。旧模型与协议分别由领域 §50、TMP §45 拥有，新归档按领域 §56、TMP §51。
 
 Web / Operator的项目编辑、任务进度调整、软删除及恢复复用同一API与PostgreSQL，不经过Worker/Harness/Runner。项目使用row_version，SessionTask的人工管理与Agent同步共享version；人工TaskManagementRevision与原SyncReceipt分别保存冻结历史，Audit/Outbox与写入同事务提交。默认隐藏删除标记，回收站显式恢复，禁止级联删除或修改测试结果。字段、前置条件及权限分别见领域§8.1/§50.4与TMP§45.3；访问边界仍为既有可信Operator工作台，不宣称新增Login/RBAC。
 
 ### v0.7 原生框架接入与兼容范围（ADR-017）
 
-[ADR-017](ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)保留历史 `native-framework-intake/v1alpha1` 的材料治理与顺序贡献者交接。该兼容 profile 不增加平台执行引擎，不自动提升材料可信度；当前 Codex 任务、用例及报告管理按 ADR-018 同步，私有执行与验收原件不随产品源码分发。
+[ADR-017](ADR-017_NATIVE_FRAMEWORK_EVIDENCE_AND_HANDOFF.md)保留历史 `native-framework-intake/v1alpha1` 的材料治理与顺序贡献者交接。该兼容 profile 不增加平台执行引擎，不自动提升材料可信度；旧 Codex SessionTask 按 ADR-018 同步，新 Local 归档按 ADR-027，私有执行与验收原件不随产品源码分发。
 
 本轮是 PostgreSQL / Artifact Store 上的独立 native 轮次与 Operator 受控 API / 本机客户端，不改旧 `TestRun`、两种受管 Harness、交互 MCP 或 Runner 历史。下文 v0.3–v0.6 的部署、Job、Session、SourceSnapshot、Runner / OFFICIAL / Evidence 描述是旧 profile 的实现和规范；新 native 边界与最小组件见 §43，字段与请求由领域 §49、TMP §44 拥有。原生 CI 可信来源验证、正式 native PASS、Web/MCP 接入和生产发布不在已完成声明中。
 

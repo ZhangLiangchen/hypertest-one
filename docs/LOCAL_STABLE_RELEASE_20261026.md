@@ -1,5 +1,7 @@
 # Local v0.1.1 正式发行与 Latest（2026-10-26）
 
+> **历史资料与兼容范围：** 本文描述旧版本、旧工作流或特定交付时点，文中“当前”仅指原记录时点。新 Local 接入使用 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；未完成事项见[当前 TODO](TODO.md)，实际部署须现场核实。旧合同与历史记录仍适用于各自范围。
+
 用户明确要求将最新候选 `local-v0.1.1-rc.2` 升级为正式版，并更新 GitHub Latest。正式版本使用 `local-v0.1.1`，保留原候选 tag、资产、摘要及历史；不能仅把带 `-rc.2` 的 Release 改为非 prerelease，因为已分发的 updater 的 `stable` 渠道仍会排除该 tag。
 
 ## 本轮发行规则

@@ -1,5 +1,7 @@
 # Local 后置显式归档改造与开发计划
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 更新：2026-10-27（Asia/Singapore）。**ADR-027 首片产品实现完成。** 归档 API、全局 CLI 配对授权、CLI/显式 Skill、PC Web、旧入口退休和受管配置清理已有实现；部署与 CLI/Skill 发行分别记录在[本轮交付](LOCAL_ARCHIVE_DELIVERY_20261027.md)，USER_OWNED 功能验收未执行。用户机器上的旧配置须通过显式退休命令处理。
 
 架构决定见 [ADR-027：显式 Local 测试产物归档](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)。剩余工作统一由[当前 TODO](TODO.md)与[本轮跟进](FOLLOWUP_DELIVERY_20261023.md)跟踪；此前 `local-v0.1.1` 正式发行及宿主验收状态保持原义。

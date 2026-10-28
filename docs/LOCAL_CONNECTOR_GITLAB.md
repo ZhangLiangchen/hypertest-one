@@ -1,5 +1,7 @@
 # 本地 Connector 的受控 GitLab 提单
 
+> **历史或兼容资料：** 本文中的实施计划、配置步骤和部署/验收状态仅适用于所述 profile 与记录时点，不代表当前部署。现行入口见[文档导航](README.md)和[当前 TODO](TODO.md)；新 Local 接入见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)及 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)。旧合同、事实和恢复边界按各自范围保留。
+
 ADR-015 保留服务器提单，并增加本地受控执行器。Agent 仍使用 `request_gitlab_issue` / `get_issue`；平台核对同 Run 的 Finding、固定 SHA、可信 Runner Evidence 和责任人策略，先保存创建意图及固定 executor，再派发类型化操作。本地认证只由隔离适配器读取，不写入平台、不交给 Harness。
 
 本实现的数据库、HTTP 注入和账本回归不代表真实 GitLab 验收。真实创建必须在操作者明确批准的 GitLab 项目及负责人上单独验证。
