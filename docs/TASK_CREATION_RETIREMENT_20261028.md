@@ -19,3 +19,14 @@
 - 未执行完整后端或 Web 回归；测试收集与迁移验证分别记录，不作为用户验收。
 - 本轮最初误将历史远端 SSH 当作测试服务器；用户随后明确本 Mac 的 Docker 容器即测试环境。已现场核对 schema `0033_project_repositories`、SessionTask 0、TestRun 0；后续迁移及部署结果另行记录。
 - 业务功能验收仍由用户执行；上述测试不代表用户验收，也不构成服务器数据已清理的证据。
+
+## 本 Mac 容器部署结果
+
+用户确认本 Mac 即测试服务器。源码从已推送 Git `cdc70d34ca49a5da857143cbe349ca2ef0fbb57c` 构建；部署前数据库 schema `0033_project_repositories`，Project 2、LocalArchiveTask 1、MemoryEntry 1、CloudTask 0、SessionTask 0、TestRun 0、DurableJob 0；旧 Run 的源码/策略快照、需求、风险、用例、实现、报告和 Evidence 均为 0，旧 artifact/workspace 目录无文件。`runtime_control_requests` 有一条独立 CAPABILITIES 记录，connector 请求为 0；只读递归检查 JSON 的 `test_run_id` / `run_id` 键无命中，不能证明自由文本或其他命名无引用。
+
+本机维护容器从 0033 顺序成功执行 `0034_remove_legacy_session_tasks` 和 `0035_retire_legacy_test_runs`。完成后两迁移列出的 46 张旧专属表均为 0，Project 2、LocalArchiveTask 1、MemoryEntry 1、CloudTask 0，未更改 PostgreSQL 卷或独立 Memory 服务。由于旧任务和 Run 在迁移前均为 0，本次不能声称实际删除了多少旧任务；非空报告、Evidence 及外键清理由合成库回归验证。
+
+- API image `sha256:649c458008c6fc9a2d5ea2558e08d6f3419ed5c15404c41db503b9c683837513`；WireGuard Web image `sha256:d78fc1bc5cf119b893157abf22e09d6035c854f93a0244ebdfc92d7a23058ef7`；均标记上述完整 Git SHA。API 构建按当前依赖约束解析依赖，Web 使用本机缓存的 Node 基础镜像。
+- API、Web、PostgreSQL 和独立 PowerContext healthy；Web 保留原 WireGuard 绑定。API health 与 Web 根页 HTTP 200；通过 Web BFF 查询现有项目的归档 capability 和任务列表均 HTTP 200，列表含原有 1 条任务。旧 `/api/v1/tasks` 和 `/api/v1/test-runs` 为 HTTP 404。首次直接查询归档 capability 漏填必需 Project ID 返回 422；随后携现有 Project ID 经 BFF 查询成功。
+- 仅停止并移除服务旧 TestRun 的 `hypertest-mac-worker-1`，从本机 Compose 删除其定义；它不是 Cloud Worker。当前本机没有独立 Cloud Worker，不能将该结果称为 Cloud 运行验收。BFF、TLS、WireGuard、PowerContext 和凭据配置保留；本次未重新在 WireGuard 对端验证。
+- 本机 Compose 文件的改动前副本保存在 `~/.local/share/hypertest-mac/delivery-task-retirement-20261028/`；安装 CLI 0.1.1 包未重发。用户业务功能验收未执行。
