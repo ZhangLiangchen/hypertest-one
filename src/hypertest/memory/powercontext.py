@@ -173,7 +173,9 @@ class PowerContextAdapter:
         value = await self._request("POST", "/v1/memory/search", payload={"scope_id": scope_id,
             "query": query, "limit": min(limit, 50), "mode": "fts"})
         hits = value.get("hits")
-        if value.get("mode") != "fts" or not isinstance(hits, list) or len(hits) > 50:
+        # PowerContext 1.4.0 maps the public request mode "fts" to its
+        # atomic-memory response mode "text". Reject vector/hybrid results.
+        if value.get("mode") != "text" or not isinstance(hits, list) or len(hits) > 50:
             raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
         result = []
         for hit in hits:

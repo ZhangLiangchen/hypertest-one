@@ -4,6 +4,10 @@
 
 ## 0. 本轮实施决定
 
+### ADR-027 本地归档来源增补
+
+新显式归档增加 `LOCAL_ARCHIVE` 来源，由 Operator 选择固定 `task_id`、`submission_id`、`archive_version` 与 `asset_revision_id`。Gateway 验证同 Project、同 Task/目标空间、固定已接受 Submission 和不可变快照，确认快照实际包含该 REPORT 修订及其内容；冻结报告摘要与来源元数据，不把原报告公开。此类型仅 Operator 可提出和重验，普通 Memory grant 与 CLI archive grant 彼此不扩权；公开投影仍仅显示 opaque provenance。历史 LOCAL / CLOUD 合同不变，归档结果仍为报告者声明，不升级为可信执行事实。
+
 Gateway 是 HyperTest API 角色内的独立可选服务层，不在 API 启动 SDK、Agent 或测试。仅 API Gateway 挂载上游 admin secret；Web BFF 复用既有服务端 Operator 身份，Cloud Worker 使用逐 Project 独立 Memory integration bearer，加当前私有 Worker lease/work proof。Agent 及其 namespace 不持有上述秘密。独立 PowerContext 服务保持1.4.0固定版本，SQLite Basic/FTS，不升级或导入聊天，不调用context/prepare或外部Generation/Embedding。
 
 新增 `memory:read`（仅已发布可见经验）、`memory:propose`（私有候选）、`memory:publish`（管理范围）；CONFIGURE/PUBLISH/REVISE/RETRACT还必须是人工Operator。现grant不自动增scope，`task:sync`/`cloud:work`不授Memory权。源引用按其原模式核验：Local候选须当前owner/BOUND、固定SyncReceipt与确切ReportRevision；Cloud候选须同Project/Task/Attempt、固定Cloud receipt内的asset及当前fenced Worker。Operator可审核，其他actor不可读取私有候选或来源原文；共享投影只给opaque provenance，不附私有task/session/URL/报告内容。

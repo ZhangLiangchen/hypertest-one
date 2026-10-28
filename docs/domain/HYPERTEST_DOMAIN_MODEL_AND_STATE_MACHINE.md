@@ -2522,6 +2522,8 @@ Mapping按Project唯一，服务端namespace及上游scope分别唯一；version
 
 候选仅owner/Operator可读，来源冻结Local固定SyncReceipt/ReportRevision或Cloud固定receipt/同Attempt asset，不能自报owner/来源成为可读权。发布/修订/撤回只由人工Operator执行。每次新写核当前独立memory grant与Project，并重新检查Cloud Worker lease/token/generation；memory:read/propose/publish不从task:sync/cloud:work推导。只查询Project共享的当前已发布/未过期可见集，非owner只返回opaque provenance，不能反向解引用私有报告。
 
+ADR-027 增补：`LOCAL_ARCHIVE` 来源固定同 Project / Task / 目标空间的 Submission、accepted archive_version 与 REPORT AssetRevision；该修订须实际存在于 Submission 指向的固定快照，内容与资产修订一致。仅 Operator 可创建和重验此来源，普通 memory 与 archive 授权互不扩权；冻结来源摘要、目标与上传者，不公开原报告。既有 LOCAL / CLOUD 来源与不可变历史不变。
+
 独立Memory意图先事务SENT，再单次上游调用；未知不重写或替换key。固定上游版本完整读回匹配后才接受，撤回当前可见性不等待索引删除；迟到ACK不能复活已撤回记录。不会因Memory成功/失败改Task结果、释放Cloud HELD、覆盖报告或阻塞TaskSyncCore。Local/Cloud/private Memory账本分别保存，外部Generation/Embedding与聊天捕获关闭。源码客户端/部署/用户验收是不同事实。
 
 ## 55. ADR-025 受控 HTTPS 读取操作

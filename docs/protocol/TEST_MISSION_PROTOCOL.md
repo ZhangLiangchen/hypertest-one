@@ -1627,6 +1627,8 @@ Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的�
 
 ## 49. ADR-022 显式项目经验协议
 
+ADR-027 归档来源增补：Memory `CREATE_CANDIDATE` 的 `source` 可为 `{mode:"LOCAL_ARCHIVE", task_id, submission_id, archive_version, asset_revision_id}`。Operator 提供确切已接受 Submission 及快照中 REPORT 修订；Gateway 按领域 §54 核 Project、目标、版本和内容。此类型只允许 Operator，公开检索不附私有报告。`archive:read/write` 与 Memory scope 不互相授权，报告结果仍是上传者声明。
+
 独立profile为 `hypertest-project-memory/v1alpha1`；实体和状态由领域§54拥有，[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)定义本轮接口/信任边界。服务端前缀 `/api/v1/memory`，与任务sync/Cloud operation无共享key、版本、journal或成功判定。
 
 | 接口 | 契约 |

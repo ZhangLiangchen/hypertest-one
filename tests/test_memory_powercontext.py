@@ -86,12 +86,26 @@ async def test_lost_ack_lookup_uses_fts_then_exact_revision_without_remember(tmp
         if request.method == "POST":
             assert request.url.path == "/v1/memory/search"
             assert json.loads(request.content) == {"scope_id": "scp_original", "query": "htmemoriginal123", "limit": 50, "mode": "fts"}
-            return httpx.Response(200, json={"mode": "fts", "hits": [{"memory": {
+            return httpx.Response(200, json={"mode": "text", "hits": [{"memory": {
                 "artifact": ref(), "kind": KIND, "state": "active", "text": text}}]})
         return httpx.Response(200, json=material(text))
     matches = await make_adapter(tmp_path, handle).find_operation("scp_original", "htmemoriginal123")
     assert matches[0]["content"] == text
     assert "/v1/memory/remember" not in calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["fts", "vector", "hybrid", None])
+async def test_search_rejects_non_text_response_modes(tmp_path, mode):
+    adapter = make_adapter(tmp_path, lambda request: httpx.Response(200, json={"mode": mode, "hits": []}))
+    with pytest.raises(MemoryUpstreamError, match="SEARCH_INVALID"):
+        await adapter.search("scp_original", "synthetic", 10)
+
+
+@pytest.mark.asyncio
+async def test_search_accepts_pinned_upstream_empty_text_response(tmp_path):
+    adapter = make_adapter(tmp_path, lambda request: httpx.Response(200, json={"mode": "text", "hits": []}))
+    assert await adapter.search("scp_original", "synthetic", 10) == []
 
 
 @pytest.mark.asyncio

@@ -13,11 +13,11 @@ import { useMemoryOperation } from "@/lib/memory-operation";
 
 const UUID = /^(?:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})$/;
 type Editor = { action: "CREATE_CANDIDATE" | "PUBLISH" | "REVISE" | "RETRACT"; entry?: MemoryEntry };
-type Fields = { title: string; content: string; applicability?: string; observed_at?: string; expires_at?: string; mode: "LOCAL" | "CLOUD"; task_id: string; task_version: number; report_id?: string; attempt_id?: string; asset_revision_id?: string; publication_note: string; reviewed: boolean };
+type Fields = { title: string; content: string; applicability?: string; observed_at?: string; expires_at?: string; mode: "LOCAL" | "CLOUD" | "LOCAL_ARCHIVE"; task_id: string; task_version: number; archive_version: number; submission_id?: string; report_id?: string; attempt_id?: string; asset_revision_id?: string; publication_note: string; reviewed: boolean };
 
 export function MemoryEditor({ editor, blocked, busy, onSubmit, onClose }: { editor: Editor; blocked: boolean; busy: boolean; onSubmit: (fields: Omit<MemoryMutation, "project_id" | "operation_key">) => Promise<boolean>; onClose: () => void }) {
   const { t } = useI18n(); const [form] = Form.useForm<Fields>();
-  const mode = Form.useWatch("mode", form) || "LOCAL";
+  const mode = Form.useWatch("mode", form) || "LOCAL_ARCHIVE";
   const creating = editor.action === "CREATE_CANDIDATE", retracting = editor.action === "RETRACT";
   const title = creating ? t("Save a private candidate", "保存私有候选") : retracting ? t("Withdraw shared experience", "撤回共享经验") : editor.action === "REVISE" ? t("Append a shared revision", "追加共享修订") : t("Review and publish", "审阅并发布");
   const required = { required: true, whitespace: true, message: t("Complete this field.", "请填写此项。") };
@@ -30,8 +30,10 @@ export function MemoryEditor({ editor, blocked, busy, onSubmit, onClose }: { edi
       if (values.observed_at?.trim()) fields.observed_at = values.observed_at.trim();
       if (values.expires_at?.trim()) fields.expires_at = values.expires_at.trim();
     }
-    if (creating) fields.source = { mode: values.mode, task_id: values.task_id, task_version: values.task_version,
-      ...(values.mode === "LOCAL" ? { report_id: values.report_id } : { attempt_id: values.attempt_id, asset_revision_id: values.asset_revision_id }) } as MemorySource;
+    if (creating) fields.source = { mode: values.mode, task_id: values.task_id,
+      ...(values.mode === "LOCAL_ARCHIVE" ? { submission_id: values.submission_id, archive_version: values.archive_version, asset_revision_id: values.asset_revision_id }
+        : values.mode === "LOCAL" ? { task_version: values.task_version, report_id: values.report_id }
+          : { task_version: values.task_version, attempt_id: values.attempt_id, asset_revision_id: values.asset_revision_id }) } as MemorySource;
     else fields.publication_note = values.publication_note;
     await onSubmit(fields);
   }
@@ -39,19 +41,23 @@ export function MemoryEditor({ editor, blocked, busy, onSubmit, onClose }: { edi
     <Typography.Title id="memory-editor-title" level={2}>{title}</Typography.Title>
     {!creating && !retracting ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Only the reviewed text below will be shared", "仅共享下方经过审阅的正文")} description={t("Remove credentials, personal data, private URLs and report excerpts that should stay private. Private source references are not included in shared search results. Publishing records your review; it does not verify a test result.", "请移除凭据、个人信息、私有地址及不应共享的报告片段。共享检索不会附带私有来源引用。发布记录你的审阅，不构成测试结果验证。")} /> : null}
     {retracting ? <Typography.Paragraph>{t("Withdrawal removes this experience from new shared retrievals. Earlier revisions and operation receipts remain in history.", "撤回后，新的共享检索不再返回此经验。历史修订与操作回执继续保留。")}</Typography.Paragraph> : null}
-    <Form form={form} layout="vertical" disabled={blocked} requiredMark="optional" initialValues={{ mode: "LOCAL", task_version: 1, ...editor.entry, reviewed: false }} onFinish={finish}
+    <Form form={form} layout="vertical" disabled={blocked} requiredMark="optional" initialValues={{ mode: "LOCAL_ARCHIVE", task_version: 1, archive_version: 1, ...editor.entry, reviewed: false }} onFinish={finish}
       onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}>
       {creating ? <div className="form-section">
         <Typography.Title level={3}>{t("Accepted report source", "已接受的报告来源")}</Typography.Title>
         <Typography.Paragraph className="muted">{t("Write a selected lesson and identify an accepted report at an exact task version. No conversation, prompt, file or raw report is scanned or uploaded by this form. Candidates remain private until explicitly published.", "手工填写选定经验，并引用确切任务版本的已接受报告。此表单不会扫描或上传会话、prompt、文件或原始报告。候选在显式发布前保持私有。")}</Typography.Paragraph>
-        <Form.Item name="mode" label={t("Source mode", "来源模式")}><Radio.Group options={[{ value: "LOCAL", label: "Local" }, { value: "CLOUD", label: "Cloud" }]} /></Form.Item>
+        <Form.Item name="mode" label={t("Source mode", "来源模式")}><Radio.Group options={[{ value: "LOCAL_ARCHIVE", label: t("Local archive", "本地归档") }, { value: "LOCAL", label: t("Legacy Local", "旧版 Local") }, { value: "CLOUD", label: "Cloud" }]} /></Form.Item>
         <div className="form-grid">
         <Form.Item name="task_id" label={t("Source task ID", "来源任务 ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item>
-        <Form.Item name="task_version" label={t("Accepted task version", "已接受的任务版本")} rules={[{ required: true, type: "number", min: 1, message: t("Use a positive version number.", "请填写大于零的版本号。") }]}><InputNumber min={1} precision={0} /></Form.Item>
-        {mode === "LOCAL" ? <Form.Item name="report_id" label={t("Source report ID", "来源报告 ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item> : <>
+        {mode === "LOCAL_ARCHIVE" ? <>
+          <Form.Item name="submission_id" label={t("Accepted submission ID", "已接受的归档提交 ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item>
+          <Form.Item name="archive_version" label={t("Accepted archive version", "已接受的归档版本")} rules={[{ required: true, type: "number", min: 1 }]}><InputNumber min={1} precision={0} /></Form.Item>
+          <Form.Item name="asset_revision_id" label={t("Report asset revision ID", "报告资产修订 ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item>
+        </> : <Form.Item name="task_version" label={t("Accepted task version", "已接受的任务版本")} rules={[{ required: true, type: "number", min: 1, message: t("Use a positive version number.", "请填写大于零的版本号。") }]}><InputNumber min={1} precision={0} /></Form.Item>}
+        {mode === "LOCAL" ? <Form.Item name="report_id" label={t("Source report ID", "来源报告 ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item> : mode === "CLOUD" ? <>
           <Form.Item name="attempt_id" label={t("Source attempt ID", "来源 Attempt ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item>
           <Form.Item name="asset_revision_id" label={t("Source report asset revision ID", "来源报告资产修订 ID")} rules={referenceRules}><Input maxLength={36} autoComplete="off" /></Form.Item>
-        </>}
+        </> : null}
         </div>
       </div> : null}
       {!retracting ? <div className="form-section">

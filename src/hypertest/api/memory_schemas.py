@@ -27,7 +27,15 @@ class CloudSource(StrictModel):
     asset_revision_id: UUID
 
 
-MemorySource = Annotated[LocalSource | CloudSource, Field(discriminator="mode")]
+class LocalArchiveSource(StrictModel):
+    mode: Literal["LOCAL_ARCHIVE"]
+    task_id: UUID
+    submission_id: UUID
+    archive_version: int = Field(ge=1)
+    asset_revision_id: UUID
+
+
+MemorySource = Annotated[LocalSource | CloudSource | LocalArchiveSource, Field(discriminator="mode")]
 
 
 class Mutation(StrictModel):

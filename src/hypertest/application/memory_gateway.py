@@ -28,6 +28,12 @@ from hypertest.domain.interactive import (
     InteractiveClientRegistration,
     InteractiveIntegrationGrant,
 )
+from hypertest.domain.local_archive import (
+    LocalArchiveAssetRevision,
+    LocalArchiveSnapshot,
+    LocalArchiveSubmission,
+    LocalArchiveTask,
+)
 from hypertest.domain.memory import (
     MemoryEntry,
     MemoryOperation,
@@ -134,7 +140,40 @@ def configuration_view(row, project_id):
 async def verify_source(db, project_id, source, context, *, lock=False):
     """Resolve only fixed, accepted materials. Never trust caller provenance labels."""
     source = source.model_dump(mode="json") if hasattr(source, "model_dump") else dict(source)
-    task_id, version = UUID(source["task_id"]), source["task_version"]
+    task_id = UUID(source["task_id"])
+    if source["mode"] == "LOCAL_ARCHIVE":
+        # Archive permissions and Memory grants are independent. Until an
+        # explicit cross-scope authorization contract exists, only the human
+        # Operator may select an accepted archive as a memory source.
+        if not context.operator or context.worker:
+            raise HTTPException(403, "Local archive memory source requires an authorized Operator")
+        query = select(LocalArchiveTask).where(LocalArchiveTask.id == task_id)
+        if lock:
+            query = query.with_for_update(read=True)
+        task = await db.scalar(query.execution_options(populate_existing=True))
+        if not task or task.project_id != project_id:
+            raise HTTPException(404, "Local archive memory source not found in Project")
+        submission = await db.get(LocalArchiveSubmission, UUID(source["submission_id"]))
+        asset = await db.get(LocalArchiveAssetRevision, UUID(source["asset_revision_id"]))
+        if (not submission or submission.project_id != project_id or submission.task_id != task_id
+                or submission.accepted_version != source["archive_version"] or not asset
+                or asset.project_id != project_id or asset.task_id != task_id
+                or asset.target_kind != submission.target_kind or asset.subtask_id != submission.subtask_id
+                or asset.kind != "REPORT"):
+            raise HTTPException(409, "Local archive source requires a fixed accepted report in the same target")
+        snapshot = await db.get(LocalArchiveSnapshot, submission.snapshot_id)
+        if (not snapshot or snapshot.project_id != project_id or snapshot.task_id != task_id
+                or snapshot.target_kind != submission.target_kind or snapshot.subtask_id != submission.subtask_id
+                or snapshot.archive_version != submission.accepted_version):
+            raise HTTPException(409, "Local archive accepted snapshot mismatch")
+        items = [item for item in snapshot.document.get("assets", []) if item.get("id") == str(asset.id)]
+        if len(items) != 1 or any(items[0].get(key) != value for key, value in asset.content.items()):
+            raise HTTPException(409, "Local archive report is absent from the accepted snapshot")
+        return {**source, "target_kind": submission.target_kind,
+            "subtask_id": str(submission.subtask_id) if submission.subtask_id else None,
+            "uploader_actor_ref": asset.uploader_actor_ref, "report_key": asset.stable_key,
+            "report_revision": asset.revision, "source_digest": canonical_json_sha256(asset.content)}
+    version = source["task_version"]
     if source["mode"] == "LOCAL":
         if context.worker:
             raise HTTPException(403, "Cloud Worker cannot claim a Local source")

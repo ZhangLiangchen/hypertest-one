@@ -93,6 +93,9 @@ async def register(f, scopes, *, project_id=None):
 @pytest.fixture
 async def memory_context(monkeypatch, tmp_path):
     settings = get_settings()
+    # Exercise historical Local source compatibility without changing the
+    # default retirement of new legacy writes in deployed environments.
+    monkeypatch.setattr(settings, "local_session_writes_enabled", True)
     monkeypatch.setattr(settings, "memory_enabled", True)
     monkeypatch.setattr(settings, "connector_operator_key", OPERATOR)
     admin_file = tmp_path / "synthetic-powercontext-token"
@@ -147,6 +150,63 @@ async def publish(f, receipt, *, operation="PUBLISH", version=1, **changes):
 async def query(f, *, headers=None):
     return await f["client"].post("/api/v1/memory/query", headers=headers or f["headers"], json={
         "project_id": f["project_id"], "query": "synthetic", "limit": 20})
+
+
+async def test_archive_source_requires_operator_and_fixed_accepted_report(memory_context):
+    f = memory_context
+    archive_auth, _ = await register(f, ["archive:read", "archive:write"])
+    task = await f["client"].post("/api/v1/local-archive/tasks", headers=f["operator"], json={
+        "project_id": f["project_id"], "idempotency_key": "archive-memory-task", "title": "Archive source"})
+    assert task.status_code == 200, task.text
+    task_id = task.json()["task"]["id"]
+    uploaded = await f["client"].post(f"/api/v1/local-archive/tasks/{task_id}/submissions", headers=archive_auth, json={
+        "profile": "local-artifact-archive/v1alpha1", "project_id": f["project_id"], "task_id": task_id,
+        "idempotency_key": "archive-memory-report", "expected_archive_version": 1,
+        "assets": [{"kind": "REPORT", "stable_key": "report", "title": "Report", "markdown": "Fixed report",
+                    "reported_result": "PASS", "origin": {"origin_provider": "codex"}},
+                   {"kind": "PLAN", "stable_key": "plan", "title": "Plan", "markdown": "Fixed plan",
+                    "origin": {"origin_provider": "codex"}}]})
+    assert uploaded.status_code == 200, uploaded.text
+    receipt = uploaded.json()
+    read = await f["client"].get(f"/api/v1/local-archive/submissions/{receipt['submission_id']}", headers=f["operator"],
+        params={"project_id": f["project_id"]})
+    assert read.status_code == 200, read.text
+    import json
+    document = json.loads(read.json()["content"])
+    report = next(item for item in document["assets"] if item["kind"] == "REPORT")
+    plan = next(item for item in document["assets"] if item["kind"] == "PLAN")
+    source = {"mode": "LOCAL_ARCHIVE", "task_id": task_id, "submission_id": receipt["submission_id"],
+              "archive_version": receipt["accepted_version"], "asset_revision_id": report["id"]}
+    fields = {"title": "Reviewed lesson", "content": "Use the native command", "source": source}
+    denied = await mutate(f, "CREATE_CANDIDATE", headers=f["headers"], **fields)
+    assert denied.status_code == 403
+    bad_version = await mutate(f, "CREATE_CANDIDATE", **{**fields, "source": {**source, "archive_version": 99}})
+    assert bad_version.status_code == 409
+    bad_kind = await mutate(f, "CREATE_CANDIDATE", **{**fields, "source": {**source, "asset_revision_id": plan["id"]}})
+    assert bad_kind.status_code == 409
+    async with AsyncSessionLocal() as db:
+        other = await create_project(db, ProjectCreate(key=public_key("MEMORY"), name="Other project"))
+    other_f = {**f, "project_id": str(other.id)}
+    assert (await mutate(other_f, "CONFIGURE", enabled=True)).status_code == 200
+    assert (await mutate(other_f, "CREATE_CANDIDATE", **fields)).status_code == 404
+    accepted = await mutate(f, "CREATE_CANDIDATE", **fields)
+    assert accepted.status_code == 200, accepted.text
+    fixed = await f["client"].get(f"/api/v1/memory/entries/{accepted.json()['entry_id']}", headers=f["operator"],
+        params={"project_id": f["project_id"], "version": 1})
+    assert fixed.status_code == 200 and fixed.json()["source"]["asset_revision_id"] == report["id"]
+    unchanged = await f["client"].post(f"/api/v1/local-archive/tasks/{task_id}/submissions", headers=archive_auth, json={
+        "profile": "local-artifact-archive/v1alpha1", "project_id": f["project_id"], "task_id": task_id,
+        "idempotency_key": "archive-memory-unchanged", "expected_archive_version": receipt["accepted_version"],
+        "assets": []})
+    assert unchanged.status_code == 200 and unchanged.json()["outcome"] == "UNCHANGED", unchanged.text
+    reused_source = {**source, "submission_id": unchanged.json()["submission_id"]}
+    reused = await mutate(f, "CREATE_CANDIDATE", **{**fields, "source": reused_source})
+    assert reused.status_code == 200, reused.text
+    published = await publish(f, accepted.json())
+    assert published.status_code == 200 and published.json()["status"] == "ACCEPTED", published.text
+    results = await query(f)
+    assert results.status_code == 200 and results.json()["degraded"] is False
+    assert set(results.json()["results"][0]["source"]) == {"mode", "provenance_id"}
 
 
 async def test_candidate_private_fixed_readback_and_task_history_unchanged(memory_context):

@@ -1211,6 +1211,8 @@ Cloud 从自己的固定镜像/runtime 引用 TaskSyncCore，不要求安装面�
 
 ## 48. ADR-022 可选 Memory Gateway
 
+ADR-027 显式本地归档可由 Operator 作为 Memory 来源：Gateway 验证固定 Submission、目标空间快照和 REPORT 修订，保留原归档与其权限边界；普通 Agent 不通过 memory grant 获得归档读取权，发布正文仍须独立审阅。
+
 Gateway在API管理角色内独立实现授权、Project映射、私有候选、人工发布/修订/撤回、当前可见目录与持久意图；只调用固定PowerContext 1.4.0显式remember/FTS/固定revision读取，不启动Agent/测试。仅该角色只读挂载PowerContext管理key；独立服务的SQLite/模型关闭配置/备份保持，平台仅增加0027的四个Memory目录表及独立scope约束，不合并测试状态。
 
 Web经现严格TLS/CA/UDS、服务端Operator身份访问Gateway；独立Memory overlay/开关不依赖Cloud执行启用。Cloud Worker有专用memory-only TLS UDS与逐Project独立memory grant文件，源lease/work proof仅私有HTTP header；namespace只得到显式意图/安全结果，不得到服务或平台凭据。Local复用私有HTTPS传输但须memory显式scope与父caller，私有memory账本和TaskSyncCore分开。旧Local发行保持历史，当前源码能力不推定新发行/真实宿主验收。

@@ -181,6 +181,7 @@ function ArchiveAssetMetadata({ item }: { item: ArchiveAsset }) {
   const { t, formatDate } = useI18n();
   return <>
     <Space wrap className="muted"><Typography.Text code copyable>{item.stable_key}</Typography.Text><span>{t("Revision", "修订")} {item.revision}</span><span>{formatDate(item.accepted_at)}</span></Space>
+    {item.kind === "REPORT" ? <Typography.Paragraph>{t("Report asset revision ID", "报告资产修订 ID")}: <Typography.Text code copyable>{item.id}</Typography.Text></Typography.Paragraph> : null}
     <details className="session-history archive-asset-source"><summary>{t("Uploader and declared source", "上传者与声明来源")}</summary><Typography.Paragraph>{t("Authenticated uploader", "认证上传者")}: <Typography.Text code>{String(item.uploader_actor_ref || "—")}</Typography.Text></Typography.Paragraph><pre className="artifact-content">{JSON.stringify(item.origin || {}, null, 2)}</pre></details>
   </>;
 }

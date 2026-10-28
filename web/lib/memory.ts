@@ -1,7 +1,7 @@
 /** Memory is optional historical context, with its own authorization and receipts. */
 export const MEMORY_PROFILE = "hypertest-project-memory/v1alpha1";
 export type MemoryAction = "CONFIGURE" | "CREATE_CANDIDATE" | "PUBLISH" | "REVISE" | "RETRACT";
-export type MemorySource = { mode: "LOCAL" | "CLOUD"; task_id: string; task_version: number; report_id?: string; attempt_id?: string; asset_revision_id?: string };
+export type MemorySource = { mode: "LOCAL" | "CLOUD" | "LOCAL_ARCHIVE"; task_id: string; task_version?: number; archive_version?: number; submission_id?: string; report_id?: string; attempt_id?: string; asset_revision_id?: string };
 export type MemoryEntry = { id: string; project_id: string; version: number; status: "CANDIDATE" | "PUBLISHED" | "RETRACTED" | "PENDING" | "SUPERSEDED" | "EXPIRED"; revision_status?: "CANDIDATE" | "PUBLISHED" | "RETRACTED"; title: string; content: string; source?: MemorySource | null; publication_note?: string; applicability?: string; observed_at?: string; expires_at?: string; created_at?: string; updated_at?: string };
 export type MemoryConfiguration = { project_id?: string; enabled: boolean; version: number; scope_id?: string; status?: string };
 export type MemoryProject = { profile: string; enabled: boolean; configuration: MemoryConfiguration; entries: MemoryEntry[]; operations: MemoryReceipt[]; offset?: number; limit?: number; has_more?: boolean };
