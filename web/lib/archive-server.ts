@@ -1,5 +1,6 @@
 /** Server-only Local archive boundary; no credential is serialized to the browser. */
 import { readFile } from "node:fs/promises";
+import { isAbsolute, normalize } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { trustedServerRequest, cloudServerTransportReady } from "@/lib/cloud-server-auth";
 
@@ -36,6 +37,16 @@ function cliOrigin() {
     const value = new URL(configured);
     return value.protocol === "https:" && value.hostname && !value.username && !value.password && value.pathname === "/" && !value.search && !value.hash
       && (configured === value.origin || configured === `${value.origin}/`) ? value.origin : null;
+  } catch { return null; }
+}
+const certificateBlock = /^-----BEGIN CERTIFICATE-----\r?\n(?:[A-Za-z0-9+/=]{1,76}\r?\n)+-----END CERTIFICATE-----$/;
+/** Public certificate of a deployment-private CA. It is trust material, never a credential. */
+async function cliCertificate() {
+  const file = process.env.HYPERTEST_CLI_CA_FILE;
+  if (!file || !isAbsolute(file) || normalize(file) !== file || file.length > 4096 || /[\0\r\n]/.test(file)) return null;
+  try {
+    const text = (await readFile(file, "utf8")).trim();
+    return text.length <= 16 * 1024 && certificateBlock.test(text) ? `${text}\n` : null;
   } catch { return null; }
 }
 async function safeFailure(response: Response) {
@@ -79,8 +90,9 @@ export async function localBoundary(request: NextRequest, path: string, domain: 
   const operator = await key();
   if (method === "GET" && path === "setup") {
     const configured = operator !== null && await cloudServerTransportReady();
-    const cli = configured && domain === "cli-authorization" ? cliOrigin() : null;
-    return json(cli ? { configured, cli_server_origin: cli } : { configured });
+    if (!configured || domain !== "cli-authorization") return json({ configured });
+    const cli = cliOrigin(), certificate = await cliCertificate();
+    return json({ configured, ...(cli ? { cli_server_origin: cli } : {}), ...(certificate ? { cli_ca_certificate: certificate } : {}) });
   }
   if (!(method === "GET" ? domain === "archive" ? archiveGet : authGet : domain === "archive" ? archivePost : authPost).test(path)) return failure(404, "ARCHIVE_ROUTE_NOT_FOUND");
   if (!operator) return failure(503, "ARCHIVE_WEB_UNAVAILABLE");

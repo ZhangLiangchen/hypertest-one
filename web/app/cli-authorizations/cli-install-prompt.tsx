@@ -6,16 +6,16 @@ import { cliInstallPrompt, cliServerOrigin } from "@/lib/cli-install-prompt";
 import { useI18n } from "@/lib/i18n";
 
 /** `server` is the deployment-configured CLI HTTPS origin; a plain-HTTP site cannot supply it. */
-export function CliInstallPrompt({ projectId, server }: { projectId?: string; server?: string }) {
+export function CliInstallPrompt({ projectId, server, caCertificate }: { projectId?: string; server?: string; caCertificate?: string }) {
   const { t, locale } = useI18n(); const id = useId();
   const [site, setSite] = useState<string>();
   const [expanded, setExpanded] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => { setSite(window.location.origin); }, []);
-  useEffect(() => { setCopyState("idle"); }, [server, site, projectId, locale]);
+  useEffect(() => { setCopyState("idle"); }, [server, site, projectId, caCertificate, locale]);
   const target = cliServerOrigin(server, site);
   let prompt: string | null = null, invalid = false;
-  try { prompt = cliInstallPrompt({ locale, server: target, projectId }); } catch { invalid = true; }
+  try { prompt = cliInstallPrompt({ locale, server: target, projectId, caCertificate }); } catch { invalid = true; }
   async function copy() {
     if (!prompt) return;
     try { await navigator.clipboard.writeText(prompt); setCopyState("copied"); }

@@ -65,7 +65,7 @@ export default function CliAuthorizationsPage() {
     actions={<Button onClick={() => { void setup.refetch(); void grants.refetch(); if (requestId) void request.refetch(); }}>{t("Refresh", "刷新")}</Button>} />
     {setup.isError || setup.data?.configured === false ? <Alert type="warning" showIcon className="archive-operation-notice" message={t("CLI authorization is not available on this server", "此服务器尚未开放 CLI 授权")} description={t("The server operator must configure the archive Web boundary. No credential is requested or stored by this page.", "需要服务管理员配置归档 Web 入口。此页面不索取或保存凭据。") } /> : null}
     <div className="cli-bind-guide"><section id="cli-install" className="workspace-panel"><Typography.Title level={2}>{t("Let your Agent install the CLI", "让 Agent 安装 CLI")}</Typography.Title>
-      <CliInstallPrompt projectId={preselectedProject || undefined} server={cliServer} />
+      <CliInstallPrompt projectId={preselectedProject || undefined} server={cliServer} caCertificate={setup.data?.cli_ca_certificate} />
       <details className="cli-install-manual"><summary>{t("Manual installation and binding", "手动安装与绑定")}</summary>
       {CLI_RELEASE.published ? <>
         <Typography.Paragraph>{t("Python 3.12 or later is required. Download both files into the same directory, then run the verified installer command there.", "需要 Python 3.12 或更高版本。将以下两个文件下载到同一目录，再在该目录执行校验安装命令。")}</Typography.Paragraph>

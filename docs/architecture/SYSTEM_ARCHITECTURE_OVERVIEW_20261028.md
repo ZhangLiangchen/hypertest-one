@@ -110,8 +110,8 @@ SVG 导出：[access-boundary-flow.svg](assets/access-boundary-flow.svg)。
 | 使用方 / 入口 | 路径与协议 | 认证与信任 | 当前状态 |
 | --- | --- | --- | --- |
 | 用户浏览器（PC 宽屏） | `http://10.66.66.3:3000/`（仅绑定 WireGuard 地址）→ Next.js Web | 同源；普通 API 由 Next.js 服务端 rewrite；特权域由 BFF Route Handler 加服务端 Operator 身份 | 已部署 |
-| 本地 Agent Harness（Codex CLI 等） | 在用户本机执行测试，随后由用户显式触发归档 | 无平台身份；只能调用本机 `hypertest` CLI | 已部署（Codex 已验证） |
-| `hypertest` CLI 0.1.1 + `hypertest-archive` Skill | `https://localhost:18444` → BFF proxy → API | 私有 CA 校验；每 Project 独立 `archive:read` + `archive:write` bearer；CLI 不持有 Operator key | 已部署 |
+| 外部设备 Agent Harness（Codex CLI 等） | 在外部设备执行测试，随后由用户显式触发归档 | 无平台身份；只能调用外部设备本机 `hypertest` CLI | 已部署（Codex 已验证） |
+| `hypertest` CLI 0.1.1 + `hypertest-archive` Skill | `https://10.66.66.3:18444`（WireGuard；本机回环 `localhost:18444` 保留）→ BFF proxy → API | TLS 私有 CA 校验（SAN 含 WireGuard IP）；每 Project 独立 `archive:read` + `archive:write` bearer；CLI 不持有 Operator key | 已部署 |
 | Operator：`hypertest-native` CLI | 本机 CLI → API `/native-runs` | 显式 opt-in + Operator 边界 | 默认关闭 |
 | Cloud Worker | 宿主独立进程（**不是容器**）→ PostgreSQL / API | 短期 work grant + lease/generation fence | 默认关闭、本机未部署 |
 
@@ -119,7 +119,7 @@ SVG 导出：[access-boundary-flow.svg](assets/access-boundary-flow.svg)。
 
 1. **项目 CRUD**：浏览器 → Next.js → 服务端 `rewrite /api/v1/*` → `http://api:8000`。
 2. **特权域 BFF**（`local-archive` / `cli-authorizations` / `memory` / `cloud`）：浏览器 → Next.js Route Handler → **HTTPS over Unix socket**（`hypertest.internal`，私有 CA，TLS ≥ 1.2）→ `bff-proxy`（固定 IP `192.168.97.200`）→ API。`X-Hypertest-Operator-Key` 只在 Web 服务器侧注入，**永不进入浏览器**。
-3. **CLI 路径**：`hypertest` → `https://localhost:18444` → `bff-proxy` 的 CLI TLS server → 仅放行 `/api/v1/local-archive/` 与 `/api/v1/cli-authorizations/`，**显式清空 Operator key**；浏览器批准页由该入口 302 到 WireGuard Web。Web 仅经普通 HTTP 提供时，安装 Prompt 中的 CLI 服务器地址不能从站点 origin 推断，须由 Web 配置 `HYPERTEST_CLI_SERVER_ORIGIN`（本机测试部署为 `https://localhost:18444`）显式提供；未配置或配置无效时页面生成不含地址的通用 Prompt，而不是报错或把 HTTP 站点当成 CLI 服务器。
+3. **CLI 路径**：`hypertest` 从外部设备经 WireGuard 连接 `https://10.66.66.3:18444`，本机历史 profile 仍可使用回环 `https://localhost:18444` → `bff-proxy` 的 CLI TLS server（证书 SAN 同时含 `10.66.66.3`、`localhost`，由本机私有 CA `bff/ca.crt` 签发）→ 仅放行 `/api/v1/local-archive/` 与 `/api/v1/cli-authorizations/`，**显式清空 Operator key**；浏览器批准页由该入口 302 到 WireGuard Web。CLI 只接受 HTTPS（TCP 18444 同时绑定回环与 WireGuard 地址，隧道内仍做 TLS 校验），没有 HTTP 选项。Web 仅经普通 HTTP 提供，安装 Prompt 中的 CLI 服务器地址与公开 CA 不能从站点 origin 推断，须由 Web 配置 `HYPERTEST_CLI_SERVER_ORIGIN`（本机测试部署为 `https://10.66.66.3:18444`）与 `HYPERTEST_CLI_CA_FILE`（公开 CA `bff/ca.crt`）显式提供；未配置或配置无效时页面生成不含地址的通用 Prompt，而不是报错或把 HTTP 站点当成 CLI 服务器。
 
 **BFF 边界规则（当前实现）：** 固定路径/查询参数白名单；同源 `Origin`、`sec-fetch-site`、JSON Content-Type 与体积上限校验；只返回固定错误码与白名单字段；`readback=complete` 时逐页读回并核对 hash/版本。Memory 有独立 BFF 路由与独立浏览器 journal。
 

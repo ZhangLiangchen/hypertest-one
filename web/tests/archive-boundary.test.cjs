@@ -3,10 +3,11 @@ const test = require("node:test");
 const load = require("./load-helper.cjs");
 const p = "00000000-0000-4000-8000-000000000001", task = "00000000-0000-4000-8000-000000000002", subtask = "00000000-0000-4000-8000-000000000003";
 const secret = "operator-canary-never-browser";
+const caPem = ["-----BEGIN CERTIFICATE-----", "MIIBszCCAVmgAwIBAgIUQ2xvdWQtVGVzdC1DQTAwMDAwMDAw", "-----END CERTIFICATE-----"].join("\n");
 function boundary(upstream, env = {}) {
   return load("lib/archive-server.ts", { Buffer, URL, URLSearchParams,
     process: { env: { HYPERTEST_ARCHIVE_WEB_ENABLED: "true", HYPERTEST_ARCHIVE_WEB_OPERATOR_KEY_FILE: "/private/operator", HYPERTEST_ARCHIVE_WEB_ORIGIN: "https://web.example", ...env } },
-    require: (name) => name === "node:fs/promises" ? { readFile: async () => secret } : name === "next/server" ? { NextResponse: { json: (v, init) => new Response(JSON.stringify(v), init) } }
+    require: (name) => name === "node:fs/promises" ? { readFile: async (file) => file === "/private/cli-ca.pem" ? caPem + "\n" : secret } : name === "next/server" ? { NextResponse: { json: (v, init) => new Response(JSON.stringify(v), init) } }
       : name === "@/lib/cloud-server-auth" ? { trustedServerRequest: upstream, cloudServerTransportReady: async () => true } : require(name),
   }).localBoundary;
 }
@@ -35,17 +36,20 @@ test("Local BFF preserves safe rejection codes and hides arbitrary upstream erro
     if (typeof detail === "string" && detail !== secret) assert.equal(body.detail, detail);
   }
 });
-test("CLI setup publishes only a validated configured HTTPS CLI origin, never the internal API address", async () => {
+test("CLI setup publishes only a validated configured HTTPS CLI origin and public CA, never the internal API address", async () => {
   const up = async () => new Response("{}");
   const base = { HYPERTEST_ARCHIVE_WEB_ENABLED: "true", HYPERTEST_ARCHIVE_WEB_OPERATOR_KEY_FILE: "/private/operator", HYPERTEST_ARCHIVE_WEB_ORIGIN: "https://web.example" };
   const setup = async (env, domain = "cli-authorization") => await (await boundary(up, { ...base, ...env })(req("setup"), "setup", domain, "GET")).json();
-  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444" }), { configured: true, cli_server_origin: "https://cli.example:18444" });
+  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444", HYPERTEST_CLI_CA_FILE: "/private/cli-ca.pem" }), { configured: true, cli_server_origin: "https://cli.example:18444", cli_ca_certificate: caPem + "\n" });
   assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444/" }), { configured: true, cli_server_origin: "https://cli.example:18444" });
   for (const value of ["http://cli.example:18444", "https://user:secret@cli.example", "https://cli.example/path", "https://cli.example?x=1", "https://cli.example#fragment", "cli.example", ""]) {
     assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: value }), { configured: true }, value);
   }
-  assert.deepEqual(await setup({ HYPERTEST_ARCHIVE_WEB_ENABLED: "false", HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444" }), { configured: false });
-  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444" }, "archive"), { configured: true });
+  for (const file of ["cli-ca.pem", "/private/../private/cli-ca.pem", "/private/operator", "/private/cli-ca.pem\n"]) {
+    assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444", HYPERTEST_CLI_CA_FILE: file }), { configured: true, cli_server_origin: "https://cli.example:18444" }, file);
+  }
+  assert.deepEqual(await setup({ HYPERTEST_ARCHIVE_WEB_ENABLED: "false", HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444", HYPERTEST_CLI_CA_FILE: "/private/cli-ca.pem" }), { configured: false });
+  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444", HYPERTEST_CLI_CA_FILE: "/private/cli-ca.pem" }, "archive"), { configured: true });
 });
 test("Complete root snapshots freeze identity and Unicode page offsets, reject mismatched child or version", async () => {
   const doc = { profile: "local-artifact-archive/v1alpha1", project_id: p, task_id: task, target_kind: "TASK", subtask_id: null, archive_version: 2, assets: [{ markdown: "原文🙂\nFAIL" }] };

@@ -12,9 +12,9 @@ profile 固定 server、client 和 uploader actor，只能访问网页明确批�
 
 ## 2. 把安装 Prompt 交给本地 Agent（推荐）
 
-HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 带入 CLI 可连接的平台 HTTPS 地址：优先取部署为 Web 配置的 `HYPERTEST_CLI_SERVER_ORIGIN`；未配置时，仅在页面本身经 HTTPS 打开时复用站点地址。两者都不可用时页面生成不含服务器地址的通用 Prompt（由 Agent 再询问实际地址），不会把普通 HTTP 页面地址当成 CLI 服务器，也不会因此报错。从项目入口进入时同时带入 Project ID，用于预选授权项目。项目预选不授予权限，也不是后续上传的默认目标。
+HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 带入本部署 CLI 可连接的 HTTPS 地址与公开 CA 证书：地址优先取 Web 配置 `HYPERTEST_CLI_SERVER_ORIGIN`；未配置时仅在页面本身经 HTTPS 打开时复用站点地址；两者都不可用时生成不含服务器地址的通用 Prompt（由 Agent 再询问实际地址与 CA），不会把普通 HTTP 页面地址当成 CLI 服务器，也不会因此报错。CA 证书来自 `HYPERTEST_CLI_CA_FILE`，只包含公开证书、不含私钥。从项目入口进入时同时带入 Project ID，用于预选授权项目。项目预选不授予权限，也不是后续上传的默认目标。
 
-`HYPERTEST_CLI_SERVER_ORIGIN` 是可选的部署配置，值必须是 CLI 实际连接的规范 HTTPS origin（`https://host[:port]`，不含用户信息、路径、查询或 fragment）；它不同于浏览器站点的 `HYPERTEST_ARCHIVE_WEB_ORIGIN`。当 Web 只经 WireGuard 以普通 HTTP 提供（例如本机测试部署 `http://10.66.66.3:3000`）而 CLI API 位于另一个受限 HTTPS 入口时，必须显式配置该变量，页面才能生成包含服务器地址与绑定命令的 Prompt。该值不会向浏览器泄露 Operator key、内部 socket 或其他配置；未配置或配置无效时只退化为通用 Prompt。
+`HYPERTEST_CLI_SERVER_ORIGIN` 与 `HYPERTEST_CLI_CA_FILE` 是可选部署配置：前者必须是 CLI 实际连接的规范 HTTPS origin（`https://host[:port]`，不含用户信息、路径、查询或 fragment），后者必须是公开 CA 证书的绝对路径。它们不同于浏览器站点的 `HYPERTEST_ARCHIVE_WEB_ORIGIN`。当 Web 只经 WireGuard 以普通 HTTP 提供（例如本机测试部署 `http://10.66.66.3:3000`）而 CLI API 位于受限 HTTPS 入口时，必须配置这两项，页面才能生成包含服务器地址、绑定命令与 CA 的 Prompt。配置值只会作为公开地址与公开证书进入浏览器，不会泄露 Operator key、内部 socket 或其他配置；未配置或配置无效时只退化为通用 Prompt。
 
 没有打开平台页面时，可从下列入口复制完整 Prompt：
 
@@ -35,7 +35,7 @@ Agent 根据 Prompt 完成以下操作：
 
 ### 从 0.1.0 升级及历史请求
 
-0.1.0 存在资产 `stable_key` 被时间字段循环覆盖为 `report_created_at` 的缺陷：多个同类型资产可能报 `DUPLICATE_ASSET_KEY`，单资产也可能以错误标识提交。请复制当前页面或发行页的安装 Prompt 升级到 0.1.1，已经临时修补旧 pyz 的机器也使用相同流程。
+0.1.0 存在资产 `stable_key` 被时间字段循环覆盖为 `report_created_at` 的缺陷：多个同类型资产可能报 `DUPLICATE_ASSET_KEY`，单资产也可能以错误标识提交。请按当前安装 Prompt 或下方手动命令升级到 0.1.1；安装 Prompt 已不再描述旧版本升级特例，已经临时修补旧 pyz 的机器同样直接安装固定版本。
 
 安装器将新版放入独立的 `releases/0.1.1/` 并更新收据匹配的受管启动命令；旧 `releases/0.1.0/`、临时修补包和 `before-stable-key-fix` 备份保留。非默认受管安装复用原安装目录与命令目录，不创建另一套不明确的启动入口。无需重新授权；已有 profile、CA、收据及 journal 继续使用。若启动命令或目标新版目录存在修改，保留冲突并报告，不强制覆盖。
 
@@ -69,7 +69,7 @@ hypertest --version
 
 ## 3. 一条命令启动绑定，在 Web 确认一次
 
-安装 Prompt 会在 CLI 就绪后发起这一步；已有匹配且可用的 profile 时直接复用。需要单独绑定时，从「CLI 授权」页的手动入口复制服务器专属命令，或将以下地址替换为实际 HTTPS 服务地址：
+安装 Prompt 会在 CLI 就绪后发起这一步；已有匹配且可用的 profile 时直接复用。需要单独绑定时，从「CLI 授权」页的手动入口复制服务器专属命令，或将以下地址替换为实际 HTTPS 服务地址（本机测试部署为外部设备经 WireGuard 使用的 `https://10.66.66.3:18444`）：
 
 ```sh
 hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
@@ -91,12 +91,12 @@ hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 
 配对窗口为 10 分钟，与所批准 grant 的有效期分开。过期、拒绝、撤销或失答不会自动触发新的绑定或扩权。
 
-CLI 使用 Python `ssl.create_default_context` 校验 HTTPS。若服务使用私有 CA，先将该公开 CA 证书加入本机 Python 信任，或在启动 CLI 的终端明确设置 `SSL_CERT_FILE=/absolute/path/trusted-ca.pem`。文件只应包含受信任的公开 CA 证书，不放任何私钥；不要关闭 TLS 校验，也没有 `--insecure` 选项。
+CLI 使用 Python `ssl.create_default_context` 校验 HTTPS，只接受 `https://` 服务器地址，没有 HTTP 或 `--insecure` 选项。若服务使用私有 CA，应将该公开 CA 证书保存为仅当前用户可读的文件，并在每条 CLI 命令（含 `doctor`、`archive`、`reconcile`）前显式设置 `SSL_CERT_FILE=/absolute/path/trusted-ca.pem`，保持证书、主机名和有效期校验；文件只放公开 CA 证书，不放私钥。授权页的安装 Prompt 会带入本部署的 CLI 地址与公开 CA，外部设备按 Prompt 操作即可，无需手工拼装。
 
-当前测试环境是本 Mac 上的 `hypertest-mac` 容器栈，CLI 入口（`https://localhost:18444`）使用本机生成的私有 CA `~/.local/share/hypertest-mac/bff/ca.crt`（CN=`HyperTest Mac Local CA`），不是系统默认信任的公有 CA，也不入库。实际地址和 CA 以现场部署为准，例如：
+当前测试环境是本 Mac 上的 `hypertest-mac` 容器栈。CLI 入口 `https://10.66.66.3:18444` 绑定 WireGuard 地址，供外部设备经 WireGuard 访问；同一入口仍保留回环 `https://localhost:18444` 供历史本机 profile 使用。证书由本机私有 CA `~/.local/share/hypertest-mac/bff/ca.crt`（CN=`HyperTest Mac Local CA`）签发，SAN 同时含 `10.66.66.3` 与 `localhost`，证书与 CA 都不入库、不进入系统信任库。外部设备使用安装 Prompt 中保存的 CA 文件即可，手写命令示例（以 Prompt 实际生成的路径为准）：
 
 ```sh
-SSL_CERT_FILE="$HOME/.local/share/hypertest-mac/bff/ca.crt" hypertest doctor --profile hypertest-mac --json
+SSL_CERT_FILE="$HOME/.hypertest-cli/ca/hypertest-one.crt" hypertest doctor --profile <profile> --json
 ```
 
 安装 CLI 本身不会自动把该 CA 加入操作系统信任。2026-10-27 远端部署的 HyperTest One Connector CA 只保留在[历史记录](CLI_TLS_TRUST_20261027.md)，其主机和 CA 路径已不存在。

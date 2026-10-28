@@ -52,10 +52,12 @@ test("copying the install prompt uses the active site and project without starti
   assert.equal(final.find((node) => node.props?.role === "status").props.children, "Copied. Paste it into your local Agent conversation.");
   assert.equal(final.find((node) => node.type === "details").props.open, false);
 });
-test("a deployment-configured CLI origin replaces the plain-HTTP site address", () => {
-  const h = harness({ writeText: async () => {} }, { origin: "http://10.66.66.3:3000", props: { server: "https://localhost:18444" } });
+test("a deployment-configured CLI origin and public CA replace the plain-HTTP site address", () => {
+  const ca = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----";
+  const h = harness({ writeText: async () => {} }, { origin: "http://10.66.66.3:3000", props: { server: "https://10.66.66.3:18444", caCertificate: ca } });
   const tree = h.render();
-  assert.equal(h.requested.at(-1).server, "https://localhost:18444");
+  assert.equal(h.requested.at(-1).server, "https://10.66.66.3:18444");
+  assert.equal(h.requested.at(-1).caCertificate, ca);
   assert.equal(nodes(tree).find((node) => node.type === "Alert"), undefined);
 });
 test("a plain-HTTP site without a configured origin still prepares the generic prompt instead of failing", () => {

@@ -8,10 +8,11 @@ const helper = load("lib/cli-install-prompt.ts", { URL, require: (name) => {
   assert.equal(name, "./cli-release"); return release;
 } });
 const projectId = "00000000-0000-4000-8000-000000000001";
+const ca = ["-----BEGIN CERTIFICATE-----", "MIIBszCCAVmgAwIBAgIUQ2xvdWQtVGVzdC1DQTAwMDAwMDAw", "-----END CERTIFICATE-----"].join("\n");
 
 test("both Agent prompts pin the published installer and CLI and distinguish installation from user approval", () => {
   for (const locale of ["zh", "en"]) {
-    const prompt = helper.cliInstallPrompt({ locale, server: "https://hypertest.example:8443", projectId });
+    const prompt = helper.cliInstallPrompt({ locale, server: "https://hypertest.example:8443", projectId, caCertificate: ca });
     for (const key of ["version", "sourceCommit", "releaseUrl", "installerUrl", "installerSha256", "artifactUrl", "artifactSha256"]) {
       assert.ok(prompt.includes(release.CLI_RELEASE[key]), key);
     }
@@ -19,15 +20,26 @@ test("both Agent prompts pin the published installer and CLI and distinguish ins
     assert.ok(prompt.includes("hypertest skill install --global --host codex --json"));
     assert.ok(prompt.includes("hypertest auth reconcile --request-id"));
     assert.ok(prompt.includes("hypertest auth bind --resume --request-id"));
-    assert.ok(prompt.includes("before-stable-key-fix"));
     assert.ok(prompt.includes("--bin-dir") && prompt.includes("--install-dir"));
     assert.ok(prompt.includes("SSL_CERT_FILE"));
+    assert.ok(prompt.includes(ca), "deployment private CA is copied verbatim");
     assert.ok(prompt.includes("hypertest reconcile --request-id"));
+    for (const legacy of ["before-stable-key-fix", "hypertest-local", "local-v*", "mcp-v*", "0.1.0"]) {
+      assert.equal(prompt.includes(legacy), false, `legacy/upgrade noise removed: ${legacy}`);
+    }
     assert.ok(prompt.includes(locale === "zh" ? "不重发已接受或结果未知的上传" : "resubmit an accepted/unknown upload"));
     assert.ok(prompt.includes(locale === "zh" ? "由我在 Web 核对短码并确认项目、权限和有效期" : "I must match the short code and approve the projects, permissions, and expiry on the Web page"));
     assert.ok(prompt.includes(locale === "zh" ? "不要代替我批准" : "do not approve for me"));
     assert.ok(prompt.includes(locale === "zh" ? "不上传产物" : "Do not create test tasks"));
     assert.equal(prompt.includes("--enable-hooks"), false);
+  }
+});
+
+test("only a well-formed public PEM certificate enters the prompt", () => {
+  const prompt = helper.cliInstallPrompt({ locale: "en", server: "https://hypertest.example:8443", caCertificate: ca + "\n" });
+  assert.ok(prompt.includes(`${ca}\n`));
+  for (const invalid of ["not a certificate", "-----BEGIN CERTIFICATE-----\nsecret!@#\n-----END CERTIFICATE-----", ca + "\n-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----", `-----BEGIN PRIVATE KEY-----\n${"A".repeat(64)}\n-----END PRIVATE KEY-----`]) {
+    assert.throws(() => helper.cliInstallPrompt({ locale: "en", caCertificate: invalid }), /CLI_INSTALL_CA_INVALID/);
   }
 });
 

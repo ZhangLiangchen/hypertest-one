@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/api";
 import type { LocalWebPending } from "@/lib/archive-operation";
-/** Web boundary readiness plus the optional CLI HTTPS origin configured for prompts. */
-export type CliWebSetup = { configured: boolean; cli_server_origin?: string };
+/** Web boundary readiness plus optional CLI HTTPS origin and public CA configured for prompts. */
+export type CliWebSetup = { configured: boolean; cli_server_origin?: string; cli_ca_certificate?: string };
 export type CliGrant = { grant_id: string; request_id: string; client_instance_id: string; client_name: string; actor_ref: string; project_id: string; scopes: string[]; expires_at: string; status: string; credential_fingerprint: string; idempotency_key?: string };
 export type CliApproval = { idempotency_key: string; actor_identity_id: string; actor_ref: string; project_ids: string[]; scopes: string[]; expires_in_days: number; expires_at: string; approval_digest: string };
 export type CliRequest = { request_id: string; status: "PENDING" | "APPROVED" | "BOUND" | "DENIED" | "EXPIRED"; client_instance_id: string; client_name: string; server_url: string; requested_project_id?: string | null; short_code: string; expires_at: string; credential_fingerprint: string; approval: CliApproval | null; grants: CliGrant[] };

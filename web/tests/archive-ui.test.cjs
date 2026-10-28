@@ -157,11 +157,15 @@ test("CLI authorization page supports explicit project approval without secret f
     assert.ok(manual.includes("hypertest auth bind --resume --request-id"));
   }
 });
-test("installation and binding prompts use the deployment-configured CLI HTTPS origin, never a plain-HTTP site address", () => {
+test("installation and binding prompts use the deployment-configured CLI HTTPS origin and public CA, without legacy upgrade noise", () => {
   const configured = "https://cli.example:18444";
-  const html = renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true, cli_server_origin: configured }, projects: [], "cli-grants": { items: [] } }, new URLSearchParams({ projectId: p }));
+  const ca = ["-----BEGIN CERTIFICATE-----", "MIIBszCCAVmgAwIBAgIUQ2xvdWQtVGVzdC1DQTAwMDAwMDAw", "-----END CERTIFICATE-----"].join("\n");
+  const html = renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true, cli_server_origin: configured, cli_ca_certificate: ca }, projects: [], "cli-grants": { items: [] } }, new URLSearchParams({ projectId: p }));
   assert.ok(html.includes(`The intended HyperTest One server is ${configured}.`), "the install prompt carries the configured CLI origin");
   assert.ok(html.includes(`Project hint: ${p}.`));
+  assert.ok(html.includes("This deployment uses a private CA."));
+  assert.ok(html.includes("BEGIN CERTIFICATE"));
+  for (const legacy of ["before-stable-key-fix", "hypertest-local MCP/Hooks", "local-v*", "mcp-v*"]) assert.equal(html.includes(legacy), false, `legacy/upgrade noise removed: ${legacy}`);
   const manual = html.slice(html.indexOf('<details class="cli-install-manual">'));
   assert.ok(manual.includes("hypertest auth bind --server"));
   assert.ok(manual.includes(configured));
