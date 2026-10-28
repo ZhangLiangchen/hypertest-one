@@ -519,13 +519,21 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .archive-overview-note.ant-typography { margin: 0; max-width: 75ch; }
 .archive-upload .activity-heading { margin-bottom: 16px; }
 .archive-upload-workflow { margin-top: 20px; padding: 20px; border: 1px solid var(--ht-line); border-radius: var(--ht-radius-control); background: var(--ht-canvas); }
-.archive-upload-workflow > label { display: block; font-weight: 600; }
-.archive-upload-workflow .archive-target { max-width: 560px; }
+.archive-destination-field { display: grid; gap: 8px; max-width: 560px; margin-bottom: 16px; }
+.archive-destination-field label { color: var(--ht-ink); font-weight: 600; }
+.archive-destination-field .archive-target { width: 100%; height: 42px; }
+.archive-destination-field .ant-select-selector { padding-inline: 14px !important; }
+.archive-destination-field .ant-select-arrow { color: var(--ht-muted); }
 .archive-upload-workflow .archive-prompt > .ant-typography { max-width: 75ch; }
 .archive-upload-workflow .archive-install-link { font-size: 13px; }
+.archive-version-heading h2.ant-typography { margin: 0; }
+.archive-version-heading > .archive-version-controls { flex: none; }
+.archive-version-controls label { color: var(--ht-muted); font-size: 13px; font-weight: 500; }
+.archive-version-controls .archive-version-input { width: 104px; }
+.archive-version-input .ant-input-number-input { font-variant-numeric: tabular-nums; font-weight: 600; }
+.archive-version-input .ant-input-number-handler-wrap { opacity: 1; }
 
 .archive-section { margin-bottom: 24px; }
-.archive-target { display: block; width: 100%; margin-block: 8px 16px; }
 .archive-command { padding: 16px; background: var(--ht-canvas); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .archive-command code { font-size: 13px; }
 .archive-guide-steps { padding-inline-start: 24px; line-height: 1.9; }
