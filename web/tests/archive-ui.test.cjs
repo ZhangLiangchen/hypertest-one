@@ -157,3 +157,17 @@ test("CLI authorization page supports explicit project approval without secret f
     assert.ok(manual.includes("hypertest auth bind --resume --request-id"));
   }
 });
+test("installation and binding prompts use the deployment-configured CLI HTTPS origin, never a plain-HTTP site address", () => {
+  const configured = "https://cli.example:18444";
+  const html = renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true, cli_server_origin: configured }, projects: [], "cli-grants": { items: [] } }, new URLSearchParams({ projectId: p }));
+  assert.ok(html.includes(`The intended HyperTest One server is ${configured}.`), "the install prompt carries the configured CLI origin");
+  assert.ok(html.includes(`Project hint: ${p}.`));
+  const manual = html.slice(html.indexOf('<details class="cli-install-manual">'));
+  assert.ok(manual.includes("hypertest auth bind --server"));
+  assert.ok(manual.includes(configured));
+});
+test("without a configured CLI origin the page prepares the generic prompt instead of an error", () => {
+  const html = renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true }, projects: [], "cli-grants": { items: [] } }, new URLSearchParams());
+  assert.ok(html.includes("No HyperTest One server address is supplied."));
+  assert.equal(html.includes("Installation prompt could not be prepared"), false);
+});

@@ -29,7 +29,7 @@ async function transport() {
   return { socketPath, ca, hostname, host: url.host, port: Number(url.port) || 443 };
 }
 
-/** Setup exposes readiness only, never the key, CA, socket or configured origin. */
+/** Setup exposes readiness only, never the key, CA, socket or internal API origin. */
 export async function cloudServerTransportReady(): Promise<boolean> {
   try { await transport(); return true; } catch { return false; }
 }

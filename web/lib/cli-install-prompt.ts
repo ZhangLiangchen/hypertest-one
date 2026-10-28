@@ -19,6 +19,20 @@ function origin(value: string) {
   return parsed.origin;
 }
 
+/**
+ * CLI API origin seen by the Agent. A deployment-configured value wins; otherwise
+ * only a site already served over HTTPS can be reused. A plain-HTTP site (for
+ * example the WireGuard test Web) cannot supply the CLI's HTTPS origin, so the
+ * prompt must stay generic instead of echoing an unusable address.
+ */
+export function cliServerOrigin(configured?: string, site?: string): string | undefined {
+  for (const candidate of [configured, site]) {
+    if (!candidate) continue;
+    try { return origin(candidate); } catch { /* try the next candidate */ }
+  }
+  return undefined;
+}
+
 /** Public context only. Project is a pairing hint, never an authorization. */
 export function cliBindCommand(server: string, projectId?: string): string {
   const selected = project(projectId);

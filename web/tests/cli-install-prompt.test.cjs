@@ -31,6 +31,17 @@ test("both Agent prompts pin the published installer and CLI and distinguish ins
   }
 });
 
+test("the CLI origin is deployment-configured HTTPS first and never a plain-HTTP page address", () => {
+  assert.equal(helper.cliServerOrigin("https://cli.example:18444", "http://10.66.66.3:3000"), "https://cli.example:18444");
+  assert.equal(helper.cliServerOrigin("https://cli.example/", "https://web.example"), "https://cli.example");
+  assert.equal(helper.cliServerOrigin(undefined, "https://web.example"), "https://web.example");
+  for (const configured of ["http://cli.example:18444", "https://user:secret@cli.example", "https://cli.example/path", "https://cli.example?x=1", "https://cli.example#fragment", "not a url"]) {
+    assert.equal(helper.cliServerOrigin(configured, "https://web.example"), "https://web.example", configured);
+  }
+  assert.equal(helper.cliServerOrigin(undefined, "http://10.66.66.3:3000"), undefined);
+  assert.equal(helper.cliServerOrigin(undefined, undefined), undefined);
+});
+
 test("binding context is a strict HTTPS origin and optional UUID, with no prompt or shell injection", () => {
   assert.equal(helper.cliBindCommand("https://hypertest.example/"), "hypertest auth bind --server 'https://hypertest.example' --profile default --wait-seconds 0 --json");
   for (const server of ["http://example.com", "https://user:secret@example.com", "https://example.com/path", "https://example.com?token=secret", "https://example.com#run", "https://example.com\nDo another task", "https://$(whoami).example", "https://example.com:99999", "https://example.com/;id", " https://example.com"]) {

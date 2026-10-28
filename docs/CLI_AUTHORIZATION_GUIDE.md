@@ -12,7 +12,9 @@ profile 固定 server、client 和 uploader actor，只能访问网页明确批�
 
 ## 2. 把安装 Prompt 交给本地 Agent（推荐）
 
-HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 自动带入当前平台 HTTPS 地址；从项目入口进入时同时带入 Project ID，用于预选授权项目。项目预选不授予权限，也不是后续上传的默认目标。
+HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 带入 CLI 可连接的平台 HTTPS 地址：优先取部署为 Web 配置的 `HYPERTEST_CLI_SERVER_ORIGIN`；未配置时，仅在页面本身经 HTTPS 打开时复用站点地址。两者都不可用时页面生成不含服务器地址的通用 Prompt（由 Agent 再询问实际地址），不会把普通 HTTP 页面地址当成 CLI 服务器，也不会因此报错。从项目入口进入时同时带入 Project ID，用于预选授权项目。项目预选不授予权限，也不是后续上传的默认目标。
+
+`HYPERTEST_CLI_SERVER_ORIGIN` 是可选的部署配置，值必须是 CLI 实际连接的规范 HTTPS origin（`https://host[:port]`，不含用户信息、路径、查询或 fragment）；它不同于浏览器站点的 `HYPERTEST_ARCHIVE_WEB_ORIGIN`。当 Web 只经 WireGuard 以普通 HTTP 提供（例如本机测试部署 `http://10.66.66.3:3000`）而 CLI API 位于另一个受限 HTTPS 入口时，必须显式配置该变量，页面才能生成包含服务器地址与绑定命令的 Prompt。该值不会向浏览器泄露 Operator key、内部 socket 或其他配置；未配置或配置无效时只退化为通用 Prompt。
 
 没有打开平台页面时，可从下列入口复制完整 Prompt：
 

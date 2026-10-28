@@ -28,6 +28,16 @@ function origin(request: NextRequest) {
       && (configured === value.origin || configured === `${value.origin}/`) ? value.origin : null;
   } catch { return null; }
 }
+/** Optional deployment-configured HTTPS origin of the CLI API. Public context, never a credential. */
+function cliOrigin() {
+  const configured = process.env.HYPERTEST_CLI_SERVER_ORIGIN;
+  if (!configured) return null;
+  try {
+    const value = new URL(configured);
+    return value.protocol === "https:" && value.hostname && !value.username && !value.password && value.pathname === "/" && !value.search && !value.hash
+      && (configured === value.origin || configured === `${value.origin}/`) ? value.origin : null;
+  } catch { return null; }
+}
 async function safeFailure(response: Response) {
   let detail: unknown;
   try { detail = (await response.json()).detail; } catch { /* Never forward uncontrolled upstream text. */ }
@@ -67,7 +77,11 @@ async function fullSnapshot(path: string, query: URLSearchParams, operator: stri
 }
 export async function localBoundary(request: NextRequest, path: string, domain: "archive" | "cli-authorization", method: "GET" | "POST") {
   const operator = await key();
-  if (method === "GET" && path === "setup") return json({ configured: operator !== null && await cloudServerTransportReady() });
+  if (method === "GET" && path === "setup") {
+    const configured = operator !== null && await cloudServerTransportReady();
+    const cli = configured && domain === "cli-authorization" ? cliOrigin() : null;
+    return json(cli ? { configured, cli_server_origin: cli } : { configured });
+  }
   if (!(method === "GET" ? domain === "archive" ? archiveGet : authGet : domain === "archive" ? archivePost : authPost).test(path)) return failure(404, "ARCHIVE_ROUTE_NOT_FOUND");
   if (!operator) return failure(503, "ARCHIVE_WEB_UNAVAILABLE");
   const prefix = domain === "archive" ? "local-archive" : "cli-authorizations";

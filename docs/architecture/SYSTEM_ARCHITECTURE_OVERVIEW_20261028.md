@@ -119,7 +119,7 @@ SVG 导出：[access-boundary-flow.svg](assets/access-boundary-flow.svg)。
 
 1. **项目 CRUD**：浏览器 → Next.js → 服务端 `rewrite /api/v1/*` → `http://api:8000`。
 2. **特权域 BFF**（`local-archive` / `cli-authorizations` / `memory` / `cloud`）：浏览器 → Next.js Route Handler → **HTTPS over Unix socket**（`hypertest.internal`，私有 CA，TLS ≥ 1.2）→ `bff-proxy`（固定 IP `192.168.97.200`）→ API。`X-Hypertest-Operator-Key` 只在 Web 服务器侧注入，**永不进入浏览器**。
-3. **CLI 路径**：`hypertest` → `https://localhost:18444` → `bff-proxy` 的 CLI TLS server → 仅放行 `/api/v1/local-archive/` 与 `/api/v1/cli-authorizations/`，**显式清空 Operator key**；浏览器批准页由该入口 302 到 WireGuard Web。
+3. **CLI 路径**：`hypertest` → `https://localhost:18444` → `bff-proxy` 的 CLI TLS server → 仅放行 `/api/v1/local-archive/` 与 `/api/v1/cli-authorizations/`，**显式清空 Operator key**；浏览器批准页由该入口 302 到 WireGuard Web。Web 仅经普通 HTTP 提供时，安装 Prompt 中的 CLI 服务器地址不能从站点 origin 推断，须由 Web 配置 `HYPERTEST_CLI_SERVER_ORIGIN`（本机测试部署为 `https://localhost:18444`）显式提供；未配置或配置无效时页面生成不含地址的通用 Prompt，而不是报错或把 HTTP 站点当成 CLI 服务器。
 
 **BFF 边界规则（当前实现）：** 固定路径/查询参数白名单；同源 `Origin`、`sec-fetch-site`、JSON Content-Type 与体积上限校验；只返回固定错误码与白名单字段；`readback=complete` 时逐页读回并核对 hash/版本。Memory 有独立 BFF 路由与独立浏览器 journal。
 

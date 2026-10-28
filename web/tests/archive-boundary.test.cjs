@@ -35,6 +35,18 @@ test("Local BFF preserves safe rejection codes and hides arbitrary upstream erro
     if (typeof detail === "string" && detail !== secret) assert.equal(body.detail, detail);
   }
 });
+test("CLI setup publishes only a validated configured HTTPS CLI origin, never the internal API address", async () => {
+  const up = async () => new Response("{}");
+  const base = { HYPERTEST_ARCHIVE_WEB_ENABLED: "true", HYPERTEST_ARCHIVE_WEB_OPERATOR_KEY_FILE: "/private/operator", HYPERTEST_ARCHIVE_WEB_ORIGIN: "https://web.example" };
+  const setup = async (env, domain = "cli-authorization") => await (await boundary(up, { ...base, ...env })(req("setup"), "setup", domain, "GET")).json();
+  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444" }), { configured: true, cli_server_origin: "https://cli.example:18444" });
+  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444/" }), { configured: true, cli_server_origin: "https://cli.example:18444" });
+  for (const value of ["http://cli.example:18444", "https://user:secret@cli.example", "https://cli.example/path", "https://cli.example?x=1", "https://cli.example#fragment", "cli.example", ""]) {
+    assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: value }), { configured: true }, value);
+  }
+  assert.deepEqual(await setup({ HYPERTEST_ARCHIVE_WEB_ENABLED: "false", HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444" }), { configured: false });
+  assert.deepEqual(await setup({ HYPERTEST_CLI_SERVER_ORIGIN: "https://cli.example:18444" }, "archive"), { configured: true });
+});
 test("Complete root snapshots freeze identity and Unicode page offsets, reject mismatched child or version", async () => {
   const doc = { profile: "local-artifact-archive/v1alpha1", project_id: p, task_id: task, target_kind: "TASK", subtask_id: null, archive_version: 2, assets: [{ markdown: "原文🙂\nFAIL" }] };
   const chars = [...JSON.stringify(doc)]; const first = Math.floor(chars.length / 2);

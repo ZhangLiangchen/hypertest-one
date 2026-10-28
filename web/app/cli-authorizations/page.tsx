@@ -5,10 +5,10 @@ import { Alert, Button, Checkbox, Descriptions, Form, Input, Select, Space, Tag,
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { errorText, getProjects } from "@/lib/api";
-import { cliAuthorizationApi, validateCliApproval, type CliGrant, type CliRequest } from "@/lib/cli-authorization";
+import { cliAuthorizationApi, validateCliApproval, type CliGrant, type CliRequest, type CliWebSetup } from "@/lib/cli-authorization";
 import { useLocalWebOperation } from "@/lib/archive-operation";
 import { CLI_RELEASE, cliInstallCommand } from "@/lib/cli-release";
-import { cliBindCommand } from "@/lib/cli-install-prompt";
+import { cliBindCommand, cliServerOrigin } from "@/lib/cli-install-prompt";
 import { useI18n } from "@/lib/i18n";
 import { WorkspaceHeading } from "@/app/workspace-ui";
 import { ArchiveOperationNotice } from "@/app/archives/archive-shared";
@@ -41,9 +41,9 @@ function CliRequestResult({ request }: { request: CliRequest }) {
 export default function CliAuthorizationsPage() {
   const { t, locale } = useI18n(); const search = useSearchParams(); const cache = useQueryClient();
   const requestId = search.get("request_id") || ""; const preselectedProject = validProjectId(search.get("projectId"));
-  const [server, setServer] = useState(""), [inputRequest, setInputRequest] = useState(requestId); const [form] = Form.useForm();
-  useEffect(() => { setServer(window.location.origin); }, []);
-  const setup = useQuery({ queryKey: ["archive-web-setup"], queryFn: () => cliAuthorizationApi<{ configured: boolean }>("setup"), retry: false });
+  const [site, setSite] = useState(""), [inputRequest, setInputRequest] = useState(requestId); const [form] = Form.useForm();
+  useEffect(() => { setSite(window.location.origin); }, []);
+  const setup = useQuery({ queryKey: ["archive-web-setup"], queryFn: () => cliAuthorizationApi<CliWebSetup>("setup"), retry: false });
   const enabled = setup.data?.configured === true;
   const projects = useQuery({ queryKey: ["projects"], queryFn: () => getProjects(), enabled, retry: false });
   const grants = useQuery({ queryKey: ["cli-grants"], queryFn: () => cliAuthorizationApi<{ items: CliGrant[] }>("grants"), enabled, retry: false });
@@ -51,8 +51,9 @@ export default function CliAuthorizationsPage() {
   const requestedProject = validProjectId(request.data?.requested_project_id) || preselectedProject;
   const operation = useLocalWebOperation("auth", "global", `approve:${requestId}`, sendApproval, recoverApproval, validateCliApproval);
   const installCommand = cliInstallCommand();
+  const cliServer = cliServerOrigin(setup.data?.cli_server_origin, site);
   let bindCommand = "";
-  if (server) { try { bindCommand = cliBindCommand(server, preselectedProject || undefined); } catch { /* HTTPS origin guidance is shown by the install prompt. */ } }
+  if (cliServer) { try { bindCommand = cliBindCommand(cliServer, preselectedProject || undefined); } catch { /* The prompt and manual command share the same validated origin. */ } }
   const changed = () => { void cache.invalidateQueries({ queryKey: ["cli-grants"] }); void cache.invalidateQueries({ queryKey: ["cli-request", requestId] }); };
   async function approve(values: { project_ids: string[]; expires_in_days: number }) {
     if (!request.data || request.data.status !== "PENDING") return;
@@ -64,7 +65,7 @@ export default function CliAuthorizationsPage() {
     actions={<Button onClick={() => { void setup.refetch(); void grants.refetch(); if (requestId) void request.refetch(); }}>{t("Refresh", "刷新")}</Button>} />
     {setup.isError || setup.data?.configured === false ? <Alert type="warning" showIcon className="archive-operation-notice" message={t("CLI authorization is not available on this server", "此服务器尚未开放 CLI 授权")} description={t("The server operator must configure the archive Web boundary. No credential is requested or stored by this page.", "需要服务管理员配置归档 Web 入口。此页面不索取或保存凭据。") } /> : null}
     <div className="cli-bind-guide"><section id="cli-install" className="workspace-panel"><Typography.Title level={2}>{t("Let your Agent install the CLI", "让 Agent 安装 CLI")}</Typography.Title>
-      <CliInstallPrompt projectId={preselectedProject || undefined} />
+      <CliInstallPrompt projectId={preselectedProject || undefined} server={cliServer} />
       <details className="cli-install-manual"><summary>{t("Manual installation and binding", "手动安装与绑定")}</summary>
       {CLI_RELEASE.published ? <>
         <Typography.Paragraph>{t("Python 3.12 or later is required. Download both files into the same directory, then run the verified installer command there.", "需要 Python 3.12 或更高版本。将以下两个文件下载到同一目录，再在该目录执行校验安装命令。")}</Typography.Paragraph>
@@ -74,7 +75,7 @@ export default function CliAuthorizationsPage() {
         <details><summary>{t("Release source and checksums", "发行源码与校验值")}</summary><Typography.Paragraph>{t("Source commit", "源码提交")}: <Typography.Text code copyable>{CLI_RELEASE.sourceCommit}</Typography.Text></Typography.Paragraph><Typography.Paragraph>Installer SHA-256: <Typography.Text code copyable>{CLI_RELEASE.installerSha256}</Typography.Text></Typography.Paragraph><Typography.Paragraph>CLI SHA-256: <Typography.Text code copyable>{CLI_RELEASE.artifactSha256}</Typography.Text></Typography.Paragraph></details>
       </> : <Typography.Paragraph>{t("Install the versioned HyperTest CLI package provided by your deployment operator. Public CLI release assets are not published yet; existing local-v packages belong to the retired sync client.", "安装部署管理员提供的固定版本 HyperTest CLI 包。公开 CLI 发行资产尚未发布；原 local-v 包属于旧同步客户端。")}</Typography.Paragraph>}
       <Typography.Title level={3}>{t("Bind to this server", "绑定此服务器")}</Typography.Title>
-      {bindCommand ? <Typography.Paragraph className="archive-command" copyable={{ text: bindCommand }}><code>{bindCommand}</code></Typography.Paragraph> : <Typography.Paragraph className="muted">{t("Open this page at your configured HTTPS address to prepare the binding command.", "通过配置的 HTTPS 地址打开本页后，可生成绑定命令。")}</Typography.Paragraph>}
+      {bindCommand ? <Typography.Paragraph className="archive-command" copyable={{ text: bindCommand }}><code>{bindCommand}</code></Typography.Paragraph> : <Typography.Paragraph className="muted">{t("Open this page over HTTPS, or have the deployment operator configure the CLI HTTPS address, to prepare the binding command.", "通过 HTTPS 地址打开本页，或由部署管理员配置 CLI HTTPS 地址后，可生成绑定命令。")}</Typography.Paragraph>}
       <Typography.Paragraph className="muted">{t("PENDING with exit code 4 means the CLI is waiting for your approval. Keep the original request_id, approve access at the returned link, then give the result back to your Agent to continue that request. To continue manually, replace the original ID below and run:", "返回 PENDING 和退出码 4 表示正常等待批准。请保留原 request_id，通过返回的链接批准授权，再将结果交给 Agent 继续原请求。手动继续时，请将下方原 ID 替换为该 request_id 后执行：")}</Typography.Paragraph>
       <Typography.Paragraph className="archive-command"><code>hypertest auth bind --resume --request-id &lt;{t("original ID", "原ID")}&gt; --wait-seconds 0 --json</code></Typography.Paragraph>
       <Typography.Paragraph className="muted">{t("Continue the original request instead of starting another pairing.", "请继续原请求，避免重复发起配对。")}</Typography.Paragraph>
@@ -104,7 +105,7 @@ export default function CliAuthorizationsPage() {
     <section className="workspace-panel"><div className="activity-heading"><Typography.Title level={2}>{t("Authorized clients and projects", "已授权客户端与项目")}</Typography.Title><Button loading={grants.isFetching} onClick={() => void grants.refetch()}>{t("Refresh grants", "刷新授权")}</Button></div>
       {grants.isError ? <Alert type="error" showIcon message={t("Grants could not be refreshed", "无法刷新授权")} description={errorText(grants.error, locale)} /> : null}
       {projects.isError ? <Alert type="warning" showIcon message={t("Project names and new authorizations are unavailable", "项目名称与新增授权暂不可用")} description={t("Refresh the project list to add access. Existing grants remain available below.", "请刷新项目列表后添加授权。下方已有授权仍可查看。")} action={<Button onClick={() => void projects.refetch()}>{t("Refresh projects", "刷新项目")}</Button>} /> : null}
-      {grants.isLoading ? <Typography.Paragraph role="status" className="muted">{t("Loading authorized clients…", "正在读取已授权客户端…")}</Typography.Paragraph> : <AuthorizedCliClients grants={grants.data?.items || []} projects={projects.data || []} server={server} canAddProject={enabled && !projects.isLoading && !projects.isError && Boolean(projects.data)} onChanged={changed} />}
+      {grants.isLoading ? <Typography.Paragraph role="status" className="muted">{t("Loading authorized clients…", "正在读取已授权客户端…")}</Typography.Paragraph> : <AuthorizedCliClients grants={grants.data?.items || []} projects={projects.data || []} server={cliServer || ""} canAddProject={enabled && !projects.isLoading && !projects.isError && Boolean(projects.data)} onChanged={changed} />}
     </section>
   </main>;
 }
