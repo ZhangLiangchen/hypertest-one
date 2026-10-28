@@ -425,7 +425,7 @@ ssh -o BatchMode=yes -o PreferredAuthentications=publickey -o ConnectTimeout=15 
 bash ops/check-remote.sh
 ```
 
-[健康检查脚本](../ops/check-remote.sh)检查 API、worker、已部署 Web、nginx 的服务状态，PostgreSQL 容器健康与实际 SQL 查询，以及 API 健康响应、worker 心跳和 Web HTTP 状态。任一项失败返回非零退出码；SSH 认证失败同样返回失败，不进入密码交互。该结果只说明平台运行状况，不代表真实 Agent 测试周期已通过或获得 `RELEASE_READY`。
+当时的健康检查脚本（`ops/check-remote.sh`，已随远端环境按 [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 移除）检查 API、worker、已部署 Web、nginx 的服务状态，PostgreSQL 容器健康与实际 SQL 查询，以及 API 健康响应、worker 心跳和 Web HTTP 状态。任一项失败返回非零退出码；SSH 认证失败同样返回失败，不进入密码交互。该结果只说明平台运行状况，不代表真实 Agent 测试周期已通过或获得 `RELEASE_READY`。
 
 2026-10-18 21:29（Asia/Singapore）已通过该脚本实测：四项 systemd 服务 active、数据库 healthy 且 `SELECT 1` 成功、API 直连和代理健康、worker 可用且 active_workers=1、Web 直连和代理均 HTTP 200。该次实际 release 为 `0a2af9c4f5034c118f1a19abd786290f0959a648`；以后仍以每次远端检查结果为准。
 

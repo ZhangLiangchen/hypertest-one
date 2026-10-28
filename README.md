@@ -33,7 +33,7 @@ Cloud 和 Local 共用 Project，但任务、权限与历史相互独立。Cloud
 
 - [文档索引](docs/README.md)：现行文档入口与历史资料的使用边界。
 - [当前 TODO](docs/TODO.md)：实现、部署和用户验收分别记录。
-- [服务器操作](docs/SERVER_OPERATIONS.md)：测试服务器、SSH、部署及数据和访问保护；旧部署记录仅反映当时状态。
+- [服务器操作](docs/SERVER_OPERATIONS.md)：本 Mac 容器测试环境的部署、数据和访问保护；旧远端服务器记录仅反映当时状态。
 - [CLI 授权与使用](docs/CLI_AUTHORIZATION_GUIDE.md)：当前本地接入。
 - [产品设计](PRODUCT.md) 与 [界面设计](DESIGN.md)：PC 宽屏 Web 的设计依据。
 

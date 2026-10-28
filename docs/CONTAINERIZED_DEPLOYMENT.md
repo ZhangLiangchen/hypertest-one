@@ -1,32 +1,39 @@
-# ADR-013 容器化部署与恢复
+# ADR-013 容器化部署与恢复（历史记录）
 
-## 当前适用范围（2026-10-23）
+> **历史记录：2026-10-19 的远端 Linux 宿主容器切换。** 当前测试环境是本 Mac 上的
+> `hypertest-mac` Docker Compose 容器，现行交付与检查流程见[服务器操作](SERVER_OPERATIONS.md)。
+> 本文的 systemd、宿主 nginx、SSH 别名、`/opt/hypertest` 路径和远端构建/验证步骤只描述
+> 当时实现，不再是现行操作；`ssh hypertest-one` 等入口已随远端环境退役。容器权限、
+> 网络守卫和数据边界的描述仍是 [ADR-013](architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
+> 的历史实现材料。
 
-`hypertest-one` 是用户单人专用的测试服务器，用于云端任务执行验证；不是生产或多人
-共用环境，开发更新允许中断和重启。日常交付遵循[当前Git交付流程](SERVER_OPERATIONS.md#当前环境与默认交付流程)：
-本地修改并commit/push，服务器取指定commit/branch构建、按需迁移/重启，再按改动范围
-在远端验证一次。需要全量时也仅在远端执行；本地不默认全量测试或production build。
-纯文档只静态校验并commit/push，不触发服务器操作或功能测试。
+## 当时的环境定位（2026-10-23，已被本机容器取代）
 
-本文保留容器、权限、网络守卫、迁移和备份工具的真实能力；后面的首次切换、配对冷备、
-隔离恢复、全量数据比对及执行周期验收是特定目标的完整方案，不是日常发布的默认gate。
-不默认维护窗口、额外审批、每次冷恢复演练或固定15分钟观察；按变更实际数据风险选择
-备份和检查。项目/任务/报告/修订/回执历史、认证和持久文件仍须保留，不清库或删卷。
+`hypertest-one` 当时指一台用户单人专用的远端 Linux 测试服务器，用于云端任务执行验证；
+不是生产或多人共用环境，开发更新允许中断和重启。当时的交付流程是本地 commit/push，
+服务器取指定 commit/branch 构建、按需迁移/重启，再在远端验证一次。2026-10-28 用户确认
+**本 Mac 即测试环境**后，该远端流程和 `ssh hypertest-one` 别名不再存在；现行流程见
+[服务器操作](SERVER_OPERATIONS.md#当前环境与默认交付流程)。
+
+本文保留当时容器、权限、网络守卫、迁移和备份工具的能力记录；后面的首次切换、配对冷备、
+隔离恢复、全量数据比对及执行周期验收是特定目标的历史方案，不是现行发布的默认 gate。
+当时的项目/任务/报告/修订/回执、认证和持久文件保全要求，现按
+[ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 的替代范围处理。
 旧事件的“生产”措辞与 `compose.production.yml`、`hypertest-production` 等技术标识保留原义，
-不据此改变当前测试环境定位。以下旧常规流程与当前规则冲突时，以上述Git交付流程为准。
+不据此改变当前测试环境定位。
 
-当前访问规则（2026-10-19）：用户 Web 仅走既有跳板机来源白名单；SSH 保留运维
+当时访问规则（2026-10-19）：用户 Web 仅走既有跳板机来源白名单；SSH 保留运维
 登录，停用转发与 Web 隧道。真实地址留在服务器受保护配置中，示例使用文档地址。
 首次启用或 ACL 变更做一次外部允许/拒绝验收；日常部署核对 ACL 有效与内部就绪，
 不反复进行手机/VPN 连通性检查。本文末尾首次切换记录保留当时边界，不能用其旧
 隧道步骤恢复另一用户入口。配置的实际激活结果须独立登记。
 
-本目录实现单 Linux 宿主的部署打包边界：nginx / Web / API / Task Worker /
+当时本目录实现单 Linux 宿主的部署打包边界：nginx / Web / API / Task Worker /
 PostgreSQL 使用固定镜像，Provider CLI、原生认证和 Host Harness Bridge 保留宿主。
-开发用 `docker-compose.yml` 继续独立；该服务器的容器栈使用现有 `compose.production.yml`。
-本文是容器栈的操作材料。2026-10-19 的正式切换、实际应用/迁移/Bridge 版本、
-保全检查和真实测试周期另见[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)，
-不能仅凭本文中的配置或命令推断某项验收已经完成。
+开发用 `docker-compose.yml` 继续独立；该服务器的容器栈使用当时的 `compose.production.yml`。
+2026-10-19 的正式切换、实际应用/迁移/Bridge 版本、保全检查和真实测试周期另见
+[正式部署验收](ADR013_PRODUCTION_DEPLOYMENT.md)，不能仅凭本文中的配置或命令推断
+某项验收已经完成或仍然成立。
 
 领域/协议仍由四份奠基文档和 [ADR-013](architecture/ADR-013_CONTAINERIZED_PLATFORM_AND_PERSISTENT_HARNESS.md)
 定义。Job 完成、容器 healthy、Bridge 连通都不能替代正式 Runner / Evidence / Gate。
@@ -258,7 +265,7 @@ docker compose --env-file /absolute/compose.env -f compose.production.yml ps
 今后的普通应用源码使用已push的Git提交，不沿用工作树打包上传；固定运维包是另一个组件。
 `ops-current` 原子指向固定包；stack 的 ExecStart/ExecStop、backup 的 ExecStart
 通过窄 drop-in 使用该入口，其余 unit 依赖、工作目录、维护锁和 timer 不变。
-`check-remote.sh` 优先用 `ops-current`，仅在此入口从未配置时兼容业务 release；
+当时的 `ops/check-remote.sh`（已随远端环境移除）优先用 `ops-current`，仅在此入口从未配置时兼容业务 release；
 断链或不完整入口必须失败。构建镜像仍从完整业务 release 执行，不从此运行运维包构建。
 
 新 nginx 与新 readiness/backup 在同一维护窗口切换。维护程序持有既有排他锁时，

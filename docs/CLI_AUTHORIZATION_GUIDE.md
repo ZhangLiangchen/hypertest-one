@@ -91,7 +91,13 @@ hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 
 CLI 使用 Python `ssl.create_default_context` 校验 HTTPS。若服务使用私有 CA，先将该公开 CA 证书加入本机 Python 信任，或在启动 CLI 的终端明确设置 `SSL_CERT_FILE=/absolute/path/trusted-ca.pem`。文件只应包含受信任的公开 CA 证书，不放任何私钥；不要关闭 TLS 校验，也没有 `--insecure` 选项。
 
-当前测试服务使用自有 **HyperTest One Connector CA**，不是系统默认信任的公有 CA。已核验其直接签发服务证书，无缺失中间证书。CA 公共证书、固定摘要与本机配置见[HTTPS 信任修复](CLI_TLS_TRUST_20261027.md)；安装 CLI 本身不会自动将它加入操作系统信任。
+当前测试环境是本 Mac 上的 `hypertest-mac` 容器栈，CLI 入口（`https://localhost:18444`）使用本机生成的私有 CA `~/.local/share/hypertest-mac/bff/ca.crt`（CN=`HyperTest Mac Local CA`），不是系统默认信任的公有 CA，也不入库。实际地址和 CA 以现场部署为准，例如：
+
+```sh
+SSL_CERT_FILE="$HOME/.local/share/hypertest-mac/bff/ca.crt" hypertest doctor --profile hypertest-mac --json
+```
+
+安装 CLI 本身不会自动把该 CA 加入操作系统信任。2026-10-27 远端部署的 HyperTest One Connector CA 只保留在[历史记录](CLI_TLS_TRUST_20261027.md)，其主机和 CA 路径已不存在。
 
 ### 为已绑定的 CLI 添加项目
 
