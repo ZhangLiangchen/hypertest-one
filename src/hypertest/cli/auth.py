@@ -30,7 +30,9 @@ def safe_view(record: dict, view: dict | None = None) -> dict:
             result[key] = view[key]
     if view.get("approval"):
         result["approval"] = {k: view["approval"].get(k) for k in
-                              ("actor_ref", "project_ids", "scopes", "expires_at")}
+                              ("actor_ref", "project_ids", "all_projects", "scopes", "expires_at")}
+    if view.get("authorization"):
+        result["authorization"] = view["authorization"]
     result["grants"] = [{k: g.get(k) for k in ("grant_id", "project_id", "scopes", "expires_at", "status")}
                         for g in view.get("grants", [])]
     return result
@@ -51,11 +53,15 @@ def validate_view(record: dict, view: dict) -> None:
         approval = view.get("approval")
         if (not isinstance(approval, dict) or not isinstance(approval.get("actor_ref"), str)
                 or not approval["actor_ref"].startswith("interactive:")
-                or not isinstance(approval.get("project_ids"), list) or not approval["project_ids"]
+                or not isinstance(approval.get("project_ids"), list)
+                or not isinstance(approval.get("all_projects", False), bool)
+                or (approval.get("all_projects") is True and approval["project_ids"])
+                or (not approval["project_ids"] and approval.get("all_projects") is not True)
                 or not {"archive:read", "archive:write"} <= set(approval.get("scopes", []))
                 or set(approval["scopes"]) - {"archive:read", "archive:write"}
                 or not isinstance(approval.get("approval_digest"), str)
-                or not isinstance(approval.get("expires_at"), str)):
+                or "expires_at" not in approval
+                or (approval["expires_at"] is not None and not isinstance(approval["expires_at"], str))):
             raise CLIError("PAIRING_APPROVAL_MISMATCH", 4)
         for project in approval["project_ids"]:
             identifier(project)
@@ -63,6 +69,17 @@ def validate_view(record: dict, view: dict) -> None:
             raise CLIError("PAIRING_APPROVAL_CHANGED", 4)
     if view["status"] == "BOUND":
         grants = view.get("grants", [])
+        if view["approval"].get("all_projects") is True:
+            authorization = view.get("authorization")
+            if (not isinstance(authorization, dict) or authorization.get("request_id") != record["request_id"]
+                    or authorization.get("actor_ref") != view["approval"]["actor_ref"]
+                    or authorization.get("client_instance_id") != expected["client_instance_id"]
+                    or authorization.get("credential_fingerprint") != expected["credential_hash"][:16]
+                    or authorization.get("all_projects") is not True
+                    or set(authorization.get("scopes", [])) != set(view["approval"]["scopes"])
+                    or authorization.get("expires_at") != view["approval"]["expires_at"]):
+                raise CLIError("PAIRING_GRANT_MISMATCH", 4)
+            return
         if (not grants or len(grants) != len(view["approval"]["project_ids"])
                 or {g.get("project_id") for g in grants} != set(view["approval"]["project_ids"])
                 or any(set(g.get("scopes", [])) != set(view["approval"]["scopes"])
@@ -85,6 +102,17 @@ def save_bound(state: State, record: dict) -> None:
     if view.get("status") != "BOUND":
         return
     approval = view["approval"]
+    if approval.get("all_projects") is True:
+        if view["authorization"].get("status") != "ACTIVE":
+            raise CLIError("CLI_AUTHORIZATION_INACTIVE", 3)
+        state.save_profile(record["profile_name"], record["server"],
+                           record["create_body"]["client_instance_id"], approval["actor_ref"],
+                           {"grant_id": record["request_id"], "project_ids": [], "all_projects": True,
+                            "scopes": approval["scopes"], "expires_at": approval["expires_at"],
+                            "credential": record["credential"]})
+        record["profile_saved"] = True
+        state.write(state.pairings, record["request_id"], record)
+        return
     if any(grant.get("status") != "ACTIVE" for grant in view["grants"]):
         raise CLIError("CLI_AUTHORIZATION_INACTIVE", 3)
     state.save_profile(record["profile_name"], record["server"],

@@ -31,7 +31,7 @@ router = APIRouter(prefix="/local-archive", tags=["local-archive"])
 
 async def identity(request, db, project_id, authorization, operator_key, *, write=False, lock=False):
     if operator_key is not None and not write:
-        return "operator:" + await require_operator(operator_key), None, True
+        return "operator:" + await require_operator(operator_key), None, True, False
     token = bearer(request, authorization)
     grant = await interactive.authenticate(db, token, "archive:write" if write else "archive:read", project_id=project_id)
     if write:
@@ -47,21 +47,24 @@ async def identity(request, db, project_id, authorization, operator_key, *, writ
         grant = await interactive.authenticate(db, token, "archive:write" if write else "archive:read", project_id=project_id)
         if write:
             await interactive.authenticate(db, token, "archive:read", project_id=project_id)
-    return "interactive:" + str(grant.actor_identity_id), grant.client_instance_id, False
+    global_access = grant.policy_version == "cli-archive-global-v1"
+    return "interactive:" + str(grant.actor_identity_id), grant.client_instance_id, False, global_access
 
 
 @router.get("/capabilities")
 @controlled_errors
-async def capabilities(request: Request, project_id: UUID,
+async def capabilities(request: Request, project_id: UUID | None = None,
                        authorization: str | None = Header(default=None),
                        x_hypertest_operator_key: str | None = Header(default=None),
                        db: AsyncSession = Depends(get_db)):
-    await identity(request, db, project_id, authorization, x_hypertest_operator_key)
-    await service.project(db, project_id)
+    _, _, _, global_access = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    if project_id is not None:
+        await service.project(db, project_id)
     return {"profile": PROFILE, "implemented": True, "configured": True,
         "asset_kinds": ["PLAN", "CASE", "REPORT"], "max_request_bytes": MAX_BYTES,
         "max_text_chars": 262144, "max_plans": 16, "max_cases": 200, "max_reports": 16,
         "max_case_steps": 100, "max_page_chars": 24000, "optional_subtask": True,
+        "all_projects": global_access,
         "legacy_local_new_writes": False}
 
 
@@ -106,8 +109,8 @@ async def operation(project_id: UUID, idempotency_key: str = Query(min_length=1,
 async def listing(request: Request, project_id: UUID, limit: int = Query(default=50, ge=1, le=100),
                   offset: int = Query(default=0, ge=0), authorization: str | None = Header(default=None),
                   x_hypertest_operator_key: str | None = Header(default=None), db: AsyncSession = Depends(get_db)):
-    actor, _, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
-    return await service.list_tasks(db, project_id, actor, operator, limit, offset)
+    actor, _, operator, global_access = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.list_tasks(db, project_id, actor, operator, limit, offset, global_access=global_access)
 
 
 @router.get("/tasks/{task_id}")
@@ -115,8 +118,8 @@ async def listing(request: Request, project_id: UUID, limit: int = Query(default
 async def detail(task_id: UUID, request: Request, project_id: UUID,
                  authorization: str | None = Header(default=None), x_hypertest_operator_key: str | None = Header(default=None),
                  db: AsyncSession = Depends(get_db)):
-    actor, _, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
-    return await service.detail(db, project_id, task_id, actor, operator)
+    actor, _, operator, global_access = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.detail(db, project_id, task_id, actor, operator, global_access=global_access)
 
 
 @router.post("/tasks/{task_id}/submissions")
@@ -127,25 +130,25 @@ async def submit(task_id: UUID, payload: ArchiveSubmit, request: Request,
         raise HTTPException(413, "ARCHIVE_BODY_EXCEEDS_2_MIB")
     if task_id != payload.task_id:
         raise HTTPException(422, "ARCHIVE_TASK_ID_MISMATCH")
-    actor, client, _ = await identity(request, db, payload.project_id, authorization, None, write=True)
+    actor, client, _, global_access = await identity(request, db, payload.project_id, authorization, None, write=True)
     locked = False
 
     async def recheck():
         nonlocal locked
         current = await identity(request, db, payload.project_id, authorization, None, write=True, lock=not locked)
-        if current != (actor, client, False):
+        if current != (actor, client, False, global_access):
             raise HTTPException(403, "ARCHIVE_AUTHORIZATION_CHANGED")
         locked = True
 
-    return await service.submit(db, payload, actor, client, authorization_check=recheck)
+    return await service.submit(db, payload, actor, client, authorization_check=recheck, global_access=global_access)
 
 
 @router.get("/submissions/by-key")
 @controlled_errors
 async def receipt(request: Request, project_id: UUID, idempotency_key: str = Query(min_length=1, max_length=128),
                   authorization: str | None = Header(default=None), db: AsyncSession = Depends(get_db)):
-    actor, _, _ = await identity(request, db, project_id, authorization, None)
-    return await service.submission_by_key(db, project_id, actor, idempotency_key)
+    actor, _, _, global_access = await identity(request, db, project_id, authorization, None)
+    return await service.submission_by_key(db, project_id, actor, idempotency_key, global_access=global_access)
 
 
 @router.get("/submissions/{submission_id}")
@@ -154,8 +157,8 @@ async def submission(submission_id: UUID, request: Request, project_id: UUID,
                      offset: int = Query(default=0, ge=0), limit: int = Query(default=24000, ge=1, le=24000),
                      authorization: str | None = Header(default=None), x_hypertest_operator_key: str | None = Header(default=None),
                      db: AsyncSession = Depends(get_db)):
-    actor, _, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
-    return await service.read_submission(db, project_id, submission_id, actor, operator, offset, limit)
+    actor, _, operator, global_access = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.read_submission(db, project_id, submission_id, actor, operator, offset, limit, global_access=global_access)
 
 
 @router.get("/tasks/{task_id}/archive")
@@ -165,8 +168,8 @@ async def root_archive(task_id: UUID, request: Request, project_id: UUID,
                        offset: int = Query(default=0, ge=0), limit: int = Query(default=24000, ge=1, le=24000),
                        authorization: str | None = Header(default=None), x_hypertest_operator_key: str | None = Header(default=None),
                        db: AsyncSession = Depends(get_db)):
-    actor, _, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
-    return await service.read_archive(db, project_id, task_id, None, actor, operator, archive_version, offset, limit)
+    actor, _, operator, global_access = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.read_archive(db, project_id, task_id, None, actor, operator, archive_version, offset, limit, global_access=global_access)
 
 
 @router.get("/tasks/{task_id}/subtasks/{subtask_id}/archive")
@@ -176,5 +179,5 @@ async def child_archive(task_id: UUID, subtask_id: UUID, request: Request, proje
                         offset: int = Query(default=0, ge=0), limit: int = Query(default=24000, ge=1, le=24000),
                         authorization: str | None = Header(default=None), x_hypertest_operator_key: str | None = Header(default=None),
                         db: AsyncSession = Depends(get_db)):
-    actor, _, operator = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
-    return await service.read_archive(db, project_id, task_id, subtask_id, actor, operator, archive_version, offset, limit)
+    actor, _, operator, global_access = await identity(request, db, project_id, authorization, x_hypertest_operator_key)
+    return await service.read_archive(db, project_id, task_id, subtask_id, actor, operator, archive_version, offset, limit, global_access=global_access)

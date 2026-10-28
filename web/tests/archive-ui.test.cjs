@@ -34,20 +34,21 @@ test("archive instruction requires project/task and only adds an explicitly sele
   assert.ok(root.startsWith("$hypertest-archive")); assert.ok(root.includes(`Project ID: ${p}`)); assert.ok(root.includes(`Task ID: ${taskId}`)); assert.equal(root.includes("Subtask ID:"), false);
   assert.ok(archive.archiveSkillInstruction(p, taskId, p, true).includes(`Subtask ID: ${p}`));
 });
-test("CLI approval submits short-code project authorization without choosing an actor", async () => {
+test("CLI approval submits all-project non-expiring authorization without choosing an actor", async () => {
   const sent = [];
   const observe = { operation: { ...operation, submit: async (...args) => { sent.push(args); return null; } } };
   renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true }, "cli-request": { request_id: taskId, status: "PENDING", short_code: "ABC123", client_name: "Synthetic CLI", expires_at: "2026-10-27T23:00:00Z" }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId }), observe);
-  await observe.approve({ actor_identity_id: "historical-actor", project_ids: [p], expires_in_days: 30 });
+  await observe.approve({ code_confirmed: true });
   assert.equal(sent.length, 1);
   assert.equal(sent[0][0], `requests/${taskId}/approve`);
   assert.equal(sent[0][1]("original-key"), `requests/by-key?request_id=${taskId}&operation=APPROVE&idempotency_key=original-key`);
-  assert.deepEqual(JSON.parse(JSON.stringify(sent[0][2])), { project_ids: [p], scopes: ["archive:read", "archive:write"], expires_in_days: 30, short_code: "ABC123" });
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0][2])), { all_projects: true, project_ids: [], scopes: ["archive:read", "archive:write"], expires_in_days: null, short_code: "ABC123" });
 });
-test("CLI approval preselects the request project hint while still requiring explicit short-code consent", () => {
+test("CLI approval covers all projects even with a project hint and requires short-code consent", () => {
   const observe = {};
   const html = renderPage("app/cli-authorizations/page.tsx", "en", { "archive-web-setup": { configured: true }, "cli-request": { request_id: taskId, status: "PENDING", short_code: "ABC123", client_name: "Synthetic CLI", expires_at: "2026-10-27T23:00:00Z", requested_project_id: p }, projects: [{ id: p, name: "Synthetic Project" }], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId }), observe);
-  assert.deepEqual(Array.from(observe.initialValues.project_ids), [p]);
+  assert.ok(html.includes("All current and future projects"));
+  assert.ok(html.includes("Never expires"));
   assert.ok(html.includes("The code matches the CLI I started"));
   assert.ok(html.includes('type="checkbox"'));
 });
@@ -63,6 +64,37 @@ test("completed pairing is a compact client status with folded details, while ap
       assert.ok(html.includes(status === "BOUND" ? 'cli-request-status is-bound' : 'cli-request-status is-waiting'));
       if (status === "APPROVED") assert.ok(html.includes(locale === "en" ? "awaiting CLI" : "等待 CLI 确认"));
     }
+  }
+});
+test("global authorization displays scope and revocation", () => {
+  const authorization = { request_id: taskId, client_instance_id: p, client_name: "Synthetic Laptop", actor_ref: `interactive:${p}`, all_projects: true, status: "ACTIVE", scopes: ["archive:read", "archive:write"], expires_at: null, credential_fingerprint: "fingerprint" };
+  for (const locale of ["zh", "en"]) {
+    const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, projects: [], "cli-grants": { items: [], authorizations: [authorization] } }, new URLSearchParams());
+    assert.ok(html.includes(locale === "en" ? "All current and future projects" : "全部现有及未来项目"));
+    assert.ok(html.includes(locale === "en" ? "Never expires" : "永不过期"));
+    assert.ok(html.includes(locale === "en" ? "Revoke" : "撤销"));
+    assert.ok(html.includes("fingerprint"));
+  }
+});
+test("upgraded authorizations show effective all-project permanent access and preserve revoked status", () => {
+  const authorization = { request_id: taskId, client_instance_id: p, client_name: "Synthetic Laptop", actor_ref: `interactive:${p}`, all_projects: true, source: "migration", status: "ACTIVE", scopes: ["archive:read", "archive:write"], expires_at: null, credential_fingerprint: "fingerprint" };
+  const request = { request_id: taskId, status: "BOUND", client_name: "Synthetic Laptop", short_code: "ABC123", expires_at: "2026-10-27T23:00:00Z", approval: { project_ids: [p], expires_at: "2027-01-01T23:00:00Z" }, authorization };
+  for (const locale of ["zh", "en"]) {
+    const html = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, "cli-request": request, projects: [], "cli-grants": { items: [], authorizations: [authorization, { ...authorization, request_id: p, status: "REVOKED" }] } }, new URLSearchParams({ request_id: taskId }));
+    assert.ok(html.includes(locale === "en" ? "Upgraded existing authorization" : "已升级的原授权"));
+    assert.ok(html.includes(locale === "en" ? "no new pairing is needed" : "无需重新配对"));
+    assert.ok(html.includes(locale === "en" ? "Previous per-project revocations do not limit" : "此前逐项目撤销不限制"));
+    assert.ok(html.includes(locale === "en" ? "All current and future projects" : "全部现有及未来项目"));
+    assert.ok(html.includes(locale === "en" ? "Never expires" : "永不过期"));
+    assert.ok(html.includes(locale === "en" ? "Revoked" : "已撤销"));
+    assert.ok(html.includes('disabled=""'));
+    const result = html.slice(html.indexOf('class="cli-request-result"'), html.indexOf('<details class="cli-pairing-details">'));
+    assert.ok(result.includes(locale === "en" ? "Never expires" : "永不过期"));
+    assert.equal(result.includes("2027"), false);
+    const revokedRequest = { ...request, authorization: { ...authorization, status: "REVOKED" } };
+    const revokedHtml = renderPage("app/cli-authorizations/page.tsx", locale, { "archive-web-setup": { configured: true }, "cli-request": revokedRequest, projects: [], "cli-grants": { items: [] } }, new URLSearchParams({ request_id: taskId }));
+    assert.ok(revokedHtml.includes(locale === "en" ? "Authorization revoked" : "授权已撤销"));
+    assert.equal(revokedHtml.includes("cli-request-status is-bound"), false);
   }
 });
 test("client tree keeps one project child with all grant records and exposes Add project", () => {
@@ -148,7 +180,7 @@ test("CLI authorization page supports explicit project approval without secret f
     assert.equal(html.includes(locale === "en" ? "Existing uploader identity" : "既有上传身份"), false);
     assert.equal(html.includes("actor_identity_id"), false);
     assert.ok(html.includes('id="cli-install"'));
-    assert.ok(html.includes(locale === "en" ? "Copy installation prompt" : "复制安装 Prompt"));
+    assert.ok(html.includes(locale === "en" ? "Copy install / upgrade prompt" : "复制安装 / 升级 Prompt"));
     assert.ok(html.includes(locale === "en" ? "Manual installation and binding" : "手动安装与绑定"));
     assert.match(html, /<textarea[^>]+readOnly=""/);
     assert.ok(html.includes('<details class="cli-install-manual">'), "manual commands stay in the collapsed secondary section");

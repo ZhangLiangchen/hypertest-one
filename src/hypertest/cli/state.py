@@ -112,7 +112,7 @@ class State:
             raise CLIError("PROFILE_LOGGED_OUT", 5)
         grants = value.get("grants", [])
         if project_id:
-            grants = [g for g in grants if project_id in g.get("project_ids", [])
+            grants = [g for g in grants if (g.get("all_projects") is True or project_id in g.get("project_ids", []))
                       and {"archive:read", "archive:write"} <= set(g.get("scopes", []))]
         if not grants:
             raise CLIError("PROJECT_NOT_AUTHORIZED" if project_id else "CLI_BINDING_REQUIRED", 5)
@@ -147,6 +147,6 @@ class State:
             value = self.read(self.profiles, key)
             result.append({"name": key, **{k: value[k] for k in ("server", "client_id", "actor_ref")},
                            "active": value.get("active", True), "grants": [
-                               {k: g.get(k) for k in ("grant_id", "project_ids", "scopes", "expires_at")}
+                               {k: g.get(k) for k in ("grant_id", "project_ids", "all_projects", "scopes", "expires_at")}
                                for g in value.get("grants", [])]})
         return result

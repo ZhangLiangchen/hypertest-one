@@ -28,8 +28,9 @@ test("both Agent prompts pin the published installer and CLI and distinguish ins
       assert.equal(prompt.includes(legacy), false, `legacy/upgrade noise removed: ${legacy}`);
     }
     assert.ok(prompt.includes(locale === "zh" ? "不重发已接受或结果未知的上传" : "resubmit an accepted/unknown upload"));
-    assert.ok(prompt.includes(locale === "zh" ? "由我在 Web 核对短码并确认项目、权限和有效期" : "I must match the short code and approve the projects, permissions, and expiry on the Web page"));
+    assert.ok(prompt.includes(locale === "zh" ? "由我在 Web 核对短码并确认所有项目的永久授权" : "I must match the short code and approve access to all projects without an expiration on the Web page"));
     assert.ok(prompt.includes(locale === "zh" ? "不要代替我批准" : "do not approve for me"));
+    assert.ok(prompt.includes(locale === "zh" ? "升级已有 profile 时保留原凭据，不要重新配对" : "For an upgraded existing profile, keep its credentials and do not start a new pairing"));
     assert.ok(prompt.includes(locale === "zh" ? "不上传产物" : "Do not create test tasks"));
     assert.equal(prompt.includes("--enable-hooks"), false);
   }

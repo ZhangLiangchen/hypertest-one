@@ -3,7 +3,8 @@ import hashlib
 import hmac
 import json
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
+from types import SimpleNamespace
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -15,9 +16,12 @@ from hypertest.common.ids import uuid7
 from hypertest.connector.security import token_hash
 from hypertest.domain.cli_authorization import (
     CliArchiveUploader,
+    CliAuthorizationGlobalGrant,
+    CliAuthorizationGlobalUpgrade,
     CliAuthorizationGrant,
     CliAuthorizationReceipt,
     CliAuthorizationRequest,
+    CliAuthorizationRevocation,
 )
 from hypertest.domain.interactive import (
     InteractiveActorIdentity,
@@ -68,13 +72,34 @@ async def grant_view(db, mapping, row=None):
     if status == "ACTIVE":
         if actor.status != "ACTIVE" or client.status != "ACTIVE":
             status = "REVOKED"
-        elif not grant.not_before <= clock < grant.expires_at:
+        elif grant.not_before > clock or (grant.expires_at is not None and grant.expires_at <= clock):
             status = "EXPIRED"
     return {"grant_id": str(grant.id), "request_id": str(row.id),
             "client_instance_id": str(row.client_instance_id), "client_name": row.client_name,
             "actor_identity_id": str(actor.id), "actor_ref": "interactive:" + str(actor.id),
             "actor_label": actor.actor_ref, "project_id": str(grant.project_id),
-            "scopes": grant.scopes, "expires_at": grant.expires_at.isoformat(), "status": status,
+            "scopes": grant.scopes, "expires_at": grant.expires_at.isoformat() if grant.expires_at else None, "status": status,
+            "credential_fingerprint": row.credential_hash[:16]}
+
+
+async def authorization_view(db, row):
+    approval = row.approval or {}
+    upgrade = await db.get(CliAuthorizationGlobalUpgrade, row.id)
+    if row.status != "BOUND" or not (approval.get("all_projects") or upgrade):
+        return None
+    actor_id = upgrade.actor_identity_id if upgrade else UUID(approval["actor_identity_id"])
+    actor = await db.get(InteractiveActorIdentity, actor_id, populate_existing=True)
+    client = await db.get(InteractiveClientRegistration, (actor.id, row.client_instance_id), populate_existing=True)
+    revoked = await db.get(CliAuthorizationRevocation, row.id)
+    status = "ACTIVE" if actor.status == "ACTIVE" and client and client.status == "ACTIVE" and not revoked else "REVOKED"
+    expiry = None if upgrade else approval.get("expires_at")
+    if status == "ACTIVE" and expiry and datetime.fromisoformat(expiry) <= await interactive.now(db):
+        status = "EXPIRED"
+    return {"request_id": str(row.id), "client_instance_id": str(row.client_instance_id),
+            "client_name": row.client_name, "actor_identity_id": str(actor.id),
+            "actor_ref": "interactive:" + str(actor.id), "actor_label": actor.actor_ref,
+            "all_projects": True, "scopes": ["archive:read", "archive:write"] if upgrade else approval["scopes"],
+            "expires_at": expiry, "status": status, "source": "migration" if upgrade else "approval",
             "credential_fingerprint": row.credential_hash[:16]}
 
 
@@ -91,7 +116,8 @@ async def view(db, row):
             "verification_url": row.server_url + "/cli-authorizations?request_id=" + str(row.id),
             "credential_fingerprint": row.credential_hash[:16],
             "requested_project_id": str(row.requested_project_id) if row.requested_project_id else None,
-            "approval": row.approval, "grants": [await grant_view(db, item, row) for item in mappings]}
+            "approval": row.approval, "authorization": await authorization_view(db, row),
+            "grants": [await grant_view(db, item, row) for item in mappings]}
 
 
 async def prior(db, row, operation, key, payload=None):
@@ -169,6 +195,8 @@ async def approve(db, request_id, payload, operator):
     data = {**payload.model_dump(mode="json"), "operator": operator}
     if "actor_identity_id" not in payload.model_fields_set:
         data.pop("actor_identity_id")
+    if "all_projects" not in payload.model_fields_set:
+        data.pop("all_projects")
     old = await prior(db, row, "APPROVE", payload.idempotency_key, data)
     if old:
         return old
@@ -188,9 +216,9 @@ async def approve(db, request_id, payload, operator):
         raise HTTPException(403, "CLI_CLIENT_REVOKED")
     approval = {"idempotency_key": payload.idempotency_key, "actor_identity_id": str(actor.id),
         "actor_ref": "interactive:" + str(actor.id), "actor_label": actor.actor_ref,
-        "project_ids": [str(item) for item in payload.project_ids], "scopes": payload.scopes,
+        "project_ids": [str(item) for item in payload.project_ids], "all_projects": payload.all_projects, "scopes": payload.scopes,
         "expires_in_days": payload.expires_in_days,
-        "expires_at": (clock + timedelta(days=payload.expires_in_days)).isoformat(),
+        "expires_at": (clock + timedelta(days=payload.expires_in_days)).isoformat() if payload.expires_in_days is not None else None,
         "credential_fingerprint": row.credential_hash[:16], "operator": operator}
     approval["approval_digest"] = digest({**approval, "request_id": str(row.id),
         "client_instance_id": str(row.client_instance_id), "credential_hash": row.credential_hash,
@@ -203,8 +231,6 @@ async def approve(db, request_id, payload, operator):
 
 
 async def redeem(db, request_id, payload, proof):
-    from datetime import datetime
-
     row = await request_record(db, request_id, lock=True)
     check_proof(row, proof)
     data = payload.model_dump(mode="json")
@@ -236,7 +262,7 @@ async def redeem(db, request_id, payload, proof):
             client_instance_id=row.client_instance_id, project_id=UUID(project_id),
             scopes=row.approval["scopes"], token_hash=token_hash(secrets.token_urlsafe(48)),
             registered_by=row.approval["operator"], policy_version="cli-archive-v1",
-            not_before=clock, expires_at=datetime.fromisoformat(row.approval["expires_at"]))
+            not_before=clock, expires_at=datetime.fromisoformat(row.approval["expires_at"]) if row.approval["expires_at"] else None)
         db.add(grant)
         await db.flush()
         db.add(CliAuthorizationGrant(request_id=row.id, project_id=grant.project_id, grant_id=grant.id))
@@ -250,35 +276,79 @@ async def redeem(db, request_id, payload, proof):
 
 
 async def authenticate_credential(db, credential_hash, scope, project_id):
-    """Resolve only archive grants. Authentication/revocation reuses the old grant fence."""
+    """Resolve an explicit old grant or an approved global CLI archive authority."""
+    row = await db.scalar(select(CliAuthorizationRequest).where(
+        CliAuthorizationRequest.credential_hash == credential_hash,
+        CliAuthorizationRequest.status == "BOUND").with_for_update().execution_options(populate_existing=True))
+    if not row:
+        return None
+    approval = row.approval or {}
+    current = await authorization_view(db, row)
+    if current:
+        if current["status"] != "ACTIVE":
+            return None
+        actor_id = UUID(current["actor_identity_id"])
+        expiry = datetime.fromisoformat(current["expires_at"]) if current["expires_at"] else None
+        if project_id is None:
+            return SimpleNamespace(id=row.id, actor_identity_id=actor_id,
+                client_instance_id=row.client_instance_id, project_id=None, status="ACTIVE",
+                scopes=current["scopes"], not_before=row.bound_at, expires_at=expiry,
+                policy_version="cli-archive-global-v1")
+        if not await db.scalar(select(Project.id).where(Project.id == project_id, Project.deleted_at.is_(None))):
+            return None
+        mapping = await db.get(CliAuthorizationGlobalGrant, (row.id, project_id))
+        if not mapping:
+            clock = await interactive.now(db)
+            grant = InteractiveIntegrationGrant(actor_identity_id=actor_id,
+                client_instance_id=row.client_instance_id, project_id=project_id, scopes=current["scopes"],
+                token_hash=token_hash(secrets.token_urlsafe(48)), registered_by=approval["operator"],
+                policy_version="cli-archive-global-v1", not_before=clock, expires_at=expiry)
+            db.add(grant)
+            await db.flush()
+            db.add(CliAuthorizationGlobalGrant(request_id=row.id, project_id=project_id, grant_id=grant.id))
+            await db.flush()
+            interactive.event(db, grant, "cli.integration.registered", "InteractiveIntegrationGrant", grant.id)
+            return grant
+        return await db.get(InteractiveIntegrationGrant, mapping.grant_id, populate_existing=True)
     query = (select(InteractiveIntegrationGrant)
         .join(CliAuthorizationGrant, CliAuthorizationGrant.grant_id == InteractiveIntegrationGrant.id)
-        .join(CliAuthorizationRequest, CliAuthorizationRequest.id == CliAuthorizationGrant.request_id)
-        .where(CliAuthorizationRequest.credential_hash == credential_hash,
-               CliAuthorizationRequest.status == "BOUND"))
+        .where(CliAuthorizationGrant.request_id == row.id))
     if project_id:
         query = query.where(CliAuthorizationGrant.project_id == project_id)
     else:
         query = query.where(InteractiveIntegrationGrant.status == "ACTIVE",
-                            InteractiveIntegrationGrant.expires_at > await interactive.now(db))
+                            (InteractiveIntegrationGrant.expires_at.is_(None) |
+                             (InteractiveIntegrationGrant.expires_at > await interactive.now(db))))
     return await db.scalar(query.order_by(InteractiveIntegrationGrant.project_id)
                            .execution_options(populate_existing=True))
 
 
 async def list_grants(db):
     mappings = (await db.scalars(select(CliAuthorizationGrant).order_by(CliAuthorizationGrant.request_id))).all()
-    return {"items": [await grant_view(db, mapping) for mapping in mappings]}
+    rows = (await db.scalars(select(CliAuthorizationRequest).where(
+        CliAuthorizationRequest.status == "BOUND").order_by(CliAuthorizationRequest.created_at))).all()
+    global_views = [await authorization_view(db, row) for row in rows]
+    global_ids = {UUID(view["request_id"]) for view in global_views if view is not None}
+    return {"items": [await grant_view(db, mapping) for mapping in mappings
+                      if mapping.request_id not in global_ids],
+            "authorizations": [view for view in global_views if view is not None]}
 
 
 async def revoke(db, grant_id, payload, operator):
     mapping = await db.scalar(select(CliAuthorizationGrant).where(CliAuthorizationGrant.grant_id == grant_id))
     if not mapping:
+        global_mapping = await db.scalar(select(CliAuthorizationGlobalGrant).where(
+            CliAuthorizationGlobalGrant.grant_id == grant_id))
+        if global_mapping:
+            raise ConflictError("CLI_GLOBAL_AUTHORIZATION_REVOKE_REQUIRED")
         raise NotFoundError("CLI_GRANT_NOT_FOUND")
     row = await request_record(db, mapping.request_id, lock=True)
     data = {"grant_id": str(grant_id), "operator": operator, **payload.model_dump(mode="json")}
     old = await prior(db, row, "REVOKE", payload.idempotency_key, data)
     if old:
         return old
+    if await authorization_view(db, row):
+        raise ConflictError("CLI_GLOBAL_AUTHORIZATION_REVOKE_REQUIRED")
     grant = await db.get(InteractiveIntegrationGrant, grant_id, with_for_update=True)
     if grant.status == "ACTIVE":
         grant.status, grant.revoked_at = "REVOKED", await interactive.now(db)
@@ -288,5 +358,23 @@ async def revoke(db, grant_id, payload, operator):
     await db.flush()
     response = await save_receipt(db, row, "REVOKE", payload.idempotency_key, data,
                                   await grant_view(db, mapping, row))
+    await db.commit()
+    return response
+
+
+async def revoke_authorization(db, request_id, payload, operator):
+    row = await request_record(db, request_id, lock=True)
+    data = {"request_id": str(request_id), "operator": operator, **payload.model_dump(mode="json")}
+    old = await prior(db, row, "REVOKE", payload.idempotency_key, data)
+    if old:
+        return old
+    if not await authorization_view(db, row):
+        raise NotFoundError("CLI_GLOBAL_AUTHORIZATION_NOT_FOUND")
+    if not await db.get(CliAuthorizationRevocation, row.id):
+        db.add(CliAuthorizationRevocation(request_id=row.id, revoked_at=await interactive.now(db), revoked_by=operator))
+        await db.flush()
+        audit(db, row, "cli.authorization.revoked", operator)
+    response = await save_receipt(db, row, "REVOKE", payload.idempotency_key, data,
+                                  await authorization_view(db, row))
     await db.commit()
     return response

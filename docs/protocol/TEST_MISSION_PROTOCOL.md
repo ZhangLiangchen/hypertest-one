@@ -1718,6 +1718,8 @@ Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词
 
 新档案请求与旧 Local bind/sync/collaboration namespace 分离。`hypertest legacy reconcile --config FILE --request-id KEY` 显式选择既有私有账本，歧义时用 `namespace/key`，执行旧 SYNC/BIND/协作原 key GET/固定版读回；不能生成新的旧 POST、伪造 native caller 或启动 MCP/Hooks/daemon。切换后新的旧操作返回明确退休错误，旧历史仍按原协议读回；公开旧 tag 与已接受回执不重标。旧 compact journal 缺少原正文时返回 `LEGACY_ACCEPTED_READBACK`、`original_request_verified=false`，不声称原请求内容比对；完整冻结请求通过比对才返回 `LEGACY_RECOVERED`。旧 CREATE 保留原 Web journal 恢复；CLI 不获得 Operator key。`hypertest legacy retire --directory DIR --host HOST` 只按旧安装收据移除自有配置，漂移时拒绝并保留，停止进程须核私有 IPC 的 runtime/配置指纹；原件、未决 key 和账本保留。
 
+全项目 CLI 授权覆盖所有 Local 任务与子任务的归档读写，包括 owner 为空或不同的目标；定向授权仍核 Task owner 和子任务 uploader。新提交和资产修订记录真实认证 uploader，原 key 按原 actor/client 查询，不改写旧 owner、历史结果或来源。Operator 按固定版本向量汇总，无需当前 uploader 仍有效。
+
 ### 51.4 CLI 授权页面与一次绑定
 
 下列为已实现的独立 `/api/v1/cli-authorizations` 合同，与归档提交、旧 task:sync 授权的 namespace 分开；不复用当前一次返回明文 token 的注册接口来假定失答可恢复。
@@ -1725,20 +1727,21 @@ Skill 名为 `hypertest-archive`，需用户显式选择；自然语言关键词
 | HTTP 操作 | 权限与契约 |
 | --- | --- |
 | `POST /requests` | CLI 发起配对；联网前已持久保存 request_id、原 CREATE key、credential secret 与独立 verifier。只提交 credential_hash、verifier challenge、非秘密 client 信息及可选预选项目；尚无归档权限 |
-| `POST /requests/{id}/approve` | 既有 Web Operator；核配对短码、稳定 APPROVE key，一次冻结服务端解析的专用 CLI actor、项目 allowlist、archive:read/write、期限和原指纹；新正文不传 actor，遵守现有 Web 访问/CSRF 边界 |
+| `POST /requests/{id}/approve` | 既有 Web Operator；核配对短码、稳定 APPROVE key，一次冻结服务端解析的专用 CLI actor、项目范围、archive:read/write、可选期限和原指纹；默认 `all_projects=true`、`expires_in_days=null`，覆盖当前及未来全部项目且永不过期；新正文不传 actor，遵守现有 Web 访问/CSRF 边界 |
 | `POST /requests/{id}/redeem` | CLI 持有私有 verifier proof；独立 REDEEM key 绑定批准结果，只允许兑换原固定授权，不接收扩权字段、不返回长期 secret |
 | `GET /requests/by-key`、`GET /requests/{id}` | CLI 私有 proof 或有管理权限的 Web 身份；按原操作 key/阶段读取固定回执及当前状态；公开 ID/短码不足以获取授权详情 |
 | `GET /grants`、`POST /grants/{id}/revoke` | Web Operator 查看/撤销 CLI 授权；撤销有原管理 key，不清历史，CLI 的 archive scope 不获得该管理权 |
+| `POST /requests/{id}/revoke` | Web Operator 按原管理 key 撤销该配对的全项目授权；原 key 查询继续可用，不清历史 |
 | `GET /actors` | 保留 Operator 认证后返回 410 / `CLI_UPLOADER_SELECTION_RETIRED`；不再为新配对枚举历史 ACTIVE 身份，不删除其历史记录 |
 
-`hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default` 从任意工作目录启动配对。可选 `--project-id UUID` 只预选项目。CLI 显示/打开现有 Web 授权页与短码，命令、URL、日志、stdout 不携带 credential secret/verifier/Operator key。用户在 Web 核对短码和客户端，一次批准明确项目、scope 和期限，无需选择历史上传身份；CLI 在短时窗口内有界查询，兑换并核对原 grant/client/credential 指纹，原子保存用户级 profile 后退出。无 localhost callback、daemon 或后台续签。
+`hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default` 从任意工作目录启动配对。可选 `--project-id UUID` 只预选项目。CLI 显示/打开现有 Web 授权页与短码，命令、URL、日志、stdout 不携带 credential secret/verifier/Operator key。用户在 Web 核对短码和客户端，一次批准默认全部项目、归档读写和永不过期，无需选择历史上传身份；CLI 在短时窗口内有界查询，兑换并核对原 grant/client/credential 指纹，原子保存用户级 profile 后退出。无 localhost callback、daemon 或后台续签。
 
-2026-10-27 授权入口增补：服务端使用稳定 `connector_operator_identity` 查找不可变 `CliArchiveUploader` 映射，在首次有效 APPROVE 通过短码、客户端、项目和期限检查后同事务创建专用 integration actor 与映射。同一 Operator 跨设备复用该 actor，各设备的项目授权仍单独批准；客户端自报身份、短码或旧 ACTIVE 列表不能决定 actor。专用 actor 或客户端已撤销时拒绝批准，不另建身份绕过撤销。
+2026-10-27 授权入口增补：服务端使用稳定 `connector_operator_identity` 查找不可变 `CliArchiveUploader` 映射，在首次有效 APPROVE 通过短码、客户端、项目和期限检查后同事务创建专用 integration actor 与映射。同一 Operator 跨设备复用该 actor，各设备的授权仍单独批准；客户端自报身份、短码或旧 ACTIVE 列表不能决定 actor。专用 actor 或客户端已撤销时拒绝批准，不另建身份绕过撤销。
 
 新 APPROVE 不发送 `actor_identity_id`。该可选旧字段仅保留用于已接受旧 APPROVE 的精确原 key/原正文回执恢复；同 key 异正文仍拒绝，无已接受回执的带 actor 新写拒绝。旧 APPROVED/BOUND 按原 actor 兑换或恢复，不替换为新专用 actor，不改写旧 grant、Task owner 和回执。旧 PENDING 配对可接受符合新合同的批准；但已冻结或可能发送的旧 APPROVE 只能按原 key 查询，不能去掉 actor 改正文后重发。
 
 CREATE 固定配对上下文，APPROVE 固定实际授权，REDEEM 绑定该批准结果；三者分别有原 key/冻结正文/状态，不把尚未批准的项目预选当作 grant。原请求同 key 异输入拒绝。配对窗口例如10分钟，与 grant 期限分开。正常流程中的查询只在 auth bind 命令存活期间进行，不在测试中同步。
 
-`hypertest auth status --request-id UUID --json` 查看本机配对记录，不推断服务端授权仍有效；`auth reconcile --request-id UUID --json` 才使用私有 proof 按原 key 查询并核对非秘密回执，已 BOUND 时可恢复 profile 保存。任何已发送/可能已发送操作的失答、UNKNOWN 或 NOT_FOUND 均不重 POST、不换 key 签发；确认前一阶段后，明确从未发送的下一阶段可用 `auth bind --resume --request-id UUID` 首次推进。CLI 预存 credential 使绑定成功后的失答无需再次获取明文 token；原 key 查询不充当新的授权。服务端以原配对 credential_hash 与 `CliAuthorizationGrant` 映射选择显式 Project 的独立 grant；各 grant 的 token_hash 唯一性不变，CLI credential 不成为跨项目通配授权。
+`hypertest auth status --request-id UUID --json` 查看本机配对记录，不推断服务端授权仍有效；`auth reconcile --request-id UUID --json` 才使用私有 proof 按原 key 查询并核对非秘密回执，已 BOUND 时可恢复 profile 保存。任何已发送/可能已发送操作的失答、UNKNOWN 或 NOT_FOUND 均不重 POST、不换 key 签发；确认前一阶段后，明确从未发送的下一阶段可用 `auth bind --resume --request-id UUID` 首次推进。CLI 预存 credential 使绑定成功后的失答无需再次获取明文 token；原 key 查询不充当新的授权。服务端以原配对 credential_hash 与批准范围处理显式 Project；全项目范围覆盖以后新增项目，访问时经 `CliAuthorizationGrant` 映射到该项目独立 grant（写事务提交时持久化，只读请求回滚），各 grant 的 token_hash 唯一性不变。
 
-已有 profile 的 server/client/actor 不匹配则拒绝覆盖并提示使用新 profile；相同身份新增项目需 Web 明确批准后原子合并。授权状态输出仅含 request_id、阶段、状态、grant/client 指纹、actor、获准项目/scopes/期限等安全字段，不显示 secret/hash 验证材料。auth logout --profile NAME 停用本机 profile；服务端撤销由页面明确执行。两者不清 journal/未决 key，不自动扩权或重绑；过期/撤销后归档和读回仍按当前有效授权判定。操作指南见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
+已有 profile 的 server/client/actor 不匹配则拒绝覆盖并提示使用新 profile；相同身份的授权可原子合并；全项目授权覆盖以后新增项目；符合领域 §56.5 条件的存量绑定通过独立升级记录获得同一全项目永久授权，不改原回执。授权状态输出仅含 request_id、阶段、状态、grant/client 指纹、actor、获准项目/scopes/期限等安全字段，不显示 secret/hash 验证材料。auth logout --profile NAME 停用本机 profile；服务端撤销由页面明确执行。两者不清 journal/未决 key，不自动扩权或重绑；过期/撤销后归档和读回仍按当前有效授权判定。操作指南见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。

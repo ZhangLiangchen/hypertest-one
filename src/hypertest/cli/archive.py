@@ -155,8 +155,31 @@ def outcome_result(intent: FrozenIntent, state: str, receipt: dict | None = None
     return result, 0 if complete else 3 if status == "REJECTED" else 4
 
 
+def resolve_profile(state: State, name: str | None, project_id: str, *, http_factory=HTTP) -> dict:
+    """Resolve old fixed-project profiles against the server's current authority."""
+    try:
+        return state.profile(name, project_id=project_id)
+    except CLIError as exc:
+        if exc.code != "PROJECT_NOT_AUTHORIZED":
+            raise
+    profile = state.profile(name)
+    for grant in reversed(profile["grants"]):
+        if not {"archive:read", "archive:write"} <= set(grant.get("scopes", [])):
+            continue
+        try:
+            capability = http_factory(profile["server"], token=grant["credential"]).call(
+                "GET", PREFIX + "/capabilities", query={"project_id": project_id})
+        except CLIError as exc:
+            if exc.status in {401, 403}:
+                continue
+            raise
+        if capability.get("all_projects") is True:
+            return {**profile, "grant": grant}
+    raise CLIError("PROJECT_NOT_AUTHORIZED", 5)
+
+
 def deliver(state: State, intent: FrozenIntent, *, http_factory=HTTP) -> tuple[dict, int]:
-    profile = state.profile(intent.target["profile_name"], project_id=intent.target["project_id"])
+    profile = resolve_profile(state, intent.target["profile_name"], intent.target["project_id"], http_factory=http_factory)
     if profile["server"] != intent.target["server"] or profile["actor_ref"] != intent.target["actor_ref"]:
         raise CLIError("PROFILE_IDENTITY_CONFLICT", 5)
     http = http_factory(profile["server"], token=profile["grant"]["credential"])
@@ -182,7 +205,7 @@ def archive(state: State, *, profile_name: str | None, project_id: str, task_id:
                 raise CLIError("EXISTING_REQUEST_REQUIRES_STATUS")
             return deliver(state, intent, http_factory=http_factory)
         body = load_manifest(manifest, project_id=project_id, task_id=task_id, subtask_id=subtask_id)
-        profile = state.profile(profile_name, project_id=target["project_id"])
+        profile = resolve_profile(state, profile_name, target["project_id"], http_factory=http_factory)
         with state.lock("archive-target:" + canonical_json([profile["server"], target])):
             http = http_factory(profile["server"], token=profile["grant"]["credential"])
             path = f"{PREFIX}/tasks/{task_id}"

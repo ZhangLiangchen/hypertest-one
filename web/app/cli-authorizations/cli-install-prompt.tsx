@@ -23,10 +23,10 @@ export function CliInstallPrompt({ projectId, server, caCertificate }: { project
     catch { setCopyState("failed"); setExpanded(true); }
   }
   return <div className="cli-install-prompt">
-    <Typography.Paragraph>{t("Copy this prompt to your local Agent. It installs the pinned CLI and archive Skill, then starts pairing. You review the code and approve access on the authorization page.", "将 Prompt 复制给本地 Agent，它会安装固定版本 CLI 与归档 Skill，并发起配对；随后由你在授权页核对短码并批准访问。")}</Typography.Paragraph>
+    <Typography.Paragraph>{t("Copy this prompt to your local Agent to install or upgrade the CLI and archive Skill. Existing authorized profiles are reused without pairing again; new clients require approval here.", "将 Prompt 复制给本地 Agent，安装或升级 CLI 与归档 Skill。已有获准 profile 直接复用，无需重新配对；新客户端在此核对短码并批准。")}</Typography.Paragraph>
     {invalid ? <Alert type="warning" showIcon message={t("Installation prompt could not be prepared", "无法生成安装 Prompt")} description={t("The current page context is invalid. Refresh and try again, or open the page from the configured HyperTest One address.", "当前页面上下文无效。请刷新后重试，或通过配置的 HyperTest One 地址打开页面。")} /> : !prompt ? <Alert type="info" showIcon message={t("The CLI installation prompt is not available yet", "CLI 安装 Prompt 暂未提供")} description={t("A published CLI release is required. Contact the deployment operator.", "需要已发布的 CLI 版本，请联系部署管理员。")} /> : <>
       <Space className="cli-install-prompt-actions" size={16} wrap>
-        <Button type="primary" icon={<CopyOutlined aria-hidden />} onClick={() => void copy()}>{t("Copy installation prompt", "复制安装 Prompt")}</Button>
+        <Button type="primary" icon={<CopyOutlined aria-hidden />} onClick={() => void copy()}>{t("Copy install / upgrade prompt", "复制安装 / 升级 Prompt")}</Button>
         <span role="status" aria-live="polite" className="muted">{copyState === "copied" ? t("Copied. Paste it into your local Agent conversation.", "已复制，请粘贴到本地 Agent 会话。") : t("Install once · available across projects and sessions", "安装一次 · 跨项目与会话使用")}</span>
       </Space>
       {copyState === "failed" ? <Alert type="warning" showIcon className="archive-operation-notice" message={t("Clipboard access failed", "无法写入剪贴板")} description={t("Select the prompt below and copy it manually.", "请选中下方 Prompt，手动复制。")} /> : null}

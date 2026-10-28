@@ -28,7 +28,7 @@ test("both languages guide explicit archives and link global CLI authorization w
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.LocalModeGuide, { projectId, initiallyOpen: true })));
     assert.ok(html.includes(projectId)); assert.ok(html.includes(`/cli-authorizations?projectId=${projectId}`));
     assert.ok(html.includes("hypertest-archive"));
-    assert.ok(html.includes(locale === "en" ? "Copy installation prompt" : "复制安装 Prompt"));
+    assert.ok(html.includes(locale === "en" ? "Copy install / upgrade prompt" : "复制安装 / 升级 Prompt"));
     assert.ok(html.includes(cliRelease.CLI_RELEASE.artifactSha256));
     for (const text of locale === "en" ? ["Install and authorize the CLI once", "Task root", "Archive after local testing"] : ["安装 CLI 并完成一次授权", "任务根空间", "本地测试结束后归档"]) {
       if (text === "Task root" || text === "任务根空间") continue;

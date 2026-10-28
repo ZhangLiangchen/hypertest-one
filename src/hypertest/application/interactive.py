@@ -90,7 +90,8 @@ async def authenticate_integration_record(db, grant, scope=None, *, project_id=N
         or actor.status != "ACTIVE"
         or client.status != "ACTIVE"
         or grant.status != "ACTIVE"
-        or not grant.not_before <= clock < grant.expires_at
+        or grant.not_before > clock
+        or (grant.expires_at is not None and clock >= grant.expires_at)
     ):
         raise HTTPException(403, "Interactive authorization revoked or expired")
     if scope and scope not in grant.scopes:

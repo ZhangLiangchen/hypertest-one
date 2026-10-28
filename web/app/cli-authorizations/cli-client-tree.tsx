@@ -1,9 +1,9 @@
 "use client";
 import { CopyOutlined, DownOutlined, FolderOutlined, LaptopOutlined, PlusOutlined, RightOutlined } from "@ant-design/icons";
-import { Alert, Button, Empty, Select, Space, Tag, Typography } from "antd";
+import { Alert, Button, Select, Space, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
-import { cliAuthorizationApi, validateCliRevocation, type CliGrant } from "@/lib/cli-authorization";
+import { cliAuthorizationApi, validateCliRevocation, validateCliGlobalRevocation, type CliGrant, type CliGlobalAuthorization } from "@/lib/cli-authorization";
 import { useLocalWebOperation } from "@/lib/archive-operation";
 import { copyText } from "@/lib/clipboard";
 import { cliProjectAuthorizationPrompt, groupCliGrants, type CliClientGroup } from "@/lib/cli-project-authorization";
@@ -79,7 +79,7 @@ function CliClient({ client, projects, server, canAddProject, onChanged }: { cli
         const project = projects.find((item) => item.id === projectGroup.project_id);
         return <li className="cli-project-node" key={projectGroup.project_id}><div className="cli-project-heading"><FolderOutlined aria-hidden /><div><Link href={`/projects/${projectGroup.project_id}`}>{project?.name || projectGroup.project_id}</Link><div className="entity-key">{projectGroup.project_id}</div></div>{project?.deleted_at ? <Tag>{t("Deleted project", "已删除项目")}</Tag> : null}{projectGroup.grants.length > 1 ? <span className="cli-record-count">{projectGroup.grants.length} {t("grant records", "条授权记录")}</span> : null}</div>
           <ul className="cli-grant-records">{projectGroup.grants.map((grant) => <li className="cli-grant-record" key={grant.grant_id}>
-            <div className="cli-grant-summary"><Space size={8} wrap><GrantStatus status={grant.status} /><span>{t("Valid until", "有效期至")} {formatDate(grant.expires_at)}</span></Space><div className="cli-grant-meta"><span>{grant.scopes.join(" · ")}</span><span>{t("Credential", "凭据指纹")}: <code>{grant.credential_fingerprint}</code></span></div></div>
+            <div className="cli-grant-summary"><Space size={8} wrap><GrantStatus status={grant.status} /><span>{grant.expires_at ? `${t("Valid until", "有效期至")} ${formatDate(grant.expires_at)}` : t("Never expires", "永不过期")}</span></Space><div className="cli-grant-meta"><span>{grant.scopes.join(" · ")}</span><span>{t("Credential", "凭据指纹")}: <code>{grant.credential_fingerprint}</code></span></div></div>
             <RevokeGrant grant={grant} onChanged={onChanged} />
           </li>)}</ul>
         </li>;
@@ -91,6 +91,25 @@ function CliClient({ client, projects, server, canAddProject, onChanged }: { cli
 export function AuthorizedCliClients({ grants, projects, server, canAddProject, onChanged }: { grants: CliGrant[]; projects: Project[]; server: string; canAddProject: boolean; onChanged: () => void }) {
   const { t } = useI18n();
   const clients = groupCliGrants(grants);
-  if (!clients.length) return <Empty description={t("No CLI grants", "暂无 CLI 授权")} />;
+  if (!clients.length) return null;
   return <ul className="cli-client-tree" aria-label={t("Clients and authorized projects", "客户端及已授权项目")}>{clients.map((client) => <CliClient key={client.key} client={client} projects={projects} server={server} canAddProject={canAddProject} onChanged={onChanged} />)}</ul>;
+}
+
+function GlobalCliAuthorization({ authorization, onChanged }: { authorization: CliGlobalAuthorization; onChanged: () => void }) {
+  const { t, formatDate } = useI18n();
+  const operation = useLocalWebOperation("auth", "global", `revoke-global:${authorization.request_id}`,
+    (path, payload) => cliAuthorizationApi<CliGlobalAuthorization>(path, { method: "POST", body: JSON.stringify(payload) }),
+    (path) => cliAuthorizationApi<CliGlobalAuthorization>(path), validateCliGlobalRevocation);
+  return <li className="cli-client-node"><div className="cli-client-heading">
+    <div className="cli-client-label"><strong><LaptopOutlined aria-hidden /> {authorization.client_name}</strong><span className="cli-client-identity">{t("Client ID", "客户端 ID")}: <code>{authorization.client_instance_id}</code></span>
+      <span><GrantStatus status={authorization.status} /> {authorization.source === "migration" ? <Tag>{t("Upgraded existing authorization", "已升级的原授权")}</Tag> : null} {t("All current and future projects", "全部现有及未来项目")} · {authorization.expires_at ? `${t("Valid until", "有效期至")} ${formatDate(authorization.expires_at)}` : t("Never expires", "永不过期")}</span>
+      <span>{authorization.scopes.join(" · ")} · {t("Credential", "凭据指纹")}: <code>{authorization.credential_fingerprint}</code></span>{authorization.source === "migration" && authorization.status === "ACTIVE" ? <span>{t("Upgrade the CLI and keep its existing profile; no new pairing is needed. Previous per-project revocations do not limit this all-project authorization.", "请升级 CLI 并保留原 profile，无需重新配对。此前逐项目撤销不限制此全项目授权。")}</span> : null}</div>
+    <div><Button danger disabled={operation.blocked || authorization.status === "REVOKED"} loading={operation.busy} onClick={() => void operation.submit(`requests/${authorization.request_id}/revoke`, (key) => `requests/by-key?request_id=${authorization.request_id}&operation=REVOKE&idempotency_key=${key}`, {}).then((value) => { if (value) onChanged(); })}>{t("Revoke", "撤销")}</Button><ArchiveOperationNotice operation={operation} onAccepted={onChanged} /></div>
+  </div></li>;
+}
+
+export function GlobalCliAuthorizations({ authorizations, onChanged }: { authorizations: CliGlobalAuthorization[]; onChanged: () => void }) {
+  const { t } = useI18n();
+  if (!authorizations.length) return null;
+  return <ul className="cli-client-tree" aria-label={t("All-project CLI authorizations", "全部项目 CLI 授权")}>{authorizations.map((authorization) => <GlobalCliAuthorization key={authorization.request_id} authorization={authorization} onChanged={onChanged} />)}</ul>;
 }

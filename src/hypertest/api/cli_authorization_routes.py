@@ -56,7 +56,7 @@ async def actors(_operator: str = Depends(require_operator)):
 @router.get("/requests/by-key")
 @controlled_errors
 async def receipt(request: Request, request_id: UUID,
-                  operation: Literal["CREATE", "APPROVE", "REDEEM"],
+                  operation: Literal["CREATE", "APPROVE", "REDEEM", "REVOKE"],
                   idempotency_key: str = Query(min_length=1, max_length=128),
                   x_hypertest_pairing_proof: str | None = Header(default=None),
                   x_hypertest_operator_key: str | None = Header(default=None),
@@ -119,3 +119,10 @@ async def revoke_receipt(grant_id: UUID, idempotency_key: str = Query(min_length
     if response is None or response["grant_id"] != str(grant_id):
         raise NotFoundError("CLI_AUTHORIZATION_RECEIPT_NOT_FOUND")
     return response
+
+
+@router.post("/requests/{request_id}/revoke")
+@controlled_errors
+async def revoke_authorization(request_id: UUID, payload: GrantRevoke,
+                               operator: str = Depends(require_operator), db: AsyncSession = Depends(get_db)):
+    return await service.revoke_authorization(db, request_id, payload, operator)

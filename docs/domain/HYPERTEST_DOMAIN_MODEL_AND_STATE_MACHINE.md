@@ -2563,9 +2563,9 @@ Task 管理 version、Task 根 archive_version 和 Subtask archive_version 分�
 
 `0033_project_repositories` 为 Project 增加可空 `test_framework_repository_url`，为 LocalArchiveTask 增加可空 `sut_repository_url`、`test_framework_repository_url`、`sut_branch`、`framework_branch`。创建新 Local Task 时，服务端固定当时 Project 的两个地址与请求中显式选择的两个分支；空值表示未声明，不从历史项目默认分支推导。创建请求可携 `expected_project_version`，新 Web 在用户确认所见仓库时提交；服务端在 Project 锁内检查版本，过期拒绝，避免将分支固定到用户未看到的新仓库。旧客户端省略此字段保持兼容。原 key 对账优先于版本检查，已接受的原请求在项目随后变更时仍返回原固定结果。创建后这些字段不可变；项目地址变更不改写原任务，旧任务保持 NULL，不伪造来源或重新解释历史。分支是用户声明的任务输入，不是已解析 commit、工作区身份、授权或已验证执行事实；测试资产仍按现有来源声明与认证上传者语义处理。两个可选分支各 1–255 字符，拒绝 ASCII 空格和控制字符。Cloud 的资源配置版本和任务双 selector 按 §51 / TMP §46 独立冻结，不因项目字段变化自动重写。
 
-管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存未授权草稿，归档拒绝；已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有根或子任务接受的归档提交，其 owner 不可改写。
+管理创建者与上传 actor 不属于可互换身份，Operator 创建不能伪造一次 Agent 上传。未指定 uploader 时可保存草稿；定向项目授权拒绝归档，全项目 CLI 授权可归档。已有唯一可用归档 actor 时 Web 可默认选择并明确展示。首片 Subtask uploader 只能为 Task owner，允许撤回及恢复同一 owner 授权；Task 一旦有根或子任务接受的归档提交，其 owner 不可改写。
 
-Project/Task/Submission/AssetRevision 及非空 Subtask 以复合外键保证归属一致，不能把另一 Task 的 Subtask ID 或另一 Project 的资产拼入请求。读取、新写及汇总均核当前授权和目标可用性。新增权限 archive:read、archive:write 使用 integration grant，旧 task:sync、cloud:work、Memory scope 不自动获得权限；actor/client/Project 授权、Task owner 与指定时的 Subtask uploader 同时成立才可访问。每次请求显式提供 Project/Task，不从客户端全局 profile 推导目标。
+Project/Task/Submission/AssetRevision 及非空 Subtask 以复合外键保证归属一致，不能把另一 Task 的 Subtask ID 或另一 Project 的资产拼入请求。读取、新写及汇总均核当前授权和目标可用性。新增权限 archive:read、archive:write 使用 integration grant，旧 task:sync、cloud:work、Memory scope 不自动获得权限；定向项目授权须同时满足 actor/client/Project、Task owner 与指定时的 Subtask uploader；有效全项目 CLI 授权可访问任意 Local 任务和子任务，包括 owner 为空或其他身份的任务。认证后始终按真实 uploader 保存提交与修订，不改写既有 owner、来源或历史结果。每次请求显式提供 Project/Task，不从客户端全局 profile 推导目标。
 
 同一会话可作为多个归档工作项的声明来源，一个任务或子任务可包含多个会话的材料。origin_provider/origin_session_ref/producer/source_ref/test_started_at/test_finished_at/report_created_at 可按资产记录且允许缺省；它们不产生参与关系、写权或 session 全局唯一约束。服务器固定真实 uploader 和 accepted_at，不把上传者替换成声明的原会话，不将缺失的历史测试时间补为平台创建时间。
 
@@ -2577,7 +2577,7 @@ Project/Task/Submission/AssetRevision 及非空 Subtask 以复合外键保证归
 
 Task/子任务进度使用 DRAFT、IN_PROGRESS、BLOCKED、COMPLETED、CANCELLED；reported_result 使用 NOT_RUN、PASS、FAIL、ERROR、SKIPPED、UNKNOWN、BLOCKED。新建默认 DRAFT/NOT_RUN。归档接受只表示管理材料已保存，不从文件上传、所有子任务完成或 Skill 关键词自动推进 Task 完成或 PASS，也不生成旧 VERIFIED/RELEASE_READY。
 
-一次有内容变化的归档只递增目标空间的 archive_version，原子保存 Submission、资产新修订、该空间完整冻结快照、回执和 Audit/Outbox；失败无已接受部分批次。业务接受前核 scope、owner、目标关系与 expected_archive_version，使用稳定锁顺序协调父任务授权与目标写入。根、各子任务的归档不递增 Task 管理 version，也不要求携带兄弟空间版本。
+一次有内容变化的归档只递增目标空间的 archive_version，原子保存 Submission、资产新修订、该空间完整冻结快照、回执和 Audit/Outbox；失败无已接受部分批次。业务接受前核 scope、授权范围、目标关系与 expected_archive_version；定向授权另核 owner，使用稳定锁顺序协调父任务授权与目标写入。根、各子任务的归档不递增 Task 管理 version，也不要求携带兄弟空间版本。
 
 ### 56.3 幂等、无变化与恢复
 
@@ -2591,25 +2591,27 @@ Task/子任务进度使用 DRAFT、IN_PROGRESS、BLOCKED、COMPLETED、CANCELLED
 
 Task 元数据、创建/调整子任务目录及上传授权、任务汇总更新使用 expected_task_version 并递增 Task version；这些管理变更不伪造一次归档或更改旧接受快照。根和子任务的 archive_version 均独立。Operator 管理写也具有独立 operation key、冻结管理快照及原 key 查询，不使用上传者 scope 扩权。
 
-首片整体汇总由 Web Operator 显式提交，以 expected_task_version、root_archive_version 加 `{subtask_id, archive_version}` 清单声明采用范围，列出未纳入/未完成项。无子任务时清单为空，仍引用根版本。接受事务同时验证任务管理版本、子任务目录/授权状态、所有引用版本及资产归属，并保存 Publication；部分项不能确认时明确拒绝。此时任务 reported_result 是提交者明确报告的汇总，不由平台自动算 PASS。
+首片整体汇总由 Web Operator 显式提交，以 expected_task_version、root_archive_version 加 `{subtask_id, archive_version}` 清单声明采用范围，列出未纳入/未完成项。无子任务时清单为空，仍引用根版本。接受事务同时验证任务管理版本、子任务目录、所有引用版本及资产归属；该 Operator 管理操作不要求当前 uploader 授权或非空 owner，并保存 Publication；部分项不能确认时明确拒绝。此时任务 reported_result 是提交者明确报告的汇总，不由平台自动算 PASS。
 
 后续根或子任务新版本保留已发布的历史版本向量，UI 可提示存在未纳入的新材料；不能用最新正文拼接过去的 Publication。历史查看、原 key 回执和固定版本恢复不依赖旧 MCP/Hooks 运行。
 
 ### 56.5 全局 CLI 配对与授权
 
-CLI 用户级 profile 固定规范化 server、client、uploader actor 与各 Project 的显式 grant 引用，可跨目录/会话复用；不保存隐式上传目标、不自动获得全部项目。Web 全局「CLI 授权」页管理安装/绑定指导、配对批准、当前授权与撤销。既有 Task owner 选择与客户端 grant 签发是两项检查，任一不足均拒绝归档。
+CLI 用户级 profile 固定规范化 server、client、uploader actor 与批准的授权范围，可跨目录/会话复用；不保存隐式上传目标。新批准默认覆盖现有和未来全部项目且不设授权到期时间，符合条件的既有 BOUND CLI 绑定通过独立升级记录获得全项目永久授权。Web 全局「CLI 授权」页管理安装/绑定指导、配对批准、当前授权与撤销。有效全项目 CLI 授权可读写任意 Local 任务及子任务；定向授权仍须匹配 Task owner 和子任务 uploader。
 
-CliAuthorizationRequest 保存 CLI 在联网前生成的非秘密 request_id、原 CREATE key、server/client 身份、credential_hash、独立 verifier challenge、请求预选项目、短码及请求期限。credential secret/verifier 仅存 CLI 私有目录；短码或公开 URL 不授予兑换/查询权限。Web Operator 使用稳定 APPROVE key 一次批准并原子冻结服务端解析的专用 CLI actor、项目 allowlist、archive scopes、授权期限与原 credential/challenge 指纹，批准后不可改写或扩权。新批准正文不选择 actor；Web 核对短码、客户端、项目、权限和期限，不枚举历史 ACTIVE 身份。
+存量升级只处理原 BOUND、actor/client 均 ACTIVE 且至少存在一条未撤销项目 grant 的 CLI 绑定；已到期但未撤销也纳入。升级记录独立不可变，不修改原 APPROVE/REDEEM 回执、批准正文、grant、原身份或归档历史。新全项目授权覆盖现有及未来所有项目，包括原单项目 grant 已撤销但同绑定仍有其他未撤销 grant 的项目；原撤销记录仍为撤销，不伪造恢复。全部 grant 已撤销、actor/client 停用或全局授权整体撤销不复活。新版客户端用原 request 的当前授权状态更新本地 profile，不从历史批准回执推断当前权限，也不重新发送未知操作。
+
+CliAuthorizationRequest 保存 CLI 在联网前生成的非秘密 request_id、原 CREATE key、server/client 身份、credential_hash、独立 verifier challenge、请求预选项目、短码及请求期限。credential secret/verifier 仅存 CLI 私有目录；短码或公开 URL 不授予兑换/查询权限。Web Operator 使用稳定 APPROVE key 一次批准并原子冻结服务端解析的专用 CLI actor、项目范围、archive scopes、可选授权期限与原 credential/challenge 指纹，批准后不可改写或扩权。新批准正文不选择 actor；Web 核对短码和客户端，默认批准全部项目、archive:read/write 和永不过期，不枚举历史 ACTIVE 身份。
 
 2026-10-27 授权入口增补：新增 `CliArchiveUploader`，保存稳定 `connector_operator_identity` 对应的 `operator_ref`、`actor_identity_id` 和创建时间。`operator_ref` 为主键，`actor_identity_id` 以唯一且 `ON DELETE RESTRICT` 的外键指向 integration actor；映射接受后不可修改或删除。首次有效 APPROVE 通过 Operator、短码、当前客户端、项目与期限检查后，在同一事务创建专用 actor、映射及批准回执，失败不残留可用映射。同一 Operator 后续批准和跨设备授权复用该 actor；不同 Operator 不共享映射。解析不依赖 actor 名称、客户端主机名或历史身份列表。已撤销的映射 actor 或客户端导致拒绝，不删除映射、改绑或创建替代身份来恢复权限。additive 迁移 `0032_cli_archive_uploader` 仅新增该映射及约束，不将旧 ACTIVE actor 回填为专用身份。
 
-旧请求的 APPROVED/BOUND、已接受 APPROVE 回执、grant、profile 以及 Task owner 保留原 actor。可选旧 actor 字段仅为已接受原 key 的精确原正文恢复保留；同 key 异输入拒绝，没有已接受回执时携带 actor 的新批准拒绝。旧待批准请求可使用不含 actor 的新批准正文，由服务端解析专用身份；已冻结或可能发送的旧批准不得改正文重试，仍只查询原 key。`/cli-authorizations/actors` 停止枚举并返回 410，不删除历史 actor。任务管理页独立按项目有效归档 grant 选择 Task owner，不因新配对映射改写旧任务归属。
+旧请求的 APPROVED/BOUND、已接受 APPROVE 回执、grant、profile 以及 Task owner 保留原 actor。可选旧 actor 字段仅为已接受原 key 的精确原正文恢复保留；同 key 异输入拒绝，没有已接受回执时携带 actor 的新批准拒绝。旧待批准请求可使用不含 actor 的新批准正文，由服务端解析专用身份；已冻结或可能发送的旧批准不得改正文重试，仍只查询原 key。`/cli-authorizations/actors` 停止枚举并返回 410，不删除历史 actor。任务管理页独立按项目有效归档授权（包括全项目授权）选择 Task owner，不因新配对映射改写旧任务归属。
 
-CLI 对固定批准结果形成独立原 key 的 REDEEM；服务端在校验私有 proof 后原子创建各 Project 独立 integration grant，并通过 `CliAuthorizationGrant(request_id, project_id, grant_id)` 关联原配对请求的 credential_hash；保存非秘密回执并将请求转为 BOUND。credential_hash 仅在配对请求内唯一保存，各 Project grant 的 token_hash 保持原有独立唯一值，不将同一 CLI hash 复制到多条 grant。鉴权只对 archive scope 按显式 Project 解析映射，再执行当前 actor/client/grant 状态、期限、scope 校验；撤销一个项目 grant 不扩大或抹去其他项目授权。PENDING → APPROVED → BOUND 为正常路径；未绑定请求可拒绝或过期，终态不可恢复成新授权。短时配对期限与 grant 期限独立，重查 BOUND 必须检查 grant 当前是否撤销/到期，不能把历史已批准当作当前有效。既有 scope 不自动转换为 archive 权限；CLI 永不持有 Operator key。
+CLI 对固定批准结果形成独立原 key 的 REDEEM；服务端校验私有 proof 并保存批准范围。全项目授权在访问具体 Project 时解析独立 integration grant（写事务提交时持久化，只读请求回滚），并通过 `CliAuthorizationGrant(request_id, project_id, grant_id)` 关联原配对请求的 credential_hash；保存非秘密回执并将请求转为 BOUND。credential_hash 仅在配对请求内唯一保存，各 Project grant 的 token_hash 保持原有独立唯一值，不将同一 CLI hash 复制到多条 grant。鉴权只对 archive scope 按显式 Project 解析映射，再执行当前 actor/client/grant 状态、期限、scope 校验；全项目绑定可以整体撤销，原 key 查询继续可用；对历史项目 grant 的撤销不扩大或抹去其他项目授权。PENDING → APPROVED → BOUND 为正常路径；未绑定请求可拒绝或过期，终态不可恢复成新授权。短时配对期限与 grant 期限独立，重查 BOUND 必须检查 grant 当前是否撤销/到期，不能把历史已批准当作当前有效。既有 scope 不自动转换为 archive 权限；CLI 永不持有 Operator key。
 
 CREATE、APPROVE、REDEEM 各自冻结正文/key，并有独立回执；相同 key 异输入拒绝。可能已发送的操作 UNKNOWN/NOT_FOUND 只能查询原 key，不能重放或重新签发。CLI 已持有 secret，凭受私有 proof 保护的原回执核对固定授权和指纹即可恢复 profile，不取回明文 token；确认前一阶段后，只有明确从未发送的下一阶段允许由显式 resume 首次发送。授权账本与归档账本 namespace 分开。
 
-profile 原子保存/合并，只合并同 server/client/actor 的已批准项目授权；身份不匹配须使用明确的新 profile，不覆盖旧身份/账本。服务端撤销使对应 grant 后续不可用，已接受产物/回执保持；读回仍需当前有效授权。auth logout 只停用本机 profile，不冒充撤销，不清除未决 credential、journal 或历史。没有自动续签、后台轮询或跨机器复制模型登录。
+profile 原子保存/合并，只合并同 server/client/actor 的已批准授权；身份不匹配须使用明确的新 profile，不覆盖旧身份/账本。服务端撤销使对应 grant 后续不可用，已接受产物/回执保持；读回仍需当前有效授权。auth logout 只停用本机 profile，不冒充撤销，不清除未决 credential、journal 或历史。没有自动续签、后台轮询或跨机器复制模型登录。
 
 ### 56.6 旧本地账本的恢复边界
 

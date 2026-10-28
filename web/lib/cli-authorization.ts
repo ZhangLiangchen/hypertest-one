@@ -2,9 +2,10 @@ import { ApiError } from "@/lib/api";
 import type { LocalWebPending } from "@/lib/archive-operation";
 /** Web boundary readiness plus optional CLI HTTPS origin and public CA configured for prompts. */
 export type CliWebSetup = { configured: boolean; cli_server_origin?: string; cli_ca_certificate?: string };
-export type CliGrant = { grant_id: string; request_id: string; client_instance_id: string; client_name: string; actor_ref: string; project_id: string; scopes: string[]; expires_at: string; status: string; credential_fingerprint: string; idempotency_key?: string };
-export type CliApproval = { idempotency_key: string; actor_identity_id: string; actor_ref: string; project_ids: string[]; scopes: string[]; expires_in_days: number; expires_at: string; approval_digest: string };
-export type CliRequest = { request_id: string; status: "PENDING" | "APPROVED" | "BOUND" | "DENIED" | "EXPIRED"; client_instance_id: string; client_name: string; server_url: string; requested_project_id?: string | null; short_code: string; expires_at: string; credential_fingerprint: string; approval: CliApproval | null; grants: CliGrant[] };
+export type CliGrant = { grant_id: string; request_id: string; client_instance_id: string; client_name: string; actor_ref: string; project_id: string; scopes: string[]; expires_at: string | null; status: string; credential_fingerprint: string; idempotency_key?: string };
+export type CliGlobalAuthorization = { request_id: string; client_instance_id: string; client_name: string; actor_ref: string; all_projects: boolean; source?: "migration" | string; scopes: string[]; expires_at: string | null; status: string; credential_fingerprint: string; idempotency_key?: string };
+export type CliApproval = { idempotency_key: string; actor_identity_id: string; actor_ref: string; project_ids: string[]; all_projects?: boolean; scopes: string[]; expires_in_days: number | null; expires_at: string | null; approval_digest: string };
+export type CliRequest = { request_id: string; status: "PENDING" | "APPROVED" | "BOUND" | "DENIED" | "EXPIRED"; client_instance_id: string; client_name: string; server_url: string; requested_project_id?: string | null; short_code: string; expires_at: string; credential_fingerprint: string; approval: CliApproval | null; authorization?: CliGlobalAuthorization | null; grants: CliGrant[] };
 export async function cliAuthorizationApi<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/cli-authorizations/${path}`, { ...init, headers: { "Content-Type": "application/json", ...init?.headers }, cache: "no-store" });
   const body = await response.json().catch(() => ({}));
@@ -19,11 +20,16 @@ export function validateCliApproval(original: LocalWebPending, value: CliRequest
     || approval.actor_ref !== `interactive:${approval.actor_identity_id}`
     // Earlier frozen approvals selected an actor; their original identity must still match.
     || ("actor_identity_id" in original.payload && approval.actor_identity_id !== original.payload.actor_identity_id) || list(approval.project_ids) !== list(original.payload.project_ids)
-    || list(approval.scopes) !== list(original.payload.scopes) || approval.expires_in_days !== original.payload.expires_in_days
+    || Boolean(approval.all_projects) !== Boolean(original.payload.all_projects) || list(approval.scopes) !== list(original.payload.scopes) || approval.expires_in_days !== original.payload.expires_in_days
     || value.short_code !== original.payload.short_code || !["APPROVED", "BOUND"].includes(value.status)) throw new Error("CLI_AUTH_RECEIPT_MISMATCH");
   return value;
 }
 export function validateCliRevocation(original: LocalWebPending, value: CliGrant): CliGrant {
   if (value.grant_id !== original.path.split("/")[1] || value.status !== "REVOKED" || value.idempotency_key !== original.operation_key) throw new Error("CLI_AUTH_RECEIPT_MISMATCH");
+  return value;
+}
+
+export function validateCliGlobalRevocation(original: LocalWebPending, value: CliGlobalAuthorization): CliGlobalAuthorization {
+  if (value.request_id !== original.path.split("/")[1] || value.status !== "REVOKED" || value.idempotency_key !== original.operation_key) throw new Error("CLI_AUTH_RECEIPT_MISMATCH");
   return value;
 }

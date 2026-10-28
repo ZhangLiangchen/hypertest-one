@@ -66,3 +66,26 @@ class CliAuthorizationReceipt(Base):
     request_digest: Mapped[str] = mapped_column(String(64))
     response: Mapped[dict[str, Any]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CliAuthorizationRevocation(Base):
+    __tablename__ = "cli_authorization_revocations"
+    request_id: Mapped[UUID] = mapped_column(ForeignKey("cli_authorization_requests.id", ondelete="RESTRICT"), primary_key=True)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_by: Mapped[str] = mapped_column(String(128))
+
+
+class CliAuthorizationGlobalUpgrade(Base):
+    """New global authority for an eligible pre-existing CLI binding."""
+    __tablename__ = "cli_authorization_global_upgrades"
+    request_id: Mapped[UUID] = mapped_column(ForeignKey("cli_authorization_requests.id", ondelete="RESTRICT"), primary_key=True)
+    actor_identity_id: Mapped[UUID] = mapped_column(ForeignKey("interactive_actor_identities.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CliAuthorizationGlobalGrant(Base):
+    """Project materializations of new global authorities, distinct from historical grants."""
+    __tablename__ = "cli_authorization_global_grants"
+    request_id: Mapped[UUID] = mapped_column(ForeignKey("cli_authorization_requests.id", ondelete="RESTRICT"), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), primary_key=True)
+    grant_id: Mapped[UUID] = mapped_column(ForeignKey("interactive_integration_grants.id", ondelete="RESTRICT"), unique=True)

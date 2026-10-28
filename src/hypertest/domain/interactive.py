@@ -61,7 +61,7 @@ class InteractiveIntegrationGrant(Base):
         ForeignKeyConstraint(["actor_identity_id", "client_instance_id"],
             ["interactive_client_registrations.actor_identity_id", "interactive_client_registrations.client_instance_id"], ondelete="RESTRICT"),
         CheckConstraint("status IN ('ACTIVE','EXPIRED','REVOKED')", name="ck_interactive_integration_status"),
-        CheckConstraint("token_hash ~ '^[a-f0-9]{64}$' AND expires_at > not_before AND row_version > 0", name="ck_interactive_integration_validity"),
+        CheckConstraint("token_hash ~ '^[a-f0-9]{64}$' AND row_version > 0 AND ((expires_at IS NOT NULL AND expires_at > not_before) OR (expires_at IS NULL AND policy_version IN ('cli-archive-v1','cli-archive-global-v1') AND scopes <@ '[\"archive:read\",\"archive:write\"]'::jsonb))", name="ck_interactive_integration_validity"),
         CheckConstraint("jsonb_typeof(scopes)='array' AND jsonb_array_length(scopes)>0 AND scopes <@ '[\"task:submit\",\"task:sync\",\"run:read\",\"evidence:read\",\"report:read\",\"run:execute\",\"cloud:configure\",\"credential:manage\",\"cloud:dispatch\",\"cloud:control\",\"cloud:read\",\"memory:read\",\"memory:propose\",\"memory:publish\",\"archive:read\",\"archive:write\"]'::jsonb", name="ck_interactive_integration_scopes"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
@@ -74,7 +74,7 @@ class InteractiveIntegrationGrant(Base):
     registered_by: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE")
     not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     row_version: Mapped[int] = mapped_column(BigInteger, default=1)

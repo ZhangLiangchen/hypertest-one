@@ -3,7 +3,7 @@ from typing import Annotated
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Key = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
@@ -42,10 +42,28 @@ class PairingApprove(Strict):
     # Accepted only to recover the exact receipt of a pre-retirement approval.
     # New approvals must omit the field, including an explicit null.
     actor_identity_id: UUID | None = Field(default=None, deprecated=True)
-    project_ids: list[UUID] = Field(min_length=1, max_length=100)
-    scopes: list[str] = Field(min_length=2, max_length=2)
-    expires_in_days: int = Field(default=30, ge=1, le=90)
+    project_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    all_projects: bool = False
+    scopes: list[str] = Field(default_factory=lambda: ["archive:read", "archive:write"], min_length=2, max_length=2)
+    expires_in_days: int | None = Field(default=None, ge=1, le=90)
     short_code: str = Field(min_length=8, max_length=12)
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_project_scope(cls, value):
+        if isinstance(value, dict):
+            if "all_projects" not in value and not value.get("project_ids"):
+                value = {**value, "all_projects": True}
+            elif "all_projects" not in value and value.get("project_ids") and "expires_in_days" not in value:
+                # Recover old explicitly scoped approval payloads with their original default.
+                value = {**value, "expires_in_days": 30}
+        return value
+
+    @model_validator(mode="after")
+    def project_scope(self):
+        if self.all_projects == bool(self.project_ids):
+            raise ValueError("Choose all projects or explicit projects")
+        return self
 
     @field_validator("project_ids")
     @classmethod

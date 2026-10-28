@@ -19,7 +19,7 @@ MCP 本身支持读写工具调用和 HTTP 传输，频繁同步来自当前触�
 1. 新 Local 流程以 **用户显式指令 → Skill → CLI → HTTPS 归档 API** 为唯一正式接入路径；不保留新的 Local MCP 接入选项，不注册任何 SessionStart、PostToolUse、Stop 或子代理事件。
 2. 测试开始前无需创建平台 Task、绑定来源、安装 Hook 或保持平台连接。Agent 使用项目既有工具完成测试；首次归档时才需要 CLI、Skill 和有效授权。
 3. 用户在 Web 创建或选择 Project 下的 Local 归档任务，按需创建子任务，再在本地指定产物范围调用 Skill。每次上传必填 Project ID、Task ID，Subtask ID 可选；省略时归档到 Task 本身。也允许显式归档阶段性材料；归档不以测试成功为前提。
-4. CLI 在用户级全局安装和授权，可跨工作目录、Agent 会话复用；全局可用不扩大项目权限。CLI 是可独立使用的短命进程，无 daemon、定时任务、后台监听或自动刷新。Skill 只在明确归档请求中加载完整指引和执行 CLI。
+4. CLI 在用户级全局安装和授权，可跨工作目录、Agent 会话复用；新配对默认授予现有和未来全部项目的归档读写权限，且不设授权到期时间。CLI 是可独立使用的短命进程，无 daemon、定时任务、后台监听或自动刷新。Skill 只在明确归档请求中加载完整指引和执行 CLI。
 5. 新 profile 为 `local-artifact-archive/v1alpha1`。新增 Local 专用归档实体，沿用 Project；不共用 CloudTask/CloudAttempt，不新增跨 Local/Cloud 的通用 Task 根表。
 6. Local 的产品职责为测试资产归档、查询与汇总，测试仍由本地 Agent 和项目工具完成。Cloud 执行能力、Memory 独立权限及旧执行领域保持各自边界。
 
@@ -67,23 +67,23 @@ flowchart LR
 
 子任务 ID 不复用 participant ID、contribution ID 或宿主 session ID。同一子任务可以追加多次提交，同一会话可以为多个业务工作项提供来源材料；来源字符串不承担写入权限或全局唯一约束。
 
-上传者由认证信息确定，Web Operator 创建者与 integration uploader 分开记录。未指定有效 uploader 的 Task 可保存为未授权草稿；首次接受归档后 owner 不可改写。`origin_provider`、`origin_session_ref`、测试发生时间和报告生成时间是可选的逐资产来源声明，平台接受时间由服务器生成。同一批多会话材料分别保留各自来源。UI 分别展示上传者和原测试来源，不将材料声明展示为已核验 native 会话。报告中的 PASS/FAIL/UNKNOWN 原样保留；归档成功与整体测试完成分别表达。
+上传者由认证信息确定，Web Operator 创建者与 integration uploader 分开记录。未指定 uploader 的 Task 可保存草稿，全项目 CLI 授权可归档该任务；定向授权须匹配 owner。首次接受归档后 owner 不可改写。`origin_provider`、`origin_session_ref`、测试发生时间和报告生成时间是可选的逐资产来源声明，平台接受时间由服务器生成。同一批多会话材料分别保留各自来源。UI 分别展示上传者和原测试来源，不将材料声明展示为已核验 native 会话。报告中的 PASS/FAIL/UNKNOWN 原样保留；归档成功与整体测试完成分别表达。
 
 所有上传均使用目标空间的 `expected_archive_version`：Task 根空间和各 Subtask 的 `archive_version` 分别推进；Task 的管理 `version` 与根归档版本分开，避免根上传与子任务上传相互争用。任务元数据、子任务目录/授权调整和汇总使用 `expected_task_version`。整体汇总在同一事务验证 Task 根归档版本及明确的子任务版本向量，之后的新上传不改写旧汇总。
 
 ## 5. 授权与可靠交付
 
-新权限为 `archive:read` 与 `archive:write`；CLI 完整归档需同时具备两者。沿用 integration actor/client/Project 的私有授权设施，服务端再核 Project、Task owner，以及指定子任务时的 Subtask uploader 和父子关系。首片限定子任务上传 actor 与 Task owner 相同，允许该 actor 在不同会话或客户端归档；跨 actor 协作不在首片。
+新权限为 `archive:read` 与 `archive:write`；CLI 完整归档需同时具备两者。沿用 integration actor/client/Project 的私有授权设施，服务端核 Project 和父子关系；定向授权还核 Task owner 和指定子任务的 uploader。全项目 CLI 授权可归档任意 Local 任务与子任务，但提交与修订使用真实上传 actor，不改历史 owner、来源和结果。
 
 `task:sync`、`cloud:work` 和 Memory scope 不自动获得归档权限。Web 使用其既有 Operator 管理边界批准项目授权；CLI 不取得 Operator key，也不自助扩大授权。凭据仅由客户端从私有配置读取，不写入 Skill、manifest、命令参数、日志或响应；私有文件不被宣称为同 UID 进程隔离。
 
-**2026-10-27 授权入口增补：本段替代首片要求用户选择既有上传 actor 的规则。** 新配对批准只需核对短码、客户端、项目 allowlist、权限与期限。服务端按稳定的 `connector_operator_identity` 解析专用 CLI 上传身份，首次有效批准时在同一事务创建 integration actor 和不可变 `CliArchiveUploader` 映射；同一 Operator 跨设备复用该 actor。映射以 `operator_ref` 唯一、`actor_identity_id` 唯一外键约束，不按昵称、主机名、客户端自报身份或历史 ACTIVE 列表推断关联。专用 actor 或客户端已撤销时拒绝新批准，不能另建身份绕过撤销；项目 grant 仍逐次明确批准。
+**2026-10-27 授权入口增补：本段替代首片要求用户选择既有上传 actor 的规则。** 新配对批准核对短码和客户端；2026-10-28 起默认全部项目、归档读写权限和永久有效。服务端按稳定的 `connector_operator_identity` 解析专用 CLI 上传身份，首次有效批准时在同一事务创建 integration actor 和不可变 `CliArchiveUploader` 映射；同一 Operator 跨设备复用该 actor。映射以 `operator_ref` 唯一、`actor_identity_id` 唯一外键约束，不按昵称、主机名、客户端自报身份或历史 ACTIVE 列表推断关联。专用 actor 或客户端已撤销时拒绝新批准，不能另建身份绕过撤销；全项目授权覆盖以后新增的项目；符合条件的存量 CLI 绑定也通过独立升级记录获得全项目永久授权，原批准与 grant 不改写，已整体撤销绑定不复活。
 
 PC Web 增加全局「CLI 授权」页，提供版本明确的安装/升级指引、无秘密的一键绑定命令、已授权客户端/项目/期限与撤销入口。已实现的绑定命令为 `hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default`；可选 `--project-id` 仅预选项目，不产生权限。具体操作见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
 
-CLI 发起短时配对，用户在既有 Web 登录下核对短码、客户端并一次确认项目 allowlist、`archive:read/write` 和期限；批准结果同时冻结服务端解析的专用 actor。CLI 完成原请求兑换、确认并保存全局 profile 后退出。短码/URL 不能兑换凭据，命令不携带 token；不需要本地回调服务。CLI 在发送前私有持久保存高熵 credential、独立配对 verifier 和原 key，服务端只接收必要验证材料；失答后凭原 key 确认固定授权，无需重新签发或取回明文 secret。精确配对/恢复合同由 TMP§51.4、领域§56.5拥有。每次绑定的全局 credential 经 `CliAuthorizationRequest → CliAuthorizationGrant` 显式映射到各 Project 独立 integration grant；各 grant 保持独立、唯一的 `token_hash`，不会把同一 credential hash 写入多个 grant。归档鉴权按显式 Project 选择映射，再复用当前 actor/client/grant 的状态、scope 与期限校验。
+CLI 发起短时配对，用户在既有 Web 登录下核对短码、客户端并一次确认默认全部项目的 `archive:read/write` 永久授权；批准结果同时冻结服务端解析的专用 actor。CLI 完成原请求兑换、确认并保存全局 profile 后退出。短码/URL 不能兑换凭据，命令不携带 token；不需要本地回调服务。CLI 在发送前私有持久保存高熵 credential、独立配对 verifier 和原 key，服务端只接收必要验证材料；失答后凭原 key 确认固定授权，无需重新签发或取回明文 secret。精确配对/恢复合同由 TMP§51.4、领域§56.5拥有。全项目授权动态覆盖当前及以后新增的 Project；访问时按项目解析独立 integration grant 并映射到该配对（写事务提交时持久化，只读请求回滚），各 grant 保持独立、唯一的 `token_hash`，不会把同一 credential hash 写入多个 grant。归档鉴权仍按显式 Project 和当前 actor/client/grant 状态、scope 与可选期限校验。
 
-profile 固定规范化 server、client、uploader actor 及显式获准项目，不与仓库绑定；凭据按服务器与身份隔离，不因切换目录/任务自动换 profile。增加项目或 scope 需新的 Web 确认，已有批准不被隐式扩大；新批准不接受调用者选定 actor。旧 APPROVED/BOUND 请求、grant、Task owner 和接受回执保持原 actor，不自动改写归属。旧带 actor 的 APPROVE 正文仅用于已接受原 key/原正文的精确回执恢复，没有原回执的新写明确拒绝；旧 `/cli-authorizations/actors` 列表返回 410。归档任务管理页按项目有效归档 grant 选择 Task owner 的独立机制保持。服务端撤销和本机退出分别表达，保留已接受档案与私有未决账本；只有命令存活期间为配对完成做有界查询，不后台轮询或续签。
+profile 固定规范化 server、client、uploader actor 及批准范围，不与仓库绑定；凭据按服务器与身份隔离，不因切换目录/任务自动换 profile。全项目授权自动覆盖以后新增项目；符合条件的存量绑定按领域 §56.5 升级，新批准不接受调用者选定 actor。旧 APPROVED/BOUND 请求、grant、Task owner 和接受回执保持原 actor，不自动改写归属。旧带 actor 的 APPROVE 正文仅用于已接受原 key/原正文的精确回执恢复，没有原回执的新写明确拒绝；旧 `/cli-authorizations/actors` 列表返回 410。归档任务管理页按项目有效归档授权（包括全项目授权）选择 Task owner 的独立机制保持。服务端撤销和本机退出分别表达，保留已接受档案与私有未决账本；只有命令存活期间为配对完成做有界查询，不后台轮询或续签。
 
 上传仅从显式批准的清单读取文件，文件内容为数据，不能驱动 shell 命令或授权。首片支持 UTF-8 计划/原始文本报告与结构化用例，保留原文和稳定业务 key。接口按条数、字符数及总字节有界，超限明确拒绝，不截断、不隐式分批；截图、视频和压缩包的二进制存储协议独立后续设计，不以本地路径或 URL 引用冒充已上传文件。
 

@@ -27,6 +27,9 @@ test("Local BFF requires independent enablement, operator file and same-origin J
   assert.equal(calls.length, 0);
   const result = await route(req("tasks", post()), "tasks", "archive", "POST");
   assert.equal(result.status, 200); assert.equal(calls[0][1], secret); assert.equal((await result.text()).includes(secret), false);
+  assert.equal((await route(req(`requests/${task}/revoke`, post()), `requests/${task}/revoke`, "cli-authorization", "POST")).status, 200);
+  assert.equal(calls[1][0], `cli-authorizations/requests/${task}/revoke`);
+  assert.equal((await route(req(`requests/${task}/revoke`, post("https://evil.example")), `requests/${task}/revoke`, "cli-authorization", "POST")).status, 403);
 });
 test("Local BFF preserves safe rejection codes and hides arbitrary upstream errors", async () => {
   for (const detail of [secret, { input: secret }, "ARCHIVE_TASK_VERSION_CONFLICT", "CLI_PAIRING_EXPIRED"]) {

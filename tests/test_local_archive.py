@@ -40,7 +40,8 @@ async def archive_context(monkeypatch):
         assert registration.status_code == 201, registration.text
         grant = registration.json()
         created = await client.post(PREFIX + "/tasks", headers=operator, json={
-            "project_id": str(project.id), "idempotency_key": "create", "title": "Post-test archive"})
+            "project_id": str(project.id), "idempotency_key": "create", "title": "Post-test archive",
+            "owner_uploader_actor_ref": "interactive:" + grant["actor_identity_id"]})
         assert created.status_code == 200, created.text
         yield {"client": client, "project_id": str(project.id), "operator": operator,
             "auth": {"Authorization": "Bearer " + grant["integration_token"]}, "grant": grant,
@@ -307,7 +308,8 @@ async def test_project_owner_and_original_client_are_separate_boundaries(archive
 
 async def test_management_key_recovery_and_draft_admission(archive_context):
     f = archive_context
-    create = {"project_id": f["project_id"], "idempotency_key": "create", "title": "Post-test archive"}
+    create = {"project_id": f["project_id"], "idempotency_key": "create", "title": "Post-test archive",
+              "owner_uploader_actor_ref": f["created"]["task"]["owner_uploader_actor_ref"]}
     same = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json=create)
     assert same.json() == f["created"]
     conflict = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json={**create, "title": "different"})
@@ -333,7 +335,7 @@ async def test_final_authority_check_rolls_back_entire_submission(archive_contex
     f = archive_context
     original = service.submit
 
-    async def reject_after_flush(db, body, actor, client, *, authorization_check):
+    async def reject_after_flush(db, body, actor, client, *, authorization_check, global_access=False):
         checks = 0
 
         async def recheck():
@@ -343,7 +345,7 @@ async def test_final_authority_check_rolls_back_entire_submission(archive_contex
             if checks == 2:
                 raise HTTPException(403, "authorization expired before acceptance")
 
-        return await original(db, body, actor, client, authorization_check=recheck)
+        return await original(db, body, actor, client, authorization_check=recheck, global_access=global_access)
 
     monkeypatch.setattr(service, "submit", reject_after_flush)
     denied = await upload(f, payload(f))

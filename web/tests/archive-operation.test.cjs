@@ -60,3 +60,20 @@ test("CLI approval freezes project permissions and retains exact identity checks
   }
   assert.throws(() => client.validateCliRevocation({ path: "grants/g/revoke", operation_key: "original" }, { grant_id: "g", status: "REVOKED", idempotency_key: "other" }), /RECEIPT_MISMATCH/);
 });
+test("global CLI approval and revocation verify their original receipts", () => {
+  const client = load("lib/cli-authorization.ts", { require: () => ({ ApiError }) });
+  const actor = "00000000-0000-4000-8000-000000000001";
+  const original = { path: "requests/pairing/approve", operation_key: "original", payload: { all_projects: true, project_ids: [], scopes: ["archive:read", "archive:write"], expires_in_days: null, short_code: "123456" } };
+  const value = { request_id: "pairing", status: "APPROVED", short_code: "123456", approval: { idempotency_key: "original", actor_identity_id: actor, actor_ref: `interactive:${actor}`, ...original.payload } };
+  assert.equal(client.validateCliApproval(original, value).status, "APPROVED");
+  for (const [field, replacement] of [["all_projects", false], ["expires_in_days", 30], ["project_ids", ["p1"]]]) {
+    const changed = structuredClone(value); changed.approval[field] = replacement;
+    assert.throws(() => client.validateCliApproval(original, changed), /RECEIPT_MISMATCH/);
+  }
+  const revoke = { path: "requests/pairing/revoke", operation_key: "original" };
+  const revoked = { request_id: "pairing", status: "REVOKED", idempotency_key: "original" };
+  assert.equal(client.validateCliGlobalRevocation(revoke, revoked).status, "REVOKED");
+  for (const field of ["request_id", "status", "idempotency_key"]) {
+    assert.throws(() => client.validateCliGlobalRevocation(revoke, { ...revoked, [field]: "other" }), /RECEIPT_MISMATCH/);
+  }
+});

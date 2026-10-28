@@ -4,12 +4,19 @@ import json
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import DateTime, String, and_, cast, func, or_, select, text
 
 from hypertest.api.archive_schemas import PROFILE
-from hypertest.application.services import canonical_json_sha256
 from hypertest.application.record_helpers import project, public
+from hypertest.application.services import canonical_json_sha256
 from hypertest.common.ids import uuid7
+from hypertest.domain.cli_authorization import (
+    CliAuthorizationGlobalGrant,
+    CliAuthorizationGlobalUpgrade,
+    CliAuthorizationGrant,
+    CliAuthorizationRequest,
+    CliAuthorizationRevocation,
+)
 from hypertest.domain.interactive import (
     InteractiveActorIdentity,
     InteractiveClientRegistration,
@@ -37,16 +44,40 @@ async def key_lock(db, namespace, project_id, actor, key):
 
 
 def actor_query(project_id):
-    return select(InteractiveActorIdentity).join(InteractiveIntegrationGrant,
-        InteractiveIntegrationGrant.actor_identity_id == InteractiveActorIdentity.id).join(
+    direct = select(InteractiveIntegrationGrant.id).join(
         InteractiveClientRegistration, and_(
             InteractiveClientRegistration.actor_identity_id == InteractiveIntegrationGrant.actor_identity_id,
             InteractiveClientRegistration.client_instance_id == InteractiveIntegrationGrant.client_instance_id)).where(
-        InteractiveActorIdentity.status == "ACTIVE", InteractiveClientRegistration.status == "ACTIVE",
+        InteractiveIntegrationGrant.actor_identity_id == InteractiveActorIdentity.id,
+        InteractiveClientRegistration.status == "ACTIVE",
         InteractiveIntegrationGrant.project_id == project_id, InteractiveIntegrationGrant.status == "ACTIVE",
         InteractiveIntegrationGrant.not_before <= func.clock_timestamp(),
-        InteractiveIntegrationGrant.expires_at > func.clock_timestamp(),
-        InteractiveIntegrationGrant.scopes.contains(["archive:read", "archive:write"]))
+        or_(InteractiveIntegrationGrant.expires_at.is_(None), InteractiveIntegrationGrant.expires_at > func.clock_timestamp()),
+        InteractiveIntegrationGrant.scopes.contains(["archive:read", "archive:write"]),
+        ~select(CliAuthorizationGlobalGrant.grant_id).where(
+            CliAuthorizationGlobalGrant.grant_id == InteractiveIntegrationGrant.id).exists(),
+        ~select(CliAuthorizationGrant.grant_id).join(CliAuthorizationRequest,
+            CliAuthorizationRequest.id == CliAuthorizationGrant.request_id).where(
+            CliAuthorizationGrant.grant_id == InteractiveIntegrationGrant.id,
+            or_(CliAuthorizationRequest.approval["all_projects"].as_boolean().is_(True),
+                select(CliAuthorizationGlobalUpgrade.request_id).where(
+                    CliAuthorizationGlobalUpgrade.request_id == CliAuthorizationRequest.id).exists())).exists()).exists()
+    request = CliAuthorizationRequest
+    global_grant = select(request.id).join(InteractiveClientRegistration, and_(
+        InteractiveClientRegistration.actor_identity_id == InteractiveActorIdentity.id,
+        InteractiveClientRegistration.client_instance_id == request.client_instance_id)).where(
+        request.status == "BOUND", or_(request.approval["all_projects"].as_boolean().is_(True),
+            select(CliAuthorizationGlobalUpgrade.request_id).where(
+                CliAuthorizationGlobalUpgrade.request_id == request.id).exists()),
+        request.approval["actor_identity_id"].as_string() == cast(InteractiveActorIdentity.id, String),
+        InteractiveClientRegistration.status == "ACTIVE",
+        ~select(CliAuthorizationRevocation.request_id).where(CliAuthorizationRevocation.request_id == request.id).exists(),
+        or_(select(CliAuthorizationGlobalUpgrade.request_id).where(
+                CliAuthorizationGlobalUpgrade.request_id == request.id).exists(),
+            request.approval["expires_at"].as_string().is_(None),
+            cast(request.approval["expires_at"].as_string(), DateTime(timezone=True)) > func.clock_timestamp())
+    ).correlate(InteractiveActorIdentity).exists()
+    return select(InteractiveActorIdentity).where(InteractiveActorIdentity.status == "ACTIVE", or_(direct, global_grant))
 
 
 async def actors(db, project_id):
@@ -71,14 +102,14 @@ async def ensure_actor(db, project_id, actor_ref):
         raise HTTPException(422, "ARCHIVE_UPLOADER_UNAVAILABLE")
 
 
-async def target(db, project_id, task_id, subtask_id=None, *, actor=None, operator=False, lock=False):
+async def target(db, project_id, task_id, subtask_id=None, *, actor=None, operator=False, global_access=False, lock=False):
     query = select(LocalArchiveTask).where(LocalArchiveTask.project_id == project_id, LocalArchiveTask.id == task_id)
     if lock:
         query = query.with_for_update().execution_options(populate_existing=True)
     task = await db.scalar(query)
     if task is None:
         raise HTTPException(404, "ARCHIVE_TASK_NOT_FOUND")
-    if not operator and (not task.owner_uploader_actor_ref or task.owner_uploader_actor_ref != actor):
+    if not (operator or global_access) and (not task.owner_uploader_actor_ref or task.owner_uploader_actor_ref != actor):
         raise HTTPException(403, "ARCHIVE_TASK_OWNER_REQUIRED")
     child = None
     if subtask_id is not None:
@@ -89,7 +120,7 @@ async def target(db, project_id, task_id, subtask_id=None, *, actor=None, operat
         child = await db.scalar(query)
         if child is None:
             raise HTTPException(404, "ARCHIVE_SUBTASK_NOT_FOUND")
-        if not operator and (not child.authorized_uploader_actor_ref or child.authorized_uploader_actor_ref != actor):
+        if not (operator or global_access) and (not child.authorized_uploader_actor_ref or child.authorized_uploader_actor_ref != actor):
             raise HTTPException(403, "ARCHIVE_SUBTASK_UPLOADER_REQUIRED")
     return task, child
 
@@ -227,15 +258,12 @@ async def manage(db, payload, actor, operation, task_id=None):
 async def prepare_publication(db, task, payload, actor, timestamp):
     if task.archive_version != payload.root_archive_version:
         raise HTTPException(409, "ARCHIVE_ROOT_VERSION_CONFLICT")
-    await ensure_actor(db, task.project_id, task.owner_uploader_actor_ref)
-    if not task.owner_uploader_actor_ref:
-        raise HTTPException(409, "ARCHIVE_TASK_OWNER_REQUIRED")
     all_children = {row.id: row for row in await children(db, task.id)}
     documents = [(await snapshot(db, task, None, payload.root_archive_version)).document]
     selected, incomplete = set(), []
     for ref in payload.subtask_versions:
         child = all_children.get(ref.subtask_id)
-        if child is None or child.authorized_uploader_actor_ref != task.owner_uploader_actor_ref:
+        if child is None:
             raise HTTPException(409, "ARCHIVE_PUBLICATION_SUBTASK_UNAVAILABLE")
         if child.archive_version != ref.archive_version:
             raise HTTPException(409, "ARCHIVE_SUBTASK_VERSION_CONFLICT")
@@ -266,10 +294,10 @@ async def operation_by_key(db, project_id, actor, key):
     return row.response
 
 
-async def submit(db, payload, actor, client_instance_id, *, authorization_check):
+async def submit(db, payload, actor, client_instance_id, *, authorization_check, global_access=False):
     await project(db, payload.project_id, lock=True)
     await key_lock(db, "submission", payload.project_id, actor, payload.idempotency_key)
-    task, child = await target(db, payload.project_id, payload.task_id, payload.subtask_id, actor=actor, lock=True)
+    task, child = await target(db, payload.project_id, payload.task_id, payload.subtask_id, actor=actor, global_access=global_access, lock=True)
     await authorization_check()
     original = payload.wire()
     digest = canonical_json_sha256(original)
@@ -336,13 +364,13 @@ async def submit(db, payload, actor, client_instance_id, *, authorization_check)
     return response
 
 
-async def submission_by_key(db, project_id, actor, key):
+async def submission_by_key(db, project_id, actor, key, *, global_access=False):
     await project(db, project_id)
     row = await db.scalar(select(LocalArchiveSubmission).where(LocalArchiveSubmission.project_id == project_id,
         LocalArchiveSubmission.uploader_actor_ref == actor, LocalArchiveSubmission.idempotency_key == key))
     if row is None:
         raise HTTPException(404, "ARCHIVE_SUBMISSION_NOT_FOUND; this does not authorize replay")
-    await target(db, project_id, row.task_id, row.subtask_id, actor=actor)
+    await target(db, project_id, row.task_id, row.subtask_id, actor=actor, global_access=global_access)
     return row.response
 
 
@@ -358,9 +386,9 @@ def page(row, *, submission_id=None, offset=0, limit=24000):
         "content": content[offset:next_offset], "complete": next_offset == len(content)}
 
 
-async def read_archive(db, project_id, task_id, subtask_id, actor, operator, version, offset, limit):
+async def read_archive(db, project_id, task_id, subtask_id, actor, operator, version, offset, limit, *, global_access=False):
     await project(db, project_id)
-    task, child = await target(db, project_id, task_id, subtask_id, actor=actor, operator=operator)
+    task, child = await target(db, project_id, task_id, subtask_id, actor=actor, operator=operator, global_access=global_access)
     if offset and version is None:
         raise HTTPException(422, "ARCHIVE_CONTINUATION_REQUIRES_VERSION")
     selected = version if version is not None else (child or task).archive_version
@@ -368,20 +396,20 @@ async def read_archive(db, project_id, task_id, subtask_id, actor, operator, ver
     return page(row, offset=offset, limit=limit)
 
 
-async def read_submission(db, project_id, submission_id, actor, operator, offset, limit):
+async def read_submission(db, project_id, submission_id, actor, operator, offset, limit, *, global_access=False):
     await project(db, project_id)
     row = await db.get(LocalArchiveSubmission, submission_id)
     if row is None or row.project_id != project_id:
         raise HTTPException(404, "ARCHIVE_SUBMISSION_NOT_FOUND")
-    await target(db, project_id, row.task_id, row.subtask_id, actor=actor, operator=operator)
+    await target(db, project_id, row.task_id, row.subtask_id, actor=actor, operator=operator, global_access=global_access)
     selected = await db.get(LocalArchiveSnapshot, row.snapshot_id)
     return page(selected, submission_id=row.id, offset=offset, limit=limit)
 
 
-async def list_tasks(db, project_id, actor, operator, limit, offset):
+async def list_tasks(db, project_id, actor, operator, limit, offset, *, global_access=False):
     await project(db, project_id)
     where = [LocalArchiveTask.project_id == project_id]
-    if not operator:
+    if not (operator or global_access):
         where.append(LocalArchiveTask.owner_uploader_actor_ref == actor)
     total = await db.scalar(select(func.count()).select_from(LocalArchiveTask).where(*where))
     rows = await db.scalars(select(LocalArchiveTask).where(*where).order_by(LocalArchiveTask.updated_at.desc(),
@@ -389,11 +417,11 @@ async def list_tasks(db, project_id, actor, operator, limit, offset):
     return {"items": [public(row) for row in rows], "total": total, "offset": offset, "limit": limit}
 
 
-async def detail(db, project_id, task_id, actor, operator):
+async def detail(db, project_id, task_id, actor, operator, *, global_access=False):
     await project(db, project_id)
-    task, _ = await target(db, project_id, task_id, actor=actor, operator=operator)
+    task, _ = await target(db, project_id, task_id, actor=actor, operator=operator, global_access=global_access)
     members = await children(db, task_id)
-    if not operator:
+    if not (operator or global_access):
         members = [row for row in members if row.authorized_uploader_actor_ref == actor]
     allowed = [None, *(row.id for row in members)]
     submissions = list(await db.scalars(select(LocalArchiveSubmission).where(LocalArchiveSubmission.task_id == task_id)

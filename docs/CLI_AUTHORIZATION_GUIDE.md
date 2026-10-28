@@ -2,17 +2,19 @@
 
 更新：2026-10-27。**[cli-v0.1.1 已公开](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)，固定源 Git 为 `01b6d1ebcd64326808771ed06ac1166b98cceb6c`。公开下载摘要、Linux/Python 3.13 包安装与 Skill 安装已核验。stable_key 修复、发行与 Web 部署分别记录在[本轮交付](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)，本机升级与未决读回仍需在原机器完成。** 架构见 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)，任务拆分见[开发计划](LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。
 
+> 本文的全项目、永不过期授权需要包含该协议变更的 CLI 版本；已公开的 `cli-v0.1.1` 不支持该新授权格式。发布新版前，请勿将旧包与新默认授权配对视为可用；发行与用户安装验收分别记录。
+
 ## 1. 一次绑定，按需归档
 
-Web 全局「CLI 授权」页位于 `/cli-authorizations`，提供安装与绑定指引、配对确认、客户端与项目折叠列表、添加项目和撤销入口。完成一次用户级绑定后，同一电脑、同一操作系统用户下的终端和 Agent 可从任意目录复用 profile，不按仓库或会话重复绑定。
+Web 全局「CLI 授权」页位于 `/cli-authorizations`，提供安装与绑定指引、配对确认、客户端授权列表和撤销入口。完成一次用户级绑定后，同一电脑、同一操作系统用户下的终端和 Agent 可从任意目录复用 profile，不按仓库或会话重复绑定。
 
-profile 固定 server、client 和 uploader actor，只能访问网页明确批准的 Project。平台在首次批准时，为当前管理身份自动建立专用 CLI 上传身份；同一管理身份批准其他设备时复用该上传身份，各设备仍分别绑定并取得明确的项目授权。网页不再列出旧 Local 或验收身份供选择。每次上传仍须填写 Project ID、Task ID；Subtask ID 可选，不从 profile、当前目录或上次操作推导。
+profile 固定 server、client 和 uploader actor。网页批准的新授权默认覆盖现有和未来全部 Project 的 `archive:read` / `archive:write`，且不设到期时间。平台在首次批准时，为当前管理身份自动建立专用 CLI 上传身份；同一管理身份批准其他设备时复用该上传身份，各设备仍分别绑定。网页不再列出旧 Local 或验收身份供选择。每次上传仍须填写 Project ID、Task ID；Subtask ID 可选，不从 profile、当前目录或上次操作推导。
 
 测试期间无需运行 CLI，也不要求提前创建平台任务。完成测试后，用户在 Web 选择项目并创建或选择归档 Task，需要分组时再创建 Subtask，然后显式调用 Skill 或 CLI。命令执行完毕即退出，没有 MCP、Hooks、daemon、localhost callback、后台同步或自动续签。
 
 ## 2. 把安装 Prompt 交给本地 Agent（推荐）
 
-HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 带入本部署 CLI 可连接的 HTTPS 地址与公开 CA 证书：地址优先取 Web 配置 `HYPERTEST_CLI_SERVER_ORIGIN`；未配置时仅在页面本身经 HTTPS 打开时复用站点地址；两者都不可用时生成不含服务器地址的通用 Prompt（由 Agent 再询问实际地址与 CA），不会把普通 HTTP 页面地址当成 CLI 服务器，也不会因此报错。CA 证书来自 `HYPERTEST_CLI_CA_FILE`，只包含公开证书、不含私钥。从项目入口进入时同时带入 Project ID，用于预选授权项目。项目预选不授予权限，也不是后续上传的默认目标。
+HyperTest CLI 面向 Agent 使用。用户无需手动下载文件或逐条拼装命令：打开 HyperTest One 的「CLI 授权」页，复制安装 Prompt，粘贴到本机 Agent 会话执行。页面 Prompt 带入本部署 CLI 可连接的 HTTPS 地址与公开 CA 证书：地址优先取 Web 配置 `HYPERTEST_CLI_SERVER_ORIGIN`；未配置时仅在页面本身经 HTTPS 打开时复用站点地址；两者都不可用时生成不含服务器地址的通用 Prompt（由 Agent 再询问实际地址与 CA），不会把普通 HTTP 页面地址当成 CLI 服务器，也不会因此报错。CA 证书来自 `HYPERTEST_CLI_CA_FILE`，只包含公开证书、不含私钥。从项目入口进入时可能带入 Project ID；它不授予权限，也不是后续上传的默认目标。
 
 `HYPERTEST_CLI_SERVER_ORIGIN` 与 `HYPERTEST_CLI_CA_FILE` 是可选部署配置：前者必须是 CLI 实际连接的规范 HTTPS origin（`https://host[:port]`，不含用户信息、路径、查询或 fragment），后者必须是公开 CA 证书的绝对路径。它们不同于浏览器站点的 `HYPERTEST_ARCHIVE_WEB_ORIGIN`。当 Web 只经 WireGuard 以普通 HTTP 提供（例如本机测试部署 `http://10.66.66.3:3000`）而 CLI API 位于受限 HTTPS 入口时，必须配置这两项，页面才能生成包含服务器地址、绑定命令与 CA 的 Prompt。配置值只会作为公开地址与公开证书进入浏览器，不会泄露 Operator key、内部 socket 或其他配置；未配置或配置无效时只退化为通用 Prompt。
 
@@ -75,19 +77,19 @@ hypertest --version
 hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 ```
 
-可选 `--project-id PROJECT_UUID` 只预选项目，不表示已获得权限。无浏览器的终端可加 `--no-browser`，手动打开终端显示的同一 URL；不要复制凭据。命令最多等待 600 秒，可用 `--wait-seconds 0` 仅发起配对并退出等待。
+可选 `--project-id PROJECT_UUID` 是项目提示，不表示已获得权限，也不限制默认全项目授权。无浏览器的终端可加 `--no-browser`，手动打开终端显示的同一 URL；不要复制凭据。命令最多等待 600 秒，可用 `--wait-seconds 0` 仅发起配对并退出等待。
 
 正常流程：
 
 1. CLI 在用户私有目录预存请求 ID、原操作 key、credential secret 和独立 verifier，发起配对后显示短码和网页地址。
-2. 用户通过既有 Web 访问控制进入授权页，核对短码和客户端，明确项目 allowlist 和 1–90 天有效期，确认 `archive:read`、`archive:write` 两项权限。无需选择历史上传身份；平台按当前管理身份建立或复用专用 CLI 上传身份。
+2. 用户通过既有 Web 访问控制进入授权页，核对短码和客户端，确认默认的全部项目归档读写权限及永不过期。无需选择项目或历史上传身份；平台按当前管理身份建立或复用专用 CLI 上传身份。
 3. 用户在网页确认一次；CLI 在命令存活期间查询批准结果，兑换固定授权，核对原 key 回执及当前授权状态，原子保存 profile 后退出。
 
 默认用户数据目录为 `~/.hypertest-cli`；它保存私有 profile、配对记录、冻结请求和归档 journal，文件权限为 `0600`。`HYPERTEST_CLI_HOME` 可显式选择另一私有目录，但切换目录不会迁移原记录。不要让 Skill 读取这些文件，也不要把它们加入待上传目录。
 
-绑定命令和网页 URL 不含长期 token、verifier 或 Operator key。短码仅用于核对，不是查询或兑换凭证。profile 可合并同 server/client/actor 下新获准的项目；不同身份的同名 profile 会被拒绝覆盖，应选用新 profile 名。绑定不会获得旧 `task:sync`、Cloud、Memory 或 Operator 权限。
+绑定命令和网页 URL 不含长期 token、verifier 或 Operator key。短码仅用于核对，不是查询或兑换凭证。profile 可合并同 server/client/actor 下获准的授权；不同身份的同名 profile 会被拒绝覆盖，应选用新 profile 名。绑定不会获得旧 `task:sync`、Cloud、Memory 或 Operator 权限。
 
-已批准或已绑定的旧请求继续使用原上传身份恢复，不自动迁移 profile、grant 或任务 owner。历史身份从本页的选择入口退出，但其任务、报告和回执保留。新授权也不会自动接管旧身份拥有的任务；任务创建页仍只列出该项目具有有效归档授权的上传者，任务 owner 与客户端授权分别管理。专用上传身份或客户端被撤销时，新的批准会被拒绝，不自动换一个身份绕过撤销。
+已批准或已绑定的旧请求继续使用原上传身份恢复，不自动迁移 profile、grant 或任务 owner。历史身份从本页的选择入口退出，但其任务、报告和回执保留。新全项目授权可读写旧身份拥有的 Local 任务和子任务，但不会改写任务 owner 或历史上传者；任务创建页列出该项目有有效归档授权的上传者（包括有效全项目授权的上传者），任务 owner 与客户端授权分别管理。专用上传身份或客户端被撤销时，新的批准会被拒绝，不自动换一个身份绕过撤销。
 
 配对窗口为 10 分钟，与所批准 grant 的有效期分开。过期、拒绝、撤销或失答不会自动触发新的绑定或扩权。
 
@@ -101,27 +103,11 @@ SSL_CERT_FILE="$HOME/.hypertest-cli/ca/hypertest-one.crt" hypertest doctor --pro
 
 安装 CLI 本身不会自动把该 CA 加入操作系统信任。2026-10-27 远端部署的 HyperTest One Connector CA 只保留在[历史记录](CLI_TLS_TRUST_20261027.md)，其主机和 CA 路径已不存在。
 
-### 为已绑定的 CLI 添加项目
+### 新项目与历史授权
 
-平台新增项目后，既有 CLI 不会自动获得该项目权限。在「CLI 授权」页找到目标客户端，点击「添加项目」，选择尚未拥有有效授权的项目，将生成的授权 Prompt 复制给该电脑上的 Agent。页面按客户端展开项目，同名但身份不同的客户端分开显示；同一项目的多次授权记录保留各自状态和撤销入口。
+新的全项目授权自动覆盖以后新增的 Project，无需再逐项目配对。项目授权只提供 CLI 的归档读写能力，不授予 Cloud、Memory、Operator 或其他平台管理权限；全项目授权可读写所有 Local 任务与子任务，包括原 owner 为空或属于其他身份的任务；新的提交记录真实上传身份，不改写旧 owner、原始来源或结果。旧定向项目授权仍须匹配任务及子任务上传身份。
 
-Agent 按以下顺序完成增量授权：
-
-1. 用 `hypertest profile show --json` 读取安全元数据，按 Prompt 中的服务器、客户端 ID 和上传身份匹配既存 profile。CLI 输出的 `client_id` 对应网页的 `client_instance_id`。客户端名称仅用于辨认，不能代替身份匹配；没有匹配项或有多个匹配项时先说明情况，不猜测使用 `default` 或新建替代客户端。
-2. 复用匹配的 profile、私有数据目录和既有 CA 信任配置，为此次明确新增项目发起新配对。`--project-id` 只预选本次项目，仍需网页批准：
-
-   ```sh
-   hypertest auth bind --server https://YOUR_HYPERTEST_HOST \
-     --profile EXISTING_PROFILE --project-id NEW_PROJECT_UUID
-   ```
-
-3. 用户打开此次授权地址，核对短码、客户端与待新增项目，再批准权限和期限。复制 Prompt 或选择项目本身不会生效；Agent 不代替用户点击批准。
-4. CLI 完成兑换后，将新项目 grant 追加到同一 profile，保留原有项目授权。如命令已退出，按此次原 request ID 执行 `hypertest auth bind --resume --request-id PAIRING_REQUEST_UUID`，不再创建替代配对；失答或 UNKNOWN 继续遵守第 4 节的原 key 恢复规则。
-5. 用 `hypertest doctor --profile EXISTING_PROFILE --project-id NEW_PROJECT_UUID --json` 在线检查新增项目权限，报告结果。
-
-这个流程无需重新安装 CLI、退出原 profile 或撤销已有授权。它创建独立的新项目授权，不修改此前批准单的项目范围或期限。已撤销或到期的项目可以在用户明确选择后重新配对授权；客户端或上传身份本身被撤销时，平台仍会拒绝，不能以换身份绕过。若旧 profile 的上传身份与当前平台自动关联身份不同，应报告 `PROFILE_IDENTITY_CONFLICT`，保留原 profile 和请求，不自动迁移。
-
-完成配对后，页面以客户端名称及绿色「已绑定」状态显示结果，配对详情可折叠查看。该状态描述本次配对完成；项目的当前有效性仍以各项授权状态和期限为准。
+符合升级条件的既有 CLI 绑定自动获得全项目永久授权：原配对已绑定、actor 和客户端仍有效，且至少一条旧项目授权未撤销；即使旧授权已过期也包含在内。原批准正文、回执及旧 grant 不改写；若同一绑定某个旧项目 grant 已撤销，而其他 grant 仍未撤销，新全项目授权仍覆盖该项目，但旧 grant 保持撤销。全部 grant 已撤销或 actor/client 已停用的绑定不复活。新版 CLI 按原 request ID 执行 `hypertest auth reconcile --request-id PAIRING_REQUEST_UUID --json` 读取当前授权并更新本地 profile，不从旧批准回执推断当前权限。已发送或可能发送的旧请求仍只能按原 key 恢复。
 
 ## 4. 查看、恢复和撤销授权
 
@@ -146,7 +132,7 @@ hypertest auth bind --resume --request-id PAIRING_REQUEST_UUID
 hypertest doctor --profile default --project-id PROJECT_UUID --json
 ```
 
-Web「CLI 授权」页展开客户端与项目后，可撤销指定 grant，撤销后服务端拒绝继续使用该 grant，已接受历史保持。同一项目如有多条有效授权，撤销其中一条不代表其他授权同时撤销；完整停止该客户端对项目的访问，需要逐条撤销该项目的有效授权。`hypertest auth logout --profile default` 只停用本机 profile，不等同服务端撤销；它保留凭据记录、journal、冻结请求和其他 profile，并返回未决请求 ID。授权到期后由用户显式重新绑定，无后台续签。
+Web「CLI 授权」页可整体撤销全项目授权，撤销后服务端拒绝继续使用该授权，已接受历史保持。存在多条有效授权时，撤销一条不代表其他授权同时撤销。`hypertest auth logout --profile default` 只停用本机 profile，不等同服务端撤销；它保留凭据记录、journal、冻结请求和其他 profile，并返回未决请求 ID。符合条件的存量绑定及新默认授权不设到期时间；无后台续签。
 
 ## 5. 全局安装并显式调用 Skill
 

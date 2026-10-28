@@ -328,6 +328,61 @@ def test_pairing_one_confirmation_no_secret_output_and_global_profile(tmp_path):
     assert state.profiles.joinpath("default.json").stat().st_mode & 0o777 == 0o600
 
 
+@pytest.mark.parametrize("revoked", [False, True])
+def test_all_project_pairing_and_recovery(tmp_path, revoked):
+    state, server = State(tmp_path / "private"), PairingServer()
+    original = server.call
+
+    def call(method, path, **kwargs):
+        if method == "POST" and path.endswith("/redeem"):
+            server.view.update(status="BOUND", grants=[], authorization={
+                "request_id": server.view["request_id"], "actor_ref": ACTOR,
+                "client_instance_id": server.view["client_instance_id"],
+                "credential_fingerprint": server.view["credential_fingerprint"],
+                "all_projects": True, "scopes": ["archive:read", "archive:write"],
+                "expires_at": None, "status": "ACTIVE"})
+            server.receipt("REDEEM", kwargs["body"])
+            raise CLIError("TRANSPORT_UNCERTAIN", 4)
+        value = original(method, path, **kwargs)
+        if server.view and server.view.get("approval"):
+            server.view["approval"].update(project_ids=[], all_projects=True, expires_at=None)
+        if value.get("approval"):
+            value["approval"].update(project_ids=[], all_projects=True, expires_at=None)
+        if revoked and value.get("authorization") and not path.endswith("by-key"):
+            value["authorization"]["status"] = "REVOKED"
+        return value
+
+    server.call = call
+    result, code = auth.bind(state, server=SERVER, open_browser=False, wait_seconds=1,
+                             sleep=lambda _: None, http_factory=server.factory)
+    assert code == 4
+    before = len(server.calls)
+    result, code = auth.reconcile(state, result["request_id"], http_factory=server.factory)
+    assert all(call[0] == "GET" for call in server.calls[before:])
+    assert code == (4 if revoked else 0)
+    if not revoked:
+        grant = state.profile("default", project_id=str(uuid.uuid4()))["grant"]
+        assert grant["all_projects"] is True and grant["expires_at"] is None
+
+
+def test_old_profile_requires_server_confirmation_for_new_project(state):
+    project = str(uuid.uuid4())
+
+    class Capabilities:
+        def __init__(self, approved):
+            self.approved = approved
+
+        def call(self, method, path, *, query=None):
+            assert method == "GET" and path.endswith("/capabilities") and query == {"project_id": project}
+            return {"all_projects": self.approved}
+
+    with pytest.raises(CLIError, match="PROJECT_NOT_AUTHORIZED"):
+        archive.resolve_profile(state, "default", project, http_factory=lambda *a, **kw: Capabilities(False))
+    resolved = archive.resolve_profile(state, "default", project,
+        http_factory=lambda *a, **kw: Capabilities(True))
+    assert resolved["grant"]["credential"] == state.profile("default")["grant"]["credential"]
+
+
 def test_pairing_create_unknown_reconcile_does_not_redeem_but_explicit_resume_can(tmp_path):
     state, server = State(tmp_path / "private"), PairingServer()
     server.lose_create = True

@@ -122,10 +122,12 @@ def dispatch(args, state: State) -> tuple[dict, int]:
         return auth.bind(state, server=args.server, name=args.profile, project_id=args.project_id,
                          wait_seconds=args.wait_seconds, open_browser=not args.no_browser, notify=notify_pairing)
     if args.command == "doctor":
-        profile = state.profile(args.profile, project_id=identifier(args.project_id) if args.project_id else None)
-        project = args.project_id or profile["grant"]["project_ids"][0]
+        profile = (archive_client.resolve_profile(state, args.profile, identifier(args.project_id))
+                   if args.project_id else state.profile(args.profile))
+        projects = profile["grant"].get("project_ids", [])
+        project = args.project_id or (projects[0] if projects else None)
         result = HTTP(profile["server"], token=profile["grant"]["credential"]).call(
-            "GET", PREFIX + "/capabilities", query={"project_id": project})
+            "GET", PREFIX + "/capabilities", query={"project_id": project} if project else {})
         return {"status": "READY", "version": CLI_VERSION, "profile": profile["name"],
                 "server": profile["server"], "capabilities": result}, 0
     if args.command == "legacy":
