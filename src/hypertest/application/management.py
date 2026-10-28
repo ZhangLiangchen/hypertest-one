@@ -2,12 +2,12 @@
 from fastapi import HTTPException
 from sqlalchemy import func, select
 
-from hypertest.application.session_tasks import public
+from hypertest.application.record_helpers import public
 from hypertest.config import get_settings
 from hypertest.domain.cloud_tasks import CloudTask
+from hypertest.domain.local_archive import LocalArchiveTask
 from hypertest.domain.models import AuditEvent, OutboxEvent, Project, TestRun
 from hypertest.domain.native import NativeTestRun
-from hypertest.domain.session_tasks import SessionTask
 
 
 def record_change(db, row, before, action, *, version, actor_ref=None):
@@ -36,18 +36,16 @@ async def manage_project(db, project_id, expected_version, *, changes=None, acti
         raise HTTPException(409, "Project is not deleted")
     if action == "DELETE":
         dependencies = []
-        for model, label in ((SessionTask, "undeleted session tasks"),
+        for model, label in ((LocalArchiveTask, "local archive tasks"),
                              (CloudTask, "cloud tasks"),
                              (TestRun, "legacy test runs"), (NativeTestRun, "native test runs")):
             query = select(func.count()).select_from(model).where(model.project_id == row.id)
-            if model is SessionTask:
-                query = query.where(SessionTask.deleted_at.is_(None))
             count = await db.scalar(query)
             if count:
                 dependencies.append(f"{count} {label}")
         if dependencies:
             raise HTTPException(409, "Project cannot be deleted: " + ", ".join(dependencies)
-                                + "; delete session tasks first or archive the Project to retain task/run history")
+                                + "; archive the Project to retain task/run history")
     before = public(row)
     if action == "UPDATE":
         changes = changes or {}

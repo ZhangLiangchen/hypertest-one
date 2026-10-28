@@ -3,11 +3,6 @@ const test = require("node:test");
 const { operationHarness, until, document, IDBFactory } = require("./operation-harness.cjs");
 const pending = (key = "web:original", extra = {}) => ({ project_id: "project-a", operation_key: key, expected_version: 4, operation: "DISPATCH", task_id: "task-a", digest: "a".repeat(64), state: "UNKNOWN", ...extra });
 const receipt = (key) => ({ status: "ACCEPTED", profile: "cloud-harness-task/v1alpha1", project_id: "project-a", operation_key: key, operation: "DISPATCH", task_id: "task-a", version: 5 });
-const payload = { idempotency_key: "local-original", title: "Local request", objective: "Original objective", plan_markdown: "# Full original plan\n", intended_actor_ref: null };
-function localDetail(request = payload) {
-  return { task: { id: "local-task", project_id: "project-a", version: 1, title: request.title, objective: request.objective || "", plan_markdown: request.plan_markdown || "", intended_actor_ref: Object.hasOwn(request, "intended_actor_ref") ? request.intended_actor_ref : "sole-authorized-actor", binding_state: "UNBOUND", status: "DRAFT", reported_result: "NOT_RUN" }, cases: [], reports: [], case_history: [], report_history: [], sync_history: [], management_history: [], binding_history: [], creation_receipt: { status: "ACCEPTED", operation: "CREATE", project_id: "project-a", task_id: "local-task", version: 1, idempotency_key: request.idempotency_key } };
-}
-
 test("IndexedDB serializes competing reservations and survives closing all tab connections", async () => {
   const factory = new IDBFactory(), a = operationHarness({}, { factory }), b = operationHarness({}, { factory });
   const result = await Promise.all([a.journal.reserve(pending("web:first")), b.journal.reserve(pending("web:second"))]);
@@ -36,15 +31,6 @@ test("Original-key CAS cannot erase a newer request or resurrect a settled old r
   assert.equal(await harness.journal.settle(original), false); assert.equal(await harness.journal.markUnknown(original), false);
   assert.equal((await harness.journal.read("project-a"))[0].operation_key, newer.operation_key);
   await assert.rejects(harness.journal.settle({ ...newer, expected_version: 9 }), /KEY_CONFLICT/); harness.close();
-});
-
-test("Cloud and Local retain separate stores even with the same Project and key text", async () => {
-  const factory = new IDBFactory(), cloud = operationHarness({}, { factory }), local = operationHarness({}, { factory, local: true });
-  await cloud.journal.reserve(pending("shared-key"));
-  await local.journal.reserve({ project_id: "project-a", operation_key: "shared-key", expected_version: 0, state: "UNKNOWN", payload: { ...payload, idempotency_key: "shared-key" } });
-  await cloud.journal.settle(pending("shared-key"));
-  const [kept] = await local.journal.read("project-a");
-  assert.equal(kept.payload.plan_markdown, payload.plan_markdown); cloud.close(); local.close();
 });
 
 test("Two ready Cloud tabs send one POST and both display the same original key", async () => {
@@ -107,65 +93,13 @@ test("A late Cloud response cannot clear another tab's newer operation", async (
   assert.equal(await sending, null); assert.equal((await a.journal.read("project-a"))[0].operation_key, newer); assert.equal(posts, 2); a.close(); b.close();
 });
 
-test("Local closes and reopens with its exact complete request and only original-key GET", async () => {
-  const factory = new IDBFactory(); let posts = 0, queried;
-  const a = operationHarness({ createLocalTask: async () => { posts++; throw new Error("reply lost"); } }, { local: true, factory });
-  await a.mount(); await a.render().submit(payload); a.close();
-  const b = operationHarness({ createLocalTask: async () => { posts++; }, getLocalTaskCreation: async (_project, key) => { queried = key; throw { status: 404 }; } }, { local: true, factory });
-  await b.mount(); assert.deepEqual(JSON.parse(JSON.stringify(b.render().pending)), payload);
-  await b.render().submit({ ...payload, idempotency_key: "new-key" }); await b.render().reconcile();
-  assert.equal(queried, payload.idempotency_key); assert.equal(posts, 1); assert.equal(b.render().blocked, true); b.close();
-});
-
-test("Local ACK requires fixed v1 readback of the complete original task", async () => {
-  let correct = false, readVersion, posts = 0;
-  const harness = operationHarness({ createLocalTask: async () => { posts++; return localDetail(); }, getLocalTaskCreation: async () => localDetail(),
-    getSessionTask: async (_id, version) => { readVersion = version; const value = localDetail(); if (!correct) value.task.plan_markdown = "wrong plan"; return value; } }, { local: true });
-  await harness.mount(); assert.equal(await harness.render().submit(payload), null);
-  assert.equal(harness.render().pending.idempotency_key, payload.idempotency_key); assert.equal(readVersion, 1);
-  correct = true; const result = await harness.render().reconcile();
-  assert.equal(result.task.plan_markdown, payload.plan_markdown); assert.equal(harness.render().pending, null); assert.equal(posts, 1); harness.close();
-});
-
-test("Denied Local readback after ACK preserves UNKNOWN instead of treating it as POST rejection", async () => {
-  const harness = operationHarness({ createLocalTask: async () => localDetail(), getSessionTask: async () => { throw { status: 403 }; } }, { local: true });
-  await harness.mount(); await harness.render().submit(payload);
-  assert.equal(harness.render().pending.idempotency_key, payload.idempotency_key); assert.equal((await harness.journal.read("project-a"))[0].state, "UNKNOWN"); harness.close();
-});
-
-test("Local tabs serialize CREATE and migrate omitted intended actor without inventing a value", async () => {
-  const factory = new IDBFactory(); let posts = 0;
-  const a = operationHarness({ createLocalTask: async () => { posts++; throw new Error("lost"); } }, { local: true, factory });
-  const b = operationHarness({ createLocalTask: async () => { posts++; throw new Error("lost"); } }, { local: true, factory });
-  await Promise.all([a.mount(), b.mount()]); await Promise.all([a.render().submit(payload), b.render().submit({ ...payload, idempotency_key: "second-local" })]);
-  assert.equal(posts, 1); a.close(); b.close();
-  const omitted = { idempotency_key: "omitted-actor", title: "Original task" };
-  const c = operationHarness({}, { local: true, factory, session: new Map([["hypertest:local-task-create:project-a", JSON.stringify({ project_id: "project-a", payload: omitted })]]) });
-  await c.mount(); const records = await c.journal.read("project-a");
-  assert.equal(records.length, 2); assert.equal(Object.hasOwn(records.find((row) => row.operation_key === omitted.idempotency_key).payload, "intended_actor_ref"), false);
-  assert.equal(c.data.size, 0); c.close();
-});
-
-test("Local refuses an ACK with the same Project/key but different frozen CREATE input", async () => {
-  const harness = operationHarness({ createLocalTask: async () => localDetail({ ...payload, title: "Other request" }), getSessionTask: async () => localDetail() }, { local: true });
-  await harness.mount(); await harness.render().submit(payload);
-  assert.equal(harness.render().pending.idempotency_key, payload.idempotency_key); assert.equal(harness.render().success, false); harness.close();
-});
-
-test("Legacy storage denial preserves read-only recovery of durable Cloud and Local keys", async () => {
-  const denied = { getItem() { throw new Error("session storage denied"); } };
-  for (const local of [false, true]) {
-    let posts = 0, queried;
-    const overrides = local ? { createLocalTask: async () => { posts++; }, getLocalTaskCreation: async (_project, key) => { queried = key; return localDetail(); }, getSessionTask: async () => localDetail() }
-      : { cloudRequest: async () => { posts++; }, cloudOperation: async (_project, key) => { queried = key; return receipt(key); }, cloudDocument: async (project, task, version) => document(project, task, version) };
-    const harness = operationHarness(overrides, { local, storage: denied });
-    const original = local ? { project_id: "project-a", operation_key: payload.idempotency_key, expected_version: 0, state: "UNKNOWN", payload } : pending();
-    await harness.journal.reserve(original); await harness.mount();
-    assert.equal(harness.render().ready, false); assert.ok(harness.render().pending);
-    await harness.render().submit(local ? payload : { operation: "CREATE_TASK", expected_version: 0 });
-    const accepted = await harness.render().reconcile();
-    assert.ok(accepted); assert.equal(queried, original.operation_key); assert.equal(posts, 0); harness.close();
-  }
+test("Legacy session storage denial preserves Cloud original-key recovery", async () => {
+  const denied = { getItem() { throw new Error("session storage denied"); } }; let posts = 0, queried;
+  const harness = operationHarness({ cloudRequest: async () => { posts++; }, cloudOperation: async (_project, key) => { queried = key; return receipt(key); }, cloudDocument: async (project, task, version) => document(project, task, version) }, { storage: denied });
+  const original = pending(); await harness.journal.reserve(original); await harness.mount();
+  assert.equal(harness.render().ready, false); assert.ok(harness.render().pending);
+  await harness.render().submit({ operation: "CREATE_TASK", expected_version: 0 });
+  assert.ok(await harness.render().reconcile()); assert.equal(queried, original.operation_key); assert.equal(posts, 0); harness.close();
 });
 
 test("Cloud original-key conflict remains UNKNOWN and cannot permit another POST", async () => {

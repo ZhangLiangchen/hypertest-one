@@ -173,7 +173,7 @@ async def artifact(task_id: UUID, artifact_id: UUID, project_id: UUID, request: 
 @router.get("/projects/{project_id}/task-directory")
 @controlled_errors
 async def directory(project_id: UUID, request: Request,
-                    task_kind: str | None = Query(default=None, pattern=r"^(CLOUD_TASK|SESSION_TASK)$"),
+                    task_kind: str | None = Query(default=None, pattern=r"^CLOUD_TASK$"),
                     product_mode: str | None = Query(default=None, pattern=r"^(CLOUD|LOCAL)$"),
                     provider: str | None = Query(default=None, max_length=64),
                     offset: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=100),

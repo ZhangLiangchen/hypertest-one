@@ -1661,6 +1661,8 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 
 ## 51. ADR-027 Local 显式归档协议目标合同
 
+> **ADR-028 退休：** 旧 SessionTask 创建、同步、读取、BIND/JOIN、协作与原 key 查询接口退出；新 Local 任务只通过归档接口，Cloud 继续使用独立合同。旧未知外部操作不因入口退出而被重发。浏览器中旧 SessionTask 创建/协作 journal 可被移除，现行归档、Cloud 和 CLI 授权 journal 不受影响。
+
 > **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 
 本节为首片已实现的 `local-artifact-archive/v1alpha1`；部署、发行与 USER_OWNED 状态见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。该协议由 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)采用，领域语义见[领域§56](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#56-adr-027-local-显式后置归档目标合同)。它通过普通 HTTPS 请求/响应工作，不需要 MCP、Hook、SessionStart、source binding、常驻连接或 Agent 执行通道。

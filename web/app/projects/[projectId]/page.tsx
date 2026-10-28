@@ -1,33 +1,20 @@
 "use client";
 
-import { ArrowLeftOutlined, ArrowRightOutlined, PlusOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, ArrowRightOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Space, Spin, Table, Tag, Typography } from "antd";
-import dynamic from "next/dynamic";
+import { Alert, Button, Card, Empty, Spin, Table, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useParams } from "next/navigation";
 
 import { errorText, getProject, getProjectRuns } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { ProjectArchiveTasks } from "./archive-tasks";
-import { ProjectSessionTasks } from "./session-tasks";
 import { ProjectWorkspaceHeading } from "../project-workspace-heading";
 import { ProjectNavigation, WorkspaceLoading } from "@/app/workspace-ui";
-
-const RunCreateDialog = dynamic(() => import("./run-create-dialog"), {
-  ssr: false,
-  loading: () => <div role="status" style={{ position: "fixed", top: 96, right: 32, zIndex: 1001 }}><Spin /></div>,
-});
 
 export default function ProjectPage() {
   const { t, label, locale, formatDate } = useI18n();
   const params = useParams<{ projectId: string }>();
-  const searchParams = useSearchParams();
-  const fromRun = searchParams.get("fromRun");
-  const [createMounted, setCreateMounted] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [hasDraft, setHasDraft] = useState(false);
   const project = useQuery({
     queryKey: ["project", params.projectId],
     queryFn: () => getProject(params.projectId, true),
@@ -37,11 +24,6 @@ export default function ProjectPage() {
     queryFn: () => getProjectRuns(params.projectId),
     enabled: Boolean(project.data && !project.data.deleted_at),
   });
-  const openCreate = () => {
-    setCreateMounted(true);
-    setCreateOpen(true);
-  };
-
   if (project.isLoading) return <WorkspaceLoading label={t("Loading project", "正在读取项目")} />;
   if (!project.data) {
     return (
@@ -59,8 +41,6 @@ export default function ProjectPage() {
     );
   }
 
-  const createLabel = hasDraft ? t("Continue draft", "继续创建草稿") : t("Create test run", "创建测试运行");
-
   return (
     <main className="workspace-page">
       <ProjectWorkspaceHeading project={project.data} projectId={params.projectId} mode="local" />
@@ -70,19 +50,11 @@ export default function ProjectPage() {
 
       {project.error ? <Alert type="warning" showIcon message={t("Project refresh failed", "项目刷新失败")} description={t("Previously loaded project details and your draft remain available. Retry to get the latest state.", "已加载的项目资料和草稿仍会保留，请重试获取最新状态。")} action={<Button onClick={() => void project.refetch()} loading={project.isFetching}>{t("Retry", "重试")}</Button>} style={{ marginBottom: 20 }} /> : null}
 
-      {(createMounted || fromRun || hasDraft) && <RunCreateDialog key={params.projectId} project={project.data} fromRun={fromRun} createOpen={createOpen} setCreateOpen={setCreateOpen} onDraftChange={setHasDraft} />}
       <ProjectArchiveTasks projectId={params.projectId} projectDeleted={Boolean(project.data.deleted_at)} />
-      <details className="session-legacy-history"><summary>{t("Legacy local session history", "旧本地会话历史")}</summary><ProjectSessionTasks projectId={params.projectId} projectDeleted={Boolean(project.data.deleted_at)} /></details>
 
-      <details className="session-legacy-history" open={fromRun ? true : undefined}>
+      <details className="session-legacy-history">
         <summary>{t("Managed test run history", "受管测试运行历史")}</summary>
-      <Space wrap style={{ display: "flex", justifyContent: "space-between", marginBottom: 18 }}>
-        <div>
-          <Typography.Title level={3} style={{ margin: 0 }}>{t("Test runs", "测试运行")}</Typography.Title>
-          <Typography.Text className="muted">{t("Each run fixes the source, requirements and policy for a reproducible test cycle.", "每次运行固定代码版本、需求和策略，形成可复现的完整测试周期。")}</Typography.Text>
-        </div>
-        <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate} disabled={Boolean(project.data.deleted_at)}>{createLabel}</Button>
-      </Space>
+      <Typography.Title level={3}>{t("Test runs", "测试运行")}</Typography.Title>
       {runs.isLoading ? (
         <Spin />
       ) : runs.isError ? (
@@ -103,9 +75,7 @@ export default function ProjectPage() {
         ]} /><p className="table-footnote">{t("Run status tracks the workflow. Open a run to see its quality verdict and supporting evidence.", "运行状态表示流程进度。打开运行，查看质量判定及其证据依据。")}</p></div>
       ) : (
         <Card className="section-card">
-          <Empty description={t("Create a test run to analyze requirements and build test coverage.", "创建测试运行，开始分析需求并建立测试覆盖。")}>
-            <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={openCreate} disabled={Boolean(project.data.deleted_at)}>{createLabel}</Button>
-          </Empty>
+          <Empty description={t("No managed test runs.", "暂无受管测试运行。")}/>
         </Card>
       )}
       </details>

@@ -6,7 +6,7 @@ import type { BackgroundJob, RunBinding } from "@/lib/types";
 
 export function NewRunLink({ runId, projectId, primary = false }: { runId: string; projectId: string; primary?: boolean }) {
   const { t } = useI18n();
-  return <Button type={primary ? "primary" : "default"} href={`/projects/${projectId}?fromRun=${encodeURIComponent(runId)}`} style={{ height: "auto", minHeight: 36, whiteSpace: "normal" }}>{t("New round from this run", "基于本次运行创建新轮次")}</Button>;
+  return <Button type={primary ? "primary" : "default"} href={`/projects/${projectId}/tasks/new`} style={{ height: "auto", minHeight: 36, whiteSpace: "normal" }}>{t("Create a test task", "创建测试任务")}</Button>;
 }
 
 export function RunNextAction({ runId, projectId, binding, jobs, questionId, ready, startDisabled, starting, answer, reviewSession, reviewTask, start }: {

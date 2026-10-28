@@ -1227,6 +1227,8 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 ## 50. ADR-027 Local 显式归档目标架构
 
+> **ADR-028 退休：** 产品新建任务统一使用 Local 归档或 Cloud 创建；旧 SessionTask 页面/API/协作与专属数据退出，不合并新旧身份。已发行 CLI 仍使用 `/archives` 地址，该归档地址继续跳转至当前任务页面。旧受管 TestRun 属于独立执行域，项目页不再提供旧创建入口。
+
 > **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 
 新建 Project 须分别登记 SUT 与测试框架仓库（可相同）；历史项目允许缺失。用户在创建 Local 任务时声明各自分支，API 对旧客户端允许省略。API 固定创建时的两个 Project 地址及所选分支，旧任务不回填，项目后续修改不改写已接受任务。这些值只是任务输入声明，不表示已检出、执行或独立验证来源。Cloud 仍使用独立的 ProjectCloudConfigRevision 和任务双 selector，显式冻结输入及授权；Project 通用地址不自动覆盖既有 Cloud 资源和任务。

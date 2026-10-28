@@ -22,7 +22,6 @@ from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.interactive import InteractiveIntegrationGrant
 from hypertest.domain.memory import MemoryOperation
-from hypertest.domain.session_tasks import ReportRevision
 from hypertest.main import app
 
 OPERATOR = "synthetic-memory-operator"
@@ -93,9 +92,6 @@ async def register(f, scopes, *, project_id=None):
 @pytest.fixture
 async def memory_context(monkeypatch, tmp_path):
     settings = get_settings()
-    # Exercise historical Local source compatibility without changing the
-    # default retirement of new legacy writes in deployed environments.
-    monkeypatch.setattr(settings, "local_session_writes_enabled", True)
     monkeypatch.setattr(settings, "memory_enabled", True)
     monkeypatch.setattr(settings, "connector_operator_key", OPERATOR)
     admin_file = tmp_path / "synthetic-powercontext-token"
@@ -112,17 +108,26 @@ async def memory_context(monkeypatch, tmp_path):
              "upstream": upstream}
         headers, auth = await register(f, ["task:sync", "memory:read", "memory:propose"])
         f.update(headers=headers, auth=auth)
-        response = await client.post("/api/v1/interactive/tasks/sync", headers=headers, json={
-            "project_id": project_id, "idempotency_key": "memory-source", "expected_version": 0,
-            "provider": "codex", "session_id": str(uuid4()), "title": "Private source title",
-            "reported_result": "FAIL", "reports": [{"key": "original", "title": "Private report title",
+        archive_headers, _ = await register(f, ["archive:read", "archive:write"])
+        created = await client.post("/api/v1/local-archive/tasks", headers=f["operator"], json={
+            "project_id": project_id, "idempotency_key": "memory-source-task", "title": "Private source title"})
+        assert created.status_code == 200, created.text
+        task_id = created.json()["task"]["id"]
+        response = await client.post(f"/api/v1/local-archive/tasks/{task_id}/submissions", headers=archive_headers, json={
+            "profile": "local-artifact-archive/v1alpha1", "project_id": project_id, "task_id": task_id,
+            "idempotency_key": "memory-source", "expected_archive_version": 1,
+            "assets": [{"kind": "REPORT", "stable_key": "original", "title": "Private report title",
                 "markdown": "# FAIL\nSynthetic preservation fixture", "reported_result": "FAIL"}]})
         assert response.status_code == 200, response.text
-        task_id = response.json()["task_id"]
-        async with AsyncSessionLocal() as db:
-            report = await db.scalar(select(ReportRevision).where(ReportRevision.task_id == UUID(task_id)))
-        f["source"] = {"mode": "LOCAL", "task_id": task_id, "task_version": 1, "report_id": str(report.id)}
-        f["task_snapshot"] = (await client.get("/api/v1/tasks/" + task_id)).json()
+        receipt = response.json()
+        read = await client.get(f"/api/v1/local-archive/submissions/{receipt['submission_id']}",
+            headers=f["operator"], params={"project_id": project_id})
+        import json
+        report = json.loads(read.json()["content"])["assets"][0]
+        f["source"] = {"mode": "LOCAL_ARCHIVE", "task_id": task_id, "submission_id": receipt["submission_id"],
+            "archive_version": receipt["accepted_version"], "asset_revision_id": report["id"]}
+        f["task_snapshot"] = (await client.get(f"/api/v1/local-archive/tasks/{task_id}",
+            headers=f["operator"], params={"project_id": project_id})).json()
         configured = await mutate(f, "CONFIGURE", 0, enabled=True)
         assert configured.status_code == 200 and configured.json()["status"] == "ACCEPTED", configured.text
         yield f
@@ -137,7 +142,7 @@ async def mutate(f, operation, expected_version=0, *, headers=None, key=None, **
 async def candidate(f, **changes):
     fields = {"title": "Approved candidate summary", "content": "Synthetic historical method; verify current inputs",
               "source": f["source"], **changes}
-    response = await mutate(f, "CREATE_CANDIDATE", headers=f["headers"], **fields)
+    response = await mutate(f, "CREATE_CANDIDATE", headers=f["operator"], **fields)
     assert response.status_code == 200 and response.json()["status"] == "ACCEPTED", response.text
     return response.json()
 
@@ -152,11 +157,20 @@ async def query(f, *, headers=None):
         "project_id": f["project_id"], "query": "synthetic", "limit": 20})
 
 
+async def test_retired_session_task_cannot_be_used_as_a_new_memory_source(memory_context):
+    f = memory_context
+    response = await mutate(f, "CREATE_CANDIDATE", title="retired source", content="synthetic",
+        source={"mode": "LOCAL", "task_id": str(uuid4()), "task_version": 1, "report_id": str(uuid4())})
+    assert response.status_code == 410 and "retired" in response.text
+    assert f["upstream"].writes == 0
+
+
 async def test_archive_source_requires_operator_and_fixed_accepted_report(memory_context):
     f = memory_context
-    archive_auth, _ = await register(f, ["archive:read", "archive:write"])
+    archive_auth, archive_grant = await register(f, ["archive:read", "archive:write"])
     task = await f["client"].post("/api/v1/local-archive/tasks", headers=f["operator"], json={
-        "project_id": f["project_id"], "idempotency_key": "archive-memory-task", "title": "Archive source"})
+        "project_id": f["project_id"], "idempotency_key": "archive-memory-task", "title": "Archive source",
+        "owner_uploader_actor_ref": "interactive:" + archive_grant["actor_identity_id"]})
     assert task.status_code == 200, task.text
     task_id = task.json()["task"]["id"]
     uploaded = await f["client"].post(f"/api/v1/local-archive/tasks/{task_id}/submissions", headers=archive_auth, json={
@@ -214,18 +228,18 @@ async def test_candidate_private_fixed_readback_and_task_history_unchanged(memor
     receipt = await candidate(f)
     assert receipt["accepted_version"] == 1 and receipt["expected_version"] == 0
     assert f["upstream"].writes == 0
-    response = await f["client"].get("/api/v1/memory/entries/" + receipt["entry_id"], headers=f["headers"],
+    response = await f["client"].get("/api/v1/memory/entries/" + receipt["entry_id"], headers=f["operator"],
         params={"project_id": f["project_id"], "version": 1})
     assert response.status_code == 200
     entry = response.json()
-    assert entry["source"]["provider"] == "codex"
-    assert entry["source"]["report_id"] == f["source"]["report_id"]
+    assert entry["source"]["mode"] == "LOCAL_ARCHIVE"
+    assert entry["source"]["asset_revision_id"] == f["source"]["asset_revision_id"]
     stranger, _ = await register(f, ["memory:read"])
     denied = await f["client"].get("/api/v1/memory/entries/" + receipt["entry_id"], headers=stranger,
         params={"project_id": f["project_id"], "version": 1})
     assert denied.status_code == 404
     assert (await query(f)).json()["results"] == []
-    assert (await f["client"].get("/api/v1/tasks/" + f["source"]["task_id"])).json() == f["task_snapshot"]
+    assert (await f["client"].get("/api/v1/local-archive/tasks/" + f["source"]["task_id"], headers=f["operator"], params={"project_id": f["project_id"]})).json() == f["task_snapshot"]
 
 
 async def test_independent_permissions_owner_source_and_operator_publication(memory_context):
@@ -240,10 +254,10 @@ async def test_independent_permissions_owner_source_and_operator_publication(mem
     denied = await mutate(f, "PUBLISH", 1, headers=no_owner, entry_id=receipt["entry_id"],
         title="No self promotion", content="Not approved", publication_note="Bearer is not human Operator")
     assert denied.status_code == 403
-    bad = {**f["source"], "task_version": 999}
-    assert (await mutate(f, "CREATE_CANDIDATE", headers=f["headers"], title="bad", content="bad", source=bad)).status_code == 409
+    bad = {**f["source"], "archive_version": 999}
+    assert (await mutate(f, "CREATE_CANDIDATE", headers=f["operator"], title="bad", content="bad", source=bad)).status_code == 409
     cross_project = {**f["source"], "task_id": str(uuid4())}
-    assert (await mutate(f, "CREATE_CANDIDATE", headers=f["headers"], title="bad", content="bad", source=cross_project)).status_code == 404
+    assert (await mutate(f, "CREATE_CANDIDATE", headers=f["operator"], title="bad", content="bad", source=cross_project)).status_code == 404
 
 
 async def test_publish_fixed_get_revise_retract_stale_index_and_opaque_source(memory_context):
@@ -385,7 +399,7 @@ async def test_byte_limit_secret_scan_and_generation_never_invoked(memory_contex
     degraded = await query(f)
     assert degraded.status_code == 200 and degraded.json()["degraded"] is True
     # Optional memory failure never rewrites the existing task's FAIL or history.
-    assert (await f["client"].get("/api/v1/tasks/" + f["source"]["task_id"])).json() == f["task_snapshot"]
+    assert (await f["client"].get("/api/v1/local-archive/tasks/" + f["source"]["task_id"], headers=f["operator"], params={"project_id": f["project_id"]})).json() == f["task_snapshot"]
 
 
 async def test_memory_history_database_guards_and_scope_mapping_immutable(memory_context):
@@ -593,11 +607,7 @@ async def test_gateway_secret_unavailable_only_closes_memory_and_task_sync_still
     assert denied.status_code == 503 and "missing-key" not in denied.text
     denied_query = await query(f)
     assert denied_query.status_code == 503
-    snapshot = f["task_snapshot"]["task"]
-    response = await f["client"].post("/api/v1/interactive/tasks/sync", headers=f["headers"], json={
-        "project_id": f["project_id"], "idempotency_key": "sync-memory-unavailable", "expected_version": 1,
-        "provider": snapshot["provider"], "session_id": snapshot["session_id"], "title": snapshot["title"],
-        "reported_result": "FAIL", "reports": [{"key": "original", "title": "Private report title",
-            "markdown": "# FAIL\nOriginal fixture remains preserved while memory is unavailable", "reported_result": "FAIL"}]})
-    assert response.status_code == 200 and response.json()["version"] == 2
+    read = await f["client"].get("/api/v1/local-archive/tasks/" + f["source"]["task_id"],
+        headers=f["operator"], params={"project_id": f["project_id"]})
+    assert read.status_code == 200 and read.json() == f["task_snapshot"]
     assert f["upstream"].writes == 0

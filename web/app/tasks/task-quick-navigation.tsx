@@ -3,25 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useI18n } from "@/lib/i18n";
-import type { SessionTaskDetail } from "@/lib/types";
 
 export type TaskNavigationItem = { id: string; label: string; count?: number; history?: boolean };
 
-export function TaskQuickNavigation({ detail, items: explicitItems }: { detail?: SessionTaskDetail; items?: TaskNavigationItem[] }) {
+export function TaskQuickNavigation({ items }: { items: TaskNavigationItem[] }) {
   const { t } = useI18n();
   const navigation = useRef<HTMLElement>(null);
   const initialAnchor = useRef(true);
-  const items: TaskNavigationItem[] = explicitItems || [
-    { id: "task-collaboration", label: t("Session collaboration", "会话协作") },
-    { id: "task-overview", label: t("Task overview", "任务概览") },
-    { id: "task-plan", label: t("Test plan", "测试计划") },
-    { id: "task-cases", label: t("Test cases", "测试用例"), count: detail?.cases.length || 0 },
-    { id: "task-reports", label: t("Original test reports", "原始测试报告"), count: detail?.reports.length || 0 },
-    ...((detail?.binding_history?.length || 0) > 0
-      ? [{ id: "task-binding-history", label: t("Binding history", "会话绑定历史"), history: true }] : []),
-    { id: "task-management", label: t("Management history", "管理历史"), history: !detail?.binding_history?.length },
-    { id: "task-sync", label: t("Sync history", "同步历史") },
-  ];
   const sectionIds = items.map((item) => item.id).join("|");
   const [activeId, setActiveId] = useState(items[0]?.id);
 

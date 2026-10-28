@@ -15,7 +15,7 @@ function renderRoute(search, locale = "en") {
     name === "@/lib/i18n" ? i18n
       : name === "next/navigation" ? { useParams: () => ({ taskId }), useSearchParams: () => new URLSearchParams(search) }
         : name === "../archive-task-detail" ? { default: detail("archive") }
-          : name === "../legacy-task-detail" ? { default: detail("legacy") } : require(name) });
+          : require(name) });
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(route.default)));
   return { opened, html };
 }
@@ -23,8 +23,8 @@ function renderRoute(search, locale = "en") {
 test("the shared task route selects archive data only with its explicit mode and project", () => {
   const archive = renderRoute(`mode=archive&projectId=${projectId}`);
   assert.deepEqual(archive.opened, [{ kind: "archive", taskId, projectId }]);
-  assert.deepEqual(renderRoute("").opened, [{ kind: "legacy", taskId }]);
-  assert.deepEqual(renderRoute(`projectId=${projectId}`).opened, [{ kind: "legacy", taskId }]);
+  assert.deepEqual(renderRoute("").opened, []);
+  assert.deepEqual(renderRoute(`projectId=${projectId}`).opened, []);
 });
 
 test("missing or invalid archive targets and unknown modes never fall through to historical data", () => {

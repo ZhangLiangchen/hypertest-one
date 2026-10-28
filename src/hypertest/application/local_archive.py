@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, select, text
 
 from hypertest.api.archive_schemas import PROFILE
 from hypertest.application.services import canonical_json_sha256
-from hypertest.application.session_tasks import project, public
+from hypertest.application.record_helpers import project, public
 from hypertest.common.ids import uuid7
 from hypertest.domain.interactive import (
     InteractiveActorIdentity,

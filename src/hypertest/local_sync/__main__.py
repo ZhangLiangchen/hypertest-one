@@ -93,7 +93,7 @@ def main():
         # the user runs receipt-owned retirement. No reads, IPC or network.
         return
     if args.command not in {"uninstall", "recover-install", "doctor"}:
-        print("LOCAL_SYNC_RETIRED: use hypertest archive; recover old requests with hypertest legacy reconcile", file=sys.stderr)
+        print("LOCAL_SYNC_RETIRED: use hypertest archive; old SessionTask recovery is unavailable, do not replay unknown requests", file=sys.stderr)
         raise SystemExit(3)
     try:
         if args.command == "runtime-check":

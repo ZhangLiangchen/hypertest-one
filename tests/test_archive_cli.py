@@ -1,6 +1,7 @@
 """Behavioral checks for explicit CLI delivery, credentials and safe installation."""
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import uuid
@@ -18,6 +19,20 @@ from hypertest.sync_core import canonical_json, digest
 P, T, S = (str(uuid.uuid4()) for _ in range(3))
 ACTOR = "interactive:" + str(uuid.uuid4())
 SERVER = "https://hypertest.example"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def preserve_pytest_event_loop():
+    # The synchronous CLI uses asyncio.run(), which clears the thread's
+    # current loop on exit. Restore pytest-asyncio's session loop so later
+    # async tests are independent of module order.
+    try:
+        previous = asyncio.get_event_loop_policy().get_event_loop()
+    except RuntimeError:
+        previous = None
+    yield
+    if previous is not None and not previous.is_closed():
+        asyncio.set_event_loop(previous)
 
 
 @pytest.fixture

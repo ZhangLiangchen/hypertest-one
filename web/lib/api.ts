@@ -1,11 +1,10 @@
 import type {
   RunHarness, RunBinding, RunReport, BackgroundJob, Capabilities, Coverage, Evidence, ExecutionDetail, Finding, FindingHistory, FindingTransition, JobActivity, JobCreate, Mission, MissionAttempt,
-  MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, RunCreate, EnvironmentCatalog,
-  SourceResolution, SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
-  SessionTaskDetail, SessionTaskList, SessionReportRevision, ProjectUpdate, SessionTaskUpdate, LocalTaskActorList, LocalTaskCreate, TaskBindingAuthorization,
+  MissionProposal, PlannerResult, PolicySnapshot, Project, ProjectCreate, Requirement, Risk, EnvironmentCatalog,
+  SourceSnapshot, TestCase, TestExecution, TestImplementation, TestRun, Verdict, InputRequest, InputAnswer, InputAnswerResult,
+  ProjectUpdate,
 } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
-import type { CollaborationDocument, CollaborationReceipt, CollaborationRequest } from "@/lib/local-collaboration";
 
 const API_PREFIX = "/api/v1";
 
@@ -197,41 +196,9 @@ export const deleteProject = (projectId: string, expectedVersion: number) =>
   api<Project>(`/projects/${encodeURIComponent(projectId)}?expected_version=${expectedVersion}`, { method: "DELETE" });
 export const restoreProject = (projectId: string, expectedVersion: number) =>
   api<Project>(`/projects/${encodeURIComponent(projectId)}/restore`, { method: "POST", body: JSON.stringify({ expected_version: expectedVersion }) });
-export const createRun = (projectId: string, payload: RunCreate) =>
-  api<TestRun>(`/projects/${projectId}/runs/bootstrap`, { method: "POST", body: JSON.stringify(payload) });
-export const resolveSource = (payload: { repository_url: string; revision: string }) =>
-  api<SourceResolution>("/sources/resolve", { method: "POST", body: JSON.stringify(payload) });
 export const getProject = (projectId: string, includeDeleted = false) => api<Project>(`/projects/${encodeURIComponent(projectId)}${includeDeleted ? "?include_deleted=true" : ""}`);
 export const getProjectRuns = (projectId: string) =>
   api<TestRun[]>(`/projects/${projectId}/test-runs`);
-export const getProjectTasks = (projectId: string, offset = 0, limit = 20, includeDeleted = false) =>
-  api<SessionTaskList>(`/tasks?project_id=${encodeURIComponent(projectId)}&limit=${limit}&offset=${offset}${includeDeleted ? "&include_deleted=true" : ""}`);
-export const getLocalTaskActors = (projectId: string) =>
-  api<LocalTaskActorList>(`/projects/${encodeURIComponent(projectId)}/local-task-actors`);
-export const createLocalTask = (projectId: string, payload: LocalTaskCreate) =>
-  api<SessionTaskDetail>(`/projects/${encodeURIComponent(projectId)}/local-tasks`, { method: "POST", body: JSON.stringify(payload) });
-export const getLocalTaskCreation = (projectId: string, idempotencyKey: string) =>
-  api<SessionTaskDetail>(`/projects/${encodeURIComponent(projectId)}/local-tasks/by-key?idempotency_key=${encodeURIComponent(idempotencyKey)}`);
-export const updateTaskBindingAuthorization = (taskId: string, payload: TaskBindingAuthorization) =>
-  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}/binding-authorization`, { method: "PATCH", body: JSON.stringify(payload) });
-export const getSessionTask = (taskId: string, version?: number, includeDeleted = false) => {
-  const query = [version === undefined ? "" : `version=${version}`, includeDeleted ? "include_deleted=true" : ""].filter(Boolean).join("&");
-  return api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}${query ? `?${query}` : ""}`);
-};
-export const getTaskCollaboration = (taskId: string, version?: number) =>
-  api<CollaborationDocument>(`/tasks/${encodeURIComponent(taskId)}/collaboration?include_deleted=true${version === undefined ? "" : `&version=${version}`}`);
-export const changeTaskCollaboration = (taskId: string, payload: CollaborationRequest) =>
-  api<CollaborationReceipt>(`/tasks/${encodeURIComponent(taskId)}/collaboration`, { method: "POST", body: JSON.stringify(payload) });
-export const getTaskCollaborationReceipt = (taskId: string, key: string) =>
-  api<CollaborationReceipt>(`/tasks/${encodeURIComponent(taskId)}/collaboration/receipts/by-key?idempotency_key=${encodeURIComponent(key)}`);
-export const updateSessionTask = (taskId: string, payload: SessionTaskUpdate) =>
-  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}`, { method: "PATCH", body: JSON.stringify(payload) });
-export const deleteSessionTask = (taskId: string, expectedVersion: number) =>
-  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}?expected_version=${expectedVersion}`, { method: "DELETE" });
-export const restoreSessionTask = (taskId: string, expectedVersion: number) =>
-  api<SessionTaskDetail>(`/tasks/${encodeURIComponent(taskId)}/restore`, { method: "POST", body: JSON.stringify({ expected_version: expectedVersion }) });
-export const getSessionReport = (taskId: string, revisionId: string) =>
-  api<SessionReportRevision>(`/tasks/${encodeURIComponent(taskId)}/reports/${encodeURIComponent(revisionId)}`);
 export const getRun = (runId: string) => api<TestRun>(`/test-runs/${runId}`);
 export const getRequirements = (runId: string) =>
   api<Requirement[]>(`/test-runs/${runId}/requirements`);

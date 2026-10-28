@@ -8,7 +8,6 @@ import { getArchiveActors, type ArchiveManagement } from "@/lib/archive";
 import { useArchiveOperation } from "@/lib/archive-operation";
 import { cloudCapabilities, cloudConfiguration, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
-import { useLocalCreateOperation } from "@/lib/local-create-operation";
 import { useI18n } from "@/lib/i18n";
 import { archiveTaskHref } from "@/lib/task-url";
 import { WorkspaceLoading } from "@/app/workspace-ui";
@@ -25,8 +24,6 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
   const title = Form.useWatch("title", { form, preserve: true }) || "", objective = Form.useWatch("objective", { form, preserve: true }) || "";
   const actors = useQuery({ queryKey: ["archive-actors", projectId], queryFn: () => getArchiveActors(projectId), retry: false });
   const local = useArchiveOperation(projectId, "create-task");
-  // Preserve recovery for requests created by earlier clients, without offering a new legacy POST.
-  const legacy = useLocalCreateOperation(projectId);
   const cloudOperation = useCloudOperation(projectId);
   const cloudSetupQuery = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup, retry: false });
   const cloudConfigured = cloudSetupQuery.data?.configured === true;
@@ -37,7 +34,7 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
   const loadingCloud = cloudSetupQuery.isPending || cloudConfigured && (capabilities.isPending || configuration.isPending);
   const showCloudForm = Boolean(latestConfig) || (cloudConfigured && !loadingCloud && !cloudReadFailed);
   const missingRepositories = Boolean(project && (!project.repository_url || !project.test_framework_repository_url));
-  const localStreamBlocked = local.blocked || Boolean(legacy.pending);
+  const localStreamBlocked = local.blocked;
   const localBlocked = localStreamBlocked || missingRepositories, cloudBlocked = cloudOperation.busy || Boolean(cloudOperation.pending) || cloudOperation.receipt?.operation === "CREATE_TASK";
   const accepted = (value: ArchiveManagement) => { void cache.invalidateQueries({ queryKey: ["archive-tasks", projectId] }); router.push(archiveTaskHref(value.task.id, projectId)); };
   async function refreshCloud() { const setup = await cloudSetupQuery.refetch(); if (setup.data?.configured) await Promise.all([capabilities.refetch(), configuration.refetch()]); }
@@ -74,7 +71,6 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
   {mode === "local" ? <section className="workspace-panel archive-section" style={{ marginTop: 24 }}><Typography.Title level={2}>{t("Archive prompt template", "归档 Prompt 模板")}</Typography.Title><ArchivePrompt projectId={projectId} /></section> : null}
   <ArchiveOperationNotice operation={local} onAccepted={(value) => accepted(value as ArchiveManagement)} />
   {local.error && local.error instanceof ApiError && local.error.detail === "ARCHIVE_PROJECT_VERSION_CONFLICT" ? <Button onClick={() => void cache.invalidateQueries({ queryKey: ["project", projectId] })} style={{ marginTop: 12 }}>{t("Refresh project repositories", "刷新项目仓库")}</Button> : null}
-  {legacy.pending ? <Alert type="warning" showIcon style={{ marginTop: 20 }} message={t("An earlier local creation is unresolved", "旧本地任务创建仍未决")} description={<Typography.Text code copyable>{legacy.pending.idempotency_key}</Typography.Text>} action={<Button loading={legacy.busy} onClick={() => void legacy.reconcile().then((detail) => { if (detail) router.push(`/tasks/${detail.task.id}`); })}>{t("Query original request", "查询原请求")}</Button>} /> : null}
   <CloudOperationNotice operation={cloudOperation} />
   <div hidden={mode !== "cloud"} style={{ marginTop: 24 }}><Space wrap style={{ marginBottom: 20 }}><Button onClick={() => void refreshCloud()} loading={cloudSetupQuery.isFetching || capabilities.isFetching || configuration.isFetching}>{t("Refresh Cloud configuration", "刷新云端配置")}</Button>{latestConfig ? <Link href={`/projects/${projectId}/cloud?tab=resources`} target="_blank" rel="noopener noreferrer">{t("Project resources (new tab)", "项目资源（新标签页）")}</Link> : null}</Space>
     {!cloudSetupQuery.isPending && !cloudSetupQuery.isError && (!cloudConfigured || capabilities.data?.enabled === false) ? <CloudCapabilitiesNotice configured={cloudConfigured} capabilities={capabilities.data} /> : null}

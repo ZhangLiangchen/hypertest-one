@@ -7,7 +7,7 @@
 - Local CLI：真实本机安装、配对、项目追加授权及归档由用户验收；按 [0.1.1 修复记录](CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)处理 Mac 升级和原已接受请求的读回中断。未知请求只按原 key 恢复，不重发。TLS 信任问题见[指引](CLI_TLS_TRUST_20261027.md)。
 - Web：Local 任务统一页面、归档 Prompt、授权页面、任务导航与性能等的用户功能或体感验收仍待用户执行；自动回归和部署健康检查不等于用户验收。各轮范围见[历史交付](FOLLOWUP_DELIVERY_20261023.md)。
 - Cloud、P0 恢复与 PowerContext：各自用户功能验收仍待用户执行；Memory 项目授权需独立配置，不能由 Local 或 Cloud grant 推定。见[跟进记录](FOLLOWUP_DELIVERY_20261023.md)和[Memory 交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。
-- 旧 Local：旧版多会话、Codex parent/child 绑定及新版宿主的真实验收维持原记录中的 USER_OWNED / NOT_OBSERVED；旧接入扩展已由 ADR-027 的新归档路线取代；旧入口和对应旧数据可按 [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 定向清除，目前尚未实施。
+- 旧 SessionTask 清理：源码和定向迁移已实现并完成相关自测；测试服务器 SSH 握手超时，尚未部署或清理服务器旧数据。连接恢复后按[本轮记录](TASK_CREATION_RETIREMENT_20261028.md)部署、执行迁移并核验；旧受管 TestRun 是否一并清理待确定。
 
 ## 未完成的开发与条件
 

@@ -79,16 +79,12 @@ def parser() -> argparse.ArgumentParser:
     installation.add_argument("--host", choices=["codex"])
     installation.add_argument("--directory", type=Path)
     common(installation)
-    legacy = commands.add_parser("legacy", help="Retire owned old integration or read its original receipts")
+    legacy = commands.add_parser("legacy", help="Retire owned old integration")
     legacy_actions = legacy.add_subparsers(dest="action", required=True)
     retire = legacy_actions.add_parser("retire", aliases=["cleanup"])
     retire.add_argument("--directory", type=Path, required=True)
     retire.add_argument("--host", choices=["codex", "claude-code", "deepseek-harness", "deepseek"], required=True)
     common(retire)
-    recovery = legacy_actions.add_parser("reconcile")
-    recovery.add_argument("--config", type=Path, required=True)
-    recovery.add_argument("--request-id", required=True, help="Original key, or namespace/key if ambiguous")
-    common(recovery)
     return root
 
 
@@ -134,9 +130,7 @@ def dispatch(args, state: State) -> tuple[dict, int]:
                 "server": profile["server"], "capabilities": result}, 0
     if args.command == "legacy":
         from hypertest.cli import legacy
-        if args.action in {"retire", "cleanup"}:
-            return legacy.retire(str(args.directory), args.host)
-        return legacy.reconcile(str(args.config), args.request_id)
+        return legacy.retire(str(args.directory), args.host)
     if args.command == "skill":
         return skills.install(state, directory=args.directory, globally=args.globally, host=args.host)
     raise CLIError("UNKNOWN_COMMAND")

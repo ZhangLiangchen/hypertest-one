@@ -16,8 +16,8 @@ function followUp(locale, props) {
 test("terminal session main actions create a reviewed new round and never offer start, answer or retry", () => {
   for (const locale of ["en", "zh"]) for (const status of ["CLOSED", "FAILED", "CANCELLED"]) {
     const html = followUp(locale, { binding: { status }, jobs: [job("FAILED")], questionId: "stale-question" });
-    assert.equal(html.includes(`/projects/${id(2)}?fromRun=${id(1)}`), true);
-    assert.equal(html.includes(locale === "en" ? "New round from this run" : "基于本次运行创建新轮次"), true);
+    assert.equal(html.includes(`/projects/${id(2)}/tasks/new`), true);
+    assert.equal(html.includes(locale === "en" ? "Create a test task" : "创建测试任务"), true);
     for (const forbidden of ["Run test cycle", "运行完整测试周期", "Answer question", "回答问题", "retry original", "重试原任务"]) assert.equal(html.includes(forbidden), false);
   }
 });
@@ -103,7 +103,7 @@ test("finding changes are explained as preserving final decision and report hist
   for (const locale of ["en", "zh"]) {
     const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(VerdictHistoryNotice, { runId: id(1), projectId: id(2) })));
     assert.equal(html.includes(locale === "en" ? "does not rewrite an earlier quality decision or report" : "不会改写先前的质量判定或报告"), true);
-    assert.equal(html.includes(`/projects/${id(2)}?fromRun=${id(1)}`), true);
+    assert.equal(html.includes(`/projects/${id(2)}/tasks/new`), true);
   }
 });
 

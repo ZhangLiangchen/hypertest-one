@@ -34,7 +34,7 @@ test("the real bilingual session panel keeps native fields private and offers re
       assert.equal(html.includes(locale === "en" ? "3600s of active agent time" : "活跃时间上限 3600 秒"), true);
       if (status === "CLOSED") {
         assert.equal(html.includes(locale === "en" ? "retrying" : "检查任务后重试"), false);
-        assert.equal(html.includes(`/projects/${id(5)}?fromRun=${id(4)}`), true);
+        assert.equal(html.includes(`/projects/${id(5)}/tasks/new`), true);
       }
     }
   }

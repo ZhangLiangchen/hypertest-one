@@ -1,4 +1,4 @@
-"""Explicit retirement and read-only recovery of an existing Local installation.
+"""Explicit retirement of an existing Local installation.
 
 No old MCP, provider adapter, daemon launcher, or third-party dependency is imported.
 The original private journal and approved snapshots are never rewritten.
@@ -10,31 +10,23 @@ import hashlib
 import json
 import os
 import socket
-import sqlite3
-import ssl
 import stat
 import tempfile
 import time
 import tomllib
-import urllib.error
-import urllib.parse
-import urllib.request
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from hypertest.cli.state import CLIError
-from hypertest.cli.transport import NoRedirect
 from hypertest.interactive_client.security import (
     peer_uid,
     private_create,
     private_directory,
     private_read,
 )
-from hypertest.sync_core import canonical_json, digest
+from hypertest.sync_core import canonical_json
 
 BEGIN, END = "# BEGIN HYPERTEST LOCAL\n", "# END HYPERTEST LOCAL\n"
-SYNC_PROFILE = "codex-session-task-sync/v1alpha1"
-COLLAB_PROFILE = "local-task-collaboration/v1alpha1"
 
 
 def _json(path, max_bytes=4 * 1024 * 1024):
@@ -278,225 +270,3 @@ def retire(directory: str, host: str):
                 "private_state": "PRESERVED", "reload_required": True}, 0
     finally:
         os.close(fd)
-
-
-class ReadOnlyAPI:
-    """Only exact historic GET routes; no generic method or write fallback exists."""
-    def __init__(self, config):
-        parts = urllib.parse.urlsplit(config["api_url"])
-        if (parts.scheme != "https" or not parts.hostname or parts.username or parts.password
-                or parts.query or parts.fragment or parts.path.rstrip("/") not in {"", "/api/v1"}):
-            raise CLIError("LEGACY_HTTPS_API_REQUIRED", 5)
-        self.base = urllib.parse.urlunsplit((parts.scheme, parts.netloc, "/api/v1", "", ""))
-        self.secret = private_read(Path(config["integration_token_file"]), max_bytes=4096).decode().strip()
-        self.timeout = min(max(float(config.get("timeout_seconds", 30)), 1), 120)
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
-            urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=config.get("ca_file"))))
-
-    def get(self, path, query):
-        import re
-        if not re.fullmatch(r"interactive/tasks/(?:syncs/by-key|bindings/by-key|by-session|[0-9a-f-]{36}(?:/collaboration(?:/receipts/by-key)?)?)", path):
-            raise CLIError("LEGACY_READ_ROUTE_REJECTED", 5)
-        request = urllib.request.Request(self.base + "/" + path + "?" + urllib.parse.urlencode(query), method="GET",
-            headers={"Authorization": "Bearer " + self.secret, "Accept": "application/json",
-                "X-Hypertest-Interactive-Profile": "hypertest.interactive-mcp/v1alpha1"})
-        try:
-            with self.opener.open(request, timeout=self.timeout) as response:
-                raw = response.read(1_000_001)
-        except urllib.error.HTTPError as exc:
-            raise CLIError("LEGACY_ORIGINAL_KEY_NOT_FOUND" if exc.code == 404 else "LEGACY_CURRENT_AUTHORIZATION_OR_READ_REJECTED",
-                4 if exc.code == 404 or exc.code >= 500 else 3, status=exc.code) from None
-        except (OSError, urllib.error.URLError, TimeoutError) as exc:
-            raise CLIError("LEGACY_READ_UNCERTAIN", 4) from exc
-        if len(raw) > 1_000_000:
-            raise CLIError("LEGACY_RESPONSE_TOO_LARGE", 4)
-        result = json.loads(raw)
-        if not isinstance(result, dict):
-            raise CLIError("LEGACY_RESPONSE_INVALID", 4)
-        return result
-
-
-def _record(config, request_id):
-    if request_id.startswith(("local-create:", "task-create:", "CREATE:")):
-        raise CLIError("LEGACY_CREATE_REQUIRES_ORIGINAL_WEB_JOURNAL", 5)
-    state = _existing_directory(config["state_dir"])
-    journal_path = state / "client.sqlite3"
-    private_read(journal_path, max_bytes=64_000_000)
-    # URI mode=ro never initializes a missing journal or changes its schema/state.
-    with sqlite3.connect(journal_path.as_uri() + "?mode=ro", uri=True) as db:
-        if "/" in request_id:
-            namespace, key = request_id.rsplit("/", 1)
-            rows = db.execute("SELECT kind,key,digest,payload,state,result FROM intents WHERE kind=? AND key=?", (namespace, key)).fetchall()
-        else:
-            rows = db.execute("SELECT kind,key,digest,payload,state,result FROM intents WHERE key=?", (request_id,)).fetchall()
-    rows = [row for row in rows if row[0].startswith(("session-task:", "task-bind:", "task-collaboration:"))]
-    if len(rows) != 1:
-        raise CLIError("LEGACY_REQUEST_NOT_FOUND" if not rows else "LEGACY_EXPLICIT_NAMESPACE_REQUIRED", 5)
-    namespace, key, checksum, compact, status, result = rows[0]
-    compact = json.loads(compact)
-    frozen_file = state / "local-sync" / "approved-snapshots" / (digest([namespace, key]) + ".json")
-    frozen = _json(frozen_file) if frozen_file.exists() else None
-    if frozen:
-        if (frozen.get("namespace") != namespace or frozen.get("key") != key
-                or frozen.get("request_digest") != digest(frozen.get("payload"))
-                or checksum != frozen["request_digest"]
-                or any(frozen["target"].get(field) != compact.get(field) for field in ("project_id", "provider", "session_id"))):
-            raise CLIError("LEGACY_FROZEN_REQUEST_CORRUPT", 5)
-    elif compact.get("snapshot_schema"):
-        raise CLIError("LEGACY_ORIGINAL_APPROVED_SNAPSHOT_REQUIRED", 5)
-    return state, namespace, key, compact, frozen, status, json.loads(result) if result else None
-
-
-def _receipt(receipt, namespace, key, target, frozen, previous):
-    try:
-        for field in ("task_id", "project_id"):
-            if str(UUID(receipt[field])) != receipt[field]:
-                raise ValueError
-    except (KeyError, ValueError, TypeError):
-        raise CLIError("LEGACY_RECEIPT_MISMATCH", 4) from None
-    expected = frozen["expected_version"] if frozen else target.get("expected_version")
-    profile = COLLAB_PROFILE if namespace.startswith("task-collaboration:") else SYNC_PROFILE
-    if (receipt.get("status") != "ACCEPTED" or receipt.get("profile") != profile
-            or receipt.get("idempotency_key") != key or type(receipt.get("version")) is not int
-            or receipt["version"] < 1 or (expected is not None and receipt["version"] != expected + 1)
-            or any(receipt.get(field) != target[field] for field in ("project_id", "provider", "session_id", "task_id") if target.get(field))
-            or (previous and previous.get("task_id") != receipt.get("task_id"))):
-        raise CLIError("LEGACY_RECEIPT_MISMATCH", 4)
-    if namespace.startswith("session-task:") and receipt.get("source") != "AGENT_REPORTED":
-        raise CLIError("LEGACY_RECEIPT_MISMATCH", 4)
-    if namespace.startswith("task-bind:") and (receipt.get("operation") != "BIND" or receipt.get("binding_state") != "BOUND"
-            or receipt.get("source") is not None):
-        raise CLIError("LEGACY_RECEIPT_MISMATCH", 4)
-    if namespace.startswith("task-collaboration:"):
-        if not frozen:
-            raise CLIError("LEGACY_ORIGINAL_APPROVED_SNAPSHOT_REQUIRED", 5)
-        wire = {k: v for k, v in frozen["payload"].items() if k != "task_id"}
-        if receipt.get("operation") != wire.get("operation") or receipt.get("request_digest") != digest(wire):
-            raise CLIError("LEGACY_RECEIPT_MISMATCH", 4)
-
-
-def _pages(api, path, query, receipt):
-    offset, total, parts = 0, None, []
-    while True:
-        page = api.get(path, {**query, "version": receipt["version"], "offset": offset, "limit": 24000})
-        content = page.get("content")
-        count = page.get("total_chars")
-        if (page.get("task_id") != receipt["task_id"] or page.get("version") != receipt["version"]
-                or page.get("offset") != offset or not isinstance(content, str) or not 0 < len(content) <= 24000
-                or type(count) is not int or count > 16 * 1024 * 1024 or count < offset + len(content)
-                or (total is not None and total != count) or page.get("format") != "application/json"
-                or page.get("complete") is not (offset + len(content) == count)
-                or page.get("next_offset") != (None if offset + len(content) == count else offset + len(content))):
-            raise CLIError("LEGACY_FIXED_READBACK_MISMATCH", 4)
-        if ((receipt["profile"] == COLLAB_PROFILE and page.get("profile") != COLLAB_PROFILE)
-                or (receipt["profile"] == SYNC_PROFILE and page.get("source") != receipt.get("source"))):
-            raise CLIError("LEGACY_FIXED_READBACK_MISMATCH", 4)
-        total = count
-        parts.append(content)
-        if page["complete"]:
-            break
-        offset = page["next_offset"]
-    document = json.loads("".join(parts))
-    task = document.get("task", {})
-    if task.get("id") != receipt["task_id"] or task.get("project_id") != receipt["project_id"] or task.get("version") != receipt["version"]:
-        raise CLIError("LEGACY_READBACK_IDENTITY_MISMATCH", 4)
-    return document
-
-
-def _validate_document(document, namespace, receipt, payload, target):
-    task = document["task"]
-    if namespace.startswith("task-collaboration:"):
-        wire = {k: v for k, v in payload.items() if k != "task_id"}
-        operation = next((row for row in document.get("operation_history", [])
-            if row.get("response", {}).get("idempotency_key") == receipt["idempotency_key"]), None)
-        if operation is None or operation.get("request_payload") != wire or operation.get("response") != receipt:
-            raise CLIError("LEGACY_COLLABORATION_READBACK_MISMATCH", 4)
-        collaboration = document.get("collaboration", {})
-        participant = next((row for row in collaboration.get("participants", []) if row.get("id") == receipt.get("participant_id")), {})
-        if (document.get("profile") != COLLAB_PROFILE or collaboration.get("enabled") is not True
-                or participant.get("actor_ref") != receipt.get("actor_ref") or participant.get("status") != "ACTIVE"
-                or any(participant.get(field) != target.get(field) for field in ("provider", "session_id"))):
-            raise CLIError("LEGACY_COLLABORATION_READBACK_MISMATCH", 4)
-        if wire["operation"] == "CONTRIBUTE":
-            refs = receipt.get("contribution_refs", [])
-            if len(refs) != len(wire["contributions"]):
-                raise CLIError("LEGACY_CONTRIBUTION_READBACK_MISMATCH", 4)
-            for submitted, ref in zip(wire["contributions"], refs, strict=True):
-                found = next((row for row in collaboration.get("contributions", []) if row.get("id") == ref.get("contribution_id")), {})
-                if (found.get("revision") != ref.get("revision") or ref["revision"] != submitted["expected_revision"] + 1
-                        or found.get("participant_id") != receipt["participant_id"]
-                        or any(found.get(k) != submitted[k] for k in ("kind", "stable_key", "content"))):
-                    raise CLIError("LEGACY_CONTRIBUTION_READBACK_MISMATCH", 4)
-        if wire["operation"] == "PUBLISH":
-            found = next((row for row in collaboration.get("publications", []) if row.get("task_version") == receipt["version"]
-                and row.get("participant_id") == receipt["participant_id"]), {})
-            if (found.get("summary") != wire["summary"] or found.get("primary_generation") != wire["primary_generation"]
-                    or any(task.get(k) != wire["summary"][k] for k in ("title", "objective", "status", "plan_markdown", "reported_result"))):
-                raise CLIError("LEGACY_PUBLICATION_READBACK_MISMATCH", 4)
-        return
-    if not isinstance(document.get("cases"), list) or not isinstance(document.get("reports"), list):
-        raise CLIError("LEGACY_READBACK_ASSETS_INVALID", 4)
-    if namespace.startswith("session-task:") and task.get("source") != "AGENT_REPORTED":
-        raise CLIError("LEGACY_READBACK_SOURCE_MISMATCH", 4)
-    if any(task.get(field) != target.get(field) for field in ("provider", "session_id")):
-        raise CLIError("LEGACY_READBACK_SOURCE_MISMATCH", 4)
-    if namespace.startswith("task-bind:"):
-        if (task.get("binding_state") != "BOUND" or task.get("binding_required") is not True
-                or task.get("owner_actor_ref") != receipt.get("actor_ref") or not task.get("bound_at")
-                or task.get("source") is not None or task.get("last_synced_at") is not None):
-            raise CLIError("LEGACY_BIND_READBACK_MISMATCH", 4)
-    elif payload:
-        for field in ("title", "objective", "status", "plan_markdown", "reported_result"):
-            if task.get(field) != payload.get(field):
-                raise CLIError("LEGACY_ORIGINAL_CONTENT_MISMATCH", 4)
-        for group in ("cases", "reports"):
-            actual = {row["key"]: row for row in document.get(group, [])}
-            for row in payload.get(group, []):
-                if row["key"] not in actual or any(actual[row["key"]].get(k) != v for k, v in row.items()):
-                    raise CLIError("LEGACY_ORIGINAL_CONTENT_MISMATCH", 4)
-
-
-def reconcile(config: str, request_id: str):
-    """Resolve one existing request using only original-key GET and fixed GET pages."""
-    config = _json(config)
-    state, namespace, key, compact, frozen, status, previous = _record(config, request_id)
-    if status == "PENDING":
-        return {"status": "PENDING", "code": "LEGACY_ORIGINAL_REQUEST_NOT_SENT", "request_id": request_id,
-                "readback_complete": False, "replay_allowed": False}, 4
-    target = frozen["target"] if frozen else compact
-    api = ReadOnlyAPI(config)
-    query = {"project_id": target["project_id"], "idempotency_key": key}
-    collaboration = namespace.startswith("task-collaboration:")
-    if collaboration:
-        base = "interactive/tasks/" + target["task_id"] + "/collaboration"
-        query.update({field: target[field] for field in ("provider", "session_id")})
-        lookup = base + "/receipts/by-key"
-    elif namespace.startswith("task-bind:"):
-        lookup, base = "interactive/tasks/bindings/by-key", None
-    else:
-        lookup, base = "interactive/tasks/syncs/by-key", None
-    receipt = api.get(lookup, query)
-    _receipt(receipt, namespace, key, target, frozen, previous)
-    if not collaboration:
-        base = "interactive/tasks/" + receipt["task_id"]
-    read_query = {"project_id": target["project_id"]}
-    if collaboration:
-        read_query.update({field: target[field] for field in ("provider", "session_id")})
-    document = _pages(api, base, read_query, receipt)
-    _validate_document(document, namespace, receipt, frozen["payload"] if frozen else None, target)
-    # New recovery evidence is separate; the original journal/receipt stays intact.
-    destination = private_directory(state / "legacy-readbacks")
-    verified = frozen is not None
-    record = {"namespace": namespace, "key": key, "receipt": receipt, "document": document,
-        "original_request_verified": verified, "readback_complete": True}
-    filename = destination / (digest([namespace, key, receipt["version"]]) + ".json")
-    encoded = canonical_json(record).encode()
-    if filename.exists():
-        if private_read(filename, max_bytes=32 * 1024 * 1024) != encoded:
-            raise CLIError("LEGACY_RECOVERY_RECORD_CONFLICT", 4)
-    else:
-        private_create(filename, encoded)
-    return {"status": "LEGACY_RECOVERED" if verified else "LEGACY_ACCEPTED_READBACK", "request_id": request_id,
-        "task_id": receipt["task_id"], "project_id": receipt["project_id"], "accepted_version": receipt["version"],
-        "readback_complete": True, "original_request_verified": verified, "replay_allowed": False,
-        "code": None if verified else "ORIGINAL_REQUEST_COMPARISON_UNAVAILABLE_LEGACY_COMPACT"}, 0

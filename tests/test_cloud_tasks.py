@@ -11,7 +11,7 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from pydantic import TypeAdapter
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
 from hypertest.api.cloud_schemas import CloudMutation
@@ -22,7 +22,6 @@ from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask, CloudWorkGrant, CredentialVersion
-from hypertest.domain.session_tasks import SessionTask
 from hypertest.main import app
 
 SHA = "1" * 40
@@ -526,23 +525,18 @@ async def test_preparation_time_is_held_before_git_or_any_model_start(cloud_cont
     assert next_claim["budget_remaining"]["seconds"] == 540
 
 
-async def test_local_sync_remains_independent_when_cloud_is_disabled(cloud_context, monkeypatch):
+async def test_local_archive_remains_independent_when_cloud_is_disabled(cloud_context, monkeypatch):
     context = cloud_context
     created = await draft(context)
     monkeypatch.setattr(get_settings(), "cloud_enabled", False)
-    local = await context["client"].post("/api/v1/interactive/tasks/sync", headers=context["headers"], json={
-        "project_id": context["project_id"], "provider": "codex", "session_id": str(uuid4()),
-        "idempotency_key": "local-still-independent", "expected_version": 0, "title": "Local fixture",
-        "objective": "Existing local synchronization", "status": "IN_PROGRESS", "reported_result": "FAIL",
-        "plan_markdown": "Retain local test result", "cases": [], "reports": []})
+    local = await context["client"].post("/api/v1/local-archive/tasks", headers=context["operator_headers"], json={
+        "project_id": context["project_id"], "idempotency_key": "local-independent", "title": "Local fixture"})
     assert local.status_code == 200, local.text
     cloud_read = await read_all(context, created["task_id"], 1)
     assert cloud_read["task"]["status"] == "DRAFT"
     directory = await context["client"].get(f"/api/v1/projects/{context['project_id']}/task-directory", headers=context["headers"])
-    assert {x["task_kind"] for x in directory.json()["items"]} == {"CLOUD_TASK", "SESSION_TASK"}
+    assert {x["task_kind"] for x in directory.json()["items"]} == {"CLOUD_TASK"}
     assert (await post(context, "CREATE_TASK", title="Disabled", config_id=cloud_read["task"]["config_id"], inputs=inputs())).status_code == 503
-    async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(func.count()).select_from(SessionTask).where(SessionTask.project_id == UUID(context["project_id"]))) == 1
 
 
 async def test_scope_separation_worker_api_rejection_and_error_redaction(cloud_context):

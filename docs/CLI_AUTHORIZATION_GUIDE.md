@@ -230,7 +230,7 @@ hypertest reconcile --request-id ARCHIVE_REQUEST_UUID --json
 
 `status` 默认只查本地；`status --remote` 和 `reconcile` 查询原 key 并继续固定版本读回，SENT/UNKNOWN/NOT_FOUND 不重 POST。恢复时不重新读取已变化的源文件，也不创建替代任务或新 key。退出码为：0 成功或明确标注的预览，2 本地输入错误，3 明确拒绝，4 未决/读回未完成，5 配置或能力缺口。
 
-## 8. 退出旧 MCP/Hooks 接入并保留恢复
+## 8. 退出旧 MCP/Hooks 接入
 
 新 CLI 可运行后，在旧接入实际所在的用户机器执行受管退出；`--directory` 是含 `installed-HOST.json` 的旧安装收据目录，不是测试产物目录：
 
@@ -240,11 +240,4 @@ hypertest legacy retire --directory /absolute/path/old-local-install --host code
 
 `--host` 支持 `codex`、`claude-code`、`deepseek-harness`（`deepseek` 为别名）。`legacy cleanup` 是 `legacy retire` 的命令别名。工具按旧收据核对自有 MCP、Hooks 和 bridge 配置，只移除匹配的受管片段；其他插件及用户修改保留。仅在私有 IPC 与运行身份匹配时停止已有本产品 runtime，不按进程名批量结束进程，不启动 daemon。旧安装事务未恢复、归属不明或片段被修改时明确报错并保留原件。成功后按返回的 `reload_required` 重载宿主配置。
 
-旧凭据、源产物、完整快照、journal、未决 key、历史报告与安装收据均保留。需要恢复某个旧请求时，使用原私有客户端配置：
-
-```sh
-hypertest legacy reconcile --config /absolute/path/old-client.json \
-  --request-id ORIGINAL_IDEMPOTENCY_KEY --json
-```
-
-这里的 request ID 是旧账本原 key，不要求新 UUID；同 key 命中多个旧 namespace 时使用 `NAMESPACE/ORIGINAL_IDEMPOTENCY_KEY` 明确选择。该入口只读取原账本、原 key 回执及固定版本，支持原 SYNC、BIND 和协作请求，不产生任何新旧 POST，不改写旧账本。旧 Web CREATE 由原 Web 管理 journal 恢复。材料不足时保留未决或不完整读回状态，不伪造完成；它不会把旧任务迁移成新的归档 Task。
+按 [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md)，旧 SessionTask 接口与数据将在对应迁移和部署后退出；旧 Web CREATE journal 和旧 SessionTask 原 key 查询不再是当前恢复路径。`cli-v0.1.1` 发行包仍含历史 `legacy reconcile` 命令；服务端退休后该命令不再能查询旧任务。本仓库后续 CLI 源码移除该命令，不代表已发布包已更新。保留当前归档请求的 `hypertest reconcile`：它与旧 SessionTask 恢复不同。无论旧记录是否可查，都不能推定未知外部操作未执行或自动重发。

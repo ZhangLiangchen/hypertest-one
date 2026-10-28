@@ -2195,6 +2195,8 @@ NativeConclusion.UNKNOWN 是质量证据不足；NativeOperation.UNKNOWN 是副�
 
 ## 50. SessionTask 管理数据与历史（ADR-018，当前阶段）
 
+> **ADR-028 退休：** SessionTask 已由 LocalArchiveTask 替代，不再提供旧创建、同步、查询与协作合同；迁移 `0034_remove_legacy_session_tasks` 清除 SessionTask 专属数据与对应审计/事件。当前 LocalArchiveTask、CloudTask、共享 Project 和独立 Memory 不迁移或清除。旧 Memory 的来源声明不因此成为新的归档事实。以下为历史合同；源码变更、迁移执行和部署分别记录。
+
 [ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)已接受，增加 §50.6 的显式协作合同；以下 §50.1–50.5 的初始绑定、单会话默认及旧历史继续生效。多参与来源通过独立关系加入，不覆写原 source、owner 或 BIND 回执。
 
 本节规范默认单会话管理同步及 §50.6 的显式多会话协作；独立于 legacy TestRun/Mission/Execution/Evidence/Verdict 与 §49 native材料/Gate。平台保存 Agent 产物，不执行测试；既有 Project 是唯一共享的项目身份。任务不要求存在 SourceSnapshot、Policy、执行绑定、Job、Runner或Gate记录，不向旧表回填历史。

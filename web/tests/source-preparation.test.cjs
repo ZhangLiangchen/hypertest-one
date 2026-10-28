@@ -66,7 +66,7 @@ test("retry remains fenced by fresh session state and recovery is offered before
   assert.equal(changed.requests.length, 0);
   for (const status of ["CLOSED", "FAILED", "CANCELLED"]) {
     const { html } = tasks(job, { status });
-    assert.ok(html.includes("New round from this run"));
+    assert.ok(html.includes("Create a test task"));
     assert.equal(html.includes("Retry as new task"), false);
   }
 });
@@ -75,7 +75,7 @@ test("invalid fixed input and checkout integrity direct operators to a reviewed 
   for (const category of ["invalid_source", "checkout_integrity"]) for (const locale of ["en", "zh"]) {
     const job = failedJob({ result: { source_preparation_diagnostic: diagnostic({ category, retryable: false }) } });
     const rendered = tasks(job, { locale });
-    assert.ok(rendered.html.includes(`/projects/${job.project_id}?fromRun=${job.test_run_id}`));
+    assert.ok(rendered.html.includes(`/projects/${job.project_id}/tasks/new`));
     assert.equal(rendered.html.includes(locale === "en" ? "Retry as new task" : "新建重试任务"), false);
     await assert.rejects(rendered.mutations[1].mutationFn(job), locale === "en" ? /operator review or corrected input/ : /创建新轮次修正输入/);
     assert.equal(rendered.requests.length, 0);

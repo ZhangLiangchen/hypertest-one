@@ -1,15 +1,12 @@
-"""Owned-fragment removal and exact old-key recovery without daemon or POST."""
-import copy
+"""Owned-fragment removal without touching unrelated configuration."""
 import json
 import os
-import sqlite3
-from uuid import uuid4
 
 import pytest
 
 from hypertest.cli import legacy
 from hypertest.cli.state import CLIError
-from hypertest.sync_core import canonical_json, digest
+from hypertest.sync_core import canonical_json
 
 
 def private(path, content):
@@ -99,125 +96,6 @@ async def test_runtime_requires_authenticated_identity_and_never_signals_pid(tmp
     assert json.loads(f["receipt"].read_text())["configuration"] == "WRITTEN"
 
 
-def recovery(tmp_path, kind="SYNC", *, compact=False, status="UNKNOWN"):
-    state = tmp_path / "state"
-    state.mkdir(mode=0o700)
-    project, task = str(uuid4()), str(uuid4())
-    key = "original-key"
-    namespace = {"SYNC": "session-task:", "BIND": "task-bind:", "JOIN": "task-collaboration:"}[kind] + project
-    target = {"project_id": project, "task_id": task, "provider": "codex", "session_id": "original-session"}
-    payload = {**target, "idempotency_key": key, "expected_version": 1}
-    task_snapshot = {"id": task, "project_id": project, "provider": "codex", "session_id": "original-session", "version": 2}
-    receipt = {"profile": legacy.SYNC_PROFILE, "status": "ACCEPTED", **target, "idempotency_key": key, "version": 2}
-    if kind == "SYNC":
-        payload.update(title="Exact task", objective="Test", status="COMPLETED", plan_markdown="# Original plan", reported_result="FAIL", cases=[], reports=[{
-            "key": "raw", "title": "Raw", "markdown": "原文\r\nFAIL\n", "reported_result": "FAIL", "artifact_uri": None, "source_ref": None}])
-        task_snapshot.update({k: payload[k] for k in ("title", "objective", "status", "plan_markdown", "reported_result")})
-        receipt["source"] = task_snapshot["source"] = "AGENT_REPORTED"
-        document = {"task": task_snapshot, "cases": [], "reports": payload["reports"]}
-    elif kind == "BIND":
-        receipt.update(operation="BIND", binding_state="BOUND", source=None, actor_ref="interactive:" + str(uuid4()))
-        task_snapshot.update(binding_state="BOUND", binding_required=True, bound_at="2026-10-27T01:00:00+00:00",
-            owner_actor_ref=receipt["actor_ref"], source=None, last_synced_at=None)
-        document = {"task": task_snapshot, "cases": [], "reports": []}
-    else:
-        participant_id, actor = str(uuid4()), "interactive:" + str(uuid4())
-        payload["operation"] = "JOIN"
-        wire = {k: v for k, v in payload.items() if k != "task_id"}
-        receipt.update(profile=legacy.COLLAB_PROFILE, operation="JOIN", actor_ref=actor, participant_id=participant_id,
-            primary_generation=1, contribution_refs=[], request_digest=digest(wire))
-        document = {"profile": legacy.COLLAB_PROFILE, "task": task_snapshot, "collaboration": {"enabled": True,
-            "participants": [{"id": participant_id, "actor_ref": actor, "status": "ACTIVE", "provider": "codex", "session_id": "original-session"}],
-            "contributions": [], "publications": []}, "operation_history": [{"request_payload": wire, "response": receipt}]}
-    frozen = {"namespace": namespace, "key": key, "target": target, "payload": payload, "expected_version": 1, "request_digest": digest(payload)}
-    compact_row = {**target, "idempotency_key": key, "expected_version": 1}
-    if not compact:
-        compact_row["snapshot_schema"] = "hypertest.sync-snapshot/v1"
-        private(state / "local-sync" / "approved-snapshots" / (digest([namespace, key]) + ".json"), frozen)
-    journal = state / "client.sqlite3"
-    with sqlite3.connect(journal) as db:
-        db.execute("CREATE TABLE intents(kind TEXT,key TEXT,digest TEXT,payload TEXT,state TEXT,result TEXT,PRIMARY KEY(kind,key))")
-        db.execute("INSERT INTO intents VALUES(?,?,?,?,?,?)", (namespace,key,digest(payload),canonical_json(compact_row),status,None))
-    journal.chmod(0o600)
-    token = private(tmp_path / "token", b"private-token")
-    config = private(tmp_path / "config.json", {"api_url": "https://example.test/api/v1", "state_dir": str(state), "integration_token_file": str(token)})
-    return {"config": config, "state": state, "key": key, "namespace": namespace, "journal": journal, "receipt": receipt, "document": document}
-
-
-class FakeReadOnlyAPI:
-    def __init__(self, fixture):
-        self.fixture, self.calls = fixture, []
-
-    def get(self, path, query):
-        self.calls.append((path, query))
-        if path.endswith("by-key"):
-            return copy.deepcopy(self.fixture["receipt"])
-        content = canonical_json(self.fixture["document"])
-        offset = query["offset"]
-        end = min(offset + 67, len(content))
-        receipt = self.fixture["receipt"]
-        return {"task_id": receipt["task_id"], "version": receipt["version"], "profile": receipt["profile"],
-            "source": receipt.get("source"), "format": "application/json", "offset": offset, "total_chars": len(content),
-            "content": content[offset:end], "complete": end == len(content), "next_offset": None if end == len(content) else end}
-
-
-@pytest.mark.parametrize("kind", ["SYNC", "BIND", "JOIN"])
-async def test_reconcile_only_original_key_and_complete_fixed_version_without_modifying_old_journal(tmp_path, monkeypatch, kind):
-    f = recovery(tmp_path, kind)
-    before = f["journal"].read_bytes()
-    api = FakeReadOnlyAPI(f)
-    monkeypatch.setattr(legacy, "ReadOnlyAPI", lambda config: api)
-    result, code = legacy.reconcile(str(f["config"]), f["key"])
-    assert code == 0 and result["status"] == "LEGACY_RECOVERED" and result["readback_complete"]
-    assert result["original_request_verified"] and not result["replay_allowed"]
-    assert api.calls[0][1]["idempotency_key"] == f["key"]
-    assert all(query["version"] == 2 for _, query in api.calls[1:])
-    assert f["journal"].read_bytes() == before
-    assert len(list((f["state"] / "legacy-readbacks").glob("*.json"))) == 1
-
-
-async def test_legacy_compact_record_does_not_claim_original_content_comparison(tmp_path, monkeypatch):
-    f = recovery(tmp_path, compact=True)
-    api = FakeReadOnlyAPI(f)
-    monkeypatch.setattr(legacy, "ReadOnlyAPI", lambda config: api)
-    result, code = legacy.reconcile(str(f["config"]), f["key"])
-    assert code == 0 and result["status"] == "LEGACY_ACCEPTED_READBACK"
-    assert result["original_request_verified"] is False
-    assert result["code"] == "ORIGINAL_REQUEST_COMPARISON_UNAVAILABLE_LEGACY_COMPACT"
-
-
-async def test_not_found_and_unsent_never_repost_or_replace_key(tmp_path, monkeypatch):
-    f = recovery(tmp_path, status="PENDING")
-    monkeypatch.setattr(legacy, "ReadOnlyAPI", lambda config: pytest.fail("unsent intent must not access network"))
-    result, code = legacy.reconcile(str(f["config"]), f["key"])
-    assert code == 4 and result["code"] == "LEGACY_ORIGINAL_REQUEST_NOT_SENT"
-    with sqlite3.connect(f["journal"]) as db:
-        db.execute("UPDATE intents SET state='UNKNOWN'")
-    api = FakeReadOnlyAPI(f)
-    calls = []
-
-    def absent(path, query):
-        calls.append((path, query))
-        raise CLIError("LEGACY_ORIGINAL_KEY_NOT_FOUND", 4, status=404)
-
-    api.get = absent
-    monkeypatch.setattr(legacy, "ReadOnlyAPI", lambda config: api)
-    with pytest.raises(CLIError, match="ORIGINAL_KEY_NOT_FOUND"):
-        legacy.reconcile(str(f["config"]), f["key"])
-    assert len(calls) == 1 and calls[0][1]["idempotency_key"] == f["key"]
-    assert not (f["state"] / "legacy-readbacks").exists()
-
-
-async def test_mismatched_original_content_is_not_marked_recovered(tmp_path, monkeypatch):
-    f = recovery(tmp_path)
-    f["document"]["reports"][0]["markdown"] = "Changed raw report"
-    api = FakeReadOnlyAPI(f)
-    monkeypatch.setattr(legacy, "ReadOnlyAPI", lambda config: api)
-    with pytest.raises(CLIError, match="ORIGINAL_CONTENT_MISMATCH"):
-        legacy.reconcile(str(f["config"]), f["key"])
-    assert not (f["state"] / "legacy-readbacks").exists()
-
-
 async def test_runtime_from_another_configuration_is_preserved(tmp_path, monkeypatch):
     f = installation(tmp_path, "codex")
     calls = []
@@ -232,3 +110,13 @@ async def test_runtime_from_another_configuration_is_preserved(tmp_path, monkeyp
         legacy.retire(str(f["directory"]), "codex")
     assert calls == ["runtime-info"]
     assert json.loads(f["receipt"].read_text())["configuration"] == "WRITTEN"
+
+
+def test_cli_retains_cleanup_and_rejects_retired_session_reconcile():
+    from hypertest.cli.__main__ import parser
+
+    for command in ("retire", "cleanup"):
+        args = parser().parse_args(["legacy", command, "--directory", "/tmp/owned", "--host", "codex"])
+        assert args.action == command
+    with pytest.raises(SystemExit):
+        parser().parse_args(["legacy", "reconcile", "--config", "/tmp/client.json", "--request-id", "original"])

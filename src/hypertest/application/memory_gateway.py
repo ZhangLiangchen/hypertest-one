@@ -41,7 +41,6 @@ from hypertest.domain.memory import (
     MemoryRevision,
 )
 from hypertest.domain.models import AuditEvent, OutboxEvent
-from hypertest.domain.session_tasks import ReportRevision, SessionTask, SyncReceipt
 
 SCOPES = {"CONFIGURE": "memory:publish", "CREATE_CANDIDATE": "memory:propose",
           "PUBLISH": "memory:publish", "REVISE": "memory:publish", "RETRACT": "memory:publish"}
@@ -175,29 +174,7 @@ async def verify_source(db, project_id, source, context, *, lock=False):
             "report_revision": asset.revision, "source_digest": canonical_json_sha256(asset.content)}
     version = source["task_version"]
     if source["mode"] == "LOCAL":
-        if context.worker:
-            raise HTTPException(403, "Cloud Worker cannot claim a Local source")
-        query = select(SessionTask).where(SessionTask.id == task_id)
-        if lock:
-            query = query.with_for_update(read=True)
-        task = await db.scalar(query.execution_options(populate_existing=True))
-        if not task or task.project_id != project_id or task.deleted_at is not None:
-            raise HTTPException(404, "Local memory source not found in Project")
-        if task.binding_state != "BOUND" or (not context.operator and task.owner_actor_ref != context.actor_ref):
-            raise HTTPException(403, "Local memory source belongs to another actor or is unbound")
-        receipt = await db.scalar(select(SyncReceipt).where(SyncReceipt.task_id == task_id,
-            SyncReceipt.task_version == version))
-        report = await db.get(ReportRevision, UUID(source["report_id"]))
-        if (receipt is None or not report or report.task_id != task_id or report.task_version > version):
-            raise HTTPException(409, "Local source requires an accepted fixed task version and report revision")
-        # A report revision remains a readable historical source at a later fixed
-        # task version. Never substitute the latest report or task snapshot.
-        return {**source, "provider": receipt.task_snapshot["provider"],
-            "parent_session_id": receipt.task_snapshot["session_id"],
-            "owner_actor_ref": task.owner_actor_ref, "report_key": report.key,
-            "report_revision": report.revision,
-            "source_digest": canonical_json_sha256({"title": report.title, "markdown": report.markdown,
-                "reported_result": report.reported_result})}
+        raise HTTPException(410, "Legacy SessionTask memory source has been retired")
     task = await cloud_tasks._task(db, task_id, project_id, lock=lock)
     attempt_id = UUID(source["attempt_id"])
     if context.worker:

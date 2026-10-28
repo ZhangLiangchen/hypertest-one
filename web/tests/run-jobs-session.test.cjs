@@ -22,8 +22,8 @@ test("historical failed tasks in ended sessions direct both languages to a new r
   for (const status of ["CLOSED", "FAILED", "CANCELLED"]) for (const locale of ["en", "zh"]) {
     const { html } = renderTasks(status, locale);
     assert.equal(html.includes(locale === "en" ? "Retry as new task" : "新建重试任务"), false);
-    assert.equal(html.includes(locale === "en" ? "New round from this run" : "基于本次运行创建新轮次"), true);
-    assert.equal(html.includes(`/projects/${id(2)}?fromRun=${id(3)}`), true);
+    assert.equal(html.includes(locale === "en" ? "Create a test task" : "创建测试任务"), true);
+    assert.equal(html.includes(`/projects/${id(2)}/tasks/new`), true);
   }
 });
 
@@ -43,7 +43,7 @@ test("only independent gate retries remain available in a closed session with an
   for (const locale of ["en", "zh"]) {
     const closed = renderTasks("CLOSED", locale, "CLOSED", "EVALUATE_GATE", [{ id: id(8) }]).html;
     assert.equal(closed.includes(locale === "en" ? "Retry as new task" : "新建重试任务"), true);
-    assert.equal(closed.includes(locale === "en" ? "New round from this run" : "基于本次运行创建新轮次"), false);
+    assert.equal(closed.includes(locale === "en" ? "Create a test task" : "创建测试任务"), false);
     for (const status of ["ACTIVE", "RECOVERY_REQUIRED", "WAITING_INPUT", "FAILED", "CANCELLED"]) {
       assert.equal(renderTasks(status, locale, status, "EVALUATE_GATE", [{ id: id(8) }]).html.includes(locale === "en" ? "Retry as new task" : "新建重试任务"), false);
     }
