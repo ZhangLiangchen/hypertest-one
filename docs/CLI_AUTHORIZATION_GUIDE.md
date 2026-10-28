@@ -93,7 +93,7 @@ hypertest auth bind --server https://YOUR_HYPERTEST_HOST --profile default
 
 CLI 使用 Python `ssl.create_default_context` 校验 HTTPS，只接受 `https://` 服务器地址，没有 HTTP 或 `--insecure` 选项。若服务使用私有 CA，应将该公开 CA 证书保存为仅当前用户可读的文件，并在每条 CLI 命令（含 `doctor`、`archive`、`reconcile`）前显式设置 `SSL_CERT_FILE=/absolute/path/trusted-ca.pem`，保持证书、主机名和有效期校验；文件只放公开 CA 证书，不放私钥。授权页的安装 Prompt 会带入本部署的 CLI 地址与公开 CA，外部设备按 Prompt 操作即可，无需手工拼装。
 
-当前测试环境是本 Mac 上的 `hypertest-mac` 容器栈。CLI 入口 `https://10.66.66.3:18444` 绑定 WireGuard 地址，供外部设备经 WireGuard 访问；同一入口仍保留回环 `https://localhost:18444` 供历史本机 profile 使用。证书由本机私有 CA `~/.local/share/hypertest-mac/bff/ca.crt`（CN=`HyperTest Mac Local CA`）签发，SAN 同时含 `10.66.66.3` 与 `localhost`，证书与 CA 都不入库、不进入系统信任库。外部设备使用安装 Prompt 中保存的 CA 文件即可，手写命令示例（以 Prompt 实际生成的路径为准）：
+当前测试环境是本 Mac 上的 `hypertest-mac` 容器栈。CLI 入口 `https://10.66.66.3:18444` 绑定 WireGuard 地址，供外部设备经 WireGuard 访问；同一入口仍保留回环 `https://localhost:18444` 供历史本机 profile 使用。证书由本机私有 CA `~/.local/share/hypertest-mac/bff/ca.crt`（CN=`HyperTest Mac Local CA`）签发，SAN 同时含 `10.66.66.3` 与 `localhost`，叶子证书带 Subject/Authority Key Identifier 与 critical basicConstraints，可通过 Python 3.13+ 默认的严格 X.509 校验；证书与 CA 都不入库、不进入系统信任库。外部设备使用安装 Prompt 中保存的 CA 文件即可，手写命令示例（以 Prompt 实际生成的路径为准）：
 
 ```sh
 SSL_CERT_FILE="$HOME/.hypertest-cli/ca/hypertest-one.crt" hypertest doctor --profile <profile> --json
