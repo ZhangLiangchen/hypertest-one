@@ -70,6 +70,7 @@ flowchart LR
 
 - 图例：**蓝色实线框 = 已部署**；**琥珀虚线框 = opt-in / 当前未部署 / 占位**；**灰色框 = 外部系统或使用方**；**绿色框 = 数据存储/外部服务**；**实线箭头 = 当前默认路径**；**虚线箭头 = opt-in 或当前未部署路径**。本图为高层全景，各层细节见 §3–§6 与 §8。
 - 图中未画出旧 SessionTask / 受管 TestRun：它们已按 ADR-028 退休，见 §5.4。
+- SVG 导出（由上方 Mermaid 渲染生成，便于分享/离线查看）：[system-architecture-overview.svg](assets/system-architecture-overview.svg)。
 
 ---
 
@@ -103,6 +104,8 @@ flowchart LR
   class WEB,BFF,API,MEMGW deployed;
   class PG,PCM store;
 ```
+
+SVG 导出：[access-boundary-flow.svg](assets/access-boundary-flow.svg)。
 
 | 使用方 / 入口 | 路径与协议 | 认证与信任 | 当前状态 |
 | --- | --- | --- | --- |
@@ -217,6 +220,8 @@ sequenceDiagram
   CLI-->>AG: 归档完成（reported result 不代表 VERIFIED / 发布结论）
 ```
 
+SVG 导出：[local-archive-flow.svg](assets/local-archive-flow.svg)。
+
 **关键规则：**
 
 - 每次上传**必填 Project ID、Task ID**；Subtask ID 可选，省略写 Task 根空间；无效/越权子任务明确拒绝、不回退根空间。
@@ -263,6 +268,8 @@ sequenceDiagram
   API-->>W: 版本化投影（含来源标签）
   Note over API,PG: 当前默认关闭且本机未部署 Cloud Worker；<br/>reported result 不升级为 VERIFIED / 发布结论
 ```
+
+SVG 导出：[cloud-task-flow.svg](assets/cloud-task-flow.svg)。
 
 **六步流程：** 项目资源 → 冻结任务输入 → 下发 → DeepSeek/Codex 工作 → 接受产物 → 项目框架执行与报告。
 
@@ -319,6 +326,8 @@ sequenceDiagram
   GW-->>OP: 结果 + 修订 / 适用条件 / opaque provenance
   Note over GW,PG: 失答 / UNKNOWN：只按原 key 查询，不重 POST；≤5 秒降级，不阻断任务
 ```
+
+SVG 导出：[memory-flow.svg](assets/memory-flow.svg)。
 
 **拓扑与认证：** Web BFF → API 内 Memory Gateway（唯一持有 PowerContext 上游 admin token）→ 独立 PowerContext 1.4.0（SQLite Basic/FTS；Generation/Embedding 关闭；`ACCESS_MODE=enforced`、Dashboard 关闭）。PowerContext 通过独立 Compose 项目部署，TLS 代理仅绑定 `127.0.0.1:18443`；浏览器/CLI/Agent 都不能直接访问。上游 1.4.0 的静态 Bearer 等价于**同一 admin**，Scope 不是 RBAC，多 Project 隔离由 Gateway 映射/授权完成。
 
@@ -450,4 +459,4 @@ Cloud Worker（无容器、无宿主进程、平台 env 无 Cloud 开关）、Cl
 - 当前操作与交付事实：[服务器操作](../SERVER_OPERATIONS.md)｜[任务创建退休部署](../TASK_CREATION_RETIREMENT_20261028.md)｜[Memory 集成交付](../POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)｜[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)｜[当前待办](../TODO.md)。
 - 本机部署记录：`~/.local/share/hypertest-mac/README.md`（顶部当前章节；其下为历史）与 `~/.local/share/hypertest-mac-powercontext/`（独立 Compose 配置与私有证书目录）。
 
-> **维护提示：** 本文是 2026-10-28 快照，不随每次部署自动更新。部署形态、Cloud Worker 状态、证书/镜像身份或能力开关发生变化时，应更新本文或新增一轮快照记录，并在[文档导航](../README.md)中保持入口指向。
+> **维护提示：** 本文是 2026-10-28 快照，不随每次部署自动更新。部署形态、Cloud Worker 状态、证书/镜像身份或能力开关发生变化时，应更新本文或新增一轮快照记录，并在[文档导航](../README.md)中保持入口指向。`assets/*.svg` 是上述 Mermaid 的渲染生成物，结构调整应以本文件 Mermaid 为准后重新渲染。
