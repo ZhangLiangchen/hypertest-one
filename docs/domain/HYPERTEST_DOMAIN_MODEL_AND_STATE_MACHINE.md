@@ -1,5 +1,7 @@
 # HyperTest Domain Model & State Machine Specification
 
+> **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
+
 **阅读范围（2026-10-27 起）：** 新 Local 归档的字段、关系、版本和状态由本文 §56 及 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 约束；协议与组件分别见 TMP §51、技术架构 §50。§50 的 SessionTask 与 ADR-024/026 的绑定和协作继续约束旧 profile 及历史，不是新归档前提。下文部署、发行与验收叙述记录各自时点，不能作为当前运行状态；交付和待办见 [TODO](../TODO.md) 及对应记录。
 
 旧 Local `local-v0.1.0` 的真实宿主矩阵及其限定范围见[历史验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)与[矩阵](../local-acceptance/local-matrix-20261023.json)；该资格不自动扩展到新归档。
@@ -2606,5 +2608,7 @@ CREATE、APPROVE、REDEEM 各自冻结正文/key，并有独立回执；相同 k
 profile 原子保存/合并，只合并同 server/client/actor 的已批准项目授权；身份不匹配须使用明确的新 profile，不覆盖旧身份/账本。服务端撤销使对应 grant 后续不可用，已接受产物/回执保持；读回仍需当前有效授权。auth logout 只停用本机 profile，不冒充撤销，不清除未决 credential、journal 或历史。没有自动续签、后台轮询或跨机器复制模型登录。
 
 ### 56.6 旧本地账本的恢复边界
+
+> **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 
 新 CLI 只读取用户明确指定私有配置下的旧 `client.sqlite3` 与批准快照，支持既有 SYNC/BIND/协作 namespace，不修改原 journal 或迁移为新归档 Submission。完整原请求在场时逐字段核对原回执与固定版本；旧 compact 记录缺少原正文时只保存新的只读恢复记录，并明确 `LEGACY_ACCEPTED_READBACK`、`original_request_verified=false`，不得重建原正文或补造原请求比较。旧 CREATE 的原 key 与冻结管理请求仍由原 Web IndexedDB journal 拥有，通过 Web 只读恢复，不向 CLI 转授 Operator 身份。

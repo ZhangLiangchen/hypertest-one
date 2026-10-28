@@ -1,5 +1,7 @@
 # HyperTest 白皮书
 
+> **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
+
 **阅读范围（2026-10-27 起）：** 新 Local 接入遵循 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)：Agent 测试后显式调用 Skill/CLI 归档，不以前置会话绑定或 Hooks/MCP 为前提。领域 §56、TMP §51 和技术架构 §50 分别拥有字段、协议和组件合同。下文 ADR-018/024/026、旧 Local 发行及部署结果属于相应旧 profile 或当时快照；保留其历史与恢复语义，不作为新接入指南。当前交付和未完成事项见 [TODO](../TODO.md) 与各交付记录，实际运行状态需单独核实。
 
 2026-10-23 P0 增补：Web 的 Cloud 与 Local CREATE 使用独立持久账本和原 key 对账；取消请求与停止确认分开，人工收尾声明不产生独立停止证明或预算结算权。当前 Cloud Worker 尚不支持 SDK 原会话续接。实现与部署见[P0 恢复交付](../P0_RECOVERY_DELIVERY_20261023.md)，不改变下文历史验收身份。

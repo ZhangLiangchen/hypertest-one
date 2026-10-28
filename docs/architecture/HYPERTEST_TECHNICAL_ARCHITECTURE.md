@@ -1,5 +1,7 @@
 # HyperTest Technical Architecture
 
+> **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
+
 **阅读范围（2026-10-27 起）：** 新 Local 采用 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与本文 §50 的显式 Skill/CLI 归档架构；领域 §56、TMP §51 分别拥有字段和协议。下文 ADR-018/020/024/026 的 SessionTask、Hooks/MCP、BIND/JOIN 与对应部署状态只描述旧 profile 或当时快照，仍约束其历史与恢复，不是新 Local 的接入前提。交付状态见 [TODO](../TODO.md) 和交付记录；实际运行状态需单独核实。
 
 ## ADR-024 旧 SessionTask 创建与 Local 绑定
@@ -1224,6 +1226,8 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 平台0028两张不可变表保存原SENT与非秘密OBSERVED/UNKNOWN；原HTTP正文留host私有原件，须scan与当前fence接受才能返回。原key只读恢复不再发送，HTTP未知统一阻止原生命周期收尾/预算结算，不能由Operator声明消除。与SSH的远端签名/helper/终态协议保持独立。运行前核FRAMEWORK_LOCKED_V1的锁文件和固定工具身份；既有入口准入继续，离线检查不承担依赖安装或新的测试引擎职责。精确边界见[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md)、TMP§50与领域§55。
 
 ## 50. ADR-027 Local 显式归档目标架构
+
+> **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 
 新建 Project 须分别登记 SUT 与测试框架仓库（可相同）；历史项目允许缺失。用户在创建 Local 任务时声明各自分支，API 对旧客户端允许省略。API 固定创建时的两个 Project 地址及所选分支，旧任务不回填，项目后续修改不改写已接受任务。这些值只是任务输入声明，不表示已检出、执行或独立验证来源。Cloud 仍使用独立的 ProjectCloudConfigRevision 和任务双 selector，显式冻结输入及授权；Project 通用地址不自动覆盖既有 Cloud 资源和任务。
 

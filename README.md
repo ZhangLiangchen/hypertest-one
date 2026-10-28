@@ -14,7 +14,7 @@ HyperTest One 是面向测试工作的控制平面：管理项目、测试任务
 
 没有打开平台页面时，可复制[中文安装 Prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.zh-CN.txt)或 [English installation prompt](docs/cli-install-prompts/hypertest-cli-install-prompt.en.txt)。[CLI 授权与使用指南](docs/CLI_AUTHORIZATION_GUIDE.md)涵盖安装、授权、归档、排障和旧安装的受管退出。
 
-当前发行是 [cli-v0.1.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)，要求 Linux/macOS 和 Python ≥3.12；实际宿主验收范围见指南及[发行记录](docs/CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。0.1.0 存在资产 `stable_key` 缺陷，应按受管流程升级。旧 `local-v*` 的 MCP/Hooks 接入已弃用，不用于新接入；保留旧任务、报告、凭据、原请求 key 和只读恢复，未知结果不自动重发。新旧 Local 任务身份不合并。
+当前发行是 [cli-v0.1.1](https://github.com/ZhangLiangchen/hypertest-one/releases/tag/cli-v0.1.1)，要求 Linux/macOS 和 Python ≥3.12；实际宿主验收范围见指南及[发行记录](docs/CLI_STABLE_KEY_FIX_DELIVERY_20261027.md)。0.1.0 存在资产 `stable_key` 缺陷，应按受管流程升级。旧 `local-v*` 的 MCP/Hooks 接入已弃用，不用于新接入；被新归档替代且不兼容的旧任务、报告及兼容入口可按 [ADR-028](docs/architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 定向清理；未知外部操作不自动重发。无关凭据和用户源文件保留。
 
 ## Cloud 与兼容路径
 

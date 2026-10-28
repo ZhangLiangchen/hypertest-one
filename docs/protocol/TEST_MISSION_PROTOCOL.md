@@ -1,5 +1,7 @@
 # Test Mission Protocol Specification
 
+> **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
+
 **阅读范围（2026-10-27 起）：** 新 Local 归档协议以 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与本文 §51 为准；字段及状态由领域 §56 拥有。§45/47 的 SessionTask、Hooks/MCP、BIND/JOIN 与旧回执继续约束旧 profile 和历史，不是新归档前提。下文部署、发行与验收叙述记录各自时点，不能作为当前运行状态；交付和待办见 [TODO](../TODO.md) 及对应记录。
 
 旧 Local `local-v0.1.0` 的真实宿主矩阵及其限定范围见[历史验收记录](../LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)与[矩阵](../local-acceptance/local-matrix-20261023.json)；该资格不自动扩展到新归档。
@@ -1658,6 +1660,8 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 框架冻结检查只读锁文件并对固定Python/Node执行--version，不自动安装、联网或执行声明argv，不声称依赖闭包或限制了任意SDK shell语义。一般凭据HTTP/写操作/浏览器/CI不通过本profile准入；UNKNOWN阻止收尾并保持原预算及历史。
 
 ## 51. ADR-027 Local 显式归档协议目标合同
+
+> **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 
 本节为首片已实现的 `local-artifact-archive/v1alpha1`；部署、发行与 USER_OWNED 状态见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)。该协议由 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)采用，领域语义见[领域§56](../domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md#56-adr-027-local-显式后置归档目标合同)。它通过普通 HTTPS 请求/响应工作，不需要 MCP、Hook、SessionStart、source binding、常驻连接或 Agent 执行通道。
 

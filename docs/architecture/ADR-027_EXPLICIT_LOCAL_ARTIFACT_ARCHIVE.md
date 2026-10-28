@@ -1,5 +1,7 @@
 # ADR-027：Local 显式 Skill 与 CLI 后置产物归档
 
+> **2026-10-28 增补：** [ADR-028](ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 取代本 ADR 对被新实现替代且不兼容的旧 Local 客户端、入口、SessionTask 数据和恢复路径的无条件兼容与保留要求。相关旧实现及对应旧数据可定向移除；现行归档合同与无关授权、源文件、服务仍适用。此增补不表示清理已实施。
+
 日期：2026-10-27（Asia/Singapore）。状态：**架构决定已采用，首片产品实现完成**。部署、CLI/Skill 发行及 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)；源码与自动回归不替代用户功能验收。
 
 用户决定将 Local 模式改为测试完成后显式归档：移除该模式现有 MCP、Hooks 和常驻同步依赖，新增 HyperTest One CLI 与 `hypertest-archive` Skill。本决定拥有新流程及旧入口退出范围；实施任务见[重构开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)。本文中的命令、实体和接口已有首片实现。旧客户端机器仍须显式执行受管退休；不据源码完成推定用户机器配置已移除或部署、发行已经完成。

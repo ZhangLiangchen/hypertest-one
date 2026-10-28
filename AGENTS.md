@@ -4,17 +4,21 @@
 
 剩余工作看[当前 TODO](docs/TODO.md)；实现、部署和 USER_OWNED 验收分别记录，历史交付见[文档索引](docs/README.md)，不从历史候选状态重复安排已完成工作。
 
+## 快速原型阶段：新旧实现不兼容的决策
+
+按 [ADR-028](docs/architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md)，当前快速原型阶段，新旧实现不一致时以新实现为准；不要求保留旧实现、兼容入口、旧任务或其他属于被替代实现的数据。可在对应改造及部署中直接删除这些旧代码和旧数据，无需为此再询问许可或建设兼容迁移、备份恢复演练。明确本次替代范围及关联对象，执行定向清理并如实记录；不以此清空整库、删除无关项目、现行数据、用户源文件、凭据、访问配置或其他服务。测试 fixture 仍只能写入专用测试库。删除旧记录不代表未知外部操作未执行，不得自动重发或伪造迁移及历史结果。本决定取代旧规范中与该范围冲突的无条件保留、兼容及另行批准要求，其他现行安全和数据合同继续有效。
+
 ## Local 显式归档
 
 新 Local 测试结束后显式调用 `hypertest-archive` Skill 与 `hypertest` CLI，遵循 [ADR-027](docs/architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)、领域 §56、TMP §51、技术架构 §50 和 [CLI 授权指南](docs/CLI_AUTHORIZATION_GUIDE.md)。每次上传必填 Project ID、Task ID，Subtask ID 可选；省略时写 Task 根空间，不补造默认子任务。上传者由独立归档授权确定，原会话仅为来源声明。用户级 profile 只复用明确获准项目，网页批准由用户完成。
 
-新流程不依赖 HyperTest 自有 MCP、Hooks、native bridge 或常驻同步；旧 Local 新写默认关闭。旧 profile 的身份、授权、历史与原 key 只读恢复仍受 ADR-018/020/024/026 约束。按受管收据精确处理旧自有配置，保留其他插件配置、凭据、历史、源文件和未决 key；不自动重发未知请求、不伪造来源、不连带停用 Cloud/Memory。未完成事项见 [TODO](docs/TODO.md)，各轮实现、部署、发行与用户验收见[文档索引](docs/README.md)。
+新流程不依赖 HyperTest 自有 MCP、Hooks、native bridge 或常驻同步；旧 Local 新写默认关闭。旧 profile 尚未清理的行为按 ADR-018/020/024/026 解释，其不兼容的旧入口及数据可依 ADR-028 移除。按受管收据精确处理旧自有配置，保留其他插件配置、凭据与用户源文件；不自动重发未知请求、不伪造来源、不连带停用 Cloud/Memory。未完成事项见 [TODO](docs/TODO.md)，各轮实现、部署、发行与用户验收见[文档索引](docs/README.md)。
 
 ## 快速原型阶段：自测与验证约束
 
 - **当前项目处于快速原型阶段：保留关键自测，降低日常检查强度，避免过度自测拖慢开发效率。** 日常验证以本次改动的实际风险和最小足够范围为准，不以测试数量、覆盖率或完整验证矩阵作为普通交付目标。
 - 文档修改只检查文档差异；局部代码修改只运行直接受影响模块及关联契约的必要检查，Lint、类型检查和构建按改动需要选择。可复用仍适用的已有结果，不默认在本地、服务器与CI重复运行同一套检查。相关检查通过且无具体未解决问题后立即结束。
-- 本次改动涉及授权隔离、凭据边界、幂等与原key/UNKNOWN恢复、版本冲突、迁移、数据和历史保全时，必须保留相应关键行为及拒绝路径的自测；这些领域不构成每轮固定必跑清单。提速不改变产品领域、证据真实性或历史语义不变量。
+- 本次改动涉及授权隔离、凭据边界、幂等与原key/UNKNOWN恢复、版本冲突、迁移、数据和历史保全时，必须保留相应关键行为及拒绝路径的自测；这些领域不构成每轮固定必跑清单。提速不改变现行产品领域或证据真实性；被替代的旧数据按 ADR-028 处理。
 - 低影响、可逆或机械性修改不默认新增专用测试。功能契约变化时同步更新受影响的旧fixture、测试加载器和断言；优先验证可观察行为及安全语义，避免无契约依据地锁死工具总数、内部结构或异步调度次数。不得仅为通过CI而削弱关键断言或掩盖真实失败。
 - 全量后端/Web回归按需用于集中回归、候选发行或跨模块高风险改动，不作为每次普通迭代的默认前置条件。只有明确的用户要求、现有强制检查或具体故障才扩大范围；不自行追加多宿主矩阵、重复采样、额外审查或新的测试环境，继续遵守下文环境复用和test DB边界。
 - **本阶段关闭日常push和PR自动CI。** `.github/workflows/ci.yml`仅保留`workflow_dispatch`手动入口，按需执行完整平台回归，不作为日常提交、合并或测试服务器部署的前置条件。Codex仍按本次改动范围完成必要的本地或服务器关键自测；本地检查不能保证发现所有BUG。`local-v*`、`mcp-v*`标签触发的发行构建继续保留，明确的发行要求仍适用。关闭自动CI不代表测试通过，不把未运行、跳过或失败改标为通过；自测、手动CI与部署健康检查仍与USER_OWNED功能验收分别记录。
@@ -33,16 +37,16 @@
 
 后续应用服务部署统一采用 Docker。宿主 nginx 已按用户指令停用、屏蔽并卸载；容器 nginx 保持提供入口，见[宿主 nginx 移除记录](docs/HOST_NGINX_REMOVAL_20261025.md)。本次未迁移既有独立 Cloud Worker / Bridge，不据此改写它们的当前运行身份。
 
-- 用户要求部署时，已授权停止旧服务、原地构建、执行必要的非破坏性迁移并重启，无需为服务中断再次确认。默认流程为：本地修改 → commit/push → 服务器 fetch 并固定完整 Git SHA → 停止受影响服务 → 在服务器构建新版本 → 迁移（需要时）→ 启动 → 最小冒烟检查；不要求先建隔离环境。
+- 用户要求部署时，已授权停止旧服务、原地构建、执行必要迁移并重启；符合 ADR-028 的定向旧数据清理已获授权，无需为服务中断再次确认。默认流程为：本地修改 → commit/push → 服务器 fetch 并固定完整 Git SHA → 停止受影响服务 → 在服务器构建新版本 → 迁移（需要时）→ 启动 → 最小冒烟检查；不要求先建隔离环境。
 - 常规开发、构建和相关自动回归默认复用已有干净 checkout、兼容的依赖环境、构建缓存与测试基础设施；不把临时工作目录、隔离/影子环境、额外源码或构建副本、重复 virtualenv / node_modules 作为每轮默认步骤。复用环境不减少必要回归或强制检查。
-- 只有具体依赖冲突、破坏性测试或安全边界确有需要时，才采用最小范围隔离。创建前说明原因、资源和生命周期，优先复用已有测试环境，不为局部问题复制多套全栈；完成后清理本轮新增、确认可再生且不再使用的临时目录、容器、依赖环境和副本，保留必须的源产物、历史与未决记录。
+- 只有具体依赖冲突、破坏性测试或安全边界确有需要时，才采用最小范围隔离。创建前说明原因、资源和生命周期，优先复用已有测试环境，不为局部问题复制多套全栈；完成后清理本轮新增、确认可再生且不再使用的临时目录、容器、依赖环境和副本，保留不属于本次替代范围的源产物、历史与未决记录。
 - 复用环境不等于将测试 fixtures 写入业务数据库。可复用明确用于自动回归的已有 test DB，reset 仅限其中的合成测试数据；不得初始化、清空或覆盖业务库及其历史。需要数据库安全边界时，隔离最小必要的测试库即可，不默认另建整套平台。
 - 日常部署不默认要求蓝绿切换、影子环境、冷备、隔离恢复演练、逐表逐文件 hash 保全、独立复核或历史生产 Gate。PR 合并、正式发行资格也不是测试服务器部署的默认前置条件；用户明确要求的发行流程及强制 CI 检查仍适用。
 - 验证与改动范围相称：文档修改只检查文档差异；局部代码修改只做相关检查；部署后检查服务启动、健康接口及本次变更的一条关键路径。相关检查通过且无具体未解决问题后立即结束，不自行扩大到全量回归、多宿主矩阵、反复健康采样或额外审查。
 - 只有用户明确要求、强制检查要求或具体故障需要时，才扩大验证。不得为普通开发任务额外建设验收、证明或保全体系。
-- 允许中断不等于允许丢失数据。保留数据库与数据卷、源产物、历史记录、未决同步 key / journal、凭据及宿主配置；清库、删卷、破坏性迁移或不可逆覆盖须有明确授权。迁移确有数据风险时，只做与该风险相称的数据保护，不自动升级为整套生产发布流程。
+- 按 ADR-028 可以定向删除被替代且不兼容的旧实现及对应旧数据，无需额外审批；不因此授权清空整库、删除数据卷或删除无关现行数据、凭据及宿主配置。未知外部操作不得自动重发；其他范围的破坏性操作须有明确授权。
 - 保留现有 SSH 访问、主机密钥校验、密码人工恢复、TLS、VPN 白名单及其他访问限制；不泄露或复制凭据到仓库、日志或交付物，不改动无关服务。
-- 本节取代旧运维文档及历史发布记录对本测试服务器的可用性与发布流程约束。历史验收记录仅供追溯，不作为每次开发的执行清单；产品领域、授权、幂等、证据真实性和历史语义不变量继续适用，不把产品证据规则扩展为开发部署 Gate。
+- 本节取代旧运维文档及历史发布记录对本测试服务器的可用性与发布流程约束。历史验收记录仅供追溯，不作为每次开发的执行清单；现行产品领域、授权、幂等与证据真实性继续适用；被替代的旧历史按 ADR-028 处理，不把产品证据规则扩展为开发部署 Gate。
 
 This repository is governed by four foundational documents. Any implementation, refactor, protocol change, schema change, or architecture decision MUST remain consistent with them unless an explicit Architecture Decision supersedes the relevant rule.
 
@@ -64,13 +68,15 @@ When details conflict:
 
 ## Non-negotiable architecture principles
 
+Legacy compatibility and retention statements below apply only while that profile remains in use; ADR-028 permits removing a replaced, incompatible profile and its associated data. Do not infer that all historical data must remain accessible.
+
 - **Local management path: HyperTest One manages testing tasks, cases and reports; local Agents perform testing and explicitly archive their outputs under ADR-027. This management API does not execute tests.** The following session-sync rules apply to the legacy profile: [ADR-018](docs/architecture/ADR-018_CODEX_SESSION_TASK_SYNC.md) and [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) retain the default single-session contract. [ADR-026](docs/architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md) adds explicitly enabled one-task/many-root participation: same owner actor, exact source authorization/JOIN, isolated append-only contributions and one current primary publisher. Initial binding identity/history stay immutable; child delegates do not acquire parent writer rights. Legacy full sync cannot write collaborative tasks; original-key reconciliation and old single-session tasks remain compatible. Implementation/deployment/client release/user acceptance are recorded separately.
 - **Cloud and Local share one Project:** Cloud uses independent CloudTask / CloudAttempt identities and the official DeepSeek Harness Python SDK under [ADR-019](docs/architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md). The six steps are Project resources → frozen task inputs → dispatch → DeepSeek/Codex work → accepted artifacts → project-framework execution/reporting. Codex is explicitly opt-in; Claude remains a placeholder. Source snapshots, reported results, deployment and user acceptance have separate identities and must not be upgraded or inferred from one another. Historical results and limitations are recorded in [Cloud status](docs/CLOUD_IMPLEMENTATION_STATUS.md) and [Cloud delivery](docs/CLOUD_GIT_DELIVERY_20261023.md).
 - Cloud API processes do not run Agents or tests. Only the current fenced Worker broker writes Cloud reports; root / child Agents receive no platform token, DB access or Operator key. Cloud `cloud:work` and Local `task:sync`, identities, ledgers and UNKNOWN reconciliation remain separate. Model identities must be provisioned in the cloud; do not copy local logins. Cloud disablement or failure must not block Local synchronization or history.
 - [ADR-021](docs/architecture/ADR-021_SHARED_TASK_SYNC_CORE.md) shares TaskSyncCore semantics / library through separate LocalSyncAdapter and CloudSyncAdapter, not a generic Task table, API, token or global journal. Activity, uploads and SDK idle are not completion or PASS. ADR-022 的 Memory Gateway 已在2026-10-23独立集成切片中实现，范围与历史Cloud交付分开记录；其独立权限、Project映射与人工发布不改变已有任务身份或测试结果。经验服务与 Canonical 测试状态、TaskSyncCore 分离；`task:sync` / `cloud:work` 不授权经验访问，服务管理 key 不进入 Agent，外部 Generation / Embedding 默认关闭。
 - Session sync shares Project, stores versioned plans/cases/raw reports and reported results with source metadata, and uses scoped authorization, idempotency receipts and expected-version checks. It does not require Job, Harness, Runner, execution binding, source transfer, independent CI proof or Gate. Reported PASS/FAIL is preserved and does not become legacy VERIFIED Evidence or RELEASE_READY automatically. Sync UNKNOWN is reconciled by original key and never rewrites a test result.
 - [ADR-024](docs/architecture/ADR-024_OPERATOR_CREATED_TASKS_AND_LOCAL_BINDING.md) adds Operator-created UNBOUND Local tasks and one-time binding of the same UUID to a real native parent session. Do not invent provider/session/owner/source metadata for an unbound task. Legacy SessionTask clients must bind an explicit Task ID before their first asset sync; return TASK_BINDING_REQUIRED without POST when missing. Preserve confirmed legacy auto-task resume, shared Hook/MCP coordination, exact intended-actor authorization, and original-key-only CREATE/BIND reconciliation. Cloud and Local share Project, not task identity or execution rights.
-- ADR-024的新BIND及手动已绑定Task的显式MCP新sync，目前仅实现已核对上游源码的Codex CLI `0.144.6`逐调用caller路径：宿主注入的`_meta.threadId`经独立私有IPC与SessionStart root核对，child不能只填已知父ID写父Task。缺context、错配或未支持的宿主明确拒绝，零新POST；Claude/DeepSeek对应适配未实现，CLI自报session不能替代。保留已确认legacy auto任务resume、授权GET及原key只读恢复。此context是本地宿主归因，不是服务端独立身份证明；远端组件验证及真实宿主E2E未观察的边界见[绑定验收记录](docs/LOCAL_TASK_BINDING_ACCEPTANCE_20261023.md)。
+- ADR-024的新BIND及手动已绑定Task的显式MCP新sync，目前仅实现已核对上游源码的Codex CLI `0.144.6`逐调用caller路径：宿主注入的`_meta.threadId`经独立私有IPC与SessionStart root核对，child不能只填已知父ID写父Task。缺context、错配或未支持的宿主明确拒绝，零新POST；Claude/DeepSeek对应适配未实现，CLI自报session不能替代。尚存的legacy auto任务resume、授权GET及原key只读恢复按旧合同运行，可依 ADR-028 退休。此context是本地宿主归因，不是服务端独立身份证明；远端组件验证及真实宿主E2E未观察的边界见[绑定验收记录](docs/LOCAL_TASK_BINDING_ACCEPTANCE_20261023.md)。
 - ADR-017 native intake and ADR-010/012/013/015/016 execution paths remain separate compatibility/history; do not apply their execution admission rules to current management sync or alter historical results.
 
 - HyperTest is an **Autonomous Testing Control Plane**, not another generic coding agent.
@@ -91,7 +97,7 @@ When details conflict:
 Before changing a core domain entity, mission lifecycle, runner/evidence trust model, or agent contract:
 
 1. Identify which foundational document owns the rule.
-2. Preserve existing invariants and history semantics.
+2. Preserve current invariants and truthfulness; apply ADR-028 when a replaced, incompatible implementation and its old data are removed.
 3. If the rule must change, update the corresponding specification in the same change.
 4. Do not silently encode architecture decisions only in implementation code.
 
@@ -135,11 +141,7 @@ boundary or authorization to run an unrelated SUT.
   15-minute observation. Choose additional checks for the actual change or an
   explicitly requested validation goal, rather than treating old release records
   as permanent gates.
-- Preserve projects, tasks, cases, reports, revisions, receipts, audit history,
-  credentials and persistent files. Permission to interrupt services is not
-  permission to reset the database, delete volumes, overwrite history or replay
-  an uncertain external operation. Back up according to migration/data risk;
-  restoration exercises are separate validation work, not an every-deploy default.
+- Under ADR-028, remove the replaced incompatible implementation and its associated old data when needed without additional approval; identify the affected scope. Preserve unrelated current data, projects, credentials and user files. This does not authorize resetting the entire database, deleting volumes or replaying uncertain external operations. Backup and restoration exercises are not a routine prerequisite.
 - Record the deployed Git SHA and resulting image identities. For this server,
   these current rules and the [default operations flow](docs/SERVER_OPERATIONS.md#当前环境与默认交付流程)
   supersede older descriptions of a production environment and routine heavy
@@ -155,4 +157,4 @@ boundary or authorization to run an unrelated SUT.
 
 ## 旧 Local 发行与兼容
 
-旧 `local-v*` 发行、三宿主 Hook/MCP 资格和历史矩阵仅适用于各自的固定版本和 profile，不构成新 CLI 的宿主验收。旧任务、会话、授权、源产物、修订、回执与 journal 保留；不把 reported result 升级为正式 Evidence 或 Gate。失答或 UNKNOWN 只按原 key 查询和恢复，不自动重发。旧 profile 只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录；冻结后保留完整请求、key 和 version，SENT/UNKNOWN/失答及 NOT_FOUND 只查询原 key，有效 ACK 后须完整读回固定接受版本。Stop 不代表 PASS/COMPLETED。旧宿主事实及精确限制见[历史验收](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)和[文档索引](docs/README.md)。
+旧 `local-v*` 发行、三宿主 Hook/MCP 资格和历史矩阵仅适用于各自的固定版本和 profile，不构成新 CLI 的宿主验收。尚存的旧任务、会话、修订、回执与 journal 可按 ADR-028 随被替代实现定向删除；无关授权及用户源文件保留。不把 reported result 升级为正式 Evidence 或 Gate。若旧恢复路径仍存在，失答或 UNKNOWN 只按原 key 查询和恢复；移除后不能推定未执行，也不自动重发。旧 profile 只在批准的产物策略内读取正式文件，不扫描聊天、推理、原始工具负载或认证目录；冻结后保留完整请求、key 和 version，SENT/UNKNOWN/失答及 NOT_FOUND 只查询原 key，有效 ACK 后须完整读回固定接受版本。Stop 不代表 PASS/COMPLETED。旧宿主事实及精确限制见[历史验收](docs/LOCAL_CASE_REPORT_RESUME_ACCEPTANCE_20261023.md)和[文档索引](docs/README.md)。
