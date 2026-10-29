@@ -14,6 +14,7 @@
 - [PowerContext 服务](POWERCONTEXT_SERVICE.md)及 [Cloud 实现状态](CLOUD_IMPLEMENTATION_STATUS.md)：各自能力与范围，部署和验收以具体轮次记录为准。
 - [Cloud Worker 首轮进展（2026-10-29）](CLOUD_WORKER_FIRST_SLICE_20261029.md)：本机准入阻塞、报告读回修复及项目框架合成回归。
 - [ADR-029 草案：单次 Cloud Attempt 的 Docker 隔离](architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md)：待实现、待验证的备选方案，不改变现行准入。
+- [ADR-030 草案：Cloud 受控认证与外部写入](architecture/ADR-030_CLOUD_AUTHENTICATED_ACTION_PROPOSAL.md)：待实现的凭据、单次发送与业务终态边界。
 
 ## 历史与兼容资料
 

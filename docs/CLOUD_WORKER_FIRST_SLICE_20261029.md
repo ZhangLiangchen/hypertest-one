@@ -28,6 +28,8 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 无业务数据的一次性 sibling 容器探针显示：通过独立 named volume 子路径可访问专用 UDS、只读 SUT、写入 framework 工作区，Agent 看不到父容器私有文件与 Docker socket；非 root、cap0、NNP、无外网。停止父 Worker 后独立 Attempt 容器仍运行，故须另有独立 watchdog、硬截止和可核验停止，不能由父进程退出或 attach 断连推定终态。两容器与卷已清理；合成卷初始化临时用了宽权限，不能作为真实部署的目录权限。资源总额、原容器 ID/失答、独立凭据、可信镜像、Docker 控制面及收尾准入尚待实现和验证。
 
+追加容器内 PID 1 监督实验：同 UID 的 Agent 可用 ptrace 暂停普通 PID 1，导致其硬截止延误，且可读取其合成环境和 memfd；`PR_SET_DUMPABLE=0` 后同条件的 ptrace、environ 与 fd 读取被拒绝，SIGKILL/SIGSTOP 未使 PID 1 退出或暂停，合成容器到截止时退出。新增仅允许固定 SDK driver 的候选 `container_guard`，检查非 root、cap0、NNP 与 non-dumpable、限制控制帧和元数据输出，并按原截止退出；原始无模型 SDK tool probe 与合成独立 session 子进程截止检查通过，定向回归 42 passed。Docker 观察为 exited / pid=0 不独立证明原 cgroup 空或 broker drain。该组件未接入 Worker，仍需独立外部 watchdog、容器身份与原 key、资源总额和收尾准入；不能用其结果宣称 Worker 已部署或可执行。
+
 进一步在默认 Docker 防护的独立无网络容器直接运行固定 `SDK_TOOL_PROBE`（无模型、无凭据、无 SUT）：SDK `0.2.1rc2` 初始化、创建会话与关闭成功，工具已注册且尝试调用，但官方工具返回 `is_error=true / error_code=OTHER / marker_match=false`，默认 `workspace-write / ask` 策略保持。无秘密合成探针的受控错误分类观察到 `/home/agent/` 下共享对象映射失败；核对实际挂载标志后对该 tmpfs 作 noexec / exec 单变量对照，两组均显示 `OTHER`，但进一步分类显示错误不同：exec 组不再出现共享对象映射错误，转而提示当前宿主的 workspace 沙箱不可用。具体是否由 seccomp / namespace 引起尚未核验。单次任务容器因此还不能声称支持 SDK 工具或项目框架执行。临时容器自动移除。
 
 固定的 [DeepSeek Harness 上游源码](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/sandbox/sandbox-local/README.md)列出 Linux 的 bwrap 与 Landlock 后备链。Docker 29.8.2 的官方默认 seccomp 已允许三个 Landlock syscall；合成容器内 ABI 查询为 10，另外两个系统调用以无效 fd 进入内核并返回 EBADF。SDK 运行后的可观察 wheel、home 与临时目录未发现 landlock launcher；诊断插件导入官方 launcher 模块失败，但其模块解析边界不等于 SDK 内部打包，因此不能据此断言 launcher 未包含。官方 `--probe` 未运行，Landlock runner 实际状态仍未知；不能仅凭内核 ABI 宣称工具沙箱可用。
