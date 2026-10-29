@@ -35,6 +35,7 @@ from .sandbox import (
     BubblewrapSandbox,
     SandboxPolicy,
     capability_report,
+    probe_namespace,
     require_cloud_environment_route,
 )
 from .sdk import SDK_PHASES, SdkOperationError, inspect_sdk, project_sdk_error
@@ -141,6 +142,8 @@ class CloudWorker:
     def __init__(self, sessions, settings, worker_id: str):
         self.sessions, self.settings, self.worker_id = sessions, settings, worker_id
         self.resolver = GitResolver()
+        self._namespace_admitted = False
+        self._namespace_failure = None
 
     def enabled(self):
         if not self.settings.cloud_enabled or not self.settings.cloud_worker_enabled:
@@ -151,8 +154,21 @@ class CloudWorker:
         if getattr(self.settings, "cloud_ssh_enabled", False):
             inspect_ssh_local_identity()
         inspect_resource_envelope()
+        # Fencing expired owners must remain possible even when this host can
+        # no longer start a namespace. It does not claim or execute new work.
         async with self.sessions() as db:
             await service.expire_leases(db)
+        # Cache this process's probe result: a failed profile needs a Worker
+        # restart after configuration changes, not a new namespace every poll.
+        if self._namespace_failure is not None:
+            raise CloudBlocked(self._namespace_failure, "Cloud namespace startup admission failed; restart after correcting the environment")
+        if not self._namespace_admitted:
+            try:
+                await probe_namespace()
+            except CloudBlocked as error:
+                self._namespace_failure = error.code
+                raise
+            self._namespace_admitted = True
         async with self.sessions() as db:
             resolution = await service.claim_resolution(db, self.worker_id,
                 lease_seconds=self.settings.cloud_worker_lease_seconds)

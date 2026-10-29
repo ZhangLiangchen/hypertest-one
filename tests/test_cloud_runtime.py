@@ -1,6 +1,7 @@
 """Cloud runtime contracts; inert subprocess/SDK fixtures only, no models or SUT."""
 
 import asyncio
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -78,6 +79,7 @@ class PageBroker:
         self.offsets.append(offset)
         return {"task_id": "task", "version": version, "offset": offset,
             "total_characters": len(content), "content": chunk,
+            "sha256": hashlib.sha256(content.encode()).hexdigest(),
             "next_offset": offset + len(chunk), "complete": offset + len(chunk) == len(content)}
 
 
@@ -89,6 +91,55 @@ async def test_cloud_readback_uses_total_characters_and_fixed_accepted_version()
     result = await adapter.readback(intent, {"version": 2, "checkpoint": {}})
     assert result == broker.document
     assert broker.offsets == list(range(0, len(json.dumps(broker.document)), 31))
+
+
+@pytest.mark.parametrize("fault", ["run_id", "attempt", "execution", "case", "artifact"])
+async def test_cloud_run_readback_rejects_missing_or_mismatched_results(fault):
+    broker = PageBroker()
+    run = {"id": "run", "attempt_id": "attempt", "run_key": "one",
+           "execution": {"entrypoint": "python -m unittest", "exit_code": 1}, "reported_result": "FAIL"}
+    case = {"run_id": "run", "case_revision_id": "case", "actual": "mismatch", "reported_result": "FAIL"}
+    artifact = {"run_id": "run", "role": "REPORT", "artifact_id": "report"}
+    broker.document.update(runs=[run], run_cases=[case], run_artifacts=[artifact])
+    payload = {"operation": "SUBMIT_RUN", "run_key": "one", "execution": dict(run["execution"]),
+               "reported_result": "FAIL", "cases": [{key: case[key] for key in ("case_revision_id", "actual", "reported_result")}],
+               "report_artifact_ids": ["report"], "log_artifact_ids": []}
+    intent = FrozenIntent("cloud:attempt", "key", {"task_id": "task", "project_id": "project",
+        "attempt_id": "attempt", "generation": 1}, payload, 1)
+    adapter = CloudSyncAdapter(broker)
+    receipt = {"version": 2, "checkpoint": {}, "run_id": "run"}
+    assert await adapter.readback(intent, receipt) == broker.document
+    if fault == "run_id":
+        run["id"] = "different"
+    elif fault == "attempt":
+        run["attempt_id"] = "different"
+    elif fault == "execution":
+        run["execution"]["exit_code"] = 0
+    elif fault == "case":
+        case["reported_result"] = "PASS"
+    else:
+        artifact["artifact_id"] = "different"
+    with pytest.raises(ValueError, match="CLOUD_RUN_READBACK_MISMATCH"):
+        await adapter.readback(intent, receipt)
+
+
+async def test_cloud_completion_readback_requires_the_frozen_terminal_result():
+    broker = PageBroker()
+    manifest = {"required_asset_ids": ["report"], "all_local_processes_stopped": True,
+                "external_operations_reconciled": True, "pending_operation_keys": [], "scope_and_gaps": "fixture"}
+    checkpoint = {"final_report_revision": "report", "completion_manifest": manifest}
+    broker.document["task"].update(status="COMPLETED", reported_result="FAIL")
+    broker.document["attempts"][0].update(status="COMPLETED", reported_result="FAIL", checkpoint=checkpoint)
+    payload = {"operation": "COMPLETE_ATTEMPT", "reported_result": "FAIL", "final_report_revision": "report",
+               "completion_manifest": manifest}
+    intent = FrozenIntent("cloud:attempt", "key", {"task_id": "task", "project_id": "project",
+        "attempt_id": "attempt", "generation": 1}, payload, 1)
+    adapter = CloudSyncAdapter(broker)
+    receipt = {"version": 2, "checkpoint": checkpoint}
+    assert await adapter.readback(intent, receipt) == broker.document
+    broker.document["task"]["reported_result"] = "PASS"
+    with pytest.raises(ValueError, match="CLOUD_COMPLETION_READBACK_MISMATCH"):
+        await adapter.readback(intent, receipt)
 
 
 async def test_reporter_refuses_terminal_without_worker_external_action_proof(tmp_path):

@@ -127,6 +127,56 @@ def require_readonly_shell() -> None:
         raise CloudBlocked("SHELL_UNAVAILABLE", "The readonly runtime tools must provide an executable /bin/sh") from None
 
 
+async def probe_namespace(*, timeout_seconds: float = 10.0) -> None:
+    """Check real namespace setup before claiming work, without starting an SDK.
+
+    This exercises the same unshare, proc, device and temporary mounts used by
+    an Attempt, with no workspace, sockets, credentials or inherited environment.
+    It cannot guarantee later mounts or runtime availability; each Attempt still
+    performs its ordinary admission and handles failures.
+    """
+    if platform.system() != "Linux":
+        raise CloudBlocked("OS_SANDBOX_UNAVAILABLE", "Cloud execution requires Linux namespaces and bubblewrap")
+    binary = shutil.which("bwrap")
+    if binary is None:
+        raise CloudBlocked("OS_SANDBOX_UNAVAILABLE", "Install bubblewrap on a dedicated Linux Cloud worker")
+    require_readonly_shell()
+    command = [binary, "--die-with-parent", "--new-session", "--unshare-all", "--clearenv",
+               "--ro-bind", "/usr", "/usr", "--proc", "/proc", "--dev", "/dev",
+               "--tmpfs", "/tmp", "--tmpfs", "/run"]
+    for path in ("/bin", "/sbin", "/lib", "/lib64"):
+        if Path(path).exists():
+            command.extend(["--ro-bind", path, path])
+    command.extend(["--chdir", "/", "/usr/bin/true"])
+    try:
+        process = await asyncio.create_subprocess_exec(*command, stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            env={"PATH": os.defpath}, start_new_session=True)
+    except OSError:
+        raise CloudBlocked("NAMESPACE_SETUP_FAILED", "Cloud namespace probe could not start") from None
+    try:
+        result = await asyncio.wait_for(process.wait(), timeout_seconds)
+    except (TimeoutError, asyncio.CancelledError) as error:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            # If its process group has already gone, still reap the original
+            # supervisor; a concurrent exit is expected and benign.
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+        try:
+            await asyncio.wait_for(asyncio.shield(process.wait()), 2)
+        except TimeoutError:
+            raise CloudBlocked("NAMESPACE_PROBE_STOP_UNCONFIRMED", "Cloud namespace probe did not stop") from None
+        if isinstance(error, asyncio.CancelledError):
+            raise
+        raise CloudBlocked("NAMESPACE_SETUP_FAILED", "Cloud namespace probe timed out") from None
+    if result != 0:
+        raise CloudBlocked("NAMESPACE_SETUP_FAILED", "Cloud namespace probe was rejected")
+
+
 class BubblewrapSandbox:
     def __init__(self, *, workspace: Path, dsh_home: Path, broker_socket: Path,
                  policy: SandboxPolicy, delegate_payload: Path | None = None,

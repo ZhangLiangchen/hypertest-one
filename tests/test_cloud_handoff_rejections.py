@@ -1,4 +1,5 @@
 """Only pre-freeze malformed proposals get local feedback; no models or DB."""
+import hashlib
 import json
 from types import SimpleNamespace
 from uuid import uuid4
@@ -44,6 +45,7 @@ class Broker:
         content = json.dumps(self.document)
         chunk = content[offset:offset + limit]
         return {"task_id": self.task_id, "version": version, "offset": offset, "content": chunk,
+            "sha256": hashlib.sha256(content.encode()).hexdigest(),
             "total_characters": len(content), "next_offset": offset + len(chunk), "complete": offset + len(chunk) == len(content)}
 
 
@@ -107,6 +109,25 @@ async def test_collect_skips_original_bad_key_and_accepts_only_new_revision_key(
     assert reporter.pending() == [] and reporter.version == 2
     receipt = json.loads((workspace / ".hypertest-cloud/receipts/revision-two.json").read_bytes())
     assert receipt["status"] == "ACCEPTED" and receipt["version"] == 2
+
+
+async def test_digest_mismatch_retries_fixed_readback_without_resubmission(reporting):
+    reporter, broker, _ = reporting
+    handoff = case(reporter, key="stable-key", valid=True)
+    original_page = broker.page
+
+    async def corrupt_page(**kwargs):
+        page = await original_page(**kwargs)
+        return {**page, "sha256": "0" * 64}
+
+    broker.page = corrupt_page
+    source_digest = digest(handoff.model_dump(mode="json"))
+    first = await reporter.submit_handoff(handoff, source_digest)
+    assert first.state == "ACCEPTED" and first.code == "CLOUD_READBACK_DIGEST_MISMATCH"
+    assert len(broker.posts) == 1 and reporter.pending()
+    broker.page = original_page
+    second = await reporter.submit_handoff(handoff, source_digest)
+    assert second.synced and len(broker.posts) == 1 and reporter.pending() == []
 
 
 async def test_unknown_frozen_request_blocks_correction_without_transport_or_key_replacement(reporting):

@@ -4,6 +4,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -18,6 +20,9 @@ from hypertest.api.cloud_schemas import CloudMutation
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application import cloud_tasks as service
 from hypertest.application.services import create_project
+from hypertest.cloud.broker import CloudBroker
+from hypertest.cloud.reporter import CloudTaskReporter
+from hypertest.cloud.worker import CloudWorker
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
@@ -94,7 +99,7 @@ async def draft(context, *, config=None, task_inputs=None):
     return created.json()
 
 
-async def dispatched(context, **draft_options):
+async def dispatched(context, *, framework_sha=FRAMEWORK_SHA, **draft_options):
     created = await draft(context, **draft_options)
     task_id = created["task_id"]
     requested = await post(context, "RESOLVE_INPUTS", 1, task_id=task_id)
@@ -103,7 +108,7 @@ async def dispatched(context, **draft_options):
         claim = await service.claim_resolution(db, "fixture-worker", project_id=UUID(context["project_id"]))
         result = {"repositories": {
             "sut": {"url": ORIGIN, "commit_sha": SHA, "selector": claim["task"]["inputs"]["sut_selector"]},
-            "framework": {"url": FRAMEWORK_ORIGIN, "commit_sha": FRAMEWORK_SHA,
+            "framework": {"url": FRAMEWORK_ORIGIN, "commit_sha": framework_sha,
                           "selector": claim["task"]["inputs"]["framework_selector"]}},
             "environment_observation": {"deployment": "UNKNOWN", "source": "synthetic-fixture"},
             "observed_at": datetime.now(UTC).isoformat(), "source": "synthetic-fixture-no-git-executed"}
@@ -438,6 +443,102 @@ async def test_stage_checkpoint_raw_report_and_failure_are_preserved(cloud_conte
     raw = await context["client"].get(f"/api/v1/cloud/tasks/{receipt['task_id']}/artifacts/{artifact_id}",
         params={"project_id": context["project_id"]}, headers=context["headers"])
     assert base64.b64decode(raw.json()["content_base64"]) == report_bytes
+
+
+@pytest.mark.parametrize("expected,reported", [(1, "PASS"), (2, "FAIL")])
+async def test_framework_process_handoffs_and_report_readback(cloud_context, tmp_path, expected, reported):
+    """Run a synthetic project's unittest, then exercise the real Worker handoff path.
+
+    This fixture does not run an SDK, model, or namespace. Resolution is a
+    fixture: the framework SHA is a local synthetic commit, while the SUT
+    identity is synthetic and no SUT is executed.
+    """
+    context = cloud_context
+    entrypoint = "python -m unittest -v test_fixture"
+    workspace = tmp_path / "workspace"
+    framework = workspace / "framework"
+    ready = workspace / ".hypertest-cloud" / "ready"
+    framework.mkdir(parents=True)
+    ready.mkdir(parents=True)
+    source = f"import unittest\nclass Fixture(unittest.TestCase):\n    def test_actual(self):\n        self.assertEqual(1, {expected})\n"
+    (framework / "test_fixture.py").write_text(source, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(framework)], check=True, timeout=10)
+    subprocess.run(["git", "-C", str(framework), "add", "test_fixture.py"], check=True, timeout=10)
+    subprocess.run(["git", "-C", str(framework), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                    "commit", "-qm", "Synthetic test framework"], check=True, timeout=10)
+    framework_sha = subprocess.run(["git", "-C", str(framework), "rev-parse", "HEAD"], capture_output=True,
+                                   text=True, check=True, timeout=10).stdout.strip()
+    receipt, claim, identity = await claimed(context, framework_sha=framework_sha,
+                                              task_inputs=inputs(framework_entrypoints=[entrypoint]))
+    receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
+        budget_reservation={"reserved_seconds": 60, "request_limits": [{"scope": "ROOT", "max_requests": 1,
+                            "cost_per_request_microunits": 1}]})
+    started = datetime.now(UTC)
+    process = subprocess.run([sys.executable, "-m", "unittest", "-v", "test_fixture"], cwd=framework,
+                             capture_output=True, timeout=10, check=False,
+                             env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
+    finished = datetime.now(UTC)
+    assert process.returncode == (0 if reported == "PASS" else 1)
+    original = process.stdout + process.stderr
+    assert b"test_actual" in original
+    (workspace / "framework-report.txt").write_bytes(original)
+
+    # Transition above advances the task version before this reporter starts.
+    claim["task"]["version"] = receipt["version"]
+    broker = CloudBroker(AsyncSessionLocal, claim, "fixture-worker")
+    reporter = CloudTaskReporter(broker=broker, private_root=tmp_path / "private", workspace=workspace)
+    worker = CloudWorker(None, None, "fixture-worker")
+    accepted = {}
+
+    async def publish(key, operation, payload):
+        document = {"profile": "hypertest-cloud-handoff/v1alpha1", "task_id": broker.task_id,
+                    "attempt_id": broker.attempt_id, "key": key, "operation": operation, "payload": payload}
+        (ready / (key + ".json")).write_text(json.dumps(document), encoding="utf-8")
+        terminal = await worker.collect(reporter, workspace, accepted, stopped=False)
+        if terminal:
+            return terminal
+        return json.loads((workspace / ".hypertest-cloud" / "receipts" / (key + ".json")).read_text())
+
+    try:
+        upload = await publish("01-report-original", "UPLOAD_ARTIFACT", {
+            "path": "framework-report.txt", "filename": "framework-report.txt", "media_type": "text/plain",
+            "sha256": hashlib.sha256(original).hexdigest(), "byte_count": len(original)})
+        tree_digest = hashlib.sha256(source.encode()).hexdigest()
+        asset_receipt = await publish("02-stage-assets", "SUBMIT_ASSETS", {"assets": [
+            {"kind": "ANALYSIS", "key": "analysis", "title": "Fixture analysis", "markdown": "Synthetic case"},
+            {"kind": "DESIGN", "key": "design", "title": "Fixture design", "markdown": "Run unittest"},
+            {"kind": "CASE", "key": "case", "title": "Fixture case", "reported_result": reported,
+             "details": {"steps": ["Run unittest"], "expected": str(expected), "actual": "1"}},
+            {"kind": "IMPLEMENTATION", "key": "implementation", "title": "Synthetic framework", "markdown": "Fixture source",
+             "details": {"framework_sha": framework_sha, "cwd": "framework", "dirty_files": [],
+                         "untracked_files": [], "test_tree_digest": tree_digest}},
+            {"kind": "REPORT", "key": "final", "title": "Fixture report", "markdown": "Actual unittest output attached",
+             "artifact_id": upload["artifact_id"], "reported_result": reported},
+        ]})
+        case_id = next(item["id"] for item in asset_receipt["assets"] if item["kind"] == "CASE")
+        final_id = next(item["id"] for item in asset_receipt["assets"] if item["kind"] == "REPORT")
+        asset_ids = [item["id"] for item in asset_receipt["assets"]]
+        await publish("03-framework-run", "SUBMIT_RUN", {"run_key": "fixture-run", "execution": {
+            "source": "PROJECT_FRAMEWORK", "actual_sut_build": "UNKNOWN", "framework_sha": framework_sha,
+            "test_tree_digest": tree_digest, "environment_observation": {"source": "synthetic-local-fixture"},
+            "entrypoint": entrypoint, "cwd": "framework", "framework_version": "python-stdlib-unittest",
+            "started_at": started.isoformat(), "finished_at": finished.isoformat(), "exit_code": process.returncode},
+            "reported_result": reported, "report_artifact_ids": [upload["artifact_id"]],
+            "cases": [{"case_revision_id": case_id, "actual": "1", "reported_result": reported}]})
+        handoff, handoff_digest = await publish("04-finish", "COMPLETE_ATTEMPT", {
+            "final_report_revision": final_id, "reported_result": reported, "completion_manifest": {
+                "required_asset_ids": asset_ids, "scope_and_gaps": "Synthetic fixture only; no model, sandbox or real SUT"}})
+        result = await reporter.submit_handoff(handoff, handoff_digest, runtime_stopped=True,
+                                               external_operations_reconciled=True)
+        assert result.synced
+        document = await read_all(context, broker.task_id, result.receipt["version"])
+        assert document["task"]["status"] == "COMPLETED"
+        assert document["task"]["reported_result"] == reported
+        assert document["runs"][0]["execution"]["exit_code"] == process.returncode
+        assert document["run_cases"][0]["reported_result"] == reported
+        assert await broker.artifact(upload["artifact_id"]) == original
+    finally:
+        reporter.close()
 
 
 async def test_budget_hold_survives_lease_loss_and_operator_reconciliation(cloud_context):

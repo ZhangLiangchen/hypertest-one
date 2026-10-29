@@ -56,7 +56,9 @@ async def run(*, once: bool) -> int:
                 last_failure = error
                 print(json.dumps({"code": failure_code(error),
                     "worker_diagnostics": failure_metadata(error)}), flush=True)
-                if once:
+                # A namespace failure is cached for this process. Stop instead
+                # of repeatedly logging the same blocked admission every poll.
+                if once or getattr(worker, "_namespace_failure", None) is not None:
                     exit_code = 1
                     break
                 worked = False

@@ -45,7 +45,7 @@ class CloudSyncAdapter:
 
     async def readback(self, intent: FrozenIntent, receipt: dict) -> dict:
         version = receipt["version"]
-        offset, parts, total = 0, [], None
+        offset, parts, total, snapshot_sha256 = 0, [], None, None
         while True:
             page = await self.broker.page(version=version, offset=offset, limit=24000)
             if (page.get("task_id") != intent.target["task_id"] or page.get("version") != version
@@ -54,8 +54,12 @@ class CloudSyncAdapter:
                 raise SyncError("CLOUD_READBACK_MISMATCH")
             if total is None:
                 total = page["total_characters"]
+                snapshot_sha256 = page.get("sha256")
             if total != page["total_characters"] or total > 32 * 1024 * 1024:
                 raise SyncError("CLOUD_READBACK_SIZE")
+            if (not isinstance(snapshot_sha256, str) or len(snapshot_sha256) != 64
+                    or page.get("sha256") != snapshot_sha256):
+                raise SyncError("CLOUD_READBACK_DIGEST_MISMATCH")
             content = page["content"]
             parts.append(content)
             offset += len(content)
@@ -65,7 +69,10 @@ class CloudSyncAdapter:
                 break
             if page.get("next_offset") != offset or not content:
                 raise SyncError("CLOUD_READBACK_INCOMPLETE")
-        document = json.loads("".join(parts))
+        content = "".join(parts)
+        if hashlib.sha256(content.encode("utf-8")).hexdigest() != snapshot_sha256:
+            raise SyncError("CLOUD_READBACK_DIGEST_MISMATCH")
+        document = json.loads(content)
         task = document["task"]
         if (task["id"] != intent.target["task_id"] or task["project_id"] != intent.target["project_id"]
                 or task["version"] != version):
@@ -87,6 +94,32 @@ class CloudSyncAdapter:
                 if latest is None or any(latest.get(k) != asset.get(k) for k in
                         ("markdown", "details", "title", "artifact_id", "reported_result", "source")):
                     raise SyncError("CLOUD_ASSET_READBACK_MISMATCH")
+        if payload["operation"] == "SUBMIT_RUN":
+            run_id = receipt.get("run_id")
+            matches = [row for row in document.get("runs", []) if row.get("id") == run_id]
+            if (not run_id or len(matches) != 1
+                    or matches[0].get("attempt_id") != intent.target["attempt_id"]
+                    or any(matches[0].get(field) != payload.get(field)
+                           for field in ("run_key", "execution", "reported_result"))):
+                raise SyncError("CLOUD_RUN_READBACK_MISMATCH")
+            observed_cases = {(row.get("case_revision_id"), row.get("actual"), row.get("reported_result"))
+                              for row in document.get("run_cases", []) if row.get("run_id") == run_id}
+            expected_cases = {(row["case_revision_id"], row["actual"], row["reported_result"])
+                              for row in payload["cases"]}
+            observed_artifacts = {(row.get("role"), row.get("artifact_id"))
+                                  for row in document.get("run_artifacts", []) if row.get("run_id") == run_id}
+            expected_artifacts = ({("REPORT", ref) for ref in payload["report_artifact_ids"]}
+                                  | {("LOG", ref) for ref in payload["log_artifact_ids"]})
+            if observed_cases != expected_cases or observed_artifacts != expected_artifacts:
+                raise SyncError("CLOUD_RUN_READBACK_MISMATCH")
+        if payload["operation"] == "COMPLETE_ATTEMPT":
+            checkpoint = attempt["checkpoint"]
+            if (task.get("status") != "COMPLETED" or attempt.get("status") != "COMPLETED"
+                    or task.get("reported_result") != payload["reported_result"]
+                    or attempt.get("reported_result") != payload["reported_result"]
+                    or checkpoint.get("final_report_revision") != payload["final_report_revision"]
+                    or checkpoint.get("completion_manifest") != payload["completion_manifest"]):
+                raise SyncError("CLOUD_COMPLETION_READBACK_MISMATCH")
         return document
 
 
