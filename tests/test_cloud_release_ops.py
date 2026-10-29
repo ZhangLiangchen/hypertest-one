@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import importlib.util
 import io
+import json
 import os
 import stat
 import subprocess
@@ -24,12 +26,44 @@ with (ROOT / "pyproject.toml").open("rb") as stream:
 def modules(monkeypatch):
     monkeypatch.syspath_prepend(str(OPS))
     result = {}
-    for name in ("release_files", "build_worker_release", "render_worker_service", "provision_server_credentials"):
+    for name in ("release_files", "build_worker_release", "render_worker_service", "provision_server_credentials", "install_sdk_landlock"):
         spec = importlib.util.spec_from_file_location(name, OPS / (name + ".py"))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         result[name] = module
     return result
+
+
+@pytest.mark.parametrize("corruption", ["none", "integrity", "package", "architecture", "duplicate", "symlink"])
+def test_landlock_package_checks_identity_integrity_architecture_and_members(modules, corruption):
+    installer = modules["install_sdk_landlock"]
+    output = io.BytesIO()
+    binary = b"\x7fELF\x02\x01" + b"\0" * 12 + (62 if corruption == "architecture" else 183).to_bytes(2, "little")
+    metadata = json.dumps({"name": "wrong" if corruption == "package" else "@deepseek-ai/node-addon-system-linux-arm64",
+                           "version": installer.VERSION}).encode()
+    with tarfile.open(fileobj=output, mode="w:gz") as archive:
+        for name, content, mode in (("package/package.json", metadata, 0o644),
+                                    ("package/bin/landlock-run", binary, 0o755),
+                                    ("package/LICENSE", b"license", 0o644)):
+            member = tarfile.TarInfo(name)
+            member.mode = mode
+            if corruption == "symlink" and name.endswith("landlock-run"):
+                member.type, member.linkname = tarfile.SYMTYPE, "/bin/sh"
+                archive.addfile(member)
+            else:
+                member.size = len(content)
+                archive.addfile(member, io.BytesIO(content))
+            if corruption == "duplicate" and name.endswith("landlock-run"):
+                archive.addfile(member, io.BytesIO(content))
+    raw = output.getvalue()
+    integrity = "sha512-" + base64.b64encode(hashlib.sha512(raw).digest()).decode()
+    if corruption == "integrity":
+        integrity = "sha512-bad"
+    if corruption == "none":
+        assert installer.validate_package(raw, "arm64", integrity, 183) == (binary, b"license")
+    else:
+        with pytest.raises(ValueError):
+            installer.validate_package(raw, "arm64", integrity, 183)
 
 
 def archive(path, entries):
@@ -198,6 +232,7 @@ def worker_inputs(tmp_path):
         "requirements/cloud-runtime.lock": b"synthetic-wheel-pair-lock\n",
         "ops/deepseek/Dockerfile.worker": (OPS / "Dockerfile.worker").read_bytes(),
         "ops/deepseek/Dockerfile.worker.dockerignore": (OPS / "Dockerfile.worker.dockerignore").read_bytes(),
+        "ops/deepseek/install_sdk_landlock.py": (OPS / "install_sdk_landlock.py").read_bytes(),
         "src/hypertest/__init__.py": b"# synthetic runtime input\n",
         ".dockerignore": b"**\n!src/\n!src/**\n# API context intentionally excludes requirements\n",
         ".env": b"SYNTHETIC_PRIVATE_ENV=must-not-enter-worker-context\n",
@@ -228,7 +263,7 @@ def test_worker_context_uses_root_ignore_and_includes_pair_lock_without_private_
     finally:
         os.umask(previous_umask)
     expected = {"pyproject.toml", "README.md", "requirements/cloud-runtime.lock",
-        "Dockerfile", ".dockerignore", "src/hypertest/__init__.py", *PACKAGED_SKILLS}
+        "Dockerfile", ".dockerignore", "src/hypertest/__init__.py", "ops/deepseek/install_sdk_landlock.py", *PACKAGED_SKILLS}
     actual = {str(path.relative_to(target)): path.read_bytes() for path in target.rglob("*") if path.is_file()}
     assert set(actual) == expected
     assert actual["requirements/cloud-runtime.lock"] == before["requirements/cloud-runtime.lock"]

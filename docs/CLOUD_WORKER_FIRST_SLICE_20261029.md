@@ -32,6 +32,8 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 固定的 [DeepSeek Harness 上游源码](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/sandbox/sandbox-local/README.md)列出 Linux 的 bwrap 与 Landlock 后备链。Docker 29.8.2 的官方默认 seccomp 已允许三个 Landlock syscall；合成容器内 ABI 查询为 10，另外两个系统调用以无效 fd 进入内核并返回 EBADF。SDK 运行后的可观察 wheel、home 与临时目录未发现 landlock launcher；诊断插件导入官方 launcher 模块失败，但其模块解析边界不等于 SDK 内部打包，因此不能据此断言 launcher 未包含。官方 `--probe` 未运行，Landlock runner 实际状态仍未知；不能仅凭内核 ABI 宣称工具沙箱可用。
 
+**本轮后续定位和修复：** 同一 SDK provider 的实际解析路径已确认缺少 `landlock-run`，原官方 `--probe` 为 ENOENT。SDK 固定版本对应的官方 `@deepseek-ai/node-addon-system-linux-arm64@0.1.2` 经归档 SHA-512 校验后提供该启动器，默认 Docker seccomp/proc、非 root、cap0/NNP、无网及只读根的合成容器内，官方 Landlock probe 报 full，原始 SDK 固定工具探针观察到 marker 成功，保持 `workspace-write / ask`。SDK home 需可执行且有足够空间；64 MiB 的合成 tmpfs 出现 ENOSPC，512 MiB 通过，不据此声称通用最低值。构建输入固定官方包完整性并校验架构、成员及许可证；定向回归 49 passed。诊断资源已清理。这是 SDK 内层工具修复，Worker 外层 bubblewrap 准入、正式模型和真实项目测试仍未通过。
+
 后续镜像从已推送代码 `397a7ff9a9cb394c093f5fe4ae22f1d9c94cfcf6` 构建，image ID `sha256:3d2d8e5ca600a80c81f4bec8a0cb8f0ef04cc1a5618a9eddf831eaa6ae436833`。无网络、只读非 root 容器以合成请求额度测试 SDK 与用户提供的私有密钥文件的本地前置条件通过；未发送模型请求，真实 namespace 探针仍为 `NAMESPACE_SETUP_FAILED`。镜像未部署，模型服务端认证、SUT 和兑换结果均未观察。
 
 用户选定 XBlock MR 1146 和 `hypervise_pure` 框架，以 staging 的 TRON_TEST USDT→TRX DEX 为目标。MR 已合并不证明 staging 已部署对应版本。当前受控 HTTPS 仅支持公开、无认证、无副作用的固定 GET/HEAD；认证及兑换写操作尚不支持，XBlock 需要 SSH / 服务器操作的路径仍遵守 Local-only 路由。具体框架依赖、授权和目标观察需另行核实；没有发起兑换或推定测试结果。
