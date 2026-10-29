@@ -24,7 +24,11 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 用户提供的独立模型密钥文件已验证为用户拥有的 0600 普通文件；一次性无网络、只读非 root 容器中的私有文件校验可读取。未显示或持久复制密钥，未请求模型，不能据此确认服务端认证有效。
 
-补充探针：以默认 Docker seccomp 为基线的限域诊断确认，Docker 默认 `/proc` 子路径遮蔽阻止了新 PID namespace 中的 proc 挂载；临时移除遮蔽后可创建，但外层 `/proc/sys` 等挂载由只读变可写，不能当作等价防护或部署 profile。试图单独恢复只读挂载被 OCI proc-safety 检查拒绝；诊断资源已清理。可行的单次任务容器替代仍须独立设计并验证，不是当前实现。
+补充探针：以默认 Docker seccomp 为基线的限域诊断确认，Docker 默认 `/proc` 子路径遮蔽阻止了新 PID namespace 中的 proc 挂载；临时移除遮蔽后可创建，但外层 `/proc/sys` 等挂载由只读变可写，不能当作等价防护或部署 profile。试图单独恢复只读挂载被 OCI proc-safety 检查拒绝；诊断资源已清理。[单次任务容器替代提案](architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md)仍须独立实现并验证，不是当前实现。
+
+无业务数据的一次性 sibling 容器探针显示：通过独立 named volume 子路径可访问专用 UDS、只读 SUT、写入 framework 工作区，Agent 看不到父容器私有文件与 Docker socket；非 root、cap0、NNP、无外网。停止父 Worker 后独立 Attempt 容器仍运行，故须另有独立 watchdog、硬截止和可核验停止，不能由父进程退出或 attach 断连推定终态。两容器与卷已清理；合成卷初始化临时用了宽权限，不能作为真实部署的目录权限。资源总额、原容器 ID/失答、独立凭据、可信镜像、Docker 控制面及收尾准入尚待实现和验证。
+
+进一步在默认 Docker 防护的独立无网络容器直接运行固定 `SDK_TOOL_PROBE`（无模型、无凭据、无 SUT）：SDK `0.2.1rc2` 初始化、创建会话与关闭成功，工具已注册且尝试调用，但官方工具返回 `is_error=true / error_code=OTHER / marker_match=false`，默认 `workspace-write / ask` 策略保持。同一条件的受控错误分类没有定位到 namespace、权限或文件不存在等原因；`/home/agent` tmpfs 的 noexec / exec 单变量对照结果相同。单次任务容器因此还不能声称支持 SDK 工具或项目框架执行。临时容器自动移除。
 
 后续镜像从已推送代码 `397a7ff9a9cb394c093f5fe4ae22f1d9c94cfcf6` 构建，image ID `sha256:3d2d8e5ca600a80c81f4bec8a0cb8f0ef04cc1a5618a9eddf831eaa6ae436833`。无网络、只读非 root 容器以合成请求额度测试 SDK 与用户提供的私有密钥文件的本地前置条件通过；未发送模型请求，真实 namespace 探针仍为 `NAMESPACE_SETUP_FAILED`。镜像未部署，模型服务端认证、SUT 和兑换结果均未观察。
 

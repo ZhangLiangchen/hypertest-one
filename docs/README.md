@@ -13,6 +13,7 @@
 - [服务器操作](SERVER_OPERATIONS.md)：现行本机容器测试环境的操作规则和入口；运行身份以现场检查为准。
 - [PowerContext 服务](POWERCONTEXT_SERVICE.md)及 [Cloud 实现状态](CLOUD_IMPLEMENTATION_STATUS.md)：各自能力与范围，部署和验收以具体轮次记录为准。
 - [Cloud Worker 首轮进展（2026-10-29）](CLOUD_WORKER_FIRST_SLICE_20261029.md)：本机准入阻塞、报告读回修复及项目框架合成回归。
+- [ADR-029 草案：单次 Cloud Attempt 的 Docker 隔离](architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md)：待实现、待验证的备选方案，不改变现行准入。
 
 ## 历史与兼容资料
 
