@@ -34,6 +34,8 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 **本轮后续定位和修复：** 同一 SDK provider 的实际解析路径已确认缺少 `landlock-run`，原官方 `--probe` 为 ENOENT。SDK 固定版本对应的官方 `@deepseek-ai/node-addon-system-linux-arm64@0.1.2` 经归档 SHA-512 校验后提供该启动器，默认 Docker seccomp/proc、非 root、cap0/NNP、无网及只读根的合成容器内，官方 Landlock probe 报 full，原始 SDK 固定工具探针观察到 marker 成功，保持 `workspace-write / ask`。SDK home 需可执行且有足够空间；64 MiB 的合成 tmpfs 出现 ENOSPC，512 MiB 通过，不据此声称通用最低值。构建输入固定官方包完整性并校验架构、成员及许可证；定向回归 49 passed。诊断资源已清理。这是 SDK 内层工具修复，Worker 外层 bubblewrap 准入、正式模型和真实项目测试仍未通过。
 
+已从推送 Git `fd160a6aeeb4c159b7e702c6df56690d792f01ad` 构建 `hypertest-mac-cloud-worker:fd160a6`，image ID `sha256:0a567fb3156a14c3d5fcce95d5b1061ba6bda5d250c349e4e82beb2fce5e0d13`。该镜像以默认 Docker 防护的无网络、无凭据短生命周期 ARM64 容器运行原始 `SDK_TOOL_PROBE`，确认初始化、会话创建、固定工具 marker 与关闭均成功，没有模型 prompt 或 SUT；容器自动移除。x86_64 包只核对过 registry 完整性元数据，没有执行测试。该镜像未部署为 Worker，既有服务和业务状态未改变。
+
 后续镜像从已推送代码 `397a7ff9a9cb394c093f5fe4ae22f1d9c94cfcf6` 构建，image ID `sha256:3d2d8e5ca600a80c81f4bec8a0cb8f0ef04cc1a5618a9eddf831eaa6ae436833`。无网络、只读非 root 容器以合成请求额度测试 SDK 与用户提供的私有密钥文件的本地前置条件通过；未发送模型请求，真实 namespace 探针仍为 `NAMESPACE_SETUP_FAILED`。镜像未部署，模型服务端认证、SUT 和兑换结果均未观察。
 
 用户选定 XBlock MR 1146 和 `hypervise_pure` 框架，以 staging 的 TRON_TEST USDT→TRX DEX 为目标。MR 已合并不证明 staging 已部署对应版本。当前受控 HTTPS 仅支持公开、无认证、无副作用的固定 GET/HEAD；认证及兑换写操作尚不支持，XBlock 需要 SSH / 服务器操作的路径仍遵守 Local-only 路由。具体框架依赖、授权和目标观察需另行核实；没有发起兑换或推定测试结果。
