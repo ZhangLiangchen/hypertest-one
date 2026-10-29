@@ -24,4 +24,8 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 用户提供的独立模型密钥文件已验证为用户拥有的 0600 普通文件；一次性无网络、只读非 root 容器中的私有文件校验可读取。未显示或持久复制密钥，未请求模型，不能据此确认服务端认证有效。
 
+补充探针：以默认 Docker seccomp 为基线的限域诊断确认，Docker 默认 `/proc` 子路径遮蔽阻止了新 PID namespace 中的 proc 挂载；临时移除遮蔽后可创建，但外层 `/proc/sys` 等挂载由只读变可写，不能当作等价防护或部署 profile。试图单独恢复只读挂载被 OCI proc-safety 检查拒绝；诊断资源已清理。可行的单次任务容器替代仍须独立设计并验证，不是当前实现。
+
+后续镜像从已推送代码 `397a7ff9a9cb394c093f5fe4ae22f1d9c94cfcf6` 构建，image ID `sha256:3d2d8e5ca600a80c81f4bec8a0cb8f0ef04cc1a5618a9eddf831eaa6ae436833`。无网络、只读非 root 容器以合成请求额度测试 SDK 与用户提供的私有密钥文件的本地前置条件通过；未发送模型请求，真实 namespace 探针仍为 `NAMESPACE_SETUP_FAILED`。镜像未部署，模型服务端认证、SUT 和兑换结果均未观察。
+
 用户选定 XBlock MR 1146 和 `hypervise_pure` 框架，以 staging 的 TRON_TEST USDT→TRX DEX 为目标。MR 已合并不证明 staging 已部署对应版本。当前受控 HTTPS 仅支持公开、无认证、无副作用的固定 GET/HEAD；认证及兑换写操作尚不支持，XBlock 需要 SSH / 服务器操作的路径仍遵守 Local-only 路由。具体框架依赖、授权和目标观察需另行核实；没有发起兑换或推定测试结果。
