@@ -6,7 +6,9 @@ Cloud Worker 在领取解析或 Attempt 前进行无模型、无项目数据的 
 
 Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用例/报告关联和完成终态/结果/清单核对。读回失败保持待对账，恢复仅查询原接受版本，不重发原操作。
 
-首次本机 Worker 镜像构建在项目 wheel 元数据阶段失败：窄构建上下文遗漏了 `pyproject.toml` 强制包含的 Skill 文件。Worker Dockerfile 与发布构建上下文已按明确文件清单补齐，SDK 固定 wheel 安装拆为独立缓存层；发布构建上下文定向回归 43 passed。镜像构建是否成功以实际后续构建记录为准。
+首次本机 Worker 镜像构建在项目 wheel 元数据阶段失败：窄构建上下文遗漏了 `pyproject.toml` 强制包含的 Skill 文件。Worker Dockerfile 与发布构建上下文已按明确文件清单补齐，SDK 固定 wheel 安装拆为独立缓存层；发布构建上下文定向回归 43 passed。
+
+使用已推送 Git `fe85a11437bcc08faffe1f18521b2cd30438afb3` 重建镜像成功：`hypertest-mac-cloud-worker:fe85a11`，image ID `sha256:c94596f28fc785efac07a64d86f272c5c6129d4bae35c8608fed010bb5c58072`。一次性无网络、无凭据、非 root、cap0/NNP、只读根容器检查确认 SDK/runtime 均为 `0.2.1rc2`、未启动模型，cgroup 为 2 GiB / 0 swap / 256 pids；真实 namespace 探针仍返回 `NAMESPACE_SETUP_FAILED`。镜像已构建，Worker 未部署或准入。
 
 定向回归：Worker namespace、资源、SSH Worker、诊断和启动相关检查 108 passed；Cloud reporter、handoff 与数据库操作 76 passed / 1 skipped（本机虚拟环境未安装固定 DeepSeek SDK）；其他 reporter 相关检查使用短临时路径 86 passed。相关 Ruff 通过。首次 reporter 扩展回归使用 macOS 默认长临时路径出现 6 个 Unix socket 路径过长失败，改用短路径后复验通过；不把前次失败改记为通过。
 
