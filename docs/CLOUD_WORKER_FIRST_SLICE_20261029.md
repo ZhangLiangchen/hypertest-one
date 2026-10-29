@@ -30,6 +30,8 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 追加容器内 PID 1 监督实验：同 UID 的 Agent 可用 ptrace 暂停普通 PID 1，导致其硬截止延误，且可读取其合成环境和 memfd；`PR_SET_DUMPABLE=0` 后同条件的 ptrace、environ 与 fd 读取被拒绝，SIGKILL/SIGSTOP 未使 PID 1 退出或暂停，合成容器到截止时退出。新增仅允许固定 SDK driver 的候选 `container_guard`，检查非 root、cap0、NNP 与 non-dumpable、限制控制帧和元数据输出，并按原截止退出；原始无模型 SDK tool probe 与合成独立 session 子进程截止检查通过，定向回归 42 passed。Docker 观察为 exited / pid=0 不独立证明原 cgroup 空或 broker drain。该组件未接入 Worker，仍需独立外部 watchdog、容器身份与原 key、资源总额和收尾准入；不能用其结果宣称 Worker 已部署或可执行。
 
+已从推送 Git `1d84678acb7eb5fe633584589a4661a196ad59a4` 构建 `hypertest-mac-cloud-worker:1d84678`，image ID `sha256:6a23a291fd4292df4f6e2b020a48ee98034c14cc043cdfb8f70269c1ecb8758a`。直接以该镜像中 `container_guard` 为 PID 1 运行无网络、无凭据、非 root、cap0/NNP 的固定 SDK 工具探针，SDK 初始化、工具 marker 和关闭均观察成功，`workspace-write / ask` 未变；容器自动移除，没有模型 prompt 或 SUT。此镜像尚未部署为 Worker。
+
 进一步在默认 Docker 防护的独立无网络容器直接运行固定 `SDK_TOOL_PROBE`（无模型、无凭据、无 SUT）：SDK `0.2.1rc2` 初始化、创建会话与关闭成功，工具已注册且尝试调用，但官方工具返回 `is_error=true / error_code=OTHER / marker_match=false`，默认 `workspace-write / ask` 策略保持。无秘密合成探针的受控错误分类观察到 `/home/agent/` 下共享对象映射失败；核对实际挂载标志后对该 tmpfs 作 noexec / exec 单变量对照，两组均显示 `OTHER`，但进一步分类显示错误不同：exec 组不再出现共享对象映射错误，转而提示当前宿主的 workspace 沙箱不可用。具体是否由 seccomp / namespace 引起尚未核验。单次任务容器因此还不能声称支持 SDK 工具或项目框架执行。临时容器自动移除。
 
 固定的 [DeepSeek Harness 上游源码](https://github.com/deepseek-ai/deepseek-harness/blob/687f282e8625c6b8d11ff58211a90524be2e4317/packages/sandbox/sandbox-local/README.md)列出 Linux 的 bwrap 与 Landlock 后备链。Docker 29.8.2 的官方默认 seccomp 已允许三个 Landlock syscall；合成容器内 ABI 查询为 10，另外两个系统调用以无效 fd 进入内核并返回 EBADF。SDK 运行后的可观察 wheel、home 与临时目录未发现 landlock launcher；诊断插件导入官方 launcher 模块失败，但其模块解析边界不等于 SDK 内部打包，因此不能据此断言 launcher 未包含。官方 `--probe` 未运行，Landlock runner 实际状态仍未知；不能仅凭内核 ABI 宣称工具沙箱可用。
