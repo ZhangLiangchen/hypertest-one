@@ -184,13 +184,19 @@ async def admit_members(*, engine, sessions, lock: DockerWorkerLock, worker_id: 
         closed = _closed_originals(rows,
                                    worker_id=worker_id, volume_name=volume_name)
         found_current = False
-        for cid in await engine.list_attempts():
+        labeled = set(await engine.list_attempts())
+        volume_containers = set(await engine.list_volume_containers(volume_name))
+        for cid in labeled | volume_containers:
+            if cid == worker_id:
+                # Service admission independently verified this exact Worker
+                # and its root-volume mount before membership admission.
+                continue
             raw = await engine.inspect_container(cid)
             labels = raw["Config"]["Labels"]
             mounts = raw["HostConfig"]["Mounts"] or []
             if not isinstance(labels, dict) or not isinstance(mounts, list):
                 raise ValueError
-            relevant = labels.get("hypertest.cloud.worker_id") == worker_id or any(
+            relevant = cid in volume_containers or labels.get("hypertest.cloud.worker_id") == worker_id or any(
                 isinstance(m, dict) and m.get("Type") == "volume" and m.get("Source") == volume_name for m in mounts)
             if not relevant:
                 continue
@@ -202,13 +208,16 @@ async def admit_members(*, engine, sessions, lock: DockerWorkerLock, worker_id: 
                 continue
             if cid not in closed:
                 raise ValueError
-        if current_container_id is not None and not found_current:
-            raise ValueError
             original_spec, terminal_state = closed[cid]
             inspected = verify_inspect(original_spec, container_id=cid, observed=raw)
             expected = "created" if terminal_state == "NEVER_STARTED" else "exited"
             if inspected["running"] or inspected["pid"] != 0 or inspected["status"] != expected:
                 raise ValueError
+            if (terminal_state == "NEVER_STARTED" and (raw["State"]["StartedAt"] != "0001-01-01T00:00:00Z"
+                    or raw["State"]["FinishedAt"] != "0001-01-01T00:00:00Z" or raw["RestartCount"] != 0)):
+                raise ValueError
+        if current_container_id is not None and not found_current:
+            raise ValueError
         existing = {worker_id: worker_limit}
         check_aggregate(worker_id=worker_id, existing=existing, attempt=attempt_limit)
         return existing

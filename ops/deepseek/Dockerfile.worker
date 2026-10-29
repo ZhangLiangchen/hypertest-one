@@ -18,7 +18,8 @@ COPY requirements/cloud-runtime.lock /opt/hypertest-cloud/cloud-runtime.lock
 COPY ops/deepseek/install_sdk_landlock.py /opt/hypertest-cloud/install_sdk_landlock.py
 # Authenticate the exact SDK/runtime wheel pair before resolving the remaining
 # application dependencies. The pair lock does not claim transitive locking.
-RUN python -m venv /opt/hypertest-cloud/venv \
+RUN --mount=type=secret,id=landlock_archive,target=/run/hypertest-landlock-archive.tgz,required=false \
+    python -m venv /opt/hypertest-cloud/venv \
     && /opt/hypertest-cloud/venv/bin/pip install --no-cache-dir --require-hashes --no-deps \
        -r /opt/hypertest-cloud/cloud-runtime.lock \
     && python /opt/hypertest-cloud/install_sdk_landlock.py

@@ -57,3 +57,5 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 实际 OrbStack Linux 合成探针覆盖了专用 PostgreSQL 意图、原 ID 和启动登记、真实 DB 租约认证心跳、官方 SDK 固定工具 marker、原 ID 停止观察；另验证丢失创建回执后的原名恢复、未决/未知成员拒绝，以及空闲模型 broker drain。Mac 与 Linux 的单调时钟不相同，候选将 Linux boot ID 和 time namespace 偏移摘要固定并在 guard 校验。探针不调用模型、不使用真实项目或凭据；部分 Worker 资源和 reporter 为合成输入，不代表真实服务准入或 SUT 测试。临时容器、测试数据库、网络和卷已清理。相关代码定向回归 163 passed / 1 skipped；跳过的是本地虚拟环境缺少固定 SDK 的检查，SDK 固定镜像无模型探针已单独通过。
 
 Docker 画像、release manifest 工具和 Worker 路径仍是默认关闭候选。`CONTAINER_CREATE_INTENT_ENABLED` 为 false，示例 Compose 的 Cloud 开关也为 false；**本轮没有部署独立 Cloud Worker、开放 Cloud、调用模型或发起兑换**。还需从推送的完整提交构建镜像并现场配置、核验独立卷、Engine socket、API 与 Worker 共用的包装身份、预算、实际服务准入和真实 Worker 全生命周期。认证写请求及原业务订单对账尚未实现；等待用户完成框架推送后重新核对固定版本、staging 实际部署与钱包使用协调，再执行授权的四笔测试。
+
+后续准入复核发现已关闭容器的 Engine 状态校验因缩进不可达，且仅按标签枚举会遗漏无标签的共享卷挂载者；均已修复并覆盖运行中、身份或 spec 不符、伪造从未启动状态与未知卷成员拒绝。OrbStack 合成探针确认按卷可发现无标签子路径容器。首次固定提交镜像构建在下载官方 Landlock 包时因 TLS EOF 失败；构建现在可选用本机的完整性寻址缓存，仍验证官方 SHA-512、包身份、架构与成员，损坏时直接失败，不将包留在镜像。离线安装已在无网络合成构建中验证；这不代表 Worker 已部署。

@@ -266,9 +266,10 @@ async def test_engine_admission_reads_have_fixed_shapes_and_reject_ambiguous_inp
     assert (await engine.inspect_image("sha256:" + identity))["Id"].endswith(identity)
     assert (await engine.inspect_volume("private-volume"))["Name"] == "private-volume"
     assert await engine.list_attempts() == [identity]
+    assert await engine.list_volume_containers("private-volume") == [identity]
     count = len(calls)
     for action in (lambda: engine.inspect_container("../other"), lambda: engine.inspect_volume("../other"),
-                   lambda: engine.inspect_image("latest")):
+                   lambda: engine.inspect_image("latest"), lambda: engine.list_volume_containers("../other")):
         with pytest.raises(CloudBlocked):
             await action()
     assert len(calls) == count

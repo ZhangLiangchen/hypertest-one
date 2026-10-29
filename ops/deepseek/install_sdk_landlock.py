@@ -13,6 +13,7 @@ import io
 import json
 import os
 import platform
+import stat
 import tarfile
 from pathlib import Path
 from urllib.request import urlopen
@@ -23,6 +24,7 @@ PACKAGES = {
     "x86_64": ("x64", "sha512-S2aPVHvYCpNCppCFyNlooMYuTB7ucK5lvD9oXQQ42v5Z2s5AoaiCdjz9r2l+ED2rI5oS1x0cUZmKjJH2dxV0pg==", 62),
 }
 MAX_ARCHIVE = 2 * 1024 * 1024
+OFFLINE_ARCHIVE = Path("/run/hypertest-landlock-archive.tgz")
 
 
 def validate_package(raw: bytes, arch: str, integrity: str, machine: int) -> tuple[bytes, bytes]:
@@ -54,14 +56,37 @@ def validate_package(raw: bytes, arch: str, integrity: str, machine: int) -> tup
         return binary, license_text
 
 
+def read_archive(url: str, *, offline_archive: Path = OFFLINE_ARCHIVE) -> bytes:
+    """Use the optional BuildKit mount, or fetch the exact official archive.
+
+    A present but unreadable or invalid archive fails the build; it is never a
+    reason to silently fetch another source. All bytes are subsequently checked
+    by validate_package, regardless of origin.
+    """
+    try:
+        descriptor = os.open(offline_archive, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        with urlopen(url, timeout=60) as response:
+            return response.read(MAX_ARCHIVE + 1)
+    with os.fdopen(descriptor, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= MAX_ARCHIVE:
+            raise ValueError("offline Landlock package invalid")
+        raw = stream.read(MAX_ARCHIVE + 1)
+        after = os.fstat(stream.fileno())
+        if (len(raw) != before.st_size or any(getattr(before, field) != getattr(after, field)
+                for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns"))):
+            raise ValueError("offline Landlock package changed")
+        return raw
+
+
 def main() -> None:
     try:
         arch, integrity, machine = PACKAGES[platform.machine()]
     except KeyError:
         raise SystemExit("unsupported Cloud Worker architecture") from None
     url = f"https://registry.npmjs.org/@deepseek-ai/node-addon-system-linux-{arch}/-/node-addon-system-linux-{arch}-{VERSION}.tgz"
-    with urlopen(url, timeout=60) as response:
-        raw = response.read(MAX_ARCHIVE + 1)
+    raw = read_archive(url)
     binary, license_text = validate_package(raw, arch, integrity, machine)
     root = Path(f"/snapshot/node/node_modules/@deepseek-ai/node-addon-system-linux-{arch}")
     (root / "bin").mkdir(parents=True, exist_ok=True)

@@ -134,7 +134,16 @@ class DockerEngine:
                                          "com.docker.compose.service=" + service])
 
     async def _list_labeled(self, labels: list[str]) -> list[str]:
-        query = urlencode({"all": "1", "filters": json.dumps({"label": labels}, separators=(",", ":"))})
+        return await self._list_filtered({"label": labels})
+
+    async def list_volume_containers(self, volume: str) -> list[str]:
+        """Enumerate every container that mounts the configured named volume."""
+        if not isinstance(volume, str) or _VOLUME.fullmatch(volume) is None:
+            raise _blocked("DOCKER_MEMBERS_UNCONFIRMED")
+        return await self._list_filtered({"volume": [volume]})
+
+    async def _list_filtered(self, filters: dict) -> list[str]:
+        query = urlencode({"all": "1", "filters": json.dumps(filters, separators=(",", ":"))})
         status, data = await self._exchange("GET", "/containers/json?" + query)
         if status != 200 or not isinstance(data, list) or len(data) > 2048:
             raise _blocked("DOCKER_MEMBERS_UNCONFIRMED")
