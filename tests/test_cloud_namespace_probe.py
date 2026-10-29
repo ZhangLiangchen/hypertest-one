@@ -137,6 +137,7 @@ async def test_worker_expires_leases_then_probes_before_claim_and_caches_result(
         return None
 
     monkeypatch.setattr(worker.service, "expire_leases", expire)
+    monkeypatch.setattr(worker.CloudWorker, "admit_attempt", lambda self: None)
     for name in ("claim_resolution", "claim_attempt"):
         monkeypatch.setattr(worker.service, name, no_work)
     instance = worker.CloudWorker(Session, SimpleNamespace(cloud_enabled=True, cloud_worker_enabled=True,

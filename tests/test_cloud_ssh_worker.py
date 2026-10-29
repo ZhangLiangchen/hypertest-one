@@ -258,6 +258,7 @@ async def test_ssh_disabled_worker_does_not_resolve_nss_before_inert_poll(monkey
         return None
 
     monkeypatch.setattr(worker_module, "probe_namespace", no_work)
+    monkeypatch.setattr(CloudWorker, "admit_attempt", lambda self: None)
     for name in ("expire_leases", "claim_resolution", "claim_attempt"):
         monkeypatch.setattr(worker_module.service, name, no_work)
     assert await CloudWorker(Session, settings, "inert-worker").run_once() is False

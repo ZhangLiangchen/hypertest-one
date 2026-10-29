@@ -37,6 +37,7 @@ async def run(*, once: bool) -> int:
     for signum in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signum, active.cancel)
     last_failure = None
+    last_attempt_admission_code = None
     cancelled = False
     exit_code = 0
     try:
@@ -54,14 +55,20 @@ async def run(*, once: bool) -> int:
             except Exception as error:
                 # No raw DB, model, Git, tool or credential exception text.
                 last_failure = error
-                print(json.dumps({"code": failure_code(error),
-                    "worker_diagnostics": failure_metadata(error)}), flush=True)
+                code = failure_code(error)
+                attempt_admission = getattr(worker, "_attempt_admission_failure", None)
+                if not attempt_admission or code != last_attempt_admission_code:
+                    print(json.dumps({"code": code,
+                        "worker_diagnostics": failure_metadata(error)}), flush=True)
+                last_attempt_admission_code = code if attempt_admission else None
                 # A namespace failure is cached for this process. Stop instead
                 # of repeatedly logging the same blocked admission every poll.
                 if once or getattr(worker, "_namespace_failure", None) is not None:
                     exit_code = 1
                     break
                 worked = False
+            else:
+                last_attempt_admission_code = None
             if once:
                 print(json.dumps({"work_claimed": worked}), flush=True)
                 break

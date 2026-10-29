@@ -144,12 +144,35 @@ class CloudWorker:
         self.resolver = GitResolver()
         self._namespace_admitted = False
         self._namespace_failure = None
+        self._sdk_admitted = False
+        self._attempt_admission_failure = None
 
     def enabled(self):
         if not self.settings.cloud_enabled or not self.settings.cloud_worker_enabled:
             raise CloudBlocked("CLOUD_WORKER_DISABLED", "Cloud scheduling and this worker must both be explicitly enabled")
 
+    def admit_attempt(self) -> None:
+        """Check only worker-wide prerequisites, without contacting a model.
+
+        This does not inspect task inputs, validate provider authentication, or
+        replace the checks made again inside the claimed Attempt. Re-read the
+        private key for each claim so rotation or revocation is not cached.
+        """
+        rate = self.settings.cloud_model_request_cost_microunits
+        if type(rate) is not int or rate <= 0:
+            raise CloudBlocked("MODEL_COST_UNCONFIGURED", "A conservative model request cost is required")
+        if not self._sdk_admitted:
+            inspect_sdk()
+            self._sdk_admitted = True
+        key = read_model_key(self.settings.cloud_model_key_file)
+        try:
+            if b"\r" in key or b"\n" in key:
+                raise CloudBlocked("MODEL_IDENTITY_UNAVAILABLE", "Model service identity is unavailable")
+        finally:
+            del key
+
     async def run_once(self) -> bool:
+        self._attempt_admission_failure = None
         self.enabled()
         if getattr(self.settings, "cloud_ssh_enabled", False):
             inspect_ssh_local_identity()
@@ -175,6 +198,13 @@ class CloudWorker:
         if resolution:
             await self.resolve(resolution)
             return True
+        try:
+            self.admit_attempt()
+        except CloudBlocked as error:
+            # Keep resolution independent of model admission. The CLI can
+            # report this fixed code once while continuing to poll for it.
+            self._attempt_admission_failure = error.code
+            raise
         async with self.sessions() as db:
             claim = await service.claim_attempt(db, self.worker_id,
                 lease_seconds=self.settings.cloud_worker_lease_seconds)
