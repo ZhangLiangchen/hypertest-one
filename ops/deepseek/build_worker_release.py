@@ -50,6 +50,15 @@ def worker_context(source: Path, destination: Path) -> None:
         "requirements/cloud-runtime.lock": "requirements/cloud-runtime.lock",
         "ops/deepseek/Dockerfile.worker": "Dockerfile",
         "ops/deepseek/Dockerfile.worker.dockerignore": ".dockerignore"}
+    for name in ("skills/hypertest-archive/SKILL.md",
+                 "skills/hypertest-archive/agents/openai.yaml",
+                 "skills/hypertest-archive/references/manifest.md",
+                 "skills/hypertest-local-task-onboarding/SKILL.md",
+                 "skills/hypertest-local-task-onboarding/agents/openai.yaml",
+                 "skills/hypertest-local-task-onboarding/references/setup.md",
+                 "skills/hypertest-local-task-onboarding/references/sync-contract.md",
+                 "skills/hypertest-local-task-onboarding/references/troubleshooting.md"):
+        selected[name] = name
     for name in selected:
         original = source / name
         if (not original.is_file() or original.resolve(strict=True) != original

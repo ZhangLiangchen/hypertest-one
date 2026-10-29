@@ -8,6 +8,7 @@ import os
 import stat
 import subprocess
 import tarfile
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,6 +16,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 OPS = ROOT / "ops/deepseek"
+with (ROOT / "pyproject.toml").open("rb") as stream:
+    PACKAGED_SKILLS = tuple(tomllib.load(stream)["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"])
 
 
 @pytest.fixture
@@ -202,7 +205,9 @@ def worker_inputs(tmp_path):
         "web/private-copy.pem": b"synthetic excluded file\n",
         "ops/deepseek/private-copy.key": b"synthetic excluded file\n",
         "requirements/unrelated.lock": b"unrelated dependency closure\n",
+        "skills/hypertest-archive/private-copy.key": b"synthetic excluded file\n",
     }
+    content.update({name: b"synthetic packaged skill\n" for name in PACKAGED_SKILLS})
     for name, value in content.items():
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -223,7 +228,7 @@ def test_worker_context_uses_root_ignore_and_includes_pair_lock_without_private_
     finally:
         os.umask(previous_umask)
     expected = {"pyproject.toml", "README.md", "requirements/cloud-runtime.lock",
-        "Dockerfile", ".dockerignore", "src/hypertest/__init__.py"}
+        "Dockerfile", ".dockerignore", "src/hypertest/__init__.py", *PACKAGED_SKILLS}
     actual = {str(path.relative_to(target)): path.read_bytes() for path in target.rglob("*") if path.is_file()}
     assert set(actual) == expected
     assert actual["requirements/cloud-runtime.lock"] == before["requirements/cloud-runtime.lock"]
@@ -231,6 +236,7 @@ def test_worker_context_uses_root_ignore_and_includes_pair_lock_without_private_
     assert actual[".dockerignore"] == before["ops/deepseek/Dockerfile.worker.dockerignore"]
     rules = actual[".dockerignore"].decode().splitlines()
     assert "!requirements/" in rules and "!requirements/cloud-runtime.lock" in rules
+    assert all("!" + name in rules for name in PACKAGED_SKILLS)
     assert "**/.env" in rules and "**/auth.json" in rules and "**/*.pem" in rules
     assert stat.S_IMODE(target.stat().st_mode) == 0o755
     assert (target / "src/hypertest/__init__.py").stat().st_mode & 0o444 == 0o444
@@ -240,7 +246,7 @@ def test_worker_context_uses_root_ignore_and_includes_pair_lock_without_private_
     assert actual == {str(path.relative_to(target)): path.read_bytes() for path in target.rglob("*") if path.is_file()}
 
 
-@pytest.mark.parametrize("corruption", ["source_symlink", "selected_symlink", "selected_parent_symlink",
+@pytest.mark.parametrize("corruption", ["source_symlink", "selected_symlink", "selected_parent_symlink", "skill_parent_symlink",
     "selected_hardlink", "src_symlink", "src_directory_symlink", "src_hardlink", "src_fifo", "selected_fifo"])
 def test_worker_context_rejects_aliases_and_special_inputs_before_creating_context(modules, worker_inputs, tmp_path, corruption):
     source = worker_inputs
@@ -251,6 +257,11 @@ def test_worker_context_rejects_aliases_and_special_inputs_before_creating_conte
     elif corruption == "selected_parent_symlink":
         original = source / "requirements"
         moved = tmp_path / "requirements-original"
+        original.rename(moved)
+        original.symlink_to(moved, target_is_directory=True)
+    elif corruption == "skill_parent_symlink":
+        original = source / "skills/hypertest-archive"
+        moved = tmp_path / "skill-original"
         original.rename(moved)
         original.symlink_to(moved, target_is_directory=True)
     elif corruption == "src_directory_symlink":

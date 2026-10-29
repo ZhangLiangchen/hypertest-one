@@ -2,10 +2,8 @@
 # The exported image is a systemd RootDirectory, never a privileged container.
 ARG PYTHON_IMAGE
 FROM ${PYTHON_IMAGE}
-ARG SOURCE_COMMIT
 ARG CLOUD_UID=997
 ARG CLOUD_GID=988
-LABEL org.opencontainers.image.revision=${SOURCE_COMMIT}
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN test "$(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')" = 3.12 \
     && apt-get update \
@@ -16,20 +14,23 @@ RUN test "$(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])
     && useradd --system --uid "${CLOUD_UID}" --gid "${CLOUD_GID}" \
        --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin hypertest-cloud
 WORKDIR /opt/hypertest-cloud/source
-COPY pyproject.toml README.md ./
-COPY src ./src
 COPY requirements/cloud-runtime.lock /opt/hypertest-cloud/cloud-runtime.lock
 # Authenticate the exact SDK/runtime wheel pair before resolving the remaining
 # application dependencies. The pair lock does not claim transitive locking.
 RUN python -m venv /opt/hypertest-cloud/venv \
     && /opt/hypertest-cloud/venv/bin/pip install --no-cache-dir --require-hashes --no-deps \
-       -r /opt/hypertest-cloud/cloud-runtime.lock \
-    && /opt/hypertest-cloud/venv/bin/pip install --no-cache-dir '.[cloud]' \
+       -r /opt/hypertest-cloud/cloud-runtime.lock
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY skills ./skills
+RUN /opt/hypertest-cloud/venv/bin/pip install --no-cache-dir '.[cloud]' \
     && /opt/hypertest-cloud/venv/bin/pip freeze --all > /opt/hypertest-cloud/installed-packages.txt \
     && dpkg-query -W > /opt/hypertest-cloud/installed-system-packages.txt \
     && mkdir -p /var/lib/hypertest-cloud/runtime /opt/hypertest-cloud/delegates /etc/hypertest-cloud \
     && chmod -R a+rX /opt/hypertest-cloud \
     && test "$(getent passwd hypertest-cloud | cut -d: -f3,4)" = "${CLOUD_UID}:${CLOUD_GID}"
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.revision=${SOURCE_COMMIT}
 # PID 1 supplies User=hypertest-cloud, cap0, NnP, readonly root and finite cgroup.
 # No credential, local OAuth, platform env or mutable runtime is copied here.
 CMD ["/opt/hypertest-cloud/venv/bin/python", "-m", "hypertest.cloud"]
