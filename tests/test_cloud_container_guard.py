@@ -1,8 +1,12 @@
 """PID-1 guard contracts; no model, Docker daemon, or SUT calls."""
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import io
 import json
+import signal
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -95,6 +99,75 @@ def test_guard_preserves_native_delegation_lifecycle_and_fixed_idle_metadata():
     idle = {"runtime_observation": "IDLE", "session_id": session, "finish_reason": "completed"}
     assert json.loads(guard.project_output(json.dumps(idle).encode(), session_id=session,
                                            probe=False, delegations=collector)) == idle
+
+
+def authenticated_scope(key):
+    deadline = "2000"
+    environ = {"HYPERTEST_CLOUD_GUARD_PROJECT_ID": str(uuid4()), "HYPERTEST_CLOUD_GUARD_TASK_ID": str(uuid4()),
+               "HYPERTEST_CLOUD_GUARD_ATTEMPT_ID": str(uuid4()), "HYPERTEST_CLOUD_GUARD_GENERATION": "3",
+               "HYPERTEST_CLOUD_GUARD_KEY_SHA256": hashlib.sha256(key).hexdigest(),
+               "HYPERTEST_CLOUD_GUARD_SPEC_SHA256": "a" * 64}
+    return guard.guard_scope(environ, deadline=deadline)
+
+
+def signed_heartbeat(key, scope, *, sequence=1, issued=1_000_000_000, expires=4_000_000_000):
+    signed = {"scope": scope, "kind": "HEARTBEAT", "sequence": sequence,
+              "issued_mono_ns": issued, "lease_until_mono_ns": expires}
+    mac = hmac.new(key, json.dumps(signed, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256).hexdigest()
+    return json.dumps({key: value for key, value in signed.items() if key != "scope"} | {"mac": mac}).encode()
+
+
+def test_bootstrap_binds_original_attempt_and_never_passes_key_to_sdk():
+    key = b"x" * 32
+    scope = authenticated_scope(key)
+    config = json.loads(frame(session_id="cloud-" + scope["attempt_id"]))
+    raw = json.dumps({"kind": "INIT", "key": base64.b64encode(key).decode(), "config": config}).encode()
+    received_key, sdk_frame = guard.authenticate_bootstrap(raw, scope)
+    assert received_key == key and json.loads(sdk_frame) == config
+    assert base64.b64encode(key) not in sdk_frame
+    with pytest.raises(ValueError):
+        guard.authenticate_bootstrap(raw, scope | {"key_sha256": "f" * 64})
+    config["session_id"] = "cloud-" + str(uuid4())
+    with pytest.raises(ValueError):
+        guard.authenticate_bootstrap(json.dumps({"kind": "INIT", "key": base64.b64encode(key).decode(), "config": config}).encode(), scope)
+
+
+def test_authenticated_heartbeat_enforces_sequence_scope_and_lease_window():
+    key = b"x" * 32
+    scope = authenticated_scope(key)
+    heartbeat = signed_heartbeat(key, scope)
+    assert guard.authenticate_heartbeat(heartbeat, key=key, scope=scope, previous_seq=0,
+                                        now_ns=1_100_000_000) == (1, 4_000_000_000)
+    for changes in ({"key": b"z" * 32}, {"scope": scope | {"attempt_id": str(uuid4())}},
+                    {"scope": scope | {"deadline_epoch": scope["deadline_epoch"] + 1}},
+                    {"previous_seq": 1}, {"now_ns": 4_000_000_000}, {"now_ns": 3_000_000_000},
+                    {"now_ns": 999_999_999}):
+        args = {"key": key, "scope": scope, "previous_seq": 0, "now_ns": 1_100_000_000}
+        with pytest.raises(ValueError):
+            guard.authenticate_heartbeat(heartbeat, **(args | changes))
+    too_long = signed_heartbeat(key, scope, expires=7_000_000_000)
+    with pytest.raises(ValueError):
+        guard.authenticate_heartbeat(too_long, key=key, scope=scope, previous_seq=0, now_ns=1_100_000_000)
+
+
+def test_watchdog_eof_fails_closed(monkeypatch):
+    monkeypatch.setattr(guard.os, "read", lambda *_: b"")
+    with pytest.raises(ValueError):
+        guard._ControlStream().receive()
+
+
+def test_expired_lease_stops_even_before_periodic_signal(monkeypatch):
+    monkeypatch.setattr(guard, "_requires_authorization", True)
+    monkeypatch.setattr(guard, "_authorization_deadline_ns", 10)
+    monkeypatch.setattr(guard, "_wall_deadline", 100)
+    monkeypatch.setattr(guard, "_monotonic_deadline", 100)
+    monkeypatch.setattr(guard.time, "time", lambda: 1)
+    monkeypatch.setattr(guard.time, "monotonic", lambda: 1)
+    monkeypatch.setattr(guard.time, "monotonic_ns", lambda: 10)
+    monkeypatch.setattr(guard.os, "_exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    with pytest.raises(SystemExit) as stopped:
+        guard._expire(signal.SIGALRM, None)
+    assert stopped.value.code == 124
 
 
 @pytest.mark.parametrize("bad", ["prctl_set", "prctl_get", "capabilities", "no_new_privileges", "environment", "not_pid1"])
