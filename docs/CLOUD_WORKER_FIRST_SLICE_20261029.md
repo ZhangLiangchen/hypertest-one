@@ -32,6 +32,8 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 
 后续候选 guard 增加认证心跳：真实 RUN 须先收到绑定固定 Project/Task/Attempt、generation、spec、原截止与密钥摘要的 INIT 和 HMAC 心跳；心跳严格递增，过期、伪造、重放或控制通道 EOF 均停止，诊断专用 SDK 工具探针仍可无心跳运行且不能提交任务。合成 Docker 探针确认第二个 attach 的伪造帧被拒绝、原 watchdog attach 进程崩溃后容器退出、连续合法心跳不能延长原截止；SDK 工具无模型探针及定向回归 46 passed。心跳 key 不进入 SDK 子进程、环境或输出。当前仅验证 guard：尚无独立 watchdog 服务，guard 不核验 Docker 实际 spec、原容器身份或 DB lease；Worker 接线、共享 monotonic 时钟域、broker drain 和合计资源限额均待实现与验证。
 
+包含认证心跳的镜像从推送 Git `9556f2a4e82d7ae164dc2a90fe62c6f157d51492` 构建，`hypertest-mac-cloud-worker:9556f2a` 的 image ID 为 `sha256:0bd3f2109268a4c7b77ba940031d5d31d920d9b5b9ede36499cc90d90e0ec3ee`。以该镜像的 guard 为 PID 1，在无网络、无凭据的默认 Docker 防护容器再次观察官方无模型 SDK 工具探针成功；镜像仍未作为 Worker 部署。
+
 已从推送 Git `1d84678acb7eb5fe633584589a4661a196ad59a4` 构建 `hypertest-mac-cloud-worker:1d84678`，image ID `sha256:6a23a291fd4292df4f6e2b020a48ee98034c14cc043cdfb8f70269c1ecb8758a`。直接以该镜像中 `container_guard` 为 PID 1 运行无网络、无凭据、非 root、cap0/NNP 的固定 SDK 工具探针，SDK 初始化、工具 marker 和关闭均观察成功，`workspace-write / ask` 未变；容器自动移除，没有模型 prompt 或 SUT。此镜像尚未部署为 Worker。
 
 进一步在默认 Docker 防护的独立无网络容器直接运行固定 `SDK_TOOL_PROBE`（无模型、无凭据、无 SUT）：SDK `0.2.1rc2` 初始化、创建会话与关闭成功，工具已注册且尝试调用，但官方工具返回 `is_error=true / error_code=OTHER / marker_match=false`，默认 `workspace-write / ask` 策略保持。无秘密合成探针的受控错误分类观察到 `/home/agent/` 下共享对象映射失败；核对实际挂载标志后对该 tmpfs 作 noexec / exec 单变量对照，两组均显示 `OTHER`，但进一步分类显示错误不同：exec 组不再出现共享对象映射错误，转而提示当前宿主的 workspace 沙箱不可用。具体是否由 seccomp / namespace 引起尚未核验。单次任务容器因此还不能声称支持 SDK 工具或项目框架执行。临时容器自动移除。
