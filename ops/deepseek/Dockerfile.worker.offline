@@ -1,0 +1,24 @@
+# BuildKit only. The caller must verify DEPENDENCY_IMAGE is the exact reviewed
+# 9556f2a image before building and verify the resulting base-layer prefix.
+ARG DEPENDENCY_IMAGE
+FROM ${DEPENDENCY_IMAGE} AS wheel-build
+WORKDIR /build/source
+COPY requirements/cloud-build-offline.lock /build/cloud-build-offline.lock
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY skills ./skills
+RUN --network=none --mount=type=bind,from=wheelhouse,source=/,target=/wheelhouse,readonly \
+    python -m venv /build/venv \
+    && /build/venv/bin/pip install --no-index --find-links=/wheelhouse --require-hashes -r /build/cloud-build-offline.lock \
+    && /build/venv/bin/pip wheel --no-index --no-deps --no-build-isolation --wheel-dir=/build/wheels .
+
+FROM ${DEPENDENCY_IMAGE} AS worker
+WORKDIR /opt/hypertest-cloud/source
+RUN rm -rf /opt/hypertest-cloud/source && mkdir -p /opt/hypertest-cloud/source
+COPY --from=wheel-build /build/source/ /opt/hypertest-cloud/source/
+RUN --network=none --mount=type=bind,from=wheel-build,source=/build/wheels,target=/build-wheels,readonly \
+    /opt/hypertest-cloud/venv/bin/pip install --no-index --no-deps --force-reinstall /build-wheels/hypertest_one-0.2.0-py3-none-any.whl \
+    && /opt/hypertest-cloud/venv/bin/pip check \
+    && /opt/hypertest-cloud/venv/bin/pip freeze --all > /opt/hypertest-cloud/installed-packages.txt
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.revision=${SOURCE_COMMIT}

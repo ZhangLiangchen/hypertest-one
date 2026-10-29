@@ -23,3 +23,21 @@ Before starting a candidate service, a trusted initializer must prepare distinct
 The image runs as UID 997/GID 0 because this Mac's tested Docker socket permissions require the latter; only the trusted Worker receives the socket. The Agent stays UID 997/GID 988, has no Docker socket, and does not use native Codex delegation. The Worker has a 1 GiB/0-swap/80-PID bound; the candidate reserves a separate 2 GiB/0-swap/128-PID Attempt within the aggregate 4 GiB/256-PID limit. Admission checks the Worker's own cgroup and Engine values, plus separate Engine/DB member accounting; it does not claim independent observation of the Agent cgroup.
 
 The template attaches only to the existing `hypertest-mac_backend` network and does not change WireGuard, TLS, BFF, database or PowerContext. Supply the nonsecret Compose substitution values from reviewed deployment configuration and the database URL through the dedicated protected Worker env file. The fixed profile requires the true Engine-visible bind source, which may differ from the Mac-side socket path. Verify the entire rendered configuration and the Docker service/Attempt gate before any startup. Neither startup admission nor a successful health check proves provider authentication, framework execution, or an exchange.
+
+## Offline build using the reviewed local dependency image
+
+When PyPI is unavailable, `build_worker_offline.py` offers a separate BuildKit path using only local inputs. It requires the existing `hypertest-mac-cloud-worker:9556f2a` image to have ID `sha256:0bd3f2109268a4c7b77ba940031d5d31d920d9b5b9ede36499cc90d90e0ec3ee` and revision `9556f2a4e82d7ae164dc2a90fe62c6f157d51492`. It rejects changes to the dependency declarations, pinned SDK lock, README or packaged skills since that base, and requires a clean checkout whose HEAD and fetched remote-tracking ref equal the requested pushed SHA.
+
+On this Mac, the following stages only the six public build-backend wheels whose SHA256 values are pinned in `requirements/cloud-build-offline.lock`; the destination must be a new directory under an existing canonical parent. These cache keys are specific to the verified local pip cache:
+
+```sh
+python3 ops/deepseek/stage_offline_build_wheels.py \
+  --cache /Users/liangchenzhang/Library/Caches/pip/http-v2 \
+  --destination /absolute/canonical/private-parent/new-wheelhouse
+python3 ops/deepseek/build_worker_offline.py \
+  --checkout /absolute/path/to/clean/checkout \
+  --commit PUSHED_FULL_SHA --remote-ref origin/BRANCH \
+  --wheelhouse /absolute/canonical/private-parent/new-wheelhouse
+```
+
+The script uses no build network, installs the hash-locked build backend only in an intermediate stage, builds the new source's wheel, and installs it into the final image with `--no-deps`. It compares the resulting image's base-layer prefix and third-party package list with the reviewed base. It reports a full image ID without replacing an existing image tag. The check establishes reuse of the existing runtime dependencies; it does not independently authenticate their historical installation or prove functional acceptance. Run the release manifest preparation above against the returned new image ID and the same pushed commit, then complete the separate service admission. Clean the staged wheelhouse after it is no longer needed.
