@@ -1,0 +1,21 @@
+{
+  "profile": "hypertest-cloud-docker-service/v1",
+  "compose_project": "hypertest-mac-cloud",
+  "compose_service": "cloud-worker",
+  "image_id": "sha256:REPLACE_WITH_FULL_IMAGE_ID",
+  "source_commit": "REPLACE_WITH_PUSHED_FULL_COMMIT_SHA",
+  "shared_volume": "REPLACE_WITH_SHARED_VOLUME_NAME",
+  "shared_root": "/var/lib/hypertest-cloud/shared",
+  "private_volume": "REPLACE_WITH_PRIVATE_VOLUME_NAME",
+  "private_root": "/var/lib/hypertest-cloud/runtime",
+  "docker_socket_source": "REPLACE_WITH_ENGINE_VISIBLE_BIND_SOURCE",
+  "docker_socket_target": "/run/hypertest-docker.sock",
+  "mounts": [
+    {"kind": "volume", "source": "REPLACE_WITH_PRIVATE_VOLUME_NAME", "target": "/var/lib/hypertest-cloud/runtime", "writable": true},
+    {"kind": "volume", "source": "REPLACE_WITH_SHARED_VOLUME_NAME", "target": "/var/lib/hypertest-cloud/shared", "writable": true},
+    {"kind": "volume", "source": "REPLACE_WITH_CREDENTIAL_VOLUME_NAME", "target": "/run/credentials/hypertest-cloud.service", "writable": false},
+    {"kind": "volume", "source": "REPLACE_WITH_RELEASE_VOLUME_NAME", "target": "/opt/hypertest-cloud/release.json", "writable": false},
+    {"kind": "volume", "source": "REPLACE_WITH_RELEASE_VOLUME_NAME", "target": "/etc/hypertest-cloud/docker-service.json", "writable": false},
+    {"kind": "bind", "source": "REPLACE_WITH_ENGINE_VISIBLE_BIND_SOURCE", "target": "/run/hypertest-docker.sock", "writable": true}
+  ]
+}

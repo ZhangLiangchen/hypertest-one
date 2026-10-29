@@ -16,7 +16,7 @@
 flowchart LR
     DB[(PostgreSQL)] <--> W["可信 Cloud Worker<br/>lease / broker / reporter"]
     W --> L["可信 Docker 启动器<br/>固定容器配置"]
-    D["独立 watchdog<br/>原容器 ID / 截止时间"] --> E
+    D["PID1 guard<br/>认证心跳 / 原截止"] --> A
     L --> E["Docker Engine<br/>Mac 的 Linux 环境"]
     E --> A["单 Attempt Agent 容器<br/>SDK / 项目测试进程"]
     W <-->|"按 Attempt 限定 UDS"| A
@@ -24,9 +24,9 @@ flowchart LR
     W --> M["模型及已准入的窄代理"]
 ```
 
-Worker 是可信控制面：拥有必要的 DB / `cloud:work`、项目密钥解封及模型 broker 能力，Agent 容器没有这些能力。Docker API/socket 不挂载给 Agent、子代理或框架，也不出现在其环境、文件、workspace 或工具输入中。持 Docker socket 的组件相当于对 Docker 宿主有高度控制权；这是本方案的新增信任与风险，不能因 Agent 容器未挂 socket 就忽略。优先由独立可信启动器和 watchdog 持有操作能力，接收封闭类型的创建、查询和停止请求；不暴露任意 Docker API、镜像、命令、挂载、网络或参数。若仅以文件 ACL 不能阻止 Agent 接触 socket 或连接启动器，方案拒绝准入。
+Worker 是可信控制面：拥有必要的 DB / `cloud:work`、项目密钥解封及模型 broker 能力，Agent 容器没有这些能力。Docker API/socket 不挂载给 Agent、子代理或框架，也不出现在其环境、文件、workspace 或工具输入中。持 Docker socket 的组件相当于对 Docker 宿主有高度控制权；这是本方案的新增信任与风险，不能因 Agent 容器未挂 socket 就忽略。受信 Worker 或其限域代理仅使用固定镜像和封闭的创建、查询、启动及 attach 请求；不向 Agent 暴露 Docker API、可选命令、挂载或网络参数。若不能阻止 Agent 接触 socket 或控制入口，方案拒绝准入。
 
-Worker 与 watchdog 不在 Agent 容器内；watchdog 的生命周期不依赖 Worker 进程。watchdog 必须有独立且限域的引擎操作能力，不能把运行中的 Worker 或单一可失效启动器作为唯一停止通道；其高权限和 socket 防护与启动器同样纳入信任边界。它必须能在 Worker 崩溃或失联后，依据先前持久记录的原容器身份和绝对截止独立执行停止，并保留可核验观察。Compose 的 `restart`、Worker 进程内的定时器或仅靠 RLIMIT CPU 时间都不能单独保证墙钟硬截止。watchdog、Docker daemon、主机或时钟异常导致停止无法确认时，标记 UNKNOWN / `RECOVERY_REQUIRED`，禁止后续新执行，不把“发出停止请求”当作已停止。节点完全不可用时无法保证远端进程物理停止；网络和模型代理的失效边界仍须独立核对。
+Worker 不在 Agent 容器内。候选以固定、不可转储的容器 PID1 guard 执行原墙钟截止并验证 Worker 的有界认证心跳；Worker 崩溃、控制流 EOF、心跳过期或认证失败时，guard 退出并使私有 PID namespace 内的后代终止。密钥不进入 SDK、环境或日志；Agent 不得获得 Docker socket。原截止不随心跳延长。现有合成探针验证了这些机制，尚未与真实 Worker 接线；Compose `restart`、Worker 进程内定时器或仅靠 RLIMIT CPU 时间不能单独保证墙钟硬截止。Docker daemon、主机或控制流异常导致停止无法确认时，标记 UNKNOWN / `RECOVERY_REQUIRED`，禁止后续新执行，不把“发出停止请求”当作已停止。节点完全不可用时无法保证远端进程物理停止；网络和模型代理的失效边界仍须分别核对。
 
 ## 每个 Attempt 的可见范围
 
@@ -49,15 +49,15 @@ Agent 使用可信、不可变摘要固定的执行镜像和镜像内固定 SDK 
 
 1. Worker 先完成固定输入、当前权限和准备时间 hold；启动器仅接受经审核的固定 spec。创建之前持久保存 Project / Task / Attempt、当前 generation、一次性容器名/nonce、预期镜像摘要、资源上限和 spec digest，使用独立原操作 key。申请身份或 spec 不由 Agent 提供。
 2. 发送 Docker create 后必须保存并核对实际完整 container ID 与名称、镜像、标签和 spec；再持久化 start 意图，才能对该 **原 ID** 启动并写入 SDK prompt intent。丢 create/start 回执时只查询原名称/原 ID 与原 intent；名称、标签或 digest 不匹配即拒绝。查询不到也不证明未发生，不换名字、key 或 ID 重新创建/启动，不重放 prompt。
-3. watchdog 在启动前获得相同原身份、独立硬截止和需核对的 lease/fence 信息。持久记录及 watchdog 接管都确认后才能启动；禁止用 Worker 的临时内存计时器替代。恢复时必须检查原容器与 watchdog 的身份及实际状态，无法确认则保留 UNKNOWN 和原预算 hold。
-4. 取消、超时、lease 丢失时先 fence 平台 writer、封闭新的代理请求，再请求 watchdog 停止原容器；不再允许旧 generation 发起工具动作或提交结果。停止请求 ACK、Docker API 返回或容器连接关闭都不是停止证明；需观察原 ID 的运行终态，并以可验证的引擎 / Linux cgroup 信息核对对应进程范围已空。检测方式要在 OrbStack 实际实现并验证；若无法观察则保留 UNKNOWN。
+3. 启动前固定 guard、原硬截止与心跳身份，控制方按当前 lease/fence 发送有界认证心跳；不得以 Worker 的临时计时器替代 PID1 原截止。恢复时只检查原容器身份及实际状态，无法确认则保留 UNKNOWN 和原预算 hold。
+4. 取消、超时、lease 丢失时先 fence 平台 writer、封闭新的代理请求，再关闭原容器控制流；不再允许旧 generation 发起工具动作或提交结果。停止请求 ACK 或连接关闭不是停止观察。受信 Worker / 受限 broker 应查询固定原完整 ID，核对容器 spec 及 Engine 报告 exited、非 running、PID 为 0；在此前验证的私有 PID namespace、固定 PID1 和默认安全配置成立的前提下，按 Linux PID1 退出语义判断该 namespace 后代终止。记录 Engine 观察及 namespace 推断来源，明确没有独立读取宿主 cgroup；缺少必要条件、身份不符或 Engine 不可达则保留 UNKNOWN。
 5. Worker 与模型 broker 的 in-flight 请求要单独 drain；SSH / HTTPS / 未来 CI 等外部操作按各自原 ID/key 查询并确认。容器结束不说明远端写操作、链上交易或模型请求已结束。只有满足现有领域收尾条件时才接受完成及同事务预算结算；否则保留 `RECOVERY_REQUIRED`、未决操作与 HELD。
 
-Docker daemon / watchdog 重启后的原容器发现、重复名与 ID 不匹配、daemon 不可达、Agent 自退以及硬截止竞争，均须按原记录协调；关闭日志或移除容器之前先保存必要的状态观察。无需自动恢复 SDK 原会话：当前 `supports_resume=false` 保持，未知 prompt 和外部动作不得自动重发。显式新 Attempt 仍须旧 Attempt 合法终结、无未决操作且遵守原任务累计预算。
+Docker daemon / Worker 重启后的原容器发现、重复名与 ID 不匹配、daemon 不可达、Agent 自退以及硬截止竞争，均须按原记录协调；关闭日志或移除容器之前先保存必要的状态观察。无需自动恢复 SDK 原会话：当前 `supports_resume=false` 保持，未知 prompt 和外部动作不得自动重发。显式新 Attempt 仍须旧 Attempt 合法终结、无未决操作且遵守原任务累计预算。
 
 ## 预算、资源与镜像
 
-此前 Worker / broker / Agent 同处一个专属 cgroup；本候选的 Agent 容器与 Worker 可能是 Docker 中的兄弟 cgroup。**不能只检查 Worker cgroup，就声称包含 Agent 的总资源受控。** 启动前必须取得可信引擎对 Worker/broker、watchdog 与各 Agent 范围的真实限制、成员身份及关系，确认它们的并发总 memory + swap 和 PID 上限不超过原允许包络（当前 Cloud 聚合上限为 4 GiB / 256 pids）；每项限制必须有限且可验证。若能由可信共同父 cgroup 直接限制整体，可验证父级包含全部进程；否则需严格核对所有同任务兄弟包络的上限之和与单并发条件。缺失、身份不明或超过上限则拒绝领取 / 启动。2 GiB 或 4 GiB 是策略上限，不应被写成未观察的实际使用量。
+此前 Worker / broker / Agent 同处一个专属 cgroup；本候选的 Agent 容器与 Worker 可能是 Docker 中的兄弟 cgroup。**不能只检查 Worker cgroup，就声称包含 Agent 的总资源受控。** 启动前必须取得可信引擎对 Worker/broker、独立代理（如有）与各 Agent 范围的真实限制、成员身份及关系，确认它们的并发总 memory + swap 和 PID 上限不超过原允许包络（当前 Cloud 聚合上限为 4 GiB / 256 pids）；每项限制必须有限且可验证。若能由可信共同父 cgroup 直接限制整体，可验证父级包含全部进程；否则需严格核对所有同任务兄弟包络的上限之和与单并发条件。缺失、身份不明或超过上限则拒绝领取 / 启动。2 GiB 或 4 GiB 是策略上限，不应被写成未观察的实际使用量。
 
 业务时间 hold 在 Git 准备前持久化；`RUNNING` 前预留全部 root / 子代理共享请求预算与原截止。模型 broker 在 Agent 外独立计数并在权限/预算/截止失效时封闭。只有观察整个 Agent 容器进程范围已停、所有相关 broker 关闭并 drain、没有未知外部动作时，当前 fenced Worker 才能按原合同结算；未知或人工对账保留 HELD。容器资源限制不是模型预算或外部费用证明。
 
@@ -69,16 +69,16 @@ Docker daemon / watchdog 重启后的原容器发现、重复名与 ID 不匹配
 
 1. **无模型准入探针。** 使用当前 Docker / OrbStack 和预期 Compose 身份，验证默认防护、真实 SDK 初始化/关闭、精确挂载、UID/GID、UDS 与无一般网络；检查 Agent 无 Docker、Worker 私有账本、DB、model key 或其他 Attempt 文件的读取途径。还须通过官方工具接口验证一个固定的无模型工作区命令，确认 SDK 自身执行工具不再因内部 namespace 依赖而失败；不以关闭 SDK 安全策略或只测进程初始化替代。仅证实这些已观察能力。
 2. **失效与拒绝。** 覆盖超限/缺资源、镜像或 spec 不符、UID/卷/UDS 不可用、错误身份、lease 失效、create/start 回执失答、旧 ID 不匹配与 NOT_FOUND；均不得开启替代容器或重发旧 prompt。
-3. **停止与预算。** 使用无模型合成进程验证 Worker 被终止后 watchdog 独立硬截止、Agent 及后代停止、broker drain 和原容器/cgroup 观察；分别验证 watchdog 或 daemon 不可达时保留 UNKNOWN / HELD、不接受完成或新 Attempt。核验父级或兄弟 cgroup 合计上限。
+3. **停止与预算。** 使用无模型合成进程验证 Worker 被终止后 guard 硬截止、Agent 及后代停止、broker drain 和原容器 Engine 状态观察；分别验证控制流或 daemon 不可达时保留 UNKNOWN / HELD、不接受完成或新 Attempt。核验父级或兄弟 cgroup 合计上限；不把 PID namespace 推断记为独立读取 cgroup。
 4. **框架与报告。** 复用专用测试数据库与合成项目，跑一次已有框架的通过/失败路径，验证 handoff、原件与固定版本读回；不将合成结果升级为真实项目验收。真实模型身份、框架依赖、真实 SUT 和用户选定的 staging 场景分别验证。
 
-代码改造应先定义内聚的单 Attempt 执行边界和关闭状态，接入现有 Worker / broker / reporter，而非更换 Task、取消原 key 合同或扩宽网络权限。先完成无模型阻断路径与真实隔离探针，确认 watchdog 和 aggregate 限额可观测，再逐步连接官方 SDK、受控模型身份及项目框架。每阶段的实现、镜像/部署和真实任务结果分别记录；如任一前提不能成立，保持 Cloud 不可执行并继续使用现有受控路径。
+代码改造应先定义内聚的单 Attempt 执行边界和关闭状态，接入现有 Worker / broker / reporter，而非更换 Task、取消原 key 合同或扩宽网络权限。先完成无模型阻断路径与真实隔离探针，确认 guard 的失联停止和 aggregate 限额可观测，再逐步连接官方 SDK、受控模型身份及项目框架。每阶段的实现、镜像/部署和真实任务结果分别记录；如任一前提不能成立，保持 Cloud 不可执行并继续使用现有受控路径。
 
 ## 备选与取舍
 
 | 方案 | 取舍 |
 | --- | --- |
 | 当前容器中继续 nested bubblewrap | 沿用已实现路径，但当前 Docker 默认隔离实测阻塞；不能以移除 `/proc` 防护替代。 |
-| 本候选：每 Attempt 一个 Docker 容器 | 复用现有本机容器环境，减少内层 namespace 依赖；需要可信 Docker 控制、独立 watchdog 和兄弟 cgroup 总额验证，现均未实现。 |
+| 本候选：每 Attempt 一个 Docker 容器 | 复用现有本机容器环境，减少内层 namespace 依赖；需要可信 Docker 控制、guard 失联停止和兄弟 cgroup 总额验证，尚未完整接线。 |
 | 历史专用 Linux systemd RootDirectory | 有旧环境无模型证据，但本 Mac 当前环境未部署该宿主 profile；不能将旧结果当作现场可用性。 |
 | 共享普通进程或给 Agent Docker socket | 无法提供所需隔离、停止及凭据边界，拒绝。 |

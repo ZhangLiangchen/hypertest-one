@@ -139,8 +139,12 @@ def read_model_key(path: str | Path) -> bytes:
 
 
 class CloudWorker:
-    def __init__(self, sessions, settings, worker_id: str):
+    def __init__(self, sessions, settings, worker_id: str, *, docker_runtime=None):
         self.sessions, self.settings, self.worker_id = sessions, settings, worker_id
+        # Only a trusted service-admission path may inject this adapter. The
+        # ordinary CLI still uses bubblewrap and cannot opt in by Agent input.
+        self.docker_runtime = docker_runtime
+        self._docker_admitted = False
         self.resolver = GitResolver()
         self._namespace_admitted = False
         self._namespace_failure = None
@@ -183,9 +187,17 @@ class CloudWorker:
             await service.expire_leases(db)
         # Cache this process's probe result: a failed profile needs a Worker
         # restart after configuration changes, not a new namespace every poll.
-        if self._namespace_failure is not None:
+        if self.docker_runtime is not None:
+            self._docker_admitted = False
+            if not service.CONTAINER_CREATE_INTENT_ENABLED:
+                raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker Attempt execution is not enabled")
+            if getattr(self.settings, "cloud_codex_enabled", False):
+                raise CloudBlocked("DOCKER_DELEGATION_UNSUPPORTED", "This Docker profile does not support native delegation")
+            await self.docker_runtime.admit()
+            self._docker_admitted = True
+        elif self._namespace_failure is not None:
             raise CloudBlocked(self._namespace_failure, "Cloud namespace startup admission failed; restart after correcting the environment")
-        if not self._namespace_admitted:
+        if self.docker_runtime is None and not self._namespace_admitted:
             try:
                 await probe_namespace()
             except CloudBlocked as error:
@@ -245,6 +257,8 @@ class CloudWorker:
                 self.worker_id, claim["lease_token"], result, work_token=claim["work_token"])
 
     async def execute(self, claim: dict):
+        if self.docker_runtime is not None and (not self._docker_admitted or not service.CONTAINER_CREATE_INTENT_ENABLED):
+            raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker Attempt execution is not admitted")
         broker = CloudBroker(self.sessions, claim, self.worker_id)
         task, attempt = claim["task"], claim["attempt"]
         root = private_root(self.settings.cloud_runtime_root) / ("attempt-" + attempt["id"])
@@ -258,9 +272,15 @@ class CloudWorker:
             except Exception:
                 pass  # The unchanged lease will expire; no execution is begun.
             raise CloudBlocked("ATTEMPT_RECOVERY_REQUIRED", "Existing runtime state requires explicit reconciliation; no prompt is replayed") from None
-        workspace, home = root / "workspace", root / "dsh-home"
-        workspace.mkdir(mode=0o700)
-        home.mkdir(mode=0o700)
+        docker_layout = None
+        if self.docker_runtime is None:
+            workspace, home = root / "workspace", root / "dsh-home"
+            workspace.mkdir(mode=0o700)
+            home.mkdir(mode=0o700)
+            socket_root = root
+        else:
+            docker_layout = self.docker_runtime.layout(task, attempt)
+            workspace, home, socket_root = docker_layout.workspace, docker_layout.dsh_home, docker_layout.broker
         reporter = CloudTaskReporter(broker=broker, private_root=root / "reporting", workspace=workspace)
         sandbox = None
         finished = asyncio.Event()
@@ -487,7 +507,7 @@ class CloudWorker:
                     raise CloudBlocked("SSH_AUTHORITY_MISMATCH", "Frozen SSH authority does not match the independent host signing identity")
                 ssh_authority = WorkerSshAuthority(self.sessions, task_id=broker.task_id,
                     attempt_id=broker.attempt_id, identity=broker.identity)
-                ssh_broker = SshBroker(root / "ssh.sock", profile=ssh_profile, authority=ssh_authority,
+                ssh_broker = SshBroker(socket_root / ("hypertest-ssh.sock" if docker_layout else "ssh.sock"), profile=ssh_profile, authority=ssh_authority,
                     ssh_key=ssh_key.encode() if isinstance(ssh_key, str) else ssh_key,
                     signing_key=signing_key, private_root=root / "ssh",
                     deadline=ssh_deadline,
@@ -501,13 +521,16 @@ class CloudWorker:
                 http_authority = WorkerHttpAuthority(self.sessions, task_id=broker.task_id,
                     attempt_id=broker.attempt_id, identity=broker.identity)
                 http_deadline = int(time.time() + max(0, started + seconds - time.monotonic()))
-                http_broker = HttpBroker(root / "https.sock", profile=http_profile, authority=http_authority,
+                http_broker = HttpBroker(socket_root / ("hypertest-https.sock" if docker_layout else "https.sock"), profile=http_profile, authority=http_authority,
                     private_root=root / "https", deadline=http_deadline)
             for role in ("sut", "framework"):
                 await broker.assert_current()
                 async with asyncio.timeout(max(0.01, started + seconds - time.monotonic())):
+                    options = {"token": credentials.get(role.upper())}
+                    if docker_layout is not None:
+                        options["private_empty"] = True
                     preparing = asyncio.create_task(self.resolver.checkout(manifest["resolution"]["repositories"][role],
-                        workspace / role, token=credentials.get(role.upper())))
+                        workspace / role, **options))
                     try:
                         await preparing
                     finally:
@@ -544,7 +567,7 @@ class CloudWorker:
                 "claude_code": "PLACEHOLDER"}
             metadata["capabilities"]["memory"] = {"configured": memory_bridge is not None,
                 "requires_separate_project_grant": True, "human_publication_required": True}
-            model_broker = ModelBroker(root / "model.sock", base_url=self.settings.cloud_model_base_url,
+            model_broker = ModelBroker(socket_root / "model.sock", base_url=self.settings.cloud_model_base_url,
                 api_key=read_model_key(self.settings.cloud_model_key_file), model=self.settings.cloud_model,
                 max_requests=requests, max_tokens=policy.max_tokens, deadline=started + seconds)
             scope_brokers["ROOT"] = models.enter_context(model_broker)
@@ -559,12 +582,26 @@ class CloudWorker:
                 await ssh_broker.start()
             if http_broker is not None:
                 await http_broker.start()
-            sandbox = BubblewrapSandbox(workspace=workspace, dsh_home=home,
-                broker_socket=root / "model.sock", policy=policy,
-                delegate_payload=payload_root, delegate_sockets=sockets,
-                ssh_socket=root / "ssh.sock" if ssh_broker is not None else None,
-                http_socket=root / "https.sock" if http_broker is not None else None)
-            sandbox.command()  # Fail admission before recording a prompt intent.
+            if docker_layout is None:
+                sandbox = BubblewrapSandbox(workspace=workspace, dsh_home=home,
+                    broker_socket=root / "model.sock", policy=policy,
+                    delegate_payload=payload_root, delegate_sockets=sockets,
+                    ssh_socket=root / "ssh.sock" if ssh_broker is not None else None,
+                    http_socket=root / "https.sock" if http_broker is not None else None)
+                sandbox.command()  # Fail admission before recording a prompt intent.
+            else:
+                preparation = attempt["runtime_metadata"]["preparation_budget_reservation"]
+                claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
+                authorized = datetime.fromisoformat(manifest["inputs"]["authorization"]["expires_at"].replace("Z", "+00:00"))
+                deadline_epoch = min(int(claimed.timestamp()) + seconds, int(authorized.timestamp()),
+                                     int(time.time() + max(0, started + seconds - time.monotonic())))
+                expected_sockets = ("model.sock",) + (("hypertest-ssh.sock",) if ssh_broker else ()) + (
+                    ("hypertest-https.sock",) if http_broker else ())
+                sandbox = self.docker_runtime.sandbox(layout=docker_layout, broker=broker, reporter=reporter,
+                    private_root=root, policy=policy, deadline_epoch=deadline_epoch, expected_sockets=expected_sockets)
+                metadata["capabilities"]["isolation"] = "docker-private-pid-namespace"
+                metadata["runtime_limits"]["observed_worker_cgroup"] = metadata["runtime_limits"].pop("observed_cgroup")
+                metadata["runtime_limits"]["aggregate_scope"] = "docker-worker-and-attempt-limits"
             await host_transition("RUNNING", "Pinned SDK runtime admitted", metadata,
                 reservation={"accounting_unit": accounting_unit, "reserved_seconds": seconds,
                              "request_limits": limits})

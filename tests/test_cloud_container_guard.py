@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import pytest
 
+from hypertest.cloud import clock_domain
 from hypertest.cloud import container_guard as guard
 
 
@@ -106,6 +107,7 @@ def authenticated_scope(key):
     environ = {"HYPERTEST_CLOUD_GUARD_PROJECT_ID": str(uuid4()), "HYPERTEST_CLOUD_GUARD_TASK_ID": str(uuid4()),
                "HYPERTEST_CLOUD_GUARD_ATTEMPT_ID": str(uuid4()), "HYPERTEST_CLOUD_GUARD_GENERATION": "3",
                "HYPERTEST_CLOUD_GUARD_KEY_SHA256": hashlib.sha256(key).hexdigest(),
+               "HYPERTEST_CLOUD_GUARD_CLOCK_SHA256": "c" * 64,
                "HYPERTEST_CLOUD_GUARD_SPEC_SHA256": "a" * 64}
     return guard.guard_scope(environ, deadline=deadline)
 
@@ -148,6 +150,22 @@ def test_authenticated_heartbeat_enforces_sequence_scope_and_lease_window():
     too_long = signed_heartbeat(key, scope, expires=7_000_000_000)
     with pytest.raises(ValueError):
         guard.authenticate_heartbeat(too_long, key=key, scope=scope, previous_seq=0, now_ns=1_100_000_000)
+
+
+def test_shared_clock_identity_requires_linux_boot_and_time_namespace(monkeypatch):
+    monkeypatch.setattr(clock_domain.sys, "platform", "linux")
+    values = {"boot_id": "47b37570-2bce-44db-a430-c857d47e2845\n",
+              "timens_offsets": "monotonic 0 0\nboottime 0 0\n"}
+    monkeypatch.setattr(clock_domain.Path, "read_text", lambda path, **_k: values[path.name])
+    digest = clock_domain.clock_domain_digest()
+    assert len(digest) == 64
+    values["timens_offsets"] = "boottime 0 0\nmonotonic 0 0\n"
+    assert clock_domain.clock_domain_digest() == digest
+    values["timens_offsets"] = "monotonic 1 0\nboottime 0 0\n"
+    assert clock_domain.clock_domain_digest() != digest
+    values["timens_offsets"] = "monotonic 0 1000000000\nboottime 0 0\n"
+    with pytest.raises(ValueError):
+        clock_domain.clock_domain_digest()
 
 
 def test_watchdog_eof_fails_closed(monkeypatch):

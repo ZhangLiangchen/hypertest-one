@@ -22,6 +22,7 @@ import sys
 import time
 from uuid import UUID
 
+from .clock_domain import clock_domain_digest
 from .delegation import DelegationObservations
 from .runtime_activity import project_finish_reason, project_runtime_activity
 from .sdk import SDK_PHASES, project_sdk_error
@@ -45,7 +46,8 @@ _GUARD_ENV = {"PATH", "HOSTNAME", "HOME", "LANG", "SHELL", "DSH_HOME", "PYTHONDO
               "GPG_KEY", "HYPERTEST_CLOUD_CONTAINER_DEADLINE", "HYPERTEST_CLOUD_GUARD_PROFILE",
               "HYPERTEST_CLOUD_GUARD_KEY_SHA256", "HYPERTEST_CLOUD_GUARD_SPEC_SHA256",
               "HYPERTEST_CLOUD_GUARD_PROJECT_ID", "HYPERTEST_CLOUD_GUARD_TASK_ID",
-              "HYPERTEST_CLOUD_GUARD_ATTEMPT_ID", "HYPERTEST_CLOUD_GUARD_GENERATION"}
+              "HYPERTEST_CLOUD_GUARD_ATTEMPT_ID", "HYPERTEST_CLOUD_GUARD_GENERATION",
+              "HYPERTEST_CLOUD_GUARD_CLOCK_SHA256"}
 _wall_deadline = 0.0
 _monotonic_deadline = 0.0
 _authorization_deadline_ns = 0
@@ -179,7 +181,7 @@ def guard_scope(environ: dict, *, deadline: str) -> dict:
     if not isinstance(generation, str) or re.fullmatch(r"[1-9][0-9]{0,17}", generation) is None:
         _reject()
     values["generation"] = int(generation)
-    for field in ("key_sha256", "spec_sha256"):
+    for field in ("key_sha256", "spec_sha256", "clock_sha256"):
         value = environ.get("HYPERTEST_CLOUD_GUARD_" + field.upper())
         if not isinstance(value, str) or re.fullmatch(r"[a-f0-9]{64}", value) is None:
             _reject()
@@ -339,6 +341,8 @@ def run() -> int:
     sequence = 0
     if _requires_authorization:
         scope = guard_scope(os.environ, deadline=value)
+        if not hmac.compare_digest(scope["clock_sha256"], clock_domain_digest()):
+            _reject()
         control = _ControlStream()
         key, frame = authenticate_bootstrap(control.wait_line(_MAX_FRAME + _MAX_CONTROL), scope)
         first = authenticate_heartbeat(control.wait_line(_MAX_CONTROL),

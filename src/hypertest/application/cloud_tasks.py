@@ -1,11 +1,12 @@
 """Transactional ADR-019 control plane. No Git, model, shell or test invocation."""
 import base64
 import hashlib
+import hmac
 import json
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -45,7 +46,7 @@ SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
     "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "ANSWER_INPUT": "cloud:control",
-    "TRANSITION": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
+    "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work",
 }
 ALLOWED = {
@@ -56,6 +57,9 @@ ALLOWED = {
     "RECOVERY_REQUIRED": {"PREPARING", "COMPLETED", "FAILED", "CANCELLED"},
 }
 EMERGENCY_CANCEL_REASON = "OPERATOR_REQUESTED_CANCELLATION"
+# Closed until an independent Engine observer can prove and reconcile the
+# original container and process scope. No deployment setting enables it.
+CONTAINER_CREATE_INTENT_ENABLED = False
 _UNAVAILABLE_SECRET_SCAN_CODES = frozenset({
     "CREDENTIAL_KEY_UNAVAILABLE", "CREDENTIAL_KEY_PERMISSIONS", "CREDENTIAL_KEY_INVALID",
     "CREDENTIAL_DECRYPTION_FAILED", "CRYPTO_UNAVAILABLE",
@@ -286,7 +290,77 @@ async def _snapshot(db, task):
     result["remote_operation_results"] = await terminal_results(db, task.id)
     from .cloud_http import terminal_results as http_results
     result["http_operation_results"] = await http_results(db, task.id)
+    result["container_create_intents"] = await _container_intents(db, task.id)
+    result["container_observations"] = await _container_observations(db, task.id)
+    result["container_start_intents"] = await _container_starts(db, task.id)
     return result
+
+
+async def _container_intents(db, task_id):
+    rows = await db.scalars(select(CloudOperationReceipt).where(CloudOperationReceipt.task_id == task_id,
+        CloudOperationReceipt.operation == "PREPARE_CONTAINER_CREATE").order_by(CloudOperationReceipt.id))
+    return [row.response["container_create_intent"] for row in rows]
+
+
+async def _container_observations(db, task_id):
+    rows = await db.scalars(select(CloudOperationReceipt).where(CloudOperationReceipt.task_id == task_id,
+        CloudOperationReceipt.operation.in_(["CONFIRM_CONTAINER_ID", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"])).order_by(CloudOperationReceipt.id))
+    return [row.response["container_observation"] for row in rows]
+
+
+async def _container_starts(db, task_id):
+    rows = await db.scalars(select(CloudOperationReceipt).where(CloudOperationReceipt.task_id == task_id,
+        CloudOperationReceipt.operation == "PREPARE_CONTAINER_START").order_by(CloudOperationReceipt.id))
+    return [row.response["container_start_intent"] for row in rows]
+
+
+async def _unclosed_container_intents(db, task_id):
+    intents = await _container_intents(db, task_id)
+    observations = await _container_observations(db, task_id)
+    starts = await _container_starts(db, task_id)
+    result = []
+    for intent in intents:
+        related = [item for item in observations if item.get("create_operation_key") == intent["operation_key"]
+                   and item.get("attempt_id") == intent["attempt_id"] and item.get("generation") == intent["generation"]
+                   and item.get("spec_sha256") == intent["spec_sha256"]]
+        confirmed = [item for item in related if item.get("state") == "CONFIRMED"]
+        stopped = [item for item in related if item.get("state") == "STOPPED"]
+        never_started = [item for item in related if item.get("state") == "NEVER_STARTED"]
+        original_starts = [item for item in starts if item.get("create_operation_key") == intent["operation_key"]
+                           and item.get("attempt_id") == intent["attempt_id"]]
+        stopped_ok = (len(stopped) == 1 and not never_started and len(original_starts) == 1
+                      and len(confirmed) == 1 and confirmed[0].get("container_id") == stopped[0].get("container_id")
+                      == original_starts[0].get("container_id"))
+        never_ok = (len(never_started) == 1 and not stopped and not original_starts and len(confirmed) == 1
+                    and confirmed[0].get("container_id") == never_started[0].get("container_id"))
+        if not stopped_ok and not never_ok:
+            result.append(intent)
+    return result
+
+
+async def _ensure_container_closed(db, task_id):
+    if await _unclosed_container_intents(db, task_id):
+        raise HTTPException(409, "CLOUD_CONTAINER_UNRECONCILED")
+
+
+async def _container_recovery_authority(db, task, attempt, identity, create_key, recovery_secret, *, require_capability=False):
+    """Original credentials permit only original local stop metadata, never new work."""
+    intents = [item for item in await _container_intents(db, task.id)
+               if item["operation_key"] == create_key and item["attempt_id"] == str(attempt.id)]
+    if identity is None or len(intents) != 1 or attempt.status != "RECOVERY_REQUIRED" or not await _owner_fenced(db, attempt):
+        raise HTTPException(403, "CLOUD_CONTAINER_ORIGINAL_RECOVERY_REQUIRED")
+    intent = intents[0]
+    grant = await db.get(CloudWorkGrant, UUID(intent["work_grant_id"]), populate_existing=True)
+    if (grant is None or grant.project_id != task.project_id or grant.attempt_id != attempt.id
+            or grant.worker_id != identity.worker_id or grant.lease_generation != identity.generation
+            or intent["worker_id"] != identity.worker_id
+            or intent["generation"] != identity.generation):
+        raise HTTPException(403, "CLOUD_CONTAINER_ORIGINAL_RECOVERY_REQUIRED")
+    original_token = bool(identity.work_token) and hmac.compare_digest(grant.token_hash, token_hash(identity.work_token))
+    recovery_token = (isinstance(recovery_secret, bytes) and len(recovery_secret) == 32
+                      and hmac.compare_digest(hashlib.sha256(recovery_secret).hexdigest(), intent["recovery_sha256"]))
+    if (require_capability and not recovery_token) or (not original_token and not recovery_token):
+        raise HTTPException(403, "CLOUD_CONTAINER_ORIGINAL_RECOVERY_REQUIRED")
 
 
 def _events(db, project_id, actor_ref, operation, entity_id, response):
@@ -297,8 +371,15 @@ def _events(db, project_id, actor_ref, operation, entity_id, response):
         event_type="cloud." + operation.lower(), payload=metadata))
 
 
-async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=None, grant_id=None):
+async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=None, grant_id=None, container_observed=False,
+                 container_recovery=False, container_recovery_secret=None, container_recovery_provisioned=False):
     """One immutable key / optimistic version / current authority / transaction."""
+    if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not CONTAINER_CREATE_INTENT_ENABLED:
+        raise HTTPException(503, "CLOUD_CONTAINER_INTENT_UNAVAILABLE")
+    if payload.operation in {"CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and container_observed is not True:
+        raise HTTPException(403, "CLOUD_CONTAINER_ENGINE_OBSERVATION_REQUIRED")
+    if payload.operation == "PREPARE_CONTAINER_CREATE" and container_recovery_provisioned is not True:
+        raise HTTPException(403, "CLOUD_CONTAINER_RECOVERY_CAPABILITY_REQUIRED")
     await project(db, payload.project_id, lock=True)
     await _lock(db, f"cloud-operation:{payload.project_id}:{payload.operation_key}")
     if authorization_check:
@@ -322,6 +403,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     if prior:
         if prior.actor_ref != actor_ref or prior.input_digest != digest or prior.operation != payload.operation:
             raise HTTPException(409, "Cloud operation key conflicts with its original actor or request")
+        if prior.operation in {"PREPARE_CONTAINER_CREATE", "PREPARE_CONTAINER_START"}:
+            raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_KEY_QUERY_ONLY")
         return prior.response
     if payload.operation not in {"CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
         enabled()
@@ -353,7 +436,13 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if hasattr(payload, "attempt_id"):
             attempt = await _attempt(db, task, payload.attempt_id)
         if SCOPES[payload.operation] == "cloud:work":
-            await worker_authority(db, task, attempt, worker)
+            if payload.operation in {"CONFIRM_CONTAINER_ID", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and container_recovery:
+                if payload.operation != "OBSERVE_CONTAINER_STOP" and not isinstance(container_recovery_secret, bytes):
+                    raise HTTPException(403, "CLOUD_CONTAINER_RECOVERY_CAPABILITY_REQUIRED")
+                await _container_recovery_authority(db, task, attempt, worker, payload.create_operation_key,
+                    container_recovery_secret, require_capability=payload.operation != "OBSERVE_CONTAINER_STOP")
+            else:
+                await worker_authority(db, task, attempt, worker)
     version = task.version + 1 if task else payload.expected_version + 1
     refs = {}
     op = payload.operation
@@ -464,6 +553,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
                 raise HTTPException(409, "Unreconciled external operations prevent retry")
             from .cloud_ssh import ensure_remote_closed
             await ensure_remote_closed(db, task_id=task.id)
+            await _ensure_container_closed(db, task.id)
         authorization = task.inputs["authorization"]
         if datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00")) <= await clock(db):
             raise HTTPException(403, "Frozen execution authorization expired")
@@ -509,6 +599,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     elif op == "RECONCILE_ATTEMPT":
         from .cloud_ssh import ensure_remote_closed
         await ensure_remote_closed(db, task_id=task.id)
+        await _ensure_container_closed(db, task.id)
         if attempt.status != "RECOVERY_REQUIRED":
             raise HTTPException(409, "Only recovery Attempts accept explicit terminal reconciliation")
         if not await _owner_fenced(db, attempt):
@@ -543,6 +634,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if payload.status == "FAILED":
             from .cloud_ssh import ensure_remote_closed
             await ensure_remote_closed(db, task_id=task.id)
+            await _ensure_container_closed(db, task.id)
         if payload.status == "FAILED" and attempt.checkpoint.get("pending_operation_keys"):
             raise HTTPException(409, "Pending external operations require recovery")
         if payload.status == "RUNNING":
@@ -561,6 +653,93 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         _state(task, attempt, payload.status, payload.reason, await clock(db))
         if payload.status in TERMINAL or payload.status == "RECOVERY_REQUIRED":
             await _fence(db, attempt)
+    elif op == "PREPARE_CONTAINER_CREATE":
+        from hypertest.cloud.docker_attempt_spec import _validate_spec
+        try:
+            _validate_spec(payload.spec)
+        except (ValueError, TypeError, KeyError):
+            raise HTTPException(409, "CLOUD_CONTAINER_SPEC_INVALID") from None
+        expected_scope = {"project_id": str(task.project_id), "task_id": str(task.id), "attempt_id": str(attempt.id),
+            "generation": worker.generation, "key_sha256": payload.key_sha256, "clock_sha256": payload.clock_sha256,
+            "deadline_epoch": payload.hard_deadline}
+        if (payload.spec["scope"] != expected_scope or payload.spec["container_name"] != payload.container_name
+                or payload.spec["image_id"] != payload.image_id or payload.spec["spec_sha256"] != payload.spec_sha256):
+            raise HTTPException(409, "CLOUD_CONTAINER_SPEC_IDENTITY_MISMATCH")
+        if attempt.status != "RUNNING" or payload.container_name.split("-")[2] != attempt.id.hex:
+            raise HTTPException(409, "CLOUD_CONTAINER_CURRENT_RUNNING_ATTEMPT_REQUIRED")
+        if (await _unclosed_container_intents(db, task.id) or any(item["attempt_id"] == str(attempt.id)
+                for item in await _container_intents(db, task.id))):
+            raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_INTENT_EXISTS")
+        hold = attempt.runtime_metadata.get("budget_reservation", {})
+        preparation = attempt.runtime_metadata.get("preparation_budget_reservation", {})
+        try:
+            claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
+            auth_until = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
+            reserved = hold["reserved_seconds"]
+            deadline = datetime.fromtimestamp(payload.hard_deadline, UTC)
+            if (claimed.tzinfo is None or auth_until.tzinfo is None or type(reserved) is not int or reserved < 1
+                    or hold.get("state") != "HELD" or hold.get("lease_generation") != worker.generation
+                    or preparation.get("state") != "HELD" or preparation.get("lease_generation") != worker.generation
+                    or deadline > min(claimed + timedelta(seconds=reserved), auth_until)
+                    or deadline <= await clock(db)):
+                raise ValueError
+        except (KeyError, ValueError, TypeError, OverflowError):
+            raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_BUDGET_REQUIRED") from None
+        grant = await db.scalar(select(CloudWorkGrant).where(CloudWorkGrant.token_hash == token_hash(worker.work_token)))
+        refs["container_create_intent"] = {"project_id": str(task.project_id), "task_id": str(task.id),
+            "attempt_id": str(attempt.id), "operation_key": payload.operation_key, "worker_id": worker.worker_id,
+            "work_grant_id": str(grant.id), "generation": worker.generation, "container_name": payload.container_name,
+            "image_id": payload.image_id, "spec_sha256": payload.spec_sha256, "key_sha256": payload.key_sha256,
+            "clock_sha256": payload.clock_sha256,
+            "recovery_sha256": payload.recovery_sha256,
+            "hard_deadline": payload.hard_deadline, "spec": payload.spec, "state": "UNCONFIRMED", "container_id": None}
+    elif op in {"CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"}:
+        intents = [item for item in await _container_intents(db, task.id)
+                   if item["operation_key"] == payload.create_operation_key and item["attempt_id"] == str(attempt.id)]
+        if (len(intents) != 1 or intents[0]["generation"] != worker.generation
+                or intents[0]["worker_id"] != worker.worker_id or intents[0]["spec_sha256"] != payload.spec_sha256):
+            raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_IDENTITY_REQUIRED")
+        observations = [item for item in await _container_observations(db, task.id)
+                        if item["create_operation_key"] == payload.create_operation_key]
+        confirmed = [item for item in observations if item["state"] == "CONFIRMED"]
+        stopped = [item for item in observations if item["state"] == "STOPPED"]
+        never_started = [item for item in observations if item["state"] == "NEVER_STARTED"]
+        starts = [item for item in await _container_starts(db, task.id)
+                  if item["create_operation_key"] == payload.create_operation_key]
+        if op == "PREPARE_CONTAINER_START":
+            if (attempt.status != "RUNNING" or len(confirmed) != 1 or stopped or never_started or starts
+                    or confirmed[0]["container_id"] != payload.container_id):
+                raise HTTPException(409, "CLOUD_CONTAINER_START_INTENT_INVALID")
+            refs["container_start_intent"] = {"project_id": str(task.project_id), "task_id": str(task.id),
+                "attempt_id": str(attempt.id), "create_operation_key": payload.create_operation_key,
+                "operation_key": payload.operation_key, "container_id": payload.container_id,
+                "generation": worker.generation, "spec_sha256": payload.spec_sha256, "state": "SENT"}
+        elif op == "CONFIRM_CONTAINER_ID":
+            if confirmed or stopped or never_started or payload.engine_status != "created" or payload.exit_code != 0:
+                raise HTTPException(409, "CLOUD_CONTAINER_CONFIRMATION_INVALID")
+            state = "CONFIRMED"
+        elif op == "OBSERVE_CONTAINER_NEVER_STARTED":
+            if (not container_recovery or len(confirmed) != 1 or stopped or never_started or starts
+                    or confirmed[0]["container_id"] != payload.container_id or payload.engine_status != "created"
+                    or payload.exit_code != 0):
+                raise HTTPException(409, "CLOUD_CONTAINER_NEVER_STARTED_UNCONFIRMED")
+            state = "NEVER_STARTED"
+        else:
+            if (len(confirmed) != 1 or len(starts) != 1 or stopped or never_started or confirmed[0]["container_id"] != payload.container_id
+                    or starts[0]["container_id"] != payload.container_id
+                    or payload.engine_status != "exited"):
+                raise HTTPException(409, "CLOUD_CONTAINER_STOP_OBSERVATION_INVALID")
+            state = "STOPPED"
+        if op != "PREPARE_CONTAINER_START":
+            refs["container_observation"] = {"project_id": str(task.project_id), "task_id": str(task.id),
+                "attempt_id": str(attempt.id), "create_operation_key": payload.create_operation_key,
+                "container_id": payload.container_id, "generation": worker.generation, "spec_sha256": payload.spec_sha256,
+                "state": state, "engine_status": payload.engine_status, "exit_code": payload.exit_code,
+                "source": "DOCKER_ENGINE_INSPECT", "cgroup_independently_observed": False,
+                "authority": "ORIGINAL_RECOVERY" if container_recovery else "CURRENT"}
+            if op == "OBSERVE_CONTAINER_NEVER_STARTED":
+                refs["container_observation"]["engine_state"] = {"running": False, "pid": 0,
+                    "started_at": "0001-01-01T00:00:00Z", "finished_at": "0001-01-01T00:00:00Z", "restart_count": 0}
     elif op == "SUBMIT_ASSETS":
         refs = await _assets(db, task, attempt, payload, version)
     elif op == "UPLOAD_ARTIFACT":
@@ -588,6 +767,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     elif op == "REQUEST_INPUT":
         from .cloud_ssh import ensure_remote_closed
         await ensure_remote_closed(db, task_id=task.id)
+        await _ensure_container_closed(db, task.id)
         if not payload.local_processes_stopped or not payload.external_operations_reconciled:
             raise HTTPException(409, "Unstopped or uncertain operations require RECOVERY_REQUIRED")
         if payload.required_action not in task.inputs["authorization"]["permitted_actions"]:
@@ -632,6 +812,12 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         response["attempt_id"] = str(attempt.id)
         response["checkpoint"] = attempt.checkpoint
     snapshot = await _snapshot(db, task) if task else None
+    if op == "PREPARE_CONTAINER_CREATE":
+        snapshot["container_create_intents"].append(refs["container_create_intent"])
+    elif op in {"CONFIRM_CONTAINER_ID", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"}:
+        snapshot["container_observations"].append(refs["container_observation"])
+    elif op == "PREPARE_CONTAINER_START":
+        snapshot["container_start_intents"].append(refs["container_start_intent"])
     db.add(CloudOperationReceipt(id=uuid7(), project_id=payload.project_id, task_id=task.id if task else None,
         attempt_id=attempt.id if attempt else None, operation_key=payload.operation_key, operation=op,
         actor_ref=actor_ref, input_digest=digest, expected_version=payload.expected_version,
@@ -743,6 +929,7 @@ async def _reserve_budget(db, task, attempt, payload, worker):
 async def _settle_budget(db, attempt, payload, worker):
     from .cloud_ssh import ensure_remote_closed
     await ensure_remote_closed(db, task_id=attempt.task_id)
+    await _ensure_container_closed(db, attempt.task_id)
     record = attempt.runtime_metadata.get("budget_reservation")
     if worker is None or not isinstance(record, dict) or record.get("state") != "HELD":
         raise HTTPException(409, "Settlement requires the current Worker and an outstanding reservation")
@@ -941,6 +1128,7 @@ async def _delegation(db, task, attempt, payload, version):
 async def _finish(db, task, attempt, payload):
     from .cloud_ssh import ensure_remote_closed
     await ensure_remote_closed(db, task_id=task.id)
+    await _ensure_container_closed(db, task.id)
     manifest = payload.completion_manifest
     if not manifest.all_local_processes_stopped or not manifest.external_operations_reconciled or manifest.pending_operation_keys:
         raise HTTPException(409, "Completion is blocked by active processes or unresolved external operations")
@@ -1031,6 +1219,9 @@ async def task_summary(db, task_id, *, project_id=None):
     result["remote_operations"] = await live_operations(db, attempt.id) if attempt else []
     from .cloud_http import live_operations as http_operations
     result["http_operations"] = await http_operations(db, attempt.id) if attempt else []
+    result["container_create_intents"] = await _container_intents(db, task.id)
+    result["container_observations"] = await _container_observations(db, task.id)
+    result["container_start_intents"] = await _container_starts(db, task.id)
     if attempt:
         from .cloud_ssh import ensure_remote_closed
         remote_closed = True
@@ -1052,6 +1243,8 @@ async def task_summary(db, task_id, *, project_id=None):
             blocking.append("PENDING_ORIGINAL_OPERATIONS")
         if not remote_closed:
             blocking.append(remote_blocking)
+        if await _unclosed_container_intents(db, task.id):
+            blocking.append("CLOUD_CONTAINER_UNRECONCILED")
         if await _delegations_unresolved(db, attempt):
             blocking.append("DELEGATIONS_UNRECONCILED")
         cancellation = attempt.checkpoint.get("cancellation_requested") is True

@@ -1567,6 +1567,18 @@ ReconcileCloudOperation 只追加原 key 的确定观察、原材料和有权 re
 
 §45 的 `hypertest_sync_task` / `hypertest_get_task`、`task:sync`、原同步请求/回执、分页、SessionTask 状态/result 和 UNKNOWN 规则原样保留；不得调用它们去触发云端执行。§44 native 与 legacy managed/interactive、Runner/Gate、历史 hash/FINAL 和授权不因新增 profile 迁移或升格。云端 profile 不可用时，现有会话同步仍独立可用。
 
+### 46.7.0 原 Attempt 容器创建意图（ADR-029 候选）
+
+拟采用独立容器时，受限宿主通过私有 broker 提交 `PREPARE_CONTAINER_CREATE`，绑定当前 Project / Task / latest Attempt、原 worker 的有效 lease / `cloud:work` grant 与 generation、稳定 operation key、原容器名、image ID、完整固定 spec 与 digest、心跳 key digest、时钟域 digest、专用 recovery capability digest 和原硬截止。该 typed 操作复用 `CloudOperationReceipt` 和现有 expected_version / 请求摘要规则：完整非秘密意图在任何 Engine create 前事务持久化，同一 Attempt 不得登记另一原 key 或替代身份。心跳及 recovery key 原文不写入回执；Agent 不持平台能力或 Docker 权限，也不提供容器确认或停止证明。
+
+登记回执只证明原意图已接受，初始状态为 `UNCONFIRMED`，容器 ID 为空。调用失答、UNKNOWN 或查无回执只查询原 Project / key；不得重 POST、换 key、换容器名或将 NOT_FOUND 推定为未发送。服务端再次收到相同 key 的登记请求时拒绝并要求只读查询；同 key 异输入及另一身份均拒绝。受信 Worker 私有 broker 自行查询 Engine，按原名称及完整 spec 复核后才确认完整容器 ID，Agent 声明、名称或 Engine 创建 ACK 均不能代替此核验。对原 ID 的 start 必须另以原 key 持久 SENT 后最多发送一次；失答只查原 key / ID。
+
+容器未收口时，COMPLETE、REQUEST_INPUT、FAILED、RETRY、RECONCILE 和预算结算受阻，summary 显示对应阻断；受控 SSH / HTTPS 操作发起不因活动容器本身而受阻。取消或 lease 丢失立即 fence 并进入 RECOVERY_REQUIRED，原预算保留 HELD。当前服务端硬关闭登记及观察入口，不能通过配置启用；不得将候选用于真实任务。受信 Worker 的私有 broker 核验 Engine 原完整 ID、固定 spec 和 exited/PID 0 状态，按原 Attempt 关联可信观察判断收口；记录明确不声称独立读取宿主 cgroup。已收口的历史 Attempt 不能永久阻断合法复测；broker drain 和未决外部操作仍分别核对。候选未完成真实 Worker 接线或准入，不能据此宣称云端执行已部署。
+
+失租或取消后，仅旧 writer 已 fence、原 worker ID / generation 匹配且 Attempt 处于 RECOVERY_REQUIRED 时，持有原 work grant token 或原容器专用 recovery capability 的受信 broker 可对同一原 ID 追加 Engine 停止观察；该能力不允许新 start、续租、普通写入或释放预算。候选 recovery secret 在任何 Engine create 前保存在不挂给 Agent 的 Worker 私有卷，fsync 并固定摘要；重启按原 Project / Task / Attempt / key / generation / worker 身份读取并核验。文件缺失、损坏、权限不安全或身份不符，继续 UNKNOWN / HELD；不得借新 owner 或新 key 冒充原身份。
+
+原 create 的完整 ID 未确认时，仅持原 recovery capability 的受信 broker 可按冻结名称只读查询 Engine、核对完整 spec 并登记原 ID；随后按该完整 ID 再查询。仅当原 ID 显示 `created` / PID 0、开始和结束时间均为零、重启次数为零，且无任何 SENT start 原意图，允许追加 `NEVER_STARTED` 窄观察；已有 start 意图可能仍在途，不能据 `created` 推断未执行。NOT_FOUND、异常、身份或状态不符一律 UNKNOWN / HELD；不发送 create/start，不自动结算或修改测试结果。
+
 ### 46.7.1 固定SSH诊断的host窄协议（ADR-023，实施中）
 
 `SSH_FIXED_DIAGNOSTICS_V1`独立opt-in，任务冻结精确canonical `ssh://user@IP:port`、完整host key、helper / catalog / 固定动作摘要及限额。Agent只可向`/run/hypertest-ssh.sock`调用`invoke --key KEY --action KEY`或`query --operation UUID`，无目标 / shell / 参数 / 环境字段，不接受Agent提供的停止或授权证明。普通Cloud handoff与平台typed操作仍由唯一Worker写入，不新增Agent writer scope。

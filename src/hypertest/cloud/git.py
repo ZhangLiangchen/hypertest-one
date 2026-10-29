@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -17,6 +18,31 @@ from .errors import CloudBlocked
 
 SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 REF = re.compile(r"refs/(?:heads|tags|merge-requests|pull)/[A-Za-z0-9_./-]+")
+
+
+def require_private_empty_checkout_target(destination: Path) -> None:
+    """Accept only an untouched private directory created by the trusted Worker.
+
+    The caller must keep the parent inaccessible to other writers until Git
+    preparation finishes; this check does not turn a shared path into one.
+    """
+    fd = None
+    try:
+        destination = destination.absolute()
+        if destination.resolve(strict=True) != destination:
+            raise ValueError
+        fd = os.open(destination, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        info = os.fstat(fd)
+        path_info = destination.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o700 or os.listdir(fd)
+                or (info.st_dev, info.st_ino) != (path_info.st_dev, path_info.st_ino)):
+            raise ValueError
+    except (OSError, ValueError):
+        raise CloudBlocked("CHECKOUT_TARGET_INVALID", "Checkout requires an untouched private empty directory") from None
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 def repository_url(value: str) -> str:
@@ -169,9 +195,14 @@ class GitResolver:
             raise CloudBlocked("GIT_SHA_INVALID", "Git did not resolve a full commit hash")
         return commit
 
-    async def checkout(self, resolved: dict, destination: Path, *, token: bytes | None = None) -> None:
+    async def checkout(self, resolved: dict, destination: Path, *, token: bytes | None = None,
+                       private_empty: bool = False) -> None:
         sha = resolved["commit_sha"]
-        if not SHA.fullmatch(sha) or destination.exists():
+        if type(private_empty) is not bool or not SHA.fullmatch(sha):
+            raise CloudBlocked("CHECKOUT_TARGET_INVALID", "Checkout requires a new directory and frozen SHA")
+        if private_empty:
+            require_private_empty_checkout_target(destination)
+        elif destination.exists() or destination.is_symlink():
             raise CloudBlocked("CHECKOUT_TARGET_INVALID", "Checkout requires a new directory and frozen SHA")
         url = repository_url(resolved["url"])
         with git_environment(url, token) as env:

@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # ADR-019: independent opt-in Cloud worker; no Local authorization coupling.
     cloud_enabled: bool = False
     cloud_worker_enabled: bool = False
+    # Explicit candidate; a separate hard gate keeps Docker Attempt creation disabled.
+    cloud_docker_enabled: bool = False
     # Optional dedicated-service admission; empty preserves the existing CLI path.
     cloud_service_release_sha256: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
     cloud_runtime_root: str = "/var/lib/hypertest-cloud/runtime"

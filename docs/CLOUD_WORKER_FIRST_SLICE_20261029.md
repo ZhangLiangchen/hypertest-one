@@ -47,3 +47,13 @@ Cloud 报告固定版本读回增加完整快照 SHA-256、Run 身份/执行/用
 后续镜像从已推送代码 `397a7ff9a9cb394c093f5fe4ae22f1d9c94cfcf6` 构建，image ID `sha256:3d2d8e5ca600a80c81f4bec8a0cb8f0ef04cc1a5618a9eddf831eaa6ae436833`。无网络、只读非 root 容器以合成请求额度测试 SDK 与用户提供的私有密钥文件的本地前置条件通过；未发送模型请求，真实 namespace 探针仍为 `NAMESPACE_SETUP_FAILED`。镜像未部署，模型服务端认证、SUT 和兑换结果均未观察。
 
 用户选定 XBlock MR 1146 和 `hypervise_pure` 框架，以 staging 的 TRON_TEST USDT→TRX DEX 为目标。MR 已合并不证明 staging 已部署对应版本。当前受控 HTTPS 仅支持公开、无认证、无副作用的固定 GET/HEAD；认证及兑换写操作尚不支持，XBlock 需要 SSH / 服务器操作的路径仍遵守 Local-only 路由。具体框架依赖、授权和目标观察需另行核实；没有发起兑换或推定测试结果。
+
+## Docker Attempt 候选接线及恢复（2026-10-29）
+
+候选代码接入独立 Docker Attempt：受信 Worker 持 Docker socket，Agent 以非 root、cap0、NNP、只读根、私有 PID/IPC 和无普通网络运行，使用分开的 named-volume 子路径访问 workspace、只读 SUT、home 与受限 broker socket；Agent 不挂 Worker 私有运行目录、恢复凭据或 Docker socket。首片拒绝 Codex native delegation。Worker 自身、共享卷、镜像、配置和资源须经 Compose / Engine 准入；单 Worker 私有锁及原回执关联用于排除不明或尚未收口的旧成员。资源上限按 Worker 与 Attempt 合计，Engine 报告不等于独立读取 Attempt cgroup。
+
+容器创建、原 ID 确认、单次启动意图和停止观察使用不可变原回执；重启恢复凭据仅用于原容器观察，不授予启动、续租或业务写。控制流失联时 guard 停止，原 ID 的 Engine 观察与 broker 排空分别决定能否收口。创建失答时只按原名和 spec 核对原 ID；仅在未登记启动意图、Engine 确认从未启动时记 `NEVER_STARTED`。已有启动意图、NOT_FOUND 或观察不充分仍保留 UNKNOWN / HELD，不能重发。
+
+实际 OrbStack Linux 合成探针覆盖了专用 PostgreSQL 意图、原 ID 和启动登记、真实 DB 租约认证心跳、官方 SDK 固定工具 marker、原 ID 停止观察；另验证丢失创建回执后的原名恢复、未决/未知成员拒绝，以及空闲模型 broker drain。Mac 与 Linux 的单调时钟不相同，候选将 Linux boot ID 和 time namespace 偏移摘要固定并在 guard 校验。探针不调用模型、不使用真实项目或凭据；部分 Worker 资源和 reporter 为合成输入，不代表真实服务准入或 SUT 测试。临时容器、测试数据库、网络和卷已清理。相关代码定向回归 163 passed / 1 skipped；跳过的是本地虚拟环境缺少固定 SDK 的检查，SDK 固定镜像无模型探针已单独通过。
+
+Docker 画像、release manifest 工具和 Worker 路径仍是默认关闭候选。`CONTAINER_CREATE_INTENT_ENABLED` 为 false，示例 Compose 的 Cloud 开关也为 false；**本轮没有部署独立 Cloud Worker、开放 Cloud、调用模型或发起兑换**。还需从推送的完整提交构建镜像并现场配置、核验独立卷、Engine socket、API 与 Worker 共用的包装身份、预算、实际服务准入和真实 Worker 全生命周期。认证写请求及原业务订单对账尚未实现；等待用户完成框架推送后重新核对固定版本、staging 实际部署与钱包使用协调，再执行授权的四笔测试。

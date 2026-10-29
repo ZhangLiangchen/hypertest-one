@@ -368,6 +368,35 @@ class CloudBudgetSettlement(Input):
         return self
 
 
+class CloudContainerCreateIntent(AttemptMutation):
+    """Private Worker registration only; does not itself authorize Docker I/O."""
+    operation: Literal["PREPARE_CONTAINER_CREATE"] = "PREPARE_CONTAINER_CREATE"
+    container_name: str = Field(pattern=r"^hypertest-attempt-[a-f0-9]{32}-[a-f0-9]{32}$")
+    image_id: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    spec_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    key_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    clock_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    recovery_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    hard_deadline: int = Field(strict=True, gt=0, le=253402300799)
+    spec: dict
+
+
+class CloudContainerObservation(AttemptMutation):
+    operation: Literal["CONFIRM_CONTAINER_ID", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"]
+    create_operation_key: str = Field(pattern=KEY)
+    container_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    spec_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    engine_status: Literal["created", "exited"]
+    exit_code: int = Field(strict=True, ge=0, le=255)
+
+
+class CloudContainerStartIntent(AttemptMutation):
+    operation: Literal["PREPARE_CONTAINER_START"] = "PREPARE_CONTAINER_START"
+    create_operation_key: str = Field(pattern=KEY)
+    container_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    spec_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class CloudTransition(AttemptMutation):
     operation: Literal["TRANSITION"] = "TRANSITION"
     status: Literal["RUNNING", "FAILED", "RECOVERY_REQUIRED"]
@@ -522,4 +551,4 @@ class CloudFinish(AttemptMutation):
     budget_settlement: CloudBudgetSettlement | None = None
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudTransition | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]

@@ -16,7 +16,18 @@ async def run(*, once: bool) -> int:
     if not settings.cloud_enabled or not settings.cloud_worker_enabled:
         print(json.dumps({"code": "CLOUD_WORKER_DISABLED", "model_started": False}))
         return 78
+    docker_enabled = getattr(settings, "cloud_docker_enabled", False)
+    if docker_enabled:
+        # Do not claim or contact a database while the implementation gate is closed.
+        from hypertest.application.cloud_tasks import CONTAINER_CREATE_INTENT_ENABLED
+
+        if not CONTAINER_CREATE_INTENT_ENABLED:
+            print(json.dumps({"code": "CLOUD_DOCKER_NOT_READY", "work_claimed": False, "model_started": False}), flush=True)
+            return 1
     service_release = getattr(settings, "cloud_service_release_sha256", "")
+    if docker_enabled and not service_release:
+        print(json.dumps({"code": "WORKER_RELEASE_INVALID", "work_claimed": False, "model_started": False}), flush=True)
+        return 1
     if service_release:
         from .worker_admission import admit_credentials, blocked_observation, inspect_admission
 
@@ -31,7 +42,24 @@ async def run(*, once: bool) -> int:
     from .worker import CloudWorker
     from .worker_diagnostics import exception_metadata, failure_code, failure_metadata
 
-    worker = CloudWorker(AsyncSessionLocal, settings, "cloud-worker-" + uuid4().hex)
+    docker_runtime = None
+    if docker_enabled:
+        from .docker_attempt import DockerEngine
+        from .docker_attempt_spec import ResourceLimit
+        from .docker_runtime import DockerRuntime
+        from .docker_service_admission import load_docker_service_profile
+
+        try:
+            profile = load_docker_service_profile()
+            docker_runtime = DockerRuntime(settings=settings, profile=profile, sessions=AsyncSessionLocal,
+                engine=DockerEngine(profile.docker_socket_target),
+                attempt_limit=ResourceLimit(memory=2 * 1024**3, memory_swap=2 * 1024**3, pids=128))
+        except Exception as error:
+            print(json.dumps(blocked_observation(error, scope="SERVICE_STARTUP_ONLY")), flush=True)
+            await engine.dispose()
+            return 1
+    worker_options = {"docker_runtime": docker_runtime} if docker_enabled else {}
+    worker = CloudWorker(AsyncSessionLocal, settings, "cloud-worker-" + uuid4().hex, **worker_options)
     active = asyncio.current_task()
     loop = asyncio.get_running_loop()
     for signum in (signal.SIGINT, signal.SIGTERM):
@@ -78,6 +106,8 @@ async def run(*, once: bool) -> int:
         cancelled = True
         exit_code = 130
     finally:
+        if docker_runtime is not None:
+            docker_runtime.close()
         try:
             await engine.dispose()
         except Exception as error:

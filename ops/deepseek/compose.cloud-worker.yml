@@ -1,0 +1,77 @@
+# Preparation template only. Never merge into the live Compose automatically.
+# Values must come from a reviewed, nonsecret deployment configuration.
+name: hypertest-mac-cloud
+services:
+  cloud-worker:
+    profiles: [cloud-worker]
+    image: ${HYPERTEST_CLOUD_WORKER_IMAGE_ID:?Set immutable sha256 image ID}
+    user: "997:0"
+    init: true
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1g
+    memswap_limit: 1g
+    pids_limit: 80
+    tmpfs:
+      - /tmp:rw,exec,nosuid,nodev,size=256m,mode=1777
+    env_file:
+      - ${HYPERTEST_CLOUD_WORKER_ENV_FILE:?Set private Worker env file}
+    environment:
+      HYPERTEST_CLOUD_ENABLED: "false"
+      HYPERTEST_CLOUD_WORKER_ENABLED: "false"
+      HYPERTEST_CLOUD_CODEX_ENABLED: "false"
+      HYPERTEST_CLOUD_DOCKER_ENABLED: "true"
+      HYPERTEST_CLOUD_SERVICE_RELEASE_SHA256: ${HYPERTEST_CLOUD_RELEASE_SHA256:?Set release manifest SHA256}
+      HYPERTEST_CLOUD_RUNTIME_ROOT: /var/lib/hypertest-cloud/runtime
+      HYPERTEST_CLOUD_CREDENTIAL_KEY_FILE: /run/credentials/hypertest-cloud.service/wrapping-key
+      HYPERTEST_CLOUD_MODEL_KEY_FILE: /run/credentials/hypertest-cloud.service/deepseek-key
+      CREDENTIALS_DIRECTORY: /run/credentials/hypertest-cloud.service
+      TMPDIR: /tmp
+    volumes:
+      - type: volume
+        source: cloud-private
+        target: /var/lib/hypertest-cloud/runtime
+        volume: {nocopy: true}
+      - type: volume
+        source: cloud-shared
+        target: /var/lib/hypertest-cloud/shared
+        volume: {nocopy: true}
+      - type: volume
+        source: cloud-credentials
+        target: /run/credentials/hypertest-cloud.service
+        read_only: true
+        volume: {nocopy: true}
+      - type: volume
+        source: cloud-release
+        target: /opt/hypertest-cloud/release.json
+        read_only: true
+        volume: {nocopy: true, subpath: release.json}
+      - type: volume
+        source: cloud-release
+        target: /etc/hypertest-cloud/docker-service.json
+        read_only: true
+        volume: {nocopy: true, subpath: docker-service.json}
+      - type: bind
+        source: ${HYPERTEST_CLOUD_DOCKER_SOCKET_SOURCE:?Set trusted Engine socket source}
+        target: /run/hypertest-docker.sock
+        bind: {create_host_path: false}
+    networks: [hypertest-backend]
+volumes:
+  cloud-private:
+    external: true
+    name: ${HYPERTEST_CLOUD_PRIVATE_VOLUME:?Set preinitialized private volume}
+  cloud-shared:
+    external: true
+    name: ${HYPERTEST_CLOUD_SHARED_VOLUME:?Set preinitialized shared volume}
+  cloud-credentials:
+    external: true
+    name: ${HYPERTEST_CLOUD_CREDENTIAL_VOLUME:?Set preinitialized credential volume}
+  cloud-release:
+    external: true
+    name: ${HYPERTEST_CLOUD_RELEASE_VOLUME:?Set preinitialized release volume}
+networks:
+  hypertest-backend:
+    external: true
+    name: hypertest-mac_backend
