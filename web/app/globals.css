@@ -694,3 +694,21 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-records > section > h2.ant-typography + .data-surface { margin-top: 16px; }
 .cloud-task-record-heading { padding: 22px 24px; }
 .cloud-task-record-heading h2.ant-typography { margin: 0; font-size: 20px; line-height: 1.45; }
+
+/* Cloud project resources: keep configuration and credential actions distinct. */
+.cloud-resources-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.cloud-resources-heading > div { min-width: 0; }
+.cloud-resources-heading h2.ant-typography { margin-bottom: 6px; }
+.cloud-resources-heading .ant-typography.muted { max-width: 75ch; margin: 0; line-height: 1.65; }
+.cloud-resources-baseline { flex-shrink: 0; padding: 7px 12px; border: 1px solid var(--ht-line); border-radius: 10px; color: var(--ht-muted); font-size: 12px; white-space: nowrap; }
+.cloud-resources-baseline strong { margin-left: 6px; color: var(--ht-ink); font-variant-numeric: tabular-nums; }
+.cloud-resources-repositories { gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--ht-line); }
+.cloud-resources-repositories > .form-section { padding: 0; }
+.cloud-resources-repositories .ant-form-item:last-child { margin-bottom: 0; }
+.cloud-resources-environment.form-section { padding-top: 24px; }
+.cloud-resources-credentials > .ant-typography.muted { max-width: 75ch; line-height: 1.65; }
+.cloud-resources-credential-list { margin-top: 24px; }
+.cloud-resources-credential-list h3.ant-typography, .cloud-resources-credential-editor h3.ant-typography { margin: 0 0 16px; }
+.cloud-resources-credential-list .ant-table-wrapper { border: 1px solid var(--ht-line); border-radius: var(--ht-radius-control); overflow: hidden; }
+.cloud-resources-credential-editor { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--ht-line); }
+.cloud-resources-credential-editor .workspace-form { max-width: 960px; }

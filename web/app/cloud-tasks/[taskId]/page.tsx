@@ -2,7 +2,7 @@
 
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Descriptions, Form, Input, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Form, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -15,6 +15,9 @@ import { useCloudOperation } from "@/lib/cloud-operation";
 import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument } from "@/lib/run-polling";
 import { useI18n } from "@/lib/i18n";
 import { CloudTaskRecords } from "./records";
+import { CloudTaskForm } from "@/app/projects/[projectId]/cloud/task-form";
+import { CloudTaskDelete } from "./delete-task";
+import type { CloudTask } from "@/lib/cloud";
 
 const text = (value: unknown) => typeof value === "string" ? value : value == null ? "—" : JSON.stringify(value, null, 2);
 const isUuid = (value: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
@@ -22,8 +25,8 @@ const isUuid = (value: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]
 export default function CloudTaskPage() {
   const { taskId } = useParams<{ taskId: string }>(); const search = useSearchParams();
   const projectId = search.get("projectId") || "";
-  const { t, label } = useI18n(); const [answers, setAnswers] = useState<Record<string, string>>({});
-  useEffect(() => { setAnswers({}); }, [projectId, taskId]);
+  const { t, label } = useI18n(); const [editing, setEditing] = useState<CloudTask | null>(null); const [answers, setAnswers] = useState<Record<string, string>>({});
+  useEffect(() => { setAnswers({}); setEditing(null); }, [projectId, taskId]);
   const operation = useCloudOperation(projectId);
   const setup = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup });
   const configured = setup.data?.configured === true;
@@ -40,8 +43,13 @@ export default function CloudTaskPage() {
     // keeps the old document and can retry on the next successful summary read.
     if (observedVersion !== undefined && (!document.data || observedVersion > document.data.task.version) && !document.isFetching) void document.refetch();
   }, [observedVersion, live.dataUpdatedAt, document.data?.task.version, taskId, projectId, document.refetch]);
+  useEffect(() => {
+    if (editing && operation.receipt?.operation === "UPDATE_TASK" && operation.receipt.task_id === editing.id && operation.receipt.version === editing.version + 1) {
+      setEditing(null); void live.refetch(); void document.refetch();
+    }
+  }, [editing, operation.receipt, live.refetch, document.refetch]);
   async function mutate(fields: CloudRecord) {
-    if (!document.data || !cloudOperationalView(document.data, live.data).valid) return;
+    if (!document.data || document.data.task.deleted_at || !cloudOperationalView(document.data, live.data).valid) return;
     const receipt = await operation.submit({ task_id: taskId, expected_version: document.data.task.version, ...fields });
     if (receipt) { await document.refetch(); await live.refetch(); }
   }
@@ -55,10 +63,11 @@ export default function CloudTaskPage() {
   const repositories = resolution?.repositories as Record<string, CloudRecord> | undefined;
   const inResolution = operational.resolutions.some((row) => ["PENDING", "RESOLVING"].includes(String(row.status)));
   const enabled = capabilities.data?.enabled === true; const dispatchEnabled = enabled && capabilities.data?.worker_enabled === true;
-  const config = configurations.data?.items.find((row) => row.id === task.config_id)?.configuration;
+  const configRevision = configurations.data?.items.find((row) => row.id === task.config_id);
+  const config = configRevision?.configuration;
   const remote = config?.environment.connection || ((task.frozen_manifest?.configuration as CloudRecord)?.environment as CloudRecord)?.connection;
   const unsupportedResources = (remote !== undefined && remote !== "NONE") || !!config && (!config.sut.url.startsWith("https://") || !config.framework.url.startsWith("https://"));
-  const blocked = operation.blocked || !enabled || !operational.valid;
+  const blocked = operation.blocked || !enabled || !operational.valid || !!task.deleted_at;
   const answered = new Set(detail.answers.map((row) => row.question_id));
   const questions = detail.questions.filter((row) => !answered.has(row.id));
   // State identifies current work, not a history of completed business phases.
@@ -69,7 +78,12 @@ export default function CloudTaskPage() {
   return <main className="workspace-page cloud-task-detail">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")}
       metadata={<div className="cloud-task-metadata"><div><span>{t("Source", "来源")}</span><Tag>Cloud · DeepSeek</Tag></div><div><span>{t("Task progress", "任务进度")}</span><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag></div><div><span>{t("Reported test result", "报告的测试结果")}</span><ReportedResultTag result={task.reported_result} /></div><div><span>{t("Accepted version", "接受版本")}</span><strong>{task.version}</strong></div></div>}
-      actions={<Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button>} />
+      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !configRevision} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
+    <Modal open={!!editing} title={null} footer={null} width={1000} destroyOnHidden closable={!operation.busy && !operation.pending} maskClosable={!operation.busy && !operation.pending} keyboard={!operation.busy && !operation.pending} onCancel={() => { if (!operation.busy && !operation.pending) setEditing(null); }}>
+      {editing ? <><CloudOperationNotice operation={operation} />{(task.deleted_at || task.version !== editing.version || status !== "DRAFT" || !!task.frozen_manifest || !operational.valid || inResolution) ? <Alert showIcon type="warning" message={t("The draft changed or its current state cannot be verified. Close and reopen the editor after refreshing.", "草稿已变化或当前状态无法核验，请关闭编辑并刷新后重新打开。")} /> : null}
+        <CloudTaskForm key={`${editing.id}:${editing.version}`} config={configurations.data?.items.find((row) => row.id === editing.config_id)} operation={operation} configOptions={configurations.data?.items} enabled={enabled && operational.valid && !task.deleted_at && status === "DRAFT" && !task.frozen_manifest && !inResolution && task.version === editing.version} editTask={editing} onCancel={() => setEditing(null)} onCreated={() => { setEditing(null); void live.refetch(); void document.refetch(); }} />
+      </> : null}
+    </Modal>
     <Alert showIcon type="info" message={t("Progress and test results are separate", "任务进度与测试结果分别记录")} description={t("Completed means the agreed work was delivered. FAIL, ERROR and BLOCKED results remain visible with their original reports.", "已完成表示约定工作已交付；失败、错误和阻塞结果及其原始报告继续保留。 ")} style={{ marginBottom: 20 }} />
     {document.isError ? <Alert showIcon type="warning" message={t("Refresh failed; previously verified records are retained.", "刷新失败；保留此前已核验记录。 ")} style={{ marginBottom: 20 }} /> : null}
     {!operational.valid || live.isError ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={operational.newerVersion ? t("Reading a newer accepted version", "正在读取更新的接受版本") : t("Live operational state is not verified", "当前运行状态尚未核验")}
@@ -84,7 +98,7 @@ export default function CloudTaskPage() {
         <section className="overview-section cloud-task-source-versions"><Typography.Title level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
           {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT SHA", "被测 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
           {status === "DRAFT" ? <Space wrap><Button loading={inResolution} disabled={blocked || inResolution || !!accepted || !config || unsupportedResources} onClick={() => void mutate({ operation: "RESOLVE_INPUTS" })}>{inResolution ? t("Resolving versions", "正在解析版本") : t("Resolve both repositories", "解析双仓版本")}</Button>
-            <Button type="primary" disabled={operation.blocked || !operational.valid || !dispatchEnabled || !accepted || !config || unsupportedResources} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch these exact versions", "下发上述确切版本")}</Button></Space> : null}
+            <Button type="primary" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !dispatchEnabled || !accepted || !config || unsupportedResources} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch these exact versions", "下发上述确切版本")}</Button></Space> : null}
           {unsupportedResources ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("These resources cannot run in the current profile", "当前运行配置无法执行这些资源")} description={t("Only HTTPS Git repositories and workspace-local fixtures are supported. Preserve this draft and configure supported resources for a new task.", "当前仅支持 HTTPS Git 仓库和工作区内测试。请保留此草稿，并配置受支持资源后创建新任务。 ")} /> : null}
           {!dispatchEnabled ? <Typography.Paragraph className="muted" style={{ marginTop: 16 }}>{t("Dispatch requires enabled Cloud admission and an enabled worker. Historical reads remain available.", "下发需要启用 Cloud 准入和 Worker；历史读取继续可用。 ")}</Typography.Paragraph> : null}
           {operational.resolutions.some((row) => ["FAILED", "RECOVERY_REQUIRED"].includes(String(row.status))) ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Input resolution needs attention", "输入解析需要处理")} description={t("Check repository access, selectors and the original operation. Do not restart an uncertain resolution automatically.", "请核对仓库访问、版本选择和原操作；不要自动重新开始结果不明的解析。 ")} /> : null}
@@ -102,15 +116,15 @@ export default function CloudTaskPage() {
             <Typography.Title level={3}>{text(question.question)}</Typography.Title>
             {Array.isArray(question.options) ? <ul>{question.options.map((option, index) => <li key={index}>{text(option)}</li>)}</ul> : null}
             <Form.Item label={t("Answer within the existing authorization", "在现有授权范围内回答")} required><Input.TextArea rows={3} maxLength={16000} value={answers[String(question.id)] || ""} onChange={(event) => setAnswers((current) => ({ ...current, [String(question.id)]: event.target.value }))} /></Form.Item>
-            <Button htmlType="submit" disabled={operation.blocked || !operational.valid || !answers[String(question.id)]?.trim()}>{t("Save answer", "保存回答")}</Button>
+            <Button htmlType="submit" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !answers[String(question.id)]?.trim()}>{t("Save answer", "保存回答")}</Button>
           </Form>) : null}
           <CloudAttemptRecovery key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} capabilities={capabilities.data} recovery={live.data?.recovery}
-            blocked={operation.blocked || !operational.valid} onSubmit={mutate} />
+            blocked={operation.blocked || !!task.deleted_at || !operational.valid} onSubmit={mutate} />
         </section> : null}
         {status && !["COMPLETED", "FAILED", "CANCELLED"].includes(status) ? <section className="overview-section"><Typography.Title level={2}>{t("Cancel this task or attempt", "取消当前任务或尝试")}</Typography.Title>
           <Typography.Paragraph className="muted">{t("Cancellation fences the writer first. Active or uncertain work stays in recovery until cleanup and external operations are reconciled.", "取消会先隔离写入权；活动或未知工作在清理及外部操作完成对账前保持待恢复。 ")}</Typography.Paragraph>
           <Typography.Paragraph className="muted">{t("This control records the fixed reason OPERATOR_REQUESTED_CANCELLATION. It remains a single keyed request, including when credential decryption is unavailable.", "本操作记录固定原因 OPERATOR_REQUESTED_CANCELLATION；即使凭据暂时无法解密，也使用同一个幂等请求完成隔离控制。 ")}</Typography.Paragraph>
-          <Button danger disabled={operation.blocked || !operational.valid || attempt?.checkpoint.cancellation_requested === true} onClick={() => void mutate(cloudCancellation(attempt?.id))}>{attempt?.checkpoint.cancellation_requested === true ? t("Cancellation requested", "已请求取消") : t("Request cancellation", "请求取消")}</Button>
+          <Button danger disabled={operation.blocked || !!task.deleted_at || !operational.valid || attempt?.checkpoint.cancellation_requested === true} onClick={() => void mutate(cloudCancellation(attempt?.id))}>{attempt?.checkpoint.cancellation_requested === true ? t("Cancellation requested", "已请求取消") : t("Request cancellation", "请求取消")}</Button>
         </section> : null}
       </div> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },

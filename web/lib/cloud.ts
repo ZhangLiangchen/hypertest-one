@@ -11,7 +11,7 @@ export type CloudConfiguration = {
     ssh_access?: CloudRecord | null; cloud_access_policy?: "LOCAL_ONLY" | "WEB_ONLY" | null };
 };
 export type CloudConfigRevision = { id: string; revision: number; configuration: CloudConfiguration };
-export type CloudTask = { id: string; project_id: string; title: string; status: string; reported_result: CloudResult; version: number; latest_attempt_id?: string | null; config_id: string; inputs: CloudRecord; frozen_manifest?: CloudRecord | null; updated_at?: string };
+export type CloudTask = { id: string; project_id: string; title: string; status: string; reported_result: CloudResult; version: number; latest_attempt_id?: string | null; config_id: string; inputs: CloudRecord; frozen_manifest?: CloudRecord | null; updated_at?: string; deleted_at?: string | null };
 export type CloudAttempt = { id: string; status: string; reported_result: CloudResult; attempt_no: number; reason?: string | null; checkpoint: CloudRecord; runtime_metadata: CloudRecord; lease_generation: number };
 export type CloudRecoverySummary = {
   resume_supported: boolean; resume_reason?: string; old_owner_fenced: boolean;

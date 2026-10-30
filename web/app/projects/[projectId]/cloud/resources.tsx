@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Col, Divider, Form, Input, InputNumber, Row, Select, Table, Tag, Typography } from "antd";
+import { Alert, Button, Col, Form, Input, InputNumber, Row, Select, Table, Tag, Typography } from "antd";
 import { useI18n } from "@/lib/i18n";
 import { credentialFreeUrl } from "@/lib/cloud";
 import type { CloudConfiguration, CloudConfigRevision, CloudCredential, CloudCredentialVersion } from "@/lib/cloud";
@@ -109,10 +109,10 @@ export function CloudResources({ latest, project, credentials, versions, operati
     }
   }
 
-  return <div className="workspace-section-stack">
-    <section className="overview-section workspace-panel" aria-labelledby="cloud-resources-title">
-      <Typography.Title id="cloud-resources-title" level={2}>{t("Project repositories and environment", "项目仓库与测试环境")}</Typography.Title>
-      <Typography.Paragraph className="muted">{t("Project repository addresses prefill new resources. Choose versions for each task before dispatch; saved resource revisions remain unchanged.", "新资源预填项目仓库地址；为每个任务选择版本后再下发，已保存的资源修订保持不变。")}</Typography.Paragraph>
+  return <div className="workspace-section-stack cloud-resources">
+    <section className="overview-section workspace-panel cloud-resources-config" aria-labelledby="cloud-resources-title">
+      <div className="cloud-resources-heading"><div><Typography.Title id="cloud-resources-title" level={2}>{t("Project repositories and environment", "项目仓库与测试环境")}</Typography.Title>
+      <Typography.Paragraph className="muted">{t("Project repository addresses prefill new resources. Choose versions for each task before dispatch; saved resource revisions remain unchanged.", "新资源预填项目仓库地址；为每个任务选择版本后再下发，已保存的资源修订保持不变。")}</Typography.Paragraph></div><span className="cloud-resources-baseline">{t("Draft baseline revision", "草稿基线修订")} <strong>{baseVersion}</strong></span></div>
       {resourceIssue ? <Alert showIcon type="error" message={resourceIssue} style={{ marginBottom: 20 }} /> : null}
       {latest && latest.revision !== baseVersion ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("A newer resource revision is available", "存在更新的资源修订")}
         description={t("Your draft still uses its original version. Read the saved revision before replacing your draft; it will not be rebased automatically.", "草稿仍使用原版本。替换草稿前请核对已保存修订，系统不会自动改变提交基线。 ")}
@@ -120,12 +120,12 @@ export function CloudResources({ latest, project, credentials, versions, operati
       {baseConfiguration?.environment.cloud_access_policy ? <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("Saved environment routing is retained", "保留已保存的环境路由限制")} description={baseConfiguration.environment.cloud_access_policy} /> : null}
       {baseConfiguration?.environment.ssh_access ? <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("Fixed SSH diagnostic bindings are read-only here", "固定 SSH 诊断绑定在此只读")} description={t("The approved profile and connection identity are preserved. This form does not create or expand diagnostic access.", "保留受权配置和连接身份；此表单不会创建或扩展诊断访问。 ")} /> : null}
       <Form form={form} className="workspace-form" layout="vertical" onValuesChange={() => setDraftTouched(true)} initialValues={{ connection: "NONE", environment_name: "Workspace test fixtures", expected_deployment: "UNKNOWN" }} onFinish={(values) => void configure(values)} scrollToFirstError>
-        <div className="form-grid">{(["sut", "framework"] as const).map((role) => <section className="form-section" key={role}>
+        <div className="form-grid cloud-resources-repositories">{(["sut", "framework"] as const).map((role) => <section className="form-section" key={role}>
           <Typography.Title level={3}>{role === "sut" ? t("System under test", "被测对象") : t("Test framework", "测试框架")}</Typography.Title>
           <Form.Item name={`${role}_url`} label={t("Git repository URL", "Git 仓库地址")} rules={[{ required: true }, { validator: (_, value) => !value || credentialFreeUrl(value) ? Promise.resolve() : Promise.reject(new Error(t("Use a credential-free HTTPS or SSH URL.", "请使用不含凭据的 HTTPS 或 SSH 地址。"))) }]}><Input autoComplete="off" placeholder="https://git.example.com/team/repository.git" /></Form.Item>
           <Form.Item name={`${role}_credential`} label={t("Repository credential version", "仓库凭据版本")}><Select allowClear options={credentialOptions(["GIT_TOKEN", "GIT_SSH_KEY"])} placeholder={t("Public repository / select saved credential", "公开仓库 / 选择已保存凭据")} /></Form.Item>
         </section>)}</div>
-        <section className="form-section" aria-labelledby="cloud-environment-title">
+        <section className="form-section cloud-resources-environment" aria-labelledby="cloud-environment-title">
         <Typography.Title id="cloud-environment-title" level={3}>{t("Test environment", "测试环境")}</Typography.Title>
         <Row gutter={[24, 0]}><Col xs={24} md={12}><Form.Item name="environment_name" label={t("Environment name", "环境名称")} rules={[{ required: true }]}><Input maxLength={128} /></Form.Item></Col>
           <Col xs={24} md={12}><Form.Item name="connection" label={t("Connection method", "访问方式")}><Select disabled={!!baseConfiguration?.environment.ssh_access} options={[{ value: "NONE", label: t("Workspace-local fixtures", "工作区内测试") }, { value: "HTTPS", label: t("HTTPS · configuration only", "HTTPS · 仅保存配置") }, { value: "SSH", label: t("SSH · configuration only", "SSH · 仅保存配置") }]} /></Form.Item></Col></Row>
@@ -142,17 +142,25 @@ export function CloudResources({ latest, project, credentials, versions, operati
         </div>
       </Form>
     </section>
-    <section className="overview-section workspace-panel" aria-labelledby="cloud-credentials-title">
+    <section className="overview-section workspace-panel cloud-resources-credentials" aria-labelledby="cloud-credentials-title">
       <Typography.Title id="cloud-credentials-title" level={2}>{t("Reusable credentials", "可复用凭据")}</Typography.Title>
       <Typography.Paragraph className="muted">{t("Secret values are encrypted by the API and never read back. They are cleared from this form on submission and never saved to browser storage.", "秘密由 API 加密保存，不提供原文读回；提交时清空输入，不写入浏览器存储。 ")}</Typography.Paragraph>
+      <div className="cloud-resources-credential-list"><Typography.Title level={3}>{t("Saved credentials", "已保存凭据")}</Typography.Title>
+      <Table rowKey="id" size="small" scroll={{ x: 700 }} dataSource={credentials} pagination={false} columns={[
+        { title: t("Name", "名称"), dataIndex: "label" }, { title: t("Type", "类型"), dataIndex: "kind" },
+        { title: t("Version", "版本"), dataIndex: "version" }, { title: t("Status", "状态"), dataIndex: "status", render: (value: string) => <Tag>{value}</Tag> },
+        { title: t("Latest expiry", "最新到期时间"), key: "expiry", render: (_, row) => { const version = versions.filter((item) => item.credential_id === row.id).sort((a, b) => b.version - a.version)[0]; return version?.expires_at ? formatDate(version.expires_at) : "—"; } },
+        { title: t("Action", "操作"), key: "action", render: (_, row) => <Button danger disabled={blocked || row.status !== "ACTIVE"} onClick={() => void operation.submit({ operation: "REVOKE_CREDENTIAL", credential_id: row.id, expected_version: row.version, reason: "Revoked from Cloud project resources" }).then((receipt) => { if (receipt) onSaved(); })}>{t("Revoke", "撤销")}</Button> },
+      ]} locale={{ emptyText: t("No saved credentials. Public repositories need no token.", "尚无已保存凭据。公开仓库无需 token。 ") }} />
+      </div>
+      <div className="cloud-resources-credential-editor"><Typography.Title level={3}>{t("Create or rotate a credential", "新增或轮换凭据")}</Typography.Title>
       <Form form={credentialForm} className="workspace-form" layout="vertical" onFinish={(values) => void saveCredential(values)} onValuesChange={(changed) => { if ("credential_id" in changed || "kind" in changed) { fileGeneration.current++; credentialForm.setFieldValue("secret", ""); setFileName(""); } }} initialValues={{ kind: "GIT_TOKEN", actions: ["git:read"] }} scrollToFirstError>
         <Form.Item name="credential_id" label={t("Create or rotate", "新增或轮换")}><Select allowClear placeholder={t("New credential", "新增凭据")} options={credentials.filter((row) => row.status === "ACTIVE").map((row) => ({ value: row.id, label: `${row.label} · v${row.version}` }))} /></Form.Item>
         {!selectedCredential ? <><Row gutter={[24, 0]}><Col xs={24} md={12}><Form.Item name="label" label={t("Credential name", "凭据名称")} rules={[{ required: true }]}><Input maxLength={255} /></Form.Item></Col><Col xs={24} md={12}><Form.Item name="kind" label={t("Type", "类型")}><Select options={[{ value: "GIT_TOKEN", label: "Git token" }, { value: "GIT_SSH_KEY", label: "Git SSH key" }, { value: "SSH_KEY", label: "SSH key" }, { value: "APPLICATION_PRIVATE_KEY", label: t("Application private key", "应用鉴权私钥") }]} /></Form.Item></Col></Row>
           <Form.Item name="purpose" label={t("Purpose", "用途")} rules={[{ required: true }]}><Input maxLength={255} /></Form.Item>
           <Form.Item name="targets" label={t("Exact allowed repository URLs / hosts, one per line", "允许的完整仓库地址或主机，每行一个")} rules={[{ required: true }]}><Input.TextArea rows={3} /></Form.Item>
           <Form.Item name="actions" label={t("Allowed actions", "允许的操作")} rules={[{ required: true }]}><Select mode="multiple" options={["git:read", "git:write", "environment:read", "environment:write"].map((value) => ({ value, label: value }))} /></Form.Item></> : <Typography.Paragraph>{t("Rotation retains the original purpose and target scope.", "轮换保留原用途和目标范围。 ")}</Typography.Paragraph>}
-        <Form.Item name="expires_at" label={t("Expiry (optional)", "到期时间（可选）")} rules={[{ validator: (_, value) => !value || Number.isFinite(new Date(value).getTime()) ? Promise.resolve() : Promise.reject(new Error(t("Enter a valid date and time.", "请输入有效日期和时间。"))) }]}><Input type="datetime-local" /></Form.Item>
-        <Form.Item name="secret" label={kind === "GIT_TOKEN" && !selectedCredential ? "Token" : t("Secret value / private key", "秘密值 / 私钥")} rules={[{ required: true }]}><Input.Password visibilityToggle={false} autoComplete="new-password" maxLength={65536} /></Form.Item>
+        <Row gutter={[24, 0]}><Col span={12}><Form.Item name="expires_at" label={t("Expiry (optional)", "到期时间（可选）")} rules={[{ validator: (_, value) => !value || Number.isFinite(new Date(value).getTime()) ? Promise.resolve() : Promise.reject(new Error(t("Enter a valid date and time.", "请输入有效日期和时间。"))) }]}><Input type="datetime-local" /></Form.Item></Col><Col span={12}><Form.Item name="secret" label={kind === "GIT_TOKEN" && !selectedCredential ? "Token" : t("Secret value / private key", "秘密值 / 私钥")} rules={[{ required: true }]}><Input.Password visibilityToggle={false} autoComplete="new-password" maxLength={65536} /></Form.Item></Col></Row>
         <label className="credential-file-field">{t("Or load a private key file (up to 64 KiB)", "或读取私钥文件（最大 64 KiB）")}<input type="file" style={{ display: "block", margin: "8px 0 16px" }} onChange={(event) => {
           const file = event.target.files?.[0]; const generation = ++fileGeneration.current; event.target.value = ""; setFileIssue(false);
           if (!file) return;
@@ -164,13 +172,7 @@ export function CloudResources({ latest, project, credentials, versions, operati
         {fileName ? <Typography.Paragraph>{t("Private file loaded", "已读取私有文件")}: {fileName}</Typography.Paragraph> : null}
         <Button type="primary" htmlType="submit" disabled={blocked} loading={operation.busy}>{selectedCredential ? t("Rotate credential", "轮换凭据") : t("Encrypt and save credential", "加密保存凭据")}</Button>
       </Form>
-      <Divider />
-      <Table rowKey="id" size="small" scroll={{ x: 700 }} dataSource={credentials} pagination={false} columns={[
-        { title: t("Name", "名称"), dataIndex: "label" }, { title: t("Type", "类型"), dataIndex: "kind" },
-        { title: t("Version", "版本"), dataIndex: "version" }, { title: t("Status", "状态"), dataIndex: "status", render: (value: string) => <Tag>{value}</Tag> },
-        { title: t("Latest expiry", "最新到期时间"), key: "expiry", render: (_, row) => { const version = versions.filter((item) => item.credential_id === row.id).sort((a, b) => b.version - a.version)[0]; return version?.expires_at ? formatDate(version.expires_at) : "—"; } },
-        { title: t("Action", "操作"), key: "action", render: (_, row) => <Button danger disabled={blocked || row.status !== "ACTIVE"} onClick={() => void operation.submit({ operation: "REVOKE_CREDENTIAL", credential_id: row.id, expected_version: row.version, reason: "Revoked from Cloud project resources" }).then((receipt) => { if (receipt) onSaved(); })}>{t("Revoke", "撤销")}</Button> },
-      ]} locale={{ emptyText: t("No saved credentials. Public repositories need no token.", "尚无已保存凭据。公开仓库无需 token。 ") }} />
+      </div>
     </section>
   </div>;
 }

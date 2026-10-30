@@ -16,6 +16,7 @@ async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise
   if (receipt.task_id) {
     const document = await cloudDocument(projectId, receipt.task_id, receipt.version);
     if (document.task?.id !== receipt.task_id || document.task.project_id !== projectId || document.task.version !== receipt.version
+      || (receipt.operation === "DELETE_TASK" && !document.task.deleted_at)
       || ![document.attempts, document.resolutions, document.assets, document.artifacts, document.runs, document.run_cases, document.delegations, document.questions, document.answers].every(Array.isArray)) throw new Error("READBACK_PENDING");
     return;
   }

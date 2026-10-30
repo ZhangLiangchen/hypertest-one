@@ -843,3 +843,83 @@ async def test_fixed_cancellation_fences_worker_when_wrapping_key_is_unavailable
     live = await context["client"].get(f"/api/v1/cloud/tasks/{receipt['task_id']}/summary",
         params={"project_id": context["project_id"]}, headers=context["headers"])
     assert live.json()["current_attempt"]["status"] == "RECOVERY_REQUIRED"
+
+
+async def test_cloud_task_edit_delete_readback_and_original_key(cloud_context):
+    context = cloud_context
+    created = await draft(context)
+    task_id = created["task_id"]
+    original = await read_all(context, task_id, 1)
+    updated = await post(context, "UPDATE_TASK", 1, task_id=task_id, title="Edited fixture",
+                         config_id=original["task"]["config_id"], inputs=inputs(objective="Edited objective"))
+    assert updated.status_code == 200, updated.text
+    changed = await read_all(context, task_id, updated.json()["version"])
+    assert changed["task"]["title"] == "Edited fixture"
+    assert changed["task"]["inputs"]["objective"] == "Edited objective"
+    stale = await post(context, "DELETE_TASK", 1, task_id=task_id)
+    assert stale.status_code == 409
+    async with AsyncSessionLocal() as db:
+        foreign = await create_project(db, ProjectCreate(key=public_key("FOREIGN"), name="Foreign fixture"))
+        foreign_id = str(foreign.id)
+    cross = await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"], json={
+        "project_id": foreign_id, "operation": "DELETE_TASK", "task_id": task_id,
+        "operation_key": "cross-" + uuid4().hex, "expected_version": updated.json()["version"]})
+    assert cross.status_code == 404
+    key = "delete-" + uuid4().hex
+    deleted = await post(context, "DELETE_TASK", updated.json()["version"], operation_key=key, task_id=task_id)
+    assert deleted.status_code == 200, deleted.text
+    receipt = deleted.json()
+    final = await read_all(context, task_id, receipt["version"])
+    assert final["task"]["deleted_at"] and final["task"]["status"] == "DRAFT"
+    assert (await read_all(context, task_id, 1)) == original
+    assert (await post(context, "DELETE_TASK", updated.json()["version"], operation_key=key, task_id=task_id)).json() == receipt
+    assert (await post(context, "RESOLVE_INPUTS", receipt["version"], task_id=task_id)).status_code == 409
+    async with AsyncSessionLocal() as db:
+        row = await db.get(CloudTask, UUID(task_id))
+        row.title = "Forbidden change"
+        with pytest.raises(DBAPIError, match="deleted cloud task is immutable"):
+            await db.flush()
+        await db.rollback()
+    directory = await context["client"].get(f"/api/v1/cloud/projects/{context['project_id']}/tasks", headers=context["headers"])
+    assert task_id not in [item["task_id"] for item in directory.json()["items"]]
+
+
+async def test_cloud_task_delete_rejects_pending_resolution(cloud_context):
+    context = cloud_context
+    created = await draft(context)
+    task_id = created["task_id"]
+    pending = await post(context, "RESOLVE_INPUTS", 1, task_id=task_id)
+    assert pending.status_code == 200
+    assert (await post(context, "DELETE_TASK", pending.json()["version"], task_id=task_id)).status_code == 409
+
+
+async def test_cloud_task_delete_rejects_active_attempt(cloud_context):
+    context = cloud_context
+    running = await dispatched(context)
+    assert (await post(context, "DELETE_TASK", running["version"], task_id=running["task_id"])).status_code == 409
+
+
+async def test_cloud_delete_rejects_unclosed_container(cloud_context, monkeypatch):
+    context = cloud_context
+    running = await dispatched(context)
+    cancelled = await post(context, "CANCEL_ATTEMPT", running["version"], task_id=running["task_id"],
+                           attempt_id=running["attempt_id"], reason="Fixture cancellation")
+    assert cancelled.status_code == 200
+
+    async def unclosed(db, task_id):
+        raise HTTPException(409, "CLOUD_CONTAINER_UNRECONCILED")
+
+    monkeypatch.setattr(service, "_ensure_container_closed", unclosed)
+    denied = await post(context, "DELETE_TASK", cancelled.json()["version"], task_id=running["task_id"])
+    assert denied.status_code == 409 and denied.json()["detail"] == "CLOUD_CONTAINER_UNRECONCILED"
+
+
+async def test_cloud_delete_cancelled_draft_preserves_terminal_history(cloud_context):
+    context = cloud_context
+    created = await draft(context)
+    cancelled = await post(context, "CANCEL_TASK", 1, task_id=created["task_id"], reason="Fixture cancellation")
+    assert cancelled.status_code == 200
+    deleted = await post(context, "DELETE_TASK", cancelled.json()["version"], task_id=created["task_id"])
+    assert deleted.status_code == 200, deleted.text
+    final = await read_all(context, created["task_id"], deleted.json()["version"])
+    assert final["task"]["status"] == "CANCELLED" and final["task"]["deleted_at"]

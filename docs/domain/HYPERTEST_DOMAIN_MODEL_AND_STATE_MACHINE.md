@@ -2389,6 +2389,8 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 
 首次 dispatch 后不修改输入；配置默认值或分支移动不影响原 manifest。更换 PRD、目标版本、环境、授权上限、credential 版本或预算上限创建显式关联的新 CloudTask。相同冻结输入的显式复测可建立新 Attempt，须重新验证当前权限并受原 Task 累计预算约束，不因重试自动重置额度。允许范围内的凭据临时物化/短令牌续期不得扩大冻结授权。
 
+未冻结的 DRAFT 可通过 `UPDATE_TASK` 在原 key、当前授权和 expected_version 下完整替换标题、配置与输入；更新后的版本须重新解析，旧解析不能用于新版本下发。`DELETE_TASK` 是 `cloud:control` 授权的版本化软删除，仅允许 DRAFT 或终态且无未决输入解析、Attempt 或外部操作的任务。事务追加不可变墓碑及回执，固定版本快照中的 `task.deleted_at` 标识删除，目录隐藏墓碑任务，后续新操作被拒绝；原 key 对账和固定历史仍可读取。删除不改变状态、结果、冻结输入或外部操作事实，不自动取消或重发。被删除任务仍保留其 Project 约束及历史。
+
 新增 Cloud 资源配置允许省略两仓的 `default_selector`；创建任务必须独立指定两个 selector，再沿既有解析及 dispatch 规则固定完整 commit。历史资源中的 selector 原样保留且可作为兼容默认，不修改原 revision、已接受请求的序列化/摘要或已冻结任务。Project 的两个通用地址仅可在配置表单中显式预填，不能自动创建/更改 Cloud 资源修订或赋予凭据权限。
 
 预算的 `accounting_unit` 随输入冻结：缺省 / 既有任务按 `CONSERVATIVE_MICROUNITS` 解释，不迁移或改写旧任务；单独批准的模型接入可显式选 `REQUEST_CREDITS`。后者虽沿用 `total_cost_microunits` / `cost_microunits` 字段名，值表示按已冻结请求费率计算的计数额度，不能解释为 USD、供应商 token 账单、真实费用或退款。Codex OAuth 首片仅接受显式 `REQUEST_CREDITS`，不假定可观测其货币价格。

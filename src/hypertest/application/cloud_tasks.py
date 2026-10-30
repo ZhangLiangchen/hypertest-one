@@ -35,6 +35,7 @@ from hypertest.domain.cloud_tasks import (
     CloudRunCase,
     CloudRunRecord,
     CloudTask,
+    CloudTaskDeletion,
     CloudWorkGrant,
     CredentialVersion,
     ProjectCloudConfigRevision,
@@ -45,7 +46,7 @@ from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
-    "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
+    "DELETE_TASK": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
     "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work",
 }
@@ -286,6 +287,8 @@ async def _reject_secrets(db, project_id, values, *, source_text=False):
 
 async def _snapshot(db, task):
     result = {"profile": PROFILE, "task_kind": "CLOUD_TASK", "product_mode": "CLOUD", "task": public(task)}
+    deletion = await db.get(CloudTaskDeletion, task.id)
+    result["task"]["deleted_at"] = deletion.deleted_at.isoformat() if deletion else None
     for key, model in (("attempts", CloudAttempt), ("resolutions", CloudInputResolution),
                        ("assets", CloudAssetRevision), ("artifacts", CloudArtifact), ("runs", CloudRunRecord),
                        ("run_cases", CloudRunCase), ("delegations", CloudDelegation),
@@ -418,7 +421,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if prior.operation in {"PREPARE_CONTAINER_CREATE", "PREPARE_CONTAINER_START"}:
             raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_KEY_QUERY_ONLY")
         return prior.response
-    if payload.operation not in {"CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
+    if payload.operation not in {"DELETE_TASK", "CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
         enabled()
     fixed_control_fallback = False
     if payload.operation not in {"STORE_CREDENTIAL", "REVOKE_CREDENTIAL"}:
@@ -443,6 +446,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     task = attempt = None
     if hasattr(payload, "task_id"):
         task = await _task(db, payload.task_id, payload.project_id, lock=True)
+        if await db.get(CloudTaskDeletion, task.id):
+            raise HTTPException(409, "Cloud Task has been deleted")
         if payload.expected_version != task.version:
             raise HTTPException(409, "Cloud Task version is stale")
         if hasattr(payload, "attempt_id"):
@@ -517,6 +522,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         authorize_cloud_environment(config.configuration)
         if payload.related_task_id:
             await _task(db, payload.related_task_id, payload.project_id)
+            if await db.get(CloudTaskDeletion, payload.related_task_id):
+                raise HTTPException(409, "Deleted Cloud Task cannot be used as a related task")
         task = CloudTask(id=uuid7(), project_id=payload.project_id, owner_actor_ref=actor_ref, title=payload.title,
             config_id=payload.config_id, inputs=payload.inputs.model_dump(mode="json"), status="DRAFT", version=1,
             reported_result="NOT_RUN", related_task_id=payload.related_task_id)
@@ -528,6 +535,23 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         config = await _configuration(db, payload.project_id, payload.config_id)
         authorize_cloud_environment(config.configuration)
         task.title, task.inputs, task.config_id = payload.title, payload.inputs.model_dump(mode="json"), payload.config_id
+    elif op == "DELETE_TASK":
+        if task.status not in {"DRAFT", "COMPLETED", "FAILED", "CANCELLED"}:
+            raise HTTPException(409, "Active Cloud Task must be stopped and reconciled before deletion")
+        if await db.scalar(select(CloudInputResolution.id).where(CloudInputResolution.task_id == task.id,
+                CloudInputResolution.status.in_(["PENDING", "RESOLVING", "RECOVERY_REQUIRED"]))):
+            raise HTTPException(409, "Unresolved input resolution prevents deletion")
+        if task.latest_attempt_id:
+            latest_attempt = await db.get(CloudAttempt, task.latest_attempt_id)
+            if not latest_attempt or latest_attempt.status not in TERMINAL or latest_attempt.checkpoint.get("pending_operation_keys") or latest_attempt.checkpoint.get("external_operations_reconciled") is False:
+                raise HTTPException(409, "Unreconciled attempt prevents deletion")
+            from .cloud_ssh import ensure_remote_closed
+            await ensure_remote_closed(db, task_id=task.id)
+            await _ensure_container_closed(db, task.id)
+        deletion = CloudTaskDeletion(task_id=task.id, project_id=task.project_id, deleted_at=await clock(db),
+                                     deleted_by=actor_ref, accepted_version=version)
+        db.add(deletion)
+        await db.flush()
     elif op == "RESOLVE_INPUTS":
         if task.status != "DRAFT" or task.frozen_manifest:
             raise HTTPException(409, "Only DRAFT accepts input resolution")
@@ -1236,6 +1260,8 @@ async def read_task(db, task_id, *, project_id=None, version=None, offset=0, lim
 async def task_summary(db, task_id, *, project_id=None):
     task = await _task(db, task_id, project_id)
     result = public(task)
+    deletion = await db.get(CloudTaskDeletion, task.id)
+    result["deleted_at"] = deletion.deleted_at.isoformat() if deletion else None
     attempt = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None
     resolutions = await db.scalars(select(CloudInputResolution).where(
         CloudInputResolution.task_id == task.id).order_by(CloudInputResolution.id))
@@ -1321,7 +1347,8 @@ async def directory(db, project_id, *, actor_ref, local_allowed, cloud_allowed,
     await project(db, project_id)
     entries = []
     if cloud_allowed and task_kind in {None, "CLOUD_TASK"} and product_mode in {None, "CLOUD"} and provider in {None, "deepseek"}:
-        for row in await db.scalars(select(CloudTask).where(CloudTask.project_id == project_id)):
+        for row in await db.scalars(select(CloudTask).where(CloudTask.project_id == project_id,
+                ~select(CloudTaskDeletion.task_id).where(CloudTaskDeletion.task_id == CloudTask.id).exists())):
             entries.append({"task_kind": "CLOUD_TASK", "product_mode": "CLOUD", "task_id": str(row.id),
                 "project_id": str(project_id), "title": row.title, "provider": "deepseek", "source": "CLOUD_WORKER",
                 "status": row.status, "reported_result": row.reported_result, "version": row.version,

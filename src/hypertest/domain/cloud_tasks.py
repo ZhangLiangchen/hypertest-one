@@ -109,6 +109,16 @@ class CloudTask(CloudRow, Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class CloudTaskDeletion(Base):
+    __tablename__ = "cloud_task_deletions"
+    __table_args__ = (ForeignKeyConstraint(["project_id", "task_id"], ["cloud_tasks.project_id", "cloud_tasks.id"], ondelete="RESTRICT"),)
+    task_id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column()
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deleted_by: Mapped[str] = mapped_column(String(255))
+    accepted_version: Mapped[int] = mapped_column(BigInteger)
+
+
 class CloudInputResolution(CloudRow, Base):
     __tablename__ = "cloud_input_resolutions"
     __table_args__ = (UniqueConstraint("task_id", "operation_key"), UniqueConstraint("task_id", "id"), UniqueConstraint("project_id", "id"),

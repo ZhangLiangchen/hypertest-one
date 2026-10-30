@@ -92,6 +92,34 @@ test("Repository selectors reject embedded credentials and freeze complete SHA o
 
 const { operationHarness, until, document: completeDocument } = require("./operation-harness.cjs");
 
+test("Delete remains pending until its original receipt reads back a tombstone", async () => {
+  let tombstone = false, posts = 0, receipt;
+  const harness = operationHarness({
+    cloudRequest: async (_path, init) => {
+      posts++;
+      const payload = JSON.parse(init.body);
+      receipt = { status: "ACCEPTED", profile: harness.client.CLOUD_PROFILE, project_id: payload.project_id,
+        task_id: payload.task_id, operation_key: payload.operation_key, operation: payload.operation, version: payload.expected_version + 1 };
+      return receipt;
+    },
+    cloudOperation: async () => receipt,
+    cloudDocument: async (project, task, version) => {
+      const document = completeDocument(project, task, version);
+      if (tombstone) document.task.deleted_at = "2026-10-30T00:00:00Z";
+      return document;
+    },
+  });
+  await harness.mount("project-a");
+  assert.equal(await harness.render().submit({ operation: "DELETE_TASK", task_id: "task-a", expected_version: 4 }), null);
+  const pending = harness.render().pending;
+  assert.equal(pending.state, "UNKNOWN");
+  tombstone = true;
+  assert.equal((await harness.render().reconcile()).operation_key, pending.operation_key);
+  assert.equal((await harness.journal.read("project-a")).length, 0);
+  assert.equal(posts, 1);
+  harness.close();
+});
+
 test("An old Project response settles only its own key and cannot clear the next Project's pending write", async () => {
   let finish, posts = 0;
   const pendingResponse = new Promise((resolve) => { finish = resolve; });
@@ -188,7 +216,9 @@ function taskPage(status, options = {}) {
       WorkspaceLoading: "WorkspaceLoading",
     };
     if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice" };
+    if (name === "@/app/projects/[projectId]/cloud/task-form") return { CloudTaskForm: "CloudTaskForm" };
     if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
+    if (name === "./delete-task") return { CloudTaskDelete: "CloudTaskDelete" };
     return require(name);
   } });
   const tree = page.default();
@@ -198,7 +228,7 @@ function taskPage(status, options = {}) {
   assert.equal(writes, 0);
   return { queries, effects, reads, document, live, steps: rendered.find((node) => node.type === "Steps").props,
     result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
-    unknown: rendered.some((node) => node.type === "Paragraph" && String(node.props.children).includes("Phase completion is unknown")) };
+    unknown: rendered.some((node) => String(node.props?.children).includes("Phase completion is unknown")) };
 }
 
 test("Missing live identity and early terminal states show no inferred completed Harness phase", () => {

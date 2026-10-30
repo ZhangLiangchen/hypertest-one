@@ -300,6 +300,10 @@ class CloudTaskUpdate(TaskMutation):
     inputs: TaskInputs
 
 
+class CloudTaskDelete(TaskMutation):
+    operation: Literal["DELETE_TASK"] = "DELETE_TASK"
+
+
 class CloudResolveRequest(TaskMutation):
     operation: Literal["RESOLVE_INPUTS"] = "RESOLVE_INPUTS"
 
@@ -578,4 +582,4 @@ class CloudFinish(AttemptMutation):
     budget_settlement: CloudBudgetSettlement | None = None
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]
