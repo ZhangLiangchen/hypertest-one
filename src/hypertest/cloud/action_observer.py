@@ -325,6 +325,7 @@ class ActionObserver:
         action_key = action["action_key"]
         if type(timeout) not in (int, float) or not 0 < timeout <= 25:
             raise _blocked()
+        stage = "ORIGINAL"
         try:
             async with asyncio.timeout(timeout):
                 record = await authority.get_by_key(operation_key)
@@ -333,11 +334,14 @@ class ActionObserver:
                         or record.get("action_key") != action_key or record.get("state") != "SENT"
                         or not isinstance(client_ref, str) or _REFERENCE.fullmatch(client_ref) is None):
                     raise ValueError
+                stage = "OAUTH"
                 token = await self._token(action, authority, identity_id)
                 try:
                     config = action["observer"]
+                    stage = "ORDER_GET"
                     first = await self._request(authority=authority, action=action, identity_id=identity_id, method="GET",
                         path=config["client_order_path_prefix"] + client_ref, token=token)
+                    stage = "VALIDATION"
                     first_json = _json(first)
                     order_id = _lookup(first_json, config["order_id_path"])
                     if type(order_id) is int:
@@ -346,15 +350,20 @@ class ActionObserver:
                         raise ValueError
                     first_order = _lookup(first_json, config["order_id_path"][:-1])
                     _bound_order(action, first_order, client_ref)
+                    stage = "DETAIL_GET"
                     second = await self._request(authority=authority, action=action, identity_id=identity_id, method="GET",
                         path=config["order_detail_path_prefix"] + order_id + config["order_detail_path_suffix"], token=token)
+                    stage = "VALIDATION"
                     second_json = _json(second)
                     second_id = _lookup(second_json, config["order_id_path"])
                     second_order = _lookup(second_json, config["order_id_path"][:-1])
                     if str(second_id) != order_id:
                         raise ValueError
                     _bound_order(action, second_order, client_ref)
-                    projection = _projection(await signer.observe(action, client_ref, first_json, second_json),
+                    stage = "ADAPTER"
+                    adapter_result = await signer.observe(action, client_ref, first_json, second_json)
+                    stage = "VALIDATION"
+                    projection = _projection(adapter_result,
                         profile=config["observed_profile"], client_ref=client_ref, order_id=order_id,
                         terminal_transaction_type=config["terminal_transaction_type"])
                     if first_order.get("status") != projection["business_status"] or second_order.get("status") != projection["business_status"]:
@@ -379,10 +388,12 @@ class ActionObserver:
                                 or item["required_confirmations"] != raw_detail.get("requiredConfirmations")):
                             raise ValueError
                     await validate_output({"controlled_action_observation": projection})
+                    stage = "AUTHORITY"
                     await authority.admit_observation(identity_id=identity_id)
                     return {"projection": projection, "order_response_sha256": hashlib.sha256(first).hexdigest(),
                             "details_response_sha256": hashlib.sha256(second).hexdigest(), "observed_at": int(time.time())}
                 finally:
                     del token
-        except (OSError, ValueError, TypeError, KeyError, UnicodeError, TimeoutError):
-            raise _blocked() from None
+        except Exception:
+            # Fixed stage codes cannot contain credentials or provider responses.
+            raise _blocked("CONTROLLED_ACTION_OBSERVE_" + stage + "_UNAVAILABLE") from None

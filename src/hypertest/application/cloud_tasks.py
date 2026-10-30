@@ -45,7 +45,7 @@ from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
-    "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "ANSWER_INPUT": "cloud:control",
+    "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
     "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work",
 }
@@ -637,6 +637,24 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         attempt.checkpoint = {**attempt.checkpoint, "reconciliation": attestation,
                               "external_operations_reconciled": True}
         _state(task, attempt, payload.status, payload.reason, await clock(db))
+    elif op == "AUTHORIZE_ACTION_OBSERVATION":
+        # A control-scoped receipt grants only read-only observation of this
+        # already-SENT original. It never extends its send deadline.
+        from hypertest.domain.cloud_actions import CloudActionIdentity, CloudActionSend
+        if not actor_ref.startswith("operator:") or worker is not None:
+            raise HTTPException(403, "CLOUD_ACTION_RECOVERY_OPERATOR_REQUIRED")
+        if attempt.status != "RECOVERY_REQUIRED" or not await _owner_fenced(db, attempt):
+            raise HTTPException(409, "CLOUD_ACTION_RECOVERY_OWNER_NOT_FENCED")
+        await _ensure_container_closed(db, task.id)
+        original = await db.get(CloudActionIdentity, payload.identity_id)
+        if (original is None or original.task_id != task.id or original.attempt_id != attempt.id
+                or original.operation_key != payload.original_operation_key
+                or not await db.scalar(select(CloudActionSend.id).where(CloudActionSend.identity_id == original.id))):
+            raise HTTPException(404, "CLOUD_ACTION_ORIGINAL_SEND_REQUIRED")
+        now = await clock(db)
+        refs["action_observation_authorization"] = {"identity_id": str(original.id),
+            "original_operation_key": original.operation_key, "action_key": original.action_key,
+            "expires_at": (now + timedelta(minutes=5)).isoformat()}
     elif op == "ANSWER_INPUT":
         question = await db.get(CloudInputRequest, payload.question_id)
         if not question or question.attempt_id != attempt.id or attempt.status != "WAITING_INPUT":

@@ -37,6 +37,10 @@ async def action_context(cloud_context, monkeypatch):
     task_inputs["authorization"]["targets"].append("api.example.invalid")
     task_inputs["authorization"]["network_targets"] = [TARGET]
     task_inputs["authorization"]["permitted_actions"].extend(["environment:read", "environment:write"])
+    task_inputs["agent_source_export"] = {"profile": "cloud-agent-source-export/v1",
+        "sut": [{"path": "main.py", "sha256": "a" * 64}],
+        "framework": [{"path": "python/trusted/adapter.py", "sha256": "a" * 64},
+                      {"path": "python/trusted/observer.py", "sha256": "c" * 64}]}
     task_inputs["controlled_actions"] = {"profile": "CONTROLLED_ACTIONS_V1", "target": TARGET,
         "allowed_addresses": ["8.8.8.8"], "max_operations": 4, "actions": [{
             "action_key": "swap-2", "method": "POST", "path": "/api/test/dex",
@@ -55,6 +59,10 @@ async def action_context(cloud_context, monkeypatch):
             "adapter_protocol": {"prepare": "fixture-prepare/v1", "prepared": "fixture-prepared/v1",
                 "verify": "fixture-verify/v1", "verified": "fixture-verified/v1", "client_ref_field": "client_order_id",
                 "unique_ref_field": "unique_user_key", "secret_field": "signing_key"}}]}
+    action = task_inputs["controlled_actions"]["actions"][0]
+    action["expected_body"] = {"amount": "2000000", "chainName": "TRON_TEST", "fromAddress": "synthetic-address"}
+    action["observer"]["expectations"] = {"wallet_id": "42", "chain": "TRON_TEST", "from_coin_code": "TRON_TESTUSDT",
+        "to_coin_code": "TRON_TESTTRX", "amount_atomic": "2000000", "from_address": "synthetic-address"}
     environment = {"name": "Synthetic HTTPS", "connection": "HTTPS", "host": "api.example.invalid",
                    "port": 443, "cloud_access_policy": "WEB_ONLY"}
     current, claim, identity = await claimed(cloud_context, config=configuration(environment=environment), task_inputs=task_inputs)

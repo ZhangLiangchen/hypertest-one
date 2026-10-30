@@ -29,6 +29,8 @@ _PREFLIGHT_CODES = frozenset({"CONTROLLED_ACTION_PREFLIGHT_CREDENTIAL_UNAVAILABL
     "CONTROLLED_ACTION_OBSERVER_DNS_REFUSED", "CONTROLLED_ACTION_PREFLIGHT_INSUFFICIENT_BALANCE",
     *("CONTROLLED_ACTION_PREFLIGHT_" + stage + "_UNAVAILABLE" for stage in
       ("OAUTH", "ADDRESS", "BALANCE", "ADAPTER", "VALIDATION", "AUTHORITY"))})
+_OBSERVATION_CODES = frozenset("CONTROLLED_ACTION_OBSERVE_" + stage + "_UNAVAILABLE" for stage in
+    ("ORIGINAL", "OAUTH", "ORDER_GET", "DETAIL_GET", "ADAPTER", "VALIDATION", "AUTHORITY"))
 
 
 def _blocked(code="CONTROLLED_ACTION_UNAVAILABLE"):
@@ -268,20 +270,25 @@ class ActionBroker:
         if self.closed or self._closing or self.observer is None:
             raise _blocked()
         async with self._lock:
+            stage = "ORIGINAL"
             try:
                 record = self._public(await self.authority.get_by_key(key))
                 if record["action_key"] != action_key or record["operation_key"] != key or record["state"] != "SENT":
                     raise _blocked()
+                stage = "AUTHORITY"
                 result = await self.authority.observe_business_terminal(record["identity_id"], key,
                     observer=self.observer, signer=self.signer, validate_output=self.validate_output)
                 projection = result["projection"]
                 if not isinstance(projection, dict) or type(projection.get("business_terminal")) is not bool:
                     raise _blocked()
+                stage = "VALIDATION"
                 await self.validate_output({"controlled_action_observation": projection})
                 return {"status": "BUSINESS_TERMINAL" if projection["business_terminal"] else "BUSINESS_PENDING",
                         "operation_key": key, "observation": projection}
-            except (Exception, asyncio.CancelledError):
-                return {"status": "UNKNOWN", "code": "CONTROLLED_ACTION_OBSERVATION_UNAVAILABLE", "operation_key": key}
+            except (Exception, asyncio.CancelledError) as error:
+                code = error.code if isinstance(error, CloudBlocked) and error.code in _OBSERVATION_CODES else (
+                    "CONTROLLED_ACTION_OBSERVE_" + stage + "_UNAVAILABLE")
+                return {"status": "UNKNOWN", "code": code, "operation_key": key}
 
     async def invoke(self, action_key):
         action = self._action(action_key)

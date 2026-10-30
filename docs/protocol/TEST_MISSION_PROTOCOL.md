@@ -1761,3 +1761,7 @@ CREATE 固定配对上下文，APPROVE 固定实际授权，REDEEM 绑定该批�
 `hypertest auth status --request-id UUID --json` 查看本机配对记录，不推断服务端授权仍有效；`auth reconcile --request-id UUID --json` 才使用私有 proof 按原 key 查询并核对非秘密回执，已 BOUND 时可恢复 profile 保存。任何已发送/可能已发送操作的失答、UNKNOWN 或 NOT_FOUND 均不重 POST、不换 key 签发；确认前一阶段后，明确从未发送的下一阶段可用 `auth bind --resume --request-id UUID` 首次推进。CLI 预存 credential 使绑定成功后的失答无需再次获取明文 token；原 key 查询不充当新的授权。服务端以原配对 credential_hash 与批准范围处理显式 Project；全项目范围覆盖以后新增项目，访问时经 `CliAuthorizationGrant` 映射到该项目独立 grant（写事务提交时持久化，只读请求回滚），各 grant 的 token_hash 唯一性不变。
 
 已有 profile 的 server/client/actor 不匹配则拒绝覆盖并提示使用新 profile；相同身份的授权可原子合并；全项目授权覆盖以后新增项目；符合领域 §56.5 条件的存量绑定通过独立升级记录获得同一全项目永久授权，不改原回执。授权状态输出仅含 request_id、阶段、状态、grant/client 指纹、actor、获准项目/scopes/期限等安全字段，不显示 secret/hash 验证材料。auth logout --profile NAME 停用本机 profile；服务端撤销由页面明确执行。两者不清 journal/未决 key，不自动扩权或重绑；过期/撤销后归档和读回仍按当前有效授权判定。操作指南见[CLI 授权指南](../CLI_AUTHORIZATION_GUIDE.md)。
+
+### Cloud 原动作只读恢复
+
+已发送动作处于 `RECOVERY_REQUIRED` 时，Operator 可用独立 `AUTHORIZE_ACTION_OBSERVATION` 请求固定原 Task、Attempt、identity 和原 operation key。该请求仅授权 Worker 私有观察五分钟，旧 writer 必须已 fenced 且原容器有可信停止记录。Worker 只取受限只读凭据，按原 client ID 请求冻结订单路径并使用固定适配器独立核对；不接受 Agent 提供的 ID、URL、响应或终态，不授予签名、POST、重发或其他动作权。状态 UNKNOWN 或验证不全继续保持 HELD；业务终态、独立链上 receipt 和实际到账分别报告。观察失败只返回固定阶段代码，不返回认证、地址或响应内容。

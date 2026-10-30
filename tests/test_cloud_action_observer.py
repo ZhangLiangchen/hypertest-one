@@ -300,3 +300,43 @@ async def test_redirect_dns_change_and_explicit_tls_downgrade_are_rejected():
     tls.verify_mode = ssl.CERT_NONE
     with pytest.raises(CloudBlocked):
         ActionObserver(profile=policy, tls_context=tls)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stage,expected", [
+    ("original", "ORIGINAL"), ("oauth", "OAUTH"), ("order", "ORDER_GET"),
+    ("detail", "DETAIL_GET"), ("adapter", "ADAPTER"), ("validation", "VALIDATION"),
+    ("authority", "AUTHORITY"),
+])
+async def test_observe_errors_only_disclose_fixed_stage(stage, expected):
+    policy, authority, signer = _policy(), Authority(), Signer()
+    if stage == "original":
+        async def missing(_key):
+            raise RuntimeError("SYNTHETIC-SECRET")
+        authority.get_by_key = missing
+    if stage == "adapter":
+        async def bad_adapter(*_args):
+            raise RuntimeError("SYNTHETIC-SECRET")
+        signer.observe = bad_adapter
+    if stage == "authority":
+        original = authority.admit_observation
+        async def after_reads(**kwargs):
+            if len(authority.checks) == 3:
+                raise RuntimeError("SYNTHETIC-SECRET")
+            await original(**kwargs)
+        authority.admit_observation = after_reads
+    def handler(request):
+        paths = {"oauth": "/oauth/token", "order": "/orders/client/original-client", "detail": "/orders/42/with-details"}
+        if request.url.path == paths.get(stage):
+            return httpx.Response(403)
+        if stage == "validation" and request.url.path == "/orders/client/original-client":
+            return _response({"code": 200, "data": {"id": "42"}})
+        return _handler(request)
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(handler))
+    async def validate_output(_value):
+        pass
+    with pytest.raises(CloudBlocked) as error:
+        await observer.observe(action=policy["actions"][0], authority=authority, signer=signer,
+            identity_id="identity-original", operation_key="original-key", validate_output=validate_output)
+    assert error.value.code == "CONTROLLED_ACTION_OBSERVE_" + expected + "_UNAVAILABLE"
+    assert "SYNTHETIC-SECRET" not in str(error.value)

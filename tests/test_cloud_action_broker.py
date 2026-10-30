@@ -218,3 +218,21 @@ def test_private_original_cannot_be_overwritten_or_replaced_by_symlink(tmp_path)
     path.symlink_to(tmp_path / "untrusted")
     with pytest.raises(CloudBlocked):
         originals.load(original_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raised,expected", [
+    ("CONTROLLED_ACTION_OBSERVE_DETAIL_GET_UNAVAILABLE", "CONTROLLED_ACTION_OBSERVE_DETAIL_GET_UNAVAILABLE"),
+    ("SYNTHETIC-SECRET", "CONTROLLED_ACTION_OBSERVE_AUTHORITY_UNAVAILABLE"),
+])
+async def test_observe_exposes_only_allowlisted_stage(components, raised, expected):
+    broker, authority, _, transport, _ = components
+    broker.observer = object()
+    await broker.invoke("swap-2")
+    async def fail(*_args, **_kwargs):
+        raise CloudBlocked(raised, "SYNTHETIC-SECRET")
+    authority.observe_business_terminal = fail
+    result = await broker.observe("swap-2")
+    assert result["status"] == "UNKNOWN" and result["code"] == expected
+    assert "SYNTHETIC-SECRET" not in json.dumps(result)
+    assert transport.calls == ["POST"]

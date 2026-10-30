@@ -346,6 +346,13 @@ class CloudReconcile(AttemptMutation):
     reconciliation: dict = Field(min_length=1)
 
 
+class CloudAuthorizeActionObservation(AttemptMutation):
+    """Grant only bounded Worker observation of one already-SENT action."""
+    operation: Literal["AUTHORIZE_ACTION_OBSERVATION"] = "AUTHORIZE_ACTION_OBSERVATION"
+    identity_id: UUID
+    original_operation_key: str = Field(pattern=KEY)
+
+
 BudgetScope = Literal["ROOT", "CODEX", "CLAUDE_CODE"]
 
 
@@ -571,4 +578,4 @@ class CloudFinish(AttemptMutation):
     budget_settlement: CloudBudgetSettlement | None = None
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]
