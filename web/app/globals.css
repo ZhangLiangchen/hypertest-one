@@ -652,3 +652,21 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cli-authorizations-list .activity-heading { align-items: flex-start; }
 .cli-authorizations-list .activity-heading h2.ant-typography { margin-bottom: 6px; }
 .cli-section-description { margin: 0; color: var(--ht-muted); font-size: 13px; line-height: 1.6; }
+
+/* Cloud task directory: keep the execution boundary close, and the records easy to scan. */
+.cloud-capabilities-compact .ant-alert-message { margin-bottom: 4px; font-weight: 600; }
+.cloud-worker-notice { margin: 0; line-height: 1.6; }
+.cloud-capabilities-details summary { width: fit-content; padding: 3px 0; color: #225d83; cursor: pointer; font-weight: 500; }
+.cloud-capabilities-details > div { max-width: 100ch; padding: 12px 0 2px; }
+.cloud-task-list-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; }
+.cloud-task-list-header > div { min-width: 0; }
+.cloud-task-list-header > .ant-btn { flex-shrink: 0; }
+.cloud-task-list-title { display: flex; align-items: center; gap: 8px; }
+.cloud-task-list-title h2.ant-typography { margin: 0; font-size: 20px; line-height: 1.45; }
+.cloud-task-list-title .count-badge { margin: 0; }
+.cloud-task-list-header p { margin: 6px 0 0; color: var(--ht-muted); font-size: 13px; line-height: 1.6; }
+.cloud-task-list .ant-table-thead > tr > th { white-space: nowrap; }
+.cloud-task-list .ant-table-tbody > tr > td { vertical-align: middle; }
+.cloud-task-source { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; color: var(--ht-muted); }
+.cloud-task-source .ant-tag { margin-inline-end: 0; }
+.cloud-task-list .ant-pagination { margin-inline: 24px; }
