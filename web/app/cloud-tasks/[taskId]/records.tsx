@@ -34,7 +34,7 @@ export function CloudTaskRecords({ document }: { document: CloudDocument }) {
       {asset.artifact_id ? <Button onClick={() => void readArtifact(asset.artifact_id!)} loading={reading === asset.artifact_id}>{t("Read original attachment", "读取原始附件")}</Button> : null}
     </div>;
   }
-  return <div className="workspace-section-stack">
+  return <div className="workspace-section-stack cloud-task-records">
     <section aria-labelledby="cloud-assets-title"><Typography.Title id="cloud-assets-title" level={2}>{t("Test artifacts and revision history", "测试产物与修订历史")}</Typography.Title>
       <Typography.Paragraph className="muted">{t("Analysis, design, cases, code and reports retain each accepted revision. A later PASS does not remove earlier FAIL results.", "分析、设计、用例、代码和报告保留每个接受修订；后续通过不会删除此前失败。 ")}</Typography.Paragraph>
       <div className="data-surface"><Table rowKey="id" dataSource={document.assets || []} scroll={{ x: 780 }} pagination={{ pageSize: 20, hideOnSinglePage: true }} expandable={{ expandedRowRender: assetBody }} locale={{ emptyText: <Empty description={t("No formal artifacts have been accepted yet.", "尚无已接受的正式产物。 ")} /> }} columns={[

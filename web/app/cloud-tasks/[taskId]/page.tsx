@@ -66,28 +66,30 @@ export default function CloudTaskPage() {
   const step = status === "DRAFT" ? accepted ? 2 : 1
     : ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"].includes(status || "") ? 3
       : status === "COMPLETED" ? 5 : -1;
-  return <main className="workspace-page">
+  return <main className="workspace-page cloud-task-detail">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")}
-      metadata={<Space wrap><Tag>Cloud · DeepSeek</Tag><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag><Typography.Text>{t("Reported test result", "报告的测试结果")}: <ReportedResultTag result={task.reported_result} /></Typography.Text><Typography.Text type="secondary">{t("Accepted version", "接受版本")}: {task.version}</Typography.Text></Space>}
+      metadata={<div className="cloud-task-metadata"><div><span>{t("Source", "来源")}</span><Tag>Cloud · DeepSeek</Tag></div><div><span>{t("Task progress", "任务进度")}</span><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag></div><div><span>{t("Reported test result", "报告的测试结果")}</span><ReportedResultTag result={task.reported_result} /></div><div><span>{t("Accepted version", "接受版本")}</span><strong>{task.version}</strong></div></div>}
       actions={<Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button>} />
     <Alert showIcon type="info" message={t("Progress and test results are separate", "任务进度与测试结果分别记录")} description={t("Completed means the agreed work was delivered. FAIL, ERROR and BLOCKED results remain visible with their original reports.", "已完成表示约定工作已交付；失败、错误和阻塞结果及其原始报告继续保留。 ")} style={{ marginBottom: 20 }} />
     {document.isError ? <Alert showIcon type="warning" message={t("Refresh failed; previously verified records are retained.", "刷新失败；保留此前已核验记录。 ")} style={{ marginBottom: 20 }} /> : null}
     {!operational.valid || live.isError ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={operational.newerVersion ? t("Reading a newer accepted version", "正在读取更新的接受版本") : t("Live operational state is not verified", "当前运行状态尚未核验")}
       description={t("Accepted artifacts remain unchanged. Controls wait for matching Project, Task, Attempt and version observations; refresh both views to continue.", "已接受产物保持原样；控制操作等待 Project、Task、Attempt 和版本一致的观察，请刷新两类视图后继续。 ")} /> : null}
     <CloudOperationNotice operation={operation} />
-    <Steps current={step} size="small" responsive style={{ marginBottom: 28 }} items={[t("Project resources", "项目资源"), t("Task inputs", "任务输入"), t("Resolve and freeze", "解析与冻结"), t("Harness work", "Harness 工作"), t("Test artifacts", "测试产物"), t("Execution and report", "执行与汇报")].map((title) => ({ title }))} />
-    {step < 0 ? <Typography.Paragraph className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</Typography.Paragraph> : null}
+    <section className="cloud-task-flow" aria-label={t("Task workflow", "任务流程")}>
+      <Steps current={step} size="small" responsive items={[t("Project resources", "项目资源"), t("Task inputs", "任务输入"), t("Resolve and freeze", "解析与冻结"), t("Harness work", "Harness 工作"), t("Test artifacts", "测试产物"), t("Execution and report", "执行与汇报")].map((title) => ({ title }))} />
+      {step < 0 ? <p className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</p> : null}
+    </section>
     <Tabs className="workspace-tabs" animated={false} items={[
-      { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="workspace-section-stack">
-        <section className="overview-section"><Typography.Title level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
-          {repositories ? <Descriptions column={1} items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT SHA", "被测 SHA") : t("Framework SHA", "框架 SHA"), children: <><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <Typography.Paragraph className="entity-key">base: {text(repositories[role].base_sha)} · head: {text(repositories[role].head_sha)}</Typography.Paragraph> : null}</> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
+      { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
+        <section className="overview-section cloud-task-source-versions"><Typography.Title level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
+          {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT SHA", "被测 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
           {status === "DRAFT" ? <Space wrap><Button loading={inResolution} disabled={blocked || inResolution || !!accepted || !config || unsupportedResources} onClick={() => void mutate({ operation: "RESOLVE_INPUTS" })}>{inResolution ? t("Resolving versions", "正在解析版本") : t("Resolve both repositories", "解析双仓版本")}</Button>
             <Button type="primary" disabled={operation.blocked || !operational.valid || !dispatchEnabled || !accepted || !config || unsupportedResources} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch these exact versions", "下发上述确切版本")}</Button></Space> : null}
           {unsupportedResources ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("These resources cannot run in the current profile", "当前运行配置无法执行这些资源")} description={t("Only HTTPS Git repositories and workspace-local fixtures are supported. Preserve this draft and configure supported resources for a new task.", "当前仅支持 HTTPS Git 仓库和工作区内测试。请保留此草稿，并配置受支持资源后创建新任务。 ")} /> : null}
           {!dispatchEnabled ? <Typography.Paragraph className="muted" style={{ marginTop: 16 }}>{t("Dispatch requires enabled Cloud admission and an enabled worker. Historical reads remain available.", "下发需要启用 Cloud 准入和 Worker；历史读取继续可用。 ")}</Typography.Paragraph> : null}
           {operational.resolutions.some((row) => ["FAILED", "RECOVERY_REQUIRED"].includes(String(row.status))) ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Input resolution needs attention", "输入解析需要处理")} description={t("Check repository access, selectors and the original operation. Do not restart an uncertain resolution automatically.", "请核对仓库访问、版本选择和原操作；不要自动重新开始结果不明的解析。 ")} /> : null}
         </section>
-        <section className="overview-section"><Typography.Title level={2}>{t("Frozen task intent", "任务输入意图")}</Typography.Title>
+        <section className="overview-section cloud-task-intent"><Typography.Title level={2}>{t("Frozen task intent", "任务输入意图")}</Typography.Title>
           <Descriptions column={1} items={[{ key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> },
             { key: "flow", label: t("Basic flow", "基本流程"), children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
             { key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> },
@@ -112,10 +114,10 @@ export default function CloudTaskPage() {
         </section> : null}
       </div> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },
-      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
+      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history data-surface" aria-labelledby="cloud-attempt-history-heading"><div className="cloud-task-record-heading"><Typography.Title id="cloud-attempt-history-heading" level={2}>{t("Attempt history", "尝试历史")}</Typography.Title></div><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
         { title: t("Attempt", "尝试"), dataIndex: "attempt_no" }, { title: t("Progress", "进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
         { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> }, { title: t("Reason", "原因"), dataIndex: "reason" },
-      ]} /></div> },
+      ]} /></section> },
     ]} />
   </main>;
 }

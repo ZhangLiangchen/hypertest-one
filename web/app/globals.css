@@ -670,3 +670,27 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-source { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; color: var(--ht-muted); }
 .cloud-task-source .ant-tag { margin-inline-end: 0; }
 .cloud-task-list .ant-pagination { margin-inline: 24px; }
+
+/* Cloud task detail keeps operational state and accepted records distinct. */
+.cloud-task-detail .workspace-heading h1.ant-typography { max-width: 48ch; font-size: 25px; line-height: 1.4; }
+.cloud-task-metadata { display: flex; flex-wrap: wrap; gap: 12px 32px; }
+.cloud-task-metadata > div { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.cloud-task-metadata > div > span:first-child { color: var(--ht-muted); font-size: 12px; }
+.cloud-task-metadata .ant-tag { margin-inline-end: 0; }
+.cloud-task-metadata strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.cloud-task-flow { margin: 0 0 24px; padding: 20px 24px; border: 1px solid var(--ht-line); border-radius: var(--ht-radius-surface); background: var(--ht-surface); }
+.cloud-task-flow p { margin: 14px 0 0; font-size: 13px; line-height: 1.6; }
+.cloud-task-overview { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr); gap: 24px; align-items: start; }
+.cloud-task-overview > :not(.cloud-task-source-versions):not(.cloud-task-intent) { grid-column: 1 / -1; }
+.cloud-task-source-versions .ant-descriptions-item-label { padding-bottom: 4px; color: var(--ht-muted); }
+.cloud-task-sha { min-width: 0; overflow-wrap: anywhere; }
+.cloud-task-sha code { white-space: normal; overflow-wrap: anywhere; }
+.cloud-task-sha .entity-key { margin-top: 8px; }
+.cloud-task-intent .ant-descriptions-item-label { width: 120px; color: var(--ht-muted); }
+.cloud-task-intent details { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--ht-line); }
+.cloud-task-intent summary { width: fit-content; color: #2453a6; cursor: pointer; font-weight: 500; }
+.cloud-task-records > section > h2.ant-typography { margin: 0 0 8px; font-size: 20px; line-height: 1.45; }
+.cloud-task-records > section > .ant-typography.muted { max-width: 85ch; margin-bottom: 16px; line-height: 1.7; }
+.cloud-task-records > section > h2.ant-typography + .data-surface { margin-top: 16px; }
+.cloud-task-record-heading { padding: 22px 24px; }
+.cloud-task-record-heading h2.ant-typography { margin: 0; font-size: 20px; line-height: 1.45; }
