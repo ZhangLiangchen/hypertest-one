@@ -159,6 +159,17 @@ async def test_missing_preflight_blocks_before_any_business_identity_or_post(com
 
 
 @pytest.mark.asyncio
+async def test_broker_returns_only_allowlisted_preflight_code(components):
+    broker, authority, _, transport, _ = components
+    async def denied(_action):
+        raise CloudBlocked("CONTROLLED_ACTION_PREFLIGHT_BALANCE_UNAVAILABLE", "SYNTHETIC-SECRET")
+    broker.preflight = denied
+    result = await broker.invoke("swap-2")
+    assert result == {"status": "BLOCKED", "code": "CONTROLLED_ACTION_PREFLIGHT_BALANCE_UNAVAILABLE"}
+    assert "SYNTHETIC" not in json.dumps(result) and authority.calls == [] and transport.calls == []
+
+
+@pytest.mark.asyncio
 async def test_observe_uses_only_frozen_action_and_original_sent_identity(components):
     broker, authority, _, transport, _ = components
     broker.observer = object()

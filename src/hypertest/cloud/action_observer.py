@@ -26,6 +26,7 @@ _ORDER_ID = re.compile(r"[1-9][0-9]{0,39}\Z")
 _INTEGER = re.compile(r"(?:0|[1-9][0-9]{0,39})\Z")
 _TX_HASH = re.compile(r"(?:0x)?[A-Fa-f0-9]{64}\Z")
 _MAX_RESPONSE = 100_000
+_MAX_BEARER_TOKEN = 8192
 
 
 def _blocked(code="CONTROLLED_ACTION_OBSERVATION_UNAVAILABLE"):
@@ -158,9 +159,11 @@ def _preflight_projection(action, address, balance, result):
     if len(selected) != 1:
         raise ValueError
     available = _number(selected[0].get("available"))
+    if available < amount:
+        raise _blocked("CONTROLLED_ACTION_PREFLIGHT_INSUFFICIENT_BALANCE")
     required = {"profile", "allowed", "available_atomic", "address_membership", "aggregate_dex_withdraw_role",
                 "coin_specific_role", "address_active", "lock_state", "concurrent_changes"}
-    if (available < amount or not isinstance(result, dict) or set(result) != required
+    if (not isinstance(result, dict) or set(result) != required
             or result["profile"] != config["preflight_observed_profile"] or result["allowed"] is not True
             or result["available_atomic"] != str(available) or result["address_membership"] != "OBSERVED"
             or result["aggregate_dex_withdraw_role"] != "OBSERVED"
@@ -212,10 +215,15 @@ class ActionObserver:
             if (not isinstance(addresses, (tuple, list)) or not 1 <= len(addresses) <= 8
                     or any(public_address(a) not in self.profile["allowed_addresses"] for a in addresses)):
                 raise _blocked("CONTROLLED_ACTION_OBSERVER_DNS_REFUSED")
-            if identity_id is None:
-                await authority.admit_preflight(action_key=action["action_key"])
-            else:
-                await authority.admit_observation(identity_id=identity_id)
+            try:
+                if identity_id is None:
+                    await authority.admit_preflight(action_key=action["action_key"])
+                else:
+                    await authority.admit_observation(identity_id=identity_id)
+            except Exception:
+                if identity_id is None:
+                    raise _blocked("CONTROLLED_ACTION_PREFLIGHT_AUTHORITY_UNAVAILABLE") from None
+                raise _blocked() from None
             address = sorted(set(addresses))[0]
             host = f"[{address}]" if ":" in address else address
             authority = f"[{target.hostname}]" if ":" in target.hostname else target.hostname
@@ -252,9 +260,14 @@ class ActionObserver:
             raise _blocked() from None
 
     async def _token(self, action, authority, identity_id):
-        raw = (await authority.materialize_preflight_credential(action_key=action["action_key"]) if identity_id is None
-               else await authority.materialize_credential(identity_id=identity_id, role="observer_oauth"))
-        credential = _oauth_document(raw)
+        try:
+            raw = (await authority.materialize_preflight_credential(action_key=action["action_key"]) if identity_id is None
+                   else await authority.materialize_credential(identity_id=identity_id, role="observer_oauth"))
+            credential = _oauth_document(raw)
+        except Exception:
+            if identity_id is None:
+                raise _blocked("CONTROLLED_ACTION_PREFLIGHT_CREDENTIAL_UNAVAILABLE") from None
+            raise _blocked() from None
         try:
             encoded = urlencode(credential).encode("ascii")
             response = _json(await self._request(authority=authority, action=action, identity_id=identity_id, method="POST",
@@ -265,7 +278,7 @@ class ActionObserver:
             if not isinstance(token_data, dict):
                 raise ValueError
             token = token_data.get("access_token")
-            if (not isinstance(token, str) or not 1 <= len(token) <= 4096
+            if (not isinstance(token, str) or not 1 <= len(token) <= _MAX_BEARER_TOKEN
                     or any(ord(c) < 33 or ord(c) > 126 for c in token)):
                 raise ValueError
             return token
@@ -277,24 +290,34 @@ class ActionObserver:
     async def preflight(self, *, action, authority, signer, timeout=25):
         if action not in self.profile["actions"] or type(timeout) not in (int, float) or not 0 < timeout <= 25:
             raise _blocked()
+        stage = "OAUTH"
         try:
             async with asyncio.timeout(timeout):
                 token = await self._token(action, authority, None)
                 try:
                     config = action["observer"]
+                    stage = "ADDRESS"
                     address = await self._request(authority=authority, action=action, identity_id=None, method="GET",
                         path=config["address_page_path"], query=config["address_page_query"], token=token)
+                    stage = "BALANCE"
                     balance = await self._request(authority=authority, action=action, identity_id=None, method="GET",
                         path=config["address_balance_path"], token=token)
+                    stage = "ADAPTER"
                     address_json, balance_json = _json(address), _json(balance)
                     result = await signer.preflight(action, address_json, balance_json)
+                    stage = "VALIDATION"
                     _preflight_projection(action, address_json, balance_json, result)
+                    stage = "AUTHORITY"
                     await authority.admit_preflight(action_key=action["action_key"])
                     return True
                 finally:
                     del token
-        except (OSError, ValueError, TypeError, KeyError, UnicodeError, TimeoutError):
-            raise _blocked() from None
+        except Exception as error:
+            safe_codes = {"CONTROLLED_ACTION_PREFLIGHT_CREDENTIAL_UNAVAILABLE", "CONTROLLED_ACTION_OBSERVER_DNS_REFUSED",
+                          "CONTROLLED_ACTION_PREFLIGHT_INSUFFICIENT_BALANCE", "CONTROLLED_ACTION_PREFLIGHT_AUTHORITY_UNAVAILABLE"}
+            if isinstance(error, CloudBlocked) and error.code in safe_codes:
+                raise _blocked(error.code) from None
+            raise _blocked("CONTROLLED_ACTION_PREFLIGHT_" + stage + "_UNAVAILABLE") from None
 
     async def observe(self, *, action, authority, signer, identity_id, operation_key, validate_output, timeout=25):
         if action not in self.profile["actions"]:

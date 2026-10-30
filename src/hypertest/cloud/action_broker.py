@@ -25,6 +25,10 @@ from .http_profile import canonical_bytes
 
 _EMPTY_SHA = hashlib.sha256(b"").hexdigest()
 _WIRE_LIMIT = 8192
+_PREFLIGHT_CODES = frozenset({"CONTROLLED_ACTION_PREFLIGHT_CREDENTIAL_UNAVAILABLE",
+    "CONTROLLED_ACTION_OBSERVER_DNS_REFUSED", "CONTROLLED_ACTION_PREFLIGHT_INSUFFICIENT_BALANCE",
+    *("CONTROLLED_ACTION_PREFLIGHT_" + stage + "_UNAVAILABLE" for stage in
+      ("OAUTH", "ADDRESS", "BALANCE", "ADAPTER", "VALIDATION", "AUTHORITY"))})
 
 
 def _blocked(code="CONTROLLED_ACTION_UNAVAILABLE"):
@@ -294,8 +298,9 @@ class ActionBroker:
                 # source-address balance). No Agent self-report can grant it.
                 if await self.preflight(action) is not True:
                     return {"status": "BLOCKED", "code": "CONTROLLED_ACTION_PREFLIGHT_UNAVAILABLE"}
-            except (Exception, asyncio.CancelledError):
-                return {"status": "BLOCKED", "code": "CONTROLLED_ACTION_PREFLIGHT_UNAVAILABLE"}
+            except (Exception, asyncio.CancelledError) as error:
+                code = error.code if isinstance(error, CloudBlocked) and error.code in _PREFLIGHT_CODES else "CONTROLLED_ACTION_PREFLIGHT_UNAVAILABLE"
+                return {"status": "BLOCKED", "code": code}
             self._attempted.add(action_key)
             try:
                 client_ref, unique_ref = "ht_" + uuid4().hex, "ht_" + uuid4().hex

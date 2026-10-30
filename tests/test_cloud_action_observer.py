@@ -140,6 +140,58 @@ async def test_preflight_uses_only_frozen_paths_and_authority_rechecks():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("size,accepted", [(5731, True), (8192, True), (8193, False)])
+async def test_oauth_accepts_bounded_long_bearer_and_rejects_oversize(size, accepted):
+    policy, authority = _policy(), Authority()
+    def handler(request):
+        assert request.url.path == "/oauth/token"
+        return _response({"code": 200, "data": {"access_token": "x" * size}})
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(handler))
+    if accepted:
+        assert len(await observer._token(policy["actions"][0], authority, None)) == size
+    else:
+        with pytest.raises(CloudBlocked):
+            await observer._token(policy["actions"][0], authority, None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stage,code", [
+    ("credential", "CONTROLLED_ACTION_PREFLIGHT_CREDENTIAL_UNAVAILABLE"),
+    ("authority", "CONTROLLED_ACTION_PREFLIGHT_AUTHORITY_UNAVAILABLE"),
+    ("oauth", "CONTROLLED_ACTION_PREFLIGHT_OAUTH_UNAVAILABLE"),
+    ("address", "CONTROLLED_ACTION_PREFLIGHT_ADDRESS_UNAVAILABLE"),
+    ("balance", "CONTROLLED_ACTION_PREFLIGHT_BALANCE_UNAVAILABLE"),
+    ("adapter", "CONTROLLED_ACTION_PREFLIGHT_ADAPTER_UNAVAILABLE"),
+    ("validation", "CONTROLLED_ACTION_PREFLIGHT_VALIDATION_UNAVAILABLE"),
+])
+async def test_preflight_errors_identify_only_fixed_stage_without_secrets(stage, code):
+    policy, authority, signer = _policy(), Authority(), Signer()
+    if stage == "credential":
+        async def missing(**_kwargs):
+            raise RuntimeError("SYNTHETIC-SECRET")
+        authority.materialize_preflight_credential = missing
+    if stage == "authority":
+        authority.deny = True
+    if stage == "adapter":
+        async def fail(*_args):
+            raise RuntimeError("SYNTHETIC-SECRET")
+        signer.preflight = fail
+    if stage == "validation":
+        policy["actions"][0]["expected_body"]["amount"] = "3000000"
+    def handler(request):
+        paths = {"oauth": "/oauth/token", "address": "/addresses/page",
+                 "balance": "/addresses/balance/TRON_TEST/synthetic-address"}
+        if request.url.path == paths.get(stage):
+            return httpx.Response(403)
+        return _handler(request)
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(handler))
+    with pytest.raises(CloudBlocked) as error:
+        await observer.preflight(action=policy["actions"][0], authority=authority, signer=signer)
+    assert error.value.code == code
+    assert "SYNTHETIC" not in str(error.value)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("change", ["wallet", "role", "balance", "coin", "frozen_amount", "untrusted_output"])
 async def test_preflight_rejects_forged_adapter_or_unmatched_frozen_conditions(change):
     policy, authority, signer = _policy(), Authority(), Signer()
