@@ -1,6 +1,7 @@
 """Authenticated observations use only frozen target and original identity."""
 from __future__ import annotations
 
+import asyncio
 import json
 import ssl
 from copy import deepcopy
@@ -129,6 +130,95 @@ async def test_original_order_reads_are_fixed_pinned_and_token_stays_private():
     assert len(result["order_response_sha256"]) == len(result["details_response_sha256"]) == 64
     assert "SYNTHETIC" not in json.dumps(result)
     assert len(authority.checks) == 4
+
+
+@pytest.mark.asyncio
+async def test_observation_budget_covers_three_bounded_sequential_reads(monkeypatch):
+    # Scale only the outer timeout so this exercises the old 25s vs new 90s
+    # behavior quickly. All three requests are synthetic and individually
+    # complete within the real per-request limit.
+    real_timeout = asyncio.timeout
+    monkeypatch.setattr(asyncio, "timeout", lambda seconds: real_timeout(seconds / 100))
+    calls = []
+
+    async def slow_handler(request):
+        calls.append((request.method, request.url.path))
+        await asyncio.sleep(0.1)
+        return _handler(request)
+
+    policy = _policy()
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(slow_handler))
+
+    async def validate_output(_value):
+        pass
+
+    with pytest.raises(CloudBlocked):
+        await observer.observe(action=policy["actions"][0], authority=Authority(), signer=Signer(),
+            identity_id="identity-original", operation_key="original-key", validate_output=validate_output, timeout=25)
+    calls.clear()
+    authority = Authority()
+    result = await observer.observe(action=policy["actions"][0], authority=authority, signer=Signer(),
+        identity_id="identity-original", operation_key="original-key", validate_output=validate_output)
+    assert result["projection"]["business_terminal"] is True
+    assert calls == [("POST", "/oauth/token"), ("GET", "/orders/client/original-client"),
+                     ("GET", "/orders/42/with-details")]
+    assert len(authority.checks) == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [0, -1, 90.001, 120, True])
+async def test_observation_rejects_invalid_or_unbounded_budget(timeout):
+    policy = _policy()
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(_handler))
+    with pytest.raises(CloudBlocked):
+        await observer.observe(action=policy["actions"][0], authority=Authority(), signer=Signer(),
+            identity_id="identity-original", operation_key="original-key", validate_output=lambda _: None,
+            timeout=timeout)
+
+
+@pytest.mark.asyncio
+async def test_observation_cancellation_is_not_reported_as_terminal():
+    started = asyncio.Event()
+    never = asyncio.Event()
+    calls = []
+
+    async def blocked_handler(request):
+        calls.append((request.method, request.url.path))
+        started.set()
+        await never.wait()
+        return _handler(request)
+
+    policy = _policy()
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(blocked_handler))
+    task = asyncio.create_task(observer.observe(action=policy["actions"][0], authority=Authority(), signer=Signer(),
+        identity_id="identity-original", operation_key="original-key", validate_output=lambda _: None))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert calls == [("POST", "/oauth/token")]
+
+
+@pytest.mark.asyncio
+async def test_observation_stops_before_original_read_when_authority_revoked():
+    class RevokedAfterOAuth(Authority):
+        async def admit_observation(self, *, identity_id):
+            if self.checks:
+                self.deny = True
+            await super().admit_observation(identity_id=identity_id)
+
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path))
+        return _handler(request)
+
+    policy = _policy()
+    observer = ActionObserver(profile=policy, resolver=_resolve, transport=httpx.MockTransport(handler))
+    with pytest.raises(CloudBlocked):
+        await observer.observe(action=policy["actions"][0], authority=RevokedAfterOAuth(), signer=Signer(),
+            identity_id="identity-original", operation_key="original-key", validate_output=lambda _: None)
+    assert calls == [("POST", "/oauth/token")]
 
 
 @pytest.mark.asyncio

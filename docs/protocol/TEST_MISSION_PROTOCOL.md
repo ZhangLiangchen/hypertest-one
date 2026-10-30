@@ -1573,6 +1573,8 @@ Docker Attempt 的 Task 输入须固定 `agent_source_export`：profile 为 `clo
 
 受控外部写入通过 Task 输入固定 `controlled_actions`：每个 action 唯一 key、精确目标 / POST 路径、项目 adapter 的输入及其最终 body 的预期字段、原业务引用与签名字段名、各用途独立的凭据版本、完整 framework commit 和 adapter 文件 SHA-256；target、网络与 `environment:write` 须在授权内精确匹配。宿主先固定原 client / unique reference 并取得一次准备权，再验证项目 signer 生成的 body 与冻结字段、身份和实际签名一致，事务登记 body SHA-256 得到一次发送权；随后仅发送该原始字节。身份或发送 ACK 失答、重复和 NOT_FOUND 只查询原 key，不生成替代 ID、不重发。HTTP 响应与业务 / 链上终态分别观察，HTTP 200 不解除待定。独立写入开关默认关闭，显式启用不代表请求已发送或结果已验证。
 
+Agent 停止后，当前 Worker 可关闭动作入口、排空现有调用，在原 Attempt 截止时间和有效租约内对本 Attempt 已发送动作继续按原 key 只读观察，随后关闭 broker 并按原 handoff 收尾。观察追加独立业务事实，不修改既有 handoff、报告修订或 reported result，不从业务终态推导 PASS；观察失败、截止或失去租约保留未决状态和 HELD，不重发。
+
 拟采用独立容器时，受限宿主通过私有 broker 提交 `PREPARE_CONTAINER_CREATE`，绑定当前 Project / Task / latest Attempt、原 worker 的有效 lease / `cloud:work` grant 与 generation、稳定 operation key、原容器名、image ID、完整固定 spec 与 digest、心跳 key digest、时钟域 digest、专用 recovery capability digest 和原硬截止。该 typed 操作复用 `CloudOperationReceipt` 和现有 expected_version / 请求摘要规则：完整非秘密意图在任何 Engine create 前事务持久化，同一 Attempt 不得登记另一原 key 或替代身份。心跳及 recovery key 原文不写入回执；Agent 不持平台能力或 Docker 权限，也不提供容器确认或停止证明。
 
 登记回执只证明原意图已接受，初始状态为 `UNCONFIRMED`，容器 ID 为空。调用失答、UNKNOWN 或查无回执只查询原 Project / key；不得重 POST、换 key、换容器名或将 NOT_FOUND 推定为未发送。服务端再次收到相同 key 的登记请求时拒绝并要求只读查询；同 key 异输入及另一身份均拒绝。受信 Worker 私有 broker 自行查询 Engine，按原名称及完整 spec 复核后才确认完整容器 ID，Agent 声明、名称或 Engine 创建 ACK 均不能代替此核验。对原 ID 的 start 必须另以原 key 持久 SENT 后最多发送一次；失答只查原 key / ID。

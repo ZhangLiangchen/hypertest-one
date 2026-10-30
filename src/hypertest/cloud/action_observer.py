@@ -27,6 +27,11 @@ _INTEGER = re.compile(r"(?:0|[1-9][0-9]{0,39})\Z")
 _TX_HASH = re.compile(r"(?:0x)?[A-Fa-f0-9]{64}\Z")
 _MAX_RESPONSE = 100_000
 _MAX_BEARER_TOKEN = 8192
+# An observation performs OAuth and two sequential provider reads. Each read
+# independently resolves and checks the frozen DNS pin before a bounded HTTPS
+# request; the former 25-second total could expire during valid slow reads.
+# The broker's own deadline and the original Worker lease remain authoritative.
+_MAX_OBSERVATION_SECONDS = 90
 
 
 def _blocked(code="CONTROLLED_ACTION_OBSERVATION_UNAVAILABLE"):
@@ -319,11 +324,12 @@ class ActionObserver:
                 raise _blocked(error.code) from None
             raise _blocked("CONTROLLED_ACTION_PREFLIGHT_" + stage + "_UNAVAILABLE") from None
 
-    async def observe(self, *, action, authority, signer, identity_id, operation_key, validate_output, timeout=25):
+    async def observe(self, *, action, authority, signer, identity_id, operation_key, validate_output,
+                      timeout=_MAX_OBSERVATION_SECONDS):
         if action not in self.profile["actions"]:
             raise _blocked()
         action_key = action["action_key"]
-        if type(timeout) not in (int, float) or not 0 < timeout <= 25:
+        if type(timeout) not in (int, float) or not 0 < timeout <= _MAX_OBSERVATION_SECONDS:
             raise _blocked()
         stage = "ORIGINAL"
         try:

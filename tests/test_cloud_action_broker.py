@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -184,6 +185,91 @@ async def test_observe_uses_only_frozen_action_and_original_sent_identity(compon
     assert (await broker.query("swap-2"))["status"] == "ORIGINAL"
     with pytest.raises(CloudBlocked):
         await broker.observe("unapproved-action")
+
+
+@pytest.mark.asyncio
+async def test_close_observes_only_the_original_action_without_resending(components):
+    broker, authority, _, transport, _ = components
+    broker.observer = object()
+    await broker.invoke("swap-2")
+
+    async def remote_closed():
+        return bool(authority.record.get("observations"))
+
+    authority.remote_closed = remote_closed
+    assert await broker.observe_before_close(deadline=time.monotonic() + 1)
+    assert authority.calls.count("observe_original") == 1
+    assert transport.calls == ["POST"]
+    with pytest.raises(CloudBlocked):
+        await broker.invoke("swap-4")
+    await broker.close()
+    assert await broker.drained()
+
+
+@pytest.mark.asyncio
+async def test_close_keeps_unknown_when_original_was_not_sent(components):
+    broker, authority, _, transport, _ = components
+    authority.fail = "identity_ack"
+    await broker.invoke("swap-2")
+    broker.observer = object()
+    assert not await broker.observe_before_close(deadline=time.monotonic() + 1)
+    assert "observe_original" not in authority.calls and transport.calls == []
+
+
+@pytest.mark.asyncio
+async def test_close_keeps_unknown_at_deadline_without_resending(components):
+    broker, authority, _, transport, _ = components
+    broker.observer = object()
+    await broker.invoke("swap-2")
+
+    async def pending(*_args, **_kwargs):
+        await asyncio.sleep(1)
+
+    authority.observe_business_terminal = pending
+    assert not await broker.observe_before_close(deadline=time.monotonic() + 0.02)
+    assert transport.calls == ["POST"]
+
+
+@pytest.mark.asyncio
+async def test_close_quiesces_existing_handlers_and_rejects_new_actions(components):
+    broker, authority, _, transport, _ = components
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def handler():
+        entered.set()
+        await release.wait()
+
+    async def remote_closed():
+        return True
+
+    authority.remote_closed = remote_closed
+    active = asyncio.create_task(handler())
+    broker._handlers.add(active)
+    active.add_done_callback(broker._handlers.discard)
+    await entered.wait()
+    closing = asyncio.create_task(broker.observe_before_close(deadline=time.monotonic() + 1))
+    await asyncio.sleep(0)
+    assert not closing.done()
+    with pytest.raises(CloudBlocked):
+        await broker.invoke("swap-2")
+    release.set()
+    assert await closing
+    assert transport.calls == []
+
+
+@pytest.mark.asyncio
+async def test_close_propagates_lost_authority_cancellation(components):
+    broker, authority, _, transport, _ = components
+    broker.observer = object()
+    await broker.invoke("swap-2")
+
+    async def cancelled(*_args, **_kwargs):
+        raise asyncio.CancelledError
+
+    authority.observe_business_terminal = cancelled
+    with pytest.raises(asyncio.CancelledError):
+        await broker.observe_before_close(deadline=time.monotonic() + 1)
+    assert transport.calls == ["POST"]
 
 
 @pytest.mark.asyncio

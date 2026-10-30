@@ -73,3 +73,11 @@ Docker 画像、release manifest 工具和 Worker 路径仍是默认关闭候选
 后续本机按推送 Git `f72ab8905b540a1dbfbff417406547a584f221ae` 部署 API 与独立 Worker，schema 升至 `0037_cloud_action_ledger`；API 健康、Worker 实际服务与成员准入通过，独立模型 broker 的一次小额度请求返回 HTTP 200 并完成排空。XBLOCK Project 的 Cloud 配置和五项用途限定凭据已录入。Task `01a18bdb-89d1-71c3-85b3-2a990b602074` 的输入解析固定 MR HEAD `e1a50a00093f41b7d9ca078433a63d76b2f89e9c` 和 framework `54568a5e115c0ca78c2bb914a90318ed3aba021f`；唯一 Attempt `01a18bdc-6c48-7b06-92ec-01f68bc18345` 在执行前因 `REMOTE_NETWORK_UNSUPPORTED` 失败，状态 NOT_RUN，受控动作数 0，不重写原结果。原因是旧 SandboxPolicy 未识别新的受控 HTTPS action；本次修复只允许与冻结任务、目标和读写授权精确匹配的受控 profile，不授予 Agent 普通网络。定向回归 95 passed / 1 skipped；四笔兑换仍未发送，后续操作须使用新的明确任务身份。
 
 Worker 修复版 `0dec8347e33fd714f700fcd8efe3d5740cb75d92` 部署后，新 Task `01a18be1-4170-709d-bf82-78f4e2fe59e1` / Attempt `01a18be1-9510-7739-b954-79c0081082c4` 运行框架并归档摘要与 JUnit，reported result 为 BLOCKED：2 USDT 被预检阻断，4/5/7 跳过；动作 identity、send、observation 均为 0。该框架运行记录来自 Agent 的来源声明，不升级为独立执行证明。只读诊断确认 staging OAuth 返回 token 长度超过原 4096 上限；候选上限调整至 8192 并保留校验，增加脱敏阶段错误码。以原冻结目标在真实 Worker 内只读重现，OAuth、地址和余额 GET、隔离项目 adapter 及独立字段校验均通过；未发送兑换，也未改写原结果。定向检查 70 passed，修复尚须按新提交部署。
+
+### 自动观察和报告收尾修复
+
+后续真实 Cloud 任务中，一笔已发送动作获得 HTTP 响应，但自动业务终态未及时写入，终止 handoff 因未决 action 被拒绝而进入恢复；历史运行没有保留足够的失败阶段，无法追认当时的唯一根因。原动作后来通过受限只读恢复追加 BUSINESS_TERMINAL，原任务仅按 Operator 对账收尾为 FAILED、预算保持 HELD；原 Agent 报告与原动作回执均不改写。
+
+本轮修复一个可复现的时限缺陷：串行 OAuth、原订单与明细查询共享的 25 秒总窗口不足以容纳各自合法的 DNS/TLS 等待，观察上限调整为 90 秒，仍受原 Attempt 截止、租约和逐次权限检查约束。Worker 在 Agent 停止后先关闭动作入口并等待已有处理，再只按本 Worker 已发送的原 key 做有界只读观察；业务终态确认后才继续原 handoff 和 broker drain，无法确认、超时或租约失效仍保留 RECOVERY_REQUIRED / HELD。观察不生成新业务身份、不重发，也不将后续观察结果改写为已形成的 Agent 报告或 PASS。
+
+定向代码检查 155 passed / 1 skipped；专用临时 PostgreSQL 的跨模块合成回归中，框架进程仅发送一次合成动作、退出后由真实 broker 自动观察并写入 BUSINESS_TERMINAL，再由 collector / reporter 完成 Task 和固定版本读回。该回归使用合成 signer 和内存 HTTP 目标，未运行真实 Docker Agent / SDK 或真实 SUT，不能作为其完整端到端验收。用户已暂停尚未发送的后续真实兑换，不得重发既有原订单或由合成结果推定真实任务全部通过。部署与实际复验另记。

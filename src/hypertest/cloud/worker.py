@@ -725,7 +725,22 @@ class CloudWorker:
             if http_broker is not None:
                 await http_broker.close()
             if action_broker is not None:
+                # Keep the current fenced lease while reconciling only the
+                # original actions; closing first would make their trusted
+                # observations impossible and force avoidable recovery.
+                if lease_failure:
+                    raise lease_failure
+                preparing = asyncio.create_task(action_broker.observe_before_close(deadline=deadline))
+                try:
+                    actions_closed = await preparing
+                finally:
+                    preparing = None
+                if lease_failure:
+                    raise lease_failure
                 await action_broker.close()
+                if not actions_closed:
+                    raise CloudBlocked("CLOUD_ACTION_RECONCILIATION_REQUIRED",
+                        "Original controlled actions remain unconfirmed; retain the budget and handoff")
             if not await remote_operations_closed():
                 raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "Canonical remote operations are not all observed stopped; retain the original reservation")
             usage = int(time.monotonic() - started)

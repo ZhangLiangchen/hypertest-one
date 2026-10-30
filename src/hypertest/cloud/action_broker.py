@@ -148,7 +148,7 @@ class ActionBroker:
         self.observer = observer
         self.transport = transport or ActionTransport()
         self.server = None
-        self.closed = self._closing = False
+        self.closed = self._closing = self._quiescing = False
         self._lock = asyncio.Lock()
         self._handlers = set()
         self._attempted = set()
@@ -223,6 +223,8 @@ class ActionBroker:
                 raw = await reader.readline()
                 if not raw.endswith(b"\n") or len(raw) > _WIRE_LIMIT:
                     raise _blocked()
+                if self._quiescing:
+                    raise _blocked()
                 payload = json.loads(raw)
                 if not isinstance(payload, dict) or set(payload) != {"verb", "action_key"}:
                     raise _blocked()
@@ -252,7 +254,7 @@ class ActionBroker:
             async with asyncio.timeout(5):
                 record = await self.authority.get_by_key(key)
             return {"status": "ORIGINAL", "operation": self._public(record)}
-        except (Exception, asyncio.CancelledError):
+        except Exception:
             return {"status": "UNKNOWN", "code": "CONTROLLED_ACTION_ORIGINAL_UNAVAILABLE", "operation_key": key}
 
     async def _unknown(self, identity_id, reason):
@@ -285,7 +287,7 @@ class ActionBroker:
                 await self.validate_output({"controlled_action_observation": projection})
                 return {"status": "BUSINESS_TERMINAL" if projection["business_terminal"] else "BUSINESS_PENDING",
                         "operation_key": key, "observation": projection}
-            except (Exception, asyncio.CancelledError) as error:
+            except Exception as error:
                 code = error.code if isinstance(error, CloudBlocked) and error.code in _OBSERVATION_CODES else (
                     "CONTROLLED_ACTION_OBSERVE_" + stage + "_UNAVAILABLE")
                 return {"status": "UNKNOWN", "code": code, "operation_key": key}
@@ -293,10 +295,10 @@ class ActionBroker:
     async def invoke(self, action_key):
         action = self._action(action_key)
         key = self.operation_key(self.task_id, action_key)
-        if self.closed or self._closing:
+        if self.closed or self._closing or self._quiescing:
             raise _blocked()
         async with self._lock:
-            if self.closed or self._closing or time.time() >= self.deadline:
+            if self.closed or self._closing or self._quiescing or time.time() >= self.deadline:
                 raise _blocked()
             if action_key in self._attempted:
                 return await self.query(action_key)
@@ -386,6 +388,79 @@ class ActionBroker:
                 return {"status": "UNKNOWN", "operation_key": key, "identity_id": identity_id}
             finally:
                 self._inflight.discard(identity_id)
+
+    async def observe_before_close(self, *, deadline: float) -> bool:
+        """Quiesce callers and only observe this Worker's original actions.
+
+        The Agent process must already be stopped. Closing the listener first
+        prevents new action requests while existing handlers are drained. A
+        missing original receipt, an identity without SENT, lost authority, or
+        an unobserved business outcome never becomes completion. The caller's
+        monotonic deadline and the broker's original wall-clock deadline bound
+        all waiting; no operation creates or resends an action.
+        """
+        if (self.closed or self._closing or type(deadline) not in (int, float)
+                or not 0 < deadline < float("inf")):
+            return False
+        def remaining():
+            return min(deadline - time.monotonic(), self.deadline - time.time())
+
+        self._quiescing = True
+        if self.server is not None:
+            self.server.close()
+            limit = remaining()
+            if limit <= 0:
+                return False
+            try:
+                await asyncio.wait_for(self.server.wait_closed(), timeout=limit)
+            except TimeoutError:
+                return False
+
+        # A handler may have committed SENT but not yet observed its response.
+        # Wait rather than infer that an empty ledger proves no operation exists.
+        while self._handlers:
+            limit = remaining()
+            if limit <= 0:
+                return False
+            _, pending = await asyncio.wait(tuple(self._handlers), timeout=limit)
+            if pending:
+                return False
+
+        while remaining() > 0:
+            for action_key in sorted(self._attempted):
+                limit = remaining()
+                if limit <= 0:
+                    return False
+                try:
+                    original = await asyncio.wait_for(self.query(action_key), timeout=limit)
+                    operation = original.get("operation")
+                    if (original.get("status") != "ORIGINAL" or not isinstance(operation, dict)
+                            or operation.get("state") != "SENT"):
+                        return False
+                    limit = remaining()
+                    if limit <= 0:
+                        return False
+                    await asyncio.wait_for(self.observe(action_key), timeout=limit)
+                except Exception:
+                    return False
+            limit = remaining()
+            if limit <= 0:
+                return False
+            try:
+                if not self._inflight and await asyncio.wait_for(self.authority.remote_closed(),
+                                                                timeout=min(5, limit)):
+                    return True
+            except Exception:
+                return False
+            # No attempted keys means any unresolved operation belongs to a
+            # different owner/attempt; it cannot be observed by this Worker.
+            if not self._attempted:
+                return False
+            limit = remaining()
+            if limit <= 0:
+                return False
+            await asyncio.sleep(min(2, limit))
+        return False
 
     async def close(self):
         if self.closed:

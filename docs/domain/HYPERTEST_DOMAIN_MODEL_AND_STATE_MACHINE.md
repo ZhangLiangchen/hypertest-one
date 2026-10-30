@@ -2350,6 +2350,8 @@ Docker Attempt 候选固定输入还可包含 `agent_source_export`（`cloud-age
 
 `RECOVERY_REQUIRED` 的已发送原动作可由 Operator 通过 `AUTHORIZE_ACTION_OBSERVATION` 单独授权一次有期限的只读观察：收据绑定同一 Task、Attempt、原 identity 与原 operation key，五分钟有效；旧 owner 必须已 fenced，原容器必须有匹配的可信 STOPPED 记录。Worker 私有恢复 authority 每次读取和写入前重查收据、冻结 manifest、目标、原 SENT、停止状态和只读凭据有效性；只允许 OAuth 和绑定原 client ID 的固定订单 GET，不能获取签名/API key、创建 identity、修改 ID 或发送业务请求。仅受信适配器及 Worker 独立验证一致的终态可追加至原 send；缺证据、失答或非终态保持未决，历史身份、发送、预算和链上事实不变。相同授权原 key 可读回原收据，不能延长有效期或增加写入权。
 
+正常收尾时，已停止 Agent 的当前 Worker 可先关闭动作入口并排空已有调用，再在原 Attempt 截止时间及有效租约内只读观察本 Attempt 已发送动作的原 key，然后关闭 broker。观察只追加独立业务终态记录，不改变已形成的 handoff、报告修订或 reported result，也不能据此推导 PASS；租约失效、截止或观察不明须停止并保留未决状态和 HELD，不能重发动作。
+
 Docker Attempt 容器是 [ADR-029 候选](../architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md) 的独立执行边界，不改变 CloudTask / CloudAttempt 身份或现有 Worker 准入。受限宿主在任何 Engine create 前，通过私有 broker 的 `PREPARE_CONTAINER_CREATE` typed 操作，以当前 fenced Worker 的有效 lease 和原 `cloud:work` grant 事务登记原创建意图。该操作复用不可变 `CloudOperationReceipt`，固定 Project / Task / Attempt、原 worker、grant / generation、原 operation key、容器名、image ID、spec digest、心跳 key digest、原硬截止和完整非秘密请求摘要；以现有回执及领域归属校验并串行化当前 latest Attempt。同一 Attempt 只有一个原创建意图，不能通过换 key、owner、generation、名称或 spec 登记替代容器，不新增容器表或改写旧记录。心跳 key 原文不写入回执。
 
 意图登记回执只表示原意图已保存，不证明 Engine 已执行。原 key 失答、UNKNOWN 或查询 NOT_FOUND 时只读查询原回执，不重 POST、不再次发出 create、不换 key、不推定未创建。重复的相同 key 不得重新授予 create 发送权；异输入或身份拒绝。受信 Worker 私有 broker 必须自行查询 Engine，并对原容器完整 ID、名称及完整固定 spec 核验后才可追加确认；单纯的 Agent 自报、创建请求 ACK、名称或意图不能代替核验。启动同一个原 ID 之前必须重新核验 Engine 并持久 `PREPARE_CONTAINER_START` 原 key / SENT；失答只查原 key 和 ID，不重发 start。
