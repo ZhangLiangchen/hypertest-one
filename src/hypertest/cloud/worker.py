@@ -496,7 +496,7 @@ class CloudWorker:
                 inspect_ssh_client(self.settings)
             policy = SandboxPolicy(seconds, requests, self.settings.cloud_model_max_tokens,
                 memory_bytes=NATIVE_CODEX_ADDRESS_SPACE_BYTES if native_enabled else ROOT_ADDRESS_SPACE_BYTES,
-                ssh_profile=ssh_profile, http_profile=http_profile)
+                ssh_profile=ssh_profile, http_profile=http_profile, controlled_actions=controlled_profile)
             policy.validate(manifest)
             metadata = inspect_sdk()
             payload_root = None

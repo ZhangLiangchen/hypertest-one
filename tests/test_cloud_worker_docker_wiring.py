@@ -54,7 +54,7 @@ async def test_direct_execute_cannot_bypass_docker_admission(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("with_actions", [False, True])
+@pytest.mark.parametrize("with_actions", [False, True, "admitted"])
 async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(monkeypatch, tmp_path, with_actions):
     events = []
     task_id, project_id, attempt_id = (str(uuid4()) for _ in range(3))
@@ -66,7 +66,16 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
     manifest["inputs"]["agent_source_export"] = {"profile": "cloud-agent-source-export/v1", **{
         role: [{"path": "main.py", "sha256": hashlib.sha256(b"synthetic\n").hexdigest()}]
         for role in ("sut", "framework")}}
-    if with_actions:
+    if with_actions == "admitted":
+        from test_cloud_action_profile import profile
+        plan = profile()
+        manifest["inputs"]["controlled_actions"] = plan
+        manifest["inputs"]["authorization"].update(network_targets=[plan["target"]], targets=[plan["target"]],
+            permitted_actions=["git:read", "framework:execute", "environment:read", "environment:write"])
+        manifest["configuration"]["environment"] = {"connection": "HTTPS", "host": "api.example.invalid",
+            "port": 443, "cloud_access_policy": "WEB_ONLY"}
+        manifest["resolution"]["repositories"]["framework"]["commit_sha"] = "a" * 40
+    elif with_actions:
         manifest["inputs"]["controlled_actions"] = {"synthetic": True}
     claim = {"task": {"id": task_id, "project_id": project_id, "version": 1,
                       "frozen_manifest": manifest, "input_digest": digest(manifest)},
@@ -191,6 +200,20 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
     instance = worker.CloudWorker(None, settings, "fixture", docker_runtime=Docker())
     instance._docker_admitted = True
     instance.resolver = SimpleNamespace(checkout=checkout)
+    if with_actions == "admitted":
+        from hypertest.application import cloud_actions
+        monkeypatch.setattr(cloud_actions, "controlled_actions_enabled", lambda: True)
+        instance.action_runtime = object()
+
+        def next_stage():
+            raise CloudBlocked("NEXT_STAGE_REACHED", "synthetic SDK inspection reached")
+
+        monkeypatch.setattr(worker, "inspect_sdk", next_stage)
+        with pytest.raises(CloudBlocked) as error:
+            await instance.execute(claim)
+        assert error.value.code == "NEXT_STAGE_REACHED"
+        assert not any(item.startswith("checkout:") or item == "sandbox-start" for item in events)
+        return
     if with_actions:
         with pytest.raises(CloudBlocked) as error:
             await instance.execute(claim)

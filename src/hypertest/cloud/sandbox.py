@@ -17,8 +17,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from .action_profile import validate_action_profile
 from .errors import CloudBlocked
-from .http_profile import HTTPS_SOCKET, HttpProfile
+from .http_profile import HTTPS_SOCKET, HttpProfile, canonical_target
 from .http_profile import validate_profile as validate_http_profile
 from .resources import inspect_resource_envelope
 from .ssh_profile import SSH_SOCKET, SshProfile, validate_profile
@@ -51,6 +52,7 @@ class SandboxPolicy:
     aggregate_processes: int = 256
     ssh_profile: SshProfile | None = None
     http_profile: HttpProfile | None = None
+    controlled_actions: dict | None = None
 
     def resource_metadata(self, observed: dict) -> dict:
         """Separate configured ceilings from the actual inspected cgroup limits."""
@@ -71,11 +73,13 @@ class SandboxPolicy:
         authorization = inputs["authorization"]
         if not {"git:read", "framework:execute"} <= set(authorization["permitted_actions"]):
             raise CloudBlocked("ACTION_AUTHORIZATION_REQUIRED", "Workspace execution requires explicit Git read and framework execution authorization")
-        if authorization.get("network_targets") and self.ssh_profile is None and self.http_profile is None:
+        if authorization.get("network_targets") and self.ssh_profile is None and self.http_profile is None and self.controlled_actions is None:
             raise CloudBlocked("REMOTE_NETWORK_UNSUPPORTED", "This runtime supports workspace-local fixtures; remote SUT/CI/SSH is unavailable")
         allowed = {"git:read", "framework:execute"}
-        if self.ssh_profile is not None or self.http_profile is not None:
+        if self.ssh_profile is not None or self.http_profile is not None or self.controlled_actions is not None:
             allowed.add("environment:read")
+        if self.controlled_actions is not None:
+            allowed.add("environment:write")
         unsupported = set(authorization["permitted_actions"]) - allowed
         if unsupported:
             raise CloudBlocked("ACTION_CAPABILITY_UNSUPPORTED", "Requested remote/write action is not enforced by this runtime")
@@ -92,8 +96,24 @@ class SandboxPolicy:
                     or self.http_profile.target not in authorization.get("targets", [])
                     or inputs.get("framework_runtime") is None):
                 raise CloudBlocked("HTTPS_AUTHORIZATION_MISMATCH", "HTTPS reads require the exact frozen target, framework and read authorization")
-        elif environment.get("connection", "NONE") != "NONE":
+        elif self.controlled_actions is None and environment.get("connection", "NONE") != "NONE":
             raise CloudBlocked("ENVIRONMENT_CAPABILITY_UNSUPPORTED", "Remote environment access needs an independently enforced adapter")
+        if self.controlled_actions is not None:
+            try:
+                profile = validate_action_profile(self.controlled_actions)
+                target = profile["target"]
+                commit = manifest["resolution"]["repositories"]["framework"]["commit_sha"]
+                if (profile != self.controlled_actions or inputs.get("controlled_actions") != profile
+                        or environment.get("connection") != "HTTPS"
+                        or canonical_target(environment.get("host"), environment.get("port")) != target
+                        or not {"environment:read", "environment:write"} <= set(authorization["permitted_actions"])
+                        or authorization.get("network_targets") != [target]
+                        or target not in authorization.get("targets", [])
+                        or any(action["framework_commit"] != commit for action in profile["actions"])):
+                    raise ValueError
+            except (CloudBlocked, KeyError, TypeError, ValueError):
+                raise CloudBlocked("CONTROLLED_ACTION_AUTHORIZATION_MISMATCH",
+                    "Controlled actions require the exact frozen HTTPS target, framework and read/write authorization") from None
         if environment.get("require_matching_deployment"):
             raise CloudBlocked("DEPLOYMENT_UNOBSERVED", "Workspace-local runtime cannot attest remote deployment identity")
         if not 1 <= self.timeout_seconds <= inputs["budgets"]["total_seconds"]:
