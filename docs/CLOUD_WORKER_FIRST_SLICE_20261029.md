@@ -81,3 +81,7 @@ Worker 修复版 `0dec8347e33fd714f700fcd8efe3d5740cb75d92` 部署后，新 Task
 本轮修复一个可复现的时限缺陷：串行 OAuth、原订单与明细查询共享的 25 秒总窗口不足以容纳各自合法的 DNS/TLS 等待，观察上限调整为 90 秒，仍受原 Attempt 截止、租约和逐次权限检查约束。Worker 在 Agent 停止后先关闭动作入口并等待已有处理，再只按本 Worker 已发送的原 key 做有界只读观察；业务终态确认后才继续原 handoff 和 broker drain，无法确认、超时或租约失效仍保留 RECOVERY_REQUIRED / HELD。观察不生成新业务身份、不重发，也不将后续观察结果改写为已形成的 Agent 报告或 PASS。
 
 定向代码检查 155 passed / 1 skipped；专用临时 PostgreSQL 的跨模块合成回归中，框架进程仅发送一次合成动作、退出后由真实 broker 自动观察并写入 BUSINESS_TERMINAL，再由 collector / reporter 完成 Task 和固定版本读回。该回归使用合成 signer 和内存 HTTP 目标，未运行真实 Docker Agent / SDK 或真实 SUT，不能作为其完整端到端验收。用户已暂停尚未发送的后续真实兑换，不得重发既有原订单或由合成结果推定真实任务全部通过。部署与实际复验另记。
+
+修复版 Worker 已由推送 Git `8cda7c777a8ae927c4f424b1e64f8c16be367dad` 构建并部署为镜像 `sha256:99a6e4331eaa50a44caf511932ebe2bb4f94d9e8721989d501bb98d90e8beb67`；实际服务及成员准入通过。API 保持 `d3cdd6d2715200a8e67ab8e810ba0cd7494f391f`，schema 保持 `0038_action_recovery`。原任务的原 action 已先行追加只读 BUSINESS_TERMINAL，后经 Operator attestation 收尾为 FAILED，原 Agent 报告不改写，预算仍 HELD；该 attestation 不宣称独立进程停止证明。
+
+另创建一条真实 Cloud 任务验证修复版 Docker Worker、DeepSeek SDK、项目原生 pytest 与报告收尾；任务无外部网络目标、无受控动作，仅运行框架中四个 mock 单测。Task `01a18c18-de0d-77d5-a45a-f9ae3ecee683` 完成并 reported PASS，项目框架 Run reported exit 0，JUnit 显示 4 passed，报告及原件固定版本读回，预算 SETTLED；Worker 模型 broker 14 次请求均完成并排空，容器 Engine 观察到停止。项目测试与 Run 属 Agent / 框架上报，未取得独立执行来源证明；该无兑换任务及前述合成 action 回归不能推定真实写操作的自动观察和收尾已经端到端复验。测试后 Project 默认配置以新的不可变修订恢复为测试前的 staging 内容，历史配置、原任务及首笔动作均保留；用户暂停的后续真实兑换未发送。
