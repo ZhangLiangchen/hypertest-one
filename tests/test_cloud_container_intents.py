@@ -26,7 +26,7 @@ pytest_plugins = ("test_cloud_tasks",)
 @pytest.fixture
 def candidate_enabled(monkeypatch):
     # Only the disposable synthetic DB exercises the unshipped candidate.
-    monkeypatch.setattr(service, "CONTAINER_CREATE_INTENT_ENABLED", True)
+    monkeypatch.setattr(service, "container_intents_enabled", lambda: True)
 
 
 def parameters(receipt, tmp_path):

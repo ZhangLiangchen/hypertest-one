@@ -14,7 +14,7 @@
 
 ## 未完成的开发与条件
 
-- 本机 Cloud Worker：独立 Docker Attempt 的候选隔离与原身份恢复已实现并做合成联调，仍须完成固定提交镜像与 Compose 准入、私有卷和凭据配置、真实 Worker 全链路验证后才可开放。XBlock MR 1146 的 staging 兑换测试需核对实际部署、更新后的框架入口和受控认证/写入能力；不得从合成报告回归推定该任务已执行。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
+- 本机 Cloud Worker：独立 Docker Attempt 与受控写入候选已完成合成联调，仍须按最终推送提交构建、部署和核验真实 Worker 全链路。XBlock MR 1146 的 staging 测试待受控身份、固定框架、任务授权和执行结果；不得从只读检查或合成回归推定兑换已执行。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
 - Cloud 框架与受控 HTTPS 只完成首片；真实目标授权、依赖闭包和离线供应、认证或写 API、其他工具链与浏览器等尚未完成。见[受控 HTTPS](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)和[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。
 - 真实 SDK 原会话恢复尚未实现，保持 `supports_resume=false`；需先明确可续接状态、原会话与工作区、旧 prompt 歧义、generation 和预算，不能重放未知请求。
 - SUT CI adapter、一般 SSH 和 Cloud Claude 尚未实现；分别需要明确 provider 与独立权限、受限目标及 host key、云端服务身份和模型预算。见[P2 设计与输入](CLOUD_P2_FOLLOWUP_20261023.md)。

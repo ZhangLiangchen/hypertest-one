@@ -40,6 +40,8 @@ async def ensure_remote_closed(db, *, task_id, attempt_id=None):
         reject("SSH_REMOTE_OPERATIONS_UNRECONCILED")
     from .cloud_http import ensure_http_closed
     await ensure_http_closed(db, task_id=task_id, attempt_id=attempt_id)
+    from .cloud_actions import ensure_actions_closed
+    await ensure_actions_closed(db, task_id=task_id, attempt_id=attempt_id)
 
 
 async def terminal_results(db, task_id):

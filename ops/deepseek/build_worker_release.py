@@ -48,6 +48,7 @@ def worker_context(source: Path, destination: Path) -> None:
             raise ValueError("runtime source context cannot contain aliases or special files")
     selected = {"pyproject.toml": "pyproject.toml", "README.md": "README.md",
         "requirements/cloud-runtime.lock": "requirements/cloud-runtime.lock",
+        "requirements/cloud-framework-runtime.lock": "requirements/cloud-framework-runtime.lock",
         "ops/deepseek/install_sdk_landlock.py": "ops/deepseek/install_sdk_landlock.py",
         "ops/deepseek/Dockerfile.worker": "Dockerfile",
         "ops/deepseek/Dockerfile.worker.dockerignore": ".dockerignore"}

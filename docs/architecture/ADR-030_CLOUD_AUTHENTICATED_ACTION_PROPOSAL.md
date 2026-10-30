@@ -1,6 +1,6 @@
 # ADR-030 草案：Cloud 测试框架的受控认证与外部写入
 
-**状态：提案，未实现、未准入、未部署。** 日期：2026-10-29（Asia/Singapore）。本稿不改变现行规范或赋予网络和写入能力。实现时须按实际合同同步领域模型、测试任务协议和技术架构；[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md) 的公开只读 profile 保持原义。
+**状态：实现候选，默认关闭；部署与实际测试另行记录。** `CONTROLLED_ACTIONS_V1` 已接入原身份 / SENT 账本、隔离项目 signer、受限凭据、单次传输及原订单业务终态观察。`HYPERTEST_CLOUD_CONTROLLED_ACTIONS_ENABLED` 默认 false，须在 API 和 Worker 中有意配置；启用不替代冻结计划、环境授权、凭据、Worker fencing、隔离、单次发送和业务终态检查。HTTP 结果不等于业务终态，业务终态也不等于链上到账。实际部署和测试结果须分别记录。[ADR-025](ADR-025_CLOUD_CONTROLLED_HTTPS_READS.md) 的公开只读 profile 保持原义。
 
 ## 目标与已知约束
 
@@ -33,19 +33,18 @@ Agent 只能通过限域私有通道提出已授权的操作，不能指定 URL�
 | `UNKNOWN` | 任一提交/传输/收尾结果不明；保留原 key、摘要、凭据引用与预算 hold。 |
 | `BUSINESS_TERMINAL` | 仅由对应 provider 的受信只读观察机制基于原业务 ID、原始材料、实际状态和观察时间建立；不存在通用的“HTTP 200 即终态”规则。 |
 
-这些是提案语义，不是已存在的 enum 或 API。不可变历史分别保留 HTTP 与业务观察；同一原操作出现冲突观察不得覆盖旧记录。查询不到订单、关闭本地连接、取消请求被接受或容器退出都不能证明远端未执行或已结束。UNKNOWN 恢复只查询原 key / 原 provider ID；不能变更 key、替换 order ID 或重发 POST。业务终态尚未由可信适配器观察时，任务完成、预算结算、人工收尾及新 Attempt 必须继续被阻止，保持 `RECOVERY_REQUIRED` / HELD。
+候选账本已分别保存 HTTP 与业务观察；同一原操作出现冲突观察不得覆盖旧记录。查询不到订单、关闭本地连接、取消请求被接受或容器退出都不能证明远端未执行或已结束。UNKNOWN 恢复只查询原 key / 原 provider ID；不能变更 key、替换 order ID 或重发 POST。业务终态尚未由可信适配器观察时，任务完成、预算结算、人工收尾及新 Attempt 必须继续被阻止，保持 `RECOVERY_REQUIRED` / HELD。
 
 恢复者须重新获得当前 Project、Task、Attempt 与专门的只读恢复授权；新的 fenced generation 可以只读查询旧记录，但不能借新 lease 变更原操作身份或再次发送。失权后的普通结果写入拒绝；对 UNKNOWN 的有限安全观察不能制造业务终态。管理员声明本身也不能消除 UNKNOWN。
 
-## 真正接入点与待完成输入
+## 接入与仍需验证的输入
 
-- `api/cloud_schemas.py`、资源修订和 Cloud Task 输入须增加独立的 typed 授权、凭据绑定和冻结字段；旧输入序列化及其 digest 不变。新增 capability 默认关闭，不能把 V1 的 `supported` 或 `environment:read` 当成写许可。
-- `application/cloud_tasks.py` 及数据库需新增不可变的写 intent 与观察，按原聚合锁和复合归属约束串行化；将业务未终态纳入 `cloud_ssh.ensure_remote_closed` 的统一收尾检查。旧 `cloud_http_operations` 和其结果不得复用于异步写入。
-- 新 Worker broker 在发送前再次检查当前 grant、租约、期限、目标、原件和累计预算；它只发送受控原始字节，不给 Agent 平台 writer 或通用网络。凭据物化、原件安全保存、逐操作回执、停止与 broker drain 均需完整实现。
-- 项目框架需要显式接入该 transport/签名边界；普通 `requests.Session`、OAuth 请求或 RSA 私钥不会因存在 UDS 自动接通。项目现有代码与运行依赖须固定到实际版本，不在 HyperTest 重建其业务 DTO。
-- 每个 provider 的关联查询、真实终态、权限和拒绝语义需要来自其源码/接口及实际环境的证据；target、credential 类型、来源、到账地址、token 精度与真实 SUT 部署身份须由目标环境确认。本次已知 XBlock 订单查询路径不证明 DEX 覆盖或链上终态。
+- Cloud Task 的 typed 输入、用途限定凭据、原身份及发送和观察账本已接入候选实现，默认关闭；旧公开只读 HTTPS 账本不用于异步写入。
+- Worker broker 在发送前检查当前 grant、租约、期限、固定目标和 body，并只发送经过项目 adapter 签名与核验的原字节。源码导出、私有凭据、停止与 broker drain 独立验证；配置开关不证明实际运行通过。
+- 项目框架需要显式接入受控 transport/签名边界；普通 `requests.Session` 或本机凭据不会因存在 UDS 自动接通。本轮框架适配已固定至单独 Git 版本，真实凭据、实际 Worker 和目标结果仍需验证。
+- XBlock 关联查询已用既有历史订单验证可以读取主单和子单；订单业务终态、链上 receipt 和实际 TRX 到账仍须分别观察，不能从历史订单推定本次兑换结果。
 
-实现前至少针对目标版本提供受限可信 signer/序列化方式、精确授权与凭据用途、可核验的原业务 ID 查询和终态解释。若缺少其中任意一项，不能开放发送；可保留为待输入或继续只读检查。
+正式发送前须验证目标版本的受限 signer/序列化方式、精确授权与凭据用途、原业务 ID 查询和终态解释。若缺少其中任意一项，不能发送；可保留为待输入或继续只读检查。
 
 ## 必要验证
 

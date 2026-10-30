@@ -37,7 +37,20 @@ python3 ops/deepseek/stage_offline_build_wheels.py \
 python3 ops/deepseek/build_worker_offline.py \
   --checkout /absolute/path/to/clean/checkout \
   --commit PUSHED_FULL_SHA --remote-ref origin/BRANCH \
-  --wheelhouse /absolute/canonical/private-parent/new-wheelhouse
+  --wheelhouse /absolute/canonical/private-parent/new-wheelhouse \
+  --runtime-wheelhouse /absolute/canonical/private-parent/runtime-wheels
 ```
 
-The script uses no build network, installs the hash-locked build backend only in an intermediate stage, builds the new source's wheel, and installs it into the final image with `--no-deps`. It compares the resulting image's base-layer prefix and third-party package list with the reviewed base. It reports a full image ID without replacing an existing image tag. The check establishes reuse of the existing runtime dependencies; it does not independently authenticate their historical installation or prove functional acceptance. Run the release manifest preparation above against the returned new image ID and the same pushed commit, then complete the separate service admission. Clean the staged wheelhouse after it is no longer needed.
+The runtime wheelhouse must contain exactly the eight pure-Python wheels and
+SHA-256 hashes pinned in `requirements/cloud-framework-runtime.lock`: the
+requests stack and pytest 8.4.2 with its Python 3.12 dependencies. They support
+the trusted project signer and native test entrypoint; they do not install or
+replace the project's own framework. The script uses no build
+network, validates both wheelhouses, installs the hash-locked build backend only
+in an intermediate stage, and installs the new project wheel and pinned runtime
+wheels with `--no-deps`. It compares the image's base-layer prefix and package
+list against the reviewed base plus the eight explicitly pinned additions. It
+reports a full image ID without replacing an existing image tag. The check does
+not authenticate historical dependencies or prove functional acceptance. Prepare
+the release manifest against the returned ID and same pushed commit, then run
+service admission. Clean staged wheelhouses after use.

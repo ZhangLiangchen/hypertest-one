@@ -151,10 +151,8 @@ def test_profile_loader_requires_readonly_root_owned_file(candidate, tmp_path, m
 
 @pytest.mark.asyncio
 async def test_docker_startup_is_gated_before_any_claim(monkeypatch, capsys):
-    from hypertest.application import cloud_tasks
     from hypertest.cloud import __main__ as entrypoint
 
-    monkeypatch.setattr(cloud_tasks, "CONTAINER_CREATE_INTENT_ENABLED", False)
     monkeypatch.setattr(entrypoint, "get_settings", lambda: SimpleNamespace(
         cloud_enabled=True, cloud_worker_enabled=True, cloud_docker_enabled=True))
     assert await entrypoint.run(once=True) == 1

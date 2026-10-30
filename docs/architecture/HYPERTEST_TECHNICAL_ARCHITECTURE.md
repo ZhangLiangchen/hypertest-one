@@ -1060,6 +1060,10 @@ flowchart LR
 
 CloudTask 是稳定业务任务，CloudAttempt 是一次可追溯执行尝试；Provider session ID、容器 ID、PID、SDK prompt message ID 都不能替代它们。每任务最多一个未终结 attempt；WAITING_INPUT、RECOVERY_REQUIRED 占用该归属，租约失效阻断旧 Worker 的后续提交和新工具动作。外部动作是否已停止仍需单独观察，数据库 fencing 不提供跨系统 exactly-once。
 
+Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出按 Task 输入的显式文件及 SHA-256 清单导出，秘密扫描通过后才写入 Agent workspace；Git 对象库和未获选文件不挂载。该清单不授予认证或写访问，也不替代项目原生框架依赖与执行验证；缺清单时 Docker Agent 不启动。具体合同见领域 §51.2.0 与 TMP §46.7.0。
+
+认证写将项目签名与网络从 Agent 分离：冻结的项目 adapter 产生经字段 / 原引用 / 签名核验的原始 body，Worker 私有 broker 在独立账本的原身份及单次 SENT 事务之后向固定目标发送，并分别记录 HTTP 与业务终态。现有只读 HTTPS broker 不提供此能力；独立开关默认关闭，启用不跳过隔离和授权检查。具体目标、字段和凭据由冻结动作计划限定，不向平台 Agent 暴露秘密；实施、部署与实际测试分别记录。
+
 只有当前 fenced coordinator 写平台状态。DeepSeek 主指挥官统一汇总并经该提交边界保存，子代理仅返回工作产物 / 委派结果，不取得 Operator key、数据库访问或独立平台 writer，不各建 SessionTask。Harness 内可并发执行被委派工程工作；共享文件需分工并在收集前核对，不能推导为多个平台 writer。
 
 任务级隔离是执行准入要求，须强制工作区 / 凭据 / 环境 / 网络范围、有限资源和根 / 子代理 / 测试进程整树停止。该要求不绑定某一namespace实现：经过独立等价验收的容器或VM可以替代，但不能降为共享宿主普通进程或仅依赖prompt约束，也不据此新增通用Runner后端矩阵。当前已验证的部署基线为专用非root systemd RootDirectory + 独立cgroup + bubblewrap namespaces；其他机制仍需独立实现及范围、泄漏、资源、取消和清理验收。不得因未测性能或OAuth推测绕过隔离、扩大权限或实际内存；模型身份可用性由上游请求观察独立证明。

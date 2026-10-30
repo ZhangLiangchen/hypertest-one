@@ -1,4 +1,5 @@
 """Docker profile is available only through a trusted, closed admission path."""
+import hashlib
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
@@ -33,7 +34,7 @@ async def test_no_docker_claim_before_profile_and_delegation_admission(monkeypat
         pass
 
     monkeypatch.setattr(worker.service, "expire_leases", expire)
-    monkeypatch.setattr(worker.service, "CONTAINER_CREATE_INTENT_ENABLED", enabled)
+    monkeypatch.setattr(worker.service, "container_intents_enabled", lambda: enabled)
     monkeypatch.setattr(worker, "inspect_resource_envelope", lambda: {})
     settings = SimpleNamespace(cloud_enabled=True, cloud_worker_enabled=True, cloud_ssh_enabled=False,
                                cloud_codex_enabled=codex)
@@ -45,7 +46,7 @@ async def test_no_docker_claim_before_profile_and_delegation_admission(monkeypat
 
 @pytest.mark.asyncio
 async def test_direct_execute_cannot_bypass_docker_admission(monkeypatch):
-    monkeypatch.setattr(worker.service, "CONTAINER_CREATE_INTENT_ENABLED", True)
+    monkeypatch.setattr(worker.service, "container_intents_enabled", lambda: True)
     instance = worker.CloudWorker(lambda: pytest.fail("database reached"), None, "fixture", docker_runtime=Runtime())
     with pytest.raises(CloudBlocked) as error:
         await instance.execute({})
@@ -53,7 +54,8 @@ async def test_direct_execute_cannot_bypass_docker_admission(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(monkeypatch, tmp_path):
+@pytest.mark.parametrize("with_actions", [False, True])
+async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(monkeypatch, tmp_path, with_actions):
     events = []
     task_id, project_id, attempt_id = (str(uuid4()) for _ in range(3))
     now = datetime.now(UTC)
@@ -61,6 +63,11 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
         "expires_at": (now + timedelta(minutes=5)).isoformat()}, "budgets": {"total_seconds": 60}},
         "configuration": {"environment": {"connection": "NONE"}},
         "resolution": {"repositories": {"sut": {}, "framework": {}}}}
+    manifest["inputs"]["agent_source_export"] = {"profile": "cloud-agent-source-export/v1", **{
+        role: [{"path": "main.py", "sha256": hashlib.sha256(b"synthetic\n").hexdigest()}]
+        for role in ("sut", "framework")}}
+    if with_actions:
+        manifest["inputs"]["controlled_actions"] = {"synthetic": True}
     claim = {"task": {"id": task_id, "project_id": project_id, "version": 1,
                       "frozen_manifest": manifest, "input_digest": digest(manifest)},
              "attempt": {"id": attempt_id, "input_digest": digest(manifest), "checkpoint": {},
@@ -77,6 +84,9 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
 
         async def credentials(self):
             return {}
+
+        async def validate_source_export(self, value):
+            assert len(value["source_export"]) == 2
 
     class Reporter:
         def __init__(self, **_kwargs):
@@ -128,6 +138,9 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
 
     class Sandbox:
         async def start(self, _config):
+            for role in ("sut", "framework"):
+                assert (layout.workspace / role / "main.py").read_bytes() == b"synthetic\n"
+                assert not (layout.workspace / role / ".git").exists()
             events.append("sandbox-start")
             return process
 
@@ -149,7 +162,7 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
     for name in ("sut", "framework", "dsh-home", "broker"):
         (root / name).mkdir(mode=0o700)
     layout = SimpleNamespace(workspace=root, dsh_home=root / "dsh-home", broker=root / "broker")
-    monkeypatch.setattr(worker.service, "CONTAINER_CREATE_INTENT_ENABLED", True)
+    monkeypatch.setattr(worker.service, "container_intents_enabled", lambda: True)
     monkeypatch.setattr(worker, "CloudBroker", Broker)
     monkeypatch.setattr(worker, "CloudTaskReporter", Reporter)
     monkeypatch.setattr(worker, "ModelBroker", Model)
@@ -165,6 +178,9 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
 
     async def checkout(_repository, path, *, token, private_empty):
         assert token is None and private_empty is True and path.is_dir()
+        (path / "main.py").write_bytes(b"synthetic\n")
+        (path / ".git").mkdir()
+        (path / ".git" / "private-object").write_text("must not be exported")
         events.append("checkout:" + path.name)
 
     monkeypatch.setattr(worker.CloudWorker, "collect", collect)
@@ -175,6 +191,12 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
     instance = worker.CloudWorker(None, settings, "fixture", docker_runtime=Docker())
     instance._docker_admitted = True
     instance.resolver = SimpleNamespace(checkout=checkout)
+    if with_actions:
+        with pytest.raises(CloudBlocked) as error:
+            await instance.execute(claim)
+        assert error.value.code == "CONTROLLED_ACTIONS_UNAVAILABLE"
+        assert not any(item.startswith("checkout:") or item == "sandbox-start" for item in events)
+        return
     await instance.execute(claim)
     assert events[:2] == ["checkout:sut", "checkout:framework"]
     assert events.index("sandbox-stop") < events.index("model-drain") < events.index("report:COMPLETE_ATTEMPT")

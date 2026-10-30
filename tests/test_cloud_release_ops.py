@@ -230,6 +230,7 @@ def worker_inputs(tmp_path):
         "pyproject.toml": b"[project]\nname = 'synthetic-worker'\n",
         "README.md": b"Synthetic public source fixture\n",
         "requirements/cloud-runtime.lock": b"synthetic-wheel-pair-lock\n",
+        "requirements/cloud-framework-runtime.lock": b"synthetic-adapter-wheel-lock\n",
         "ops/deepseek/Dockerfile.worker": (OPS / "Dockerfile.worker").read_bytes(),
         "ops/deepseek/Dockerfile.worker.dockerignore": (OPS / "Dockerfile.worker.dockerignore").read_bytes(),
         "ops/deepseek/install_sdk_landlock.py": (OPS / "install_sdk_landlock.py").read_bytes(),
@@ -262,15 +263,17 @@ def test_worker_context_uses_root_ignore_and_includes_pair_lock_without_private_
         modules["build_worker_release"].worker_context(source, target)
     finally:
         os.umask(previous_umask)
-    expected = {"pyproject.toml", "README.md", "requirements/cloud-runtime.lock",
+    expected = {"pyproject.toml", "README.md", "requirements/cloud-runtime.lock", "requirements/cloud-framework-runtime.lock",
         "Dockerfile", ".dockerignore", "src/hypertest/__init__.py", "ops/deepseek/install_sdk_landlock.py", *PACKAGED_SKILLS}
     actual = {str(path.relative_to(target)): path.read_bytes() for path in target.rglob("*") if path.is_file()}
     assert set(actual) == expected
     assert actual["requirements/cloud-runtime.lock"] == before["requirements/cloud-runtime.lock"]
+    assert actual["requirements/cloud-framework-runtime.lock"] == before["requirements/cloud-framework-runtime.lock"]
     assert actual["Dockerfile"] == before["ops/deepseek/Dockerfile.worker"]
     assert actual[".dockerignore"] == before["ops/deepseek/Dockerfile.worker.dockerignore"]
     rules = actual[".dockerignore"].decode().splitlines()
     assert "!requirements/" in rules and "!requirements/cloud-runtime.lock" in rules
+    assert "!requirements/cloud-framework-runtime.lock" in rules
     assert all("!" + name in rules for name in PACKAGED_SKILLS)
     assert "**/.env" in rules and "**/auth.json" in rules and "**/*.pem" in rules
     assert stat.S_IMODE(target.stat().st_mode) == 0o755

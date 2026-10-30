@@ -206,11 +206,27 @@ class TaskInputs(Input):
     expected_outputs: list[Literal["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"]] = Field(default_factory=lambda: ["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"], min_length=1, max_length=5)
     framework_entrypoints: list[str] = Field(min_length=1, max_length=32)
     framework_runtime: dict | None = None
+    agent_source_export: dict | None = None
+    controlled_actions: dict | None = None
     authorization: Authorization
     budgets: Budgets
 
     @model_validator(mode="after")
     def frozen_framework(self):
+        if self.controlled_actions is not None:
+            from hypertest.cloud.action_profile import validate_action_profile
+            from hypertest.cloud.errors import CloudBlocked
+            try:
+                self.controlled_actions = validate_action_profile(self.controlled_actions)
+            except CloudBlocked:
+                raise ValueError("Invalid frozen controlled actions") from None
+        if self.agent_source_export is not None:
+            from hypertest.cloud.errors import CloudBlocked
+            from hypertest.cloud.source_export import validate_export
+            try:
+                self.agent_source_export = validate_export(self.agent_source_export)
+            except CloudBlocked:
+                raise ValueError("Invalid frozen Agent source export") from None
         if self.framework_runtime is not None:
             from hypertest.cloud.errors import CloudBlocked
             from hypertest.cloud.framework_runtime import validate_runtime_spec
@@ -228,6 +244,10 @@ class TaskInputs(Input):
         result = handler(self)
         if self.framework_runtime is None:
             result.pop("framework_runtime", None)
+        if self.agent_source_export is None:
+            result.pop("agent_source_export", None)
+        if self.controlled_actions is None:
+            result.pop("controlled_actions", None)
         return result
 
 

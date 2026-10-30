@@ -21,6 +21,7 @@
 !skills/hypertest-local-task-onboarding/references/troubleshooting.md
 !requirements/
 !requirements/cloud-runtime.lock
+!requirements/cloud-framework-runtime.lock
 !ops/
 !ops/deepseek/
 !ops/deepseek/install_sdk_landlock.py

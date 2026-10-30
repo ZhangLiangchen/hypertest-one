@@ -17,6 +17,7 @@ def builder(monkeypatch):
     monkeypatch.setattr(module, "run", lambda args, **kwargs: "" if args[:2] == ["git", "status"] else commit)
     monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0))
     monkeypatch.setattr(module, "WHEELS", {"build-1-py3-none-any.whl": hashlib.sha256(b"trusted").hexdigest()})
+    monkeypatch.setattr(module, "RUNTIME_WHEELS", {})
     return module, commit
 
 
@@ -27,7 +28,7 @@ def test_invalid_wheel_rejected_before_engine(builder, tmp_path, monkeypatch):
     (wheelhouse / "build-1-py3-none-any.whl").write_bytes(b"different")
     monkeypatch.setattr(module, "inspect", lambda *_a: pytest.fail("must not contact engine"))
     with pytest.raises(ValueError, match="integrity"):
-        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse)
+        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse, runtime_wheelhouse=tmp_path)
 
 
 def test_changed_dependency_contract_is_rejected(builder, tmp_path, monkeypatch):
@@ -36,7 +37,7 @@ def test_changed_dependency_contract_is_rejected(builder, tmp_path, monkeypatch)
     wheelhouse = tmp_path / "wheels"
     wheelhouse.mkdir()
     with pytest.raises(ValueError, match="dependencies"):
-        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse)
+        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse, runtime_wheelhouse=tmp_path)
 
 
 def test_base_identity_is_checked_before_build(builder, tmp_path, monkeypatch):
@@ -44,9 +45,25 @@ def test_base_identity_is_checked_before_build(builder, tmp_path, monkeypatch):
     wheelhouse = tmp_path / "wheels"
     wheelhouse.mkdir()
     (wheelhouse / "build-1-py3-none-any.whl").write_bytes(b"trusted")
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
     monkeypatch.setattr(module, "inspect", lambda *_a: {"Id": "other"})
     with pytest.raises(ValueError, match="runtime base"):
-        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse)
+        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse, runtime_wheelhouse=runtime)
+
+
+def test_tampered_adapter_runtime_wheel_rejected_before_engine(builder, tmp_path, monkeypatch):
+    module, commit = builder
+    wheelhouse = tmp_path / "wheels"
+    wheelhouse.mkdir()
+    (wheelhouse / "build-1-py3-none-any.whl").write_bytes(b"trusted")
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    (runtime / "runtime.whl").write_bytes(b"tampered")
+    monkeypatch.setattr(module, "RUNTIME_WHEELS", {"runtime.whl": hashlib.sha256(b"trusted").hexdigest()})
+    monkeypatch.setattr(module, "inspect", lambda *_a: pytest.fail("must not contact engine"))
+    with pytest.raises(ValueError, match="runtime wheel integrity"):
+        module.build(checkout=tmp_path, commit=commit, remote_ref="origin/main", wheelhouse=wheelhouse, runtime_wheelhouse=runtime)
 
 
 def test_staging_rejects_tampered_cache_and_never_overwrites(builder, tmp_path, monkeypatch):

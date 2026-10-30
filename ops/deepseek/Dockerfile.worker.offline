@@ -16,8 +16,11 @@ FROM ${DEPENDENCY_IMAGE} AS worker
 WORKDIR /opt/hypertest-cloud/source
 RUN rm -rf /opt/hypertest-cloud/source && mkdir -p /opt/hypertest-cloud/source
 COPY --from=wheel-build /build/source/ /opt/hypertest-cloud/source/
+COPY requirements/cloud-framework-runtime.lock /opt/hypertest-cloud/cloud-framework-runtime.lock
 RUN --network=none --mount=type=bind,from=wheel-build,source=/build/wheels,target=/build-wheels,readonly \
+    --mount=type=bind,from=runtime_wheelhouse,source=/,target=/runtime-wheels,readonly \
     /opt/hypertest-cloud/venv/bin/pip install --no-index --no-deps --force-reinstall /build-wheels/hypertest_one-0.2.0-py3-none-any.whl \
+    && /opt/hypertest-cloud/venv/bin/pip install --no-index --no-deps --require-hashes --find-links=/runtime-wheels -r /opt/hypertest-cloud/cloud-framework-runtime.lock \
     && /opt/hypertest-cloud/venv/bin/pip check \
     && /opt/hypertest-cloud/venv/bin/pip freeze --all > /opt/hypertest-cloud/installed-packages.txt
 ARG SOURCE_COMMIT

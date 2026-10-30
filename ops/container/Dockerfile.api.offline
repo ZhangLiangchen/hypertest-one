@@ -1,0 +1,30 @@
+# BuildKit, using only pinned local images and hash-verified build wheels.
+ARG WORKER_IMAGE
+ARG API_IMAGE
+FROM ${WORKER_IMAGE} AS wheel-build
+USER root
+WORKDIR /build/source
+COPY requirements/cloud-build-offline.lock /build/cloud-build-offline.lock
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY skills ./skills
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
+RUN --network=none --mount=type=bind,from=wheelhouse,source=/,target=/wheelhouse,readonly \
+    python -m venv /build/venv \
+    && /build/venv/bin/pip install --no-index --find-links=/wheelhouse --require-hashes -r /build/cloud-build-offline.lock \
+    && /build/venv/bin/pip wheel --no-index --no-deps --no-build-isolation --wheel-dir=/build/wheels .
+
+FROM ${API_IMAGE} AS api
+USER root
+WORKDIR /app
+RUN python -c "import shutil; shutil.rmtree('/app/src'); shutil.rmtree('/app/alembic')"
+COPY --from=wheel-build /build/source/src /app/src
+COPY --from=wheel-build /build/source/alembic /app/alembic
+COPY --from=wheel-build /build/source/alembic.ini /app/alembic.ini
+RUN --network=none --mount=type=bind,from=wheel-build,source=/build/wheels,target=/build-wheels,readonly \
+    pip install --no-index --no-deps --force-reinstall /build-wheels/hypertest_one-0.2.0-py3-none-any.whl \
+    && pip check && chmod -R a+rX /app/alembic
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.revision=${SOURCE_COMMIT}
+USER 999:999

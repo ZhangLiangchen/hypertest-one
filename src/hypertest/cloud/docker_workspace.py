@@ -25,7 +25,7 @@ from .errors import CloudBlocked
 PROFILE = "hypertest-cloud-docker-workspace/v1"
 _VOLUME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _DIGEST = re.compile(r"[a-f0-9]{64}\Z")
-_SOCKETS = frozenset({"model.sock", "hypertest-ssh.sock", "hypertest-https.sock"})
+_SOCKETS = frozenset({"model.sock", "hypertest-ssh.sock", "hypertest-https.sock", "hypertest-actions.sock"})
 
 
 def _blocked(code: str = "DOCKER_WORKSPACE_INVALID") -> CloudBlocked:

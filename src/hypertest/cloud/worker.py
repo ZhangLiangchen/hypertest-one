@@ -139,11 +139,12 @@ def read_model_key(path: str | Path) -> bytes:
 
 
 class CloudWorker:
-    def __init__(self, sessions, settings, worker_id: str, *, docker_runtime=None):
+    def __init__(self, sessions, settings, worker_id: str, *, docker_runtime=None, action_runtime=None):
         self.sessions, self.settings, self.worker_id = sessions, settings, worker_id
         # Only a trusted service-admission path may inject this adapter. The
         # ordinary CLI still uses bubblewrap and cannot opt in by Agent input.
         self.docker_runtime = docker_runtime
+        self.action_runtime = action_runtime
         self._docker_admitted = False
         self.resolver = GitResolver()
         self._namespace_admitted = False
@@ -189,7 +190,7 @@ class CloudWorker:
         # restart after configuration changes, not a new namespace every poll.
         if self.docker_runtime is not None:
             self._docker_admitted = False
-            if not service.CONTAINER_CREATE_INTENT_ENABLED:
+            if not service.container_intents_enabled():
                 raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker Attempt execution is not enabled")
             if getattr(self.settings, "cloud_codex_enabled", False):
                 raise CloudBlocked("DOCKER_DELEGATION_UNSUPPORTED", "This Docker profile does not support native delegation")
@@ -257,7 +258,7 @@ class CloudWorker:
                 self.worker_id, claim["lease_token"], result, work_token=claim["work_token"])
 
     async def execute(self, claim: dict):
-        if self.docker_runtime is not None and (not self._docker_admitted or not service.CONTAINER_CREATE_INTENT_ENABLED):
+        if self.docker_runtime is not None and (not self._docker_admitted or not service.container_intents_enabled()):
             raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker Attempt execution is not admitted")
         broker = CloudBroker(self.sessions, claim, self.worker_id)
         task, attempt = claim["task"], claim["attempt"]
@@ -312,6 +313,7 @@ class CloudWorker:
         http_broker = None
         http_authority = None
         http_deadline = None
+        action_broker = None
         writes_suspended = False
         safety_fence_done = asyncio.Event()
         memory_bridge = None
@@ -360,6 +362,8 @@ class CloudWorker:
             save_once(root / "ssh-observations.json", ssh_observation)
 
         async def remote_operations_closed() -> bool:
+            if action_broker is not None and not await action_broker.drained():
+                return False
             if http_broker is not None:
                 return http_broker.drained and (await http_authority.remote_closed()) is True
             if ssh_broker is None:
@@ -447,6 +451,13 @@ class CloudWorker:
             manifest = task["frozen_manifest"]
             if not manifest or digest(manifest) != task["input_digest"] or task["input_digest"] != attempt["input_digest"]:
                 raise CloudBlocked("FROZEN_INPUT_MISMATCH", "Attempt does not match its frozen task input")
+            controlled_profile = manifest["inputs"].get("controlled_actions")
+            if controlled_profile is not None:
+                from hypertest.application.cloud_actions import controlled_actions_enabled
+                if not controlled_actions_enabled() or self.action_runtime is None or docker_layout is None:
+                    # Never silently ignore a requested action or expose the
+                    # project credentials through the legacy sandbox.
+                    raise CloudBlocked("CONTROLLED_ACTIONS_UNAVAILABLE", "Controlled external actions are not admitted")
             if attempt.get("checkpoint"):
                 raise CloudBlocked("SDK_RESUME_UNSUPPORTED", "Historical checkpoints require explicit reconciled resume support")
             remaining = claim.get("budget_remaining", {})
@@ -466,10 +477,13 @@ class CloudWorker:
             ssh_profile = None
             http_profile = None
             if environment.get("connection", "NONE") == "HTTPS":
-                if not getattr(self.settings, "cloud_https_enabled", False):
-                    raise CloudBlocked("HTTPS_DISABLED", "Controlled HTTPS reads require an explicit Worker opt-in")
-                from .http_profile import validate_profile as validate_http_profile
-                http_profile = validate_http_profile(environment)
+                if environment.get("https_access") is not None:
+                    if not getattr(self.settings, "cloud_https_enabled", False):
+                        raise CloudBlocked("HTTPS_DISABLED", "Controlled HTTPS reads require an explicit Worker opt-in")
+                    from .http_profile import validate_profile as validate_http_profile
+                    http_profile = validate_http_profile(environment)
+                elif controlled_profile is None:
+                    raise CloudBlocked("HTTPS_DISABLED", "HTTPS requires an explicitly admitted Worker profile")
             if environment.get("connection", "NONE") == "SSH":
                 if not getattr(self.settings, "cloud_ssh_enabled", False):
                     raise CloudBlocked("SSH_DISABLED", "Fixed SSH diagnostics require a separate explicit Worker opt-in")
@@ -523,20 +537,45 @@ class CloudWorker:
                 http_deadline = int(time.time() + max(0, started + seconds - time.monotonic()))
                 http_broker = HttpBroker(socket_root / ("hypertest-https.sock" if docker_layout else "https.sock"), profile=http_profile, authority=http_authority,
                     private_root=root / "https", deadline=http_deadline)
+            # Docker Agents cannot receive a full Git checkout: a repository's
+            # object store may retain credentials even after files are removed.
+            # The complete fixed checkouts stay on the Worker-private volume.
+            source_policy = manifest["inputs"].get("agent_source_export")
+            source_root = None
+            if docker_layout is not None:
+                from .source_export import validate_export
+                if source_policy is None:
+                    raise CloudBlocked("SOURCE_EXPORT_REQUIRED", "Docker Agents require a frozen source export")
+                source_policy = validate_export(source_policy)
+                source_root = root / "private-source"
+                source_root.mkdir(mode=0o700)
+                for role in ("sut", "framework"):
+                    (source_root / role).mkdir(mode=0o700)
             for role in ("sut", "framework"):
                 await broker.assert_current()
                 async with asyncio.timeout(max(0.01, started + seconds - time.monotonic())):
                     options = {"token": credentials.get(role.upper())}
                     if docker_layout is not None:
                         options["private_empty"] = True
+                    checkout = source_root / role if source_root is not None else workspace / role
                     preparing = asyncio.create_task(self.resolver.checkout(manifest["resolution"]["repositories"][role],
-                        workspace / role, **options))
+                        checkout, **options))
                     try:
                         await preparing
                     finally:
                         preparing = None
             credentials.clear()
             await broker.assert_current()
+            if source_root is not None:
+                from .source_export import export_sources
+                signer_source = None
+                if controlled_profile is not None:
+                    signer_source = root / "private-signer-source"
+                    signer_source.mkdir(mode=0o700)
+                await export_sources(policy=source_policy,
+                    sources={role: source_root / role for role in ("sut", "framework")},
+                    destinations={role: workspace / role for role in ("sut", "framework")},
+                    validate_payload=broker.validate_source_export, private_framework=signer_source)
             framework_runtime = None
             if manifest["inputs"].get("framework_runtime") is not None:
                 from .framework_runtime import inspect_framework_runtime
@@ -582,6 +621,15 @@ class CloudWorker:
                 await ssh_broker.start()
             if http_broker is not None:
                 await http_broker.start()
+            if controlled_profile is not None:
+                action_private = root / "private-actions"
+                action_private.mkdir(mode=0o700)
+                action_deadline = int(time.time() + max(0, started + seconds - time.monotonic()))
+                action_broker = self.action_runtime.broker(cloud_broker=broker, profile=controlled_profile,
+                    export_policy=source_policy, signer_source=signer_source,
+                    socket_path=socket_root / "hypertest-actions.sock", private_root=action_private,
+                    deadline=action_deadline)
+                await action_broker.start()
             if docker_layout is None:
                 sandbox = BubblewrapSandbox(workspace=workspace, dsh_home=home,
                     broker_socket=root / "model.sock", policy=policy,
@@ -596,7 +644,7 @@ class CloudWorker:
                 deadline_epoch = min(int(claimed.timestamp()) + seconds, int(authorized.timestamp()),
                                      int(time.time() + max(0, started + seconds - time.monotonic())))
                 expected_sockets = ("model.sock",) + (("hypertest-ssh.sock",) if ssh_broker else ()) + (
-                    ("hypertest-https.sock",) if http_broker else ())
+                    ("hypertest-https.sock",) if http_broker else ()) + (("hypertest-actions.sock",) if action_broker else ())
                 sandbox = self.docker_runtime.sandbox(layout=docker_layout, broker=broker, reporter=reporter,
                     private_root=root, policy=policy, deadline_epoch=deadline_epoch, expected_sockets=expected_sockets)
                 metadata["capabilities"]["isolation"] = "docker-private-pid-namespace"
@@ -608,7 +656,8 @@ class CloudWorker:
             await broker.assert_current()
             require_cloud_environment_route(environment)
             prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile,
-                memory_enabled=memory_bridge is not None, http_profile=http_profile)
+                memory_enabled=memory_bridge is not None, http_profile=http_profile,
+                controlled_actions=controlled_profile if action_broker is not None else None)
             configuration = {"workspace": "/workspace", "dsh_home": "/home/agent/dsh",
                 "session_id": session_id, "model": self.settings.cloud_model,
                 "max_tokens": policy.max_tokens, "timeout_seconds": seconds, "prompt": prompt}
@@ -675,6 +724,8 @@ class CloudWorker:
             await close_ssh()
             if http_broker is not None:
                 await http_broker.close()
+            if action_broker is not None:
+                await action_broker.close()
             if not await remote_operations_closed():
                 raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "Canonical remote operations are not all observed stopped; retain the original reservation")
             usage = int(time.monotonic() - started)
@@ -736,6 +787,11 @@ class CloudWorker:
                     await http_broker.close()
                 except (Exception, asyncio.CancelledError) as secondary:
                     secondary_failure("HTTPS_BROKER_CLOSE", secondary)
+            if action_broker is not None:
+                try:
+                    await action_broker.close()
+                except (Exception, asyncio.CancelledError) as secondary:
+                    secondary_failure("CONTROLLED_ACTION_BROKER_CLOSE", secondary)
             try:
                 await close_ssh()
             except (Exception, asyncio.CancelledError) as secondary:
@@ -768,6 +824,13 @@ class CloudWorker:
                 raise
             raise primary_failure from None
         finally:
+            if action_broker is not None:
+                try:
+                    await action_broker.close()
+                except (Exception, asyncio.CancelledError) as secondary:
+                    if primary_failure is None:
+                        raise
+                    secondary_failure("CONTROLLED_ACTION_BROKER_CLOSE", secondary)
             if http_broker is not None:
                 try:
                     await http_broker.close()

@@ -2344,13 +2344,17 @@ DeepSeek、Codex、Claude Code 的模型身份由云端受控服务预配，独�
 
 #### 51.2.0 原 Attempt 容器创建意图（ADR-029 候选）
 
+Docker Attempt 候选固定输入还可包含 `agent_source_export`（`cloud-agent-source-export/v1`），由 Project 的受授权 Task 创建者分别列明 SUT 与 framework 的相对文件路径及 SHA-256；缺失该清单的 Docker Attempt 必须在 Agent 启动前拒绝。Worker 在其私有卷检出固定 Git commit，在扫描整个清单、逐文件核对内容摘要及已登记 Project 凭据后，仅将批准的 UTF-8 文件复制到 Agent 共享卷；禁止 Git 对象库、软链接、私钥及已知秘密路径进入 Agent。清单随原 Task 输入冻结，改变清单需新输入，不得由 Agent 补充。清单和秘密扫描依赖已登记凭据及有权者对文件内容的选择，不能声称它自动发现所有未知秘密。此规则不授权认证、签名或网络写入，也不证明框架依赖已满足。
+
+受控认证写入候选允许 Task 输入固定 `controlled_actions`（`CONTROLLED_ACTIONS_V1`）：精确 HTTPS target / 公网地址、逐动作 key / POST 路径 / adapter 输入 / 预期业务字段 / 原 ID 与签名字段映射、框架 commit、adapter 文件 SHA-256 及分别限定用途的 API key、签名和只读观察凭据版本。数据层独立记录原业务 ID `IDENTIFIED` 与原 body SHA-256 `SENT`，各自只有新建事务提交且 ACK 明确时返回一次准备或发送权；原 key 查询、重复请求或结果不明不授予新权限，不换原业务 ID。Agent 只能请求已冻结动作 key，不能提供 URL、凭据、请求体或新业务参数。`HTTP_OBSERVED` 与 `UNKNOWN` 是传输观察，均不得解除业务未决、预算 hold 或新 Attempt 限制；需要受信 provider 对原业务 ID 的独立终态观察。业务终态 verifier、signer 隔离和 Worker 接线以独立开关控制，默认关闭；显式启用仍须完整核验冻结计划、凭据与当前授权，业务终态不等于链上到账。
+
 Docker Attempt 容器是 [ADR-029 候选](../architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md) 的独立执行边界，不改变 CloudTask / CloudAttempt 身份或现有 Worker 准入。受限宿主在任何 Engine create 前，通过私有 broker 的 `PREPARE_CONTAINER_CREATE` typed 操作，以当前 fenced Worker 的有效 lease 和原 `cloud:work` grant 事务登记原创建意图。该操作复用不可变 `CloudOperationReceipt`，固定 Project / Task / Attempt、原 worker、grant / generation、原 operation key、容器名、image ID、spec digest、心跳 key digest、原硬截止和完整非秘密请求摘要；以现有回执及领域归属校验并串行化当前 latest Attempt。同一 Attempt 只有一个原创建意图，不能通过换 key、owner、generation、名称或 spec 登记替代容器，不新增容器表或改写旧记录。心跳 key 原文不写入回执。
 
 意图登记回执只表示原意图已保存，不证明 Engine 已执行。原 key 失答、UNKNOWN 或查询 NOT_FOUND 时只读查询原回执，不重 POST、不再次发出 create、不换 key、不推定未创建。重复的相同 key 不得重新授予 create 发送权；异输入或身份拒绝。受信 Worker 私有 broker 必须自行查询 Engine，并对原容器完整 ID、名称及完整固定 spec 核验后才可追加确认；单纯的 Agent 自报、创建请求 ACK、名称或意图不能代替核验。启动同一个原 ID 之前必须重新核验 Engine 并持久 `PREPARE_CONTAINER_START` 原 key / SENT；失答只查原 key 和 ID，不重发 start。
 
 原容器未收口或停止无法确认时，独立容器检查阻止 COMPLETE、REQUEST_INPUT、FAILED、显式 RETRY、RECONCILE 和预算结算；当前 summary 必须反映该阻断。该检查不加入 SSH / HTTPS 外部操作的发起检查，以免阻断仍运行的容器执行获准框架工作。取消或 lease 丢失先 fence 原 writer 并进入 RECOVERY_REQUIRED，不因容器未确认而拒绝取消；原预算保持 HELD，不能用容器名、进程退出自报、意图或 Agent 结果替代原容器及完整进程范围的停止观察。
 
-当前登记及观察入口在服务端硬关闭，任何配置均不能启用；只有完成受信 Engine 身份及停止观察、原进程范围核验、broker drain 和完整接线之后，才可评估开放。候选的 Engine 观察只记录原完整 ID、固定 spec 与 Engine 状态，停止判断另依据已验证的私有 PID namespace 语义；记录明确标注没有独立读取宿主 cgroup。收口检查关联每条原意图所属的 Attempt 和可信停止终态；已证实收口的历史 Attempt 不得永久阻止后续合法复测。此登记不等同受控 Engine 访问、资源合计或 broker drain 已接入，也不授予实际 Cloud 容器部署或执行准入。未决操作对账和现有授权检查仍须分别完成。
+容器登记及观察入口由 `HYPERTEST_CLOUD_CONTAINER_INTENTS_ENABLED` 独立控制，默认关闭；API 与 Worker 须配置一致。显式启用仍须受信 Engine 身份及停止观察、原进程范围核验和 broker drain。候选的 Engine 观察只记录原完整 ID、固定 spec 与 Engine 状态，停止判断另依据已验证的私有 PID namespace 语义；记录明确标注没有独立读取宿主 cgroup。收口检查关联每条原意图所属的 Attempt 和可信停止终态；已证实收口的历史 Attempt 不得永久阻止后续合法复测。此登记及开关不等同实际 Cloud 容器部署或执行准入。未决操作对账和现有授权检查仍须分别完成。
 
 原 lease 失效或取消后，只在旧 owner 已 fence、Attempt 为 RECOVERY_REQUIRED 时，允许持有原 work grant token 或独立原容器 recovery capability 的受信 broker 查询并追加原容器的停止观察；同时核对原 worker ID、generation、原 key、spec 与完整 ID，不能创建、启动、续租、恢复普通写入或结算。work token 当前仅在 Worker 内存；候选 recovery secret 必须在任何 Engine create 之前写入不挂给 Agent 的独立 Worker 私有卷、完成 fsync 并固定其摘要，重启后按原身份读取并校验。文件缺失、受损或身份不符时仍保持 UNKNOWN / HELD，不以名称或新 owner 代替原身份。原停止观察只消除该容器未决项，人工对账仍保持预算 HELD。
 

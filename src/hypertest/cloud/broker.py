@@ -252,6 +252,16 @@ class CloudBroker:
         async with self.sessions() as db:
             await service._reject_secrets(db, UUID(self.project_id), values)
 
+    async def validate_source_export(self, payload: dict):
+        """Permit source-code PEM examples, never actual known credential bytes."""
+        self._require_writes()
+        if not isinstance(payload, dict) or set(payload) != {"source_export"} or not isinstance(payload["source_export"], list):
+            raise CloudBlocked("SOURCE_EXPORT_INVALID", "Cloud Agent source export failed closed")
+        await self.assert_current()
+        async with self.sessions() as db:
+            self._require_writes()
+            await service._reject_secrets(db, UUID(self.project_id), payload, source_text=True)
+
     async def receipt(self, key: str):
         # Original owner reads may survive a fence. This never grants new work.
         try:

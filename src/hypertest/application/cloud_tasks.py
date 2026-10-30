@@ -57,9 +57,9 @@ ALLOWED = {
     "RECOVERY_REQUIRED": {"PREPARING", "COMPLETED", "FAILED", "CANCELLED"},
 }
 EMERGENCY_CANCEL_REASON = "OPERATOR_REQUESTED_CANCELLATION"
-# Closed until an independent Engine observer can prove and reconcile the
-# original container and process scope. No deployment setting enables it.
-CONTAINER_CREATE_INTENT_ENABLED = False
+def container_intents_enabled():
+    """Independent explicit opt-in; Engine observation and fencing still apply."""
+    return get_settings().cloud_container_intents_enabled
 _UNAVAILABLE_SECRET_SCAN_CODES = frozenset({
     "CREDENTIAL_KEY_UNAVAILABLE", "CREDENTIAL_KEY_PERMISSIONS", "CREDENTIAL_KEY_INVALID",
     "CREDENTIAL_DECRYPTION_FAILED", "CRYPTO_UNAVAILABLE",
@@ -256,10 +256,22 @@ def _contains_secret(value, secret):
     return False
 
 
-async def _reject_secrets(db, project_id, values):
+def _contains_pem_material(value):
+    if isinstance(value, str):
+        return re.search(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----\s*[A-Za-z0-9+/=]{32,}", value) is not None
+    if isinstance(value, dict):
+        return any(_contains_pem_material(key) or _contains_pem_material(item) for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_pem_material(item) for item in value)
+    return False
+
+
+async def _reject_secrets(db, project_id, values, *, source_text=False):
     """Admission guard supplements runtime filtering, including exact canaries."""
     encoded = json.dumps(values, ensure_ascii=False).encode()
-    if re.search(rb"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|(?:gh[pousr]_|glpat-)[A-Za-z0-9_-]{16,}", encoded):
+    if (re.search(rb"(?:gh[pousr]_|glpat-)[A-Za-z0-9_-]{16,}", encoded)
+            or (_contains_pem_material(values) if source_text else
+                re.search(rb"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----", encoded))):
         raise HTTPException(422, "Potential secret material is not an accepted testing artifact")
     versions = list(await db.scalars(select(CredentialVersion).where(CredentialVersion.project_id == project_id)))
     if versions:
@@ -374,7 +386,7 @@ def _events(db, project_id, actor_ref, operation, entity_id, response):
 async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=None, grant_id=None, container_observed=False,
                  container_recovery=False, container_recovery_secret=None, container_recovery_provisioned=False):
     """One immutable key / optimistic version / current authority / transaction."""
-    if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not CONTAINER_CREATE_INTENT_ENABLED:
+    if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not container_intents_enabled():
         raise HTTPException(503, "CLOUD_CONTAINER_INTENT_UNAVAILABLE")
     if payload.operation in {"CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and container_observed is not True:
         raise HTTPException(403, "CLOUD_CONTAINER_ENGINE_OBSERVATION_REQUIRED")
@@ -1219,6 +1231,8 @@ async def task_summary(db, task_id, *, project_id=None):
     result["remote_operations"] = await live_operations(db, attempt.id) if attempt else []
     from .cloud_http import live_operations as http_operations
     result["http_operations"] = await http_operations(db, attempt.id) if attempt else []
+    from .cloud_actions import live_actions
+    result["controlled_actions"] = await live_actions(db, attempt.id) if attempt else []
     result["container_create_intents"] = await _container_intents(db, task.id)
     result["container_observations"] = await _container_observations(db, task.id)
     result["container_start_intents"] = await _container_starts(db, task.id)
@@ -1228,7 +1242,7 @@ async def task_summary(db, task_id, *, project_id=None):
         try:
             await ensure_remote_closed(db, task_id=task.id)
         except HTTPException as error:
-            if error.detail not in {"SSH_REMOTE_OPERATIONS_UNRECONCILED", "HTTPS_REMOTE_OPERATIONS_UNRECONCILED"}:
+            if error.detail not in {"SSH_REMOTE_OPERATIONS_UNRECONCILED", "HTTPS_REMOTE_OPERATIONS_UNRECONCILED", "CLOUD_ACTION_BUSINESS_UNRECONCILED"}:
                 raise
             remote_closed = False
             remote_blocking = error.detail

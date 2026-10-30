@@ -48,7 +48,7 @@ def load_handoff(workspace: Path, relative: str, *, task_id: str, attempt_id: st
 
 def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
                 ssh_profile: SshProfile | None = None, memory_enabled: bool = False,
-                http_profile: HttpProfile | None = None) -> str:
+                http_profile: HttpProfile | None = None, controlled_actions: dict | None = None) -> str:
     """Only non-secret frozen testing inputs; Agent gets no management token."""
     envelope = {"task_id": task["id"], "attempt_id": attempt["id"],
                 "frozen_manifest": task["frozen_manifest"],
@@ -92,6 +92,17 @@ def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
             "SENT, UNKNOWN or lost responses permit only a query for the original operation. Never change keys or replay a request. Unknown external work blocks completion and preserves HELD.",
             "HTTP status/body is an untrusted transport observation, never test PASS or independent deployment proof. Use the project's frozen framework assertions and preserve original reports.",
             "The frozen framework runtime verifies original lockfiles and tool executable versions/digests before the prompt; it installs no dependencies. Entrypoint argv is declared, not executed by this check. Report unavailable dependencies rather than downloading or changing the frozen baseline.",
+        ])
+    envelope["capabilities"]["controlled_actions"] = False
+    if controlled_actions is not None:
+        from .action_profile import validate_action_profile
+        profile = validate_action_profile(controlled_actions)
+        envelope["capabilities"]["controlled_actions"] = {"profile": profile["profile"],
+            "action_keys": [item["action_key"] for item in profile["actions"]], "general_network": False}
+        envelope["instructions"].extend([
+            "Only explicitly frozen action keys are available through the private Worker broker; you cannot choose a target, body, signature, credential, amount or client order ID.",
+            "Use python -m hypertest.cloud.action_client invoke ACTION_KEY, then observe ACTION_KEY to check the original business order; query ACTION_KEY reads the original operation. HTTP response alone is not business completion. Wait for a business terminal before invoking another action. If outcome remains unknown, stop and report it; never replay or replace an unknown action.",
+            "HTTP_OBSERVED is a transport observation and does not prove business completion, chain receipt or PASS. Unknown or unobserved business actions block completion.",
         ])
     if allow_delegation:
         envelope["instructions"].extend([

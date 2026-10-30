@@ -15,6 +15,7 @@ RUN test "$(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])
        --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin hypertest-cloud
 WORKDIR /opt/hypertest-cloud/source
 COPY requirements/cloud-runtime.lock /opt/hypertest-cloud/cloud-runtime.lock
+COPY requirements/cloud-framework-runtime.lock /opt/hypertest-cloud/cloud-framework-runtime.lock
 COPY ops/deepseek/install_sdk_landlock.py /opt/hypertest-cloud/install_sdk_landlock.py
 # Authenticate the exact SDK/runtime wheel pair before resolving the remaining
 # application dependencies. The pair lock does not claim transitive locking.
@@ -27,6 +28,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY skills ./skills
 RUN /opt/hypertest-cloud/venv/bin/pip install --no-cache-dir '.[cloud]' \
+    && /opt/hypertest-cloud/venv/bin/pip install --no-cache-dir --no-deps --require-hashes -r /opt/hypertest-cloud/cloud-framework-runtime.lock \
     && /opt/hypertest-cloud/venv/bin/pip freeze --all > /opt/hypertest-cloud/installed-packages.txt \
     && dpkg-query -W > /opt/hypertest-cloud/installed-system-packages.txt \
     && mkdir -p /var/lib/hypertest-cloud/runtime /opt/hypertest-cloud/delegates /etc/hypertest-cloud \

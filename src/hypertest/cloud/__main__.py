@@ -19,9 +19,7 @@ async def run(*, once: bool) -> int:
     docker_enabled = getattr(settings, "cloud_docker_enabled", False)
     if docker_enabled:
         # Do not claim or contact a database while the implementation gate is closed.
-        from hypertest.application.cloud_tasks import CONTAINER_CREATE_INTENT_ENABLED
-
-        if not CONTAINER_CREATE_INTENT_ENABLED:
+        if not getattr(settings, "cloud_container_intents_enabled", False):
             print(json.dumps({"code": "CLOUD_DOCKER_NOT_READY", "work_claimed": False, "model_started": False}), flush=True)
             return 1
     service_release = getattr(settings, "cloud_service_release_sha256", "")
@@ -59,6 +57,14 @@ async def run(*, once: bool) -> int:
             await engine.dispose()
             return 1
     worker_options = {"docker_runtime": docker_runtime} if docker_enabled else {}
+    if docker_enabled:
+        # The controlled-action implementation remains separately gated; a
+        # Cloud worker or a frozen plan alone cannot enable external writes.
+        if getattr(settings, "cloud_controlled_actions_enabled", False):
+            from .action_observer import ActionObserver
+            from .action_runtime import ActionRuntime
+
+            worker_options["action_runtime"] = ActionRuntime(sessions=AsyncSessionLocal, observer_factory=ActionObserver)
     worker = CloudWorker(AsyncSessionLocal, settings, "cloud-worker-" + uuid4().hex, **worker_options)
     active = asyncio.current_task()
     loop = asyncio.get_running_loop()
