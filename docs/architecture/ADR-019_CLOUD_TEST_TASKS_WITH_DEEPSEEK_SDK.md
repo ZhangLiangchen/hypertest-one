@@ -51,10 +51,12 @@ Project 是长期被测对象与资产目录，同一个 Project 可以同时拥
 
 ## 2. 决定：六步完整云端流程
 
+**2026-11-01 任务创建调整：** 创建界面只收集版本、需求、目标、流程和范围，不再收集框架命令、授权、预算或 Agent 配置。项目资源及凭据继续独立配置。现有 Worker 尚未接通原生 CLI 配置，仍使用部署侧固定模型及运行限制；服务端为省略相关字段的新任务生成仅包含两仓读取和工作区框架执行的内部授权与过渡额度，以维持现有准入和账本。这不是 Harness 接管预算，也不代表模型 / 插件已改为 CLI 配置。旧任务已有授权和预算保留，未知操作仍按原 key 处理。
+
 | 步骤 | 输入与平台交付 |
 | --- | --- |
 | 1. 创建项目 | 在云端创建 Project 或配置既有共享 Project，添加 credential-free 被测对象 Git 仓库、测试框架 Git 仓库（允许同仓）、可加密持久化的 Git token / 密钥、测试环境及私钥 / SSH 连接方式；项目默认配置可复用 |
-| 2. 创建任务 | 在云端创建 CloudTask，指定被测分支、feat、MR 或完整 SHA，提供 PRD、测试目标、基本流程；选择测试框架版本、环境、资源授权范围、预算及超时 |
+| 2. 创建任务 | 在云端创建 CloudTask，指定被测分支、feat、MR 或完整 SHA 与测试框架版本，提供 PRD、测试目标、基本流程及范围；复用项目资源 |
 | 3. 下发任务 | DRAFT 阶段先由受限 Worker 预检 ResolveCloudInputs，形成不可变 CloudInputResolution，固定 SUT / framework 完整 SHA 及 MR base / head / 实际测试提交；dispatch 校验并引用 resolution_id、冻结输入后原子入队，PREPARING 只 checkout 和核验，不再解析浮动分支 |
 | 4. Harness 接取与分工 | Cloud Worker 通过官方 Python SDK 驱动 DeepSeek；其自行参与分析、实现、执行与诊断，或委派 Codex；Claude Code 保持占位，平台不实现模型内部调度循环 |
 | 5. 输出测试产物 | 分阶段追加分析、设计、用例、自动化代码和实现引用；保存 commit 或可恢复完整 patch、manifest 与版本关联，主指挥官统一提交 |

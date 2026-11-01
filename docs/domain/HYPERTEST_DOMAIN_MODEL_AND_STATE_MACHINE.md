@@ -2377,13 +2377,15 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 ### 51.3 六步输入冻结
 
 1. 在云端创建或复用 Project，并登记/可选保存资源配置及凭据版本。
-2. 在云端创建 DRAFT CloudTask，选择 SUT branch / feat / MR / SHA、framework ref、环境、PRD、测试目标、基本流程、测试范围、允许副作用和预算。feat 是需求/变更标签，必须有可解析 Git 选择器，不能替代源码身份。
+2. 在云端创建 DRAFT CloudTask，选择 SUT branch / feat / MR / SHA、framework ref，提供 PRD、测试目标、基本流程和测试范围并复用项目环境。创建界面不输入授权、预算、框架命令或 Agent 配置。feat 是需求/变更标签，必须有可解析 Git 选择器，不能替代源码身份。
 3. 先用 `ResolveCloudInputs` 将 DRAFT 的资源版本与选择器交给受限 Worker 解析，形成不可变 CloudInputResolution；Git/环境预检在 Worker 和聚合行锁外进行，API 不运行 Git。显式 dispatch 引用 resolution_id，重新检查授权、draft/config version 与 expected_version，原子接受冻结 manifest、首个 QUEUED Attempt、操作回执、Audit 和 Outbox。排队成功不代表已启动 Harness 或测试通过。
 4. 云端 Worker 领取该 Attempt，准备隔离运行环境，以官方 Python SDK 启动 DeepSeek harness、提交冻结任务并记录分工。
 5. 持久接受分析、设计、用例和实现修订；原件回收独立于主进程是否仍存活。
 6. Agent 调用已有测试入口，保存每次 Run、case actual、日志/原报告及最终汇报。第 5/6 步可循环，所有失败与修订保留。
 
 冻结 manifest 必须包含两个仓库的规范地址、角色、选择器、完整 commit SHA 与访问配置版本。MR 记录 base/head SHA、来源 MR 和 checkout_strategy（HEAD 或 MERGE），实际测试 checkout SHA 明示；MERGE 结果须实际存在且被固定，不自行猜测合并 SHA。同仓双角色也分别固定。PRD 保存确切内容/附件版本及 digest，不能只保存一个可变 URL；目标、流程、范围、framework 入口、环境连接修订、授权 manifest 和预算版本同时冻结。
+
+2026-11-01：新任务可省略框架入口、授权和预算。当前实现为省略项物化仅含两仓读取与工作区框架执行、无额外网络目标的内部授权，以及兼容既有 Worker 账本的过渡额度；这些仍是 HyperTest 限制，不是 Harness 预算。未指定入口时记录实际执行命令，不再把空列表视为禁止全部入口；显式配置的入口或冻结 framework runtime 仍按既有契约校验。旧任务的授权、预算与未知账本不因编辑被重置。Harness 原生 CLI 配置接入另待实现。
 
 环境保存期望部署身份与下发时观察（含 observed_at / source / UNKNOWN）；每次测试另记录实际部署身份和不确定项。Git checkout SHA、测试框架 SHA 和实际 SUT build 分开，连通性或 framework HEAD 不代替 SUT 版本证明。若任务要求匹配部署版本而不能确认，则该测试前置条件 BLOCKED；允许测试现有部署时可保存 UNKNOWN 来源并在结论说明缺口。
 

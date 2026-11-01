@@ -204,12 +204,12 @@ class TaskInputs(Input):
     basic_flow: str = Field(min_length=1, max_length=16000)
     test_scope: str = Field(min_length=1, max_length=16000)
     expected_outputs: list[Literal["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"]] = Field(default_factory=lambda: ["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"], min_length=1, max_length=5)
-    framework_entrypoints: list[str] = Field(min_length=1, max_length=32)
+    framework_entrypoints: list[str] = Field(default_factory=list, max_length=32)
     framework_runtime: dict | None = None
     agent_source_export: dict | None = None
     controlled_actions: dict | None = None
-    authorization: Authorization
-    budgets: Budgets
+    authorization: Authorization | None = None
+    budgets: Budgets | None = None
 
     @model_validator(mode="after")
     def frozen_framework(self):

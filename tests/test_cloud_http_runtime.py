@@ -2,6 +2,7 @@
 import asyncio
 import json
 from copy import deepcopy
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -12,6 +13,8 @@ from hypertest.cloud.errors import CloudBlocked
 from hypertest.cloud.http_profile import HTTPS_SOCKET, digest, validate_profile
 from hypertest.cloud.manifests import task_prompt
 from hypertest.cloud.sandbox import BubblewrapSandbox, SandboxPolicy
+from fastapi import HTTPException
+from hypertest.application.cloud_tasks import _check_run_entrypoint, _task_inputs_with_runtime_defaults
 
 
 def environment():
@@ -37,6 +40,47 @@ def test_old_schema_serialization_never_adds_null_runtime_or_https_fields():
     assert "https_access" not in Environment(name="old").model_dump(mode="json")
     assert TaskInputs.model_validate(old).model_dump(mode="json")["framework_entrypoints"] == old["framework_entrypoints"]
     assert "framework_runtime" not in TaskInputs.model_validate(old).model_dump(mode="json")
+
+
+def test_task_draft_inherits_local_only_runtime_envelope():
+    from test_cloud_tasks import configuration, inputs
+    draft = inputs()
+    for key in ("framework_entrypoints", "authorization", "budgets"):
+        draft.pop(key)
+    result = _task_inputs_with_runtime_defaults(TaskInputs.model_validate(draft), configuration(), datetime.now(UTC))
+    assert result["framework_entrypoints"] == []
+    assert result["authorization"]["targets"] == [configuration()["sut"]["url"], configuration()["framework"]["url"]]
+    assert result["authorization"]["permitted_actions"] == ["git:read", "framework:execute"]
+    assert result["authorization"]["network_targets"] == []
+    assert result["budgets"]["accounting_unit"] == "REQUEST_CREDITS"
+
+
+def test_existing_explicit_task_envelope_is_preserved():
+    from test_cloud_tasks import configuration, inputs
+    draft = inputs()
+    result = _task_inputs_with_runtime_defaults(TaskInputs.model_validate(draft), configuration(), datetime.now(UTC))
+    assert result["authorization"]["permitted_actions"] == draft["authorization"]["permitted_actions"]
+    assert result["authorization"]["targets"] == draft["authorization"]["targets"]
+    assert result["budgets"]["total_seconds"] == draft["budgets"]["total_seconds"]
+
+
+def test_update_without_envelope_preserves_old_authorization_and_budget():
+    from test_cloud_tasks import configuration, inputs
+    original = TaskInputs.model_validate(inputs()).model_dump(mode="json")
+    edited = dict(original)
+    edited.pop("authorization")
+    edited.pop("budgets")
+    result = _task_inputs_with_runtime_defaults(TaskInputs.model_validate(edited), configuration(), datetime.now(UTC), original=original)
+    assert result["authorization"] == original["authorization"]
+    assert result["budgets"] == original["budgets"]
+
+
+def test_run_entrypoint_allows_unrestricted_reporting_but_keeps_explicit_list():
+    _check_run_entrypoint({"framework_entrypoints": []}, "python -m pytest")
+    _check_run_entrypoint({"framework_entrypoints": ["python -m pytest"]}, "python -m pytest")
+    with pytest.raises(HTTPException) as exc:
+        _check_run_entrypoint({"framework_entrypoints": ["python -m pytest"]}, "other command")
+    assert exc.value.status_code == 403
 
 
 @pytest.mark.parametrize("field", ["target", "network", "action", "framework"])

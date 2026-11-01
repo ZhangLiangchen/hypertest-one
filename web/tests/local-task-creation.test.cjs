@@ -137,7 +137,7 @@ test("cached Cloud configuration remains visible after refresh failure and canno
     assert.ok(html.includes("https://git.example.org/team/sut.git"));
     assert.equal(html.includes("Save project resources first"), false);
     assert.equal(html.includes("Loading Cloud configuration"), false);
-    const cloudForm = forms.find((form) => form.initialValues?.accounting_unit);
+    const cloudForm = forms.find((form) => form.initialValues?.sut_kind);
     assert.ok(cloudForm);
     await cloudForm.onFinish({ ...cloudForm.initialValues, prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
     await new Promise(setImmediate);
@@ -145,10 +145,9 @@ test("cached Cloud configuration remains visible after refresh failure and canno
   }
 });
 
-test("the embedded Cloud form creates only a draft using shared fields and request credits", async () => {
+test("the embedded Cloud form submits test inputs without agent configuration, authorization or budgets", async () => {
   const harness = unifiedCreationHarness();
-  const cloudForm = harness.forms.find((form) => form.initialValues?.accounting_unit);
-  assert.equal(cloudForm.initialValues.accounting_unit, "REQUEST_CREDITS");
+  const cloudForm = harness.forms.find((form) => form.initialValues?.sut_kind);
   await cloudForm.onFinish({ ...cloudForm.initialValues, title: "Ignored duplicate title", objective: "Ignored duplicate objective", prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
   await new Promise(setImmediate); // AntD's onFinish wrapper intentionally returns void.
   assert.equal(harness.submissions.length, 1);
@@ -156,14 +155,15 @@ test("the embedded Cloud form creates only a draft using shared fields and reque
   assert.equal(harness.submissions[0].expected_version, 0);
   assert.equal(harness.submissions[0].title, harness.shared.title);
   assert.equal(harness.submissions[0].inputs.objective, harness.shared.objective);
-  assert.equal(harness.submissions[0].inputs.budgets.accounting_unit, "REQUEST_CREDITS");
+  for (const key of ["authorization", "budgets", "framework_entrypoints", "model", "reasoning_effort"]) assert.equal(Object.hasOwn(harness.submissions[0].inputs, key), false, key);
+  assert.equal(harness.html.includes("Authorization and budget"), false);
   assert.equal(harness.localWrites.length, 0);
   assert.deepEqual(harness.navigation, ["/cloud-tasks/cloud-task-1?projectId=project-1"]);
 });
 
 test("cloud tasks without saved defaults require selecting each repository revision", () => {
   const harness = unifiedCreationHarness({ noDefaultSelectors: true });
-  const cloudForm = harness.forms.find((form) => form.initialValues?.accounting_unit);
+  const cloudForm = harness.forms.find((form) => form.initialValues?.sut_kind);
   assert.equal(cloudForm.initialValues.sut_ref, undefined);
   assert.equal(cloudForm.initialValues.framework_ref, undefined);
   assert.equal(cloudForm.initialValues.sut_kind, "BRANCH");

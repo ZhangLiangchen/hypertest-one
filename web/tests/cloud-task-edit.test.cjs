@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const load = require('./load-helper.cjs');
 const cloud = load('lib/cloud.ts', { URL, TextEncoder, Uint8Array, DataView, Int32Array });
-const { editedCloudInputs, localCloudExpiry } = load('app/projects/[projectId]/cloud/task-form.tsx', { require: (name) => name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
+const { editedCloudInputs } = load('app/projects/[projectId]/cloud/task-form.tsx', { require: (name) => name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const original = {
   sut_selector: { kind: 'BRANCH', value: 'main', checkout_strategy: 'HEAD', extension: 'retained' },
@@ -12,12 +12,12 @@ const original = {
   authorization: { targets: ['https://example.test'], permitted_actions: ['git:read'], network_targets: ['example.test'], expires_at: '2027-02-03T08:11:12.123456Z', side_effect_limits: 'limits', other: 'keep' },
   budgets: { accounting_unit: 'REQUEST_CREDITS', total_seconds: 1800, total_cost_microunits: 1000, max_attempts: 3, max_concurrency: 2, other: 'keep' }, other: { untouched: true },
 };
-const values = () => ({ sut_kind:'BRANCH', sut_ref:'main', sut_strategy:'HEAD', framework_kind:'MR', framework_ref:'7', framework_strategy:'MERGE', framework_base:'refs/heads/main', prd:'requirements', prd_version:'v1', objective:'objective', basic_flow:'flow', test_scope:'scope', entrypoints:' command with spaces \nsecond', side_effect_limits:'limits', authorization_expires_at:localCloudExpiry(original.authorization.expires_at), accounting_unit:'REQUEST_CREDITS', total_seconds:1800, cost:1000, max_attempts:3 });
+const values = () => ({ sut_kind:'BRANCH', sut_ref:'main', sut_strategy:'HEAD', framework_kind:'MR', framework_ref:'7', framework_strategy:'MERGE', framework_base:'refs/heads/main', prd:'requirements', prd_version:'v1', objective:'objective', basic_flow:'flow', test_scope:'scope' });
 test('editing a draft leaves untouched fields and exact expiry intact', () => {
   assert.deepEqual(plain(editedCloudInputs(original, values())), original);
-  const changed = plain(editedCloudInputs(original, { ...values(), objective: 'new objective', cost: 2000 }));
+  const changed = plain(editedCloudInputs(original, { ...values(), objective: 'new objective' }));
   assert.equal(changed.objective, 'new objective');
-  assert.equal(changed.budgets.total_cost_microunits, 2000);
+  assert.deepEqual(changed.budgets, original.budgets);
   assert.equal(changed.budgets.max_concurrency, 2);
   assert.deepEqual(changed.authorization, original.authorization);
   assert.deepEqual(changed.expected_outputs, original.expected_outputs);
@@ -25,15 +25,6 @@ test('editing a draft leaves untouched fields and exact expiry intact', () => {
   assert.deepEqual(changed.framework_entrypoints, original.framework_entrypoints);
   assert.deepEqual(changed.other, original.other);
 });
-test('changing authorization expiry is explicit and interpreted in local time', () => {
-  const local = '2027-06-04T16:20:30.000';
-  const changed = plain(editedCloudInputs(original, { ...values(), authorization_expires_at: local }));
-  assert.equal(changed.authorization.expires_at, new Date(local).toISOString());
-  assert.deepEqual(changed.authorization.targets, original.authorization.targets);
-  assert.deepEqual(changed.authorization.permitted_actions, original.authorization.permitted_actions);
-  assert.throws(() => editedCloudInputs(original, { ...values(), authorization_expires_at: 'invalid' }));
-});
-
 test('draft edit submits its original config and version through the shared operation', async () => {
   const React = require('react'), antd = require('antd');
   const { renderToStaticMarkup } = require('react-dom/server');

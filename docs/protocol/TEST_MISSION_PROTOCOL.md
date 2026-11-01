@@ -1490,6 +1490,8 @@ DispatchCloudTask 必须匹配 resolution 的 accepted_task_version、当前 exp
 
 冻结 manifest 至少包含：
 
+2026-11-01：创建请求可省略 framework entrypoints、authorization 和 budgets；服务端按所选项目资源生成只含两仓读取和工作区框架执行的内部授权及现有 Worker 所需过渡额度，并将其冻结。未指定入口时如实记录执行入口；显式入口和冻结 framework runtime 仍须遵守原规则。此过渡额度不表示 Harness 已接管预算，现有模型及运行限制仍由部署控制；任务页面不配置 Agent。编辑旧任务时省略授权或预算须保留原值。
+
 ```text
 profile / project_id / cloud_task_id / input_digest
 SUT: repository, selector, full_commit_sha, config_revision

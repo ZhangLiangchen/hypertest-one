@@ -1014,7 +1014,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 | 用户步骤 | HyperTest 控制平面 / Worker | Harness / 项目工具链 |
 | --- | --- | --- |
 | 1. 创建项目 | 在云端创建 Project 或配置既有共享 Project；配置 SUT 与 framework 仓库、环境连接、加密凭据引用和默认授权 | 不启动 Harness 或测试；允许两仓相同；可与 Local 任务共存 |
-| 2. 创建任务 | 在云端创建 CloudTask，保存分支、feat / MR / SHA、PRD、目标、基本流程、framework 版本选择、环境、预算和范围 | 不因表单保存开始执行 |
+| 2. 创建任务 | 在云端创建 CloudTask，保存分支、feat / MR / SHA、PRD、目标、基本流程、framework 版本选择和范围，复用项目环境 | 不因表单保存开始执行；不在创建界面配置授权、预算或 Agent |
 | 3. 下发任务 | DRAFT 阶段受限 Worker 预检 ResolveCloudInputs，得到不可变 CloudInputResolution；dispatch 引用 resolution_id 并核验版本 / 授权后冻结、入队，PREPARING 只 checkout / 核验 | 未固定双仓完整 SHA 或未通过运行预检不得接收任务 prompt |
 | 4. 接取与分工 | 隔离 CloudAttempt 并通过官方 Python SDK 驱动 DeepSeek，投影进度和持久问答 | DeepSeek 自行工作或委派 Codex；Claude Code 保持占位，内部安排推理和工具调用 |
 | 5. 输出产物 | 接受带版本 / 来源的分析、设计、用例、代码与 commit / patch；保留原件 | 根与子代理按职责产出文件；主指挥官汇总 |
@@ -1077,6 +1077,8 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA、MR base / head 和实际使用 head 或 merge commit，返回不可变 CloudInputResolution。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
 
 dispatch 只接受有效 resolution_id，重新校验版本和当前授权，原子冻结精确双仓输入、环境引用、操作范围 / 预算并入队。草稿 / 配置变化必须重新解析；排队后 branch 移动不改变本次输入。PREPARING 仅按固定 SHA checkout、核对身份和执行前能力，不能改为最新分支。相同输入的显式 rerun 复用原固定 SHA；精确持久化规则由领域 §51 定义。
+
+2026-11-01 创建界面不再要求用户填写授权、预算或框架命令；对省略项的受限内部授权与过渡额度由服务端生成并冻结，既有 Worker 的运行限制与账本仍有效。模型和插件尚由部署侧固定配置，Harness 原生 CLI 配置接入尚未完成；详见 ADR-019 和领域 §51.3。
 
 两个仓库在 attempt 独立目录中准备；源和生成测试变更分别记录。SUT 基线不可悄悄修改为另一版本；framework 可写 checkout 中的测试改动以实际 commit 或完整可恢复 patch 关联基线，未提交代码不能伪称原 SHA 的内容。测试代码默认回收为产物；远端 push / MR / 合并另需该操作授权。项目依赖、框架入口、锁文件与必要执行基线也应进入 manifest，避免仅凭 checkout 成功断言可复现。
 

@@ -95,6 +95,34 @@ async def clock(db):
     return await db.scalar(select(func.clock_timestamp()))
 
 
+def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=None):
+    """Inherit the existing local-only execution envelope for simple task drafts.
+
+    The legacy worker still requires an envelope and accounting ledger. These are
+    server defaults, not a user-entered budget or a claim about Harness policy.
+    """
+    data = inputs.model_dump(mode="json")
+    if original is not None:
+        if "framework_entrypoints" not in inputs.model_fields_set:
+            data["framework_entrypoints"] = original["framework_entrypoints"]
+        for key in ("authorization", "budgets"):
+            if data[key] is None:
+                data[key] = original[key]
+    if data["authorization"] is None:
+        data["authorization"] = {
+            "targets": list(dict.fromkeys([configuration["sut"]["url"], configuration["framework"]["url"]])),
+            "permitted_actions": ["git:read", "framework:execute"],
+            "network_targets": [],
+            "side_effect_limits": "Workspace-local test execution; no additional external actions authorized.",
+            "expires_at": (now + timedelta(days=3650)).isoformat(),
+        }
+    if data["budgets"] is None:
+        data["budgets"] = {"accounting_unit": "REQUEST_CREDITS", "total_seconds": 604800,
+                           "total_cost_microunits": 1000000000000, "max_attempts": 100,
+                           "max_concurrency": 1}
+    return data
+
+
 async def project(db, project_id, *, lock=False, include_deleted=False):
     query = select(Project).where(Project.id == project_id)
     if lock:
@@ -525,7 +553,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             if await db.get(CloudTaskDeletion, payload.related_task_id):
                 raise HTTPException(409, "Deleted Cloud Task cannot be used as a related task")
         task = CloudTask(id=uuid7(), project_id=payload.project_id, owner_actor_ref=actor_ref, title=payload.title,
-            config_id=payload.config_id, inputs=payload.inputs.model_dump(mode="json"), status="DRAFT", version=1,
+            config_id=payload.config_id, inputs=_task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db)), status="DRAFT", version=1,
             reported_result="NOT_RUN", related_task_id=payload.related_task_id)
         db.add(task)
         version = 1
@@ -534,7 +562,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             raise HTTPException(409, "Only an undispatched DRAFT can be edited")
         config = await _configuration(db, payload.project_id, payload.config_id)
         authorize_cloud_environment(config.configuration)
-        task.title, task.inputs, task.config_id = payload.title, payload.inputs.model_dump(mode="json"), payload.config_id
+        task.title, task.inputs, task.config_id = payload.title, _task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db), original=task.inputs), payload.config_id
     elif op == "DELETE_TASK":
         if task.status not in {"DRAFT", "COMPLETED", "FAILED", "CANCELLED"}:
             raise HTTPException(409, "Active Cloud Task must be stopped and reconciled before deletion")
@@ -1123,6 +1151,11 @@ async def _assets(db, task, attempt, payload, version):
     return {"assets": accepted}
 
 
+def _check_run_entrypoint(inputs, entrypoint):
+    if inputs["framework_entrypoints"] and entrypoint not in inputs["framework_entrypoints"]:
+        raise HTTPException(403, "Run entrypoint is outside frozen authorization")
+
+
 async def _run(db, task, attempt, payload, version):
     if await db.scalar(select(CloudRunRecord.id).where(CloudRunRecord.attempt_id == attempt.id, CloudRunRecord.run_key == payload.run_key)):
         raise HTTPException(409, "A run key is immutable; reconcile its original operation")
@@ -1132,8 +1165,7 @@ async def _run(db, task, attempt, payload, version):
         raise HTTPException(403, "Framework execution is outside the frozen allowed actions")
     if payload.execution.framework_sha != task.frozen_manifest["resolution"]["repositories"]["framework"]["commit_sha"]:
         raise HTTPException(422, "Run does not use the frozen framework baseline")
-    if payload.execution.entrypoint not in task.inputs["framework_entrypoints"]:
-        raise HTTPException(403, "Run entrypoint is outside frozen authorization")
+    _check_run_entrypoint(task.inputs, payload.execution.entrypoint)
     if task.frozen_manifest["configuration"]["environment"]["require_matching_deployment"]:
         if payload.execution.actual_sut_build == "UNKNOWN" or not payload.execution.environment_observation.get("deployment_matches_expected"):
             raise HTTPException(409, "Required deployment identity was not observed")
