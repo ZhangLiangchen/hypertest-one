@@ -532,13 +532,23 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .archive-version-controls .archive-version-input { width: 104px; }
 .archive-version-input .ant-input-number-input { padding-right: 30px; font-variant-numeric: tabular-nums; font-weight: 600; }
 .archive-version-input.ant-input-number .ant-input-number-handler-wrap { width: 22px; opacity: 1; }
+.archive-management-form { max-width: 760px; }
+.workspace-page .archive-management-form .ant-form-item-label > label { font-weight: 600; }
+.archive-management-form input.ant-input { height: 42px; padding-inline: 14px; }
+.archive-management-form textarea.ant-input { padding: 10px 14px; line-height: 1.7; }
+.archive-management-form .ant-select-single { height: 42px; }
+.archive-management-form .ant-select-single .ant-select-selector { padding-inline: 14px; }
+.archive-management-form .ant-select-multiple .ant-select-selector { min-height: 42px; padding: 4px 10px; }
+.archive-management-form .ant-select:not(.ant-select-disabled) .ant-select-arrow { color: var(--ht-muted); }
+.archive-management-states { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 560px; }
+.archive-management-actions { display: block; }
+.archive-task-page .archive-prompt .cli-install-prompt-text { background: var(--ht-surface); }
 
 .archive-section { margin-bottom: 24px; }
 .archive-command { padding: 16px; background: var(--ht-canvas); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .archive-command code { font-size: 13px; }
 .archive-guide-steps { padding-inline-start: 24px; line-height: 1.9; }
 .archive-operation-notice { margin-block: 20px; }
-.archive-status-select { min-width: 200px; }
 .archive-artifact, .archive-publication { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--ht-line); }
 .archive-artifact pre, .archive-summary { white-space: pre-wrap; overflow-wrap: anywhere; }
 .archive-summary { font-family: inherit; line-height: 1.8; }
