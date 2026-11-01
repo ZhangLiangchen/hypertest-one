@@ -62,7 +62,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class ModelBroker:
     def __init__(self, socket_path: Path, *, base_url: str, api_key: bytes,
-                 model: str, max_requests: int = 100, max_tokens: int = 8192,
+                 model: str | None, max_requests: int | None = 100, max_tokens: int | None = 8192,
                  deadline: float | None = None):
         parsed = urlsplit(base_url)
         if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
@@ -92,13 +92,17 @@ class ModelBroker:
         """Only model inference; subclasses must supply equally narrow contracts."""
         if path != "/v1/messages":
             raise ValueError("operation")
-        if not isinstance(payload, dict) or payload.get("model") != self.model:
+        if (not isinstance(payload, dict) or not isinstance(payload.get("model"), str)
+                or not 1 <= len(payload["model"]) <= 255
+                or (self.model is not None and payload["model"] != self.model)):
             raise ValueError("model")
         validate_messages(payload)
         requested = payload.get("max_tokens", self.max_tokens)
-        if type(requested) is not int or not 0 < requested <= self.max_tokens:
+        if requested is not None and (type(requested) is not int or requested <= 0
+                or (self.max_tokens is not None and requested > self.max_tokens)):
             raise ValueError("tokens")
-        payload["max_tokens"] = requested
+        if requested is not None:
+            payload["max_tokens"] = requested
         headers = {"Content-Type": "application/json", "Accept": "text/event-stream",
             "x-api-key": self._key.decode(), "anthropic-version": "2023-06-01"}
         if any(block["type"] in {"tool_addition", "tool_removal"} for message in payload["messages"] for block in message["content"]):
@@ -140,7 +144,7 @@ class ModelBroker:
                     with broker.lock:
                         if broker.closed:
                             raise _RequestRefused("CLOSED")
-                        if broker.requests >= broker.max_requests:
+                        if broker.max_requests is not None and broker.requests >= broker.max_requests:
                             raise _RequestRefused("REQUEST_LIMIT")
                         if broker.deadline is not None and time.monotonic() >= broker.deadline:
                             raise _RequestRefused("DEADLINE")

@@ -14,6 +14,26 @@ from hypertest.cloud import sdk, sdk_driver
 from hypertest.cloud.errors import CloudBlocked
 
 
+def test_native_initialization_uses_profile_selection_without_platform_token_limit(monkeypatch):
+    from hypertest.cloud import native_selection
+    selection = {"provider": "deepseek-official", "model": "fixture-model", "reasoning_effort": "max"}
+    monkeypatch.setattr(native_selection, "read_native_selection", lambda **_: selection)
+    calls = []
+
+    class Client:
+        def initialize(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(serverInfo=SimpleNamespace(name="deepseek-harness-sdk-runtime", version="0.0.1"))
+
+    sdk._initialize(Client(), {"workspace": "/workspace", "dsh_home": "/home/agent/dsh", "native_harness": True})
+    assert calls == [{"cwd": "/workspace", **selection}]
+    monkeypatch.setattr(native_selection, "read_native_selection", lambda **_: {"provider": "other", "model": "fixture"})
+    with pytest.raises(CloudBlocked) as error:
+        sdk._initialize(Client(), {"workspace": "/workspace", "dsh_home": "/home/agent/dsh", "native_harness": True})
+    assert error.value.code == "HARNESS_PROVIDER_UNSUPPORTED"
+    assert len(calls) == 1
+
+
 def test_initialization_rpc_error_survives_close_failure_without_private_data(monkeypatch):
     official_errors = pytest.importorskip("deepseek_harness.errors")
     phases, calls = [], []

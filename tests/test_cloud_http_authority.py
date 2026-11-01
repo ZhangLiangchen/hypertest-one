@@ -15,8 +15,8 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
-from test_cloud_tasks import claimed, configuration, inputs, post, read_all, worker_submit
 from test_cloud_tasks import cloud_context as cloud_context
+from test_cloud_tasks import configuration, inputs, legacy_claimed, post, read_all, worker_submit
 
 from hypertest.application import cloud_tasks as service
 from hypertest.application.cloud_http import WorkerHttpAuthority, authorize_environment
@@ -59,7 +59,7 @@ def http_inputs():
 @pytest.fixture
 async def http_context(cloud_context, monkeypatch):
     monkeypatch.setattr(get_settings(), "cloud_https_enabled", True)
-    current, claim, identity = await claimed(cloud_context,
+    current, claim, identity = await legacy_claimed(cloud_context,
         config=configuration(environment=http_environment()), task_inputs=http_inputs())
     absolute_deadline = int(time.time()) + 120
     running = await worker_submit(cloud_context, identity, current, "TRANSITION", status="RUNNING",
@@ -133,7 +133,7 @@ async def test_lost_prepare_ack_recovers_sent_and_unknown_by_original_key_withou
 @pytest.mark.parametrize("runtime", ["missing", "expired"])
 async def test_https_intent_requires_the_original_absolute_runtime_deadline(cloud_context, monkeypatch, runtime):
     monkeypatch.setattr(get_settings(), "cloud_https_enabled", True)
-    current, _, identity = await claimed(cloud_context,
+    current, _, identity = await legacy_claimed(cloud_context,
         config=configuration(environment=http_environment()), task_inputs=http_inputs())
     metadata = {} if runtime == "missing" else {
         "https": {"profile": HTTPS_ACCESS_PROFILE, "hard_deadline_epoch": int(time.time()) - 1}}

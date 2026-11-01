@@ -10,8 +10,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
-from test_cloud_tasks import claimed, worker_submit
 from test_cloud_tasks import cloud_context as _cloud_context
+from test_cloud_tasks import legacy_claimed, worker_submit
 from test_cloud_tasks import post as cloud_post
 
 from hypertest.api.schemas import ProjectCreate
@@ -520,7 +520,7 @@ async def cloud_memory_context(cloud_context, monkeypatch, tmp_path):
         "actor_ref": "dedicated-memory-worker-" + uuid4().hex, "client_instance_id": str(uuid4()),
         "project_id": f["project_id"], "scopes": ["memory:read", "memory:propose"]})
     assert registration.status_code == 201
-    receipt, claim, identity = await claimed(f)
+    receipt, claim, identity = await legacy_claimed(f)
     headers = {"Authorization": "Bearer " + registration.json()["integration_token"],
         "X-Hypertest-Memory-Worker-Id": identity.worker_id,
         "X-Hypertest-Memory-Lease-Token": identity.lease_token,

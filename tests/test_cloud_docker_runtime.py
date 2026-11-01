@@ -1,4 +1,5 @@
 """Runtime composition must recheck service and current original membership."""
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -6,6 +7,7 @@ import pytest
 from hypertest.cloud import docker_runtime
 from hypertest.cloud.docker_attempt_spec import ResourceLimit
 from hypertest.cloud.docker_service_admission import DockerServiceProfile
+from hypertest.cloud.docker_worker_admission import WorkerMount
 from hypertest.cloud.errors import CloudBlocked
 
 
@@ -50,6 +52,17 @@ async def test_service_and_members_are_rechecked_for_original_create(monkeypatch
     runtime = docker_runtime.DockerRuntime(settings=object(), profile=profile, sessions=None, engine=Engine(),
                                           attempt_limit=agent_limit)
     await runtime.admit()
+    path = "/var/lib/hypertest-cloud/harness"
+    with pytest.raises(CloudBlocked):
+        runtime.assert_harness_profile(path)
+    runtime.profile = replace(profile, mounts=(WorkerMount("volume", "profile", path, False),))
+    runtime.assert_harness_profile(path)
+    for bad in (WorkerMount("volume", "profile", path, True), WorkerMount("volume", "shared", path, False),
+                WorkerMount("bind", "/tmp/profile", path, False)):
+        runtime.profile = replace(profile, mounts=(bad,))
+        with pytest.raises(CloudBlocked):
+            runtime.assert_harness_profile(path)
+    runtime.profile = profile
     sandbox = runtime.sandbox(layout=SimpleNamespace(volume_name="shared"), broker=None, reporter=None,
         private_root=tmp_path, policy=SimpleNamespace(aggregate_memory_bytes=4 * 1024**3, aggregate_processes=256),
         deadline_epoch=1, expected_sockets=("model.sock",))

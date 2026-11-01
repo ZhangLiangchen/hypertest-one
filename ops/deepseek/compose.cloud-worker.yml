@@ -25,6 +25,7 @@ services:
       HYPERTEST_CLOUD_DOCKER_ENABLED: "true"
       HYPERTEST_CLOUD_SERVICE_RELEASE_SHA256: ${HYPERTEST_CLOUD_RELEASE_SHA256:?Set release manifest SHA256}
       HYPERTEST_CLOUD_RUNTIME_ROOT: /var/lib/hypertest-cloud/runtime
+      HYPERTEST_CLOUD_HARNESS_HOME: /var/lib/hypertest-cloud/harness
       HYPERTEST_CLOUD_CREDENTIAL_KEY_FILE: /run/credentials/hypertest-cloud.service/wrapping-key
       HYPERTEST_CLOUD_MODEL_KEY_FILE: /run/credentials/hypertest-cloud.service/deepseek-key
       CREDENTIALS_DIRECTORY: /run/credentials/hypertest-cloud.service
@@ -37,6 +38,11 @@ services:
       - type: volume
         source: cloud-shared
         target: /var/lib/hypertest-cloud/shared
+        volume: {nocopy: true}
+      - type: volume
+        source: cloud-harness-profile
+        target: /var/lib/hypertest-cloud/harness
+        read_only: true
         volume: {nocopy: true}
       - type: volume
         source: cloud-credentials
@@ -68,6 +74,9 @@ volumes:
   cloud-credentials:
     external: true
     name: ${HYPERTEST_CLOUD_CREDENTIAL_VOLUME:?Set preinitialized credential volume}
+  cloud-harness-profile:
+    external: true
+    name: ${HYPERTEST_CLOUD_HARNESS_VOLUME:?Set dedicated Harness profile volume}
   cloud-release:
     external: true
     name: ${HYPERTEST_CLOUD_RELEASE_VOLUME:?Set preinitialized release volume}

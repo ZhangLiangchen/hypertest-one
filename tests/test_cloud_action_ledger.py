@@ -7,7 +7,15 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
-from test_cloud_tasks import FRAMEWORK_SHA, claimed, configuration, inputs, post, worker_submit
+from test_cloud_tasks import (
+    FRAMEWORK_SHA,
+    configuration,
+    inputs,
+    legacy_claimed,
+    post,
+    worker_submit,
+)
+from test_cloud_tasks import cloud_context as cloud_context
 
 from hypertest.application import cloud_actions, cloud_tasks
 from hypertest.application.cloud_actions import WorkerActionAuthority
@@ -65,7 +73,7 @@ async def action_context(cloud_context, monkeypatch):
         "to_coin_code": "TRON_TESTTRX", "amount_atomic": "2000000", "from_address": "synthetic-address"}
     environment = {"name": "Synthetic HTTPS", "connection": "HTTPS", "host": "api.example.invalid",
                    "port": 443, "cloud_access_policy": "WEB_ONLY"}
-    current, claim, identity = await claimed(cloud_context, config=configuration(environment=environment), task_inputs=task_inputs)
+    current, claim, identity = await legacy_claimed(cloud_context, config=configuration(environment=environment), task_inputs=task_inputs)
     running = await worker_submit(cloud_context, identity, current, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 300,
             "request_limits": [{"scope": "ROOT", "max_requests": 2, "cost_per_request_microunits": 1}]})

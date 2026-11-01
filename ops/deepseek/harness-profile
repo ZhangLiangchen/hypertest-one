@@ -1,0 +1,31 @@
+#!/bin/sh
+# Run the official SDK CLI against a dedicated cloud Harness volume. The
+# Worker must mount the same volume read-only at /var/lib/hypertest-cloud/harness.
+set -eu
+: "${HYPERTEST_CLOUD_HARNESS_VOLUME:?Set the dedicated cloud Harness volume name}"
+: "${HYPERTEST_CLOUD_HARNESS_CLI_IMAGE:?Set the pinned operator CLI image}"
+docker volume inspect "$HYPERTEST_CLOUD_HARNESS_VOLUME" >/dev/null
+if [ "${1:-}" = edit-sdk-patch ]; then
+  [ "$#" -eq 1 ] || { echo 'Usage: harness-profile edit-sdk-patch' >&2; exit 2; }
+  umask 077
+  temporary=$(mktemp -d "${TMPDIR:-/tmp}/hypertest-harness-patch.XXXXXXXX")
+  trap 'rm -rf "$temporary"' EXIT HUP INT TERM
+  docker run --rm --network none \
+    --mount "type=volume,source=$HYPERTEST_CLOUD_HARNESS_VOLUME,destination=/var/lib/hypertest-cloud/harness" \
+    --entrypoint /opt/hypertest-cloud/venv/bin/python "$HYPERTEST_CLOUD_HARNESS_CLI_IMAGE" \
+    /opt/hypertest-cloud/harness_profile_patch.py read > "$temporary/cordis.patch.yml"
+  original=$(shasum -a 256 "$temporary/cordis.patch.yml" | cut -d ' ' -f 1)
+  "${VISUAL:-${EDITOR:-vi}}" "$temporary/cordis.patch.yml"
+  docker run --rm -i --network none \
+    --mount "type=volume,source=$HYPERTEST_CLOUD_HARNESS_VOLUME,destination=/var/lib/hypertest-cloud/harness" \
+    --entrypoint /opt/hypertest-cloud/venv/bin/python "$HYPERTEST_CLOUD_HARNESS_CLI_IMAGE" \
+    /opt/hypertest-cloud/harness_profile_patch.py write "$original" < "$temporary/cordis.patch.yml"
+  echo 'SDK profile patch updated.'
+  exit 0
+fi
+tty_option=
+if [ -t 0 ] && [ -t 1 ]; then tty_option=-t; fi
+exec docker run --rm -i \
+  $tty_option \
+  --mount "type=volume,source=$HYPERTEST_CLOUD_HARNESS_VOLUME,destination=/var/lib/hypertest-cloud/harness" \
+  "$HYPERTEST_CLOUD_HARNESS_CLI_IMAGE" "$@"

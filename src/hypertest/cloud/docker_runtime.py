@@ -54,6 +54,16 @@ class DockerRuntime:
         return DockerWorkspace.create(Path(self.profile.shared_root), self.profile.shared_volume,
             project_id=task["project_id"], task_id=task["id"], attempt_id=attempt["id"], input_digest=task["input_digest"])
 
+    def assert_harness_profile(self, path: str) -> None:
+        """The admitted Worker must mount the dedicated profile read-only."""
+        if self.admission is None or self.lock is None or self.lock.fd is None:
+            raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker service membership is not admitted")
+        mounts = [item for item in self.profile.mounts if item.target == path]
+        if (len(mounts) != 1 or mounts[0].kind != "volume" or mounts[0].writable
+                or mounts[0].source in {self.profile.private_volume, self.profile.shared_volume}
+                or sum(item.kind == "volume" and item.source == mounts[0].source for item in self.profile.mounts) != 1):
+            raise CloudBlocked("HARNESS_PROFILE_UNAVAILABLE", "A separate read-only Harness profile volume is required")
+
     def sandbox(self, *, layout, broker, reporter, private_root, policy, deadline_epoch, expected_sockets):
         if self.admission is None or self.lock is None or self.lock.fd is None:
             raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker service membership is not admitted")

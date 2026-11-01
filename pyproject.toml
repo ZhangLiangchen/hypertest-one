@@ -25,6 +25,7 @@ memory = [
 cloud = [
   "cryptography>=44,<47",
   "httpx>=0.28,<1.0",
+  "PyYAML>=6.0,<7",
   "deepseek-harness-sdk==0.2.1rc2",
   "deepseek-harness-runtime-bin==0.2.1rc2",
 ]

@@ -13,6 +13,7 @@
   "mounts": [
     {"kind": "volume", "source": "REPLACE_WITH_PRIVATE_VOLUME_NAME", "target": "/var/lib/hypertest-cloud/runtime", "writable": true},
     {"kind": "volume", "source": "REPLACE_WITH_SHARED_VOLUME_NAME", "target": "/var/lib/hypertest-cloud/shared", "writable": true},
+    {"kind": "volume", "source": "REPLACE_WITH_HARNESS_PROFILE_VOLUME_NAME", "target": "/var/lib/hypertest-cloud/harness", "writable": false},
     {"kind": "volume", "source": "REPLACE_WITH_CREDENTIAL_VOLUME_NAME", "target": "/run/credentials/hypertest-cloud.service", "writable": false},
     {"kind": "volume", "source": "REPLACE_WITH_RELEASE_VOLUME_NAME", "target": "/opt/hypertest-cloud/release.json", "writable": false},
     {"kind": "volume", "source": "REPLACE_WITH_RELEASE_VOLUME_NAME", "target": "/etc/hypertest-cloud/docker-service.json", "writable": false},

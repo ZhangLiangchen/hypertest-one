@@ -22,9 +22,9 @@ from sqlalchemy import func, select
 from test_cloud_action_observer import _policy, _response
 from test_cloud_tasks import (
     FRAMEWORK_SHA,
-    claimed,
     configuration,
     inputs,
+    legacy_claimed,
     post,
     read_all,
     worker_submit,
@@ -80,7 +80,7 @@ async def test_framework_process_action_observation_and_report_close_once(cloud_
                       {"path": "python/observer.py", "sha256": "c" * 64}]}
     environment = {"name": "Synthetic HTTPS", "connection": "HTTPS", "host": "api.example.invalid",
                    "port": 443, "cloud_access_policy": "WEB_ONLY"}
-    receipt, claim, identity = await claimed(cloud_context, framework_sha=FRAMEWORK_SHA,
+    receipt, claim, identity = await legacy_claimed(cloud_context, framework_sha=FRAMEWORK_SHA,
         config=configuration(environment=environment), task_inputs=fixture_inputs)
     receipt = await worker_submit(cloud_context, identity, receipt, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 300,

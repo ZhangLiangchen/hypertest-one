@@ -106,6 +106,8 @@ class WorkerActionAuthority:
         await service.worker_authority(db, task, attempt, self.identity)
         if attempt.status != "RUNNING":
             reject("CLOUD_ACTION_REQUIRES_RUNNING_ATTEMPT")
+        if task.inputs.get("budgets") is None:
+            reject("CLOUD_ACTION_LEASE_ONLY_UNSUPPORTED", 409)
         try:
             profile = task.inputs["controlled_actions"]
             frozen = task.frozen_manifest

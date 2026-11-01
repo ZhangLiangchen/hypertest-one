@@ -163,9 +163,6 @@ class CloudWorker:
         replace the checks made again inside the claimed Attempt. Re-read the
         private key for each claim so rotation or revocation is not cached.
         """
-        rate = self.settings.cloud_model_request_cost_microunits
-        if type(rate) is not int or rate <= 0:
-            raise CloudBlocked("MODEL_COST_UNCONFIGURED", "A conservative model request cost is required")
         if not self._sdk_admitted:
             inspect_sdk()
             self._sdk_admitted = True
@@ -212,6 +209,12 @@ class CloudWorker:
             await self.resolve(resolution)
             return True
         try:
+            if self.docker_runtime is not None:
+                # Keep read-only Git resolution independent. Do not claim an
+                # Attempt when the operator has not provisioned its profile.
+                self.docker_runtime.assert_harness_profile(self.settings.cloud_harness_home)
+                from .native_profile import check_sdk_profile
+                check_sdk_profile(self.settings.cloud_harness_home)
             self.admit_attempt()
         except CloudBlocked as error:
             # Keep resolution independent of model admission. The CLI can
@@ -262,6 +265,7 @@ class CloudWorker:
             raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker Attempt execution is not admitted")
         broker = CloudBroker(self.sessions, claim, self.worker_id)
         task, attempt = claim["task"], claim["attempt"]
+        native_task = task.get("inputs", task.get("frozen_manifest", {}).get("inputs", {})).get("budgets") is None
         root = private_root(self.settings.cloud_runtime_root) / ("attempt-" + attempt["id"])
         try:
             root.mkdir(mode=0o700)
@@ -294,7 +298,7 @@ class CloudWorker:
         runtime_diagnostics: dict = {}
         terminal_accepted = False
         preparing = None
-        native_enabled = getattr(self.settings, "cloud_codex_enabled", False)
+        native_enabled = not native_task and getattr(self.settings, "cloud_codex_enabled", False)
         delegations = DelegationObservations() if native_enabled else None
         submitted_delegations: set[str] = set()
         scope_brokers: dict[str, ModelBroker] = {}
@@ -400,6 +404,8 @@ class CloudWorker:
                 secondary_failure("RUNTIME_DIAGNOSTIC_WRITE", secondary)
 
         def observed_cost():
+            if not limits:
+                return 0
             rates = {item["scope"]: item["cost_per_request_microunits"] for item in limits}
             return sum(item.requests * rates[scope] for scope, item in scope_brokers.items())
 
@@ -460,20 +466,29 @@ class CloudWorker:
                     raise CloudBlocked("CONTROLLED_ACTIONS_UNAVAILABLE", "Controlled external actions are not admitted")
             if attempt.get("checkpoint"):
                 raise CloudBlocked("SDK_RESUME_UNSUPPORTED", "Historical checkpoints require explicit reconciled resume support")
-            remaining = claim.get("budget_remaining", {})
-            if not remaining or self.settings.cloud_model_request_cost_microunits <= 0:
-                raise CloudBlocked("MODEL_COST_UNCONFIGURED", "A conservative model request cost and cumulative budget are required")
-            seconds = min(self.settings.cloud_attempt_timeout_seconds, remaining["seconds"])
-            # Convert the same whole-attempt monotonic deadline once. Git
-            # preparation does not grant a fresh SSH or model time window.
-            ssh_deadline = int(time.time() + max(0, started + seconds - time.monotonic()))
-            accounting_unit = manifest["inputs"]["budgets"].get("accounting_unit", "CONSERVATIVE_MICROUNITS")
-            if native_enabled and accounting_unit != "REQUEST_CREDITS":
-                raise CloudBlocked("CODEX_ACCOUNTING_UNSUPPORTED", "Cloud Codex OAuth requires a task explicitly frozen in REQUEST_CREDITS, not a monetary-price claim")
-            limits = request_limits(self.settings, remaining=remaining["cost_microunits"], allow_codex=native_enabled)
-            requests = limits[0]["max_requests"]
+            if native_task:
+                if docker_layout is None:
+                    raise CloudBlocked("HARNESS_WATCHDOG_REQUIRED", "Native Harness tasks require the lease-fenced Docker watchdog")
+                seconds = requests = None
+                self.docker_runtime.assert_harness_profile(self.settings.cloud_harness_home)
+                from .native_profile import snapshot_sdk_profile
+                snapshot_sdk_profile(cloud_home=self.settings.cloud_harness_home, attempt_home=home)
+            else:
+                remaining = claim.get("budget_remaining", {})
+                if not remaining or self.settings.cloud_model_request_cost_microunits <= 0:
+                    raise CloudBlocked("MODEL_COST_UNCONFIGURED", "A conservative model request cost and cumulative budget are required")
+                seconds = min(self.settings.cloud_attempt_timeout_seconds, remaining["seconds"])
+                # The legacy frozen deadline includes preparation and execution.
+                ssh_deadline = int(time.time() + max(0, started + seconds - time.monotonic()))
+                accounting_unit = manifest["inputs"]["budgets"].get("accounting_unit", "CONSERVATIVE_MICROUNITS")
+                if native_enabled and accounting_unit != "REQUEST_CREDITS":
+                    raise CloudBlocked("CODEX_ACCOUNTING_UNSUPPORTED", "Cloud Codex OAuth requires a task explicitly frozen in REQUEST_CREDITS, not a monetary-price claim")
+                limits = request_limits(self.settings, remaining=remaining["cost_microunits"], allow_codex=native_enabled)
+                requests = limits[0]["max_requests"]
             environment = manifest.get("configuration", {}).get("environment", {})
             require_cloud_environment_route(environment)
+            if native_task and (controlled_profile is not None or environment.get("connection", "NONE") != "NONE"):
+                raise CloudBlocked("HARNESS_REMOTE_PROFILE_UNSUPPORTED", "Remote action profiles require an independently bounded authorization")
             ssh_profile = None
             http_profile = None
             if environment.get("connection", "NONE") == "HTTPS":
@@ -494,8 +509,8 @@ class CloudWorker:
                 if time.time() >= ssh_deadline:
                     raise CloudBlocked("SSH_CLEANUP_WINDOW_EXHAUSTED", "Remaining attempt time cannot reserve bounded SSH cleanup")
                 inspect_ssh_client(self.settings)
-            policy = SandboxPolicy(seconds, requests, self.settings.cloud_model_max_tokens,
-                memory_bytes=NATIVE_CODEX_ADDRESS_SPACE_BYTES if native_enabled else ROOT_ADDRESS_SPACE_BYTES,
+            policy = SandboxPolicy(seconds, requests, None if native_task else self.settings.cloud_model_max_tokens,
+                memory_bytes=NATIVE_CODEX_ADDRESS_SPACE_BYTES if (native_enabled or native_task) else ROOT_ADDRESS_SPACE_BYTES,
                 ssh_profile=ssh_profile, http_profile=http_profile, controlled_actions=controlled_profile)
             policy.validate(manifest)
             metadata = inspect_sdk()
@@ -544,16 +559,17 @@ class CloudWorker:
             source_root = None
             if docker_layout is not None:
                 from .source_export import validate_export
-                if source_policy is None:
+                if source_policy is None and not native_task:
                     raise CloudBlocked("SOURCE_EXPORT_REQUIRED", "Docker Agents require a frozen source export")
-                source_policy = validate_export(source_policy)
+                if source_policy is not None:
+                    source_policy = validate_export(source_policy)
                 source_root = root / "private-source"
                 source_root.mkdir(mode=0o700)
                 for role in ("sut", "framework"):
                     (source_root / role).mkdir(mode=0o700)
             for role in ("sut", "framework"):
                 await broker.assert_current()
-                async with asyncio.timeout(max(0.01, started + seconds - time.monotonic())):
+                async with asyncio.timeout(None if native_task else max(0.01, started + seconds - time.monotonic())):
                     options = {"token": credentials.get(role.upper())}
                     if docker_layout is not None:
                         options["private_empty"] = True
@@ -567,7 +583,14 @@ class CloudWorker:
             credentials.clear()
             await broker.assert_current()
             if source_root is not None:
-                from .source_export import export_sources
+                from .source_export import derive_checkout_export, export_sources
+                if source_policy is None:
+                    source_policy = await derive_checkout_export(
+                        sources={role: source_root / role for role in ("sut", "framework")},
+                        repositories=manifest["resolution"]["repositories"])
+                    # This is an observed projection of fixed checkouts, not a
+                    # user-provided frozen input or independent execution proof.
+                    save_once(root / "source-export-derived.json", source_policy)
                 signer_source = None
                 if controlled_profile is not None:
                     signer_source = root / "private-signer-source"
@@ -582,7 +605,7 @@ class CloudWorker:
                 framework_runtime = await inspect_framework_runtime(workspace / "framework",
                     manifest["inputs"]["framework_runtime"], manifest["inputs"]["framework_entrypoints"])
                 save_once(root / "framework-runtime.json", framework_runtime)
-            if time.monotonic() - started >= seconds:
+            if seconds is not None and time.monotonic() - started >= seconds:
                 raise CloudBlocked("RUNTIME_BUDGET_EXHAUSTED", "Input preparation exhausted the remaining task time budget")
             if ssh_profile is not None and time.time() >= ssh_deadline:
                 raise CloudBlocked("SSH_CLEANUP_WINDOW_EXHAUSTED", "Input preparation consumed the fixed SSH action window; no fresh deadline is granted")
@@ -607,8 +630,8 @@ class CloudWorker:
             metadata["capabilities"]["memory"] = {"configured": memory_bridge is not None,
                 "requires_separate_project_grant": True, "human_publication_required": True}
             model_broker = ModelBroker(socket_root / "model.sock", base_url=self.settings.cloud_model_base_url,
-                api_key=read_model_key(self.settings.cloud_model_key_file), model=self.settings.cloud_model,
-                max_requests=requests, max_tokens=policy.max_tokens, deadline=started + seconds)
+                api_key=read_model_key(self.settings.cloud_model_key_file), model=None if native_task else self.settings.cloud_model,
+                max_requests=requests, max_tokens=policy.max_tokens, deadline=None if native_task else started + seconds)
             scope_brokers["ROOT"] = models.enter_context(model_broker)
             sockets = {}
             if native_enabled:
@@ -638,11 +661,14 @@ class CloudWorker:
                     http_socket=root / "https.sock" if http_broker is not None else None)
                 sandbox.command()  # Fail admission before recording a prompt intent.
             else:
-                preparation = attempt["runtime_metadata"]["preparation_budget_reservation"]
-                claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
-                authorized = datetime.fromisoformat(manifest["inputs"]["authorization"]["expires_at"].replace("Z", "+00:00"))
-                deadline_epoch = min(int(claimed.timestamp()) + seconds, int(authorized.timestamp()),
-                                     int(time.time() + max(0, started + seconds - time.monotonic())))
+                if native_task:
+                    deadline_epoch = 0  # Signed heartbeats remain mandatory; no total task deadline.
+                else:
+                    preparation = attempt["runtime_metadata"]["preparation_budget_reservation"]
+                    claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
+                    authorized = datetime.fromisoformat(manifest["inputs"]["authorization"]["expires_at"].replace("Z", "+00:00"))
+                    deadline_epoch = min(int(claimed.timestamp()) + seconds, int(authorized.timestamp()),
+                                         int(time.time() + max(0, started + seconds - time.monotonic())))
                 expected_sockets = ("model.sock",) + (("hypertest-ssh.sock",) if ssh_broker else ()) + (
                     ("hypertest-https.sock",) if http_broker else ()) + (("hypertest-actions.sock",) if action_broker else ())
                 sandbox = self.docker_runtime.sandbox(layout=docker_layout, broker=broker, reporter=reporter,
@@ -650,24 +676,27 @@ class CloudWorker:
                 metadata["capabilities"]["isolation"] = "docker-private-pid-namespace"
                 metadata["runtime_limits"]["observed_worker_cgroup"] = metadata["runtime_limits"].pop("observed_cgroup")
                 metadata["runtime_limits"]["aggregate_scope"] = "docker-worker-and-attempt-limits"
-            await host_transition("RUNNING", "Pinned SDK runtime admitted", metadata,
-                reservation={"accounting_unit": accounting_unit, "reserved_seconds": seconds,
-                             "request_limits": limits})
+            reservation = None if native_task else {"accounting_unit": accounting_unit, "reserved_seconds": seconds,
+                                                      "request_limits": limits}
+            await host_transition("RUNNING", "Pinned SDK runtime admitted", metadata, reservation=reservation)
             await broker.assert_current()
             require_cloud_environment_route(environment)
-            prompt = task_prompt(task, attempt, allow_delegation=native_enabled, ssh_profile=ssh_profile,
+            prompt = task_prompt(task, attempt, allow_delegation=native_enabled, native_harness=native_task, ssh_profile=ssh_profile,
                 memory_enabled=memory_bridge is not None, http_profile=http_profile,
                 controlled_actions=controlled_profile if action_broker is not None else None)
             configuration = {"workspace": "/workspace", "dsh_home": "/home/agent/dsh",
-                "session_id": session_id, "model": self.settings.cloud_model,
-                "max_tokens": policy.max_tokens, "timeout_seconds": seconds, "prompt": prompt}
+                "session_id": session_id, "prompt": prompt}
+            if native_task:
+                configuration["native_harness"] = True
+            else:
+                configuration.update(model=self.settings.cloud_model, max_tokens=policy.max_tokens, timeout_seconds=seconds)
             if native_enabled:
                 configuration["native_delegation"] = {"codex_model": self.settings.cloud_codex_model}
             save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": session_id,
                 "generation": broker.identity.generation, "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
-                "runtime_limits": {"model": configuration["model"], "max_tokens": configuration["max_tokens"],
+                "runtime_limits": {"model": configuration.get("model"), "max_tokens": configuration.get("max_tokens"),
                     **metadata["runtime_limits"],
-                    "timeout_seconds": configuration["timeout_seconds"],
+                    "timeout_seconds": configuration.get("timeout_seconds"),
                     "reasoning_effort": configuration.get("reasoning_effort"),
                     "codex_model": configuration.get("native_delegation", {}).get("codex_model"),
                     "request_limits": [{"scope": item["scope"], "max_requests": item["max_requests"]} for item in limits]}})
@@ -677,12 +706,12 @@ class CloudWorker:
                 memory_task = asyncio.create_task(memory_bridge.run())
             stdout_reader = asyncio.create_task(self.consume_runtime(process, delegations=delegations,
                 diagnostics=runtime_diagnostics))
-            deadline = started + seconds
+            deadline = None if native_task else started + seconds
             terminal = None
             while process.returncode is None:
                 if lease_failure:
                     raise lease_failure
-                if time.monotonic() >= deadline:
+                if deadline is not None and time.monotonic() >= deadline:
                     await safety_fence("RUNTIME_TIMEOUT")
                     raise CloudBlocked("RUNTIME_TIMEOUT", "Attempt exceeded its remaining execution budget")
                 if ssh_broker is not None and not ssh_cleanup_attempted and time.time() >= ssh_deadline:
@@ -744,7 +773,7 @@ class CloudWorker:
             if not await remote_operations_closed():
                 raise CloudBlocked("SSH_RECONCILIATION_REQUIRED", "Canonical remote operations are not all observed stopped; retain the original reservation")
             usage = int(time.monotonic() - started)
-            settlement = {"accounting_unit": accounting_unit, "observed_seconds": usage,
+            settlement = None if native_task else {"accounting_unit": accounting_unit, "observed_seconds": usage,
                 "namespace_stopped": stopped["local_processes_stopped"], "brokers_drained": True,
                 "requests": [{"scope": scope, "requests": item.requests} for scope, item in scope_brokers.items()]}
             result = await reporter.submit_handoff(handoff, handoff_digest,

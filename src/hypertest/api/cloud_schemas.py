@@ -408,7 +408,7 @@ class CloudContainerCreateIntent(AttemptMutation):
     key_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     clock_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     recovery_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    hard_deadline: int = Field(strict=True, gt=0, le=253402300799)
+    hard_deadline: int = Field(strict=True, ge=0, le=253402300799)
     spec: dict
 
 

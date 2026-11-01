@@ -3,18 +3,23 @@ import asyncio
 import json
 from copy import deepcopy
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 
-from hypertest.api.cloud_schemas import Environment, TaskInputs
+from hypertest.api.cloud_schemas import CloudDispatch, CloudTaskCreate, Environment, TaskInputs
+from hypertest.application.cloud_tasks import (
+    _check_run_entrypoint,
+    _task_inputs_with_runtime_defaults,
+)
 from hypertest.cloud.errors import CloudBlocked
 from hypertest.cloud.http_profile import HTTPS_SOCKET, digest, validate_profile
 from hypertest.cloud.manifests import task_prompt
 from hypertest.cloud.sandbox import BubblewrapSandbox, SandboxPolicy
-from fastapi import HTTPException
-from hypertest.application.cloud_tasks import _check_run_entrypoint, _task_inputs_with_runtime_defaults
 
 
 def environment():
@@ -52,7 +57,7 @@ def test_task_draft_inherits_local_only_runtime_envelope():
     assert result["authorization"]["targets"] == [configuration()["sut"]["url"], configuration()["framework"]["url"]]
     assert result["authorization"]["permitted_actions"] == ["git:read", "framework:execute"]
     assert result["authorization"]["network_targets"] == []
-    assert result["budgets"]["accounting_unit"] == "REQUEST_CREDITS"
+    assert result["budgets"] is None
 
 
 def test_existing_explicit_task_envelope_is_preserved():
@@ -64,7 +69,7 @@ def test_existing_explicit_task_envelope_is_preserved():
     assert result["budgets"]["total_seconds"] == draft["budgets"]["total_seconds"]
 
 
-def test_update_without_envelope_preserves_old_authorization_and_budget():
+def test_update_without_envelope_preserves_authorization_and_removes_old_draft_budget():
     from test_cloud_tasks import configuration, inputs
     original = TaskInputs.model_validate(inputs()).model_dump(mode="json")
     edited = dict(original)
@@ -72,7 +77,91 @@ def test_update_without_envelope_preserves_old_authorization_and_budget():
     edited.pop("budgets")
     result = _task_inputs_with_runtime_defaults(TaskInputs.model_validate(edited), configuration(), datetime.now(UTC), original=original)
     assert result["authorization"] == original["authorization"]
-    assert result["budgets"] == original["budgets"]
+    assert result["budgets"] is None
+
+
+def test_update_cannot_add_or_change_a_task_budget():
+    from test_cloud_tasks import configuration, inputs
+    original = TaskInputs.model_validate(inputs()).model_dump(mode="json")
+    changed = deepcopy(original)
+    changed["budgets"]["max_attempts"] += 1
+    with pytest.raises(HTTPException, match="budget cannot be configured or changed"):
+        _task_inputs_with_runtime_defaults(TaskInputs.model_validate(changed), configuration(), datetime.now(UTC), original=original)
+    original["budgets"] = None
+    with pytest.raises(HTTPException, match="budget cannot be configured or changed"):
+        _task_inputs_with_runtime_defaults(TaskInputs.model_validate(changed), configuration(), datetime.now(UTC), original=original)
+
+
+async def test_create_rejects_new_platform_budget_but_original_receipt_still_recovers(monkeypatch):
+    from test_cloud_tasks import inputs
+
+    from hypertest.application import cloud_tasks
+    payload = CloudTaskCreate(project_id=uuid4(), operation_key="fixture-create", expected_version=0,
+        title="fixture", config_id=uuid4(), inputs=inputs())
+    db = SimpleNamespace(scalar=AsyncMock(return_value=None))
+    monkeypatch.setattr(cloud_tasks, "project", AsyncMock())
+    monkeypatch.setattr(cloud_tasks, "_lock", AsyncMock())
+    monkeypatch.setattr(cloud_tasks, "_reject_secrets", AsyncMock())
+    monkeypatch.setattr(cloud_tasks, "enabled", lambda: None)
+    with pytest.raises(HTTPException) as exc:
+        await cloud_tasks.mutate(db, payload, "original-actor")
+    assert exc.value.status_code == 422 and exc.value.detail == "Cloud Task budget is not accepted"
+    original = {"status": "ACCEPTED", "task_id": str(uuid4())}
+    db.scalar.return_value = SimpleNamespace(actor_ref="original-actor", operation="CREATE_TASK",
+        input_digest=cloud_tasks.canonical_json_sha256(cloud_tasks._safe_payload(payload)), response=original)
+    assert await cloud_tasks.mutate(db, payload, "original-actor") == original
+
+
+async def test_frozen_legacy_task_rejects_new_attempt_before_reusing_old_input(monkeypatch):
+    from hypertest.application import cloud_tasks
+    task_id, project_id = uuid4(), uuid4()
+    payload = CloudDispatch(project_id=project_id, operation_key="fixture-retry", expected_version=1,
+        task_id=task_id, retry_of_attempt_id=uuid4(), reason="explicit synthetic retry")
+    task = SimpleNamespace(id=task_id, project_id=project_id, version=1, status="COMPLETED", inputs={"budgets": {}})
+    db = SimpleNamespace(scalar=AsyncMock(return_value=None), get=AsyncMock(return_value=None))
+    monkeypatch.setattr(cloud_tasks, "project", AsyncMock())
+    monkeypatch.setattr(cloud_tasks, "_lock", AsyncMock())
+    monkeypatch.setattr(cloud_tasks, "_task", AsyncMock(return_value=task))
+    monkeypatch.setattr(cloud_tasks, "_reject_secrets", AsyncMock())
+    monkeypatch.setattr(cloud_tasks, "enabled", lambda: None)
+    with pytest.raises(HTTPException) as exc:
+        await cloud_tasks.mutate(db, payload, "original-actor")
+    assert exc.value.status_code == 409
+    assert "create a related task" in exc.value.detail
+
+
+@pytest.mark.parametrize("kind", ["ssh", "http", "action"])
+async def test_lease_only_remote_start_rejected_before_writing_intent(monkeypatch, kind):
+    from hypertest.application import cloud_actions, cloud_http, cloud_ssh, cloud_tasks
+    task = SimpleNamespace(inputs={"budgets": None})
+    attempt = SimpleNamespace(status="RUNNING", id=uuid4())
+    db = SimpleNamespace(scalar=AsyncMock(return_value=None), add=AsyncMock(), commit=AsyncMock())
+
+    class Session:
+        async def __aenter__(self):
+            return db
+
+        async def __aexit__(self, *_args):
+            return False
+
+    if kind == "action":
+        monkeypatch.setattr(cloud_actions, "controlled_actions_enabled", lambda: True)
+        monkeypatch.setattr(cloud_tasks, "enabled", lambda: None)
+        monkeypatch.setattr(cloud_tasks, "worker_authority", AsyncMock())
+        authority = cloud_actions.WorkerActionAuthority(Session, task_id=str(uuid4()), attempt_id=str(uuid4()), identity=None)
+        call = authority._authorized(db, task, attempt, "fixture")
+        expected = "CLOUD_ACTION_LEASE_ONLY_UNSUPPORTED"
+    else:
+        cls = cloud_ssh.WorkerSshAuthority if kind == "ssh" else cloud_http.WorkerHttpAuthority
+        authority = cls(Session, task_id=str(uuid4()), attempt_id=str(uuid4()), identity=None)
+        monkeypatch.setattr(authority, "_task_attempt", AsyncMock(return_value=(task, attempt)))
+        call = authority.prepare_start("original-key", "fixture")
+        expected = "SSH_LEASE_ONLY_UNSUPPORTED" if kind == "ssh" else "HTTPS_LEASE_ONLY_UNSUPPORTED"
+    with pytest.raises(HTTPException) as exc:
+        await call
+    assert exc.value.status_code == 409 and exc.value.detail == expected
+    db.add.assert_not_called()
+    db.commit.assert_not_awaited()
 
 
 def test_run_entrypoint_allows_unrestricted_reporting_but_keeps_explicit_list():

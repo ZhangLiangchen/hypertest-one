@@ -2376,6 +2376,8 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 
 ### 51.3 六步输入冻结
 
+**ADR-031（2026-11-02）覆盖：** 新 CloudTask 的 `budgets` 为 null，不接受任务预算输入，不生成预算 hold / settlement。模型、推理和插件由云端 Harness 原生 `sdk` profile 管理。下文预算字段、累计额度和结算规则只解释旧冻结任务及其历史对账；旧冻结任务不能重新下发，未冻结且无 Attempt 的旧 DRAFT 在编辑或重新解析时移除预算并更新版本。隔离、授权、lease/fence 和原 key 未知操作恢复继续有效。新模式的受控 SSH、HTTPS 与外部写暂不支持。
+
 1. 在云端创建或复用 Project，并登记/可选保存资源配置及凭据版本。
 2. 在云端创建 DRAFT CloudTask，选择 SUT branch / feat / MR / SHA、framework ref，提供 PRD、测试目标、基本流程和测试范围并复用项目环境。创建界面不输入授权、预算、框架命令或 Agent 配置。feat 是需求/变更标签，必须有可解析 Git 选择器，不能替代源码身份。
 3. 先用 `ResolveCloudInputs` 将 DRAFT 的资源版本与选择器交给受限 Worker 解析，形成不可变 CloudInputResolution；Git/环境预检在 Worker 和聚合行锁外进行，API 不运行 Git。显式 dispatch 引用 resolution_id，重新检查授权、draft/config version 与 expected_version，原子接受冻结 manifest、首个 QUEUED Attempt、操作回执、Audit 和 Outbox。排队成功不代表已启动 Harness 或测试通过。

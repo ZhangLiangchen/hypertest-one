@@ -16,17 +16,25 @@ from pydantic import TypeAdapter
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from hypertest.api.cloud_schemas import CloudMutation
+from hypertest.api.cloud_schemas import CloudMutation, TaskInputs
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application import cloud_tasks as service
 from hypertest.application.services import create_project
 from hypertest.cloud.broker import CloudBroker
 from hypertest.cloud.reporter import CloudTaskReporter
 from hypertest.cloud.worker import CloudWorker
-from hypertest.common.ids import public_key
+from hypertest.common.ids import public_key, uuid7
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask, CloudWorkGrant, CredentialVersion
+from hypertest.domain.cloud_tasks import (
+    CloudAttempt,
+    CloudInputResolution,
+    CloudOperationReceipt,
+    CloudTask,
+    CloudWorkGrant,
+    CredentialVersion,
+    ProjectCloudConfigRevision,
+)
 from hypertest.main import app
 
 SHA = "1" * 40
@@ -82,6 +90,13 @@ def inputs(**changes):
             "budgets": {"total_seconds": 600, "total_cost_microunits": 10000}, **changes}
 
 
+def new_inputs(**changes):
+    """Current creation contract; historical budget fixtures use inputs()."""
+    data = inputs(**changes)
+    data.pop("budgets", None)
+    return data
+
+
 async def post(context, operation, expected_version=0, operation_key=None, **fields):
     response = await context["client"].post("/api/v1/cloud/operations", headers=context["headers"], json={
         "project_id": context["project_id"], "operation": operation,
@@ -93,8 +108,9 @@ async def post(context, operation, expected_version=0, operation_key=None, **fie
 async def draft(context, *, config=None, task_inputs=None):
     configured = await post(context, "CONFIGURE", configuration=config or configuration())
     assert configured.status_code == 200, configured.text
+    task_data = task_inputs if task_inputs is not None else new_inputs()
     created = await post(context, "CREATE_TASK", title="Cloud synthetic fixture", config_id=configured.json()["config_id"],
-                         inputs=task_inputs or inputs())
+                         inputs=task_data)
     assert created.status_code == 200, created.text
     return created.json()
 
@@ -120,14 +136,70 @@ async def dispatched(context, *, framework_sha=FRAMEWORK_SHA, **draft_options):
     return accepted.json()
 
 
-async def claimed(context, **draft_options):
-    dispatched_task = await dispatched(context, **draft_options)
+async def legacy_dispatched(context, *, config=None, task_inputs=None, framework_sha=FRAMEWORK_SHA):
+    """Seed a historical frozen budgeted attempt in the dedicated test DB.
+
+    New CREATE/DISPATCH intentionally reject this legacy contract. The fixture
+    inserts a coherent frozen manifest, original attempt and receipt explicitly;
+    it does not change the current API or replay any external action.
+    """
+    configured = await post(context, "CONFIGURE", configuration=config or configuration())
+    assert configured.status_code == 200, configured.text
+    project_id, config_id = UUID(context["project_id"]), UUID(configured.json()["config_id"])
+    task_id, resolution_id, attempt_id = uuid7(), uuid7(), uuid7()
+    task_input = TaskInputs.model_validate(task_inputs or inputs()).model_dump(mode="json")
+    assert task_input["budgets"] is not None
+    now = datetime.now(UTC)
+    result = {"repositories": {
+        "sut": {"url": ORIGIN, "commit_sha": SHA, "selector": task_input["sut_selector"]},
+        "framework": {"url": FRAMEWORK_ORIGIN, "commit_sha": framework_sha,
+                      "selector": task_input["framework_selector"]}},
+        "environment_observation": {"deployment": "UNKNOWN", "source": "synthetic-fixture"},
+        "observed_at": now.isoformat(), "source": "synthetic-fixture-no-git-executed"}
+    async with AsyncSessionLocal() as db:
+        revision = await db.get(ProjectCloudConfigRevision, config_id)
+        manifest = {"profile": service.PROFILE, "project_id": str(project_id), "cloud_task_id": str(task_id),
+            "config_id": str(config_id), "config_revision": revision.revision, "configuration": revision.configuration,
+            "inputs": task_input, "resolution": result, "resolution_id": str(resolution_id),
+            "prd_sha256": hashlib.sha256(task_input["prd_markdown"].encode()).hexdigest()}
+        digest = service.canonical_json_sha256(manifest)
+        task = CloudTask(id=task_id, project_id=project_id, owner_actor_ref="legacy-fixture",
+            title="Cloud synthetic legacy fixture", config_id=config_id, inputs=task_input,
+            status="QUEUED", version=4, reported_result="NOT_RUN", frozen_manifest=manifest, input_digest=digest)
+        db.add(task)
+        await db.flush()
+        resolution = CloudInputResolution(id=resolution_id, project_id=project_id, task_id=task_id,
+            operation_key="legacy-resolve-" + uuid4().hex, source_draft_version=2, accepted_task_version=3,
+            source_digest=service.canonical_json_sha256({"inputs": task_input, "config_id": str(config_id), "config_digest": revision.digest}),
+            status="ACCEPTED", result=result, digest=service.canonical_json_sha256(result),
+            requested_by="legacy-fixture", accepted_at=now, grant_id=UUID(context["grant"]["grant_id"]))
+        attempt = CloudAttempt(id=attempt_id, project_id=project_id, task_id=task_id, attempt_no=1,
+            input_digest=digest, status="QUEUED", reported_result="NOT_RUN", lease_generation=0,
+            checkpoint={}, runtime_metadata={}, usage_seconds=0, cost_microunits=0,
+            authorization_grant_id=UUID(context["grant"]["grant_id"]))
+        db.add_all([resolution, attempt])
+        await db.flush()
+        task.latest_attempt_id = attempt_id
+        await db.flush()
+        operation_key = "legacy-dispatch-" + uuid4().hex
+        response = {"status": "ACCEPTED", "profile": service.PROFILE, "project_id": str(project_id),
+            "operation_key": operation_key, "operation": "DISPATCH", "version": 4, "task_id": str(task_id),
+            "attempt_id": str(attempt_id), "input_digest": digest}
+        db.add(CloudOperationReceipt(id=uuid7(), project_id=project_id, task_id=task_id, attempt_id=attempt_id,
+            operation_key=operation_key, operation="DISPATCH", actor_ref="legacy-fixture", input_digest="0" * 64,
+            expected_version=3, accepted_version=4, response=response, task_snapshot=await service._snapshot(db, task)))
+        await db.commit()
+    return response
+
+
+async def legacy_claimed(context, **draft_options):
+    receipt = await legacy_dispatched(context, **draft_options)
     async with AsyncSessionLocal() as db:
         claim = await service.claim_attempt(db, "fixture-worker", project_id=UUID(context["project_id"]))
     assert type(claim["budget_remaining"]["seconds"]) is int
     assert type(claim["budget_remaining"]["cost_microunits"]) is int
     identity = service.WorkerIdentity("fixture-worker", claim["lease_token"], claim["generation"], claim["work_token"])
-    return dispatched_task, claim, identity
+    return receipt, claim, identity
 
 
 async def worker_submit(context, identity, receipt, operation, **fields):
@@ -254,7 +326,7 @@ async def test_secret_roundtrip_is_encrypted_scoped_and_binds_idempotency(cloud_
 
 async def test_running_cancel_fences_worker_and_requires_observed_reconciliation(cloud_context):
     context = cloud_context
-    current, _, identity = await claimed(context)
+    current, _, identity = await legacy_claimed(context)
     running = await worker_submit(context, identity, current, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 60, "request_limits": [{"scope": "ROOT", "max_requests": 1, "cost_per_request_microunits": 1}]})
     cancelled = await post(context, "CANCEL_ATTEMPT", running["version"], task_id=running["task_id"],
@@ -275,8 +347,7 @@ async def test_running_cancel_fences_worker_and_requires_observed_reconciliation
     assert reconciled.status_code == 200, reconciled.text
     retry = await post(context, "DISPATCH", reconciled.json()["version"], task_id=latest["task_id"],
         retry_of_attempt_id=latest["attempt_id"], reason="Explicit same-input fixture retry")
-    assert retry.status_code == 200, retry.text
-    assert retry.json()["attempt_id"] != latest["attempt_id"]
+    assert retry.status_code == 409 and "create a related task" in retry.text
 
 
 async def test_recovery_capabilities_disable_unimplemented_resume_without_new_claim(cloud_context):
@@ -284,7 +355,7 @@ async def test_recovery_capabilities_disable_unimplemented_resume_without_new_cl
     capabilities = (await context["client"].get("/api/v1/cloud/capabilities")).json()
     assert capabilities["supported"]["resume_attempt"] is False
     assert capabilities["recovery"]["resume_reason"] == "SDK_RESUME_UNSUPPORTED"
-    receipt, _, identity = await claimed(context)
+    receipt, _, identity = await legacy_claimed(context)
     recovery = await worker_submit(context, identity, receipt, "TRANSITION", status="RECOVERY_REQUIRED",
         checkpoint={"session_id": "original-session", "workspace_id": "original-workspace"})
     resumed = await post(context, "RESUME_ATTEMPT", recovery["version"], task_id=receipt["task_id"],
@@ -299,7 +370,7 @@ async def test_recovery_capabilities_disable_unimplemented_resume_without_new_cl
 
 async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_hold(cloud_context):
     context = cloud_context
-    receipt, _, identity = await claimed(context)
+    receipt, _, identity = await legacy_claimed(context)
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 60, "request_limits": [
             {"scope": "ROOT", "max_requests": 1, "cost_per_request_microunits": 100}]})
@@ -343,7 +414,7 @@ async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_
 @pytest.mark.parametrize("pending_kind", ["platform_key", "delegation"])
 async def test_manual_reconcile_cannot_erase_original_unknown_operations(cloud_context, pending_kind):
     context = cloud_context
-    receipt, _, identity = await claimed(context)
+    receipt, _, identity = await legacy_claimed(context)
     if pending_kind == "delegation":
         receipt = await worker_submit(context, identity, receipt, "SUBMIT_DELEGATION",
             delegation_key="unobserved-child", provider="codex", responsibility="Synthetic work",
@@ -371,7 +442,7 @@ async def test_manual_reconcile_cannot_erase_original_unknown_operations(cloud_c
 
 async def test_original_worker_safety_fence_prevents_restart_and_ordinary_writes(cloud_context):
     context = cloud_context
-    receipt, _, identity = await claimed(context)
+    receipt, _, identity = await legacy_claimed(context)
     original = await read_all(context, receipt["task_id"], receipt["version"])
     wrong_identity = service.WorkerIdentity(identity.worker_id, identity.lease_token, identity.generation + 1, identity.work_token)
     async with AsyncSessionLocal() as db:
@@ -397,7 +468,7 @@ async def test_original_worker_safety_fence_prevents_restart_and_ordinary_writes
 
 async def test_stage_checkpoint_raw_report_and_failure_are_preserved(cloud_context):
     context = cloud_context
-    receipt, _, identity = await claimed(context)
+    receipt, _, identity = await legacy_claimed(context)
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 60, "request_limits": [{"scope": "ROOT", "max_requests": 1, "cost_per_request_microunits": 1}]})
     report_bytes = b'{"fixture":true,"reported_result":"FAIL","actual":"synthetic mismatch"}'
@@ -468,7 +539,7 @@ async def test_framework_process_handoffs_and_report_readback(cloud_context, tmp
                     "commit", "-qm", "Synthetic test framework"], check=True, timeout=10)
     framework_sha = subprocess.run(["git", "-C", str(framework), "rev-parse", "HEAD"], capture_output=True,
                                    text=True, check=True, timeout=10).stdout.strip()
-    receipt, claim, identity = await claimed(context, framework_sha=framework_sha,
+    receipt, claim, identity = await legacy_claimed(context, framework_sha=framework_sha,
                                               task_inputs=inputs(framework_entrypoints=[entrypoint]))
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 60, "request_limits": [{"scope": "ROOT", "max_requests": 1,
@@ -543,7 +614,7 @@ async def test_framework_process_handoffs_and_report_readback(cloud_context, tmp
 
 async def test_budget_hold_survives_lease_loss_and_operator_reconciliation(cloud_context):
     context = cloud_context
-    receipt, _, identity = await claimed(context)
+    receipt, _, identity = await legacy_claimed(context)
     with pytest.raises(HTTPException, match="reservation"):
         await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING")
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
@@ -565,7 +636,7 @@ async def test_budget_hold_survives_lease_loss_and_operator_reconciliation(cloud
     assert reconciled.status_code == 200, reconciled.text
     retry = await post(context, "DISPATCH", reconciled.json()["version"], task_id=receipt["task_id"],
         retry_of_attempt_id=receipt["attempt_id"], reason="Must not reset uncertain usage")
-    assert retry.status_code == 409 and "budget" in retry.text
+    assert retry.status_code == 409 and "create a related task" in retry.text
     with pytest.raises(HTTPException, match="stale"):
         await worker_submit(context, identity, reconciled.json(), "TRANSITION", status="FAILED",
             usage_seconds=1, cost_microunits=100, budget_settlement={"observed_seconds": 1,
@@ -576,7 +647,7 @@ async def test_stopped_broker_accounting_settles_hold_and_preserves_its_history(
     context = cloud_context
     task_inputs = inputs()
     task_inputs["budgets"]["accounting_unit"] = "REQUEST_CREDITS"
-    receipt, _, identity = await claimed(context, task_inputs=task_inputs)
+    receipt, _, identity = await legacy_claimed(context, task_inputs=task_inputs)
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
         budget_reservation={"accounting_unit": "REQUEST_CREDITS", "reserved_seconds": 600,
             "request_limits": [{"scope": "ROOT", "max_requests": 10, "cost_per_request_microunits": 1000}]})
@@ -601,15 +672,15 @@ async def test_stopped_broker_accounting_settles_hold_and_preserves_its_history(
     assert historical["attempts"][-1]["runtime_metadata"]["budget_reservation"]["state"] == "HELD"
     retry = await post(context, "DISPATCH", final["version"], task_id=receipt["task_id"],
         retry_of_attempt_id=receipt["attempt_id"], reason="Explicit remaining-credit fixture retry")
-    assert retry.status_code == 200, retry.text
+    assert retry.status_code == 409 and "create a related task" in retry.text
     async with AsyncSessionLocal() as db:
-        next_claim = await service.claim_attempt(db, "next-budget-worker", project_id=UUID(context["project_id"]))
-    assert next_claim["budget_remaining"] == {"seconds": 598, "cost_microunits": 9000}
+        count, seconds, cost = await service._task_budget_usage(db, UUID(receipt["task_id"]))
+    assert (count, seconds, cost) == (1, 2, 1000)
 
 
 async def test_preparation_time_is_held_before_git_or_any_model_start(cloud_context):
     context = cloud_context
-    receipt, claim, _ = await claimed(context)
+    receipt, claim, _ = await legacy_claimed(context)
     assert claim["attempt"]["runtime_metadata"]["preparation_budget_reservation"]["reserved_seconds"] == 60
     assert claim["attempt"]["usage_seconds"] == 0 and claim["attempt"]["cost_microunits"] == 0
     cancelled = await post(context, "CANCEL_ATTEMPT", receipt["version"], task_id=receipt["task_id"],
@@ -620,10 +691,10 @@ async def test_preparation_time_is_held_before_git_or_any_model_start(cloud_cont
             "external_operations_reconciled": True, "observations": "Keep preparation hold; no fabricated measured usage"})
     retry = await post(context, "DISPATCH", reconciled.json()["version"], task_id=receipt["task_id"],
         retry_of_attempt_id=receipt["attempt_id"], reason="Explicit new preparation fixture")
-    assert retry.status_code == 200, retry.text
+    assert retry.status_code == 409 and "create a related task" in retry.text
     async with AsyncSessionLocal() as db:
-        next_claim = await service.claim_attempt(db, "next-preparation-worker", project_id=UUID(context["project_id"]))
-    assert next_claim["budget_remaining"]["seconds"] == 540
+        count, seconds, cost = await service._task_budget_usage(db, UUID(receipt["task_id"]))
+    assert (count, seconds, cost) == (1, 60, 0)
 
 
 async def test_local_archive_remains_independent_when_cloud_is_disabled(cloud_context, monkeypatch):
@@ -668,7 +739,7 @@ async def test_credential_revocation_stops_current_worker_even_when_cloud_disabl
     config = configuration()
     for role in ("sut", "framework"):
         config[role]["credential_version_id"] = stored.json()["credential_version_id"]
-    receipt, _, identity = await claimed(context, config=config)
+    receipt, _, identity = await legacy_claimed(context, config=config)
     async with AsyncSessionLocal() as db:
         material = await service.materialize_credentials(db, UUID(receipt["task_id"]), UUID(receipt["attempt_id"]), identity)
         assert material == {"SUT": b"synthetic-host-only-value", "FRAMEWORK": b"synthetic-host-only-value"}
@@ -732,7 +803,7 @@ async def test_existing_escaped_secret_cannot_enter_nested_testing_assets(cloud_
 @pytest.mark.parametrize("scope_gap", ["missing_target", "missing_git_read", "expired"])
 async def test_input_resolution_checks_original_authorization_before_any_git_access(cloud_context, scope_gap):
     context = cloud_context
-    task_inputs = inputs()
+    task_inputs = new_inputs()
     if scope_gap == "missing_target":
         task_inputs["authorization"]["targets"] = [ORIGIN]
     elif scope_gap == "missing_git_read":
@@ -749,7 +820,7 @@ async def test_input_resolution_checks_original_authorization_before_any_git_acc
 async def test_resolution_rechecks_expiration_at_claim_and_materialization(cloud_context, monkeypatch):
     context = cloud_context
     now = datetime.now(UTC)
-    task_inputs = inputs()
+    task_inputs = new_inputs()
     task_inputs["authorization"]["expires_at"] = (now + timedelta(seconds=60)).isoformat()
     created = await draft(context, task_inputs=task_inputs)
     requested = await post(context, "RESOLVE_INPUTS", 1, task_id=created["task_id"])
@@ -770,7 +841,7 @@ async def test_resolution_rechecks_expiration_at_claim_and_materialization(cloud
 
 async def test_live_summary_observes_claim_and_expiry_without_rewriting_fixed_history(cloud_context, monkeypatch):
     context = cloud_context
-    receipt, _, _ = await claimed(context)
+    receipt, _, _ = await legacy_claimed(context)
     original = await read_all(context, receipt["task_id"], receipt["version"])
     params = {"project_id": context["project_id"]}
     endpoint = f"/api/v1/cloud/tasks/{receipt['task_id']}/summary"
@@ -819,7 +890,7 @@ async def test_fixed_cancellation_fences_worker_when_wrapping_key_is_unavailable
     config = configuration()
     for role in ("sut", "framework"):
         config[role]["credential_version_id"] = stored.json()["credential_version_id"]
-    receipt, _, identity = await claimed(context, config=config)
+    receipt, _, identity = await legacy_claimed(context, config=config)
     from pathlib import Path
     Path(get_settings().cloud_credential_key_file).unlink()
     fields = {"task_id": receipt["task_id"], "attempt_id": receipt["attempt_id"]}
@@ -851,7 +922,7 @@ async def test_cloud_task_edit_delete_readback_and_original_key(cloud_context):
     task_id = created["task_id"]
     original = await read_all(context, task_id, 1)
     updated = await post(context, "UPDATE_TASK", 1, task_id=task_id, title="Edited fixture",
-                         config_id=original["task"]["config_id"], inputs=inputs(objective="Edited objective"))
+                         config_id=original["task"]["config_id"], inputs=new_inputs(objective="Edited objective"))
     assert updated.status_code == 200, updated.text
     changed = await read_all(context, task_id, updated.json()["version"])
     assert changed["task"]["title"] == "Edited fixture"

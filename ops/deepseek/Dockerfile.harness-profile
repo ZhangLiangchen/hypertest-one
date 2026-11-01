@@ -1,0 +1,22 @@
+# Operator-only CLI image. Build from the same pinned Worker image used for
+# execution; never use this image as the Attempt runtime.
+ARG NODE_IMAGE=node:22-bookworm-slim
+ARG WORKER_IMAGE
+FROM ${NODE_IMAGE} AS node
+FROM ${WORKER_IMAGE}
+USER root
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+# The pnpm named build context is an existing official pnpm package directory.
+# Reusing it avoids downloading or installing packages on every task.
+COPY --from=pnpm / /opt/hypertest-cloud/pnpm
+RUN ln -s /opt/hypertest-cloud/pnpm/bin/pnpm.cjs /usr/local/bin/pnpm \
+    && chmod -R a+rX /opt/hypertest-cloud/pnpm \
+    && chmod a+x /opt/hypertest-cloud/pnpm/bin/pnpm.cjs \
+    && /usr/local/bin/pnpm --version
+COPY ops/deepseek/harness_profile_cli.py /opt/hypertest-cloud/harness_profile_cli.py
+COPY ops/deepseek/harness_profile_patch.py /opt/hypertest-cloud/harness_profile_patch.py
+ENV DSH_HOME=/var/lib/hypertest-cloud/harness HOME=/var/lib/hypertest-cloud/harness \
+    PATH=/usr/local/bin:/usr/bin:/bin
+USER 997:988
+WORKDIR /var/lib/hypertest-cloud/harness
+ENTRYPOINT ["/opt/hypertest-cloud/venv/bin/python", "/opt/hypertest-cloud/harness_profile_cli.py"]

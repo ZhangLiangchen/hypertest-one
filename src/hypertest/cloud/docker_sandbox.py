@@ -74,7 +74,7 @@ class DockerSandbox:
                 raise CloudBlocked("DOCKER_ORIGINAL_OPERATION_QUERY_ONLY", "An original container cannot be started again")
             if config.get("native_delegation") is not None or self.reporter.pending():
                 raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Container execution requires an idle report stream and no native delegation")
-            if self.spec["scope"]["deadline_epoch"] <= time.time():
+            if self.spec["scope"]["deadline_epoch"] and self.spec["scope"]["deadline_epoch"] <= time.time():
                 raise CloudBlocked("RUNTIME_BUDGET_EXHAUSTED", "The original container deadline has expired")
             recovery_root = self.private_root / "container-recovery"
             recovery_root.mkdir(mode=0o700)

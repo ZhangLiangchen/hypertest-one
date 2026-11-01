@@ -1,7 +1,9 @@
-"""Frozen, explicitly selected source files for an untrusted Cloud Agent.
+"""Bounded, scanned source files for an untrusted Cloud Agent.
 
 The complete Git checkout remains in the Worker-only runtime directory.  The
-Agent receives only the operator-selected file bytes, never a Git object store.
+Agent receives only validated file bytes, never a Git object store. A current
+task without a selected list may derive one from its two frozen Git commits.
+Unsafe or unsupported content blocks the export instead of being omitted.
 This is not a credential vault or a way to execute an authenticated request.
 """
 from __future__ import annotations
@@ -82,7 +84,7 @@ def _open_root(path: Path) -> int:
     return descriptor
 
 
-def _read(root: int, path: str, expected: str, remaining: int) -> tuple[bytes, bool]:
+def _read(root: int, path: str, expected: str | None, remaining: int) -> tuple[bytes, bool]:
     descriptors = []
     try:
         parent = root
@@ -108,12 +110,83 @@ def _read(root: int, path: str, expected: str, remaining: int) -> tuple[bytes, b
         after = os.fstat(fd)
         if ((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
                 != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
-                or hashlib.sha256(raw).hexdigest() != expected):
+                or (expected is not None and hashlib.sha256(raw).hexdigest() != expected)):
             raise _blocked("SOURCE_EXPORT_DIGEST_MISMATCH")
         return raw, bool(before.st_mode & stat.S_IXUSR)
     finally:
         for fd in reversed(descriptors):
             os.close(fd)
+
+
+async def derive_checkout_export(*, sources: dict[str, Path], repositories: dict) -> dict:
+    """Derive a complete policy from two privately checked-out frozen commits.
+
+    This is a Worker observation, not a user-authored selection. Git links,
+    symlinks, LFS pointers, unsafe paths, binary files and excessive exports
+    fail closed rather than being omitted. export_sources still verifies all
+    hashes and scans both repositories before releasing any bytes.
+    """
+    from .git import SHA, _git
+
+    if set(sources) != {"sut", "framework"} or set(repositories) != {"sut", "framework"}:
+        raise _blocked()
+    env = {"PATH": os.defpath, "HOME": "/nonexistent", "LANG": "C.UTF-8",
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+           "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1",
+           "GIT_OPTIONAL_LOCKS": "0"}
+    result = {"profile": PROFILE}
+    total_bytes = total_files = 0
+    try:
+        for role in ("sut", "framework"):
+            repository = repositories[role]
+            commit = repository.get("commit_sha") if isinstance(repository, dict) else None
+            if not isinstance(commit, str) or not SHA.fullmatch(commit):
+                raise _blocked("SOURCE_EXPORT_COMMIT_INVALID")
+            root = Path(sources[role])
+            descriptor = _open_root(root)
+            try:
+                head = await _git(["rev-parse", "--verify", "HEAD^{commit}"], env=env, cwd=root)
+                if head != commit:
+                    raise _blocked("SOURCE_EXPORT_COMMIT_MISMATCH")
+                try:
+                    await _git(["diff", "--no-ext-diff", "--no-textconv", "--quiet", commit, "--"], env=env, cwd=root)
+                except CloudBlocked:
+                    raise _blocked("SOURCE_EXPORT_CHECKOUT_CHANGED") from None
+                tree = await _git(["ls-tree", "-r", "-z", "--full-tree", commit], env=env, cwd=root)
+                if not tree or not tree.endswith("\0"):
+                    raise _blocked("SOURCE_EXPORT_EMPTY_TREE")
+                entries = []
+                for record in tree[:-1].split("\0"):
+                    try:
+                        metadata, path = record.split("\t", 1)
+                        mode, kind, object_id = metadata.split(" ")
+                    except ValueError:
+                        raise _blocked() from None
+                    if mode not in {"100644", "100755"} or kind != "blob" or not SHA.fullmatch(object_id):
+                        raise _blocked("SOURCE_EXPORT_UNSUPPORTED_GIT_ENTRY")
+                    path = _path(path)
+                    total_files += 1
+                    if total_files > MAX_FILES:
+                        raise _blocked("SOURCE_EXPORT_FILE_LIMIT")
+                    raw, _ = _read(descriptor, path, None, MAX_BYTES - total_bytes)
+                    total_bytes += len(raw)
+                    if b"\x00" in raw:
+                        raise _blocked("SOURCE_EXPORT_NON_TEXT")
+                    try:
+                        raw.decode("utf-8")
+                    except UnicodeDecodeError:
+                        raise _blocked("SOURCE_EXPORT_NON_TEXT") from None
+                    if raw.splitlines()[:1] == [b"version https://git-lfs.github.com/spec/v1"]:
+                        raise _blocked("SOURCE_EXPORT_LFS_UNAVAILABLE")
+                    entries.append({"path": path, "sha256": hashlib.sha256(raw).hexdigest()})
+                result[role] = entries
+            finally:
+                os.close(descriptor)
+        return validate_export(result)
+    except CloudBlocked:
+        raise
+    except (OSError, UnicodeError, TypeError, ValueError):
+        raise _blocked() from None
 
 
 def _write(root: int, path: str, raw: bytes, executable: bool) -> None:

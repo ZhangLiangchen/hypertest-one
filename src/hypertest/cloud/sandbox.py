@@ -41,9 +41,9 @@ def require_cloud_environment_route(environment: dict) -> None:
 
 @dataclass(frozen=True)
 class SandboxPolicy:
-    timeout_seconds: int
-    max_model_requests: int
-    max_tokens: int
+    timeout_seconds: int | None
+    max_model_requests: int | None
+    max_tokens: int | None
     # RLIMIT_AS limits virtual address space, not physical RAM. The pinned
     # Codex Code Mode V8 host needs the finite 16 GiB native profile; aggregate
     # physical memory/swap/pids remain independently enforced by the cgroup.
@@ -116,10 +116,14 @@ class SandboxPolicy:
                     "Controlled actions require the exact frozen HTTPS target, framework and read/write authorization") from None
         if environment.get("require_matching_deployment"):
             raise CloudBlocked("DEPLOYMENT_UNOBSERVED", "Workspace-local runtime cannot attest remote deployment identity")
-        if not 1 <= self.timeout_seconds <= inputs["budgets"]["total_seconds"]:
-            raise CloudBlocked("RUNTIME_BUDGET_INVALID", "Runtime deadline exceeds its frozen task budget")
-        if not 1 <= self.max_model_requests <= 10000 or not 1 <= self.max_tokens <= 49152:
-            raise CloudBlocked("MODEL_LIMITS_INVALID", "Model request/token limits are outside the supported profile")
+        if inputs.get("budgets") is None:
+            if self.timeout_seconds is not None or self.max_model_requests is not None or self.max_tokens is not None:
+                raise CloudBlocked("RUNTIME_BUDGET_INVALID", "Harness-managed tasks must not inherit a task budget")
+        else:
+            if not 1 <= self.timeout_seconds <= inputs["budgets"]["total_seconds"]:
+                raise CloudBlocked("RUNTIME_BUDGET_INVALID", "Runtime deadline exceeds its frozen task budget")
+            if not 1 <= self.max_model_requests <= 10000 or not 1 <= self.max_tokens <= 49152:
+                raise CloudBlocked("MODEL_LIMITS_INVALID", "Model request/token limits are outside the supported profile")
 
 
 def capability_report(*, ssh_admitted: bool = False, https_admitted: bool = False) -> dict:
@@ -363,4 +367,5 @@ def apply_resource_limits(policy: SandboxPolicy) -> None:
     resource.setrlimit(resource.RLIMIT_FSIZE, (128 * 1024 * 1024,) * 2)
     resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
     resource.setrlimit(resource.RLIMIT_AS, (policy.memory_bytes,) * 2)
-    resource.setrlimit(resource.RLIMIT_CPU, (policy.timeout_seconds + 10,) * 2)
+    if policy.timeout_seconds is not None:
+        resource.setrlimit(resource.RLIMIT_CPU, (policy.timeout_seconds + 10,) * 2)

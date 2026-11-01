@@ -47,6 +47,7 @@ def load_handoff(workspace: Path, relative: str, *, task_id: str, attempt_id: st
 
 
 def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
+                native_harness: bool = False,
                 ssh_profile: SshProfile | None = None, memory_enabled: bool = False,
                 http_profile: HttpProfile | None = None, controlled_actions: dict | None = None) -> str:
     """Only non-secret frozen testing inputs; Agent gets no management token."""
@@ -104,7 +105,14 @@ def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
             "Use python -m hypertest.cloud.action_client invoke ACTION_KEY, then observe ACTION_KEY to check the original business order; query ACTION_KEY reads the original operation. HTTP response alone is not business completion. Wait for a business terminal before invoking another action. If outcome remains unknown, stop and report it; never replay or replace an unknown action.",
             "HTTP_OBSERVED is a transport observation and does not prove business completion, chain receipt or PASS. Unknown or unobserved business actions block completion.",
         ])
-    if allow_delegation:
+    if native_harness:
+        envelope["capabilities"]["external_codex_or_claude"] = "HARNESS_CONFIGURED_UNVERIFIED"
+        envelope["capabilities"]["codex"] = "HARNESS_CONFIGURED_UNVERIFIED"
+        envelope["capabilities"]["claude_code"] = "HARNESS_CONFIGURED_UNVERIFIED"
+        envelope["instructions"].append(
+            "Use the configured Harness tools and collaboration as available. "
+            "Publish only the parent task's accepted handoffs; do not invent independent child observations.")
+    elif allow_delegation:
         envelope["instructions"].extend([
             "Delegate only through the official subagent_codex tool. Each call is a fresh one-shot native Codex task in this workspace; there is no resume or follow-up.",
             "Call subagent_codex with description, a complete self-contained prompt, and explicit cwd=/workspace/framework. Give the child absolute /workspace/sut paths for read-only source and request a short original contribution file inside /workspace/framework; the child must not publish ready handoffs or call platform APIs.",

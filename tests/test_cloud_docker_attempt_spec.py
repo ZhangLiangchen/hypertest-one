@@ -7,7 +7,7 @@ import pytest
 from hypertest.cloud import docker_attempt_spec as docker_spec
 
 
-def candidate():
+def candidate(*, deadline_epoch=2000000000):
     attempt = str(uuid4())
     volume = "hypertest-test-volume"
     root = "attempt-" + attempt
@@ -20,7 +20,7 @@ def candidate():
     return docker_spec.build_spec(project_id=str(uuid4()), task_id=str(uuid4()), attempt_id=attempt, generation=1,
         container_name="hypertest-attempt-" + UUID(attempt).hex + "-" + uuid4().hex,
         image_id="sha256:" + "b" * 64, image_revision="c" * 40, image_environment={"PATH": "/usr/bin"},
-        volume_name=volume, mounts=mounts, key_sha256="d" * 64, clock_sha256="f" * 64, deadline_epoch=2000000000,
+        volume_name=volume, mounts=mounts, key_sha256="d" * 64, clock_sha256="f" * 64, deadline_epoch=deadline_epoch,
         attempt_limit=docker_spec.ResourceLimit(1 << 30, 1 << 30, 80), worker_id=worker, existing_limits=existing)
 
 
@@ -58,6 +58,16 @@ def test_spec_engine_projection_and_rejection_paths():
     changed_spec["runtime"]["network"] = "host"
     with pytest.raises(ValueError):
         docker_spec.create_body(changed_spec)
+
+
+def test_lease_only_spec_retains_authenticated_watchdog_and_digest():
+    spec = candidate(deadline_epoch=0)
+    body = docker_spec.create_body(spec)
+    assert "HYPERTEST_CLOUD_CONTAINER_DEADLINE=0" in body["Env"]
+    assert "HYPERTEST_CLOUD_GUARD_PROFILE=WATCHDOG_V1" in body["Env"]
+    docker_spec.verify_inspect(spec, container_id="e" * 64, observed=inspect_fixture(spec))
+    with pytest.raises(ValueError):
+        candidate(deadline_epoch=-1)
 
 
 def test_envelope_checks_combined_memory_swap_and_each_member():

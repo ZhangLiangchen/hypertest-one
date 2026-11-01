@@ -1,5 +1,6 @@
 """Only frozen, scanned file bytes cross the Worker-to-Agent boundary."""
 import hashlib
+import subprocess
 from uuid import uuid4
 
 import pytest
@@ -8,7 +9,12 @@ from fastapi import HTTPException
 from hypertest.api.cloud_schemas import TaskInputs
 from hypertest.application.cloud_tasks import _reject_secrets
 from hypertest.cloud.errors import CloudBlocked
-from hypertest.cloud.source_export import PROFILE, export_sources, validate_export
+from hypertest.cloud.source_export import (
+    PROFILE,
+    derive_checkout_export,
+    export_sources,
+    validate_export,
+)
 
 
 def entry(path, content):
@@ -118,3 +124,69 @@ async def test_rejects_unsafe_or_changed_file_before_release(tmp_path, failure):
     assert not (roots["sut"][1] / "src/module.py").exists()
     if failure == "nonempty":
         assert (target / "already-there").read_text() == "keep"
+
+
+def git_checkout(path, files):
+    """Create an isolated synthetic checkout; no model, network or SUT."""
+    path.mkdir(mode=0o700)
+    subprocess.run(["git", "init", "--quiet", str(path)], check=True)
+    for name, value in files.items():
+        target = path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(value, tuple):
+            target.symlink_to(value[0])
+        else:
+            target.write_bytes(value)
+    subprocess.run(["git", "-C", str(path), "add", "--all"], check=True)
+    subprocess.run(["git", "-C", str(path), "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid",
+                    "commit", "--quiet", "-m", "synthetic"], check=True)
+    return subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
+
+
+@pytest.mark.asyncio
+async def test_derived_policy_copies_all_frozen_tracked_text_without_git_metadata(tmp_path):
+    root = tmp_path.resolve()
+    sources = {role: root / (role + "-source") for role in ("sut", "framework")}
+    repositories = {role: {"commit_sha": git_checkout(path, {"main.py": b"print('synthetic')\n", "src/test.py": b"pass\n"})}
+                    for role, path in sources.items()}
+    (sources["sut"] / "untracked.txt").write_text("not in the frozen commit")
+    destinations = {role: root / (role + "-destination") for role in sources}
+    for destination in destinations.values():
+        destination.mkdir(mode=0o700)
+    policy = await derive_checkout_export(sources=sources, repositories=repositories)
+    assert {entry["path"] for entry in policy["sut"]} == {"main.py", "src/test.py"}
+    scanned = []
+    async def validate(payload):
+        scanned.extend(payload["source_export"])
+    await export_sources(policy=policy, sources=sources, destinations=destinations, validate_payload=validate)
+    assert len(scanned) == 4
+    for target in destinations.values():
+        assert (target / "src/test.py").read_bytes() == b"pass\n"
+        assert not (target / ".git").exists()
+        assert not (target / "untracked.txt").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["sensitive", "symlink", "binary", "binary_nul", "lfs", "changed", "wrong_commit"])
+async def test_derived_policy_rejects_unsafe_or_unfrozen_files_before_release(tmp_path, failure):
+    root = tmp_path.resolve()
+    files = {"main.py": b"synthetic\n"}
+    if failure == "sensitive":
+        files["secrets.yaml"] = b"refused\n"
+    elif failure == "symlink":
+        files["link.py"] = ("main.py",)
+    elif failure == "binary":
+        files["image.bin"] = b"\xff\x00"
+    elif failure == "binary_nul":
+        files["image.bin"] = b"otherwise valid utf8\x00"
+    elif failure == "lfs":
+        files["model.dat"] = b"version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 123\n"
+    sources = {role: root / (role + "-source") for role in ("sut", "framework")}
+    repositories = {role: {"commit_sha": git_checkout(path, files if role == "framework" else {"main.py": b"ok\n"})}
+                    for role, path in sources.items()}
+    if failure == "changed":
+        (sources["framework"] / "main.py").write_text("changed")
+    elif failure == "wrong_commit":
+        repositories["framework"]["commit_sha"] = "0" * 40
+    with pytest.raises(CloudBlocked):
+        await derive_checkout_export(sources=sources, repositories=repositories)

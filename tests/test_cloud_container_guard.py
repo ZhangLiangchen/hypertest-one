@@ -33,6 +33,32 @@ def test_guard_accepts_only_fixed_worker_and_no_model_probe_frame():
     assert guard.validate_frame(probe) == probe
 
 
+def test_native_harness_frame_does_not_allow_platform_model_or_budget_overrides():
+    native = json.loads(frame())
+    for key in ("model", "max_tokens", "timeout_seconds"):
+        del native[key]
+    native["native_harness"] = True
+    encoded = json.dumps(native).encode()
+    assert guard.validate_frame(encoded) == encoded
+    for key, value in (("model", "forced-model"), ("max_tokens", 1000),
+                       ("timeout_seconds", 60), ("native_delegation", {})):
+        with pytest.raises(ValueError):
+            guard.validate_frame(json.dumps(native | {key: value}).encode())
+
+
+def test_native_harness_bootstrap_is_bound_to_lease_only_spec():
+    key = b"z" * 32
+    scope = authenticated_scope(key)
+    native = json.loads(frame(session_id="cloud-" + scope["attempt_id"]))
+    for name in ("model", "max_tokens", "timeout_seconds"):
+        del native[name]
+    native["native_harness"] = True
+    raw = json.dumps({"kind": "INIT", "key": base64.b64encode(key).decode(), "config": native}).encode()
+    with pytest.raises(ValueError):
+        guard.authenticate_bootstrap(raw, scope)
+    guard.authenticate_bootstrap(raw, scope | {"deadline_epoch": 0})
+
+
 @pytest.mark.parametrize("changes", [
     {"workspace": "/"}, {"dsh_home": "/tmp"}, {"mode": "PROTOCOL_PROBE"}, {"model": ""},
     {"prompt": ""}, {"session_id": "cloud-unknown"}, {"timeout_seconds": True}, {"max_tokens": 0},
@@ -62,6 +88,23 @@ def test_guard_does_not_extend_original_budget():
         guard.deadline_seconds("1000", now=1000)
     with pytest.raises(ValueError):
         guard.deadline_seconds(str(1000 + guard._MAX_DURATION + 1), now=1000)
+
+
+def test_only_authenticated_watchdog_can_omit_absolute_deadline(monkeypatch):
+    assert guard.configured_deadline("0", profile="WATCHDOG_V1", now=1000) is None
+    with pytest.raises(ValueError):
+        guard.configured_deadline("0", profile="SDK_TOOL_PROBE_V1", now=1000)
+    monkeypatch.setattr(guard, "_requires_authorization", True)
+    monkeypatch.setattr(guard, "_wall_deadline", None)
+    monkeypatch.setattr(guard, "_monotonic_deadline", None)
+    monkeypatch.setattr(guard, "_authorization_deadline_ns", 20)
+    monkeypatch.setattr(guard.time, "monotonic_ns", lambda: 19)
+    monkeypatch.setattr(guard.os, "_exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    guard._expire(signal.SIGALRM, None)
+    monkeypatch.setattr(guard.time, "monotonic_ns", lambda: 20)
+    with pytest.raises(SystemExit) as stopped:
+        guard._expire(signal.SIGALRM, None)
+    assert stopped.value.code == 124
 
 
 def test_guard_only_forwards_projected_fixed_metadata():

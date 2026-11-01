@@ -14,15 +14,16 @@ from pydantic import ValidationError
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from test_cloud_tasks import (
-    claimed,
+    cloud_context as cloud_context,
+)
+from test_cloud_tasks import (
     configuration,
     inputs,
+    legacy_claimed,
+    new_inputs,
     post,
     read_all,
     worker_submit,
-)
-from test_cloud_tasks import (
-    cloud_context as cloud_context,
 )
 
 from hypertest.api.cloud_schemas import Environment
@@ -69,7 +70,7 @@ async def ssh_context(cloud_context, monkeypatch):
     task_inputs["authorization"]["targets"].append(TARGET)
     task_inputs["authorization"]["network_targets"] = [TARGET]
     task_inputs["authorization"]["permitted_actions"].append("environment:read")
-    current, claim, identity = await claimed(context, config=configuration(
+    current, claim, identity = await legacy_claimed(context, config=configuration(
         environment=ssh_environment(credential["credential_version_id"])), task_inputs=task_inputs)
     running = await worker_submit(context, identity, current, "TRANSITION", status="RUNNING",
         runtime_metadata={"ssh": {"profile": SSH_ACCESS_PROFILE, "hard_deadline_epoch": int(time.time()) + 120}},
@@ -137,7 +138,7 @@ async def test_restrictive_environment_can_be_saved_but_never_creates_a_cloud_ta
     configured = await post(cloud_context, "CONFIGURE", configuration=configuration(environment=environment))
     assert configured.status_code == 200, configured.text
     created = await post(cloud_context, "CREATE_TASK", title="Must remain Local or Web-only",
-        config_id=configured.json()["config_id"], inputs=inputs())
+        config_id=configured.json()["config_id"], inputs=new_inputs())
     assert created.status_code == 403 and created.json()["detail"] == code
     async with AsyncSessionLocal() as db:
         assert await db.scalar(select(func.count()).select_from(service.CloudTask).where(

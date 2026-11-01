@@ -124,6 +124,28 @@ def test_root_official_messages_shape_and_required_headers(tmp_path):
     assert json.loads(request.data) == root_messages()
 
 
+def test_model_broker_can_leave_request_and_token_limits_to_harness(tmp_path):
+    broker = ModelBroker(tmp_path / "model.sock", base_url="https://api.deepseek.com/anthropic",
+        api_key=b"synthetic-host-only-key", model="fixture", max_requests=None, max_tokens=None)
+    request = broker.prepare_request("/v1/messages", root_messages(max_tokens=100000))
+    assert json.loads(request.data)["max_tokens"] == 100000
+    for invalid in (0, -1, True, "100"):
+        with pytest.raises(ValueError):
+            broker.prepare_request("/v1/messages", root_messages(max_tokens=invalid))
+
+
+def test_model_broker_can_leave_model_selection_to_harness_without_broadening_endpoint(tmp_path):
+    broker = ModelBroker(tmp_path / "model.sock", base_url="https://api.deepseek.com/anthropic",
+        api_key=b"synthetic-host-only-key", model=None, max_requests=None, max_tokens=None)
+    for model in ("fixture", "another-harness-selection"):
+        request = broker.prepare_request("/v1/messages", root_messages(model=model))
+        assert json.loads(request.data)["model"] == model
+    with pytest.raises(ValueError):
+        broker.prepare_request("/v1/messages", root_messages(model=""))
+    with pytest.raises(ValueError):
+        broker.prepare_request("/unapproved", root_messages())
+
+
 @pytest.mark.parametrize("payload", [
     root_messages(web_search_options={"search_context_size": "high"}),
     root_messages(files=["https://private.invalid/file"]),

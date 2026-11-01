@@ -7,7 +7,8 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
-from test_cloud_tasks import claimed, post, read_all, worker_submit
+from test_cloud_tasks import cloud_context as cloud_context
+from test_cloud_tasks import legacy_claimed, post, read_all, worker_submit
 
 from hypertest.application import cloud_tasks as service
 from hypertest.cloud.broker import BrokerFailure, CloudBroker
@@ -56,7 +57,7 @@ def parameters(receipt, tmp_path):
 
 
 async def running(context):
-    receipt, claim, identity = await claimed(context)
+    receipt, claim, identity = await legacy_claimed(context)
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
         budget_reservation={"reserved_seconds": 60, "request_limits": [
             {"scope": "ROOT", "max_requests": 1, "cost_per_request_microunits": 1}]})
@@ -236,8 +237,7 @@ async def test_confirm_and_stop_bind_original_attempt_and_allow_later_retry(clou
     failed = await worker_submit(cloud_context, identity, stopped, "TRANSITION", status="FAILED")
     retry = await post(cloud_context, "DISPATCH", failed["version"], task_id=receipt["task_id"],
         retry_of_attempt_id=receipt["attempt_id"], reason="explicit synthetic retry")
-    assert retry.status_code == 200, retry.text
-    assert retry.json()["attempt_id"] != receipt["attempt_id"]
+    assert retry.status_code == 409 and "create a related task" in retry.text
 
 
 @pytest.mark.parametrize("fence_kind", ["cancel", "lease_expired"])

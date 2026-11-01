@@ -17,6 +17,7 @@
 - [Cloud 任务管理与资源页交付（2026-10-30）](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)：草稿编辑、任务删除、资源页及本轮部署与验收边界。
 - [ADR-029 草案：单次 Cloud Attempt 的 Docker 隔离](architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md)：待实现、待验证的备选方案，不改变现行准入。
 - [ADR-030 草案：Cloud 受控认证与外部写入](architecture/ADR-030_CLOUD_AUTHENTICATED_ACTION_PROPOSAL.md)：待实现的凭据、单次发送与业务终态边界。
+- [ADR-031：云端 Harness 原生配置](architecture/ADR-031_CLOUD_NATIVE_HARNESS_CONFIGURATION.md)：模型、推理和插件由云端 Harness profile 管理，新任务不设置平台预算；远程能力与部署验收分别记录。
 
 ## 历史与兼容资料
 

@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # Optional dedicated-service admission; empty preserves the existing CLI path.
     cloud_service_release_sha256: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
     cloud_runtime_root: str = "/var/lib/hypertest-cloud/runtime"
+    # Dedicated cloud Harness home, provisioned by the operator via the native
+    # SDK CLI. It is not an Agent setting or a pointer to a personal login.
+    cloud_harness_home: str = "/var/lib/hypertest-cloud/harness"
     cloud_credential_key_file: str = "/run/secrets/hypertest-cloud-key"
     cloud_credential_key_id: str = "primary"
     cloud_model_key_file: str = "/run/secrets/hypertest-cloud-model-key"

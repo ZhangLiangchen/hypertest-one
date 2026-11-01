@@ -54,8 +54,50 @@ async def test_direct_execute_cannot_bypass_docker_admission(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("with_actions", [False, True, "admitted"])
-async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(monkeypatch, tmp_path, with_actions):
+async def test_resolution_remains_available_but_missing_profile_cannot_claim_attempt(monkeypatch, tmp_path):
+    events = []
+
+    class Docker:
+        async def admit(self):
+            pass
+
+        def assert_harness_profile(self, _path):
+            pass
+
+    async def expire(_db):
+        pass
+
+    async def claim_resolution(_db, *_args, **_kwargs):
+        return {"synthetic": True} if not events else None
+
+    async def claim_attempt(*_args, **_kwargs):
+        pytest.fail("missing profile must not claim an Attempt")
+
+    async def resolve(_self, _claim):
+        events.append("resolution")
+
+    monkeypatch.setattr(worker, "inspect_resource_envelope", lambda: {})
+    monkeypatch.setattr(worker.service, "container_intents_enabled", lambda: True)
+    monkeypatch.setattr(worker.service, "expire_leases", expire)
+    monkeypatch.setattr(worker.service, "claim_resolution", claim_resolution)
+    monkeypatch.setattr(worker.service, "claim_attempt", claim_attempt)
+    monkeypatch.setattr(worker.CloudWorker, "resolve", resolve)
+    settings = SimpleNamespace(cloud_enabled=True, cloud_worker_enabled=True, cloud_ssh_enabled=False,
+        cloud_codex_enabled=False, cloud_worker_lease_seconds=30, cloud_harness_home=str(tmp_path / "missing"))
+    instance = worker.CloudWorker(Session, settings, "fixture", docker_runtime=Docker())
+    assert await instance.run_once() is True
+    assert events == ["resolution"]
+    with pytest.raises(CloudBlocked) as error:
+        await instance.run_once()
+    assert error.value.code == "HARNESS_PROFILE_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_actions,native_task,automatic_source", [
+    (False, False, False), (False, True, False), (False, True, True),
+    (True, False, False), ("admitted", False, False),
+])
+async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(monkeypatch, tmp_path, with_actions, native_task, automatic_source):
     events = []
     task_id, project_id, attempt_id = (str(uuid4()) for _ in range(3))
     now = datetime.now(UTC)
@@ -63,9 +105,13 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
         "expires_at": (now + timedelta(minutes=5)).isoformat()}, "budgets": {"total_seconds": 60}},
         "configuration": {"environment": {"connection": "NONE"}},
         "resolution": {"repositories": {"sut": {}, "framework": {}}}}
-    manifest["inputs"]["agent_source_export"] = {"profile": "cloud-agent-source-export/v1", **{
+    if native_task:
+        manifest["inputs"]["budgets"] = None
+    policy = {"profile": "cloud-agent-source-export/v1", **{
         role: [{"path": "main.py", "sha256": hashlib.sha256(b"synthetic\n").hexdigest()}]
         for role in ("sut", "framework")}}
+    if not automatic_source:
+        manifest["inputs"]["agent_source_export"] = policy
     if with_actions == "admitted":
         from test_cloud_action_profile import profile
         plan = profile()
@@ -105,6 +151,10 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
             pass
 
         async def submit_handoff(self, handoff, _digest, **_kwargs):
+            if native_task and handoff.operation == "TRANSITION":
+                assert "budget_reservation" not in handoff.payload
+            if native_task and handoff.operation == "COMPLETE_ATTEMPT":
+                assert _kwargs.get("budget_settlement") is None
             events.append("report:" + handoff.operation)
             return SimpleNamespace(synced=True, receipt={})
 
@@ -120,6 +170,9 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
 
         def __init__(self, path, **_kwargs):
             assert path == layout.broker / "model.sock"
+            if native_task:
+                assert _kwargs["model"] is None and _kwargs["max_requests"] is None
+                assert _kwargs["max_tokens"] is None and _kwargs["deadline"] is None
 
         def __enter__(self):
             return self
@@ -147,6 +200,9 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
 
     class Sandbox:
         async def start(self, _config):
+            if native_task:
+                assert _config["native_harness"] is True
+                assert not {"model", "max_tokens", "timeout_seconds", "native_delegation"} & _config.keys()
             for role in ("sut", "framework"):
                 assert (layout.workspace / role / "main.py").read_bytes() == b"synthetic\n"
                 assert not (layout.workspace / role / ".git").exists()
@@ -159,11 +215,16 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
             return {"local_processes_stopped": True, "runtime_started": True}
 
     class Docker:
+        def assert_harness_profile(self, path):
+            assert path == str(tmp_path / "cloud-harness")
+
         def layout(self, _task, _attempt):
             return layout
 
         def sandbox(self, **kwargs):
             assert kwargs["layout"] is layout and kwargs["expected_sockets"] == ("model.sock",)
+            if native_task:
+                assert kwargs["deadline_epoch"] == 0
             return Sandbox()
 
     root = tmp_path / "shared"
@@ -192,11 +253,26 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
         (path / ".git" / "private-object").write_text("must not be exported")
         events.append("checkout:" + path.name)
 
+    async def derive(*, sources, repositories):
+        assert set(sources) == {"sut", "framework"} and repositories == manifest["resolution"]["repositories"]
+        assert all((path / "main.py").read_bytes() == b"synthetic\n" for path in sources.values())
+        events.append("derive-source")
+        return policy
+
+    if automatic_source:
+        from hypertest.cloud import source_export
+        monkeypatch.setattr(source_export, "derive_checkout_export", derive)
+
     monkeypatch.setattr(worker.CloudWorker, "collect", collect)
     settings = SimpleNamespace(cloud_runtime_root=str(tmp_path / "private"), cloud_worker_lease_seconds=30,
         cloud_model_request_cost_microunits=1, cloud_attempt_timeout_seconds=60, cloud_model_max_requests=1,
         cloud_model_max_tokens=1024, cloud_model_base_url="https://model.invalid", cloud_model_key_file="unused",
         cloud_model="deepseek-flash", cloud_codex_enabled=False)
+    if native_task:
+        settings.cloud_harness_home = str(tmp_path / "cloud-harness")
+        sdk = tmp_path / "cloud-harness" / "profiles" / "sdk"
+        sdk.mkdir(parents=True)
+        (sdk / "cordis.patch.yml").write_text("[]")
     instance = worker.CloudWorker(None, settings, "fixture", docker_runtime=Docker())
     instance._docker_admitted = True
     instance.resolver = SimpleNamespace(checkout=checkout)
@@ -222,4 +298,6 @@ async def test_docker_worker_uses_shared_checkout_and_stops_before_model_drain(m
         return
     await instance.execute(claim)
     assert events[:2] == ["checkout:sut", "checkout:framework"]
+    if automatic_source:
+        assert events.index("derive-source") < events.index("sandbox-start")
     assert events.index("sandbox-stop") < events.index("model-drain") < events.index("report:COMPLETE_ATTEMPT")

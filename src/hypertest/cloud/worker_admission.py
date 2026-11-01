@@ -281,9 +281,9 @@ def inspect_admission(settings: Settings, *, release_sha256: str) -> dict:
     if Path(settings.cloud_runtime_root) != RUNTIME_ROOT:
         _blocked("WORKER_RUNTIME_ROOT_UNSAFE")
     _canonical_directory(RUNTIME_ROOT, readonly=False, private=True)
-    if (settings.cloud_model != "deepseek-flash"
-            or settings.cloud_model_base_url != "https://api.deepseek.com/anthropic"
-            or settings.cloud_model_request_cost_microunits <= 0):
+    # Endpoint is the host's existing isolated relay boundary, not a task or
+    # Harness model selection. The legacy budget path validates its own rate.
+    if settings.cloud_model_base_url != "https://api.deepseek.com/anthropic":
         _blocked("WORKER_MODEL_CONFIGURATION_INVALID")
     native = {"enabled": False}
     if settings.cloud_codex_enabled:

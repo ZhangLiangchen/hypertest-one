@@ -134,6 +134,8 @@ class WorkerHttpAuthority:
                 if row.resource_key != resource_key:
                     reject("HTTPS_OPERATION_KEY_CONFLICT")
                 return await self._record(db, row)
+            if task.inputs.get("budgets") is None:
+                reject("HTTPS_LEASE_ONLY_UNSUPPORTED", 409)
             profile = await self._profile(db, task, attempt)
             resource = profile.resource(resource_key)
             await service._reject_secrets(db, task.project_id, [key, resource_key])

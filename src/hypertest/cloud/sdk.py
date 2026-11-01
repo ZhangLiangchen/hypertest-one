@@ -25,7 +25,7 @@ SDK_BOUNDARY_CODES = frozenset({"SDK_UNAVAILABLE", "SDK_VERSION_MISMATCH", "SDK_
     "DELEGATION_METADATA_INVALID", "DELEGATION_METADATA_INCOMPLETE", "NATIVE_PROFILE_UNAVAILABLE",
     "NATIVE_PROVIDER_UNAVAILABLE", "NATIVE_TOOL_UNAVAILABLE", "NATIVE_SUBPROCESS_UNAVAILABLE",
     "NATIVE_NODE_UNAVAILABLE", "NATIVE_PAYLOAD_VERSION_MISMATCH", "TOOL_PROBE_CONFIGURATION_INVALID",
-    "TOOL_PROBE_METADATA_INVALID"})
+    "TOOL_PROBE_METADATA_INVALID", "HARNESS_CONFIG_UNAVAILABLE", "HARNESS_PROVIDER_UNSUPPORTED"})
 NATIVE_CAPABILITY_KEYS = frozenset({"provider_registered", "tool_registered", "subprocess_shim", "node_available"})
 CHANNEL_FAILURES = frozenset({"FRAMING", "JSON", "FRAME_KEYS", "SEQUENCE", "AFTER_CLOSED", "FRAME_LIMIT",
     "READY_SHAPE", "READY_ORDER", "DELEGATION_ORDER", "CLOSED_ORDER", "FRAME_KIND", "TRANSPORT", "OTHER",
@@ -222,10 +222,13 @@ class SdkRunObservation:
 def _official_client(config: dict):
     """Shared constructor for task execution and the no-prompt runtime probe."""
     from deepseek_harness import HarnessClient, HarnessConfig
-    return HarnessClient(HarnessConfig(profile="sdk", patches=controlled_sdk_patches(config), dsh_home=config["dsh_home"],
+    native = config.get("native_harness") is True
+    patches = tuple(config.get("patches", ())) if native else controlled_sdk_patches(config)
+    timeout = config.get("timeout_seconds")
+    return HarnessClient(HarnessConfig(profile="sdk", patches=patches, dsh_home=config["dsh_home"],
         cwd=config["workspace"], env={"DEEPSEEK_BASE_URL": config["base_url"], "DEEPSEEK_API_KEY": "broker-managed"},
-        initialize_timeout_seconds=min(30, config["timeout_seconds"]),
-        request_timeout_seconds=config["timeout_seconds"],
+        initialize_timeout_seconds=min(30, timeout) if timeout is not None else 30,
+        request_timeout_seconds=timeout,
         # SDK shutdown acknowledges before root plugin disposal. Native
         # metadata's bounded 3s ACK must fit before the client sends TERM/KILL.
         shutdown_timeout_seconds=5 if config.get("native_delegation") is not None else 1))
@@ -248,8 +251,15 @@ def controlled_sdk_patches(config: dict) -> tuple[str, ...]:
 
 
 def _initialize(client, config: dict):
-    response = client.initialize(cwd=config["workspace"], provider="deepseek-official",
-        model=config["model"], reasoning_effort=config.get("reasoning_effort"), max_tokens=config["max_tokens"])
+    if config.get("native_harness") is True:
+        from .native_selection import read_native_selection
+        selection = read_native_selection(dsh_home=config["dsh_home"], cwd=config["workspace"])
+        if selection["provider"] != "deepseek-official":
+            raise CloudBlocked("HARNESS_PROVIDER_UNSUPPORTED", "The configured provider has no admitted cloud relay")
+        response = client.initialize(cwd=config["workspace"], **selection)
+    else:
+        response = client.initialize(cwd=config["workspace"], provider="deepseek-official",
+            model=config["model"], reasoning_effort=config.get("reasoning_effort"), max_tokens=config["max_tokens"])
     info = response.serverInfo
     if info is None or info.name != "deepseek-harness-sdk-runtime" or info.version != "0.0.1":
         raise CloudBlocked("SDK_PROTOCOL_MISMATCH", "Runtime handshake is outside the pinned protocol contract")

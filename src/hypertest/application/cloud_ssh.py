@@ -167,6 +167,8 @@ class WorkerSshAuthority:
                 if row.action_key != action_key:
                     reject("SSH_OPERATION_KEY_CONFLICT")
                 return self._record(row, attempt)  # Never another START admission.
+            if task.inputs.get("budgets") is None:
+                reject("SSH_LEASE_ONLY_UNSUPPORTED", 409)
             service.enabled()
             if not getattr(service.get_settings(), "cloud_ssh_enabled", False):
                 reject("SSH_EXECUTION_DISABLED", 503)

@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 from test_cloud_tasks import cloud_context as _cloud_context
-from test_cloud_tasks import configuration, draft, inputs, post, read_all
+from test_cloud_tasks import configuration, draft, inputs, new_inputs, post, read_all
 
 from hypertest.application import cloud_tasks as service
 from hypertest.application.management import manage_project
@@ -128,7 +128,7 @@ async def test_cloud_admission_holds_project_lock_until_task_commit(cloud_contex
 
     monkeypatch.setattr(service, "_configuration", gated)
     pending = asyncio.create_task(post(f, "CREATE_TASK", title="Admission holds shared parent lock",
-        config_id=configured.json()["config_id"], inputs=inputs()))
+        config_id=configured.json()["config_id"], inputs=new_inputs()))
     try:
         await asyncio.wait_for(entered.wait(), timeout=10)
         async with AsyncSessionLocal() as db:

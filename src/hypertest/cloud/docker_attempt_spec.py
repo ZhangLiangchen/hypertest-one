@@ -98,7 +98,7 @@ def build_spec(*, project_id: str, task_id: str, attempt_id: str, generation: in
             or not isinstance(image_revision, str) or re.fullmatch(r"[a-f0-9]{40}", image_revision) is None
             or not isinstance(key_sha256, str) or _HEX.fullmatch(key_sha256) is None
             or not isinstance(clock_sha256, str) or _HEX.fullmatch(clock_sha256) is None
-            or type(deadline_epoch) is not int or not 0 < deadline_epoch < 10**12
+            or type(deadline_epoch) is not int or not 0 <= deadline_epoch < 10**12
             or mounts != _mounts(volume_name, attempt_id)):
         _reject()
     check_aggregate(worker_id=worker_id, existing=existing_limits, attempt=attempt_limit)
@@ -145,7 +145,7 @@ def _validate_spec(spec: dict) -> None:
             or type(scope["generation"]) is not int or not 1 <= scope["generation"] < 10**18
             or not isinstance(scope["key_sha256"], str) or _HEX.fullmatch(scope["key_sha256"]) is None
             or not isinstance(scope["clock_sha256"], str) or _HEX.fullmatch(scope["clock_sha256"]) is None
-            or type(scope["deadline_epoch"]) is not int or not 0 < scope["deadline_epoch"] < 10**12
+            or type(scope["deadline_epoch"]) is not int or not 0 <= scope["deadline_epoch"] < 10**12
             or mounts != _mounts(mounts[0].get("Source"), scope["attempt_id"])):
         _reject()
     try:

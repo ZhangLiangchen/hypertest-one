@@ -96,18 +96,19 @@ async def clock(db):
 
 
 def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=None):
-    """Inherit the existing local-only execution envelope for simple task drafts.
-
-    The legacy worker still requires an envelope and accounting ledger. These are
-    server defaults, not a user-entered budget or a claim about Harness policy.
-    """
+    """Inherit the local-only access envelope without imposing a task budget."""
     data = inputs.model_dump(mode="json")
     if original is not None:
         if "framework_entrypoints" not in inputs.model_fields_set:
             data["framework_entrypoints"] = original["framework_entrypoints"]
-        for key in ("authorization", "budgets"):
-            if data[key] is None:
-                data[key] = original[key]
+        if data["authorization"] is None:
+            data["authorization"] = original["authorization"]
+        # A user may submit the unchanged legacy envelope from an old draft,
+        # but cannot set a new one. The enclosing UPDATE_TASK operation has
+        # already verified this is undispatched and records a new version.
+        if data["budgets"] is not None and data["budgets"] != original.get("budgets"):
+            raise HTTPException(409, "Cloud Task budget cannot be configured or changed")
+        data["budgets"] = None
     if data["authorization"] is None:
         data["authorization"] = {
             "targets": list(dict.fromkeys([configuration["sut"]["url"], configuration["framework"]["url"]])),
@@ -116,10 +117,6 @@ def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=N
             "side_effect_limits": "Workspace-local test execution; no additional external actions authorized.",
             "expires_at": (now + timedelta(days=3650)).isoformat(),
         }
-    if data["budgets"] is None:
-        data["budgets"] = {"accounting_unit": "REQUEST_CREDITS", "total_seconds": 604800,
-                           "total_cost_microunits": 1000000000000, "max_attempts": 100,
-                           "max_concurrency": 1}
     return data
 
 
@@ -546,6 +543,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     elif op == "CREATE_TASK":
         if payload.expected_version != 0:
             raise HTTPException(409, "New Cloud Task requires expected_version=0")
+        if payload.inputs.budgets is not None:
+            raise HTTPException(422, "Cloud Task budget is not accepted")
         config = await _configuration(db, payload.project_id, payload.config_id)
         authorize_cloud_environment(config.configuration)
         if payload.related_task_id:
@@ -558,11 +557,16 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         db.add(task)
         version = 1
     elif op == "UPDATE_TASK":
-        if task.status != "DRAFT" or task.frozen_manifest:
+        if task.status != "DRAFT" or task.frozen_manifest or task.latest_attempt_id is not None:
             raise HTTPException(409, "Only an undispatched DRAFT can be edited")
+        migrated_budget = task.inputs.get("budgets") is not None
+        if migrated_budget and await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id).limit(1)):
+            raise HTTPException(409, "A draft with an existing Attempt cannot change its budget")
         config = await _configuration(db, payload.project_id, payload.config_id)
         authorize_cloud_environment(config.configuration)
         task.title, task.inputs, task.config_id = payload.title, _task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db), original=task.inputs), payload.config_id
+        if migrated_budget:
+            refs["legacy_draft_budget_removed"] = True
     elif op == "DELETE_TASK":
         if task.status not in {"DRAFT", "COMPLETED", "FAILED", "CANCELLED"}:
             raise HTTPException(409, "Active Cloud Task must be stopped and reconciled before deletion")
@@ -581,17 +585,30 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         db.add(deletion)
         await db.flush()
     elif op == "RESOLVE_INPUTS":
-        if task.status != "DRAFT" or task.frozen_manifest:
+        if task.status != "DRAFT" or task.frozen_manifest or task.latest_attempt_id is not None:
             raise HTTPException(409, "Only DRAFT accepts input resolution")
         config = await _configuration(db, task.project_id, task.config_id)
         _authorize_input_reads(task.inputs, config.configuration, await clock(db))
+        migrated_budget = task.inputs.get("budgets") is not None
+        if migrated_budget:
+            if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id).limit(1)):
+                raise HTTPException(409, "A draft with an existing Attempt cannot change its budget")
+            # This mutation advances the draft version in the same transaction,
+            # so prior resolutions cannot be accepted for the changed input.
+            task.inputs = {**task.inputs, "budgets": None}
         resolution = CloudInputResolution(id=uuid7(), project_id=task.project_id, task_id=task.id,
             operation_key=payload.operation_key, source_draft_version=version,
             source_digest=canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest}),
             status="PENDING", requested_by=actor_ref, grant_id=grant_id)
         db.add(resolution)
         refs = {"resolution_id": str(resolution.id), "resolution_status": "PENDING"}
+        if migrated_budget:
+            refs["legacy_draft_budget_removed"] = True
     elif op == "DISPATCH":
+        if task.inputs.get("budgets") is not None:
+            if task.status == "DRAFT":
+                raise HTTPException(409, "Legacy draft budget must be removed by resolving versions again")
+            raise HTTPException(409, "Legacy frozen task cannot start a new attempt; create a related task")
         config = await _configuration(db, task.project_id, task.config_id)
         _authorize_input_reads(task.inputs, config.configuration, await clock(db))
         environment = config.configuration["environment"]
@@ -621,10 +638,13 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         authorization = task.inputs["authorization"]
         if datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00")) <= await clock(db):
             raise HTTPException(403, "Frozen execution authorization expired")
-        count, seconds, cost = await _task_budget_usage(db, task.id)
         budgets = task.inputs["budgets"]
-        if count >= budgets["max_attempts"] or seconds >= budgets["total_seconds"] or cost >= budgets["total_cost_microunits"]:
-            raise HTTPException(409, "Cloud Task cumulative budget is exhausted")
+        if budgets is None:
+            count = await db.scalar(select(func.count()).select_from(CloudAttempt).where(CloudAttempt.task_id == task.id))
+        else:
+            count, seconds, cost = await _task_budget_usage(db, task.id)
+            if count >= budgets["max_attempts"] or seconds >= budgets["total_seconds"] or cost >= budgets["total_cost_microunits"]:
+                raise HTTPException(409, "Cloud Task cumulative budget is exhausted")
         if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id, CloudAttempt.status.not_in(TERMINAL))):
             raise HTTPException(409, "Task already has an unfinished Attempt")
         attempt = CloudAttempt(id=uuid7(), task_id=task.id, project_id=task.project_id, attempt_no=count + 1,
@@ -685,7 +705,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             ("old_owner_fenced", "local_processes_stopped", "external_operations_reconciled", "observations")}
         attestation.update(source="OPERATOR_ATTESTATION", reconciliation_source="OPERATOR_ATTESTATION",
             actor_ref=actor_ref, independent_process_stop_proof=False, independent_stop_proof=False,
-            model_drain_observed=False, model_budget_disposition="KEEP_HELD")
+            model_drain_observed=False, model_budget_disposition="KEEP_HELD" if task.inputs["budgets"] is not None else "NOT_APPLICABLE")
         attempt.checkpoint = {**attempt.checkpoint, "reconciliation": attestation,
                               "external_operations_reconciled": True}
         _state(task, attempt, payload.status, payload.reason, await clock(db))
@@ -720,9 +740,13 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if payload.status == "FAILED" and attempt.checkpoint.get("pending_operation_keys"):
             raise HTTPException(409, "Pending external operations require recovery")
         if payload.status == "RUNNING":
-            if payload.budget_reservation is None:
-                raise HTTPException(409, "RUNNING requires a durable Worker budget reservation")
-            await _reserve_budget(db, task, attempt, payload, worker)
+            if task.inputs["budgets"] is None:
+                if payload.budget_reservation is not None:
+                    raise HTTPException(409, "A task without a platform budget cannot reserve one")
+            else:
+                if payload.budget_reservation is None:
+                    raise HTTPException(409, "RUNNING requires a durable Worker budget reservation")
+                await _reserve_budget(db, task, attempt, payload, worker)
         attempt.runtime_metadata = {**attempt.runtime_metadata, **payload.runtime_metadata}
         if payload.checkpoint is not None:
             attempt.checkpoint = {**attempt.checkpoint, "runtime_context": payload.checkpoint}
@@ -752,21 +776,27 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if (await _unclosed_container_intents(db, task.id) or any(item["attempt_id"] == str(attempt.id)
                 for item in await _container_intents(db, task.id))):
             raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_INTENT_EXISTS")
-        hold = attempt.runtime_metadata.get("budget_reservation", {})
-        preparation = attempt.runtime_metadata.get("preparation_budget_reservation", {})
-        try:
-            claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
-            auth_until = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
-            reserved = hold["reserved_seconds"]
-            deadline = datetime.fromtimestamp(payload.hard_deadline, UTC)
-            if (claimed.tzinfo is None or auth_until.tzinfo is None or type(reserved) is not int or reserved < 1
-                    or hold.get("state") != "HELD" or hold.get("lease_generation") != worker.generation
-                    or preparation.get("state") != "HELD" or preparation.get("lease_generation") != worker.generation
-                    or deadline > min(claimed + timedelta(seconds=reserved), auth_until)
-                    or deadline <= await clock(db)):
-                raise ValueError
-        except (KeyError, ValueError, TypeError, OverflowError):
-            raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_BUDGET_REQUIRED") from None
+        if task.inputs["budgets"] is None:
+            # An authenticated heartbeat fences a lease-only container. Never
+            # smuggle in a fixed task deadline through its creation request.
+            if payload.hard_deadline != 0:
+                raise HTTPException(409, "CLOUD_CONTAINER_LEASE_ONLY_REQUIRED")
+        else:
+            hold = attempt.runtime_metadata.get("budget_reservation", {})
+            preparation = attempt.runtime_metadata.get("preparation_budget_reservation", {})
+            try:
+                claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
+                auth_until = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
+                reserved = hold["reserved_seconds"]
+                deadline = datetime.fromtimestamp(payload.hard_deadline, UTC)
+                if (claimed.tzinfo is None or auth_until.tzinfo is None or type(reserved) is not int or reserved < 1
+                        or hold.get("state") != "HELD" or hold.get("lease_generation") != worker.generation
+                        or preparation.get("state") != "HELD" or preparation.get("lease_generation") != worker.generation
+                        or deadline > min(claimed + timedelta(seconds=reserved), auth_until)
+                        or deadline <= await clock(db)):
+                    raise ValueError
+            except (KeyError, ValueError, TypeError, OverflowError):
+                raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_BUDGET_REQUIRED") from None
         grant = await db.scalar(select(CloudWorkGrant).where(CloudWorkGrant.token_hash == token_hash(worker.work_token)))
         refs["container_create_intent"] = {"project_id": str(task.project_id), "task_id": str(task.id),
             "attempt_id": str(attempt.id), "operation_key": payload.operation_key, "worker_id": worker.worker_id,
@@ -1346,7 +1376,7 @@ async def task_summary(db, task_id, *, project_id=None):
             "old_owner_fenced": fenced, "local_processes_stopped_observed": False,
             "pending_operation_keys": pending, "remote_operations_reconciled": remote_closed,
             "can_reconcile": not blocking, "blocking_reasons": blocking, "phase": phase,
-            "reconciliation_source": "OPERATOR_ATTESTATION", "budget_disposition": "KEEP_HELD"}
+            "reconciliation_source": "OPERATOR_ATTESTATION", "budget_disposition": "KEEP_HELD" if task.inputs["budgets"] is not None else "NOT_APPLICABLE"}
     return result
 
 
@@ -1413,14 +1443,17 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None):
         _state(task, attempt, "CANCELLED", "Execution authorization expired before claim", now)
         await db.commit()
         return None
-    _, other_seconds, other_cost = await _task_budget_usage(db, task.id, exclude_attempt_id=attempt.id)
     budgets = task.inputs["budgets"]
-    available_seconds = max(0, budgets["total_seconds"] - other_seconds - attempt.usage_seconds)
-    available_cost = max(0, budgets["total_cost_microunits"] - other_cost - attempt.cost_microunits)
-    if available_seconds < 1 or available_cost < 1:
-        _state(task, attempt, "CANCELLED", "Cumulative budget exhausted before claim", now)
-        await db.commit()
-        return None
+    budget_remaining = None
+    if budgets is not None:
+        _, other_seconds, other_cost = await _task_budget_usage(db, task.id, exclude_attempt_id=attempt.id)
+        available_seconds = max(0, budgets["total_seconds"] - other_seconds - attempt.usage_seconds)
+        available_cost = max(0, budgets["total_cost_microunits"] - other_cost - attempt.cost_microunits)
+        if available_seconds < 1 or available_cost < 1:
+            _state(task, attempt, "CANCELLED", "Cumulative budget exhausted before claim", now)
+            await db.commit()
+            return None
+        budget_remaining = {"seconds": available_seconds, "cost_microunits": available_cost}
     token, work_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     attempt.lease_generation += 1
     attempt.lease_owner, attempt.lease_token_hash = worker_id, token_hash(token)
@@ -1431,7 +1464,7 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None):
     attempt.workspace_id = attempt.workspace_id or namespace
     attempt.runtime_namespace = attempt.runtime_namespace or namespace
     attempt.dsh_home = attempt.dsh_home or namespace + "/dsh-home"
-    if not attempt.runtime_metadata.get("preparation_budget_reservation"):
+    if budgets is not None and not attempt.runtime_metadata.get("preparation_budget_reservation"):
         attempt.runtime_metadata = {**attempt.runtime_metadata, "preparation_budget_reservation": {
             "state": "HELD", "reserved_seconds": min(get_settings().cloud_attempt_timeout_seconds, available_seconds),
             "lease_generation": attempt.lease_generation, "claimed_at": now.isoformat()}}
@@ -1443,7 +1476,7 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None):
     await db.commit()
     return {"task": public(task), "attempt": public(attempt), "lease_token": token,
         "generation": attempt.lease_generation, "work_token": work_token,
-        "budget_remaining": {"seconds": available_seconds, "cost_microunits": available_cost}}
+        "budget_remaining": budget_remaining}
 
 
 async def renew_lease(db, attempt_id, worker_id, lease_token, generation, work_token, lease_seconds=90):

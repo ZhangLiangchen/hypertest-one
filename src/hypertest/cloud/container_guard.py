@@ -40,7 +40,7 @@ _ENV = {"HOME": "/home/agent", "DSH_HOME": "/home/agent/dsh", "SHELL": "/bin/sh"
         "PATH": "/opt/hypertest-cloud/venv/bin:/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8",
         "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1"}
 _FIELDS = {"mode", "workspace", "dsh_home", "session_id", "model", "max_tokens", "timeout_seconds",
-           "prompt", "native_delegation", "reasoning_effort"}
+           "prompt", "native_delegation", "reasoning_effort", "native_harness"}
 _GUARD_ENV = {"PATH", "HOSTNAME", "HOME", "LANG", "SHELL", "DSH_HOME", "PYTHONDONTWRITEBYTECODE",
               "PYTHONUNBUFFERED", "PIP_DISABLE_PIP_VERSION_CHECK", "PYTHON_VERSION", "PYTHON_SHA256",
               "GPG_KEY", "HYPERTEST_CLOUD_CONTAINER_DEADLINE", "HYPERTEST_CLOUD_GUARD_PROFILE",
@@ -68,6 +68,13 @@ def deadline_seconds(value: str, *, now: float) -> float:
     return remaining
 
 
+def configured_deadline(value: str, *, profile: str, now: float) -> float | None:
+    """Only the authenticated watchdog may operate without an absolute deadline."""
+    if value == "0" and profile == "WATCHDOG_V1":
+        return None
+    return deadline_seconds(value, now=now)
+
+
 def _unique_pairs(pairs):
     result = {}
     for key, value in pairs:
@@ -86,10 +93,15 @@ def validate_frame(raw: bytes) -> bytes:
     except (ValueError, UnicodeDecodeError, RecursionError):
         _reject()
     if (not isinstance(document, dict) or set(document) - _FIELDS
-            or document.get("workspace") != "/workspace" or document.get("dsh_home") != "/home/agent/dsh"
-            or type(document.get("max_tokens")) is not int or not 1 <= document["max_tokens"] <= 49152
-            or type(document.get("timeout_seconds")) is not int or not 1 <= document["timeout_seconds"] <= _MAX_DURATION
-            or not isinstance(document.get("model"), str) or not 1 <= len(document["model"]) <= 255):
+            or document.get("workspace") != "/workspace" or document.get("dsh_home") != "/home/agent/dsh"):
+        _reject()
+    if document.get("native_harness") is True:
+        if {"model", "max_tokens", "timeout_seconds", "reasoning_effort", "native_delegation"} & document.keys():
+            _reject()
+    elif ("native_harness" in document or type(document.get("max_tokens")) is not int
+          or not 1 <= document["max_tokens"] <= 49152
+          or type(document.get("timeout_seconds")) is not int or not 1 <= document["timeout_seconds"] <= _MAX_DURATION
+          or not isinstance(document.get("model"), str) or not 1 <= len(document["model"]) <= 255):
         _reject()
     mode = document.get("mode", "RUN")
     session = document.get("session_id")
@@ -140,7 +152,8 @@ def _expire(signum, _frame) -> None:
     # As Linux namespace PID 1, exiting causes the kernel to kill remaining
     # namespace processes, including descendants that changed process group.
     # This does not prove host-side cgroup cleanup or external operation stop.
-    if (signum == signal.SIGALRM and time.time() < _wall_deadline and time.monotonic() < _monotonic_deadline
+    if (signum == signal.SIGALRM and (_wall_deadline is None or
+            (time.time() < _wall_deadline and time.monotonic() < _monotonic_deadline))
             and (not _requires_authorization or time.monotonic_ns() < _authorization_deadline_ns)):
         return
     os._exit(124 if signum == signal.SIGALRM else 128 + signum)
@@ -220,6 +233,8 @@ def authenticate_bootstrap(raw: bytes, scope: dict) -> tuple[bytes, bytes]:
     validate_frame(frame)
     config = document["config"]
     if config.get("mode", "RUN") == "RUN" and config["session_id"] != "cloud-" + scope["attempt_id"]:
+        _reject()
+    if (scope["deadline_epoch"] == 0) != (config.get("native_harness") is True):
         _reject()
     return key, frame
 
@@ -320,14 +335,20 @@ def run() -> int:
     """Run the single fixed SDK driver until it ends or the hard deadline expires."""
     _secure_pid1()
     global _wall_deadline, _monotonic_deadline, _authorization_deadline_ns, _requires_authorization
-    value = os.environ.get("HYPERTEST_CLOUD_CONTAINER_DEADLINE", "")
-    seconds = deadline_seconds(value, now=time.time())
-    _wall_deadline = int(value)
-    _monotonic_deadline = time.monotonic() + seconds
     profile = os.environ.get("HYPERTEST_CLOUD_GUARD_PROFILE", "SDK_TOOL_PROBE_V1")
     if profile not in {"SDK_TOOL_PROBE_V1", "WATCHDOG_V1"}:
         _reject()
     _requires_authorization = profile == "WATCHDOG_V1"
+    value = os.environ.get("HYPERTEST_CLOUD_CONTAINER_DEADLINE", "")
+    # Zero is an explicit lease-only execution: it is admitted only under the
+    # authenticated watchdog, never for the unauthenticated diagnostic path.
+    # Every heartbeat remains scope-bound, replay-protected, and short-lived.
+    seconds = configured_deadline(value, profile=profile, now=time.time())
+    if seconds is None:
+        _wall_deadline = _monotonic_deadline = None
+    else:
+        _wall_deadline = int(value)
+        _monotonic_deadline = time.monotonic() + seconds
     if _requires_authorization:
         # The bootstrap window is itself bounded even when stdin never closes.
         _authorization_deadline_ns = time.monotonic_ns() + _MAX_HEARTBEAT_NS
@@ -335,7 +356,7 @@ def run() -> int:
         signal.signal(sig, _expire)
     # A periodic check also catches a forward wall-clock adjustment; a
     # backward adjustment must never extend the original monotonic budget.
-    signal.setitimer(signal.ITIMER_REAL, min(seconds, 0.1), 0.1)
+    signal.setitimer(signal.ITIMER_REAL, min(seconds, 0.1) if seconds is not None else 0.1, 0.1)
     control = None
     key = scope = None
     sequence = 0
@@ -355,6 +376,8 @@ def run() -> int:
         if json.loads(frame).get("mode") != "SDK_TOOL_PROBE":
             _reject()
     document = json.loads(frame)
+    if document.get("native_harness") is True and (not _requires_authorization or value != "0"):
+        _reject()
     probe = document.get("mode") == "SDK_TOOL_PROBE"
     delegations = DelegationObservations() if "native_delegation" in document else None
     _expire(signal.SIGALRM, None)

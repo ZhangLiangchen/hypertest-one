@@ -109,7 +109,6 @@ def test_base_admission_reads_real_private_keys_without_codex_or_execution(start
     ("group_read", "PRIVATE_FILE_UNSAFE"),
     ("runtime_mode", "WORKER_RUNTIME_ROOT_UNSAFE"),
     ("runtime_alias", "WORKER_RUNTIME_ROOT_UNSAFE"),
-    ("zero_rate", "WORKER_MODEL_CONFIGURATION_INVALID"),
     ("multiline_key", "WORKER_MODEL_KEY_INVALID"),
 ])
 def test_admission_refuses_configuration_and_file_boundaries(startup, monkeypatch, mutation, expected):
@@ -127,14 +126,17 @@ def test_admission_refuses_configuration_and_file_boundaries(startup, monkeypatc
         alias = startup.root / "runtime-alias"
         alias.symlink_to(startup.runtime, target_is_directory=True)
         startup.settings.cloud_runtime_root = str(alias)
-    elif mutation == "zero_rate":
-        startup.settings.cloud_model_request_cost_microunits = 0
     elif mutation == "multiline_key":
         (startup.credentials / "deepseek-key").write_bytes(b"fixture\nprivate")
     with pytest.raises(CloudBlocked) as error:
         admission.inspect_admission(startup.settings, release_sha256=startup.expected)
     assert error.value.code == expected
     assert "fixture" not in str(error.value)
+
+
+def test_native_harness_admission_does_not_require_a_platform_request_rate(startup):
+    startup.settings.cloud_model_request_cost_microunits = 0
+    assert admission.inspect_admission(startup.settings, release_sha256=startup.expected)["status"] == "ADMITTED"
 
 
 @pytest.mark.parametrize("mismatch", ["digest", "metadata_version", "python", "manifest_shape"])

@@ -1490,7 +1490,7 @@ DispatchCloudTask 必须匹配 resolution 的 accepted_task_version、当前 exp
 
 冻结 manifest 至少包含：
 
-2026-11-01：创建请求可省略 framework entrypoints、authorization 和 budgets；服务端按所选项目资源生成只含两仓读取和工作区框架执行的内部授权及现有 Worker 所需过渡额度，并将其冻结。未指定入口时如实记录执行入口；显式入口和冻结 framework runtime 仍须遵守原规则。此过渡额度不表示 Harness 已接管预算，现有模型及运行限制仍由部署控制；任务页面不配置 Agent。编辑旧任务时省略授权或预算须保留原值。
+ADR-031 覆盖此前过渡规则：新建请求不接受 `budgets`，服务端不生成任务预算；模型、推理和插件由云端 Harness 原生 profile 决定。省略 framework entrypoints 时如实记录执行入口，显式入口与冻结 framework runtime 仍按原规则检查。服务端仍按项目资源生成只含两仓读取和工作区框架执行的内部授权。旧预算及 hold 只用于历史对账，旧未冻结草稿在编辑 / 重新解析时转换，旧冻结任务不得直接重发。下列 manifest 预算及 §46.4 结算字段仅解释旧历史。
 
 ```text
 profile / project_id / cloud_task_id / input_digest
