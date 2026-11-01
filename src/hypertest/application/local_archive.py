@@ -1,27 +1,14 @@
 """Transactional post-test archives, immutable original requests and fixed readback."""
 import copy
 import json
-from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import DateTime, String, and_, cast, func, or_, select, text
+from sqlalchemy import func, select, text
 
 from hypertest.api.archive_schemas import PROFILE
 from hypertest.application.record_helpers import project, public
 from hypertest.application.services import canonical_json_sha256
 from hypertest.common.ids import uuid7
-from hypertest.domain.cli_authorization import (
-    CliAuthorizationGlobalGrant,
-    CliAuthorizationGlobalUpgrade,
-    CliAuthorizationGrant,
-    CliAuthorizationRequest,
-    CliAuthorizationRevocation,
-)
-from hypertest.domain.interactive import (
-    InteractiveActorIdentity,
-    InteractiveClientRegistration,
-    InteractiveIntegrationGrant,
-)
 from hypertest.domain.local_archive import (
     LocalArchiveAssetRevision,
     LocalArchiveOperation,
@@ -41,65 +28,6 @@ async def clock(db):
 async def key_lock(db, namespace, project_id, actor, key):
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
                      {"key": f"local-archive:{namespace}:{project_id}:{actor}:{key}"})
-
-
-def actor_query(project_id):
-    direct = select(InteractiveIntegrationGrant.id).join(
-        InteractiveClientRegistration, and_(
-            InteractiveClientRegistration.actor_identity_id == InteractiveIntegrationGrant.actor_identity_id,
-            InteractiveClientRegistration.client_instance_id == InteractiveIntegrationGrant.client_instance_id)).where(
-        InteractiveIntegrationGrant.actor_identity_id == InteractiveActorIdentity.id,
-        InteractiveClientRegistration.status == "ACTIVE",
-        InteractiveIntegrationGrant.project_id == project_id, InteractiveIntegrationGrant.status == "ACTIVE",
-        InteractiveIntegrationGrant.not_before <= func.clock_timestamp(),
-        or_(InteractiveIntegrationGrant.expires_at.is_(None), InteractiveIntegrationGrant.expires_at > func.clock_timestamp()),
-        InteractiveIntegrationGrant.scopes.contains(["archive:read", "archive:write"]),
-        ~select(CliAuthorizationGlobalGrant.grant_id).where(
-            CliAuthorizationGlobalGrant.grant_id == InteractiveIntegrationGrant.id).exists(),
-        ~select(CliAuthorizationGrant.grant_id).join(CliAuthorizationRequest,
-            CliAuthorizationRequest.id == CliAuthorizationGrant.request_id).where(
-            CliAuthorizationGrant.grant_id == InteractiveIntegrationGrant.id,
-            or_(CliAuthorizationRequest.approval["all_projects"].as_boolean().is_(True),
-                select(CliAuthorizationGlobalUpgrade.request_id).where(
-                    CliAuthorizationGlobalUpgrade.request_id == CliAuthorizationRequest.id).exists())).exists()).exists()
-    request = CliAuthorizationRequest
-    global_grant = select(request.id).join(InteractiveClientRegistration, and_(
-        InteractiveClientRegistration.actor_identity_id == InteractiveActorIdentity.id,
-        InteractiveClientRegistration.client_instance_id == request.client_instance_id)).where(
-        request.status == "BOUND", or_(request.approval["all_projects"].as_boolean().is_(True),
-            select(CliAuthorizationGlobalUpgrade.request_id).where(
-                CliAuthorizationGlobalUpgrade.request_id == request.id).exists()),
-        request.approval["actor_identity_id"].as_string() == cast(InteractiveActorIdentity.id, String),
-        InteractiveClientRegistration.status == "ACTIVE",
-        ~select(CliAuthorizationRevocation.request_id).where(CliAuthorizationRevocation.request_id == request.id).exists(),
-        or_(select(CliAuthorizationGlobalUpgrade.request_id).where(
-                CliAuthorizationGlobalUpgrade.request_id == request.id).exists(),
-            request.approval["expires_at"].as_string().is_(None),
-            cast(request.approval["expires_at"].as_string(), DateTime(timezone=True)) > func.clock_timestamp())
-    ).correlate(InteractiveActorIdentity).exists()
-    return select(InteractiveActorIdentity).where(InteractiveActorIdentity.status == "ACTIVE", or_(direct, global_grant))
-
-
-async def actors(db, project_id):
-    await project(db, project_id)
-    rows = (await db.scalars(actor_query(project_id).order_by(InteractiveActorIdentity.id))).unique().all()
-    return {"items": [{"actor_ref": "interactive:" + str(row.id), "label": row.actor_ref} for row in rows], "total": len(rows)}
-
-
-async def ensure_actor(db, project_id, actor_ref):
-    if actor_ref is None:
-        return
-    try:
-        prefix, raw = actor_ref.split(":", 1)
-        actor_id = UUID(raw)
-        if prefix != "interactive":
-            raise ValueError
-    except (ValueError, AttributeError):
-        raise HTTPException(422, "ARCHIVE_UPLOADER_UNAVAILABLE") from None
-    actor = await db.scalar(actor_query(project_id).where(InteractiveActorIdentity.id == actor_id)
-                            .with_for_update(read=True).execution_options(populate_existing=True))
-    if actor is None:
-        raise HTTPException(422, "ARCHIVE_UPLOADER_UNAVAILABLE")
 
 
 async def target(db, project_id, task_id, subtask_id=None, *, actor=None, operator=False, global_access=False, lock=False):
@@ -177,19 +105,15 @@ async def manage(db, payload, actor, operation, task_id=None):
         if old.request_digest != digest:
             raise HTTPException(409, "ARCHIVE_OPERATION_KEY_CONFLICT")
         return old.response
+    if operation == "AUTHORIZE" or (operation == "CREATE" and payload.owner_uploader_actor_ref is not None):
+        raise HTTPException(410, "ARCHIVE_UPLOADER_MANAGEMENT_RETIRED")
     timestamp = await clock(db)
     publication = None
     if operation == "CREATE":
         if payload.expected_project_version is not None and project_row.row_version != payload.expected_project_version:
             raise HTTPException(409, "ARCHIVE_PROJECT_VERSION_CONFLICT")
-        owner = payload.owner_uploader_actor_ref
-        if "owner_uploader_actor_ref" not in payload.model_fields_set:
-            available = await actors(db, payload.project_id)
-            if available["total"] == 1:
-                owner = available["items"][0]["actor_ref"]
-        await ensure_actor(db, payload.project_id, owner)
         task = LocalArchiveTask(id=uuid7(), project_id=payload.project_id, creator_actor_ref=actor,
-            owner_uploader_actor_ref=owner, title=payload.title, objective=payload.objective,
+            owner_uploader_actor_ref=None, title=payload.title, objective=payload.objective,
             sut_repository_url=project_row.repository_url,
             test_framework_repository_url=project_row.test_framework_repository_url,
             sut_branch=payload.sut_branch, framework_branch=payload.framework_branch,
@@ -203,32 +127,11 @@ async def manage(db, payload, actor, operation, task_id=None):
             raise HTTPException(409, "ARCHIVE_TASK_VERSION_CONFLICT")
         if operation == "SUBTASK_CREATE":
             child = LocalArchiveSubtask(id=uuid7(), project_id=task.project_id, task_id=task.id,
-                authorized_uploader_actor_ref=task.owner_uploader_actor_ref, title=payload.title, objective=payload.objective,
+                authorized_uploader_actor_ref=None, title=payload.title, objective=payload.objective,
                 archive_version=1, status="DRAFT", reported_result="NOT_RUN", created_at=timestamp, updated_at=timestamp)
             db.add(child)
             await db.flush()
             db.add(initial_snapshot(task, child, timestamp))
-        elif operation == "AUTHORIZE":
-            await ensure_actor(db, task.project_id, payload.uploader_actor_ref)
-            if payload.subtask_id is not None:
-                _, child = await target(db, task.project_id, task.id, payload.subtask_id, operator=True, lock=True)
-                if payload.uploader_actor_ref is not None and payload.uploader_actor_ref != task.owner_uploader_actor_ref:
-                    raise HTTPException(422, "ARCHIVE_SUBTASK_OWNER_MISMATCH")
-                child.authorized_uploader_actor_ref = payload.uploader_actor_ref
-                child.updated_at = timestamp
-            else:
-                if task.owner_uploader_actor_ref != payload.uploader_actor_ref:
-                    accepted = await db.scalar(select(LocalArchiveSubmission.id).where(LocalArchiveSubmission.task_id == task.id).limit(1))
-                    if accepted:
-                        raise HTTPException(409, "ARCHIVE_ACCEPTED_OWNER_IMMUTABLE")
-                    # Existing child authorization may only follow an explicit owner
-                    # change while no accepted upload exists; revocations stay revoked.
-                    old_owner = task.owner_uploader_actor_ref
-                    for child in await children(db, task.id):
-                        if child.authorized_uploader_actor_ref == old_owner:
-                            child.authorized_uploader_actor_ref = payload.uploader_actor_ref
-                            child.updated_at = timestamp
-                task.owner_uploader_actor_ref = payload.uploader_actor_ref
         elif operation == "UPDATE":
             for field in payload.model_fields_set & {"title", "objective"}:
                 setattr(task, field, getattr(payload, field))

@@ -67,9 +67,9 @@ flowchart LR
 
 子任务 ID 不复用 participant ID、contribution ID 或宿主 session ID。同一子任务可以追加多次提交，同一会话可以为多个业务工作项提供来源材料；来源字符串不承担写入权限或全局唯一约束。
 
-上传者由认证信息确定，Web Operator 创建者与 integration uploader 分开记录。未指定 uploader 的 Task 可保存草稿，全项目 CLI 授权可归档该任务；定向授权须匹配 owner。首次接受归档后 owner 不可改写。`origin_provider`、`origin_session_ref`、测试发生时间和报告生成时间是可选的逐资产来源声明，平台接受时间由服务器生成。同一批多会话材料分别保留各自来源。UI 分别展示上传者和原测试来源，不将材料声明展示为已核验 native 会话。报告中的 PASS/FAIL/UNKNOWN 原样保留；归档成功与整体测试完成分别表达。
+上传者由认证信息确定，Web Operator 创建者与 integration uploader 分开记录。新 Task 不选择或自动分配 owner，新 Subtask 的 uploader 字段保持空；全项目 CLI 授权可归档这些目标，历史定向授权仍须匹配历史 owner 和子任务 uploader。历史 Task 首次接受归档后 owner 不可改写。`origin_provider`、`origin_session_ref`、测试发生时间和报告生成时间是可选的逐资产来源声明，平台接受时间由服务器生成。同一批多会话材料分别保留各自来源。UI 分别展示上传者和原测试来源，不将材料声明展示为已核验 native 会话。报告中的 PASS/FAIL/UNKNOWN 原样保留；归档成功与整体测试完成分别表达。
 
-所有上传均使用目标空间的 `expected_archive_version`：Task 根空间和各 Subtask 的 `archive_version` 分别推进；Task 的管理 `version` 与根归档版本分开，避免根上传与子任务上传相互争用。任务元数据、子任务目录/授权调整和汇总使用 `expected_task_version`。整体汇总在同一事务验证 Task 根归档版本及明确的子任务版本向量，之后的新上传不改写旧汇总。
+所有上传均使用目标空间的 `expected_archive_version`：Task 根空间和各 Subtask 的 `archive_version` 分别推进；Task 的管理 `version` 与根归档版本分开，避免根上传与子任务上传相互争用。任务元数据、子任务目录和汇总使用 `expected_task_version`。整体汇总在同一事务验证 Task 根归档版本及明确的子任务版本向量，之后的新上传不改写旧汇总。
 
 ## 5. 授权与可靠交付
 
@@ -83,7 +83,7 @@ PC Web 增加全局「CLI 授权」页，提供版本明确的安装/升级指�
 
 CLI 发起短时配对，用户在既有 Web 登录下核对短码、客户端并一次确认默认全部项目的 `archive:read/write` 永久授权；批准结果同时冻结服务端解析的专用 actor。CLI 完成原请求兑换、确认并保存全局 profile 后退出。短码/URL 不能兑换凭据，命令不携带 token；不需要本地回调服务。CLI 在发送前私有持久保存高熵 credential、独立配对 verifier 和原 key，服务端只接收必要验证材料；失答后凭原 key 确认固定授权，无需重新签发或取回明文 secret。精确配对/恢复合同由 TMP§51.4、领域§56.5拥有。全项目授权动态覆盖当前及以后新增的 Project；访问时按项目解析独立 integration grant 并映射到该配对（写事务提交时持久化，只读请求回滚），各 grant 保持独立、唯一的 `token_hash`，不会把同一 credential hash 写入多个 grant。归档鉴权仍按显式 Project 和当前 actor/client/grant 状态、scope 与可选期限校验。
 
-profile 固定规范化 server、client、uploader actor 及批准范围，不与仓库绑定；凭据按服务器与身份隔离，不因切换目录/任务自动换 profile。全项目授权自动覆盖以后新增项目；符合条件的存量绑定按领域 §56.5 升级，新批准不接受调用者选定 actor。旧 APPROVED/BOUND 请求、grant、Task owner 和接受回执保持原 actor，不自动改写归属。旧带 actor 的 APPROVE 正文仅用于已接受原 key/原正文的精确回执恢复，没有原回执的新写明确拒绝；旧 `/cli-authorizations/actors` 列表返回 410。任务创建页不要求选择上传身份，创建请求省略 owner 字段；服务端在项目仅有一个有效归档 actor 时自动指定该 actor，否则保持未指定。归档任务详情的 owner 管理仍按项目有效归档授权（包括全项目授权）运行。服务端撤销和本机退出分别表达，保留已接受档案与私有未决账本；只有命令存活期间为配对完成做有界查询，不后台轮询或续签。
+profile 固定规范化 server、client、uploader actor 及批准范围，不与仓库绑定；凭据按服务器与身份隔离，不因切换目录/任务自动换 profile。全项目授权自动覆盖以后新增项目；符合条件的存量绑定按领域 §56.5 升级，新批准不接受调用者选定 actor。旧 APPROVED/BOUND 请求、grant、Task owner 和接受回执保持原 actor，不自动改写归属。旧带 actor 的 APPROVE 正文仅用于已接受原 key/原正文的精确回执恢复，没有原回执的新写明确拒绝；旧 `/cli-authorizations/actors` 列表返回 410。新任务创建不选择或自动分配 owner；管理页面不展示或提供任务、子任务上传身份设置。新 CREATE 请求显式指定非空 owner 和新 AUTHORIZE 操作均明确拒绝；旧归档 actor 列表返回 410，已接受的原 key 仍可精确对账。历史 owner 和定向授权的保护保持，新的归档按独立 CLI 授权及真实认证上传者处理。服务端撤销和本机退出分别表达，保留已接受档案与私有未决账本；只有命令存活期间为配对完成做有界查询，不后台轮询或续签。
 
 上传仅从显式批准的清单读取文件，文件内容为数据，不能驱动 shell 命令或授权。首片支持 UTF-8 计划/原始文本报告与结构化用例，保留原文和稳定业务 key。接口按条数、字符数及总字节有界，超限明确拒绝，不截断、不隐式分批；截图、视频和压缩包的二进制存储协议独立后续设计，不以本地路径或 URL 引用冒充已上传文件。
 

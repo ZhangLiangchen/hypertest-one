@@ -24,7 +24,6 @@ export function ProjectArchiveTasks({ projectId, projectDeleted }: { projectId: 
         { title: t("Task", "任务"), key: "task", render: (_, task) => <><Link className="entity-title" href={archiveTaskHref(task.id, projectId)}>{task.title}</Link><div><Typography.Text className="entity-key" copyable>{task.id}</Typography.Text></div></> },
         { title: t("Status", "状态"), dataIndex: "status", render: (value: string) => <Tag>{label(value)}</Tag> },
         { title: t("Published result", "已发布汇总结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> },
-        { title: t("Uploader", "上传身份"), dataIndex: "owner_uploader_actor_ref", render: (value: string | null) => value ? <Typography.Text className="entity-key">{value}</Typography.Text> : <Tag color="gold">{t("Not authorized", "待授权")}</Tag> },
         { title: t("Root version", "根归档版本"), dataIndex: "archive_version", render: (value: number) => `v${value}` },
         { title: t("Updated", "更新时间"), dataIndex: "updated_at", render: formatDate },
       ]} /></div>

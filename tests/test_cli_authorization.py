@@ -257,11 +257,14 @@ async def test_concurrent_pairings_share_owner_across_clients_but_not_operators(
             InteractiveActorIdentity.registered_by == first["operator_ref"])) == 1
     project_id = first["projects"][0]
     task_response = await first["client"].post("/api/v1/local-archive/tasks", headers=first["operator"], json={
-        "project_id": project_id, "idempotency_key": "task", "title": "Shared archive owner",
-        "owner_uploader_actor_ref": "interactive:" + actor_id})
+        "project_id": project_id, "idempotency_key": "task", "title": "Shared archive owner"})
     assert task_response.status_code == 200, task_response.text
     task = task_response.json()["task"]
-    assert task["owner_uploader_actor_ref"] == "interactive:" + actor_id
+    assert task["owner_uploader_actor_ref"] is None
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("UPDATE local_archive_tasks SET owner_uploader_actor_ref=:owner, version=version+1 WHERE id=:id"),
+            {"owner": "interactive:" + actor_id, "id": UUID(task["id"])})
+        await db.commit()
     url = "/api/v1/local-archive/tasks/" + task["id"]
     for client in (first, second):
         response = await client["client"].get(url, params={"project_id": project_id},
@@ -309,8 +312,6 @@ async def test_historical_approval_receipt_and_pending_redemption_keep_original_
 
 
 async def test_global_authorization_new_projects_no_expiry_and_revoke(pairing):
-    from hypertest.application import local_archive
-
     f = pairing
     pending = await created(f)
     url = ROOT + "/requests/" + pending["request_id"]
@@ -329,12 +330,16 @@ async def test_global_authorization_new_projects_no_expiry_and_revoke(pairing):
     assert doctor.json()["all_projects"] is True
     async with AsyncSessionLocal() as db:
         new_project = (await create_project(db, ProjectCreate(key=public_key("CLI"), name="New fixture"))).id
-        items = (await local_archive.actors(db, new_project))["items"]
-        assert accepted["authorization"]["actor_ref"] in [x["actor_ref"] for x in items]
         grant = await interactive.authenticate(db, f["secret"], "archive:write", project_id=new_project)
         assert grant.expires_at is None
         grant_id = str(grant.id)
         await db.commit()
+    listing = await f["client"].get("/api/v1/local-archive/actors", headers=f["operator"],
+        params={"project_id": str(new_project)})
+    assert listing.status_code == 410
+    project_capabilities = await f["client"].get("/api/v1/local-archive/capabilities", headers=headers,
+        params={"project_id": str(new_project)})
+    assert project_capabilities.status_code == 200 and project_capabilities.json()["all_projects"] is True
     partial = await f["client"].post(ROOT + "/grants/" + grant_id + "/revoke",
         headers=f["operator"], json={"idempotency_key": "partial"})
     assert partial.status_code == 409
@@ -351,7 +356,6 @@ async def test_global_authorization_new_projects_no_expiry_and_revoke(pairing):
         "request_id": pending["request_id"], "operation": "REVOKE", "idempotency_key": "global-revoke"})
     assert receipt.json() == revoke.json()
     async with AsyncSessionLocal() as db:
-        assert accepted["authorization"]["actor_ref"] not in [x["actor_ref"] for x in (await local_archive.actors(db, new_project))["items"]]
         with pytest.raises(HTTPException):
             await interactive.authenticate(db, f["secret"], "archive:read", project_id=new_project)
     assert (await f["client"].get("/api/v1/local-archive/capabilities", headers=headers)).status_code == 401
@@ -412,14 +416,25 @@ async def test_global_authorization_archives_any_task_without_rewriting_ownershi
     for owner in (old_actor, None):
         created_task = await f["client"].post(archive + "/tasks", headers=f["operator"], json={
             "project_id": project_id, "idempotency_key": "create-" + str(owner),
-            "title": "Prior task", "owner_uploader_actor_ref": owner})
+            "title": "Prior task"})
         assert created_task.status_code == 200, created_task.text
         task_id = created_task.json()["task"]["id"]
+        if owner is not None:
+            async with AsyncSessionLocal() as db:
+                await db.execute(text("UPDATE local_archive_tasks SET owner_uploader_actor_ref=:owner, version=version+1 WHERE id=:id"),
+                    {"owner": owner, "id": UUID(task_id)})
+                await db.commit()
+        task_version = 2 if owner is not None else 1
         child_resp = await f["client"].post(archive + f"/tasks/{task_id}/subtasks", headers=f["operator"], json={
             "project_id": project_id, "idempotency_key": "child-" + str(owner),
-            "expected_task_version": 1, "title": "Prior subtask"})
+            "expected_task_version": task_version, "title": "Prior subtask"})
         assert child_resp.status_code == 200, child_resp.text
         child = child_resp.json()["subtasks"][0]["id"]
+        if owner is not None:
+            async with AsyncSessionLocal() as db:
+                await db.execute(text("UPDATE local_archive_subtasks SET authorized_uploader_actor_ref=:owner WHERE id=:id"),
+                    {"owner": owner, "id": UUID(child)})
+                await db.commit()
         target = archive + f"/tasks/{task_id}/submissions"
         body = {"project_id": project_id, "task_id": task_id, "expected_archive_version": 1,
                 "idempotency_key": "root-" + str(owner), "assets": [
@@ -453,7 +468,7 @@ async def test_global_authorization_archives_any_task_without_rewriting_ownershi
                                              params={"project_id": project_id, "idempotency_key": body["idempotency_key"]})
         assert foreign_key.status_code == 404
         published = await f["client"].post(archive + f"/tasks/{task_id}/publications", headers=f["operator"], json={
-            "project_id": project_id, "idempotency_key": "publish-" + str(owner), "expected_task_version": 2,
+            "project_id": project_id, "idempotency_key": "publish-" + str(owner), "expected_task_version": task_version + 1,
             "root_archive_version": 2, "subtask_versions": [{"subtask_id": child, "archive_version": 2}],
             "asset_revision_ids": [], "summary": "Failure reported", "status": "COMPLETED", "reported_result": "FAIL"})
         assert published.status_code == 200, published.text
@@ -464,8 +479,7 @@ async def test_global_authorization_archives_any_task_without_rewriting_ownershi
     assert (await f["client"].get(archive + f"/tasks/{task_id}", headers=global_headers,
                                    params={"project_id": project_id})).status_code == 401
     listed_actors = await f["client"].get(archive + "/actors", headers=f["operator"], params={"project_id": project_id})
-    assert listed_actors.status_code == 200
-    assert global_actor not in {item["actor_ref"] for item in listed_actors.json()["items"]}
+    assert listed_actors.status_code == 410
 
 
 async def test_existing_binding_upgrade_preserves_receipts_and_revoked_grants(pairing):
@@ -528,12 +542,12 @@ async def test_upgraded_cli_global_revocation_blocks_token_and_actor_listing(pai
     assert uploaded.status_code == 200, uploaded.text
     assert uploaded.json()["uploader_actor_ref"] == actor_ref
     listed = await f["client"].get(archive + "/actors", headers=f["operator"], params={"project_id": project_id})
-    assert actor_ref in {item["actor_ref"] for item in listed.json()["items"]}
+    assert listed.status_code == 410
     revoked = await f["client"].post(ROOT + f"/requests/{request_id}/revoke", headers=f["operator"],
                                       json={"idempotency_key": "upgraded-revoke"})
     assert revoked.status_code == 200, revoked.text
     listed = await f["client"].get(archive + "/actors", headers=f["operator"], params={"project_id": project_id})
-    assert actor_ref not in {item["actor_ref"] for item in listed.json()["items"]}
+    assert listed.status_code == 410
     assert (await f["client"].get(archive + f"/tasks/{task_id}", headers=headers,
                                   params={"project_id": project_id})).status_code == 401
     historical = await f["client"].get(ROOT + f"/requests/{request_id}", headers=f["headers"])

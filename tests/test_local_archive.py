@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 
-from hypertest.api.archive_schemas import ArchiveSubmit
+from hypertest.api.archive_schemas import ArchiveAuthorize, ArchiveSubmit
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application import local_archive as service
 from hypertest.application.services import canonical_json_sha256, create_project
@@ -17,6 +17,7 @@ from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.local_archive import (
     LocalArchiveAssetRevision,
+    LocalArchiveOperation,
     LocalArchiveSnapshot,
     LocalArchiveSubmission,
     LocalArchiveTask,
@@ -40,9 +41,13 @@ async def archive_context(monkeypatch):
         assert registration.status_code == 201, registration.text
         grant = registration.json()
         created = await client.post(PREFIX + "/tasks", headers=operator, json={
-            "project_id": str(project.id), "idempotency_key": "create", "title": "Post-test archive",
-            "owner_uploader_actor_ref": "interactive:" + grant["actor_identity_id"]})
+            "project_id": str(project.id), "idempotency_key": "create", "title": "Post-test archive"})
         assert created.status_code == 200, created.text
+        # Synthetic pre-retirement owner for testing the legacy scoped grant boundary.
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("UPDATE local_archive_tasks SET owner_uploader_actor_ref=:owner, version=version+1 WHERE id=:id"),
+                {"owner": "interactive:" + grant["actor_identity_id"], "id": UUID(created.json()["task"]["id"])})
+            await db.commit()
         yield {"client": client, "project_id": str(project.id), "operator": operator,
             "auth": {"Authorization": "Bearer " + grant["integration_token"]}, "grant": grant,
             "task_id": created.json()["task"]["id"], "created": created.json()}
@@ -83,11 +88,17 @@ async def read_submission(f, receipt, *, limit=24000):
         offset = page["next_offset"]
 
 
-async def add_child(f, key="child", expected=1):
+async def add_child(f, key="child", expected=2):
     response = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/subtasks", headers=f["operator"], json={
         "project_id": f["project_id"], "idempotency_key": key, "expected_task_version": expected, "title": key})
     assert response.status_code == 200, response.text
-    return response.json()["subtasks"][-1]["id"]
+    child_id = response.json()["subtasks"][-1]["id"]
+    # Reconstruct a historical authorized child to exercise old scoped clients.
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("UPDATE local_archive_subtasks SET authorized_uploader_actor_ref=:owner WHERE id=:id"),
+            {"owner": "interactive:" + f["grant"]["actor_identity_id"], "id": UUID(child_id)})
+        await db.commit()
+    return child_id
 
 
 async def test_root_archive_exact_text_fixed_readback_and_unchanged_receipt(archive_context):
@@ -105,7 +116,7 @@ async def test_root_archive_exact_text_fixed_readback_and_unchanged_receipt(arch
     assert "status" not in original and "reported_result" not in original
     current = await detail(f)
     assert current["task"]["status"] == "DRAFT" and current["task"]["reported_result"] == "NOT_RUN"
-    assert current["task"]["version"] == 1 and current["task"]["archive_version"] == 2
+    assert current["task"]["version"] == 2 and current["task"]["archive_version"] == 2
     assert current["subtasks"] == []
     unchanged = await upload(f, {**body, "expected_archive_version": 2, "idempotency_key": "same-content"})
     assert unchanged.status_code == 200, unchanged.text
@@ -133,13 +144,13 @@ async def test_independent_root_child_spaces_omission_and_publication_vector(arc
         subtask_update={"status": "COMPLETED", "reported_result": "FAIL"}))
     assert root.status_code == sub.status_code == 200, (root.text, sub.text)
     current = await detail(f)
-    assert current["task"]["version"] == 2
+    assert current["task"]["version"] == 3
     assert current["task"]["archive_version"] == current["subtasks"][0]["archive_version"] == 2
     assert current["task"]["reported_result"] == "NOT_RUN" and current["subtasks"][0]["reported_result"] == "FAIL"
     assert (await read_submission(f, root.json()))["assets"][0]["revision"] == 1
     child_doc = await read_submission(f, sub.json())
     assert child_doc["assets"][0]["revision"] == 1 and child_doc["status"] == "COMPLETED"
-    publication = {"project_id": f["project_id"], "idempotency_key": "summary", "expected_task_version": 2,
+    publication = {"project_id": f["project_id"], "idempotency_key": "summary", "expected_task_version": 3,
         "root_archive_version": 2, "subtask_versions": [{"subtask_id": child, "archive_version": 2}],
         "asset_revision_ids": [child_doc["assets"][0]["id"]], "summary": "Explicit failed overall result",
         "status": "COMPLETED", "reported_result": "FAIL"}
@@ -152,11 +163,11 @@ async def test_independent_root_child_spaces_omission_and_publication_vector(arc
     document = await read_submission(f, more.json())
     assert len(document["assets"]) == 2 and document["reported_result"] == "FAIL"
     current = await detail(f)
-    assert current["task"]["version"] == 3 and current["publications"][0]["subtask_versions"][0]["archive_version"] == 2
+    assert current["task"]["version"] == 4 and current["publications"][0]["subtask_versions"][0]["archive_version"] == 2
     assert (await f["client"].get(PREFIX + "/operations/by-key", headers=f["operator"], params={
         "project_id": f["project_id"], "idempotency_key": "summary"})).json() == published.json()
     stale = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/publications", headers=f["operator"],
-        json={**publication, "idempotency_key": "stale-vector", "expected_task_version": 3})
+        json={**publication, "idempotency_key": "stale-vector", "expected_task_version": 4})
     assert stale.status_code == 409
 
 
@@ -203,28 +214,66 @@ async def test_scopes_operator_and_revocation_guard_reads_and_writes(archive_con
     assert (await detail(f))["task"]["archive_version"] == 2
 
 
-async def test_subtask_revoke_and_accepted_owner_are_preserved(archive_context):
+async def test_retired_owner_management_preserves_old_receipt_and_scoped_access(archive_context):
     f = archive_context
     child = await add_child(f)
     body = payload(f, subtask_id=child)
     accepted = await upload(f, body)
     assert accepted.status_code == 200, accepted.text
-    revoke = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/authorize", headers=f["operator"], json={
-        "project_id": f["project_id"], "idempotency_key": "revoke-child", "expected_task_version": 2,
-        "subtask_id": child, "uploader_actor_ref": None})
-    assert revoke.status_code == 200, revoke.text
-    assert (await upload(f, body)).status_code == 403
-    assert (await f["client"].get(PREFIX + "/submissions/" + accepted.json()["submission_id"], headers=f["auth"],
-        params={"project_id": f["project_id"]})).status_code == 403
-    owner_change = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/authorize", headers=f["operator"], json={
-        "project_id": f["project_id"], "idempotency_key": "change-owner", "expected_task_version": 3,
-        "uploader_actor_ref": None})
-    assert owner_change.status_code == 409
-    restore = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/authorize", headers=f["operator"], json={
-        "project_id": f["project_id"], "idempotency_key": "restore-child", "expected_task_version": 3,
-        "subtask_id": child, "uploader_actor_ref": f["created"]["task"]["owner_uploader_actor_ref"]})
-    assert restore.status_code == 200, restore.text
+    old_body = {"project_id": f["project_id"], "idempotency_key": "old-authorize", "expected_task_version": 3,
+        "subtask_id": child, "uploader_actor_ref": "interactive:" + f["grant"]["actor_identity_id"]}
+    frozen = {"operation": "AUTHORIZE", "task_id": f["task_id"],
+        "request": ArchiveAuthorize.model_validate(old_body).model_dump(mode="json", exclude_unset=True)}
+    old_response = {"receipt": {"idempotency_key": "old-authorize", "operation": "AUTHORIZE"}}
+    async with AsyncSessionLocal() as db:
+        db.add(LocalArchiveOperation(id=uuid4(), project_id=UUID(f["project_id"]), task_id=UUID(f["task_id"]),
+            actor_ref="operator:" + get_settings().connector_operator_identity, operation="AUTHORIZE",
+            idempotency_key="old-authorize", request_digest=canonical_json_sha256(frozen), request_payload=frozen,
+            task_version=4, response=old_response))
+        await db.commit()
+    url = PREFIX + f"/tasks/{f['task_id']}/authorize"
+    same = await f["client"].post(url, headers=f["operator"], json=old_body)
+    assert same.status_code == 200 and same.json() == old_response
+    conflict = await f["client"].post(url, headers=f["operator"], json={**old_body, "uploader_actor_ref": None})
+    assert conflict.status_code == 409
+    fresh = await f["client"].post(url, headers=f["operator"], json={**old_body, "idempotency_key": "new"})
+    assert fresh.status_code == 410 and fresh.json()["detail"] == "ARCHIVE_UPLOADER_MANAGEMENT_RETIRED"
+    lookup = await f["client"].get(PREFIX + "/operations/by-key", headers=f["operator"],
+        params={"project_id": f["project_id"], "idempotency_key": "old-authorize"})
+    assert lookup.json() == old_response
     assert (await upload(f, body)).json() == accepted.json()
+
+
+async def test_new_owner_and_actor_enumeration_are_retired(archive_context):
+    f = archive_context
+    retired = await f["client"].get(PREFIX + "/actors", headers=f["operator"], params={"project_id": f["project_id"]})
+    assert retired.status_code == 410
+    create = {"project_id": f["project_id"], "idempotency_key": "new-task", "title": "New"}
+    response = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json=create)
+    assert response.status_code == 200 and response.json()["task"]["owner_uploader_actor_ref"] is None
+    rejected = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json={**create,
+        "idempotency_key": "new-task-owner", "owner_uploader_actor_ref": "interactive:" + f["grant"]["actor_identity_id"]})
+    assert rejected.status_code == 410
+    child = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/subtasks", headers=f["operator"], json={
+        "project_id": f["project_id"], "idempotency_key": "new-child", "expected_task_version": 2, "title": "New"})
+    assert child.status_code == 200 and child.json()["subtasks"][0]["authorized_uploader_actor_ref"] is None
+    denied = await upload(f, payload(f, subtask_id=child.json()["subtasks"][0]["id"]))
+    assert denied.status_code == 403
+
+    old_create = {"project_id": f["project_id"], "idempotency_key": "old-create", "title": "Historical",
+        "owner_uploader_actor_ref": "interactive:" + f["grant"]["actor_identity_id"]}
+    frozen = {"operation": "CREATE", "task_id": None, "request": old_create}
+    response = {"receipt": {"idempotency_key": "old-create", "operation": "CREATE"}}
+    async with AsyncSessionLocal() as db:
+        db.add(LocalArchiveOperation(id=uuid4(), project_id=UUID(f["project_id"]), task_id=UUID(f["task_id"]),
+            actor_ref="operator:" + get_settings().connector_operator_identity, operation="CREATE",
+            idempotency_key="old-create", request_digest=canonical_json_sha256(frozen), request_payload=frozen,
+            task_version=4, response=response))
+        await db.commit()
+    replay = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json=old_create)
+    assert replay.status_code == 200 and replay.json() == response
+    mismatch = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json={**old_create, "title": "Changed"})
+    assert mismatch.status_code == 409
 
 
 async def test_concurrent_same_key_and_new_versions_serialize(archive_context):
@@ -288,7 +337,7 @@ async def test_project_owner_and_original_client_are_separate_boundaries(archive
     f = archive_context
     async with AsyncSessionLocal() as db:
         other = await create_project(db, ProjectCreate(key=public_key("OTHER"), name="Other synthetic project"))
-        actor_id = UUID(f["created"]["task"]["owner_uploader_actor_ref"].split(":", 1)[1])
+        actor_id = UUID(f["grant"]["actor_identity_id"])
         actor = await db.get(InteractiveActorIdentity, actor_id)
         actor_label = actor.actor_ref
     assert (await upload(f, payload(f, project_id=str(other.id)))).status_code == 403
@@ -308,8 +357,7 @@ async def test_project_owner_and_original_client_are_separate_boundaries(archive
 
 async def test_management_key_recovery_and_draft_admission(archive_context):
     f = archive_context
-    create = {"project_id": f["project_id"], "idempotency_key": "create", "title": "Post-test archive",
-              "owner_uploader_actor_ref": f["created"]["task"]["owner_uploader_actor_ref"]}
+    create = {"project_id": f["project_id"], "idempotency_key": "create", "title": "Post-test archive"}
     same = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json=create)
     assert same.json() == f["created"]
     conflict = await f["client"].post(PREFIX + "/tasks", headers=f["operator"], json={**create, "title": "different"})

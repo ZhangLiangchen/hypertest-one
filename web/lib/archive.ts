@@ -11,7 +11,6 @@ export type ArchiveManagement = { task: ArchiveTask; subtasks: ArchiveSubtask[];
 export type ArchiveDetail = { task: ArchiveTask; subtasks: ArchiveSubtask[]; publications: ArchivePublication[]; management_history: Record<string, unknown>[]; submission_history: Record<string, unknown>[] };
 export type ArchiveSnapshot = { profile: string; project_id: string; task_id: string; target_kind: "TASK" | "SUBTASK"; subtask_id: string | null; archive_version: number; assets: ArchiveAsset[]; [key: string]: unknown };
 export type ArchiveRequest = { project_id: string; idempotency_key: string; [key: string]: unknown };
-export type ArchiveActors = { items: { actor_ref: string; label: string }[]; total: number };
 
 export async function archiveApi<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/archive/${path}`, { ...init, headers: { "Content-Type": "application/json", ...init?.headers }, cache: "no-store" });
@@ -20,7 +19,6 @@ export async function archiveApi<T>(path: string, init?: RequestInit): Promise<T
   return body as T;
 }
 export const getArchiveTasks = (projectId: string, offset = 0) => archiveApi<{ items: ArchiveTask[]; total: number }>(`tasks?project_id=${encodeURIComponent(projectId)}&offset=${offset}&limit=20`);
-export const getArchiveActors = (projectId: string) => archiveApi<ArchiveActors>(`actors?project_id=${encodeURIComponent(projectId)}`);
 export const getArchiveTask = (projectId: string, taskId: string) => archiveApi<ArchiveDetail>(`tasks/${taskId}?project_id=${encodeURIComponent(projectId)}`);
 export const getArchiveSnapshot = (projectId: string, taskId: string, version: number, subtaskId?: string) => archiveApi<ArchiveSnapshot>(`tasks/${taskId}/${subtaskId ? `subtasks/${subtaskId}/` : ""}archive?project_id=${encodeURIComponent(projectId)}&archive_version=${version}&readback=complete`);
 export const getArchiveOperation = (projectId: string, key: string) => archiveApi<ArchiveManagement>(`operations/by-key?project_id=${encodeURIComponent(projectId)}&idempotency_key=${encodeURIComponent(key)}`);

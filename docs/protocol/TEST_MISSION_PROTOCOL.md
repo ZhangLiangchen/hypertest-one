@@ -1695,19 +1695,20 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 | HTTP 操作 | 权限与契约 |
 | --- | --- |
 | `GET /capabilities` | 归档授权；分别返回 implemented/configured、profile、正文/条数上限和支持的产物类型 |
-| `GET /actors`、`GET /tasks` | 前者 Operator 获取当前可用归档上传 actor；后者 Operator 或 archive:read 获取项目内当前获准任务的有界目录 |
+| `GET /actors` | 旧归档上传身份列表已退休，Operator 认证后返回 410 |
+| `GET /tasks` | Operator 或 archive:read 获取项目内当前获准任务的有界目录 |
 | `POST /tasks/{id}/update` | Operator；显式 title/objective 管理变更，原管理 key 与 expected_task_version；结果通过 Publication 更新 |
-| `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task、title、可选 uploader；管理 key 与适用 expected_task_version。创建 Task 可选 `sut_branch`、`framework_branch` 和 `expected_project_version`，API 固定当时 Project 的 `repository_url` 与 `test_framework_repository_url`；四项作为声明在任务读取及原创建回执中返回 |
-| `POST /tasks/{id}/authorize` | Operator；明确 owner/子任务 uploader，expected_task_version；不签发或扩大 integration grant |
+| `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task 和 title；管理 key 与适用 expected_task_version。新 Task 不选择或自动分配 owner，新 Subtask 的 uploader 字段保持空；显式指定非空 owner 的新 CREATE 拒绝。创建 Task 可选 `sut_branch`、`framework_branch` 和 `expected_project_version`，API 固定当时 Project 的 `repository_url` 与 `test_framework_repository_url`；四项作为声明在任务读取及原创建回执中返回 |
+| `POST /tasks/{id}/authorize` | Operator；新 AUTHORIZE 已退休并明确拒绝；已接受原 key 的精确对账仍可用，不签发或扩大 integration grant |
 | `POST /tasks/{id}/publications` | Operator；expected_task_version、root_archive_version、精确子任务归档版本清单、显式汇总与原 key |
-| `GET /operations/by-key` | Operator 按 Project/原管理 key 恢复创建、授权或汇总，返回原固定管理回执 |
+| `GET /operations/by-key` | Operator 按 Project/原管理 key 恢复已接受的创建、历史授权或汇总，返回原固定管理回执 |
 | `GET /tasks/{id}` | Operator 或获准的 archive:read；返回任务管理信息及根/子任务归档版本 |
 | `GET /tasks/{id}/archive`、`GET /tasks/{id}/subtasks/{subtask_id}/archive` | Operator 或获准的 archive:read；选择明确 archive_version，分页读取目标空间完整快照 |
 | `POST /tasks/{id}/submissions` | archive:write，CLI 同时需 archive:read 完成确认；上传者由认证得出，归档正文见下节 |
 | `GET /submissions/by-key` | archive:read；Project/原操作 key，按原上传 actor 权限返回瘦回执，NOT_FOUND 不授权重传 |
 | `GET /submissions/{id}` | archive:read；固定接受的 TASK/SUBTASK 空间快照及引用资产正文，分页参数与下节一致 |
 
-每次归档显式传 Project ID、Task ID，Subtask ID 可选，路径和正文目标必须一致。省略 Subtask 时 target_kind=TASK；指定时 target_kind=SUBTASK，目标不存在/跨任务/越权均拒绝，不能回退 Task 或推断子任务。所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
+每次归档显式传 Project ID、Task ID，Subtask ID 可选，路径和正文目标必须一致。省略 Subtask 时 target_kind=TASK；指定时 target_kind=SUBTASK，目标不存在/跨任务/越权均拒绝，不能回退 Task 或推断子任务。所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。管理页不展示或设置任务、子任务上传身份；历史 owner 和定向授权检查保留。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
 
 Local Task 的分支声明各为可选、1–255 字符，拒绝 ASCII 空格及控制字符；不能据此推定已获取对应 Git 对象或已验证执行。新 Web 创建时提交所见 `expected_project_version`，服务端在锁内对新 key 校验版本，变更则 409；旧客户端省略保持兼容。原 CREATE key 与其实际请求字段保持幂等，先核对原 key、再检查新请求项目版本，重查返回原固定回执；项目后续变更不替换该 Task 的仓库/分支，旧 Task 不补造缺失值。Cloud Task 双 selector、资源配置修订与冻结 manifest 仍依 §46 独立处理。
 

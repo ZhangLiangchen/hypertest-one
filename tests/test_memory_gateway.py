@@ -108,11 +108,16 @@ async def memory_context(monkeypatch, tmp_path):
              "upstream": upstream}
         headers, auth = await register(f, ["task:sync", "memory:read", "memory:propose"])
         f.update(headers=headers, auth=auth)
-        archive_headers, _ = await register(f, ["archive:read", "archive:write"])
+        archive_headers, archive_grant = await register(f, ["archive:read", "archive:write"])
         created = await client.post("/api/v1/local-archive/tasks", headers=f["operator"], json={
             "project_id": project_id, "idempotency_key": "memory-source-task", "title": "Private source title"})
         assert created.status_code == 200, created.text
         task_id = created.json()["task"]["id"]
+        # Recreate the owner of a historical task for this project-scoped grant.
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("UPDATE local_archive_tasks SET owner_uploader_actor_ref=:owner, version=version+1 WHERE id=:id"),
+                {"owner": "interactive:" + archive_grant["actor_identity_id"], "id": UUID(task_id)})
+            await db.commit()
         response = await client.post(f"/api/v1/local-archive/tasks/{task_id}/submissions", headers=archive_headers, json={
             "profile": "local-artifact-archive/v1alpha1", "project_id": project_id, "task_id": task_id,
             "idempotency_key": "memory-source", "expected_archive_version": 1,
@@ -169,10 +174,14 @@ async def test_archive_source_requires_operator_and_fixed_accepted_report(memory
     f = memory_context
     archive_auth, archive_grant = await register(f, ["archive:read", "archive:write"])
     task = await f["client"].post("/api/v1/local-archive/tasks", headers=f["operator"], json={
-        "project_id": f["project_id"], "idempotency_key": "archive-memory-task", "title": "Archive source",
-        "owner_uploader_actor_ref": "interactive:" + archive_grant["actor_identity_id"]})
+        "project_id": f["project_id"], "idempotency_key": "archive-memory-task", "title": "Archive source"})
     assert task.status_code == 200, task.text
     task_id = task.json()["task"]["id"]
+    # Preserve the legacy project-scoped owner check while testing old archives.
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("UPDATE local_archive_tasks SET owner_uploader_actor_ref=:owner, version=version+1 WHERE id=:id"),
+            {"owner": "interactive:" + archive_grant["actor_identity_id"], "id": UUID(task_id)})
+        await db.commit()
     uploaded = await f["client"].post(f"/api/v1/local-archive/tasks/{task_id}/submissions", headers=archive_auth, json={
         "profile": "local-artifact-archive/v1alpha1", "project_id": f["project_id"], "task_id": task_id,
         "idempotency_key": "archive-memory-report", "expected_archive_version": 1,

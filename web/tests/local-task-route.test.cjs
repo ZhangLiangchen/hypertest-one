@@ -54,15 +54,18 @@ test("task links encode identifiers without changing project or adding route par
   assert.equal(urls.archiveTaskHref("task/one", "project&mode=legacy", "#archive-overview"), "/tasks/task%2Fone?mode=archive&projectId=project%26mode%3Dlegacy#archive-overview");
 });
 
-test("project archive rows link to the shared task route with their explicit project", () => {
+test("project archive rows link to the shared task route without presenting legacy owners as upload authorization", () => {
   const component = load("app/projects/[projectId]/archive-tasks.tsx", { require: (name) =>
     name === "@/lib/i18n" ? i18n : name === "@/lib/task-url" ? urls
-      : name === "@tanstack/react-query" ? { useQuery: () => ({ data: { items: [{ id: taskId, title: "Archived task", status: "DRAFT", archive_version: 1 }], total: 1 } }) }
+      : name === "@tanstack/react-query" ? { useQuery: () => ({ data: { items: [{ id: taskId, title: "Archived task", status: "DRAFT", archive_version: 1, owner_uploader_actor_ref: "interactive:legacy-owner" }, { id: "unassigned", title: "Unassigned task", status: "DRAFT", archive_version: 1, owner_uploader_actor_ref: null }], total: 2 } }) }
         : ["@/lib/api", "@/lib/archive"].includes(name) ? {}
           : name === "@/app/tasks/task-records" ? { ReportedResultTag: () => null }
             : name === "./local-mode-guide" ? { LocalModeGuide: () => null }
               : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
-  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(component.ProjectArchiveTasks, { projectId, projectDeleted: false })));
-  assert.ok(html.includes(`href="/tasks/${taskId}?mode=archive&amp;projectId=${projectId}"`));
-  assert.equal(html.includes('href="/archives/'), false);
+  for (const locale of ["en", "zh"]) {
+    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: locale }, React.createElement(component.ProjectArchiveTasks, { projectId, projectDeleted: false })));
+    assert.ok(html.includes(`href="/tasks/${taskId}?mode=archive&amp;projectId=${projectId}"`));
+    assert.equal(html.includes('href="/archives/'), false);
+    for (const legacy of ["interactive:legacy-owner", "Uploader", "上传身份", "Not authorized", "待授权"]) assert.equal(html.includes(legacy), false, legacy);
+  }
 });

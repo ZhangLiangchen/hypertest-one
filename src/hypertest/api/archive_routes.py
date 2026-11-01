@@ -70,7 +70,7 @@ async def capabilities(request: Request, project_id: UUID | None = None,
 
 @router.get("/actors")
 async def actors(project_id: UUID, operator: str = Depends(require_operator), db: AsyncSession = Depends(get_db)):
-    return await service.actors(db, project_id)
+    raise HTTPException(410, "ARCHIVE_UPLOADER_MANAGEMENT_RETIRED")
 
 
 @router.post("/tasks")

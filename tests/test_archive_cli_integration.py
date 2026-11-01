@@ -1,10 +1,11 @@
 """CLI/API contract integration using synthetic data only in the dedicated test DB."""
 import asyncio
 import json
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application.services import create_project
@@ -17,7 +18,8 @@ from hypertest.main import app
 
 
 @pytest.mark.parametrize("child_target", [False, True])
-async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch, child_target):
+@pytest.mark.parametrize("global_authorization", [False, True])
+async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch, child_target, global_authorization):
     monkeypatch.setattr(get_settings(), "connector_operator_key", "cli-contract-operator")
     monkeypatch.setattr(get_settings(), "connector_operator_identity", "cli-contract-" + uuid4().hex)
     operator = {"X-Hypertest-Operator-Key": "cli-contract-operator"}
@@ -49,11 +51,11 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
                         readback_pages.append(value)
                     if method == "POST" and path == AUTH_PREFIX + "/requests":
                         # The synthetic operator represents the single explicit Web confirmation.
+                        approval = {"idempotency_key": str(uuid4()), "short_code": value["short_code"]}
+                        if not global_authorization:
+                            approval.update(project_ids=projects, scopes=["archive:read", "archive:write"], expires_in_days=30)
                         approved = await client.post(path + "/" + value["request_id"] + "/approve",
-                            headers=operator, json={"idempotency_key": str(uuid4()),
-                                "project_ids": projects,
-                                "scopes": ["archive:read", "archive:write"],
-                                "expires_in_days": 30, "short_code": value["short_code"]})
+                            headers=operator, json=approval)
                         assert approved.status_code == 200, approved.text
                     return value
                 return asyncio.run_coroutine_threadsafe(request(), loop).result(timeout=20)
@@ -62,21 +64,34 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
         bound, code = await asyncio.to_thread(auth.bind, state, server="https://localhost",
             wait_seconds=1, open_browser=False, sleep=lambda _: None, http_factory=ASGIHTTP)
         assert code == 0 and bound["profile_saved"], bound
-        assert len(state.safe_profiles()[0]["grants"]) == 2
+        if not global_authorization:
+            assert len(state.safe_profiles()[0]["grants"]) == 2
         project = projects[1]
         actor_ref = state.profile("default", project_id=project)["actor_ref"]
         created = await client.post(PREFIX + "/tasks", headers=operator, json={
-            "project_id": project, "idempotency_key": str(uuid4()), "title": "CLI fixture task",
-            "owner_uploader_actor_ref": actor_ref})
+            "project_id": project, "idempotency_key": str(uuid4()), "title": "CLI fixture task"})
         assert created.status_code == 200, created.text
+        assert created.json()["task"]["owner_uploader_actor_ref"] is None
         task_id = created.json()["task"]["id"]
+        # A project-scoped CLI grant still exercises the pre-retirement owner boundary.
+        if not global_authorization:
+            async with AsyncSessionLocal() as db:
+                await db.execute(text("UPDATE local_archive_tasks SET owner_uploader_actor_ref=:owner, version=version+1 WHERE id=:id"),
+                    {"owner": actor_ref, "id": UUID(task_id)})
+                await db.commit()
         child_id = None
         if child_target:
             child = await client.post(PREFIX + f"/tasks/{task_id}/subtasks", headers=operator,
                 json={"project_id": project, "idempotency_key": str(uuid4()),
-                      "expected_task_version": 1, "title": "CLI fixture child"})
+                      "expected_task_version": 1 if global_authorization else 2, "title": "CLI fixture child"})
             assert child.status_code == 200, child.text
+            assert child.json()["subtasks"][0]["authorized_uploader_actor_ref"] is None
             child_id = child.json()["subtasks"][0]["id"]
+            if not global_authorization:
+                async with AsyncSessionLocal() as db:
+                    await db.execute(text("UPDATE local_archive_subtasks SET authorized_uploader_actor_ref=:owner WHERE id=:id"),
+                        {"owner": actor_ref, "id": UUID(child_id)})
+                    await db.commit()
         original = "# Original FAIL\r\n保留原文与来源\n" + ("Observed failed assertion.\n" * 1100)
         (tmp_path / "report.txt").write_bytes(original.encode())
         (tmp_path / "plan.txt").write_text("# Test plan\nSynthetic CLI contract check\n")
@@ -113,6 +128,9 @@ async def test_cli_web_pairing_to_root_or_subtask_archive(tmp_path, monkeypatch,
         details = await client.get(PREFIX + f"/tasks/{task_id}", headers=operator, params={"project_id": project})
         assert details.status_code == 200
         assert details.json()["task"]["reported_result"] == "NOT_RUN"
+        if global_authorization:
+            assert details.json()["task"]["owner_uploader_actor_ref"] is None
+            assert all(child["authorized_uploader_actor_ref"] is None for child in details.json()["subtasks"])
         assert len(details.json()["subtasks"]) == int(child_target)
         followup, code = await asyncio.to_thread(archive.archive, state, profile_name="default",
             project_id=project, task_id=task_id, subtask_id=child_id, manifest=path, http_factory=ASGIHTTP)
