@@ -69,7 +69,7 @@ export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked,
         description={<Space direction="vertical"><span>{t("Refresh the live state after fencing the old owner and reconciling all original operations. This form cannot clear an unresolved key.", "请在旧 owner 失权、全部原操作完成对账后刷新当前状态；此表单不能清除未决 key。")}</span>
           {view.pendingKeys.map((key) => <Typography.Text code key={key}>{key}</Typography.Text>)}
           {view.blockingReasons.map((entry) => <Typography.Text key={entry}>{entry}</Typography.Text>)}</Space>} /> : null}
-      <Form layout="vertical" onFinish={() => void reconcile()}>
+      <Form className="cloud-task-fields" layout="vertical" onFinish={() => void reconcile()}>
         <Form.Item label={t("Observed preconditions", "已观察的前置条件")} required>
           <Space direction="vertical">{(Object.keys(confirmed) as (keyof typeof confirmed)[]).map((key) => <Checkbox key={key} checked={confirmed[key]} onChange={(event) => setConfirmed((value) => ({ ...value, [key]: event.target.checked }))}>
             {({ old_owner_fenced: t("I verified that the old owner is fenced", "我已核对旧 owner 已失权"), local_processes_stopped: t("I observed that the managed processes stopped", "我已观察受管进程已停止"), external_operations_reconciled: t("I reconciled external actions by their original keys", "我已按原 key 核对外部动作") })[key]}

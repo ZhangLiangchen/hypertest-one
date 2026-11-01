@@ -544,6 +544,18 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .archive-management-actions { display: block; }
 .archive-task-page .archive-prompt .cli-install-prompt-text { background: var(--ht-surface); }
 
+/* Cloud task inputs use the same field rhythm in the page and draft editor. */
+.cloud-task-fields .ant-form-item-label > label { font-weight: 600; }
+.cloud-task-fields input.ant-input { height: 42px; padding-inline: 14px; }
+.cloud-task-fields textarea.ant-input { padding: 10px 14px; line-height: 1.7; }
+.cloud-task-fields .ant-select-single { height: 42px; }
+.cloud-task-fields .ant-select-single .ant-select-selector { padding-inline: 14px; }
+.cloud-task-fields .ant-select-multiple .ant-select-selector { min-height: 42px; padding: 4px 10px; }
+.cloud-task-fields .ant-select:not(.ant-select-disabled) .ant-select-arrow { color: var(--ht-muted); }
+.cloud-task-fields .ant-input-number { height: 42px; }
+.cloud-task-fields .ant-input-number-input { height: 40px; padding-inline: 14px 30px; font-variant-numeric: tabular-nums; }
+.cloud-task-fields .ant-input-number:not(.ant-input-number-disabled) .ant-input-number-handler-wrap { width: 22px; opacity: 1; }
+
 .archive-section { margin-bottom: 24px; }
 .archive-command { padding: 16px; background: var(--ht-canvas); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .archive-command code { font-size: 13px; }

@@ -44,7 +44,7 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
       ...(project ? { expected_project_version: project.row_version } : {}) });
     if (result) accepted(result);
   }
-  return <><section className="workspace-panel" aria-labelledby="task-details-title"><Form form={form} layout="vertical" initialValues={{ mode: search.get("mode") === "local" ? "local" : "cloud", title: "", objective: "" }}
+  return <><section className="workspace-panel" aria-labelledby="task-details-title"><Form className={mode === "cloud" ? "cloud-task-fields" : undefined} form={form} layout="vertical" initialValues={{ mode: search.get("mode") === "local" ? "local" : "cloud", title: "", objective: "" }}
     disabled={local.busy || Boolean(local.pending) || cloudBlocked} requiredMark="optional" onFinish={submit}
     onValuesChange={(changed) => { if (changed.mode === "local" || changed.mode === "cloud") onModeChange?.(changed.mode); }}
     onFinishFailed={({ errorFields }) => { if (errorFields[0]) form.scrollToField(errorFields[0].name, { focus: true }); }}>
