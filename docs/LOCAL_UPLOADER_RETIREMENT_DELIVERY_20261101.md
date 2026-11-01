@@ -19,4 +19,13 @@ API 与 WireGuard Web 均运行上述提交。API `hypertest-mac-api:9face95`，
 
 ## USER_OWNED 验收
 
-用户实际设备的授权及归档体验、任务页面显示仍待用户验收。本轮没有创建业务验收任务或上传用户产物。历史仅有项目定向授权的客户端对新任务或新子任务不再获得任务级指定权限，需使用现行有效的全项目 CLI 授权。
+任务页面显示及其他设备的实际使用体验仍待用户验收。历史仅有项目定向授权的客户端对新任务或新子任务不再获得任务级指定权限，需使用现行有效的全项目 CLI 授权。
+
+## 用户授权的真实 CLI 验证（2026-11-01）
+
+用户明确要求使用现有授权实际验证；选择已有 `cli-validation-20261101` profile，CLI 0.1.2 对 Project `01a181ac-ba63-7c24-b695-bfb498829b63` 的 doctor 返回 READY 和全项目授权。创建标注 SYNTHETIC 的 Local Task `01a195eb-e180-78bd-99c1-1b362d004a89` 和 Subtask `01a195eb-f70e-7e9f-8f3f-9df0e6d76330`，两者任务级 uploader 均为空。
+
+- Task 根空间：request `959ba0eb-f2a6-408e-8fca-379088db6419`，submission `01a195ec-73c7-74fa-8aa8-c0d15ee2e8f4`，ARCHIVED，版本 2，CLI `readback_complete=true`。
+- Subtask：request `d6301073-69a2-4c10-8a24-d79eade38513`，submission `01a195ec-84f2-764a-be08-58012a9a9f81`，ARCHIVED，版本 2，CLI `readback_complete=true`。
+
+通过 Web 只读接口按各 submission 获取固定快照，核对 Project、Task、目标类型、Subtask、版本、原文、submission ID、认证上传 actor 和 `NOT_RUN` 均符合预期。两份报告仅含合成标识，未运行 SUT 测试，归档成功不代表 SUT PASS。首次本地执行因 macOS `/var` 符号链接触发清单读取拒绝；该次未发送归档请求，改为同一文件的 `/private/var` 真实路径后完成。
