@@ -227,11 +227,11 @@ function taskPage(status, options = {}) {
     "cloud-task": document, "cloud-task-live": options.missingLive ? undefined : options.foreignLive ? { ...live, project_id: "other-project" } : live };
   const ui = Object.fromEntries(["Alert", "Button", "Checkbox", "Descriptions", "Space", "Spin", "Steps", "Table", "Tabs", "Tag"].map((name) => [name, name]));
   Object.assign(ui, { Form: { Item: "Form.Item" }, Input: { TextArea: "Input.TextArea" }, Typography: { Title: "Title", Text: "Text", Paragraph: "Paragraph" } });
-  let writes = 0; const queries = {}; const effects = []; const reads = [];
+  let writes = 0; const queries = {}; const effects = []; const reads = []; const stateUpdates = [];
   const jsx = (type, props) => typeof type === "function" ? type(props) : ({ type, props });
   const original = JSON.stringify(document);
   const page = load("app/cloud-tasks/[taskId]/page.tsx", { require: (name) => {
-    if (name === "react") return { useState: (initial) => [initial, () => {}], useEffect(effect) { effects.push(effect); } };
+    if (name === "react") return { useState: (initial) => [initial, (value) => stateUpdates.push(value)], useEffect(effect) { effects.push(effect); } };
     if (name === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
     if (name === "antd") return ui;
     if (name === "@ant-design/icons") return { ArrowLeftOutlined: "ArrowLeftOutlined", ReloadOutlined: "ReloadOutlined" };
@@ -258,7 +258,7 @@ function taskPage(status, options = {}) {
   const rendered = nodes(tree);
   assert.equal(JSON.stringify(document), original, "a progress projection cannot rewrite accepted history");
   assert.equal(writes, 0);
-  return { queries, effects, reads, document, live, steps: rendered.find((node) => node.type === "Steps").props,
+  return { queries, effects, reads, stateUpdates, document, live, steps: rendered.find((node) => node.type === "Steps").props,
     result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
     unknown: rendered.some((node) => String(node.props?.children).includes("Phase completion is unknown")) };
 }
@@ -272,10 +272,28 @@ test("Missing live identity and early terminal states show no inferred completed
   }
 });
 
+test("Workflow links navigate to their matching task sections without submitting work", () => {
+  const page = taskPage("DRAFT");
+  const links = page.steps.items.map((item) => item.title);
+  assert.equal(links[0].props.href, "/projects/00000000-0000-4000-8000-000000000001/cloud?tab=resources");
+  const destinations = [["overview", "cloud-task-inputs"], ["overview", "cloud-task-resolution"],
+    ["attempts", "cloud-attempt-history-heading"], ["artifacts", "cloud-assets-title"], ["artifacts", "cloud-runs-title"]];
+  destinations.forEach(([tab, id], index) => {
+    const link = links[index + 1]; let prevented = false;
+    assert.equal(link.props.href, `#${id}`);
+    link.props.onClick({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    const [selectedTab, target] = page.stateUpdates.splice(0);
+    assert.equal(selectedTab, tab);
+    assert.equal(target.tab, tab);
+    assert.equal(target.id, id);
+  });
+});
+
 test("In-flight work stays on Harness work instead of marking it finished without a delivered result", () => {
   for (const status of ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"]) {
     const page = taskPage(status);
-    assert.equal(page.steps.items[page.steps.current].title, "Harness work");
+    assert.equal(page.steps.items[page.steps.current].title.props.children, "Harness work");
     assert.equal(page.unknown, false);
     assert.equal(page.result, "NOT_RUN");
   }
@@ -284,7 +302,7 @@ test("In-flight work stays on Harness work instead of marking it finished withou
 
 test("A delivered task can reach execution/report while retaining its original reported FAIL", () => {
   const page = taskPage("COMPLETED", { result: "FAIL" });
-  assert.equal(page.steps.items[page.steps.current].title, "Execution and report");
+  assert.equal(page.steps.items[page.steps.current].title.props.children, "Execution and report");
   assert.equal(page.result, "FAIL");
   assert.equal(page.unknown, false);
 });

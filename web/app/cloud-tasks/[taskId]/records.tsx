@@ -35,7 +35,7 @@ export function CloudTaskRecords({ document }: { document: CloudDocument }) {
     </div>;
   }
   return <div className="workspace-section-stack cloud-task-records">
-    <section aria-labelledby="cloud-assets-title"><Typography.Title id="cloud-assets-title" level={2}>{t("Test artifacts and revision history", "测试产物与修订历史")}</Typography.Title>
+    <section aria-labelledby="cloud-assets-title"><Typography.Title id="cloud-assets-title" tabIndex={-1} level={2}>{t("Test artifacts and revision history", "测试产物与修订历史")}</Typography.Title>
       <Typography.Paragraph className="muted">{t("Analysis, design, cases, code and reports retain each accepted revision. A later PASS does not remove earlier FAIL results.", "分析、设计、用例、代码和报告保留每个接受修订；后续通过不会删除此前失败。 ")}</Typography.Paragraph>
       <div className="data-surface"><Table rowKey="id" dataSource={document.assets || []} scroll={{ x: 780 }} pagination={{ pageSize: 20, hideOnSinglePage: true }} expandable={{ expandedRowRender: assetBody }} locale={{ emptyText: <Empty description={t("No formal artifacts have been accepted yet.", "尚无已接受的正式产物。 ")} /> }} columns={[
         { title: t("Artifact", "产物"), key: "title", render: (_, row) => <><strong>{row.title}</strong><div className="entity-key">{row.key}</div></> },
@@ -43,7 +43,7 @@ export function CloudTaskRecords({ document }: { document: CloudDocument }) {
         { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> },
       ]} /></div>
     </section>
-    <section aria-labelledby="cloud-runs-title"><Typography.Title id="cloud-runs-title" level={2}>{t("Every framework execution", "每轮框架执行")}</Typography.Title>
+    <section aria-labelledby="cloud-runs-title"><Typography.Title id="cloud-runs-title" tabIndex={-1} level={2}>{t("Every framework execution", "每轮框架执行")}</Typography.Title>
       <div className="data-surface"><Table rowKey={(row) => String(row.id)} dataSource={document.runs || []} scroll={{ x: 750 }} pagination={{ pageSize: 20, hideOnSinglePage: true }} locale={{ emptyText: t("No execution has been reported. SDK activity does not create a test run.", "尚无已报告执行；SDK 活动不会生成测试执行记录。 ") }}
         columns={[{ title: t("Run key", "执行标识"), dataIndex: "run_key", width: 220, render: (value) => <span className="entity-key">{literal(value)}</span> },
           { title: t("Source", "来源"), key: "source", width: 170, render: (_, row) => literal((row.execution as CloudRecord)?.source) },

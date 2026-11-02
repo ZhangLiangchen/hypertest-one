@@ -26,7 +26,21 @@ export default function CloudTaskPage() {
   const { taskId } = useParams<{ taskId: string }>(); const search = useSearchParams();
   const projectId = search.get("projectId") || "";
   const { t, label } = useI18n(); const [editing, setEditing] = useState<CloudTask | null>(null); const [answers, setAnswers] = useState<Record<string, string>>({});
-  useEffect(() => { setAnswers({}); setEditing(null); }, [projectId, taskId]);
+  const [tab, setTab] = useState("overview");
+  const [destination, setDestination] = useState<{ tab: string; id: string } | null>(null);
+  useEffect(() => { setAnswers({}); setEditing(null); setTab("overview"); setDestination(null); }, [projectId, taskId]);
+  useEffect(() => {
+    if (!destination || destination.tab !== tab) return;
+    const target = window.document.getElementById(destination.id);
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "start" });
+    setDestination(null);
+  }, [destination, tab]);
+  function goToSection(event: React.MouseEvent<HTMLAnchorElement>, nextTab: string, id: string) {
+    event.preventDefault();
+    setTab(nextTab);
+    setDestination({ tab: nextTab, id });
+  }
   const operation = useCloudOperation(projectId);
   const setup = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup });
   const configured = setup.data?.configured === true;
@@ -89,13 +103,22 @@ export default function CloudTaskPage() {
       description={t("Accepted artifacts remain unchanged. Controls wait for matching Project, Task, Attempt and version observations; refresh both views to continue.", "已接受产物保持原样；控制操作等待 Project、Task、Attempt 和版本一致的观察，请刷新两类视图后继续。 ")} /> : null}
     <CloudOperationNotice operation={operation} />
     <section className="cloud-task-flow" aria-label={t("Task workflow", "任务流程")}>
-      <Steps current={step} size="small" responsive items={[t("Project resources", "项目资源"), t("Task inputs", "任务输入"), t("Resolve and freeze", "解析与冻结"), t("Harness work", "Harness 工作"), t("Test artifacts", "测试产物"), t("Execution and report", "执行与汇报")].map((title) => ({ title }))} />
+      <Steps current={step} size="small" responsive items={[
+        { title: <a href={`/projects/${projectId}/cloud?tab=resources`}>{t("Project resources", "项目资源")}</a> },
+        ...[
+          { title: t("Task inputs", "任务输入"), tab: "overview", id: "cloud-task-inputs" },
+          { title: t("Resolve and freeze", "解析与冻结"), tab: "overview", id: "cloud-task-resolution" },
+          { title: t("Harness work", "Harness 工作"), tab: "attempts", id: "cloud-attempt-history-heading" },
+          { title: t("Test artifacts", "测试产物"), tab: "artifacts", id: "cloud-assets-title" },
+          { title: t("Execution and report", "执行与汇报"), tab: "artifacts", id: "cloud-runs-title" },
+        ].map(({ title, tab: nextTab, id }) => ({ title: <a href={`#${id}`} onClick={(event) => goToSection(event, nextTab, id)}>{title}</a> })),
+      ]} />
       {step < 0 ? <p className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</p> : null}
     </section>
-    <Tabs className="workspace-tabs" animated={false} items={[
+    <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
         <div className="cloud-task-control-grid">
-          <section className="overview-section cloud-task-source-versions"><Typography.Title level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
+          <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
             {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT SHA", "被测 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
             {status === "DRAFT" ? <Space wrap><Button loading={inResolution} disabled={blocked || inResolution || (!!accepted && !legacyDraftBudget) || !config} onClick={() => void mutate({ operation: "RESOLVE_INPUTS" })}>{inResolution ? t("Resolving versions", "正在解析版本") : t("Resolve both repositories", "解析双仓版本")}</Button>
               <Button type="primary" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !dispatchEnabled || !accepted || legacyDraftBudget || !config} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch these exact versions", "下发上述确切版本")}</Button></Space> : null}
@@ -119,7 +142,7 @@ export default function CloudTaskPage() {
             <Button danger disabled={operation.blocked || !!task.deleted_at || !operational.valid || attempt?.checkpoint.cancellation_requested === true} onClick={() => void mutate(cloudCancellation(attempt?.id))}>{attempt?.checkpoint.cancellation_requested === true ? t("Cancellation requested", "已请求取消") : t("Request cancellation", "请求取消")}</Button>
           </section> : null}
         </div>
-        <section className="overview-section cloud-task-intent"><Typography.Title level={2}>{t("Frozen task intent", "任务输入意图")}</Typography.Title>
+        <section className="overview-section cloud-task-intent"><Typography.Title id="cloud-task-inputs" tabIndex={-1} level={2}>{t("Frozen task intent", "任务输入意图")}</Typography.Title>
           <Descriptions column={2} layout="vertical" items={[{ key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> },
             { key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> },
             { key: "flow", label: t("Basic flow", "基本流程"), span: 2, children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
@@ -129,7 +152,7 @@ export default function CloudTaskPage() {
         </section>
       </div> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },
-      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history" aria-labelledby="cloud-attempt-history-heading"><Typography.Title id="cloud-attempt-history-heading" level={2}>{t("Attempt history", "尝试历史")}</Typography.Title><div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
+      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history" aria-labelledby="cloud-attempt-history-heading"><Typography.Title id="cloud-attempt-history-heading" tabIndex={-1} level={2}>{t("Attempt history", "尝试历史")}</Typography.Title><div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
         { title: t("Attempt", "尝试"), dataIndex: "attempt_no" }, { title: t("Progress", "进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
         { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> }, { title: t("Reason", "原因"), dataIndex: "reason" },
       ]} /></div></section> },
