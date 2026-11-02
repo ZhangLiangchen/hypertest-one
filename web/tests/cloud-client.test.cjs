@@ -319,6 +319,8 @@ test("Workflow colors reflect recorded facts without inferring phase completion"
   assert.match(tones(taskPage("WAITING_INPUT"))[3], /cloud-flow-waiting/);
   assert.match(tones(taskPage("COMPLETED", { result: "FAIL" }))[5], /cloud-flow-failed/);
   assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[5], /cloud-flow-complete/);
+  assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[4], /cloud-flow-complete/);
+  assert.match(tones(taskPage("COMPLETED", { result: "PASS", liveError: true }))[4], /cloud-flow-unknown/);
   assert.match(tones(taskPage("FAILED"))[3], /cloud-flow-unknown/);
   assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 1 }] }))[2], /cloud-flow-failed/);
   assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 0 }] }))[2], /cloud-flow-unknown/);

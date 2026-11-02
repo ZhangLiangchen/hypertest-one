@@ -106,7 +106,8 @@ export default function CloudTaskPage() {
       : !live.isError && attempt?.status === "WAITING_INPUT" ? { tone: "waiting", text: t("Waiting for input", "等待输入") }
       : !live.isError && ["QUEUED", "PREPARING", "RUNNING"].includes(attempt?.status || "") ? { tone: "active", text: attempt?.status === "QUEUED" ? t("Queued", "排队中") : attempt?.status === "PREPARING" ? t("Preparing", "准备中") : t("Running", "进行中") }
       : { tone: "unknown", text: t("Unknown", "未知") },
-    { tone: "unknown", text: detail.assets.some((asset) => asset.attempt_id === task.latest_attempt_id) ? t("Artifacts recorded; completion unknown", "已有产物，完成情况未知") : t("Unknown", "未知") },
+    !live.isError && attempt?.status === "COMPLETED" ? { tone: "complete", text: t("Required artifacts accepted", "所需产物已接受") }
+      : { tone: "unknown", text: detail.assets.some((asset) => asset.attempt_id === task.latest_attempt_id) ? t("Artifacts recorded; completion unknown", "已有产物，完成情况未知") : t("Unknown", "未知") },
     task.reported_result === "PASS" ? { tone: "complete", text: t("Reported pass", "报告通过") }
       : ["FAIL", "ERROR"].includes(task.reported_result) ? { tone: "failed", text: t("Reported failure", "报告失败") }
       : { tone: "unknown", text: task.reported_result === "NOT_RUN" ? t("Not run", "未执行") : task.reported_result === "SKIPPED" ? t("Skipped", "已跳过") : task.reported_result === "BLOCKED" ? t("Blocked", "已阻塞") : t("Result unknown", "结果未知") },
