@@ -45,7 +45,7 @@ async def test_claim_requires_dedicated_worker_identity(worker_client, monkeypat
         calls.append((worker_id, lease_seconds))
         return None
 
-    async def attempt(_db, worker_id, lease_seconds):
+    async def attempt(_db, worker_id, lease_seconds, *, supports_attempt_manifest=False):
         return None
 
     monkeypatch.setattr(cloud_worker_routes.service, "expire_leases", expire)

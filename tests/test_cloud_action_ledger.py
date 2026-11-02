@@ -21,7 +21,11 @@ from hypertest.application import cloud_actions, cloud_tasks
 from hypertest.application.cloud_actions import WorkerActionAuthority
 from hypertest.application.cloud_ssh import ensure_remote_closed
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_actions import CloudActionIdentity, CloudActionSend
+from hypertest.domain.cloud_actions import (
+    CloudActionIdentity,
+    CloudActionObservation,
+    CloudActionSend,
+)
 
 pytest_plugins = ("test_cloud_tasks",)
 TARGET = "https://api.example.invalid:443"
@@ -311,8 +315,97 @@ async def test_controlled_action_task_cannot_be_redispatched_after_reconciliatio
     assert closed.status_code == 200, closed.text
     retry = await post(context, "DISPATCH", closed.json()["version"], task_id=current["task_id"],
         retry_of_attempt_id=current["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Must not repeat controlled actions")
-    assert retry.status_code == 409 and "Controlled actions require a new task" in retry.text
+    assert retry.status_code == 409 and "requires new scope and authorization" in retry.text
     async with AsyncSessionLocal() as db:
         attempts = (await db.scalars(select(cloud_tasks.CloudAttempt).where(
             cloud_tasks.CloudAttempt.task_id == UUID(current["task_id"])))).all()
         assert len(attempts) == 1
+
+
+async def test_retry_preserves_original_actions_and_blocks_unknown(action_context):
+    """Synthetic historical terminal Attempt with a delayed original observation."""
+    from hypertest.common.ids import uuid7
+    from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask
+
+    context, authority = action_context, action_context["authority"]
+    current = context["current"]
+    original = await authority.prepare_identity(action_key="swap-2", operation_key="op-original",
+        client_ref="client-original", unique_ref="unique-original")
+    sent = await authority.prepare_send(identity_id=original["identity_id"], body_sha256="b" * 64)
+    await authority.record_observation(identity_id=original["identity_id"], observation={
+        "state": "UNKNOWN", "http_status": None, "body_sha256": EMPTY, "byte_count": 0,
+        "reason": "TRANSPORT_UNKNOWN", "observed_at": int(time.time())})
+    task_id, attempt_id = UUID(current["task_id"]), UUID(current["attempt_id"])
+    async with AsyncSessionLocal() as db:
+        task = await db.get(CloudTask, task_id)
+        attempt = await db.get(CloudAttempt, attempt_id)
+        original_manifest, held, authorization = task.frozen_manifest, attempt.runtime_metadata, task.inputs["authorization"]
+        # Seed a historical terminal row without pretending UNKNOWN was resolved.
+        task.status = attempt.status = "FAILED"
+        await db.commit()
+    retry_inputs = {"objective": "Synthetic retest", "test_scope": "Explicit synthetic scope",
+        "basic_flow": "Run synthetic fixture", "framework_entrypoints": ["pytest"], "authorization": authorization}
+    fields = {"task_id": str(task_id), "retry_of_attempt_id": str(attempt_id),
+        "retry_scope_confirmed": True, "retry_authorization_confirmed": True,
+        "retry_inputs": retry_inputs, "reason": "Reviewed synthetic test"}
+    refused = await post(context, "DISPATCH", current["version"], **fields)
+    assert refused.status_code == 409 and "CLOUD_ACTION_BUSINESS_UNRECONCILED" in refused.text
+    async with AsyncSessionLocal() as db:
+        terminal_observation = {"state": "BUSINESS_TERMINAL", "order_response_sha256": "a" * 64,
+            "details_response_sha256": "b" * 64, "observed_at": int(time.time()),
+            "projection": {"profile": "observation/v1", "client_order_id": "client-original", "order_id": "42",
+                "business_status": "Completed", "business_terminal": True, "details": [{"status": "Success"}],
+                "chain_receipt": "UNOBSERVED", "actual_trx_received": "UNOBSERVED"}}
+        db.add(CloudActionObservation(id=uuid7(), project_id=UUID(context["project_id"]), task_id=task_id,
+            attempt_id=attempt_id, send_id=UUID(sent["send_id"]), state="BUSINESS_TERMINAL",
+            observation_sha256=cloud_tasks.canonical_json_sha256(terminal_observation), observation=terminal_observation))
+        await db.commit()
+    retry = await post(context, "DISPATCH", current["version"], **fields)
+    assert retry.status_code == 200, retry.text
+    async with AsyncSessionLocal() as db:
+        task = await db.get(CloudTask, task_id)
+        old = await db.get(CloudAttempt, attempt_id)
+        assert task.frozen_manifest == original_manifest and old.runtime_metadata == held
+        assert await db.scalar(select(func.count()).select_from(CloudActionIdentity).where(CloudActionIdentity.task_id == task_id)) == 1
+        assert await db.scalar(select(func.count()).select_from(CloudActionSend).where(CloudActionSend.task_id == task_id)) == 1
+        assert await db.scalar(select(func.count()).select_from(CloudActionObservation).where(CloudActionObservation.task_id == task_id)) == 2
+    summary = await context["client"].get(f"/api/v1/cloud/tasks/{task_id}/summary", headers=context["headers"],
+                                          params={"project_id": context["project_id"]})
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["controlled_actions"] == []
+    history = summary.json()["controlled_actions_history"]
+    assert len(history) == 1 and history[0]["attempt_id"] == str(attempt_id)
+    assert history[0]["actions"][0]["state"] == "BUSINESS_TERMINAL"
+    async with AsyncSessionLocal() as db:
+        claim = await cloud_tasks.claim_attempt(db, "native-fixture", project_id=UUID(context["project_id"]),
+                                                supports_attempt_manifest=True)
+    identity = cloud_tasks.WorkerIdentity("native-fixture", claim["lease_token"], claim["generation"], claim["work_token"])
+    running = await worker_submit(context, identity, retry.json(), "TRANSITION", status="RUNNING", reason="Synthetic")
+    assets = [
+        {"kind": "ANALYSIS", "key": "a", "title": "Synthetic analysis", "markdown": "Fixture"},
+        {"kind": "DESIGN", "key": "d", "title": "Synthetic design", "markdown": "Fixture"},
+        {"kind": "CASE", "key": "c", "title": "Synthetic case", "details": {
+            "steps": ["No real operation"], "expected": "Not run", "actual": "Not run"}},
+        {"kind": "IMPLEMENTATION", "key": "i", "title": "Synthetic implementation", "markdown": "Fixture", "details": {
+            "framework_sha": FRAMEWORK_SHA, "cwd": "framework", "dirty_files": [], "untracked_files": [], "test_tree_digest": "3" * 64}},
+        {"kind": "REPORT", "key": "r", "title": "Synthetic report", "markdown": "No actual tests", "reported_result": "NOT_RUN"},
+    ]
+    accepted = await worker_submit(context, identity, running, "SUBMIT_ASSETS", assets=assets)
+    ids = [item["id"] for item in accepted["assets"]]
+    report = next(item["id"] for item in accepted["assets"] if item["kind"] == "REPORT")
+    from pydantic import TypeAdapter
+
+    from hypertest.api.cloud_schemas import CloudMutation
+    payload = TypeAdapter(CloudMutation).validate_python({"project_id": context["project_id"], "task_id": str(task_id),
+        "attempt_id": retry.json()["attempt_id"], "operation_key": "native-finish-" + uuid4().hex,
+        "expected_version": accepted["version"], "operation": "COMPLETE_NATIVE_ATTEMPT", "final_report_revision": report,
+        "reported_result": "NOT_RUN", "usage_seconds": 0, "cost_microunits": 0,
+        "runtime_observation": "DIRECT_SDK_PROCESS_EXITED", "completion_manifest": {"required_asset_ids": ids,
+            "no_tests_reason": "Synthetic fixture", "all_local_processes_stopped": False,
+            "external_operations_reconciled": False, "scope_and_gaps": "No model or SUT"}})
+    async with AsyncSessionLocal() as db:
+        completed = await cloud_tasks.mutate(db, payload, "worker:native-fixture", worker=identity, native_worker=True)
+        assert completed["status"] == "ACCEPTED"
+    async with AsyncSessionLocal() as db:
+        old = await db.get(CloudAttempt, attempt_id)
+        assert old.runtime_metadata == held and old.runtime_metadata["budget_reservation"]["state"] == "HELD"

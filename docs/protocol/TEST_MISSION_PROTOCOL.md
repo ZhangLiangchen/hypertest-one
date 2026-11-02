@@ -1471,7 +1471,7 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 | Create/UpdateCloudTask | `title, selectors, config_revision, prd, objective, basic_flow, framework_entrypoints, environment_ref, authorization_manifest, budgets`；DRAFT 可改，`cloud:dispatch` |
 | DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；仅未冻结 DRAFT 或终态且输入解析、Attempt 和外部操作无未决时接受，追加墓碑与版本化回执。固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读，拒绝后续新写。删除不会取消任务、改写结果或重发外部操作 |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
-| DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_scope_confirmed=true, retry_authorization_confirmed=true`（同冻结输入显式复测）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
+| DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_inputs, retry_scope_confirmed=true, retry_authorization_confirmed=true`（本次范围和授权独立冻结）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
 | GetCloudTask / GetCloudOperation | 固定 task/version 的任务/Attempt/资产分页，或 project/原 operation_key 的回执查询；`cloud:read`，回执查询另核验原提交者/授权委派关系 |
 | AnswerCloudInput / ResumeCloudAttempt | `task_id, attempt_id, question_key, answer` 或 `checkpoint_ref, reason`；回答与恢复分开审计，当前权限和冻结上限重新核验；`cloud:control` |
 | CancelCloudTask | `task_id, reason`；仅允许 DRAFT 且无 Attempt，核验 expected task version 后原子置 CANCELLED、递增版本并保存原 key 回执及 Audit/Outbox；`cloud:control`。不启动/取消 SDK 或产生执行副作用；该 Task 保持终态，重新开始须新建关联 DRAFT |
@@ -1483,6 +1483,9 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 新增云端专用权限须沿用项目身份/授权链并独立授予；`task:sync` 不蕴含 `cloud:*` 或 `credential:manage`。`cloud:work` 为短期能力，绑定 Task、用途及适用的 Attempt/lease generation；INPUT_RESOLUTION 能力不能启动 Harness 或测试。引用 ID、可见 generation、Provider session label 不构成密钥。撤权、过期或越项目时拒绝新操作与凭据物化，不因旧 manifest 已冻结而继续使用。
 
 ### 46.4 下发输入与冻结快照
+
+**ADR-033 增补：** 新复测 Attempt 使用自己固定的测试范围、流程、授权及摘要，沿用原配置和已解析源码身份；不改写原 Task 冻结输入、原动作及原预算。旧受控动作按原 key 对账，宿主执行不代表强隔离或复用旧动作 broker。
+
 
 DRAFT 请求中，SUT selector 支持 branch、关联 feat、MR 或完整 SHA；framework 有独立 ref，允许同仓。feat 是变更标签，需要关联可解析 Git selector。PRD 必须冻结正文或附件版本；来源 URL 仅作出处。环境连接描述与 SSH/应用私钥 ref 分开，应用签名密钥不能拿来 SSH 登录。
 

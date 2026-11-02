@@ -2,7 +2,14 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { operationHarness, until, document, IDBFactory } = require("./operation-harness.cjs");
 const pending = (key = "web:original", extra = {}) => ({ project_id: "project-a", operation_key: key, expected_version: 4, operation: "DISPATCH", task_id: "task-a", digest: "a".repeat(64), state: "UNKNOWN", ...extra });
-const receipt = (key) => ({ status: "ACCEPTED", profile: "cloud-harness-task/v1alpha1", project_id: "project-a", operation_key: key, operation: "DISPATCH", task_id: "task-a", version: 5 });
+const inputDigest = "b".repeat(64);
+const receipt = (key) => ({ status: "ACCEPTED", profile: "cloud-harness-task/v1alpha1", project_id: "project-a", operation_key: key, operation: "DISPATCH", task_id: "task-a", attempt_id: "attempt-a", input_digest: inputDigest, version: 5 });
+function dispatchDocument(project, task, version) {
+  const result = document(project, task, version);
+  result.task.latest_attempt_id = "attempt-a";
+  result.attempts.push({ id: "attempt-a", input_digest: inputDigest });
+  return result;
+}
 test("IndexedDB serializes competing reservations and survives closing all tab connections", async () => {
   const factory = new IDBFactory(), a = operationHarness({}, { factory }), b = operationHarness({}, { factory });
   const result = await Promise.all([a.journal.reserve(pending("web:first")), b.journal.reserve(pending("web:second"))]);
@@ -68,7 +75,7 @@ test("Unavailable or newly failing persistent storage prohibits POST", async () 
 test("ACK waits for the complete exact accepted version and never retries the POST", async () => {
   let key, readVersion, complete = false, posts = 0;
   const harness = operationHarness({ cloudRequest: async (_path, init) => { posts++; key = JSON.parse(init.body).operation_key; return receipt(key); },
-    cloudDocument: async (project, task, version) => { readVersion = version; return complete ? document(project, task, version) : document(project, task, version + 1); }, cloudOperation: async (_project, original) => receipt(original) });
+    cloudDocument: async (project, task, version) => { readVersion = version; return complete ? dispatchDocument(project, task, version) : dispatchDocument(project, task, version + 1); }, cloudOperation: async (_project, original) => receipt(original) });
   await harness.mount(); await harness.render().submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 });
   assert.equal(harness.render().pending.operation_key, key); assert.equal(harness.render().receipt, null); assert.equal(readVersion, 5);
   complete = true; await harness.render().reconcile();
@@ -84,10 +91,10 @@ test("A partial task readback cannot settle a matching ACK", async () => {
 test("A late Cloud response cannot clear another tab's newer operation", async () => {
   const factory = new IDBFactory(); let finish, posts = 0;
   const response = new Promise((resolve) => { finish = resolve; });
-  const a = operationHarness({ cloudRequest: async () => { posts++; return response; }, cloudDocument: async (project, task, version) => document(project, task, version) }, { factory, tab: "a" });
+  const a = operationHarness({ cloudRequest: async () => { posts++; return response; }, cloudDocument: async (project, task, version) => dispatchDocument(project, task, version) }, { factory, tab: "a" });
   await a.mount(); const sending = a.render().submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 });
   await until(() => posts === 1); const [original] = await a.journal.read("project-a");
-  const b = operationHarness({ cloudOperation: async (_project, key) => receipt(key), cloudDocument: async (project, task, version) => document(project, task, version), cloudRequest: async () => { posts++; throw new Error("new unknown request"); } }, { factory, tab: "b" });
+  const b = operationHarness({ cloudOperation: async (_project, key) => receipt(key), cloudDocument: async (project, task, version) => dispatchDocument(project, task, version), cloudRequest: async () => { posts++; throw new Error("new unknown request"); } }, { factory, tab: "b" });
   await b.mount(); await b.render().reconcile(); await b.render().submit({ operation: "CANCEL_TASK", task_id: "task-a", expected_version: 5 });
   const newer = b.render().pending.operation_key; finish(receipt(original.operation_key));
   assert.equal(await sending, null); assert.equal((await a.journal.read("project-a"))[0].operation_key, newer); assert.equal(posts, 2); a.close(); b.close();
@@ -95,7 +102,7 @@ test("A late Cloud response cannot clear another tab's newer operation", async (
 
 test("Legacy session storage denial preserves Cloud original-key recovery", async () => {
   const denied = { getItem() { throw new Error("session storage denied"); } }; let posts = 0, queried;
-  const harness = operationHarness({ cloudRequest: async () => { posts++; }, cloudOperation: async (_project, key) => { queried = key; return receipt(key); }, cloudDocument: async (project, task, version) => document(project, task, version) }, { storage: denied });
+  const harness = operationHarness({ cloudRequest: async () => { posts++; }, cloudOperation: async (_project, key) => { queried = key; return receipt(key); }, cloudDocument: async (project, task, version) => dispatchDocument(project, task, version) }, { storage: denied });
   const original = pending(); await harness.journal.reserve(original); await harness.mount();
   assert.equal(harness.render().ready, false); assert.ok(harness.render().pending);
   await harness.render().submit({ operation: "CREATE_TASK", expected_version: 0 });

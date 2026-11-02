@@ -97,6 +97,8 @@ class WorkerHttpAuthority:
 
     async def _profile(self, db, task, attempt):
         from . import cloud_tasks as service
+        if attempt.execution_manifest is not None:
+            reject("HTTPS_LEGACY_PROFILE_NOT_AVAILABLE")
         service.enabled()
         if not service.get_settings().cloud_https_enabled:
             reject("HTTPS_EXECUTION_DISABLED", 503)

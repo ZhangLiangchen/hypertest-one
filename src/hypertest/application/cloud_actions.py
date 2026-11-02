@@ -100,6 +100,8 @@ class WorkerActionAuthority:
 
     async def _authorized(self, db, task, attempt, action_key):
         from . import cloud_tasks as service
+        if attempt.execution_manifest is not None:
+            reject("CLOUD_ACTION_LEGACY_PROFILE_NOT_AVAILABLE")
         if not controlled_actions_enabled():
             reject("CLOUD_ACTION_LEDGER_UNAVAILABLE", 503)
         service.enabled()

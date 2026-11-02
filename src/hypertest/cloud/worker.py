@@ -265,6 +265,12 @@ class CloudWorker:
             raise CloudBlocked("DOCKER_ADMISSION_UNAVAILABLE", "Docker Attempt execution is not admitted")
         broker = CloudBroker(self.sessions, claim, self.worker_id)
         task, attempt = claim["task"], claim["attempt"]
+        # Attempt-specific retries are admitted only by the host-native worker.
+        # The legacy runtime reads task.frozen_manifest, so it must not start a
+        # container or SDK and silently execute the original task inputs.
+        if attempt.get("execution_manifest") is not None:
+            await broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED")
+            raise CloudBlocked("ATTEMPT_SNAPSHOT_UNSUPPORTED", "This worker cannot execute the retry snapshot")
         native_task = task.get("inputs", task.get("frozen_manifest", {}).get("inputs", {})).get("budgets") is None
         root = private_root(self.settings.cloud_runtime_root) / ("attempt-" + attempt["id"])
         try:

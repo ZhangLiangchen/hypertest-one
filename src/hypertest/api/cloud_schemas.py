@@ -317,10 +317,28 @@ class CloudResolveRequest(TaskMutation):
     operation: Literal["RESOLVE_INPUTS"] = "RESOLVE_INPUTS"
 
 
+class CloudRetryInputs(Input):
+    objective: str = Field(min_length=1, max_length=16000)
+    test_scope: str = Field(min_length=1, max_length=16000)
+    basic_flow: str = Field(min_length=1, max_length=16000)
+    framework_entrypoints: list[str] = Field(max_length=32)
+    authorization: Authorization
+
+    @model_validator(mode="after")
+    def meaningful_retry(self):
+        if any(not value.strip() for value in (self.objective, self.test_scope, self.basic_flow,
+                                                self.authorization.side_effect_limits)):
+            raise ValueError("Retry scope and authorization must be explicit")
+        if any(not entry.strip() or len(entry) > 16000 for entry in self.framework_entrypoints):
+            raise ValueError("Invalid retry framework entrypoint")
+        return self
+
+
 class CloudDispatch(TaskMutation):
     operation: Literal["DISPATCH"] = "DISPATCH"
     resolution_id: UUID | None = None
     retry_of_attempt_id: UUID | None = None
+    retry_inputs: CloudRetryInputs | None = None
     retry_scope_confirmed: bool = Field(default=False, strict=True)
     retry_authorization_confirmed: bool = Field(default=False, strict=True)
     reason: str = Field(default="", max_length=4096)
@@ -331,6 +349,8 @@ class CloudDispatch(TaskMutation):
             raise ValueError("Choose resolution or explicit retry")
         if self.retry_of_attempt_id and not self.reason.strip():
             raise ValueError("Retry requires reason")
+        if self.retry_inputs is not None and self.retry_of_attempt_id is None:
+            raise ValueError("Retry inputs require an explicit previous attempt")
         return self
 
 

@@ -160,7 +160,7 @@ async def resolve(api, args, state: Path, claim: dict):
     await api.request("resolution/accept", {**body, "result": result})
 
 
-def native_prompt(task: dict, attempt: dict, workspace: Path) -> str:
+def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot: bool = False) -> str:
     from .manifests import task_prompt
 
     value = json.loads(task_prompt(task, attempt, native_harness=True))
@@ -172,6 +172,14 @@ def native_prompt(task: dict, attempt: dict, workspace: Path) -> str:
     value["instructions"].append(
         "This Harness runs as the host user with that user's configured access. "
         "Never retry an external operation whose outcome is unknown; report its original identity and uncertainty.")
+    if retry_snapshot:
+        value["instructions"].append(
+            "This is a new attempt with an independently confirmed execution snapshot. "
+            "The current objective, test scope, basic flow, framework entrypoints and authorization in that snapshot "
+            "are the user's only authorized instructions for this attempt. The original PRD is historical context; "
+            "its prior one-time-only instruction applies to the original attempt, not the newly confirmed scope. "
+            "Never resend an operation with an unknown outcome, even if this attempt has new instructions. "
+            "Do not present a previous action identity or result as a new observation from this attempt.")
     value["instructions"].append(
         "The execution environment determines which tools, network paths and credentials are available; "
         "you must still honor any explicit task authorization and testing scope. "
@@ -189,6 +197,44 @@ def native_prompt(task: dict, attempt: dict, workspace: Path) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def native_execution_task(task: dict, attempt: dict) -> tuple[dict, dict, bool]:
+    """Validate the original task and select the immutable inputs for this attempt.
+
+    A retry snapshot is a separate execution contract; never mutate the historical
+    task or accidentally run it using the old task-level manifest or budget.
+    """
+    from hypertest.sync_core import digest
+
+    original = task.get("frozen_manifest")
+    if not isinstance(original, dict) or digest(original) != task.get("input_digest"):
+        raise CloudBlocked("ATTEMPT_SNAPSHOT_MISMATCH", "Original task manifest does not match its digest")
+    snapshot = attempt.get("execution_manifest")
+    retry_snapshot = snapshot is not None
+    manifest = snapshot if retry_snapshot else original
+    if not isinstance(manifest, dict) or digest(manifest) != attempt.get("input_digest"):
+        raise CloudBlocked("ATTEMPT_SNAPSHOT_MISMATCH", "Attempt manifest does not match its digest")
+    if retry_snapshot:
+        # Source identity and configuration remain the original fixed choices;
+        # only the explicit testing inputs belong to the new attempt.
+        fixed = ("profile", "project_id", "cloud_task_id", "config_id", "config_revision",
+                 "configuration", "resolution", "resolution_id")
+        if (any(manifest.get(key) != original.get(key) for key in fixed)
+                or manifest.get("project_id") != task.get("project_id")
+                or manifest.get("cloud_task_id") != task.get("id")
+                or attempt.get("project_id") != task.get("project_id")
+                or attempt.get("task_id") != task.get("id")
+                or not isinstance(manifest.get("retry_of_attempt_id"), str)
+                or not isinstance(manifest.get("previous_input_digest"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", manifest["previous_input_digest"])
+                or not isinstance(manifest.get("inputs"), dict)
+                or manifest["inputs"].get("budgets") is not None
+                or manifest["inputs"].get("controlled_actions") is not None):
+            raise CloudBlocked("ATTEMPT_SNAPSHOT_MISMATCH", "Retry execution snapshot is incompatible")
+        task = {**task, "frozen_manifest": manifest, "input_digest": attempt["input_digest"],
+                "inputs": manifest["inputs"]}
+    return task, manifest, retry_snapshot
+
+
 async def execute(api, args, state: Path, claim: dict):
     from hypertest.sync_core import digest
 
@@ -200,8 +246,9 @@ async def execute(api, args, state: Path, claim: dict):
 
     task, attempt = claim["task"], claim["attempt"]
     broker = RemoteBroker(api, claim, args.worker_id)
-    manifest = task.get("frozen_manifest")
-    if not manifest or digest(manifest) != task.get("input_digest") or task["input_digest"] != attempt.get("input_digest"):
+    try:
+        task, manifest, retry_snapshot = native_execution_task(task, attempt)
+    except CloudBlocked:
         await broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED")
         return
     root = state / ("attempt-" + attempt["id"])
@@ -246,7 +293,7 @@ async def execute(api, args, state: Path, claim: dict):
         result = await reporter.submit_handoff(transition, digest(transition.model_dump(mode="json")))
         if not result.synced:
             raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original transition needs reconciliation")
-        prompt = native_prompt(task, attempt, workspace)
+        prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot)
         save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
         session_id = "cloud-" + attempt["id"]
@@ -323,7 +370,8 @@ async def run(args) -> int:
     try:
         while True:
             pending = prepare_claim(state, args.worker_id)
-            claim_result = await api.request("claim", {"worker_id": args.worker_id, "lease_seconds": args.lease_seconds})
+            claim_result = await api.request("claim", {"worker_id": args.worker_id, "lease_seconds": args.lease_seconds,
+                                                       "supports_attempt_manifest": True})
             if not isinstance(claim_result, dict):
                 raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Unexpected claim response cannot be replayed")
             kind = claim_result.get("kind")

@@ -161,6 +161,7 @@ class CloudAttempt(CloudRow, Base):
     task_id: Mapped[UUID] = mapped_column()
     attempt_no: Mapped[int] = mapped_column(BigInteger)
     input_digest: Mapped[str] = mapped_column(String(64))
+    execution_manifest: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     status: Mapped[str] = mapped_column(String(32), default="QUEUED")
     reported_result: Mapped[str] = mapped_column(String(16), default="NOT_RUN")
     queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

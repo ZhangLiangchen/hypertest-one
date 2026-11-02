@@ -2382,6 +2382,10 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 
 ### 51.3 六步输入冻结
 
+**ADR-033 覆盖旧任务复测限制：** 原 CloudTask 的显式复测必须为新 Attempt 固定独立的执行快照和 digest，记录原 Attempt 引用与本次范围、流程和授权。原 Task 冻结输入、旧 Attempt、已登记动作和 HELD 预算保持不变；已知未决原操作及未收口容器继续阻止下发，原 key 只读对账。重试可使用 ADR-032 的宿主薄 Worker，不能把新宿主直接操作宣称为旧受控 broker 已管理或 OS 强隔离。详见 [ADR-033](../architecture/ADR-033_CLOUD_ATTEMPT_RETRY_SNAPSHOT.md)。
+
+
+
 **ADR-031（2026-11-02）覆盖：** 新 CloudTask 的 `budgets` 为 null，不接受任务预算输入，不生成预算 hold / settlement。模型、推理和插件由云端 Harness 原生 `sdk` profile 管理。下文预算字段、累计额度和结算规则只解释旧冻结任务及其历史对账；旧冻结任务不能重新下发，未冻结且无 Attempt 的旧 DRAFT 在编辑或重新解析时移除预算并更新版本。隔离、授权、lease/fence 和原 key 未知操作恢复继续有效。新模式的受控 SSH、HTTPS 与外部写暂不支持。
 
 1. 在云端创建或复用 Project，并登记/可选保存资源配置及凭据版本。

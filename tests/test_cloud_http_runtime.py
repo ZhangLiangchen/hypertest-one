@@ -127,14 +127,14 @@ async def test_frozen_legacy_task_rejects_new_attempt_before_reusing_old_input(m
     with pytest.raises(HTTPException) as exc:
         await cloud_tasks.mutate(db, payload, "original-actor")
     assert exc.value.status_code == 409
-    assert "create a related task" in exc.value.detail
+    assert "requires new scope and authorization" in exc.value.detail
 
 
 @pytest.mark.parametrize("kind", ["ssh", "http", "action"])
 async def test_lease_only_remote_start_rejected_before_writing_intent(monkeypatch, kind):
     from hypertest.application import cloud_actions, cloud_http, cloud_ssh, cloud_tasks
     task = SimpleNamespace(inputs={"budgets": None})
-    attempt = SimpleNamespace(status="RUNNING", id=uuid4())
+    attempt = SimpleNamespace(status="RUNNING", id=uuid4(), execution_manifest=None)
     db = SimpleNamespace(scalar=AsyncMock(return_value=None), add=AsyncMock(), commit=AsyncMock())
 
     class Session:

@@ -237,7 +237,7 @@ async def test_confirm_and_stop_bind_original_attempt_and_allow_later_retry(clou
     failed = await worker_submit(cloud_context, identity, stopped, "TRANSITION", status="FAILED")
     retry = await post(cloud_context, "DISPATCH", failed["version"], task_id=receipt["task_id"],
         retry_of_attempt_id=receipt["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="explicit synthetic retry")
-    assert retry.status_code == 409 and "create a related task" in retry.text
+    assert retry.status_code == 409 and "requires new scope and authorization" in retry.text
 
 
 @pytest.mark.parametrize("fence_kind", ["cancel", "lease_expired"])

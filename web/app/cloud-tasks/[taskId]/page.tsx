@@ -2,7 +2,7 @@
 
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Checkbox, Descriptions, Form, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Form, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -18,6 +18,7 @@ import { CloudTaskRecords } from "./records";
 import { LiveQuestionsPanel } from "./live-questions-panel";
 import { CloudTaskForm } from "@/app/projects/[projectId]/cloud/task-form";
 import { CloudTaskDelete } from "./delete-task";
+import { RetryDialog } from "./retry-dialog";
 import type { CloudTask } from "@/lib/cloud";
 
 const text = (value: unknown) => typeof value === "string" ? value : value == null ? "—" : JSON.stringify(value, null, 2);
@@ -29,10 +30,8 @@ export default function CloudTaskPage() {
   const { t, label } = useI18n(); const [editing, setEditing] = useState<CloudTask | null>(null); const [answers, setAnswers] = useState<Record<string, string>>({});
   const [tab, setTab] = useState("overview");
   const [retry, setRetry] = useState<{ attemptId: string; version: number } | null>(null);
-  const [retryScopeConfirmed, setRetryScopeConfirmed] = useState(false);
-  const [retryAuthorizationConfirmed, setRetryAuthorizationConfirmed] = useState(false);
   const [destination, setDestination] = useState<{ tab: string; id: string } | null>(null);
-  useEffect(() => { setAnswers({}); setEditing(null); setTab("overview"); setDestination(null); setRetry(null); setRetryScopeConfirmed(false); setRetryAuthorizationConfirmed(false); }, [projectId, taskId]);
+  useEffect(() => { setAnswers({}); setEditing(null); setTab("overview"); setDestination(null); setRetry(null); }, [projectId, taskId]);
   useEffect(() => {
     if (!destination || destination.tab !== tab) return;
     const frame = window.requestAnimationFrame(() => {
@@ -69,6 +68,13 @@ export default function CloudTaskPage() {
       setEditing(null); void live.refetch(); void document.refetch();
     }
   }, [editing, operation.receipt, live.refetch, document.refetch]);
+  useEffect(() => {
+    // A lost dispatch response is resolved by original key. Once that receipt
+    // is read back, close the original form instead of allowing a new intent.
+    if (retry && operation.receipt?.operation === "DISPATCH" && operation.receipt.task_id === taskId && operation.receipt.version === retry.version + 1) {
+      setRetry(null); void live.refetch(); void document.refetch();
+    }
+  }, [retry, taskId, operation.receipt, live.refetch, document.refetch]);
   async function mutate(fields: CloudRecord) {
     if (!document.data || document.data.task.deleted_at || !cloudOperationalView(document.data, live.data).valid) return;
     const receipt = await operation.submit({ task_id: taskId, expected_version: document.data.task.version, ...fields });
@@ -90,11 +96,6 @@ export default function CloudTaskPage() {
   const blocked = operation.blocked || !enabled || !operational.valid || !!task.deleted_at;
   const answered = new Set(detail.answers.map((row) => row.question_id));
   const questions = detail.questions.filter((row) => !answered.has(row.id));
-  const retryBlockedReason = task.inputs.controlled_actions != null
-    ? t("This task uses a legacy controlled-action contract that the host worker cannot execute.", "此任务使用宿主 Worker 尚不支持的旧版受控动作合同。")
-    : task.inputs.budgets != null
-      ? t("This task uses a legacy frozen budget that the host worker cannot execute. The previous budget and its accounting remain recorded.", "此任务使用宿主 Worker 尚不支持的旧版冻结预算；原预算及其账务记录仍予保留。")
-      : null;
   // State identifies current work, not a history of completed business phases.
   // Unknown/recovery/failed/cancelled states cannot establish how far work got.
   const step = live.isError ? -1 : status === "DRAFT" ? accepted || inResolution ? 2 : 1
@@ -130,29 +131,18 @@ export default function CloudTaskPage() {
         <CloudTaskForm key={`${editing.id}:${editing.version}`} config={configurations.data?.items.find((row) => row.id === editing.config_id)} operation={operation} configOptions={configurations.data?.items} enabled={enabled && operational.valid && !task.deleted_at && status === "DRAFT" && !task.frozen_manifest && !inResolution && task.version === editing.version} editTask={editing} onCancel={() => setEditing(null)} onCreated={() => { setEditing(null); void live.refetch(); void document.refetch(); }} />
       </> : null}
     </Modal>
-    <Modal open={!!retry} title={t("Review and dispatch a new attempt", "核对并下发新的执行尝试")} width={800} destroyOnHidden
-      okText={t("Dispatch retry", "下发重试")} cancelText={t("Cancel", "取消")}
-      okButtonProps={{ disabled: !retryScopeConfirmed || !retryAuthorizationConfirmed || blocked || live.isError || !dispatchEnabled || retry?.version !== task.version || retry?.attemptId !== attempt?.id || status !== "FAILED" }}
-      onCancel={() => setRetry(null)} onOk={() => {
-        if (!retry || !retryScopeConfirmed || !retryAuthorizationConfirmed || retry.version !== task.version || retry.attemptId !== attempt?.id || blocked || live.isError || !dispatchEnabled || status !== "FAILED") return;
-        setRetry(null);
-        void mutate({ operation: "DISPATCH", retry_of_attempt_id: retry.attemptId, retry_scope_confirmed: true, retry_authorization_confirmed: true, reason: "Operator confirmed the frozen scope and authorization for a new attempt" });
-      }}>
-      <Typography.Paragraph>{t("This creates a new attempt using the frozen inputs and does not resume the previous session. Previous work and external effects may have already occurred.", "本操作使用冻结输入创建新尝试，不会续接原会话。此前工作和外部操作可能已经发生。")}</Typography.Paragraph>
-      <Alert showIcon type="warning" message={t("Reconcile uncertain external operations by their original key before retrying.", "下发前请使用原操作键对账结果不明的外部操作。")} style={{ marginBottom: 16 }} />
-      {retry && (retry.version !== task.version || retry.attemptId !== attempt?.id || status !== "FAILED") ? <Alert showIcon type="warning" message={t("The task or attempt changed. Close this dialog and review again.", "任务或尝试已变化，请关闭窗口后重新核对。")} style={{ marginBottom: 16 }} /> : null}
-      <Descriptions column={1} layout="vertical" items={[
-        { key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> },
-        { key: "scope", label: t("Frozen test scope", "冻结的测试范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> },
-        { key: "flow", label: t("Basic flow", "基本流程"), children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
-        { key: "entrypoints", label: t("Framework entrypoints", "框架入口"), children: <pre className="session-literal">{text(task.inputs.framework_entrypoints)}</pre> },
-        { key: "authorization", label: t("Frozen authorization", "冻结的授权"), children: <pre className="session-literal">{text(task.inputs.authorization)}</pre> },
-      ]} />
-      <Space direction="vertical" style={{ marginTop: 16 }}>
-        <Checkbox checked={retryScopeConfirmed} onChange={(event) => setRetryScopeConfirmed(event.target.checked)}>{t("I have reviewed and confirm this test scope.", "我已核对并确认本次测试范围。")}</Checkbox>
-        <Checkbox checked={retryAuthorizationConfirmed} onChange={(event) => setRetryAuthorizationConfirmed(event.target.checked)}>{t("I confirm this retry is authorized within the displayed authorization.", "我确认本次重试已获得上述授权。")}</Checkbox>
-      </Space>
-    </Modal>
+    {retry ? <RetryDialog task={task} actions={live.data?.controlled_actions_history?.flatMap((group) => group.actions.map((action) => ({ ...action, attempt_id: group.attempt_id }))) ?? live.data?.controlled_actions} notice={<CloudOperationNotice operation={operation} />}
+      invalid={blocked || live.isError || !dispatchEnabled || retry.version !== task.version || retry.attemptId !== attempt?.id || status !== "FAILED"}
+      stale={!operational.valid || live.isError || retry.version !== task.version || retry.attemptId !== attempt?.id || status !== "FAILED"}
+      busy={operation.busy || !!operation.pending}
+      onCancel={() => setRetry(null)} onSubmit={(retryInputs) => {
+        if (retry.version !== task.version || retry.attemptId !== attempt?.id || blocked || live.isError || !dispatchEnabled || status !== "FAILED") return;
+        void (async () => {
+          const receipt = await operation.submit({ task_id: taskId, expected_version: retry.version, operation: "DISPATCH", retry_of_attempt_id: retry.attemptId,
+            retry_scope_confirmed: true, retry_authorization_confirmed: true, retry_inputs: retryInputs, reason: "Operator confirmed scope and authorization for a new attempt" });
+          if (receipt) { setRetry(null); await document.refetch(); await live.refetch(); }
+        })();
+      }} /> : null}
     <Alert showIcon type="info" message={t("Progress and test results are separate", "任务进度与测试结果分别记录")} description={t("Completed means the agreed work was delivered. FAIL, ERROR and BLOCKED results remain visible with their original reports.", "已完成表示约定工作已交付；失败、错误和阻塞结果及其原始报告继续保留。 ")} style={{ marginBottom: 20 }} />
     {document.isError ? <Alert showIcon type="warning" message={t("Refresh failed; previously verified records are retained.", "刷新失败；保留此前已核验记录。 ")} style={{ marginBottom: 20 }} /> : null}
     {!operational.valid || live.isError ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={operational.newerVersion ? t("Reading a newer accepted version", "正在读取更新的接受版本") : t("Live operational state is not verified", "当前运行状态尚未核验")}
@@ -192,10 +182,9 @@ export default function CloudTaskPage() {
           </section>
           {attempt ? <section className="overview-section"><Typography.Title level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
             {status === "FAILED" && attempt.status === "FAILED" ? <div style={{ marginBottom: 16 }}>
-              {retryBlockedReason ? <><Alert showIcon type="warning" message={t("Retry cannot be dispatched yet", "暂无法下发重试")} description={retryBlockedReason} />{live.data?.controlled_actions?.some((action) => action.state === "SENT_UNRECONCILED") ? <Alert showIcon type="warning" style={{ marginTop: 12 }} message={t("A sent action remains unreconciled", "已有已发送动作尚未对账")} description={t("Reconcile the original action by its original key; do not automatically resend it.", "请使用原操作键对账，不要自动重发。")} /> : null}</> : <>
-                <Typography.Paragraph className="muted">{t("A retry starts a new attempt with the same frozen inputs. It does not continue the old session and may repeat completed work. Check external effects and authorization first.", "重试会按相同冻结输入创建新的执行尝试，不会继续原会话，可能重复已完成的工作。请先核对外部操作和授权。")}</Typography.Paragraph>
-                <Button disabled={blocked || live.isError || !dispatchEnabled} onClick={() => { setRetryScopeConfirmed(false); setRetryAuthorizationConfirmed(false); setRetry({ attemptId: attempt.id, version: task.version }); }}>{t("Retry task", "重试任务")}</Button>
-              </>}
+              <Typography.Paragraph className="muted">{t("Start a new attempt after reviewing its scope and authorization. The previous attempt and its records remain available.", "核对本次范围和授权后可下发新尝试，原尝试及其记录会保留。")}</Typography.Paragraph>
+              {(live.data?.controlled_actions_history?.flatMap((group) => group.actions) ?? live.data?.controlled_actions)?.some((action) => action.state === "SENT_UNRECONCILED" || action.state === "IDENTIFIED_UNRECONCILED") ? <Alert showIcon type="warning" style={{ marginBottom: 12 }} message={t("An earlier action remains unreconciled", "此前动作尚未对账")} description={t("Reconcile the original action by its original key before retrying.", "下发前请按原操作键对账。 ")} /> : null}
+              <Button disabled={blocked || live.isError || !dispatchEnabled} onClick={() => setRetry({ attemptId: attempt.id, version: task.version })}>{t("Retry task", "重试任务")}</Button>
             </div> : null}
             {attempt.status === "WAITING_INPUT" ? <Alert showIcon type="warning" style={{ marginBottom: 16 }} message={t("Answers are recorded but cannot resume this agent session", "回答只会保存，无法继续此 Agent 会话")} description={t("The current worker does not support original-session continuation. Review previous external operations before planning further work.", "当前 Worker 不支持继续原会话。安排后续工作前，请核对此前的外部操作。 ")} /> : null}
             {attempt.status === "WAITING_INPUT" ? questions.map((question) => <Form key={String(question.id)} className="workspace-form form-section cloud-task-fields" layout="vertical" onFinish={() => void mutate({ operation: "ANSWER_INPUT", attempt_id: attempt.id, question_id: question.id, answer: answers[String(question.id)] })}>
@@ -223,10 +212,33 @@ export default function CloudTaskPage() {
         </section>
       </div> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },
-      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history" aria-labelledby="cloud-attempt-history-heading"><Typography.Title id="cloud-attempt-history-heading" tabIndex={-1} level={2}>{t("Attempt history", "尝试历史")}</Typography.Title><div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
+      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history" aria-labelledby="cloud-attempt-history-heading"><Typography.Title id="cloud-attempt-history-heading" tabIndex={-1} level={2}>{t("Attempt history", "尝试历史")}</Typography.Title><div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} expandable={{ expandedRowRender: (row) => {
+        const inputs = (row.execution_manifest?.inputs || task.inputs) as CloudRecord;
+        return <><Typography.Paragraph>{row.execution_manifest ? t("Inputs confirmed for this attempt", "本次尝试确认的输入") : t("This attempt used the original frozen inputs", "本次尝试使用原冻结输入")}</Typography.Paragraph><Descriptions column={1} size="small" layout="vertical" items={[
+          { key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(inputs.objective)}</span> },
+          { key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(inputs.test_scope)}</span> },
+          { key: "flow", label: t("Execution steps", "执行步骤"), children: <span className="session-literal">{text(inputs.basic_flow)}</span> },
+          { key: "entrypoints", label: t("Framework entrypoints", "框架入口"), children: <pre className="session-literal">{text(inputs.framework_entrypoints)}</pre> },
+          { key: "authorization", label: t("Authorization", "授权"), children: <pre className="session-literal">{text(inputs.authorization)}</pre> },
+          { key: "digest", label: t("Input digest", "输入摘要"), children: <span className="entity-key">{text(row.input_digest)}</span> },
+        ]} /></>;
+      } }} columns={[
         { title: t("Attempt", "尝试"), dataIndex: "attempt_no" }, { title: t("Progress", "进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
         { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> }, { title: t("Reason", "原因"), dataIndex: "reason" },
-      ]} /></div></section> },
+      ]} /></div>
+        <Typography.Title level={2} style={{ marginTop: 32 }}>{t("Controlled action history", "受控动作历史")}</Typography.Title>
+        <Typography.Paragraph className="muted">{t("Records retain their original attempt and operation key. A business terminal state alone does not establish a chain receipt or independently observed outcome.", "动作保留原尝试及原操作键。业务终态本身不代表已取得链上回执或独立观察到实际结果。")}</Typography.Paragraph>
+        {live.isError || !operational.valid ? <Alert showIcon type="warning" message={t("Action history could not be refreshed", "动作历史无法刷新")} description={t("Refresh the task to read current action records.", "请刷新任务以读取当前动作记录。")}/> :
+          <div className="data-surface"><Table rowKey={(row) => String((row as CloudRecord).identity_id)}
+            dataSource={(live.data?.controlled_actions_history || []).flatMap((group) => group.actions.map((action) => ({ ...action, attempt_id: group.attempt_id })))}
+            scroll={{ x: 850 }} pagination={false} columns={[
+              { title: t("Attempt", "尝试"), dataIndex: "attempt_id", render: (id: string) => { const row = detail.attempts.find((item) => item.id === id); return row ? <span>#{row.attempt_no} · <span className="entity-key">{id}</span></span> : <span className="entity-key">{id}</span>; } },
+              { title: t("Action", "动作"), dataIndex: "action_key", render: text },
+              { title: t("Original operation key", "原操作键"), dataIndex: "operation_key", render: (value: unknown) => <span className="entity-key">{text(value)}</span> },
+              { title: t("Recorded state", "记录状态"), dataIndex: "state", render: (value: unknown) => <Tag>{text(value)}</Tag> },
+              { title: t("Observations", "观察记录"), dataIndex: "observations", render: (value: unknown) => <details><summary>{t("View observations", "查看观察记录")}</summary><pre className="session-literal">{text(value)}</pre></details> },
+            ]}/></div>}
+      </section> },
     ]} />
   </main>;
 }

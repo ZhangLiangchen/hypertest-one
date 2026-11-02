@@ -27,7 +27,7 @@ from hypertest.cloud.http_profile import HTTPS_ACCESS_PROFILE, digest
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.cloud_http import CloudHttpObservation, CloudHttpOperation
-from hypertest.domain.cloud_tasks import CloudAttempt, CloudWorkGrant
+from hypertest.domain.cloud_tasks import CloudAttempt, CloudInputResolution, CloudWorkGrant
 
 TARGET = "https://api.example.invalid:443"
 BODY = b"SYNTHETIC-HTTP-RESPONSE-BODY-NEVER-PERSIST-IN-DB"
@@ -280,9 +280,16 @@ async def test_https_database_intent_cannot_borrow_foreign_grant_worker_or_gener
     async with AsyncSessionLocal() as db:
         original = await db.get(CloudHttpOperation, UUID(record["id"]))
         frozen = {column.name: getattr(original, column.name) for column in CloudHttpOperation.__table__.columns}
-        foreign = await db.scalar(select(CloudWorkGrant.id).where(CloudWorkGrant.id != original.work_grant_id,
-            CloudWorkGrant.project_id == original.project_id))
-        assert foreign is not None  # The earlier resolution has its own grant.
+        resolution_id = await db.scalar(select(CloudInputResolution.id).where(
+            CloudInputResolution.task_id == original.task_id))
+        assert resolution_id is not None
+        # The legacy fixture seeds an accepted resolution without claiming it;
+        # explicitly create a same-project resolution-scoped grant for this test.
+        foreign = uuid4()
+        db.add(CloudWorkGrant(id=foreign, project_id=original.project_id, resolution_id=resolution_id,
+            token_hash=uuid4().hex * 2, worker_id=original.worker_id, lease_generation=original.generation,
+            expires_at=datetime.now(UTC) + timedelta(minutes=5)))
+        await db.commit()
     for change in ({"work_grant_id": foreign}, {"worker_id": "foreign-worker"},
                    {"generation": frozen["generation"] + 1}, {"project_id": uuid4()}, {"attempt_id": uuid4()}):
         candidate = {**frozen, "id": uuid4(), "operation_key": "foreign-" + uuid4().hex, **change}

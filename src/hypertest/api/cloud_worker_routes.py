@@ -48,6 +48,7 @@ class Identity(Input):
 class Claim(Input):
     worker_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
     lease_seconds: int = Field(default=90, ge=15, le=300)
+    supports_attempt_manifest: bool = Field(default=False, strict=True)
 
 
 class Attempt(Input):
@@ -148,7 +149,8 @@ async def claim(body: Claim, worker_id: str = Depends(authenticate_worker), db: 
     result = await service.claim_resolution(db, worker_id, body.lease_seconds)
     if result:
         return {"kind": "RESOLUTION", "claim": result}
-    result = await service.claim_attempt(db, worker_id, body.lease_seconds)
+    result = await service.claim_attempt(db, worker_id, body.lease_seconds,
+                                         supports_attempt_manifest=body.supports_attempt_manifest)
     return {"kind": "ATTEMPT" if result else "EMPTY", "claim": result}
 
 

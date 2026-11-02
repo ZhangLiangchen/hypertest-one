@@ -86,6 +86,16 @@ def public(row):
     return {c.name: encode(getattr(row, c.name)) for c in row.__table__.columns if c.name not in hidden}
 
 
+def attempt_manifest(task, attempt):
+    """The immutable attempt-specific execution contract, or its historical task contract."""
+    return attempt.execution_manifest or task.frozen_manifest
+
+
+def attempt_inputs(task, attempt):
+    manifest = attempt_manifest(task, attempt)
+    return manifest["inputs"] if attempt.execution_manifest is not None else task.inputs
+
+
 def enabled():
     if not getattr(get_settings(), "cloud_enabled", False):
         raise HTTPException(503, "Cloud execution is disabled; historical reads and Local synchronization remain available")
@@ -230,11 +240,11 @@ async def _configuration(db, project_id, config_id):
     return config
 
 
-def _authorize_input_reads(task_inputs, configuration, now):
+def _authorize_input_reads(task_inputs, configuration, now, *, native_retry=False):
     """Apply the original DRAFT grant before even narrow Git preflight I/O."""
     authorize_cloud_environment(configuration)
     authorization = task_inputs["authorization"]
-    if configuration["environment"].get("https_access") is not None:
+    if not native_retry and configuration["environment"].get("https_access") is not None:
         from types import SimpleNamespace
 
         from .cloud_http import authorize_environment
@@ -266,6 +276,8 @@ def _safe_payload(payload):
     data.pop("secret", None)
     # Preserve original request digests for existing dispatch receipts.
     if payload.operation == "DISPATCH":
+        if data["retry_inputs"] is None:
+            data.pop("retry_inputs")
         for name in ("retry_scope_confirmed", "retry_authorization_confirmed"):
             if not data[name]:
                 data.pop(name)
@@ -458,6 +470,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     if (payload.operation == "DISPATCH" and payload.retry_of_attempt_id
             and not (payload.retry_scope_confirmed and payload.retry_authorization_confirmed)):
         raise HTTPException(422, "Retry requires explicit scope and authorization confirmation")
+    if payload.operation == "DISPATCH" and payload.retry_of_attempt_id and payload.retry_inputs is None:
+        raise HTTPException(409, "Task retry requires new scope and authorization")
     if payload.operation not in {"DELETE_TASK", "CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
         enabled()
     fixed_control_fallback = False
@@ -617,19 +631,12 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if migrated_budget:
             refs["legacy_draft_budget_removed"] = True
     elif op == "DISPATCH":
-        # Never mint fresh identities for a previously dispatched set of controlled actions.
-        if task.status != "DRAFT" and task.inputs.get("controlled_actions") is not None:
-            raise HTTPException(409, "Controlled actions require a new task and explicit authorization")
-        if task.inputs.get("budgets") is not None:
-            if task.status == "DRAFT":
-                raise HTTPException(409, "Legacy draft budget must be removed by resolving versions again")
-            raise HTTPException(409, "Legacy frozen task cannot start a new attempt; create a related task")
+        if task.status == "DRAFT" and task.inputs.get("budgets") is not None:
+            raise HTTPException(409, "Legacy draft budget must be removed by resolving versions again")
         config = await _configuration(db, task.project_id, task.config_id)
-        _authorize_input_reads(task.inputs, config.configuration, await clock(db))
+        effective_inputs = task.inputs
+        execution_manifest = None
         environment = config.configuration["environment"]
-        if environment.get("ssh_access") is not None:
-            from .cloud_ssh import authorize_environment
-            authorize_environment(task, environment, await clock(db))
         if task.status == "DRAFT":
             resolution = await db.get(CloudInputResolution, payload.resolution_id)
             expected_digest = canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest})
@@ -650,10 +657,24 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             from .cloud_ssh import ensure_remote_closed
             await ensure_remote_closed(db, task_id=task.id)
             await _ensure_container_closed(db, task.id)
-        authorization = task.inputs["authorization"]
+            # Historical inputs and held budgets are immutable. The host-native
+            # retry uses its own authorization and no legacy execution broker.
+            effective_inputs = {**task.inputs, **payload.retry_inputs.model_dump(mode="json"), "budgets": None}
+            for field in ("controlled_actions", "framework_runtime", "agent_source_export"):
+                effective_inputs.pop(field, None)
+            execution_manifest = {**task.frozen_manifest, "inputs": effective_inputs,
+                "retry_of_attempt_id": str(old.id), "previous_input_digest": old.input_digest}
+        _authorize_input_reads(effective_inputs, config.configuration, await clock(db),
+                               native_retry=execution_manifest is not None)
+        if execution_manifest is None and environment.get("ssh_access") is not None:
+            from types import SimpleNamespace
+
+            from .cloud_ssh import authorize_environment
+            authorize_environment(SimpleNamespace(inputs=effective_inputs), environment, await clock(db))
+        authorization = effective_inputs["authorization"]
         if datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00")) <= await clock(db):
             raise HTTPException(403, "Frozen execution authorization expired")
-        budgets = task.inputs["budgets"]
+        budgets = effective_inputs["budgets"]
         if budgets is None:
             count = await db.scalar(select(func.count()).select_from(CloudAttempt).where(CloudAttempt.task_id == task.id))
         else:
@@ -663,12 +684,13 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id, CloudAttempt.status.not_in(TERMINAL))):
             raise HTTPException(409, "Task already has an unfinished Attempt")
         attempt = CloudAttempt(id=uuid7(), task_id=task.id, project_id=task.project_id, attempt_no=count + 1,
-            input_digest=task.input_digest, status="QUEUED", reported_result="NOT_RUN", lease_generation=0,
+            input_digest=canonical_json_sha256(execution_manifest) if execution_manifest else task.input_digest,
+            execution_manifest=execution_manifest, status="QUEUED", reported_result="NOT_RUN", lease_generation=0,
             checkpoint={}, runtime_metadata={}, usage_seconds=0, cost_microunits=0, authorization_grant_id=grant_id)
         db.add(attempt)
         await db.flush()
         task.latest_attempt_id, task.status, task.reported_result = attempt.id, "QUEUED", "NOT_RUN"
-        refs = {"attempt_id": str(attempt.id), "input_digest": task.input_digest}
+        refs = {"attempt_id": str(attempt.id), "input_digest": attempt.input_digest}
         if payload.retry_of_attempt_id:
             refs["retry_confirmation"] = {"scope_confirmed": True, "authorization_confirmed": True,
                                           "retry_of_attempt_id": str(payload.retry_of_attempt_id)}
@@ -723,7 +745,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             ("old_owner_fenced", "local_processes_stopped", "external_operations_reconciled", "observations")}
         attestation.update(source="OPERATOR_ATTESTATION", reconciliation_source="OPERATOR_ATTESTATION",
             actor_ref=actor_ref, independent_process_stop_proof=False, independent_stop_proof=False,
-            model_drain_observed=False, model_budget_disposition="KEEP_HELD" if task.inputs["budgets"] is not None else "NOT_APPLICABLE")
+            model_drain_observed=False, model_budget_disposition="KEEP_HELD" if attempt_inputs(task, attempt)["budgets"] is not None else "NOT_APPLICABLE")
         attempt.checkpoint = {**attempt.checkpoint, "reconciliation": attestation,
                               "external_operations_reconciled": True}
         _state(task, attempt, payload.status, payload.reason, await clock(db))
@@ -758,7 +780,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if payload.status == "FAILED" and attempt.checkpoint.get("pending_operation_keys"):
             raise HTTPException(409, "Pending external operations require recovery")
         if payload.status == "RUNNING":
-            if task.inputs["budgets"] is None:
+            if attempt_inputs(task, attempt)["budgets"] is None:
                 if payload.budget_reservation is not None:
                     raise HTTPException(409, "A task without a platform budget cannot reserve one")
             else:
@@ -794,7 +816,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if (await _unclosed_container_intents(db, task.id) or any(item["attempt_id"] == str(attempt.id)
                 for item in await _container_intents(db, task.id))):
             raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_INTENT_EXISTS")
-        if task.inputs["budgets"] is None:
+        if attempt_inputs(task, attempt)["budgets"] is None:
             # An authenticated heartbeat fences a lease-only container. Never
             # smuggle in a fixed task deadline through its creation request.
             if payload.hard_deadline != 0:
@@ -804,7 +826,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             preparation = attempt.runtime_metadata.get("preparation_budget_reservation", {})
             try:
                 claimed = datetime.fromisoformat(preparation["claimed_at"].replace("Z", "+00:00"))
-                auth_until = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
+                auth_until = datetime.fromisoformat(attempt_inputs(task, attempt)["authorization"]["expires_at"].replace("Z", "+00:00"))
                 reserved = hold["reserved_seconds"]
                 deadline = datetime.fromtimestamp(payload.hard_deadline, UTC)
                 if (claimed.tzinfo is None or auth_until.tzinfo is None or type(reserved) is not int or reserved < 1
@@ -900,7 +922,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         await _ensure_container_closed(db, task.id)
         if not payload.local_processes_stopped or not payload.external_operations_reconciled:
             raise HTTPException(409, "Unstopped or uncertain operations require RECOVERY_REQUIRED")
-        if payload.required_action not in task.inputs["authorization"]["permitted_actions"]:
+        if payload.required_action not in attempt_inputs(task, attempt)["authorization"]["permitted_actions"]:
             raise HTTPException(403, "Input cannot expand the frozen authorization; create a related Task")
         question = CloudInputRequest(id=uuid7(), task_id=task.id, attempt_id=attempt.id, task_version=version,
             question_key=payload.question_key, question=payload.question, options=payload.options,
@@ -911,7 +933,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         await _fence(db, attempt)
         refs = {"question_id": str(question.id)}
     elif op in {"COMPLETE_ATTEMPT", "COMPLETE_NATIVE_ATTEMPT"}:
-        if op == "COMPLETE_NATIVE_ATTEMPT" and task.inputs.get("budgets") is not None:
+        if op == "COMPLETE_NATIVE_ATTEMPT" and attempt_inputs(task, attempt).get("budgets") is not None:
             raise HTTPException(409, "Native completion cannot settle legacy task budgets")
         await _finish(db, task, attempt, payload, native=op == "COMPLETE_NATIVE_ATTEMPT")
         _usage(attempt, payload.usage_seconds, payload.cost_microunits)
@@ -1049,7 +1071,7 @@ async def _reserve_budget(db, task, attempt, payload, worker):
         raise HTTPException(409, "Execution reservation must include the complete preparation deadline")
     reserved_cost = sum(item.max_requests * item.cost_per_request_microunits for item in typed.request_limits)
     _, seconds, cost = await _task_budget_usage(db, task.id, exclude_attempt_id=attempt.id)
-    budgets = task.inputs["budgets"]
+    budgets = attempt_inputs(task, attempt)["budgets"]
     if typed.accounting_unit != budgets.get("accounting_unit", "CONSERVATIVE_MICROUNITS"):
         raise HTTPException(409, "Reservation accounting unit differs from the frozen task budget")
     if (seconds + max(typed.reserved_seconds, attempt.usage_seconds, payload.usage_seconds) > budgets["total_seconds"]
@@ -1172,7 +1194,7 @@ async def _assets(db, task, attempt, payload, version):
             await _asset(db, task.id, ref)
         if item.kind == "IMPLEMENTATION":
             details = item.details
-            if details.get("framework_sha") != task.frozen_manifest["resolution"]["repositories"]["framework"]["commit_sha"]:
+            if details.get("framework_sha") != attempt_manifest(task, attempt)["resolution"]["repositories"]["framework"]["commit_sha"]:
                 raise HTTPException(422, "Implementation must identify its exact frozen framework baseline")
             if not all(key in details for key in ("cwd", "dirty_files", "untracked_files", "test_tree_digest")):
                 raise HTTPException(422, "Implementation requires reconstructable test tree metadata")
@@ -1215,12 +1237,14 @@ async def _run(db, task, attempt, payload, version):
         raise HTTPException(409, "A run key is immutable; reconcile its original operation")
     execution = payload.execution.model_dump(mode="json")
     action = "ci:execute" if payload.execution.source == "CI" else "framework:execute"
-    if action not in task.inputs["authorization"]["permitted_actions"]:
+    inputs = attempt_inputs(task, attempt)
+    frozen = attempt_manifest(task, attempt)
+    if action not in inputs["authorization"]["permitted_actions"]:
         raise HTTPException(403, "Framework execution is outside the frozen allowed actions")
-    if payload.execution.framework_sha != task.frozen_manifest["resolution"]["repositories"]["framework"]["commit_sha"]:
+    if payload.execution.framework_sha != frozen["resolution"]["repositories"]["framework"]["commit_sha"]:
         raise HTTPException(422, "Run does not use the frozen framework baseline")
-    _check_run_entrypoint(task.inputs, payload.execution.entrypoint)
-    if task.frozen_manifest["configuration"]["environment"]["require_matching_deployment"]:
+    _check_run_entrypoint(inputs, payload.execution.entrypoint)
+    if frozen["configuration"]["environment"]["require_matching_deployment"]:
         if payload.execution.actual_sut_build == "UNKNOWN" or not payload.execution.environment_observation.get("deployment_matches_expected"):
             raise HTTPException(409, "Required deployment identity was not observed")
     if len({c.case_revision_id for c in payload.cases}) != len(payload.cases):
@@ -1287,7 +1311,7 @@ async def _finish(db, task, attempt, payload, *, native=False):
         if asset.artifact_id:
             await _artifact(db, task.id, asset.artifact_id)
         kinds.add(asset.kind)
-    if not set(task.inputs["expected_outputs"]) <= kinds:
+    if not set(attempt_inputs(task, attempt)["expected_outputs"]) <= kinds:
         raise HTTPException(409, "Required stage outputs are missing from the accepted completion manifest")
     if payload.final_report_revision not in manifest.required_asset_ids:
         raise HTTPException(422, "Final report must be an explicit completion asset")
@@ -1363,6 +1387,13 @@ async def task_summary(db, task_id, *, project_id=None):
     result["http_operations"] = await http_operations(db, attempt.id) if attempt else []
     from .cloud_actions import live_actions
     result["controlled_actions"] = await live_actions(db, attempt.id) if attempt else []
+    from hypertest.domain.cloud_actions import CloudActionIdentity
+    historical_attempt_ids = await db.scalars(select(CloudActionIdentity.attempt_id).where(
+        CloudActionIdentity.task_id == task.id).distinct())
+    result["controlled_actions_history"] = [
+        {"attempt_id": str(attempt_id), "actions": await live_actions(db, attempt_id)}
+        for attempt_id in historical_attempt_ids
+    ]
     result["container_create_intents"] = await _container_intents(db, task.id)
     result["container_observations"] = await _container_observations(db, task.id)
     result["container_start_intents"] = await _container_starts(db, task.id)
@@ -1400,7 +1431,7 @@ async def task_summary(db, task_id, *, project_id=None):
             "old_owner_fenced": fenced, "local_processes_stopped_observed": False,
             "pending_operation_keys": pending, "remote_operations_reconciled": remote_closed,
             "can_reconcile": not blocking, "blocking_reasons": blocking, "phase": phase,
-            "reconciliation_source": "OPERATOR_ATTESTATION", "budget_disposition": "KEEP_HELD" if task.inputs["budgets"] is not None else "NOT_APPLICABLE"}
+            "reconciliation_source": "OPERATOR_ATTESTATION", "budget_disposition": "KEEP_HELD" if attempt_inputs(task, attempt)["budgets"] is not None else "NOT_APPLICABLE"}
     return result
 
 
@@ -1443,7 +1474,7 @@ async def directory(db, project_id, *, actor_ref, local_allowed, cloud_allowed,
     return {"items": entries[offset:offset + limit], "total": len(entries), "offset": offset, "limit": limit}
 
 
-async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None):
+async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, supports_attempt_manifest=False):
     """Operational claim; never reclaims an expired active runtime automatically."""
     enabled()
     # A short SKIP LOCKED Task lock serializes with controls and avoids acquiring
@@ -1451,6 +1482,10 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None):
     query = select(CloudTask).join(CloudAttempt, CloudAttempt.id == CloudTask.latest_attempt_id).where(
         CloudAttempt.status.in_(["QUEUED", "PREPARING"]), CloudAttempt.lease_owner.is_(None)
     )
+    if not supports_attempt_manifest:
+        # Accept both SQL NULL and historical JSON null for ordinary attempts.
+        query = query.where(or_(CloudAttempt.execution_manifest.is_(None),
+                                CloudAttempt.execution_manifest == text("'null'::jsonb")))
     if project_id is not None:
         query = query.where(CloudTask.project_id == project_id)
     task = await db.scalar(query.order_by(CloudAttempt.queued_at, CloudAttempt.id)
@@ -1458,16 +1493,20 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None):
     if not task:
         return None
     attempt = await _attempt(db, task, task.latest_attempt_id)
+    if (attempt.execution_manifest is not None
+            and canonical_json_sha256(attempt.execution_manifest) != attempt.input_digest):
+        raise HTTPException(409, "Attempt execution manifest failed integrity verification")
     await _current_grant(db, attempt.authorization_grant_id, task.project_id)
     config = await _configuration(db, task.project_id, task.config_id)
     authorize_cloud_environment(config.configuration)
     now = await clock(db)
-    auth_expiry = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
+    inputs = attempt_inputs(task, attempt)
+    auth_expiry = datetime.fromisoformat(inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
     if now >= auth_expiry:
         _state(task, attempt, "CANCELLED", "Execution authorization expired before claim", now)
         await db.commit()
         return None
-    budgets = task.inputs["budgets"]
+    budgets = inputs["budgets"]
     budget_remaining = None
     if budgets is not None:
         _, other_seconds, other_cost = await _task_budget_usage(db, task.id, exclude_attempt_id=attempt.id)
@@ -1512,7 +1551,7 @@ async def renew_lease(db, attempt_id, worker_id, lease_token, generation, work_t
     identity = WorkerIdentity(worker_id, lease_token, generation, work_token)
     await worker_authority(db, task, attempt, identity)
     now = await clock(db)
-    expires = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
+    expires = datetime.fromisoformat(attempt_inputs(task, attempt)["authorization"]["expires_at"].replace("Z", "+00:00"))
     attempt.lease_expires_at = min(now + timedelta(seconds=max(15, min(lease_seconds, 900))), expires)
     grant = await db.scalar(select(CloudWorkGrant).where(CloudWorkGrant.token_hash == token_hash(work_token)))
     grant.expires_at = attempt.lease_expires_at
@@ -1653,7 +1692,7 @@ async def materialize_credentials(db, task_id, attempt_id, identity):
     await worker_authority(db, task, attempt, identity)
     config = await _configuration(db, task.project_id, task.config_id)
     return await _materialize_config_credentials(
-        db, config.configuration, task.project_id, task.inputs["authorization"]["permitted_actions"])
+        db, config.configuration, task.project_id, attempt_inputs(task, attempt)["authorization"]["permitted_actions"])
 
 
 async def materialize_resolution_credentials(db, resolution_id, worker_id, lease_token, work_token):

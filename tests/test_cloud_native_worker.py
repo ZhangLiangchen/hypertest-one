@@ -40,6 +40,63 @@ async def test_http_rejection_is_distinct_from_unconfirmed_transport():
 
 
 @pytest.mark.asyncio
+async def test_legacy_worker_fences_retry_snapshot_before_runtime_creation(monkeypatch):
+    from hypertest.cloud import worker as legacy
+
+    observations = []
+
+    class Broker:
+        def __init__(self, sessions, claim, worker_id):
+            pass
+
+        async def fence_for_recovery(self, reason):
+            observations.append(reason)
+
+    def unexpected_root(_):
+        raise AssertionError("unsupported retry must not create a runtime directory")
+
+    monkeypatch.setattr(legacy, "CloudBroker", Broker)
+    monkeypatch.setattr(legacy, "private_root", unexpected_root)
+    worker = object.__new__(legacy.CloudWorker)
+    worker.docker_runtime, worker.sessions, worker.worker_id = None, None, "legacy-worker"
+    with pytest.raises(CloudBlocked) as failure:
+        await worker.execute({"task": {}, "attempt": {"execution_manifest": {"inputs": {}}}})
+    assert failure.value.code == "ATTEMPT_SNAPSHOT_UNSUPPORTED"
+    assert observations == ["ATTEMPT_RECOVERY_REQUIRED"]
+
+
+@pytest.mark.asyncio
+async def test_native_worker_claim_advertises_attempt_snapshot_support(tmp_path, monkeypatch):
+    from hypertest.cloud import native_profile, native_worker, sdk
+
+    requests = []
+
+    class API:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def request(self, operation, body):
+            requests.append((operation, body))
+            return {"kind": "EMPTY"}
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(native_worker, "WorkerAPI", API)
+    monkeypatch.setattr(native_worker, "read_private_file", lambda *args, **kwargs: b"test-identity")
+    monkeypatch.setattr(native_worker, "private_root", lambda _: tmp_path)
+    monkeypatch.setattr(sdk, "inspect_native_sdk", lambda: None)
+    monkeypatch.setattr(native_profile, "check_sdk_profile", lambda _: None)
+    args = SimpleNamespace(worker_id="native-fixture", state_dir=str(tmp_path), dsh_home="fixture",
+        worker_credential_file="fixture", api_url="https://example.invalid", ca_file=None,
+        lease_seconds=90, once=True, poll_seconds=1)
+    assert await native_worker.run(args) == 0
+    assert requests == [("claim", {"worker_id": "native-fixture", "lease_seconds": 90,
+                                    "supports_attempt_manifest": True})]
+    assert not (tmp_path / "claim-pending.json").exists()
+
+
+@pytest.mark.asyncio
 async def test_native_completion_does_not_claim_unknown_processes_or_external_scope(tmp_path):
     ids = [str(uuid4()) for _ in range(5)]
     class Broker:
@@ -153,6 +210,79 @@ def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     assert any("native ask_user_question" in line and "do not publish a REQUEST_INPUT" in line for line in prompt["instructions"])
     assert all("SSH diagnostics are unavailable" not in line for line in prompt["instructions"])
     assert any(str(tmp_path / "framework") in line for line in prompt["instructions"])
+
+
+def test_native_retry_uses_its_verified_manifest_without_changing_the_original(tmp_path):
+    import copy
+    import json
+
+    from hypertest.cloud.native_worker import native_execution_task, native_prompt
+    from hypertest.sync_core import digest
+
+    task_id, project_id, attempt_id = (str(uuid4()) for _ in range(3))
+    original = {"profile": "test", "project_id": project_id, "cloud_task_id": task_id,
+        "config_id": "config", "config_revision": 1, "configuration": {},
+        "resolution": {"repositories": {}}, "resolution_id": "resolution",
+        "inputs": {"budgets": {"max_attempts": 1}, "controlled_actions": {"old": True},
+                   "basic_flow": "Do not repeat old work"}}
+    snapshot = copy.deepcopy(original)
+    snapshot["inputs"] = {"budgets": None, "basic_flow": "New scope", "test_scope": "Explicit new scope"}
+    snapshot.update(retry_of_attempt_id=str(uuid4()), previous_input_digest=digest(original))
+    task = {"id": task_id, "project_id": project_id, "frozen_manifest": original,
+            "input_digest": digest(original), "inputs": original["inputs"]}
+    attempt = {"id": attempt_id, "task_id": task_id, "project_id": project_id,
+               "execution_manifest": snapshot, "input_digest": digest(snapshot)}
+    untouched = copy.deepcopy(task)
+    effective, selected, retry = native_execution_task(task, attempt)
+    assert retry and selected == snapshot and effective["inputs"]["basic_flow"] == "New scope"
+    assert task == untouched and task["inputs"]["budgets"]["max_attempts"] == 1
+    prompt = json.loads(native_prompt(effective, attempt, tmp_path, retry_snapshot=retry))
+    assert prompt["frozen_manifest"] == snapshot
+    assert any("original PRD is historical context" in line for line in prompt["instructions"])
+    assert any("Never resend an operation with an unknown outcome" in line for line in prompt["instructions"])
+
+
+def test_native_original_attempt_uses_task_manifest():
+    from hypertest.cloud.native_worker import native_execution_task
+    from hypertest.sync_core import digest
+
+    manifest = {"inputs": {"budgets": None}, "resolution": {}}
+    task = {"frozen_manifest": manifest, "input_digest": digest(manifest), "inputs": manifest["inputs"]}
+    result, effective_manifest, retry = native_execution_task(task, {"input_digest": digest(manifest)})
+    assert result is task and effective_manifest is manifest and not retry
+    with pytest.raises(CloudBlocked):
+        native_execution_task(task, {"input_digest": "0" * 64})
+
+
+@pytest.mark.parametrize("change", ["snapshot_digest", "source", "budget", "controlled_actions", "original_digest"])
+def test_native_retry_rejects_mismatched_or_legacy_execution_snapshot(change):
+    import copy
+
+    from hypertest.cloud.native_worker import native_execution_task
+    from hypertest.sync_core import digest
+
+    task_id, project_id = str(uuid4()), str(uuid4())
+    original = {"profile": "test", "project_id": project_id, "cloud_task_id": task_id,
+        "config_id": "config", "config_revision": 1, "configuration": {},
+        "resolution": {"repositories": {}}, "resolution_id": "resolution", "inputs": {"budgets": None}}
+    snapshot = copy.deepcopy(original)
+    snapshot.update(retry_of_attempt_id=str(uuid4()), previous_input_digest=digest(original))
+    task = {"id": task_id, "project_id": project_id, "frozen_manifest": original,
+            "input_digest": digest(original), "inputs": original["inputs"]}
+    if change == "source":
+        snapshot["resolution_id"] = "another-resolution"
+    if change == "budget":
+        snapshot["inputs"]["budgets"] = {"max_attempts": 1}
+    if change == "controlled_actions":
+        snapshot["inputs"]["controlled_actions"] = {"old": True}
+    attempt = {"task_id": task_id, "project_id": project_id,
+               "execution_manifest": snapshot, "input_digest": digest(snapshot)}
+    if change == "snapshot_digest":
+        attempt["input_digest"] = "0" * 64
+    if change == "original_digest":
+        task["input_digest"] = "0" * 64
+    with pytest.raises(CloudBlocked, match="manifest|snapshot"):
+        native_execution_task(task, attempt)
 
 
 @pytest.mark.parametrize("authorization", [

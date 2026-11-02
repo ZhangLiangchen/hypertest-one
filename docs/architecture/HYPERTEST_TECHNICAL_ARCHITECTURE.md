@@ -1074,6 +1074,9 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 ### 45.3 项目资源、固定输入与工作区
 
+[ADR-033](ADR-033_CLOUD_ATTEMPT_RETRY_SNAPSHOT.md) 定义原任务新 Attempt 的独立执行快照：API 固定本次范围和授权，宿主 Worker 核验并使用该快照；原输入、动作记录、未决原 key 和旧预算保持历史身份。宿主路径不提供项目强隔离或旧受控动作 broker 的自动去重。
+
+
 项目可以保存 SUT / framework 两个 credential-free origin、测试工作目录 / 入口、环境地址和连接方式；允许同仓，但各自角色和实际 SHA 必须明确。新 Cloud 资源配置无需默认分支；旧配置的默认 selector 原样保留，两个实际 selector 在创建任务时确定。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
 
 CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA、MR base / head 和实际使用 head 或 merge commit，返回不可变 CloudInputResolution。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。

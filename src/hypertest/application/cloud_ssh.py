@@ -160,6 +160,8 @@ class WorkerSshAuthority:
             reject("SSH_OPERATION_KEY_INVALID", 422)
         async with self.sessions() as db:
             task, attempt = await self._task_attempt(db)
+            if attempt.execution_manifest is not None:
+                reject("SSH_LEGACY_PROFILE_NOT_AVAILABLE")
             previous = await db.scalar(select(CloudRemoteOperation).where(
                 CloudRemoteOperation.attempt_id == attempt.id, CloudRemoteOperation.operation_key == key))
             if previous:

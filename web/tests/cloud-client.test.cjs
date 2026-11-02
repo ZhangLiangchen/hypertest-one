@@ -152,6 +152,43 @@ test("Delete remains pending until its original receipt reads back a tombstone",
   harness.close();
 });
 
+test("Dispatch keeps its original key until the accepted attempt and digest read back", async () => {
+  let phase = "missing", posts = 0, receipt;
+  const digest = "a".repeat(64);
+  const harness = operationHarness({
+    cloudRequest: async (_path, init) => {
+      posts++;
+      const payload = JSON.parse(init.body);
+      receipt = { status: "ACCEPTED", profile: harness.client.CLOUD_PROFILE, project_id: payload.project_id,
+        task_id: payload.task_id, operation_key: payload.operation_key, operation: payload.operation,
+        version: payload.expected_version + 1, attempt_id: "attempt-a", input_digest: digest };
+      return receipt;
+    },
+    cloudOperation: async () => receipt,
+    cloudDocument: async (project, task, version) => {
+      const document = completeDocument(project, task, version);
+      document.task.latest_attempt_id = phase === "wrong-current" ? "attempt-b" : "attempt-a";
+      if (phase !== "missing") document.attempts.push({ id: phase === "wrong-attempt" ? "attempt-b" : "attempt-a",
+        input_digest: phase === "wrong-digest" ? "b".repeat(64) : digest });
+      return document;
+    },
+  });
+  await harness.mount("project-a");
+  assert.equal(await harness.render().submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 }), null);
+  const key = harness.render().pending.operation_key;
+  for (const state of ["wrong-attempt", "wrong-digest", "wrong-current"]) {
+    phase = state;
+    assert.equal(await harness.render().reconcile(), null);
+    assert.equal(harness.render().pending.operation_key, key);
+    assert.equal(harness.render().blocked, true);
+  }
+  phase = "ready";
+  assert.equal((await harness.render().reconcile()).operation_key, key);
+  assert.equal((await harness.journal.read("project-a")).length, 0);
+  assert.equal(posts, 1);
+  harness.close();
+});
+
 test("An old Project response settles only its own key and cannot clear the next Project's pending write", async () => {
   let finish, posts = 0;
   const pendingResponse = new Promise((resolve) => { finish = resolve; });
@@ -252,6 +289,7 @@ function taskPage(status, options = {}) {
     if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
     if (name === "./live-questions-panel") return { LiveQuestionsPanel: "LiveQuestionsPanel" };
     if (name === "./delete-task") return { CloudTaskDelete: "CloudTaskDelete" };
+    if (name === "./retry-dialog") return { RetryDialog: "RetryDialog" };
     return require(name);
   } });
   const tree = page.default();
