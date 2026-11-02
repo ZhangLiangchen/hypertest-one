@@ -95,7 +95,7 @@ export function CloudTaskForm({ config: latestConfig, operation, enabled, onCrea
           <Form.Item name="confirm_resource_authorization" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t("Confirm this change", "请确认此变更"))) }]}><Checkbox>{t("I confirm the resource revision and repository authorization targets", "我确认资源修订及仓库授权目标的变化")}</Checkbox></Form.Item></> : null}
       </section> : null}
       {!sharedFields ? <Form.Item name="title" label={t("Task title", "任务名称")} rules={[{ required: true }]}><Input maxLength={512} /></Form.Item> : null}
-      <div className="form-grid">{(["sut", "framework"] as const).map((role) => <section className="form-section" key={role}>
+      <div className="form-grid cloud-task-versions">{(["sut", "framework"] as const).map((role) => <section className="form-section" key={role}>
         <Typography.Title level={3}>{role === "sut" ? t("SUT version", "被测版本") : t("Framework version", "测试框架版本")}</Typography.Title>
         <Typography.Paragraph className="entity-key">{config.configuration[role].url}</Typography.Paragraph>
         <Form.Item name={`${role}_kind`} label={t("Select by", "选择方式")}><Select options={[{ value: "BRANCH", label: t("Branch / feature", "分支 / feature") }, { value: "SHA", label: t("Full commit SHA", "完整提交 SHA") }, { value: "MR", label: "MR" }]} /></Form.Item>
@@ -110,8 +110,7 @@ export function CloudTaskForm({ config: latestConfig, operation, enabled, onCrea
       <Form.Item name="basic_flow" label={t("Basic process", "基本流程简述")} rules={[{ required: true }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item>
       <Form.Item name="test_scope" label={t("Test scope and exclusions", "测试范围与排除项")} rules={[{ required: true }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item>
       </section>
-      <div className="form-actions"><Button type="primary" htmlType="submit" disabled={!enabled || operation.blocked || operation.receipt?.operation === "CREATE_TASK" || !!sharedFields && (!sharedFields.title.trim() || !sharedFields.objective.trim())} loading={operation.busy}>{editTask ? t("Save draft changes", "保存草稿修改") : t("Create draft and review versions", "创建草稿并核对版本")}</Button>{editTask && onCancel ? <Button onClick={onCancel} disabled={operation.busy || !!operation.pending}>{t("Cancel editing", "取消编辑")}</Button> : null}</div>
-      <Typography.Paragraph className="muted" style={{ marginTop: 16 }}>{t("Resources revision", "资源修订")}: {config.revision}</Typography.Paragraph>
+      <div className="form-actions"><Button type="primary" htmlType="submit" disabled={!enabled || operation.blocked || operation.receipt?.operation === "CREATE_TASK" || !!sharedFields && (!sharedFields.title.trim() || !sharedFields.objective.trim())} loading={operation.busy}>{editTask ? t("Save draft changes", "保存草稿修改") : t("Create draft and review versions", "创建草稿并核对版本")}</Button>{editTask && onCancel ? <Button onClick={onCancel} disabled={operation.busy || !!operation.pending}>{t("Cancel editing", "取消编辑")}</Button> : null}<span className="cloud-task-resource-revision muted">{t("Resources revision", "资源修订")}: {config.revision}</span></div>
     </Form>
   </section>;
 }

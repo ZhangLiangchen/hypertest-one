@@ -88,7 +88,7 @@ test("Cloud creation warns only for a repository outside the project scope", () 
 
 test("the shared task form has a separate padded workspace surface", () => {
   const { html, forms } = unifiedCreationHarness();
-  assert.match(html, /<section class="workspace-panel" aria-labelledby="task-details-title"><form\b/);
+  assert.match(html, /<section class="workspace-panel(?: [^"]*)?" aria-labelledby="task-details-title"><form\b/);
   assert.equal(forms[0].className?.includes("workspace-panel") ?? false, false, "Ant Form's reset must not own the content surface padding");
   assert.ok(html.indexOf("</form></section>") < html.indexOf('id="new-cloud-task-title"'));
 });

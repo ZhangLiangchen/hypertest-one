@@ -547,6 +547,12 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .archive-task-page .archive-prompt .cli-install-prompt-text { background: var(--ht-surface); }
 
 /* Cloud task inputs use the same field rhythm in the page and draft editor. */
+.task-create-details .cloud-task-fields > .ant-form-item:last-child { margin-bottom: 0; }
+.task-create-cloud-tools { margin: 0 24px 20px; }
+@media (min-width: 992px) {
+  .cloud-task-versions > .form-section { display: grid; grid-template-rows: subgrid; grid-row: span 6; }
+}
+.cloud-task-resource-revision { margin-left: auto; font-size: 13px; }
 .cloud-task-fields .ant-form-item-label > label { font-weight: 600; }
 .cloud-task-fields input.ant-input { height: 42px; padding-inline: 14px; }
 .cloud-task-fields textarea.ant-input { padding: 10px 14px; line-height: 1.7; }
