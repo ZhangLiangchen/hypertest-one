@@ -91,6 +91,26 @@ export default function CloudTaskPage() {
   const step = live.isError ? -1 : status === "DRAFT" ? accepted || inResolution ? 2 : 1
     : ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"].includes(status || "") ? 3
       : status === "COMPLETED" ? 5 : -1;
+  // A record can confirm a specific fact without proving every earlier or later phase.
+  const currentResolution = !live.isError && status === "DRAFT"
+    ? operational.resolutions.filter((row) => row.source_draft_version === task.version && ["PENDING", "RESOLVING", "FAILED", "RECOVERY_REQUIRED"].includes(String(row.status))).slice(-1)[0] : undefined;
+  const phaseStates: { tone: "complete" | "active" | "failed" | "unknown" | "waiting"; text: string }[] = [
+    configRevision || task.frozen_manifest?.configuration ? { tone: "complete", text: t("Resources recorded", "资源已记录") } : { tone: "unknown", text: t("Unknown", "未知") },
+    { tone: "complete", text: t("Inputs saved", "输入已保存") },
+    currentResolution?.status === "FAILED" ? { tone: "failed", text: t("Resolution failed", "解析失败") }
+      : currentResolution?.status === "RECOVERY_REQUIRED" ? { tone: "unknown", text: t("Needs recovery", "需要恢复") }
+      : currentResolution ? { tone: "active", text: t("Resolving", "解析中") }
+      : task.frozen_manifest?.resolution ? { tone: "complete", text: t("Frozen", "已冻结") }
+      : accepted ? { tone: "complete", text: t("Resolved", "已解析") } : { tone: "unknown", text: t("Unknown", "未知") },
+    !live.isError && attempt?.status === "COMPLETED" ? { tone: "complete", text: t("Work delivered", "工作已交付") }
+      : !live.isError && attempt?.status === "WAITING_INPUT" ? { tone: "waiting", text: t("Waiting for input", "等待输入") }
+      : !live.isError && ["QUEUED", "PREPARING", "RUNNING"].includes(attempt?.status || "") ? { tone: "active", text: attempt?.status === "QUEUED" ? t("Queued", "排队中") : attempt?.status === "PREPARING" ? t("Preparing", "准备中") : t("Running", "进行中") }
+      : { tone: "unknown", text: t("Unknown", "未知") },
+    { tone: "unknown", text: detail.assets.some((asset) => asset.attempt_id === task.latest_attempt_id) ? t("Artifacts recorded; completion unknown", "已有产物，完成情况未知") : t("Unknown", "未知") },
+    task.reported_result === "PASS" ? { tone: "complete", text: t("Reported pass", "报告通过") }
+      : ["FAIL", "ERROR"].includes(task.reported_result) ? { tone: "failed", text: t("Reported failure", "报告失败") }
+      : { tone: "unknown", text: task.reported_result === "NOT_RUN" ? t("Not run", "未执行") : task.reported_result === "SKIPPED" ? t("Skipped", "已跳过") : task.reported_result === "BLOCKED" ? t("Blocked", "已阻塞") : t("Result unknown", "结果未知") },
+  ];
   return <main className="workspace-page cloud-task-detail">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")}
       metadata={<div className="cloud-task-metadata"><div><span>{t("Source", "来源")}</span><Tag>Cloud · DeepSeek</Tag></div><div><span>{t("Task progress", "任务进度")}</span><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag></div><div><span>{t("Reported test result", "报告的测试结果")}</span><ReportedResultTag result={task.reported_result} /></div><div><span>{t("Accepted version", "接受版本")}</span><strong>{task.version}</strong></div></div>}
@@ -119,8 +139,9 @@ export default function CloudTaskPage() {
           { title: t("Test artifacts", "测试产物"), tab: "artifacts", id: "cloud-assets-title" },
           { title: t("Execution and report", "执行与汇报"), tab: "artifacts", id: "cloud-runs-title" },
         ].map(({ title, tab: nextTab, id }) => ({ title: <a href={`#${id}`} onClick={(event) => goToSection(event, nextTab, id)}>{title}</a> })),
-      ].map((item, index) => ({ ...item, icon: <span className="cloud-flow-number" aria-hidden="true">{index + 1}</span>,
-        title: <span aria-current={index === step ? "step" : undefined}>{item.title}</span> }))} />
+      ].map((item, index) => ({ ...item, icon: <span className={`cloud-flow-number cloud-flow-${phaseStates[index].tone}`} aria-hidden="true">{index + 1}</span>,
+        title: <span aria-current={index === step ? "step" : undefined}>{item.title}</span>,
+        description: <span className={`cloud-flow-state cloud-flow-state-${phaseStates[index].tone}`}>{phaseStates[index].text}</span> }))} />
       {step < 0 ? <p className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</p> : null}
     </section>
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[

@@ -221,7 +221,7 @@ function taskPage(status, options = {}) {
   const document = { task: { id: taskId, project_id: projectId, version: 1, config_id: "config-1", title: "Task",
     latest_attempt_id: attempt?.id ?? null, status, reported_result: options.result || "NOT_RUN", inputs: {} },
     attempts: attempt ? [attempt] : [], resolutions: [], questions: [], answers: [], assets: [{ markdown: "Original FAIL" }], runs: [], run_cases: [], artifacts: [], delegations: [] };
-  const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: [], observed_at: "2026-10-23T00:00:00Z" };
+  const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: options.resolutions || [], observed_at: "2026-10-23T00:00:00Z" };
   const values = { "cloud-web-setup": { configured: true }, "cloud-capabilities": { enabled: true, worker_enabled: true },
     "cloud-config": { items: [{ id: "config-1", configuration: { environment: { connection: "NONE" }, sut: { url: "https://git.invalid/sut" }, framework: { url: "https://git.invalid/framework" } } }] },
     "cloud-task": document, "cloud-task-live": options.missingLive ? undefined : options.foreignLive ? { ...live, project_id: "other-project" } : live };
@@ -308,6 +308,21 @@ test("A delivered task can reach execution/report while retaining its original r
   assert.equal(page.steps.items.filter((item) => item.title.props["aria-current"] === "step").length, 1);
   assert.equal(page.steps.items[5].title.props["aria-current"], "step");
   assert.equal(taskPage("COMPLETED", { result: "PASS" }).result, "PASS");
+});
+
+test("Workflow colors reflect recorded facts without inferring phase completion", () => {
+  const tones = (page) => Array.from(page.steps.items, (item) => item.icon.props.className);
+  const running = tones(taskPage("RUNNING"));
+  assert.match(running[3], /cloud-flow-active/);
+  assert.match(running[4], /cloud-flow-unknown/);
+  assert.match(running[5], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("WAITING_INPUT"))[3], /cloud-flow-waiting/);
+  assert.match(tones(taskPage("COMPLETED", { result: "FAIL" }))[5], /cloud-flow-failed/);
+  assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[5], /cloud-flow-complete/);
+  assert.match(tones(taskPage("FAILED"))[3], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 1 }] }))[2], /cloud-flow-failed/);
+  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 0 }] }))[2], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("RUNNING", { liveError: true }))[3], /cloud-flow-unknown/);
 });
 
 test("A failed live refresh does not present an old phase as current", () => {
