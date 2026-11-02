@@ -31,10 +31,13 @@ export default function CloudTaskPage() {
   useEffect(() => { setAnswers({}); setEditing(null); setTab("overview"); setDestination(null); }, [projectId, taskId]);
   useEffect(() => {
     if (!destination || destination.tab !== tab) return;
-    const target = window.document.getElementById(destination.id);
-    target?.focus({ preventScroll: true });
-    target?.scrollIntoView({ block: "start" });
-    setDestination(null);
+    const frame = window.requestAnimationFrame(() => {
+      const target = window.document.getElementById(destination.id);
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "start" });
+      setDestination(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [destination, tab]);
   function goToSection(event: React.MouseEvent<HTMLAnchorElement>, nextTab: string, id: string) {
     event.preventDefault();
