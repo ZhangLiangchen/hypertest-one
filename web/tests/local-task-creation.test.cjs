@@ -77,6 +77,15 @@ test("unified creation shares title and objective without nesting the Cloud form
   }
 });
 
+test("Cloud creation warns only for a repository outside the project scope", () => {
+  const project = { id: "project-1", row_version: 1, repository_url: "https://git.example.org/groups/team", test_framework_repository_url: "https://git.example.org/team/framework/" };
+  const related = unifiedCreationHarness({ project });
+  assert.equal(related.html.includes("Saved Cloud resources differ from project repositories"), false);
+  assert.ok(related.html.includes("https://git.example.org/team/sut.git"));
+  const unrelated = unifiedCreationHarness({ project: { ...project, repository_url: "https://git.example.org/groups/teams" } });
+  assert.ok(unrelated.html.includes("Saved Cloud resources differ from project repositories"));
+});
+
 test("the shared task form has a separate padded workspace surface", () => {
   const { html, forms } = unifiedCreationHarness();
   assert.match(html, /<section class="workspace-panel" aria-labelledby="task-details-title"><form\b/);

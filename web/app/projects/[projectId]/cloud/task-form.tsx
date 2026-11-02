@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Checkbox, Form, Input, Select, Typography } from "antd";
 import Link from "next/link";
-import { cloudSelector } from "@/lib/cloud";
+import { cloudSelector, projectContainsCloudRepository } from "@/lib/cloud";
 import type { CloudConfigRevision, CloudRecord, CloudTask, CloudSelector } from "@/lib/cloud";
 import type { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
@@ -79,7 +79,7 @@ export function CloudTaskForm({ config: latestConfig, operation, enabled, onCrea
     <Typography.Title id="new-cloud-task-title" level={2}>{editTask ? t("Edit cloud task draft", "编辑云端任务草稿") : t("Create a cloud test task", "创建云端测试任务")}</Typography.Title>
     <Typography.Paragraph className="muted">{editTask ? t("The existing resource revision and authorization remain unchanged unless explicitly edited. Review versions again after saving.", "除显式修改外，保留原资源修订及授权；保存后需重新核对版本。") : t("Create the draft, resolve both repository versions, review their exact SHAs, then dispatch. Creating a draft does not start an Agent.", "先创建草稿，再解析双仓版本、核对确切 SHA，最后下发；创建草稿不会启动 Agent。 ")}</Typography.Paragraph>
     {!editTask && latestConfig && latestConfig.id !== config.id ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("This draft retains its selected resource revision", "草稿保留原选定的资源修订")} description={t("Project defaults changed while you were editing. This task will still use the resource revision shown below; your draft has not been replaced.", "编辑期间项目默认配置已变化。本任务仍使用下方显示的资源修订，当前草稿未被替换。 ")} /> : null}
-    {project && (project.repository_url !== config.configuration.sut.url || project.test_framework_repository_url !== config.configuration.framework.url) ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Saved Cloud resources differ from project repositories", "已保存的云端资源与项目仓库不同")} description={t("This task uses the saved Cloud resource revision shown below. Update project resources first if you want to use the current project addresses.", "本任务使用下方已保存的云端资源修订；如需使用当前项目地址，请先更新项目资源。 ")} /> : null}
+    {project && (!projectContainsCloudRepository(project.repository_url, config.configuration.sut.url) || !projectContainsCloudRepository(project.test_framework_repository_url, config.configuration.framework.url)) ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Saved Cloud resources differ from project repositories", "已保存的云端资源与项目仓库不同")} description={t("This task uses the saved Cloud resource revision shown below. Review the project and Cloud repository addresses if this difference is unexpected.", "本任务使用下方已保存的云端资源修订；如差异不符合预期，请核对项目及云端仓库地址。 ")} /> : null}
     {issue ? <Alert showIcon type="error" message={issue} style={{ marginBottom: 20 }} /> : null}
     <Form form={form} className="workspace-form cloud-task-fields" layout="vertical" onFinish={(values) => void create(values)} scrollToFirstError initialValues={editTask ? { config_id: editTask.config_id, confirm_resource_authorization: false, title: editTask.title, sut_kind: sut?.kind, sut_ref: sut?.value, sut_strategy: sut?.checkout_strategy, sut_base: sut?.base_ref,
       framework_kind: framework?.kind, framework_ref: framework?.value, framework_strategy: framework?.checkout_strategy, framework_base: framework?.base_ref,

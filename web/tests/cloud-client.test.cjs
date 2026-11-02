@@ -92,6 +92,36 @@ test("Repository selectors reject embedded credentials and freeze complete SHA o
   for (const base of ["--exec=secret", "refs/heads/../main", "main.lock", "refs/heads/main:other", "main@{1}"]) assert.throws(() => cloudSelector("MR", "3", "HEAD", base));
 });
 
+test("Cloud repository matches a project repository or a whole project-scope path", () => {
+  const { projectContainsCloudRepository: matches } = helpers();
+  const matching = [
+    ["https://GIT.example/team/repo/", "https://git.example/team/repo.git"],
+    ["https://git.example/team/repo.git", "git@git.example:team/repo"],
+    ["https://git.example/groups/a/b", "git@git.example:a/b/service.git"],
+    ["https://git.example/groups/a/b/", "https://git.example/a/b/nested/repo.git"],
+    ["https://git.example/a/b", "ssh://git@git.example/a/b/nested/repo.git"],
+    ["git@git.example:a/b", "https://git.example/a/b/repo.git"],
+    ["ssh://git@git.example/a/b", "https://git.example/a/b/repo.git"],
+    ["https://git.example:443/a/b", "ssh://git@git.example:22/a/b/repo.git"],
+  ];
+  for (const [project, cloud] of matching) assert.equal(matches(project, cloud), true, `${project} ${cloud}`);
+  const different = [
+    ["https://git.example/groups/a/b", "https://git.example/a/b2/repo.git"],
+    ["https://git.example/groups/a/b", "https://git.example/a/b"],
+    ["https://git.example/a/b.git", "https://git.example/a/b/child.git"],
+    ["https://git.example/groups/a/b", "https://other.example/a/b/repo.git"],
+    ["https://git.example/groups/A/b", "https://git.example/a/b/repo.git"],
+    ["https://git.example/groups/a/b", "https://git.example/a/B/repo.git"],
+    ["https://git.example:8443/groups/a", "https://git.example/a/repo.git"],
+    ["https://git.example/groups/a/b", "https://git.example/a/b%2Frepo.git"],
+    ["https://git.example/groups/a/b", "https://git.example/a/b/../repo.git"],
+    ["https://token@git.example/groups/a/b", "https://git.example/a/b/repo.git"],
+    ["ssh://git:@git.example/a/b", "https://git.example/a/b/repo.git"],
+    [null, "https://git.example/a/b/repo.git"],
+  ];
+  for (const [project, cloud] of different) assert.equal(matches(project, cloud), false, `${project} ${cloud}`);
+});
+
 const { operationHarness, until, document: completeDocument } = require("./operation-harness.cjs");
 
 test("Delete remains pending until its original receipt reads back a tombstone", async () => {

@@ -130,6 +130,39 @@ export function credentialFreeUrl(value: string): boolean {
   catch { return false; }
 }
 
+/** Compare displayed project scope and Cloud repository without changing either address. */
+export function projectContainsCloudRepository(projectAddress: string | null | undefined, repositoryAddress: string | null | undefined): boolean {
+  function parse(value: string | null | undefined) {
+    if (!value || /[\s\x00-\x1f]/.test(value)) return null;
+    const scp = value.match(/^[A-Za-z0-9_][A-Za-z0-9_.-]*@([A-Za-z0-9][A-Za-z0-9.-]*):([A-Za-z0-9_./~-]+)$/);
+    if (scp) {
+      const parts = scp[2].replace(/\/+$/, "").split("/");
+      return parts.some((part) => !part || part === "." || part === "..") ? null : { host: scp[1].toLowerCase(), port: "", parts, protocol: "ssh:" };
+    }
+    try {
+      // Refuse encoded separators and dot segments rather than guessing how a
+      // provider resolves paths that URL() would normalize.
+      if (/%(?:2f|5c|2e)/i.test(value) || /(?:^|\/)\.{1,2}(?:\/|$)/.test(value) || /[?#]/.test(value)) return null;
+      const url = new URL(value);
+      const authority = value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i)?.[1] || "";
+      const userInfo = authority.includes("@") ? authority.slice(0, authority.lastIndexOf("@")) : null;
+      if (!["https:", "ssh:"].includes(url.protocol) || !url.hostname || url.password || url.search || url.hash
+          || (userInfo !== null && (url.protocol !== "ssh:" || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(userInfo)))) return null;
+      const parts = url.pathname.replace(/^\/+|\/+$/g, "").split("/");
+      if (parts.some((part) => !part)) return null;
+      return { host: url.hostname.toLowerCase(), port: url.port === "22" && url.protocol === "ssh:" ? "" : url.port, parts, protocol: url.protocol };
+    } catch { return null; }
+  }
+  const project = parse(projectAddress), repository = parse(repositoryAddress);
+  if (!project || !repository || project.host !== repository.host || project.port !== repository.port) return false;
+  const repoPath = (parts: string[]) => parts.map((part, index) => index === parts.length - 1 ? part.replace(/\.git$/, "") : part);
+  const projectPath = repoPath(project.parts), cloudPath = repoPath(repository.parts);
+  if (projectPath.length === cloudPath.length && projectPath.every((part, index) => part === cloudPath[index])) return true;
+  if (project.parts.at(-1)?.endsWith(".git")) return false;
+  const scope = project.protocol === "https:" && project.parts[0] === "groups" ? project.parts.slice(1) : project.parts;
+  return scope.length > 0 && cloudPath.length > scope.length && scope.every((part, index) => part === cloudPath[index]);
+}
+
 export function cloudSelector(kind: CloudSelector["kind"], value: string, strategy: CloudSelector["checkout_strategy"] = "HEAD", baseRef?: string): CloudSelector {
   const clean = value.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9_./:-]*$/.test(clean) || clean.includes("..") || clean.includes("@{") || (kind === "SHA" && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(clean))) throw new Error("INVALID_SELECTOR");
