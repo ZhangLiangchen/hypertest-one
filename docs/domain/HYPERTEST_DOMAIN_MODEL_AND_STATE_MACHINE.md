@@ -2426,6 +2426,8 @@ Task 还允许 DRAFT → CANCELLED；无 Attempt 的取消不伪造执行历史�
 
 每 Task 至多一个未终结 Attempt；QUEUED/PREPARING/RUNNING/WAITING_INPUT/RECOVERY_REQUIRED 均占用该唯一性。无租约的等待或恢复状态也不允许新 Attempt 越过它。显式复测先确认当前 Attempt 已终结、未决操作已对账，再在聚合锁下追加 attempt_no；旧 Attempt 和原结果不可变。测试循环内一次新框架调用创建新 RunRecord，无需为每次失败诊断生成 Attempt。
 
+新建同冻结输入的显式复测必须在请求中分别确认本次测试范围与授权，并在成功回执中记录确认和原 Attempt；两项确认均为严格布尔 true。已接受的历史原 key 回执仍按其原请求读取，确认不能覆盖权限、过期或未决操作检查。
+
 运行所有权使用独立 CloudAttempt lease：worker owner、不可猜的 lease token、单调递增 fencing generation 和 expiry。claim/续租/释放是 Operational 事务；普通 Task 版本与租约 generation 不能互相替代。Worker 提交阶段/产物/结果必须同时持有效短期 `cloud:work`、当前 lease/generation 和匹配 task version。失效 Worker 的迟到提交被拒绝；网络/Artifact/SDK I/O 不持聚合行锁，返回后重新检查所有权。沿用 PostgreSQL 队列/租约模式可以，不能将 CloudTask UUID 写进旧 `DurableJob.test_run_id` 或改动 legacy Job 归属。
 
 受控验收控制器的人工协调不结算模型预算：操作者私有 host proof 必须绑定原 Project / Task / Attempt / expected_version，明确旧 owner 已 fence、整树停止、无未决平台 / 获准外部操作，同时声明 `model_drain_observed=false` 和 `model_budget_disposition=KEEP_HELD`。该路径只将 RECOVERY_REQUIRED 显式收尾为 FAILED；读回还核对原完整 hold 与 preparation hold 不变。原模型在途完成未知仍保留额度，不将停止本地进程当供应商结算证明。输入 / 授权 / 预算修订用同 Project 下明确 `related_task_id` 的新 Task，复用经核验的原配置与固定双 SHA，独立持久原 key / version，不自动 dispatch、不重开旧 Attempt、不借新任务重发已知未决外部动作。2026-10-22 首个真实 Task 的 v7 FAILED / HELD 已按此边界读回；它证明受控失败恢复，未证明测试执行或六步成功。r11 的 370 项隔离回归与后续真实结果见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。

@@ -1471,7 +1471,7 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 | Create/UpdateCloudTask | `title, selectors, config_revision, prd, objective, basic_flow, framework_entrypoints, environment_ref, authorization_manifest, budgets`；DRAFT 可改，`cloud:dispatch` |
 | DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；仅未冻结 DRAFT 或终态且输入解析、Attempt 和外部操作无未决时接受，追加墓碑与版本化回执。固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读，拒绝后续新写。删除不会取消任务、改写结果或重发外部操作 |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
-| DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason`（同冻结输入显式复测）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
+| DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_scope_confirmed=true, retry_authorization_confirmed=true`（同冻结输入显式复测）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
 | GetCloudTask / GetCloudOperation | 固定 task/version 的任务/Attempt/资产分页，或 project/原 operation_key 的回执查询；`cloud:read`，回执查询另核验原提交者/授权委派关系 |
 | AnswerCloudInput / ResumeCloudAttempt | `task_id, attempt_id, question_key, answer` 或 `checkpoint_ref, reason`；回答与恢复分开审计，当前权限和冻结上限重新核验；`cloud:control` |
 | CancelCloudTask | `task_id, reason`；仅允许 DRAFT 且无 Attempt，核验 expected task version 后原子置 CANCELLED、递增版本并保存原 key 回执及 Audit/Outbox；`cloud:control`。不启动/取消 SDK 或产生执行副作用；该 Task 保持终态，重新开始须新建关联 DRAFT |

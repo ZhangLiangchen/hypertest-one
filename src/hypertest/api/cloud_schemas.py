@@ -321,6 +321,8 @@ class CloudDispatch(TaskMutation):
     operation: Literal["DISPATCH"] = "DISPATCH"
     resolution_id: UUID | None = None
     retry_of_attempt_id: UUID | None = None
+    retry_scope_confirmed: bool = Field(default=False, strict=True)
+    retry_authorization_confirmed: bool = Field(default=False, strict=True)
     reason: str = Field(default="", max_length=4096)
 
     @model_validator(mode="after")

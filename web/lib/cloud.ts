@@ -20,7 +20,7 @@ export type CloudRecoverySummary = {
   reconciliation_source: string; budget_disposition: string;
   phase: "ACTIVE" | "CANCELLATION_REQUESTED" | "STOP_UNCONFIRMED" | "RECONCILIATION_REQUIRED" | "TERMINATED";
 };
-export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; observed_at: string; recovery?: CloudRecoverySummary };
+export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; controlled_actions?: CloudRecord[]; observed_at: string; recovery?: CloudRecoverySummary };
 export type CloudAsset = { id: string; attempt_id: string; kind: string; key: string; title: string; revision: number; task_version: number; markdown: string; details: CloudRecord; reported_result: CloudResult; artifact_id?: string | null };
 export type CloudDocument = { task: CloudTask; attempts: CloudAttempt[]; resolutions: CloudRecord[]; assets: CloudAsset[]; artifacts: CloudRecord[]; runs: CloudRecord[]; run_cases: CloudRecord[]; delegations: CloudRecord[]; questions: CloudRecord[]; answers: CloudRecord[] };
 export type CloudReceipt = { status: string; profile: string; project_id: string; operation_key: string; operation: string; version: number; task_id?: string; attempt_id?: string; config_id?: string; resolution_id?: string; credential_id?: string; credential_version_id?: string };

@@ -51,6 +51,28 @@ def test_dispatch_never_chooses_between_an_implicit_retry_and_a_resolution():
         CloudDispatch(**values, resolution_id=uuid4(), retry_of_attempt_id=uuid4())
     with pytest.raises(ValidationError):
         CloudDispatch(**values, retry_of_attempt_id=uuid4())
+    with pytest.raises(ValidationError):
+        CloudDispatch(**values, retry_of_attempt_id=uuid4(), reason="reviewed",
+                      retry_scope_confirmed="true", retry_authorization_confirmed=True)
+    CloudDispatch(**values, retry_of_attempt_id=uuid4(), reason="reviewed",
+                  retry_scope_confirmed=True, retry_authorization_confirmed=True)
+    CloudDispatch(**values, resolution_id=uuid4())
+
+
+def test_dispatch_digest_preserves_original_resolution_request_shape():
+    from uuid import uuid4
+
+    from hypertest.application.cloud_tasks import _safe_payload
+
+    payload = CloudDispatch(project_id=uuid4(), task_id=uuid4(), operation_key="fixture",
+                            expected_version=1, resolution_id=uuid4())
+    safe = _safe_payload(payload)
+    assert "retry_scope_confirmed" not in safe
+    assert "retry_authorization_confirmed" not in safe
+    old_retry = CloudDispatch(project_id=uuid4(), task_id=uuid4(), operation_key="old",
+                              expected_version=1, retry_of_attempt_id=uuid4(), reason="original")
+    assert "retry_scope_confirmed" not in _safe_payload(old_retry)
+    assert "retry_authorization_confirmed" not in _safe_payload(old_retry)
 
 
 def test_authorization_does_not_accept_ambiguous_naive_expiration():

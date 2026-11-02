@@ -310,7 +310,7 @@ async def test_controlled_action_task_cannot_be_redispatched_after_reconciliatio
             "observations": "Synthetic fixture; no external send"})
     assert closed.status_code == 200, closed.text
     retry = await post(context, "DISPATCH", closed.json()["version"], task_id=current["task_id"],
-        retry_of_attempt_id=current["attempt_id"], reason="Must not repeat controlled actions")
+        retry_of_attempt_id=current["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Must not repeat controlled actions")
     assert retry.status_code == 409 and "Controlled actions require a new task" in retry.text
     async with AsyncSessionLocal() as db:
         attempts = (await db.scalars(select(cloud_tasks.CloudAttempt).where(

@@ -116,7 +116,7 @@ async def test_frozen_legacy_task_rejects_new_attempt_before_reusing_old_input(m
     from hypertest.application import cloud_tasks
     task_id, project_id = uuid4(), uuid4()
     payload = CloudDispatch(project_id=project_id, operation_key="fixture-retry", expected_version=1,
-        task_id=task_id, retry_of_attempt_id=uuid4(), reason="explicit synthetic retry")
+        task_id=task_id, retry_of_attempt_id=uuid4(), retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="explicit synthetic retry")
     task = SimpleNamespace(id=task_id, project_id=project_id, version=1, status="COMPLETED", inputs={"budgets": {}})
     db = SimpleNamespace(scalar=AsyncMock(return_value=None), get=AsyncMock(return_value=None))
     monkeypatch.setattr(cloud_tasks, "project", AsyncMock())

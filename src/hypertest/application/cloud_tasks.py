@@ -264,6 +264,11 @@ def _cipher():
 def _safe_payload(payload):
     data = payload.model_dump(mode="json")
     data.pop("secret", None)
+    # Preserve original request digests for existing dispatch receipts.
+    if payload.operation == "DISPATCH":
+        for name in ("retry_scope_confirmed", "retry_authorization_confirmed"):
+            if not data[name]:
+                data.pop(name)
     if payload.operation == "UPLOAD_ARTIFACT":
         data.pop("content_base64", None)
     return data
@@ -449,6 +454,10 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if prior.operation in {"PREPARE_CONTAINER_CREATE", "PREPARE_CONTAINER_START"}:
             raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_KEY_QUERY_ONLY")
         return prior.response
+    # Existing immutable receipts remain readable with their original payload.
+    if (payload.operation == "DISPATCH" and payload.retry_of_attempt_id
+            and not (payload.retry_scope_confirmed and payload.retry_authorization_confirmed)):
+        raise HTTPException(422, "Retry requires explicit scope and authorization confirmation")
     if payload.operation not in {"DELETE_TASK", "CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
         enabled()
     fixed_control_fallback = False
@@ -660,6 +669,9 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         await db.flush()
         task.latest_attempt_id, task.status, task.reported_result = attempt.id, "QUEUED", "NOT_RUN"
         refs = {"attempt_id": str(attempt.id), "input_digest": task.input_digest}
+        if payload.retry_of_attempt_id:
+            refs["retry_confirmation"] = {"scope_confirmed": True, "authorization_confirmed": True,
+                                          "retry_of_attempt_id": str(payload.retry_of_attempt_id)}
     elif op == "CANCEL_TASK":
         if task.status != "DRAFT" or task.latest_attempt_id is not None:
             raise HTTPException(409, "Task cancellation requires an undispatched DRAFT")

@@ -121,7 +121,7 @@ async def test_original_intent_ack_loss_and_lifecycle_are_fenced(cloud_context, 
             "observations": "untrusted synthetic claim"})
     assert reconciled.status_code == 409 and "CLOUD_CONTAINER_UNRECONCILED" in reconciled.text
     retry = await post(context, "DISPATCH", cancelled.json()["version"], task_id=intent_receipt["task_id"],
-        retry_of_attempt_id=intent_receipt["attempt_id"], reason="synthetic")
+        retry_of_attempt_id=intent_receipt["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="synthetic")
     assert retry.status_code == 409
     async with AsyncSessionLocal() as db:
         with pytest.raises(DBAPIError):
@@ -236,7 +236,7 @@ async def test_confirm_and_stop_bind_original_attempt_and_allow_later_retry(clou
         await service._ensure_container_closed(db, UUID(receipt["task_id"]))
     failed = await worker_submit(cloud_context, identity, stopped, "TRANSITION", status="FAILED")
     retry = await post(cloud_context, "DISPATCH", failed["version"], task_id=receipt["task_id"],
-        retry_of_attempt_id=receipt["attempt_id"], reason="explicit synthetic retry")
+        retry_of_attempt_id=receipt["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="explicit synthetic retry")
     assert retry.status_code == 409 and "create a related task" in retry.text
 
 

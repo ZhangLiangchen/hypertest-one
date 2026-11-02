@@ -2,7 +2,7 @@
 
 import { ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Descriptions, Form, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
+import { Alert, Button, Checkbox, Descriptions, Form, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -28,8 +28,11 @@ export default function CloudTaskPage() {
   const projectId = search.get("projectId") || "";
   const { t, label } = useI18n(); const [editing, setEditing] = useState<CloudTask | null>(null); const [answers, setAnswers] = useState<Record<string, string>>({});
   const [tab, setTab] = useState("overview");
+  const [retry, setRetry] = useState<{ attemptId: string; version: number } | null>(null);
+  const [retryScopeConfirmed, setRetryScopeConfirmed] = useState(false);
+  const [retryAuthorizationConfirmed, setRetryAuthorizationConfirmed] = useState(false);
   const [destination, setDestination] = useState<{ tab: string; id: string } | null>(null);
-  useEffect(() => { setAnswers({}); setEditing(null); setTab("overview"); setDestination(null); }, [projectId, taskId]);
+  useEffect(() => { setAnswers({}); setEditing(null); setTab("overview"); setDestination(null); setRetry(null); setRetryScopeConfirmed(false); setRetryAuthorizationConfirmed(false); }, [projectId, taskId]);
   useEffect(() => {
     if (!destination || destination.tab !== tab) return;
     const frame = window.requestAnimationFrame(() => {
@@ -88,9 +91,9 @@ export default function CloudTaskPage() {
   const answered = new Set(detail.answers.map((row) => row.question_id));
   const questions = detail.questions.filter((row) => !answered.has(row.id));
   const retryBlockedReason = task.inputs.controlled_actions != null
-    ? t("This task contains controlled actions. Create a new task with an explicitly reviewed scope and authorization; do not repeat the original actions.", "此任务包含受控动作。请重新核对范围和授权后创建新任务，不要重复原操作。")
+    ? t("This task uses a legacy controlled-action contract that the host worker cannot execute.", "此任务使用宿主 Worker 尚不支持的旧版受控动作合同。")
     : task.inputs.budgets != null
-      ? t("This task uses a legacy frozen budget and cannot start another attempt. Create a related task after reviewing its scope and authorization.", "此任务使用旧版冻结预算，无法再次执行。请核对范围和授权后创建关联任务。")
+      ? t("This task uses a legacy frozen budget that the host worker cannot execute. The previous budget and its accounting remain recorded.", "此任务使用宿主 Worker 尚不支持的旧版冻结预算；原预算及其账务记录仍予保留。")
       : null;
   // State identifies current work, not a history of completed business phases.
   // Unknown/recovery/failed/cancelled states cannot establish how far work got.
@@ -126,6 +129,29 @@ export default function CloudTaskPage() {
       {editing ? <><CloudOperationNotice operation={operation} />{(task.deleted_at || task.version !== editing.version || status !== "DRAFT" || !!task.frozen_manifest || !operational.valid || inResolution) ? <Alert showIcon type="warning" message={t("The draft changed or its current state cannot be verified. Close and reopen the editor after refreshing.", "草稿已变化或当前状态无法核验，请关闭编辑并刷新后重新打开。")} /> : null}
         <CloudTaskForm key={`${editing.id}:${editing.version}`} config={configurations.data?.items.find((row) => row.id === editing.config_id)} operation={operation} configOptions={configurations.data?.items} enabled={enabled && operational.valid && !task.deleted_at && status === "DRAFT" && !task.frozen_manifest && !inResolution && task.version === editing.version} editTask={editing} onCancel={() => setEditing(null)} onCreated={() => { setEditing(null); void live.refetch(); void document.refetch(); }} />
       </> : null}
+    </Modal>
+    <Modal open={!!retry} title={t("Review and dispatch a new attempt", "核对并下发新的执行尝试")} width={800} destroyOnHidden
+      okText={t("Dispatch retry", "下发重试")} cancelText={t("Cancel", "取消")}
+      okButtonProps={{ disabled: !retryScopeConfirmed || !retryAuthorizationConfirmed || blocked || live.isError || !dispatchEnabled || retry?.version !== task.version || retry?.attemptId !== attempt?.id || status !== "FAILED" }}
+      onCancel={() => setRetry(null)} onOk={() => {
+        if (!retry || !retryScopeConfirmed || !retryAuthorizationConfirmed || retry.version !== task.version || retry.attemptId !== attempt?.id || blocked || live.isError || !dispatchEnabled || status !== "FAILED") return;
+        setRetry(null);
+        void mutate({ operation: "DISPATCH", retry_of_attempt_id: retry.attemptId, retry_scope_confirmed: true, retry_authorization_confirmed: true, reason: "Operator confirmed the frozen scope and authorization for a new attempt" });
+      }}>
+      <Typography.Paragraph>{t("This creates a new attempt using the frozen inputs and does not resume the previous session. Previous work and external effects may have already occurred.", "本操作使用冻结输入创建新尝试，不会续接原会话。此前工作和外部操作可能已经发生。")}</Typography.Paragraph>
+      <Alert showIcon type="warning" message={t("Reconcile uncertain external operations by their original key before retrying.", "下发前请使用原操作键对账结果不明的外部操作。")} style={{ marginBottom: 16 }} />
+      {retry && (retry.version !== task.version || retry.attemptId !== attempt?.id || status !== "FAILED") ? <Alert showIcon type="warning" message={t("The task or attempt changed. Close this dialog and review again.", "任务或尝试已变化，请关闭窗口后重新核对。")} style={{ marginBottom: 16 }} /> : null}
+      <Descriptions column={1} layout="vertical" items={[
+        { key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> },
+        { key: "scope", label: t("Frozen test scope", "冻结的测试范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> },
+        { key: "flow", label: t("Basic flow", "基本流程"), children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
+        { key: "entrypoints", label: t("Framework entrypoints", "框架入口"), children: <pre className="session-literal">{text(task.inputs.framework_entrypoints)}</pre> },
+        { key: "authorization", label: t("Frozen authorization", "冻结的授权"), children: <pre className="session-literal">{text(task.inputs.authorization)}</pre> },
+      ]} />
+      <Space direction="vertical" style={{ marginTop: 16 }}>
+        <Checkbox checked={retryScopeConfirmed} onChange={(event) => setRetryScopeConfirmed(event.target.checked)}>{t("I have reviewed and confirm this test scope.", "我已核对并确认本次测试范围。")}</Checkbox>
+        <Checkbox checked={retryAuthorizationConfirmed} onChange={(event) => setRetryAuthorizationConfirmed(event.target.checked)}>{t("I confirm this retry is authorized within the displayed authorization.", "我确认本次重试已获得上述授权。")}</Checkbox>
+      </Space>
     </Modal>
     <Alert showIcon type="info" message={t("Progress and test results are separate", "任务进度与测试结果分别记录")} description={t("Completed means the agreed work was delivered. FAIL, ERROR and BLOCKED results remain visible with their original reports.", "已完成表示约定工作已交付；失败、错误和阻塞结果及其原始报告继续保留。 ")} style={{ marginBottom: 20 }} />
     {document.isError ? <Alert showIcon type="warning" message={t("Refresh failed; previously verified records are retained.", "刷新失败；保留此前已核验记录。 ")} style={{ marginBottom: 20 }} /> : null}
@@ -166,14 +192,9 @@ export default function CloudTaskPage() {
           </section>
           {attempt ? <section className="overview-section"><Typography.Title level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
             {status === "FAILED" && attempt.status === "FAILED" ? <div style={{ marginBottom: 16 }}>
-              {retryBlockedReason ? <Alert showIcon type="warning" message={t("Retry is unavailable for this task", "此任务无法直接重试")} description={retryBlockedReason} /> : <>
+              {retryBlockedReason ? <><Alert showIcon type="warning" message={t("Retry cannot be dispatched yet", "暂无法下发重试")} description={retryBlockedReason} />{live.data?.controlled_actions?.some((action) => action.state === "SENT_UNRECONCILED") ? <Alert showIcon type="warning" style={{ marginTop: 12 }} message={t("A sent action remains unreconciled", "已有已发送动作尚未对账")} description={t("Reconcile the original action by its original key; do not automatically resend it.", "请使用原操作键对账，不要自动重发。")} /> : null}</> : <>
                 <Typography.Paragraph className="muted">{t("A retry starts a new attempt with the same frozen inputs. It does not continue the old session and may repeat completed work. Check external effects and authorization first.", "重试会按相同冻结输入创建新的执行尝试，不会继续原会话，可能重复已完成的工作。请先核对外部操作和授权。")}</Typography.Paragraph>
-                <Button disabled={blocked || live.isError || !dispatchEnabled} onClick={() => Modal.confirm({
-                  title: t("Start a new attempt?", "创建新的执行尝试？"),
-                  content: t("Confirm that repeating the frozen task is authorized and that previous external operations have been checked. The previous attempt and its records remain available.", "请确认允许重新执行冻结的任务，并已核对此前的外部操作。原尝试及其记录会保留。"),
-                  okText: t("Start new attempt", "创建新尝试"), cancelText: t("Cancel", "取消"),
-                  onOk: () => mutate({ operation: "DISPATCH", retry_of_attempt_id: attempt.id, reason: "Operator requested a new attempt after reviewing previous work" }),
-                })}>{t("Retry task", "重试任务")}</Button>
+                <Button disabled={blocked || live.isError || !dispatchEnabled} onClick={() => { setRetryScopeConfirmed(false); setRetryAuthorizationConfirmed(false); setRetry({ attemptId: attempt.id, version: task.version }); }}>{t("Retry task", "重试任务")}</Button>
               </>}
             </div> : null}
             {attempt.status === "WAITING_INPUT" ? <Alert showIcon type="warning" style={{ marginBottom: 16 }} message={t("Answers are recorded but cannot resume this agent session", "回答只会保存，无法继续此 Agent 会话")} description={t("The current worker does not support original-session continuation. Review previous external operations before planning further work.", "当前 Worker 不支持继续原会话。安排后续工作前，请核对此前的外部操作。 ")} /> : null}

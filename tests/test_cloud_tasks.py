@@ -338,7 +338,7 @@ async def test_running_cancel_fences_worker_and_requires_observed_reconciliation
         await worker_submit(context, identity, latest, "SUBMIT_ASSETS", assets=[{
             "kind": "REPORT", "key": "late", "title": "Late worker", "markdown": "Cannot submit after fence"}])
     retry = await post(context, "DISPATCH", latest["version"], task_id=latest["task_id"],
-        retry_of_attempt_id=latest["attempt_id"], reason="Must not bypass recovery")
+        retry_of_attempt_id=latest["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Must not bypass recovery")
     assert retry.status_code == 409
     reconciled = await post(context, "RECONCILE_ATTEMPT", latest["version"], task_id=latest["task_id"],
         attempt_id=latest["attempt_id"], status="CANCELLED", reason="Observed stopped fixture", reconciliation={
@@ -346,7 +346,7 @@ async def test_running_cancel_fences_worker_and_requires_observed_reconciliation
             "observations": "Synthetic fixture had no runtime and no external operation"})
     assert reconciled.status_code == 200, reconciled.text
     retry = await post(context, "DISPATCH", reconciled.json()["version"], task_id=latest["task_id"],
-        retry_of_attempt_id=latest["attempt_id"], reason="Explicit same-input fixture retry")
+        retry_of_attempt_id=latest["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Explicit same-input fixture retry")
     assert retry.status_code == 409 and "create a related task" in retry.text
 
 
@@ -635,7 +635,7 @@ async def test_budget_hold_survives_lease_loss_and_operator_reconciliation(cloud
             "external_operations_reconciled": True, "observations": "No real runtime or model; preserve the synthetic hold"})
     assert reconciled.status_code == 200, reconciled.text
     retry = await post(context, "DISPATCH", reconciled.json()["version"], task_id=receipt["task_id"],
-        retry_of_attempt_id=receipt["attempt_id"], reason="Must not reset uncertain usage")
+        retry_of_attempt_id=receipt["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Must not reset uncertain usage")
     assert retry.status_code == 409 and "create a related task" in retry.text
     with pytest.raises(HTTPException, match="stale"):
         await worker_submit(context, identity, reconciled.json(), "TRANSITION", status="FAILED",
@@ -671,7 +671,7 @@ async def test_stopped_broker_accounting_settles_hold_and_preserves_its_history(
     assert historical["attempts"][-1]["status"] == "RUNNING"
     assert historical["attempts"][-1]["runtime_metadata"]["budget_reservation"]["state"] == "HELD"
     retry = await post(context, "DISPATCH", final["version"], task_id=receipt["task_id"],
-        retry_of_attempt_id=receipt["attempt_id"], reason="Explicit remaining-credit fixture retry")
+        retry_of_attempt_id=receipt["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Explicit remaining-credit fixture retry")
     assert retry.status_code == 409 and "create a related task" in retry.text
     async with AsyncSessionLocal() as db:
         count, seconds, cost = await service._task_budget_usage(db, UUID(receipt["task_id"]))
@@ -690,7 +690,7 @@ async def test_preparation_time_is_held_before_git_or_any_model_start(cloud_cont
         reconciliation={"old_owner_fenced": True, "local_processes_stopped": True,
             "external_operations_reconciled": True, "observations": "Keep preparation hold; no fabricated measured usage"})
     retry = await post(context, "DISPATCH", reconciled.json()["version"], task_id=receipt["task_id"],
-        retry_of_attempt_id=receipt["attempt_id"], reason="Explicit new preparation fixture")
+        retry_of_attempt_id=receipt["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Explicit new preparation fixture")
     assert retry.status_code == 409 and "create a related task" in retry.text
     async with AsyncSessionLocal() as db:
         count, seconds, cost = await service._task_budget_usage(db, UUID(receipt["task_id"]))
@@ -996,19 +996,64 @@ async def test_cloud_delete_cancelled_draft_preserves_terminal_history(cloud_con
     assert final["task"]["status"] == "CANCELLED" and final["task"]["deleted_at"]
 
 
+async def test_historical_retry_receipt_replays_only_the_original_request(cloud_context):
+    from hypertest.api.cloud_schemas import CloudDispatch
+
+    context = cloud_context
+    first = await dispatched(context)
+    stopped = await post(context, "CANCEL_ATTEMPT", first["version"], task_id=first["task_id"],
+        attempt_id=first["attempt_id"], reason="Cancel synthetic queued attempt")
+    assert stopped.status_code == 200, stopped.text
+    key = "historical-retry-" + uuid4().hex
+    fields = {"task_id": first["task_id"], "retry_of_attempt_id": first["attempt_id"],
+              "reason": "Historical retry fixture"}
+    payload = CloudDispatch(project_id=UUID(context["project_id"]), operation_key=key,
+                            expected_version=stopped.json()["version"], **fields)
+    old_request = payload.model_dump(mode="json")
+    old_request.pop("retry_scope_confirmed")
+    old_request.pop("retry_authorization_confirmed")
+    response = {"status": "ACCEPTED", "profile": service.PROFILE, "project_id": context["project_id"],
+                "task_id": first["task_id"], "attempt_id": first["attempt_id"], "operation": "DISPATCH",
+                "operation_key": key, "version": stopped.json()["version"] + 1}
+    async with AsyncSessionLocal() as db:
+        original = await db.scalar(select(CloudOperationReceipt).where(
+            CloudOperationReceipt.project_id == UUID(context["project_id"]),
+            CloudOperationReceipt.task_id == UUID(first["task_id"])).limit(1))
+        db.add(CloudOperationReceipt(id=uuid7(), project_id=UUID(context["project_id"]),
+            task_id=UUID(first["task_id"]), operation_key=key, operation="DISPATCH",
+            actor_ref=original.actor_ref, input_digest=service.canonical_json_sha256(old_request),
+            expected_version=stopped.json()["version"], accepted_version=response["version"], response=response))
+        await db.commit()
+    replay = await post(context, "DISPATCH", stopped.json()["version"], operation_key=key, **fields)
+    assert replay.status_code == 200 and replay.json() == response
+    conflict = await post(context, "DISPATCH", stopped.json()["version"], operation_key=key,
+                          **{**fields, "reason": "A different request"})
+    assert conflict.status_code == 409
+    confirmed = await post(context, "DISPATCH", stopped.json()["version"], operation_key=key, **fields,
+                           retry_scope_confirmed=True, retry_authorization_confirmed=True)
+    assert confirmed.status_code == 409
+
+
 async def test_explicit_retry_creates_new_attempt_and_preserves_prior_version(cloud_context):
     context = cloud_context
     first = await dispatched(context)
     stopped = await post(context, "CANCEL_ATTEMPT", first["version"], task_id=first["task_id"],
         attempt_id=first["attempt_id"], reason="Cancel synthetic queued attempt")
     assert stopped.status_code == 200, stopped.text
+    for scope, authorization in [(False, False), (True, False), (False, True)]:
+        denied = await post(context, "DISPATCH", stopped.json()["version"], task_id=first["task_id"],
+            retry_of_attempt_id=first["attempt_id"], retry_scope_confirmed=scope,
+            retry_authorization_confirmed=authorization, reason="Retry synthetic task after review")
+        assert denied.status_code == 422
     retry = await post(context, "DISPATCH", stopped.json()["version"], task_id=first["task_id"],
-        retry_of_attempt_id=first["attempt_id"], reason="Retry synthetic task after review")
+        retry_of_attempt_id=first["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Retry synthetic task after review")
     assert retry.status_code == 200, retry.text
     assert retry.json()["attempt_id"] != first["attempt_id"]
+    assert retry.json()["retry_confirmation"] == {"scope_confirmed": True, "authorization_confirmed": True,
+                                                   "retry_of_attempt_id": first["attempt_id"]}
     snapshot = await read_all(context, first["task_id"], retry.json()["version"])
     assert [row["status"] for row in snapshot["attempts"]] == ["CANCELLED", "QUEUED"]
     assert snapshot["attempts"][0]["id"] == first["attempt_id"]
     stale = await post(context, "DISPATCH", stopped.json()["version"], task_id=first["task_id"],
-        retry_of_attempt_id=first["attempt_id"], reason="Stale retry")
+        retry_of_attempt_id=first["attempt_id"], retry_scope_confirmed=True, retry_authorization_confirmed=True, reason="Stale retry")
     assert stale.status_code == 409

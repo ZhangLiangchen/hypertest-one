@@ -17,6 +17,8 @@
 
 ## 未完成的开发与条件
 
+- Cloud 原任务复测：普通失败任务的范围与授权确认已实现，部署与用户验收另行记录；旧冻结预算任务需要独立 Attempt 执行快照，旧受控动作还需选择性隔离和 broker 接线。当前不能将指定历史任务安全下发到薄 Worker；具体方案和原 UNKNOWN 边界见[复测设计](CLOUD_RETRY_EXECUTION_SNAPSHOT_DESIGN_20261102.md)。
+
 - [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker 已在本 Mac 部署，真实任务结果回传待用户验收；公司发行和未来项目资源隔离的全容器化另行设计。
 - 本机 Cloud Worker：独立 Docker Attempt、受控写入和自动观察收尾修复已部署；真实 Docker/SDK 的无兑换项目单测任务与报告闭环已观察，自动 action 观察及收尾另以专用测试库和合成目标验证，尚未在修复版本上以真实写操作复验。原历史任务、动作及报告保持不变；不能将合成结果推定为真实 SUT 测试通过。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
 - Cloud 框架与受控 HTTPS 只完成首片；真实目标授权、依赖闭包和离线供应、认证或写 API、其他工具链与浏览器等尚未完成。见[受控 HTTPS](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)和[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。
