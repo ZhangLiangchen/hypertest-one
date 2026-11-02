@@ -76,7 +76,7 @@ test("ClientModal defers first mounting and retains the same child after close a
 
 test("guide handlers defer the drawer until requested and preserve it across language changes", () => {
   const r = runtime(), locale = { value: "en" }, Guide = "DeferredGuide";
-  const dependencies = { react: r.hooks, antd: ui, "@/lib/i18n": i18n(locale), "next/dynamic": { default: () => Guide }, "next/navigation": { usePathname: () => "/" }, "next/link": { default: "a" }, "@ant-design/icons": {} };
+  const dependencies = { react: r.hooks, antd: ui, "@/lib/i18n": i18n(locale), "@/lib/api": {}, "@tanstack/react-query": { useQuery: () => ({}) }, "next/dynamic": { default: () => Guide }, "next/navigation": { usePathname: () => "/", useSearchParams: () => new URLSearchParams() }, "next/link": { default: "a" }, "@ant-design/icons": {} };
   const { SiteHeader } = load("app/site-header.tsx", { require: (name) => name in dependencies ? dependencies[name] : require(name) });
   const render = () => r.render(SiteHeader);
   const first = render();
@@ -91,6 +91,33 @@ test("guide handlers defer the drawer until requested and preserve it across lan
   assert.equal(nodes(tree).find((node) => node.type === ui.Button).props["aria-label"], "使用指南");
   nodes(tree).find((node) => node.type === ui.Button).props.onClick();
   assert.equal(nodes(render()).find((node) => node.type === Guide).props.open, true);
+});
+
+test("header follows project and task identity and links to their parents", () => {
+  const r = runtime(), locale = { value: "zh" };
+  const projectId = "01a181ac-ba63-7c24-b695-bfb498829b63", taskId = "01a18c18-de0d-77d5-a45a-f9ae3ecee683";
+  let path = `/cloud-tasks/${taskId}`, search = new URLSearchParams({ projectId });
+  const data = { project: { id: projectId, name: "测试项目" }, cloud: { task: { id: taskId, project_id: projectId, title: "云端任务甲" } }, archive: undefined };
+  const dependencies = { react: r.hooks, antd: ui, "@/lib/i18n": i18n(locale), "@/lib/api": { getProject() {} },
+    "@tanstack/react-query": { useQuery: ({ queryKey }) => ({ data: queryKey[0] === "project" ? data.project : queryKey[0] === "cloud-task" ? data.cloud : data.archive }) },
+    "next/dynamic": { default: () => "Guide" }, "next/navigation": { usePathname: () => path, useSearchParams: () => search }, "next/link": { default: "a" }, "@ant-design/icons": {} };
+  const { SiteHeader } = load("app/site-header.tsx", { require: (name) => name in dependencies ? dependencies[name] : require(name) });
+  const nav = () => nodes(r.render(SiteHeader)).find((node) => node.type === "nav");
+  let tree = nav();
+  assert.ok(nodes(tree).some((node) => node.type === "a" && node.props.href === `/projects/${projectId}` && node.props.children === "测试项目"));
+  assert.ok(nodes(tree).some((node) => node.type === "a" && node.props.href === `/projects/${projectId}/cloud?tab=tasks`));
+  assert.ok(nodes(tree).some((node) => node.props?.["aria-current"] === "page" && node.props.children === "云端任务甲"));
+  data.cloud.task.project_id = "another-project";
+  tree = nav();
+  assert.ok(nodes(tree).some((node) => node.props?.["aria-current"] === "page" && node.props.children === "云端任务"));
+  path = `/projects/${projectId}`;
+  tree = nav();
+  assert.ok(nodes(tree).some((node) => node.props?.["aria-current"] === "page" && node.props.children === "测试项目"));
+  path = `/tasks/${taskId}`; search = new URLSearchParams({ projectId, mode: "archive" });
+  data.archive = { task: { id: taskId, project_id: projectId, title: "Local task title" } }; locale.value = "en";
+  tree = nav();
+  assert.ok(nodes(tree).some((node) => node.type === "a" && node.props.href === `/projects/${projectId}` && node.props.children === "测试项目"));
+  assert.ok(nodes(tree).some((node) => node.props?.["aria-current"] === "page" && node.props.children === "Local task title"));
 });
 
 test("dashboard handlers keep the deferred creation component after its first opening", () => {
