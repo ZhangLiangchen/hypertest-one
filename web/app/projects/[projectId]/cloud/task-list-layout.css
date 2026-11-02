@@ -1,0 +1,3 @@
+.cloud-task-list .ant-table-thead > tr > th:first-child, .cloud-task-list .ant-table-tbody > tr > td:first-child { padding-left: 24px; }
+.cloud-task-list .cloud-task-version { font-variant-numeric: tabular-nums; }
+.workspace-page .cloud-task-list .ant-pagination { padding-inline: 0; }

@@ -16,6 +16,7 @@ import { ReportedResultTag } from "@/app/tasks/task-records";
 import { ProjectNavigation, WorkspaceLoading } from "@/app/workspace-ui";
 import { ProjectWorkspaceHeading } from "../../project-workspace-heading";
 import { CloudCapabilitiesNotice, CloudOperationNotice } from "./cloud-shared";
+import "./task-list-layout.css";
 
 function LoadingPanel() {
   const { t } = useI18n();
@@ -52,14 +53,14 @@ export default function CloudProjectPage() {
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "tasks", label: t("Project tasks", "项目任务"), children: <section className="cloud-task-list data-surface" aria-labelledby="cloud-task-list-heading">
         <div className="cloud-task-list-header"><div><div className="cloud-task-list-title"><Typography.Title id="cloud-task-list-heading" level={2}>{t("Cloud test tasks", "云端测试任务")}</Typography.Title>{tasks.data ? <span className="count-badge" aria-label={t(`${tasks.data.total} tasks`, `${tasks.data.total} 个任务`)}>{tasks.data.total}</span> : null}</div><p>{t("Review task progress and reported results for this project.", "查看此项目的任务进度与报告的测试结果。")}</p></div><Button icon={<ReloadOutlined aria-hidden />} onClick={refresh} disabled={!configured}>{t("Refresh", "刷新")}</Button></div>
-        <Table rowKey={(row) => `${row.task_kind}:${row.task_id}`} loading={tasks.isLoading && configured} dataSource={tasks.data?.items || []} scroll={{ x: 850 }}
+        <Table rowKey={(row) => `${row.task_kind}:${row.task_id}`} loading={tasks.isLoading && configured} dataSource={tasks.data?.items || []} scroll={{ x: 1160 }}
           locale={{ emptyText: <Empty description={configured ? t("No tasks match this source.", "此来源尚无任务。") : t("Configure Cloud Web access to read this directory. Local tasks remain in the project workspace.", "配置云端 Web 访问后可读取此目录；Local 任务仍在项目工作台。 ")} /> }}
           pagination={{ current: page, pageSize: 20, total: tasks.data?.total || 0, hideOnSinglePage: true, showSizeChanger: false, onChange: setPage }} columns={[
-            { title: t("Task", "任务"), key: "title", width: "31%", render: (_, row) => <Link className="entity-title" href={`/cloud-tasks/${row.task_id}?projectId=${projectId}`}>{String(row.title)}</Link> },
-            { title: t("Source", "来源"), key: "source", render: (_, row) => <span className="cloud-task-source"><Tag>Cloud</Tag><span>{row.provider ? String(row.provider) : "—"}</span></span> },
-            { title: t("Task progress", "任务进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
-            { title: t("Reported test result", "报告的测试结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> },
-            { title: t("Version", "版本"), dataIndex: "version" }, { title: t("Updated", "更新时间"), dataIndex: "updated_at", render: (value: string) => formatDate(value) },
+            { title: t("Task", "任务"), key: "title", render: (_, row) => <Link className="entity-title" href={`/cloud-tasks/${row.task_id}?projectId=${projectId}`}>{String(row.title)}</Link> },
+            { title: t("Source", "来源"), key: "source", width: 150, render: (_, row) => <span className="cloud-task-source"><Tag>Cloud</Tag><span>{row.provider ? String(row.provider) : "—"}</span></span> },
+            { title: t("Task progress", "任务进度"), dataIndex: "status", width: 145, render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
+            { title: t("Reported test result", "报告的测试结果"), dataIndex: "reported_result", width: 175, render: (value) => <ReportedResultTag result={value} /> },
+            { title: t("Version", "版本"), dataIndex: "version", width: 85, align: "right", className: "cloud-task-version" }, { title: t("Updated", "更新时间"), dataIndex: "updated_at", width: 190, render: (value: string) => formatDate(value) },
           ]} />
       </section> },
       { key: "resources", label: t("Project resources", "项目资源"), children: <CloudResources key={projectId} project={project.data} latest={latest} operation={operation} enabled={enabled} onSaved={refresh} /> },

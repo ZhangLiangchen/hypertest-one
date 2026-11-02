@@ -33,6 +33,7 @@ function page(authQueryState = {}) {
     if (name === "@/app/workspace-ui") return { ProjectNavigation: "ProjectNavigation", WorkspaceLoading: "WorkspaceLoading" };
     if (name === "../../project-workspace-heading") return { ProjectWorkspaceHeading: "ProjectWorkspaceHeading" };
     if (name === "./cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice" };
+    if (name === "./task-list-layout.css") return {};
     if (name === "@ant-design/icons") return { ReloadOutlined: "ReloadOutlined" };
     if (name === "antd") return { Alert: "Alert", Button: "Button", Empty: "Empty", Table: "Table", Tabs: "Tabs", Tag: "Tag", Typography: { Title: "Title" } };
     return require(name);
