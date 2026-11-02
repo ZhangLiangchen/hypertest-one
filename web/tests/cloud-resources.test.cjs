@@ -20,6 +20,7 @@ function harness(submit, { project, latest } = {}) {
     if (name === "antd") return ui;
     if (name === "@/lib/i18n") return { useI18n: () => ({ t: (en) => en }) };
     if (name === "@/lib/cloud") return { credentialFreeUrl: () => true };
+    if (name === "./resources-layout.css") return {};
     return require(name);
   } });
   const operation = { blocked: false, busy: false, submit: async (request) => { calls.push(request); return submit(request); } };

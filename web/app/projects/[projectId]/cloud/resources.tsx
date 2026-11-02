@@ -7,6 +7,7 @@ import { credentialFreeUrl } from "@/lib/cloud";
 import type { CloudConfiguration, CloudConfigRevision } from "@/lib/cloud";
 import type { useCloudOperation } from "@/lib/cloud-operation";
 import type { Project } from "@/lib/types";
+import "./resources-layout.css";
 
 type ResourceValues = { sut_url: string; framework_url: string; environment_name: string; expected_deployment?: string };
 
@@ -68,18 +69,20 @@ export function CloudResources({ latest, project, operation, enabled, onSaved }:
         description={t("This resource revision retains its existing HTTPS-only environment configuration. An unavailable credential or unsupported runtime may prevent its use.", "此资源修订保留现有仅 HTTPS 环境配置；凭据不可用或运行环境不支持时可能无法使用。 ")} /> : null}
       {baseConfiguration?.environment.cloud_access_policy === "LOCAL_ONLY" ? <Alert showIcon type="info" style={{ marginBottom: 20 }} message={t("Existing environment restriction retained", "保留现有环境访问限制")}
         description={t("This environment is restricted to Local tasks.", "此环境仅允许 Local 任务。 ")} /> : null}
-      <Form form={form} className="workspace-form" layout="vertical" onValuesChange={() => setDraftTouched(true)} initialValues={{ environment_name: "Test environment", expected_deployment: "UNKNOWN" }} onFinish={(values) => void configure(values)} scrollToFirstError>
+      <Form form={form} className="workspace-form cloud-task-fields" layout="vertical" onValuesChange={() => setDraftTouched(true)} initialValues={{ environment_name: "Test environment", expected_deployment: "UNKNOWN" }} onFinish={(values) => void configure(values)} scrollToFirstError>
         <div className="form-grid cloud-resources-repositories">{(["sut", "framework"] as const).map((role) => <section className="form-section" key={role}>
           <Typography.Title level={3}>{role === "sut" ? t("System under test", "被测对象") : t("Test framework", "测试框架")}</Typography.Title>
           <Form.Item name={`${role}_url`} label={t("Git repository URL", "Git 仓库地址")} rules={[{ required: true }, { validator: (_, value) => !value || credentialFreeUrl(value) ? Promise.resolve() : Promise.reject(new Error(t("Use an HTTPS or SSH Git address without embedded credentials.", "请使用不含凭据的 HTTPS 或 SSH Git 地址。"))) }]}><Input autoComplete="off" placeholder="https://git.example.com/team/repository.git" /></Form.Item>
         </section>)}</div>
         <section className="form-section cloud-resources-environment" aria-labelledby="cloud-environment-title">
           <Typography.Title id="cloud-environment-title" level={3}>{t("Test environment", "测试环境")}</Typography.Title>
+          <div className="form-grid cloud-resource-environment-fields">
           <Form.Item name="environment_name" label={t("Environment name", "环境名称")} rules={[{ required: true }]}><Input maxLength={128} /></Form.Item>
           <Form.Item name="expected_deployment" label={t("Expected deployment identity", "预期部署版本")} extra={t("A source SHA does not prove the environment runs that version.", "源码 SHA 不证明环境已部署对应版本。 ")}><Input maxLength={512} /></Form.Item>
+          </div>
         </section>
         <div className="form-actions"><Button type="primary" htmlType="submit" disabled={blocked} loading={operation.busy}>{t("Save resource revision", "保存资源修订")}</Button>
-          <Typography.Text type="secondary">{t("Draft baseline revision", "草稿基线修订")}: {baseVersion}</Typography.Text></div>
+          <Typography.Text className="cloud-resource-action-baseline" type="secondary">{t("Draft baseline revision", "草稿基线修订")}: {baseVersion}</Typography.Text></div>
       </Form>
     </section>
   </div>;
