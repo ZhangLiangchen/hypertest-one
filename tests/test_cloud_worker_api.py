@@ -84,6 +84,45 @@ async def test_auth_observation_requires_worker_and_accepts_only_status(worker_c
         app.dependency_overrides.pop(get_db, None)
 
 
+@pytest.mark.parametrize("message", [
+    "Potential secret material is not an accepted testing artifact",
+    "Credential material is not an accepted testing artifact",
+])
+async def test_validate_payload_only_projects_fixed_sensitive_content_rejection(worker_client, monkeypatch, message):
+    from fastapi import HTTPException
+
+    client, headers = worker_client
+    project, task, attempt = (str(uuid4()) for _ in range(3))
+    identity = {"worker_id": "host-fixture", "lease_token": "l" * 32, "work_token": "w" * 32, "generation": 1}
+    body = {"project_id": project, "task_id": task, "attempt_id": attempt, "identity": identity,
+            "payload": {"operation": "SUBMIT_ASSETS"}}
+
+    async def active(*_args):
+        pass
+
+    async def known_rejection(*_args):
+        raise HTTPException(422, message)
+
+    monkeypatch.setattr(cloud_worker_routes, "active", active)
+    monkeypatch.setattr(cloud_worker_routes.service, "_reject_secrets", known_rejection)
+    response = await client.post("/api/v1/cloud/worker/validate-payload", headers=headers, json=body)
+    assert response.status_code == 422 and response.json() == {"detail": "REPORT_CONTENT_REJECTED"}
+
+    async def unknown_rejection(*_args):
+        raise HTTPException(403, "other authorization error")
+
+    monkeypatch.setattr(cloud_worker_routes.service, "_reject_secrets", unknown_rejection)
+    response = await client.post("/api/v1/cloud/worker/validate-payload", headers=headers, json=body)
+    assert response.status_code == 403 and response.json() != {"detail": "REPORT_CONTENT_REJECTED"}
+
+    async def unknown_422(*_args):
+        raise HTTPException(422, "unclassified failure")
+
+    monkeypatch.setattr(cloud_worker_routes.service, "_reject_secrets", unknown_422)
+    response = await client.post("/api/v1/cloud/worker/validate-payload", headers=headers, json=body)
+    assert response.status_code == 422 and response.json() != {"detail": "REPORT_CONTENT_REJECTED"}
+
+
 async def test_worker_cannot_submit_management_or_other_attempt(worker_client, monkeypatch):
     client, headers = worker_client
     project, task, attempt = (str(uuid4()) for _ in range(3))

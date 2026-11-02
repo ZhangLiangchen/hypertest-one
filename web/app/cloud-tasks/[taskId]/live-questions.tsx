@@ -74,13 +74,13 @@ export function LiveQuestions({ request, blocked = false, onSubmit, onCancel }: 
         {question.detail ? <Typography.Paragraph className="muted">{question.detail}</Typography.Paragraph> : null}
         {question.options?.length ? question.multiple === true
           ? <Space direction="vertical">{question.options.map((option) => {
-            const value = option.value ?? option.label;
+            const value = option.label;
             return <Checkbox key={value} checked={(selected[question.id] || []).includes(value)} onChange={(event) => setSelected((current) => ({
               ...current, [question.id]: event.target.checked ? [...(current[question.id] || []), value] : (current[question.id] || []).filter((item) => item !== value),
             }))}>{option.label}{option.description ? <span className="muted"> — {option.description}</span> : null}</Checkbox>;
           })}</Space>
           : <Radio.Group value={selected[question.id]?.[0]} onChange={(event) => { if (question.intent?.kind !== "plan-review") setCustom((current) => ({ ...current, [question.id]: "" })); setSelected((current) => ({ ...current, [question.id]: [String(event.target.value)] })); }}>
-            <Space direction="vertical">{question.options.map((option) => <Radio key={option.value ?? option.label} value={option.value ?? option.label}>{option.label}{option.description ? <span className="muted"> — {option.description}</span> : null}</Radio>)}</Space>
+            <Space direction="vertical">{question.options.map((option) => <Radio key={option.label} value={option.label}>{option.label}{option.description ? <span className="muted"> — {option.description}</span> : null}</Radio>)}</Space>
           </Radio.Group> : null}
         {question.allow_custom === true ? <label style={{ display: "block", marginTop: 12 }}>
           <span>{t("Your answer", "你的回答")}</span>

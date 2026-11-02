@@ -22,9 +22,15 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .errors import CloudBlocked
+from .errors import REPORT_CONTENT_REJECTED, CloudBlocked
 from .private_file import read_private_file
 from .worker import CloudWorker, private_root, save_once
+
+
+def _recovery_reason(error: BaseException) -> str:
+    if isinstance(error, CloudBlocked) and error.code == REPORT_CONTENT_REJECTED:
+        return REPORT_CONTENT_REJECTED
+    return "WORKER_RUNTIME_FAILED"
 
 
 class WorkerAPI:
@@ -46,6 +52,14 @@ class WorkerAPI:
         try:
             response = await self.client.post("api/v1/cloud/worker/" + operation, json=body)
             if not response.is_success:
+                if operation == "validate-payload" and response.status_code == 422:
+                    try:
+                        detail = response.json()
+                    except ValueError:
+                        detail = None
+                    if detail == {"detail": REPORT_CONTENT_REJECTED}:
+                        raise CloudBlocked(REPORT_CONTENT_REJECTED,
+                            "A testing artifact was rejected by content admission")
                 from .broker import BrokerFailure
                 raise BrokerFailure(response.status_code, "CLOUD_OPERATION_REJECTED")
             return response.json()
@@ -172,6 +186,11 @@ def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot:
     value["instructions"].append(
         "This Harness runs as the host user with that user's configured access. "
         "Never retry an external operation whose outcome is unknown; report its original identity and uncertainty.")
+    value["instructions"].append(
+        "Published artifacts must not contain credentials, tokens, private keys, or PEM private-key header markers, "
+        "even when a marker is only a source-code example; artifact admission rejects such markers. "
+        "Check artifacts before publishing, and describe any omission or redaction accurately rather than "
+        "presenting a redacted file as an unchanged original.")
     if retry_snapshot:
         value["instructions"].append(
             "This is a new attempt with an independently confirmed execution snapshot. "
@@ -334,11 +353,11 @@ async def execute(api, args, state: Path, claim: dict):
             raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original completion needs reconciliation")
         from .artifacts import write_workspace_receipt
         write_workspace_receipt(workspace, handoff.key, result.receipt)
-    except BaseException:
+    except BaseException as error:
         broker.suspend_writes()
         try:
             # A lost fence is still unknown. Let it propagate so claim-pending stays.
-            await asyncio.wait_for(broker.fence_for_recovery("WORKER_RUNTIME_FAILED"), 3)
+            await asyncio.wait_for(broker.fence_for_recovery(_recovery_reason(error)), 3)
         finally:
             await adapter.stop()
         raise

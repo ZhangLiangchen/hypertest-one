@@ -1168,7 +1168,8 @@ async def fence_attempt_for_recovery(db, task_id, attempt_id, identity, reason, 
             or attempt.lease_token_hash != token_hash(identity.lease_token)):
         raise HTTPException(409, "Safety fence cannot remove a different Worker owner")
     allowed = {"WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED", "RUNTIME_TIMEOUT",
-               "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED", "WORKER_RUNTIME_FAILED"}
+               "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED", "WORKER_RUNTIME_FAILED",
+               "REPORT_CONTENT_REJECTED"}
     if reason not in allowed:
         raise HTTPException(422, "Safety fence requires a fixed interruption reason")
     await _fence(db, attempt)

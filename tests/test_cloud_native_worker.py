@@ -40,6 +40,33 @@ async def test_http_rejection_is_distinct_from_unconfirmed_transport():
 
 
 @pytest.mark.asyncio
+async def test_only_fixed_content_admission_response_has_specific_recovery_reason():
+    from hypertest.cloud.native_worker import _recovery_reason
+
+    client = WorkerAPI("https://example.invalid", b"a" * 32)
+    await client.client.aclose()
+    async def response_for(detail):
+        async def respond(request):
+            return httpx.Response(422, json=detail)
+        client.client = httpx.AsyncClient(transport=httpx.MockTransport(respond), base_url="https://example.invalid/")
+        try:
+            with pytest.raises(CloudBlocked) as error:
+                await client.request("validate-payload", {})
+            return error.value
+        finally:
+            await client.client.aclose()
+
+    error = await response_for({"detail": "REPORT_CONTENT_REJECTED"})
+    assert error.code == _recovery_reason(error) == "REPORT_CONTENT_REJECTED"
+    assert "private" not in str(error)
+    for response in ({"detail": "private unknown 422"}, {"detail": "REPORT_CONTENT_REJECTED", "extra": "private"}):
+        error = await response_for(response)
+        assert isinstance(error, BrokerFailure) and error.status == 422
+        assert _recovery_reason(error) == "WORKER_RUNTIME_FAILED" and "private" not in str(error)
+    assert _recovery_reason(TimeoutError("private")) == "WORKER_RUNTIME_FAILED"
+
+
+@pytest.mark.asyncio
 async def test_legacy_worker_fences_retry_snapshot_before_runtime_creation(monkeypatch):
     from hypertest.cloud import worker as legacy
 
@@ -208,6 +235,7 @@ def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     assert prompt["capabilities"]["https_controlled_api"] == "HOST_USER_ACCESS_UNVERIFIED"
     assert any("end your turn immediately without waiting" in line for line in prompt["instructions"])
     assert any("native ask_user_question" in line and "do not publish a REQUEST_INPUT" in line for line in prompt["instructions"])
+    assert any("PEM private-key header markers" in line and "redaction accurately" in line for line in prompt["instructions"])
     assert all("SSH diagnostics are unavailable" not in line for line in prompt["instructions"])
     assert any(str(tmp_path / "framework") in line for line in prompt["instructions"])
 

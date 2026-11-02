@@ -16,7 +16,7 @@ from hypertest.api.cloud_routes import secure_transport
 from hypertest.api.cloud_schemas import CloudMutation
 from hypertest.api.interactive_routes import controlled_errors
 from hypertest.application import cloud_tasks as service
-from hypertest.cloud.errors import CloudBlocked
+from hypertest.cloud.errors import REPORT_CONTENT_REJECTED, CloudBlocked
 from hypertest.cloud.private_file import read_private_file
 from hypertest.config import get_settings
 from hypertest.connector.security import token_hash
@@ -68,7 +68,8 @@ class Renew(Attempt):
 
 class Fence(Attempt):
     reason: Literal["WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED", "RUNTIME_TIMEOUT",
-                    "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED", "WORKER_RUNTIME_FAILED"]
+                    "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED", "WORKER_RUNTIME_FAILED",
+                    "REPORT_CONTENT_REJECTED"]
 
 
 class Resolution(Input):
@@ -251,7 +252,17 @@ async def validate_payload(body: Submit, worker_id: str = Depends(authenticate_w
             values.append(base64.b64decode(body.payload["content_base64"], validate=True).decode("utf-8", errors="replace"))
         except (KeyError, ValueError, TypeError):
             raise HTTPException(422, "Invalid artifact payload") from None
-    await service._reject_secrets(db, body.project_id, values)
+    try:
+        await service._reject_secrets(db, body.project_id, values)
+    except HTTPException as error:
+        # Project only the fixed admission outcome. Never return content, a
+        # matched secret, or arbitrary server errors to the host Worker.
+        if error.status_code == 422 and isinstance(error.detail, str) and error.detail in {
+            "Potential secret material is not an accepted testing artifact",
+            "Credential material is not an accepted testing artifact",
+        }:
+            raise HTTPException(422, REPORT_CONTENT_REJECTED) from None
+        raise
     return {"valid": True}
 
 
