@@ -1074,6 +1074,8 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 ### 45.3 项目资源、固定输入与工作区
 
+新任务和复测的测试授权不设截止；历史冻结期限及独立 Worker lease、grant 和凭据期限仍按各自合同执行。
+
 [ADR-033](ADR-033_CLOUD_ATTEMPT_RETRY_SNAPSHOT.md) 定义原任务新 Attempt 的独立执行快照：API 固定本次范围和授权，宿主 Worker 核验并使用该快照；原输入、动作记录、未决原 key 和旧预算保持历史身份。宿主路径不提供项目强隔离或旧受控动作 broker 的自动去重。
 
 

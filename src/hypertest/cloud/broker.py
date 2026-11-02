@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -83,8 +83,10 @@ class CloudBroker:
                 credentials = await service._credential_versions(db, config.configuration)
                 dispatch = await db.get(InteractiveIntegrationGrant, attempt.authorization_grant_id) if attempt.authorization_grant_id else None
                 now = await service.clock(db)
-                auth = datetime.fromisoformat(task.inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
-                ends = [now + timedelta(seconds=3), attempt.lease_expires_at, grant.expires_at, auth]
+                auth = service.authorization_expiry(service.attempt_inputs(task, attempt)["authorization"])
+                ends = [now + timedelta(seconds=3), attempt.lease_expires_at, grant.expires_at]
+                if auth is not None:
+                    ends.append(auth)
                 if dispatch and dispatch.expires_at is not None:
                     ends.append(dispatch.expires_at)
                 ends.extend(version.expires_at for _, version, _ in credentials if version.expires_at is not None)

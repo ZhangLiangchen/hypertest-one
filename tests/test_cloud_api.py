@@ -2,6 +2,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from pydantic import ValidationError
 
@@ -78,9 +79,24 @@ def test_dispatch_digest_preserves_original_resolution_request_shape():
 def test_authorization_does_not_accept_ambiguous_naive_expiration():
     base = {"targets": ["https://git.invalid/repo"], "permitted_actions": ["git:read"],
             "side_effect_limits": "Fixture only"}
+    assert Authorization(**base).expires_at is None
+    assert Authorization(**base).model_dump(mode="json")["expires_at"] is None
     with pytest.raises(ValidationError):
         Authorization(**base, expires_at=datetime.now())
     assert Authorization(**base, expires_at=datetime.now(UTC) + timedelta(hours=1)).expires_at.tzinfo
+
+
+def test_authorization_expiry_preserves_explicit_deadlines_and_rejects_invalid_values():
+    from hypertest.application.cloud_tasks import authorization_expiry
+
+    assert authorization_expiry({}) is None
+    assert authorization_expiry({"expires_at": None}) is None
+    explicit = datetime.now(UTC) + timedelta(minutes=1)
+    assert authorization_expiry({"expires_at": explicit.isoformat()}) == explicit
+    with pytest.raises(HTTPException):
+        authorization_expiry({"expires_at": "not-a-time"})
+    with pytest.raises(HTTPException):
+        authorization_expiry({"expires_at": "2026-01-01T00:00:00"})
 
 
 async def test_capabilities_are_default_off_and_explicit_about_unsupported_execution(monkeypatch):

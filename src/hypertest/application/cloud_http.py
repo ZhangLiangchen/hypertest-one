@@ -61,8 +61,9 @@ def authorize_environment(task, environment, now):
             or profile.target not in authorization["targets"]
             or authorization["network_targets"] != [profile.target]):
         reject("HTTPS_EXACT_TARGET_AUTHORIZATION_REQUIRED", 403)
-    expires = datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00"))
-    if now >= expires:
+    from .cloud_tasks import authorization_expiry
+    expires = authorization_expiry(authorization)
+    if expires is not None and now >= expires:
         reject("HTTPS_EXECUTION_AUTHORIZATION_EXPIRED", 403)
     if task.inputs.get("framework_runtime") is None:
         reject("HTTPS_FRAMEWORK_FREEZE_REQUIRED", 422)

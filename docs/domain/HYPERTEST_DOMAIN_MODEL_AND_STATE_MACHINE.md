@@ -2382,6 +2382,8 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 
 ### 51.3 六步输入冻结
 
+**2026-11-02 授权时间修订：** 新建 Cloud 任务与新复测的测试授权没有截止时间，不生成远期占位日期；历史已冻结的非空授权截止仍照原合同检查。Worker lease、工作 grant 及凭据的有效期独立有效。
+
 **ADR-033 覆盖旧任务复测限制：** 原 CloudTask 的显式复测必须为新 Attempt 固定独立的执行快照和 digest，记录原 Attempt 引用与本次范围、流程和授权。原 Task 冻结输入、旧 Attempt、已登记动作和 HELD 预算保持不变；已知未决原操作及未收口容器继续阻止下发，原 key 只读对账。重试可使用 ADR-032 的宿主薄 Worker，不能把新宿主直接操作宣称为旧受控 broker 已管理或 OS 强隔离。详见 [ADR-033](../architecture/ADR-033_CLOUD_ATTEMPT_RETRY_SNAPSHOT.md)。
 
 

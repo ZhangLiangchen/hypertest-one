@@ -78,8 +78,9 @@ def authorize_environment(task, environment, now, *, cleanup=False):
             or profile.target not in authorization["targets"]
             or profile.target not in authorization["network_targets"]):
         reject("SSH_EXACT_TARGET_AUTHORIZATION_REQUIRED", 403)
-    expires = datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00"))
-    if not cleanup and now >= expires:
+    from .cloud_tasks import authorization_expiry
+    expires = authorization_expiry(authorization)
+    if not cleanup and expires is not None and now >= expires:
         reject("SSH_EXECUTION_AUTHORIZATION_EXPIRED", 403)
     return profile
 

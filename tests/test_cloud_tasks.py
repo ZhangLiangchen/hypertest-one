@@ -228,6 +228,31 @@ async def read_all(context, task_id, version):
         assert page["next_offset"] == offset
 
 
+def test_new_task_default_authorization_has_no_expiry():
+    task_inputs = new_inputs()
+    task_inputs["authorization"] = None
+    now = datetime.now(UTC)
+    effective = service._task_inputs_with_runtime_defaults(TaskInputs.model_validate(task_inputs), configuration(), now)
+    assert effective["authorization"]["expires_at"] is None
+    service._authorize_input_reads(effective, configuration(), now + timedelta(days=3651))
+
+
+async def test_new_task_without_expiry_can_be_claimed_and_renewed(cloud_context):
+    context = cloud_context
+    task_inputs = new_inputs()
+    task_inputs.pop("authorization")
+    queued = await dispatched(context, task_inputs=task_inputs)
+    async with AsyncSessionLocal() as db:
+        task = await db.get(CloudTask, UUID(queued["task_id"]))
+        assert task.inputs["authorization"]["expires_at"] is None
+        claim = await service.claim_attempt(db, "fixture-worker", project_id=UUID(context["project_id"]))
+        assert claim["attempt"]["id"] == queued["attempt_id"]
+    async with AsyncSessionLocal() as db:
+        renewed = await service.renew_lease(db, UUID(queued["attempt_id"]), "fixture-worker",
+            claim["lease_token"], claim["generation"], claim["work_token"])
+        assert datetime.fromisoformat(renewed["expires_at"]) < datetime.now(UTC) + timedelta(minutes=16)
+
+
 async def test_freeze_idempotency_and_fixed_version_readback(cloud_context):
     context = cloud_context
     accepted = await dispatched(context)
@@ -1072,9 +1097,11 @@ async def test_legacy_retry_uses_independent_snapshot(cloud_context):
     stopped = await post(context, "CANCEL_ATTEMPT", first["version"], task_id=first["task_id"],
         attempt_id=first["attempt_id"], reason="Cancel queued synthetic attempt")
     assert stopped.status_code == 200, stopped.text
+    new_authorization = inputs()["authorization"]
+    new_authorization.pop("expires_at")
     retry_inputs = {"objective": "Retest synthetic scope", "test_scope": "Synthetic only",
                     "basic_flow": "Inspect the synthetic fixture", "framework_entrypoints": ["pytest -q"],
-                    "authorization": inputs()["authorization"]}
+                    "authorization": new_authorization}
     key = "retry-snapshot-" + uuid4().hex
     fields = {"task_id": first["task_id"], "retry_of_attempt_id": first["attempt_id"],
               "retry_scope_confirmed": True, "retry_authorization_confirmed": True,
@@ -1091,9 +1118,11 @@ async def test_legacy_retry_uses_independent_snapshot(cloud_context):
         attempt = await db.get(CloudAttempt, UUID(retry.json()["attempt_id"]))
         old = await db.get(CloudAttempt, UUID(first["attempt_id"]))
         assert task.frozen_manifest == original_manifest and task.inputs == original_inputs
+        assert original_inputs["authorization"]["expires_at"] is not None
         assert old.status == "CANCELLED" and old.execution_manifest is None
         assert attempt.execution_manifest["inputs"]["test_scope"] == "Synthetic only"
         assert attempt.execution_manifest["inputs"]["budgets"] is None
+        assert attempt.execution_manifest["inputs"]["authorization"]["expires_at"] is None
         assert attempt.execution_manifest["retry_of_attempt_id"] == first["attempt_id"]
         assert attempt.input_digest == service.canonical_json_sha256(attempt.execution_manifest)
         assert await service.claim_attempt(db, "legacy-worker", project_id=UUID(context["project_id"])) is None
@@ -1107,8 +1136,9 @@ async def test_legacy_retry_uses_independent_snapshot(cloud_context):
     assert manifest["inputs"]["budgets"] is None and claim["task"]["inputs"] == original_inputs
     identity = service.WorkerIdentity("fixture-worker", claim["lease_token"], claim["generation"], claim["work_token"])
     async with AsyncSessionLocal() as db:
-        await service.renew_lease(db, UUID(retry.json()["attempt_id"]), identity.worker_id,
+        renewed = await service.renew_lease(db, UUID(retry.json()["attempt_id"]), identity.worker_id,
             identity.lease_token, identity.generation, identity.work_token)
+        assert datetime.fromisoformat(renewed["expires_at"]) < datetime.now(UTC) + timedelta(minutes=16)
     running = await worker_submit(context, identity, retry.json(), "TRANSITION", status="RUNNING",
         reason="Synthetic native worker", runtime_metadata={}, usage_seconds=0, cost_microunits=0)
     assert running["status"] == "ACCEPTED"

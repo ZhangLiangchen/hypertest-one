@@ -89,6 +89,12 @@ def test_https_admission_requires_exact_target_authorization_and_frozen_framewor
         authorize_environment(SimpleNamespace(inputs=task_inputs), http_environment(), datetime.now(UTC))
 
 
+def test_https_admission_allows_authorization_without_expiry():
+    task_inputs = http_inputs()
+    task_inputs["authorization"].pop("expires_at")
+    authorize_environment(SimpleNamespace(inputs=task_inputs), http_environment(), datetime.now(UTC))
+
+
 async def test_https_sent_commits_before_send_and_same_key_never_resends_or_changes_resource(http_context):
     authority = http_context["authority"]
     first = await authority.prepare_start("original", "inspect")

@@ -8,7 +8,7 @@ import { useI18n } from "@/lib/i18n";
 type Values = {
   objective: string; test_scope: string; basic_flow: string; framework_entrypoints?: string;
   targets: string[]; permitted_actions: string[]; network_targets?: string[];
-  side_effect_limits: string; expires_at: string;
+  side_effect_limits: string;
   scope_confirmed: boolean; authorization_confirmed: boolean;
 };
 
@@ -29,12 +29,10 @@ export function RetryDialog({ task, actions, invalid, stale, busy, notice, onCan
 
   function submit(values: Values) {
     if (invalid || !values.scope_confirmed || !values.authorization_confirmed) return;
-    const expiry = new Date(values.expires_at);
-    if (!Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now()) return;
     onSubmit({ objective: values.objective.trim(), test_scope: values.test_scope.trim(), basic_flow: values.basic_flow.trim(),
       framework_entrypoints: (values.framework_entrypoints || "").split("\n").map((item) => item.trim()).filter(Boolean),
       authorization: { targets: values.targets, permitted_actions: values.permitted_actions,
-        network_targets: values.network_targets || [], side_effect_limits: values.side_effect_limits.trim(), expires_at: expiry.toISOString() } });
+        network_targets: values.network_targets || [], side_effect_limits: values.side_effect_limits.trim() } });
   }
 
   return <Modal open title={t("Review and dispatch a new attempt", "核对并下发新的执行尝试")} width={800}
@@ -70,7 +68,6 @@ export function RetryDialog({ task, actions, invalid, stale, busy, notice, onCan
       <Form.Item name="permitted_actions" label={t("Authorized actions", "授权操作")} rules={[{ required: true, type: "array", min: 1 }]}><Select mode="multiple" options={actionNames.map((value) => ({ value, label: value }))} /></Form.Item>
       <Form.Item name="network_targets" label={t("Authorized network targets", "授权网络目标")} extra={t("Enter each target and press Enter.", "每个目标输入后按回车。 ")} rules={[{ type: "array", max: 64 }]}><Select mode="tags" tokenSeparators={["\n"]} /></Form.Item>
       <Form.Item name="side_effect_limits" label={t("Side-effect limits", "副作用限制")} rules={[{ required: true, whitespace: true }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item>
-      <Form.Item name="expires_at" label={t("Authorization expires at", "授权到期时间")} extra={t("Use your device's local time zone.", "按当前设备时区填写。 ")} rules={[{ required: true }, { validator: (_, value) => value && Number.isFinite(new Date(value).getTime()) && new Date(value).getTime() > Date.now() ? Promise.resolve() : Promise.reject(new Error(t("Choose a future time.", "请选择未来时间。"))) }]}><Input type="datetime-local" /></Form.Item>
       <Form.Item name="scope_confirmed" valuePropName="checked"><Checkbox>{t("I have reviewed and confirm this test scope.", "我已核对并确认本次测试范围。")}</Checkbox></Form.Item>
       <Form.Item name="authorization_confirmed" valuePropName="checked"><Checkbox>{t("I confirm the authorization above for this attempt.", "我确认本次尝试的上述授权。")}</Checkbox></Form.Item>
     </Form>

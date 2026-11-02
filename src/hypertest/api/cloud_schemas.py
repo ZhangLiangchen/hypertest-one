@@ -193,12 +193,12 @@ class Authorization(Input):
     permitted_actions: list[Literal["git:read", "git:write", "environment:read", "environment:write", "framework:execute", "ci:execute", "issue:write"]] = Field(min_length=1, max_length=16)
     network_targets: list[str] = Field(default_factory=list, max_length=64)
     side_effect_limits: str = Field(min_length=1, max_length=16000)
-    expires_at: datetime
+    expires_at: datetime | None = None
 
     @field_validator("expires_at")
     @classmethod
     def timezone_required(cls, value):
-        if value.tzinfo is None:
+        if value is not None and value.tzinfo is None:
             raise ValueError("Authorization expiration requires a timezone")
         return value
 

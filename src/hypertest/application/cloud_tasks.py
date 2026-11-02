@@ -125,7 +125,7 @@ def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=N
             "permitted_actions": ["git:read", "framework:execute"],
             "network_targets": [],
             "side_effect_limits": "Runtime tools, network access and credentials are managed by the execution environment; preserve unknown external operations.",
-            "expires_at": (now + timedelta(days=3650)).isoformat(),
+            "expires_at": None,
         }
     return data
 
@@ -240,10 +240,25 @@ async def _configuration(db, project_id, config_id):
     return config
 
 
+def authorization_expiry(authorization):
+    """A missing expiry is unbounded; existing explicit deadlines remain binding."""
+    raw = authorization.get("expires_at")
+    if raw is None:
+        return None
+    try:
+        value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            raise ValueError
+        return value
+    except (AttributeError, TypeError, ValueError):
+        raise HTTPException(403, "Invalid execution authorization expiry") from None
+
+
 def _authorize_input_reads(task_inputs, configuration, now, *, native_retry=False):
     """Apply the original DRAFT grant before even narrow Git preflight I/O."""
     authorize_cloud_environment(configuration)
     authorization = task_inputs["authorization"]
+    expires_at = authorization_expiry(authorization)
     if not native_retry and configuration["environment"].get("https_access") is not None:
         from types import SimpleNamespace
 
@@ -254,9 +269,8 @@ def _authorize_input_reads(task_inputs, configuration, now, *, native_retry=Fals
     if configuration["environment"].get("host"):
         from .cloud_ssh import exact_target
         required_targets.add(exact_target(configuration["environment"]))
-    expires_at = datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00"))
     if (not required_targets <= targets or "git:read" not in authorization["permitted_actions"]
-            or expires_at <= now):
+            or (expires_at is not None and expires_at <= now)):
         raise HTTPException(403, "Original input authorization does not permit current repository preflight")
 
 
@@ -672,7 +686,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             from .cloud_ssh import authorize_environment
             authorize_environment(SimpleNamespace(inputs=effective_inputs), environment, await clock(db))
         authorization = effective_inputs["authorization"]
-        if datetime.fromisoformat(authorization["expires_at"].replace("Z", "+00:00")) <= await clock(db):
+        auth_expiry = authorization_expiry(authorization)
+        if auth_expiry is not None and auth_expiry <= await clock(db):
             raise HTTPException(403, "Frozen execution authorization expired")
         budgets = effective_inputs["budgets"]
         if budgets is None:
@@ -1501,8 +1516,8 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
     authorize_cloud_environment(config.configuration)
     now = await clock(db)
     inputs = attempt_inputs(task, attempt)
-    auth_expiry = datetime.fromisoformat(inputs["authorization"]["expires_at"].replace("Z", "+00:00"))
-    if now >= auth_expiry:
+    auth_expiry = authorization_expiry(inputs["authorization"])
+    if auth_expiry is not None and now >= auth_expiry:
         _state(task, attempt, "CANCELLED", "Execution authorization expired before claim", now)
         await db.commit()
         return None
@@ -1520,7 +1535,8 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
     token, work_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     attempt.lease_generation += 1
     attempt.lease_owner, attempt.lease_token_hash = worker_id, token_hash(token)
-    attempt.lease_expires_at = min(now + timedelta(seconds=max(15, min(lease_seconds, 900))), auth_expiry)
+    lease_expiry = now + timedelta(seconds=max(15, min(lease_seconds, 900)))
+    attempt.lease_expires_at = min(lease_expiry, auth_expiry) if auth_expiry is not None else lease_expiry
     if attempt.status == "QUEUED":
         _state(task, attempt, "PREPARING", "Worker claimed", now)
     namespace = f"cloud-{task.id}-{attempt.id}"
@@ -1551,8 +1567,9 @@ async def renew_lease(db, attempt_id, worker_id, lease_token, generation, work_t
     identity = WorkerIdentity(worker_id, lease_token, generation, work_token)
     await worker_authority(db, task, attempt, identity)
     now = await clock(db)
-    expires = datetime.fromisoformat(attempt_inputs(task, attempt)["authorization"]["expires_at"].replace("Z", "+00:00"))
-    attempt.lease_expires_at = min(now + timedelta(seconds=max(15, min(lease_seconds, 900))), expires)
+    expires = authorization_expiry(attempt_inputs(task, attempt)["authorization"])
+    lease_expiry = now + timedelta(seconds=max(15, min(lease_seconds, 900)))
+    attempt.lease_expires_at = min(lease_expiry, expires) if expires is not None else lease_expiry
     grant = await db.scalar(select(CloudWorkGrant).where(CloudWorkGrant.token_hash == token_hash(work_token)))
     grant.expires_at = attempt.lease_expires_at
     await db.commit()
