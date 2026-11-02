@@ -296,3 +296,23 @@ async def test_nonterminal_and_revocation_do_not_close_original(action_context, 
     with pytest.raises(HTTPException, match="CREDENTIAL_SCOPE_REQUIRED"):
         await authority.observe_business_terminal(original["identity_id"], "op-unknown", observer=observer,
             signer=signer, validate_output=validate_output)
+
+
+async def test_controlled_action_task_cannot_be_redispatched_after_reconciliation(action_context):
+    context = action_context
+    current = context["current"]
+    cancelled = await post(context, "CANCEL_ATTEMPT", current["version"], task_id=current["task_id"],
+        attempt_id=current["attempt_id"], reason="Stop synthetic attempt")
+    assert cancelled.status_code == 200, cancelled.text
+    closed = await post(context, "RECONCILE_ATTEMPT", cancelled.json()["version"], task_id=current["task_id"],
+        attempt_id=current["attempt_id"], status="FAILED", reason="Synthetic reconciliation", reconciliation={
+            "old_owner_fenced": True, "local_processes_stopped": True, "external_operations_reconciled": True,
+            "observations": "Synthetic fixture; no external send"})
+    assert closed.status_code == 200, closed.text
+    retry = await post(context, "DISPATCH", closed.json()["version"], task_id=current["task_id"],
+        retry_of_attempt_id=current["attempt_id"], reason="Must not repeat controlled actions")
+    assert retry.status_code == 409 and "Controlled actions require a new task" in retry.text
+    async with AsyncSessionLocal() as db:
+        attempts = (await db.scalars(select(cloud_tasks.CloudAttempt).where(
+            cloud_tasks.CloudAttempt.task_id == UUID(current["task_id"])))).all()
+        assert len(attempts) == 1

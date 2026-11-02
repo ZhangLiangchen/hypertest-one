@@ -20,7 +20,7 @@
 - [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker 已在本 Mac 部署，真实任务结果回传待用户验收；公司发行和未来项目资源隔离的全容器化另行设计。
 - 本机 Cloud Worker：独立 Docker Attempt、受控写入和自动观察收尾修复已部署；真实 Docker/SDK 的无兑换项目单测任务与报告闭环已观察，自动 action 观察及收尾另以专用测试库和合成目标验证，尚未在修复版本上以真实写操作复验。原历史任务、动作及报告保持不变；不能将合成结果推定为真实 SUT 测试通过。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
 - Cloud 框架与受控 HTTPS 只完成首片；真实目标授权、依赖闭包和离线供应、认证或写 API、其他工具链与浏览器等尚未完成。见[受控 HTTPS](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)和[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。
-- 真实 SDK 原会话恢复尚未实现，保持 `supports_resume=false`；需先明确可续接状态、原会话与工作区、旧 prompt 歧义、generation 和预算，不能重放未知请求。
+- 真实 SDK 原会话恢复尚未实现，保持 `supports_resume=false`；需先明确可续接状态、原会话与工作区、旧 prompt 歧义、generation 和预算，不能重放未知请求。 Agent 运行中提问也尚无端到端交互：需先核验实际固定 SDK 对提问请求和取消的支持，再实现与当前 Attempt、原请求及 Worker fence 绑定的问答通道，处理幂等、超时、迟到回答和进程失联；保存回答不代表 Agent 已接收或恢复。
 - SUT CI adapter、一般 SSH 和 Cloud Claude 尚未实现；分别需要明确 provider 与独立权限、受限目标及 host key、云端服务身份和模型预算。见[P2 设计与输入](CLOUD_P2_FOLLOWUP_20261023.md)。
 - 平台完整回归 CI 为按需手动执行；日常按改动风险做必要检查。未运行不等于通过，发行标签构建单独保留。
 

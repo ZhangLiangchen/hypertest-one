@@ -994,3 +994,21 @@ async def test_cloud_delete_cancelled_draft_preserves_terminal_history(cloud_con
     assert deleted.status_code == 200, deleted.text
     final = await read_all(context, created["task_id"], deleted.json()["version"])
     assert final["task"]["status"] == "CANCELLED" and final["task"]["deleted_at"]
+
+
+async def test_explicit_retry_creates_new_attempt_and_preserves_prior_version(cloud_context):
+    context = cloud_context
+    first = await dispatched(context)
+    stopped = await post(context, "CANCEL_ATTEMPT", first["version"], task_id=first["task_id"],
+        attempt_id=first["attempt_id"], reason="Cancel synthetic queued attempt")
+    assert stopped.status_code == 200, stopped.text
+    retry = await post(context, "DISPATCH", stopped.json()["version"], task_id=first["task_id"],
+        retry_of_attempt_id=first["attempt_id"], reason="Retry synthetic task after review")
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["attempt_id"] != first["attempt_id"]
+    snapshot = await read_all(context, first["task_id"], retry.json()["version"])
+    assert [row["status"] for row in snapshot["attempts"]] == ["CANCELLED", "QUEUED"]
+    assert snapshot["attempts"][0]["id"] == first["attempt_id"]
+    stale = await post(context, "DISPATCH", stopped.json()["version"], task_id=first["task_id"],
+        retry_of_attempt_id=first["attempt_id"], reason="Stale retry")
+    assert stale.status_code == 409

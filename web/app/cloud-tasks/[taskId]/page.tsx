@@ -86,6 +86,11 @@ export default function CloudTaskPage() {
   const blocked = operation.blocked || !enabled || !operational.valid || !!task.deleted_at;
   const answered = new Set(detail.answers.map((row) => row.question_id));
   const questions = detail.questions.filter((row) => !answered.has(row.id));
+  const retryBlockedReason = task.inputs.controlled_actions != null
+    ? t("This task contains controlled actions. Create a new task with an explicitly reviewed scope and authorization; do not repeat the original actions.", "此任务包含受控动作。请重新核对范围和授权后创建新任务，不要重复原操作。")
+    : task.inputs.budgets != null
+      ? t("This task uses a legacy frozen budget and cannot start another attempt. Create a related task after reviewing its scope and authorization.", "此任务使用旧版冻结预算，无法再次执行。请核对范围和授权后创建关联任务。")
+      : null;
   // State identifies current work, not a history of completed business phases.
   // Unknown/recovery/failed/cancelled states cannot establish how far work got.
   const step = live.isError ? -1 : status === "DRAFT" ? accepted || inResolution ? 2 : 1
@@ -157,6 +162,18 @@ export default function CloudTaskPage() {
             {operational.resolutions.some((row) => ["FAILED", "RECOVERY_REQUIRED"].includes(String(row.status))) ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Input resolution needs attention", "输入解析需要处理")} description={t("Check repository access, selectors and the original operation. Do not restart an uncertain resolution automatically.", "请核对仓库访问、版本选择和原操作；不要自动重新开始结果不明的解析。 ")} /> : null}
           </section>
           {attempt ? <section className="overview-section"><Typography.Title level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
+            {status === "FAILED" && attempt.status === "FAILED" ? <div style={{ marginBottom: 16 }}>
+              {retryBlockedReason ? <Alert showIcon type="warning" message={t("Retry is unavailable for this task", "此任务无法直接重试")} description={retryBlockedReason} /> : <>
+                <Typography.Paragraph className="muted">{t("A retry starts a new attempt with the same frozen inputs. It does not continue the old session and may repeat completed work. Check external effects and authorization first.", "重试会按相同冻结输入创建新的执行尝试，不会继续原会话，可能重复已完成的工作。请先核对外部操作和授权。")}</Typography.Paragraph>
+                <Button disabled={blocked || live.isError || !dispatchEnabled} onClick={() => Modal.confirm({
+                  title: t("Start a new attempt?", "创建新的执行尝试？"),
+                  content: t("Confirm that repeating the frozen task is authorized and that previous external operations have been checked. The previous attempt and its records remain available.", "请确认允许重新执行冻结的任务，并已核对此前的外部操作。原尝试及其记录会保留。"),
+                  okText: t("Start new attempt", "创建新尝试"), cancelText: t("Cancel", "取消"),
+                  onOk: () => mutate({ operation: "DISPATCH", retry_of_attempt_id: attempt.id, reason: "Operator requested a new attempt after reviewing previous work" }),
+                })}>{t("Retry task", "重试任务")}</Button>
+              </>}
+            </div> : null}
+            {attempt.status === "WAITING_INPUT" ? <Alert showIcon type="warning" style={{ marginBottom: 16 }} message={t("Answers are recorded but cannot resume this agent session", "回答只会保存，无法继续此 Agent 会话")} description={t("The current worker does not support original-session continuation. Review previous external operations before planning further work.", "当前 Worker 不支持继续原会话。安排后续工作前，请核对此前的外部操作。 ")} /> : null}
             {attempt.status === "WAITING_INPUT" ? questions.map((question) => <Form key={String(question.id)} className="workspace-form form-section cloud-task-fields" layout="vertical" onFinish={() => void mutate({ operation: "ANSWER_INPUT", attempt_id: attempt.id, question_id: question.id, answer: answers[String(question.id)] })}>
               <Typography.Title level={3}>{text(question.question)}</Typography.Title>
               {Array.isArray(question.options) ? <ul>{question.options.map((option, index) => <li key={index}>{text(option)}</li>)}</ul> : null}

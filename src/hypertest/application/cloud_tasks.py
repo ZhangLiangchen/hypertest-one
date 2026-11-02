@@ -608,6 +608,9 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if migrated_budget:
             refs["legacy_draft_budget_removed"] = True
     elif op == "DISPATCH":
+        # Never mint fresh identities for a previously dispatched set of controlled actions.
+        if task.status != "DRAFT" and task.inputs.get("controlled_actions") is not None:
+            raise HTTPException(409, "Controlled actions require a new task and explicit authorization")
         if task.inputs.get("budgets") is not None:
             if task.status == "DRAFT":
                 raise HTTPException(409, "Legacy draft budget must be removed by resolving versions again")
