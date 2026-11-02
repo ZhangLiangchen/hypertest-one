@@ -11,13 +11,13 @@
 - CLI 安装 Prompt 服务器地址修复（2026-10-28）：授权页与绑定命令在本机 WireGuard HTTP Web 下改为使用配置的 CLI HTTPS 地址。外部设备接入已改为经 WireGuard 的 `https://10.66.66.3:18444` 并在 Prompt 中携带公开 CA；外部设备真实复制 Prompt、配对批准与产物推送由用户验收。见[本轮记录](CLI_EXTERNAL_DEVICE_ACCESS_DELIVERY_20261028.md)与[前一轮记录](CLI_PROMPT_CLI_ORIGIN_FIX_DELIVERY_20261028.md)。
 - 外部设备严格 X.509 与原配对请求（2026-10-28）：CLI 叶子证书已补 SKI/AKI，Python 3.13+ 严格校验和本机 CLI `doctor` 已验证；原 request `58966389-8daf-44b0-8223-921eed7b1e38` 服务端从未创建（DB 0 行、无 CREATE POST），旧本机记录保持 UNKNOWN 不重放。外部设备需发起新的显式配对并完成真实配对/归档，属用户验收。见[本轮记录](CLI_TLS_AKI_AND_PAIRING_ATTEMPT_20261028.md)。
 - Cloud、P0 恢复与 PowerContext：各自用户功能验收仍待用户执行；Memory 项目授权需独立配置，不能由 Local 或 Cloud grant 推定。见[跟进记录](FOLLOWUP_DELIVERY_20261023.md)和[Memory 交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。
-- Cloud Harness 原生配置：ADR-031 的实现、部署和真实模型 / 插件 / 项目任务验收分别记录。仅有无模型配置探针不证明用户配置的插件、模型身份或真实任务已执行；新模式当前不支持受控 SSH、HTTPS 和外部写，其他 provider 未接通。
+- Cloud Harness 原生配置：ADR-031 的容器 profile 为历史路径；ADR-032 轻量宿主 Worker 已部署，真实模型身份、插件、Git 访问、项目测试和报告回传待用户验收。实现、部署和实际功能结果分别记录，见[本轮交付](CLOUD_LIGHTWEIGHT_WORKER_DELIVERY_20261102.md)。
 - Cloud 草稿编辑、任务删除与资源页：用户功能验收待执行；现场无草稿，编辑器未在真实任务上打开。实现、测试和部署见[本轮记录](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)。
 - 任务创建清理用户验收：旧 SessionTask 和受管 TestRun 的 API、页面及数据迁移已完成本机容器部署，实际结果见[本轮记录](TASK_CREATION_RETIREMENT_20261028.md)；用户功能验收尚未执行。
 
 ## 未完成的开发与条件
 
-- [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker：实现和交付宿主 Worker、DeepSeek SDK 适配、受限服务通信及真实任务结果回传；不为任务创建独立容器。实现、部署与用户验收分别记录，未来项目资源隔离的全容器化另行设计。
+- [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker 已在本 Mac 部署，真实任务结果回传待用户验收；公司发行和未来项目资源隔离的全容器化另行设计。
 - 本机 Cloud Worker：独立 Docker Attempt、受控写入和自动观察收尾修复已部署；真实 Docker/SDK 的无兑换项目单测任务与报告闭环已观察，自动 action 观察及收尾另以专用测试库和合成目标验证，尚未在修复版本上以真实写操作复验。原历史任务、动作及报告保持不变；不能将合成结果推定为真实 SUT 测试通过。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
 - Cloud 框架与受控 HTTPS 只完成首片；真实目标授权、依赖闭包和离线供应、认证或写 API、其他工具链与浏览器等尚未完成。见[受控 HTTPS](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)和[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。
 - 真实 SDK 原会话恢复尚未实现，保持 `supports_resume=false`；需先明确可续接状态、原会话与工作区、旧 prompt 歧义、generation 和预算，不能重放未知请求。
