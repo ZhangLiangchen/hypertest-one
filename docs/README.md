@@ -20,6 +20,7 @@
 - [ADR-031：云端 Harness 原生配置](architecture/ADR-031_CLOUD_NATIVE_HARNESS_CONFIGURATION.md)：模型、推理和插件由云端 Harness profile 管理，新任务不设置平台预算；远程能力与部署验收分别记录。
 - [ADR-032：快速原型期的轻量 Harness Worker](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md)：项目笔记与已决定的职责边界；全容器化是未来资源隔离方向，实现和部署分别记录。
 - [轻量 Harness Worker 本机交付（2026-11-02）](CLOUD_LIGHTWEIGHT_WORKER_DELIVERY_20261102.md)：宿主 Worker、API/Web 部署和合成验证；真实 Harness、项目测试与用户验收分别记录。
+- [云端仓库与项目范围提示修正（2026-11-02）](CLOUD_PROJECT_SCOPE_WARNING_20261102.md)：按项目范围与下级仓库判断创建页提示，保留既有仓库和任务数据。
 
 ## 历史与兼容资料
 
