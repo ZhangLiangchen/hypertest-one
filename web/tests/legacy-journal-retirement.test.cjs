@@ -30,7 +30,7 @@ test("upgrading the journal removes retired session stores while preserving curr
     const rows = await journals.createOperationJournal(domain, (value) => value).read("p");
     assert.equal(rows.length, 1); assert.equal(rows[0].operation_key, domain);
   }
-  const upgraded = await requestResult(indexedDB.open("hypertest-operation-journals-v1", 4));
-  assert.deepEqual(Array.from(upgraded.objectStoreNames), ["cli-authorization", "cloud", "local-archive"]);
+  const upgraded = await requestResult(indexedDB.open("hypertest-operation-journals-v1", 5));
+  assert.deepEqual(Array.from(upgraded.objectStoreNames), ["cli-authorization", "cloud", "cloud-live-question", "local-archive"]);
   upgraded.close();
 });

@@ -367,6 +367,19 @@ async def run(args) -> int:
     credential = read_private_file(args.worker_credential_file, max_bytes=65536)
     api = WorkerAPI(args.api_url, credential, ca_file=args.ca_file)
     del credential
+    async def observe_auth():
+        from .native_auth_probe import probe_native_auth
+
+        while True:
+            try:
+                status = await asyncio.to_thread(probe_native_auth, args.dsh_home)
+                await api.request("auth-observation", {"status": status})
+            except Exception:
+                # Authentication observations never stop an attempt or publish errors.
+                pass
+            await asyncio.sleep(60)
+
+    auth_monitor = asyncio.create_task(observe_auth())
     try:
         while True:
             pending = prepare_claim(state, args.worker_id)
@@ -392,6 +405,8 @@ async def run(args) -> int:
             if args.once:
                 return 0
     finally:
+        auth_monitor.cancel()
+        await asyncio.gather(auth_monitor, return_exceptions=True)
         await api.close()
 
 

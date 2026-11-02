@@ -88,6 +88,34 @@ test("A partial task readback cannot settle a matching ACK", async () => {
   assert.equal(harness.render().pending.state, "UNKNOWN"); assert.equal(harness.render().receipt, null); harness.close();
 });
 
+test("Dispatch settles only when its accepted attempt and digest match the fixed version", async () => {
+  for (const mismatch of ["latest-attempt", "attempt-id", "input-digest"]) {
+    let correct = false, posts = 0, queried;
+    const harness = operationHarness({
+      cloudRequest: async (_path, init) => { posts++; return receipt(JSON.parse(init.body).operation_key); },
+      cloudOperation: async (_project, key) => { queried = key; return receipt(key); },
+      cloudDocument: async (project, task, version) => {
+        const result = dispatchDocument(project, task, version);
+        if (!correct && mismatch === "latest-attempt") result.task.latest_attempt_id = "attempt-other";
+        if (!correct && mismatch === "attempt-id") result.attempts[0].id = "attempt-other";
+        if (!correct && mismatch === "input-digest") result.attempts[0].input_digest = "c".repeat(64);
+        return result;
+      },
+    });
+    await harness.mount();
+    await harness.render().submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 });
+    const original = harness.render().pending.operation_key;
+    assert.equal(harness.render().pending.state, "UNKNOWN", mismatch);
+    assert.equal(harness.render().receipt, null, mismatch);
+    correct = true;
+    await harness.render().reconcile();
+    assert.equal(queried, original, mismatch);
+    assert.equal(harness.render().pending, null, mismatch);
+    assert.equal(posts, 1, mismatch);
+    harness.close();
+  }
+});
+
 test("A late Cloud response cannot clear another tab's newer operation", async () => {
   const factory = new IDBFactory(); let finish, posts = 0;
   const response = new Promise((resolve) => { finish = resolve; });

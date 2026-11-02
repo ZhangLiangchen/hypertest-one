@@ -42,9 +42,11 @@ test("Memory tabs serialize reservations without occupying the Cloud or Local da
   const a = harness(options, { factory, tab: "a" }), b = harness(options, { factory, tab: "b" }); await Promise.all([a.mount(), b.mount()]);
   await Promise.all([a.render().submit(intention), b.render().submit(intention)]); assert.equal(posts, 1);
   const journals = load("lib/operation-journal.ts", { indexedDB: factory });
-  const cloud = journals.createOperationJournal("cloud", (value) => value), local = journals.createOperationJournal("local-create", (value) => value);
+  const cloud = journals.createOperationJournal("cloud", (value) => value), local = journals.createOperationJournal("local-archive", (value) => value);
+  const questions = journals.createOperationJournal("cloud-live-question", (value) => value);
   const key = { project_id: "project-a", operation_key: "independent", state: "SENT" };
-  assert.equal((await cloud.reserve(key)).created, true); assert.equal((await local.reserve(key)).created, true); a.close(); b.close();
+  assert.equal((await cloud.reserve(key)).created, true); assert.equal((await local.reserve(key)).created, true);
+  assert.equal((await questions.reserve(key)).created, true); a.close(); b.close();
 });
 
 test("Memory storage unavailable or newly failing prohibits POST", async () => {

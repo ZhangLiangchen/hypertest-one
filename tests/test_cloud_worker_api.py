@@ -61,6 +61,29 @@ async def test_claim_requires_dedicated_worker_identity(worker_client, monkeypat
     assert calls == ["expire", ("host-fixture", 90)]
 
 
+async def test_auth_observation_requires_worker_and_accepts_only_status(worker_client, monkeypatch):
+    from hypertest.application import cloud_agent_auth
+    client, headers = worker_client
+    seen = []
+    async def store(db, worker_id, status):
+        seen.append((worker_id, status))
+    class DB:
+        async def commit(self): pass
+    async def db_override():
+        yield DB()
+    app.dependency_overrides[get_db] = db_override
+    monkeypatch.setattr(cloud_agent_auth, "store_worker_auth_status", store)
+    try:
+        assert (await client.post("/api/v1/cloud/worker/auth-observation", json={"status": "VALID"})).status_code == 401
+        assert (await client.post("/api/v1/cloud/worker/auth-observation", headers=headers,
+                                  json={"status": "VALID", "secret": "fixture"})).status_code == 422
+        response = await client.post("/api/v1/cloud/worker/auth-observation", headers=headers, json={"status": "VALID"})
+        assert response.status_code == 200
+        assert seen == [("host-fixture", "VALID")]
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
 async def test_worker_cannot_submit_management_or_other_attempt(worker_client, monkeypatch):
     client, headers = worker_client
     project, task, attempt = (str(uuid4()) for _ in range(3))

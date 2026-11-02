@@ -19,7 +19,7 @@ function renderDraft(budgets, accepted = true) {
   const task = { id: taskId, project_id: projectId, title: 'Fixture', version: 4, config_id: 'config', status: 'DRAFT',
     reported_result: 'NOT_RUN', frozen_manifest: null, inputs: { budgets, objective: 'test', basic_flow: 'flow', test_scope: 'scope' } };
   const resolutions = accepted ? [{ status: 'ACCEPTED', accepted_task_version: 4, id: 'resolution', result: {} }] : [];
-  const detail = { task, resolutions, answers: [], questions: [] };
+  const detail = { task, resolutions, answers: [], questions: [], assets: [], attempts: [], artifacts: [], runs: [], run_cases: [], delegations: [] };
   const config = { id: 'config', configuration: { environment: { connection: 'NONE' },
     sut: { url: 'https://example.test/sut' }, framework: { url: 'https://example.test/framework' } } };
   const queries = { 'cloud-web-setup': { configured: true }, 'cloud-capabilities': { enabled: true, worker_enabled: true },
@@ -40,6 +40,8 @@ function renderDraft(budgets, accepted = true) {
     if (name === '@/app/projects/[projectId]/cloud/cloud-shared') return { CloudAttemptRecovery: () => null, CloudCapabilitiesNotice: () => null, CloudOperationNotice: () => null };
     if (name === '@/app/projects/[projectId]/cloud/task-form') return { CloudTaskForm: () => null };
     if (name === './records') return { CloudTaskRecords: () => null };
+    if (name === './live-questions-panel') return { LiveQuestionsPanel: () => null };
+    if (name === './retry-dialog') return { RetryDialog: () => null };
     if (name === './delete-task') return { CloudTaskDelete: () => null };
     return require(name);
   } });

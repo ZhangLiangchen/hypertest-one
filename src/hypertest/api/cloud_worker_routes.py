@@ -51,6 +51,10 @@ class Claim(Input):
     supports_attempt_manifest: bool = Field(default=False, strict=True)
 
 
+class AuthObservation(Input):
+    status: Literal["VALID", "INVALID", "UNKNOWN"]
+
+
 class Attempt(Input):
     identity: Identity
     project_id: UUID
@@ -138,6 +142,16 @@ async def original_read(db, body: Attempt):
     if not grant:
         raise HTTPException(403, "Original Worker capability required")
     await service._current_grant(db, attempt.authorization_grant_id, task.project_id)
+
+
+@router.post("/auth-observation")
+@controlled_errors
+async def auth_observation(body: AuthObservation, worker_id: str = Depends(authenticate_worker),
+                           db: AsyncSession = Depends(get_db)):
+    from hypertest.application.cloud_agent_auth import store_worker_auth_status
+    await store_worker_auth_status(db, worker_id, body.status)
+    await db.commit()
+    return {"recorded": True}
 
 
 @router.post("/claim")

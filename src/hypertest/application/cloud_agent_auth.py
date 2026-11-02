@@ -10,6 +10,7 @@ from hypertest.domain.cloud_tasks import CloudAgentAuthObservation
 FRESH_SECONDS = 180
 RETENTION_DAYS = 1
 _WORKER_ID = re.compile(r"cloud-worker-[0-9a-f]{32}\Z")
+_HOST_WORKER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\Z")
 _STATUSES = frozenset({"VALID", "INVALID", "UNKNOWN"})
 
 
@@ -18,16 +19,21 @@ async def record_worker_auth_status(sessions, worker_id: str, status: str) -> No
     if not isinstance(worker_id, str) or not _WORKER_ID.fullmatch(worker_id) or not isinstance(status, str) or status not in _STATUSES:
         raise ValueError("Invalid Worker authentication observation")
     async with sessions() as db:
-        statement = insert(CloudAgentAuthObservation).values(
-            worker_id=worker_id, status=status, checked_at=func.clock_timestamp())
-        statement = statement.on_conflict_do_update(index_elements=[CloudAgentAuthObservation.worker_id],
-            set_={"status": status, "checked_at": func.clock_timestamp()})
-        await db.execute(statement)
-        # This table is an ephemeral runtime projection, not task history.
-        # Bound old instance rows without touching any other records.
-        await db.execute(delete(CloudAgentAuthObservation).where(
-            CloudAgentAuthObservation.checked_at < func.clock_timestamp() - timedelta(days=RETENTION_DAYS)))
+        await store_worker_auth_status(db, worker_id, status)
         await db.commit()
+
+
+async def store_worker_auth_status(db, worker_id: str, status: str) -> None:
+    """Persist a bounded, nonsecret observation from an authenticated worker."""
+    if not isinstance(worker_id, str) or not _HOST_WORKER_ID.fullmatch(worker_id) or status not in _STATUSES:
+        raise ValueError("Invalid Worker authentication observation")
+    statement = insert(CloudAgentAuthObservation).values(
+        worker_id=worker_id, status=status, checked_at=func.clock_timestamp())
+    statement = statement.on_conflict_do_update(index_elements=[CloudAgentAuthObservation.worker_id],
+        set_={"status": status, "checked_at": func.clock_timestamp()})
+    await db.execute(statement)
+    await db.execute(delete(CloudAgentAuthObservation).where(
+        CloudAgentAuthObservation.checked_at < func.clock_timestamp() - timedelta(days=RETENTION_DAYS)))
 
 
 def project_status(rows, *, enabled: bool) -> dict:
