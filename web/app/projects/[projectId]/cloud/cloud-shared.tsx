@@ -54,7 +54,7 @@ export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked,
       : view.phase === "CANCELLATION_REQUESTED" ? t("Cancellation requested", "已请求取消")
         : view.phase === "RECONCILIATION_REQUIRED" ? t("Reconciliation required", "待对账")
           : attempt.status === "WAITING_INPUT" ? t("Waiting for input", "等待输入") : t("Attempt active", "尝试进行中");
-  return <div style={{ marginTop: 20 }}>
+  return <div className="cloud-attempt-recovery">
     <Space wrap><Tag>{phaseLabel}</Tag><Tag>{view.resumeSupported ? t("Resume capability reported", "运行端声明可续接") : t("Original session resume unavailable", "原会话续接不可用")}</Tag></Space>
     {view.phase === "CANCELLATION_REQUESTED" ? <Typography.Paragraph className="muted">{t("The cancellation request is recorded. Refresh the live state to verify the writer fence and process status before reconciliation.", "取消请求已记录；请刷新当前状态，核验写入权隔离与进程状态后再对账。")}</Typography.Paragraph> : null}
     {view.phase === "STOP_UNCONFIRMED" ? <Typography.Paragraph className="muted">{t("Cancellation fenced the platform writer. The server has no independent observation confirming that all runtime and remote processes stopped. Reconcile the original actions before closing this attempt.", "取消已隔离平台写入权；服务端尚无独立观察确认全部运行及远端进程已停止。请核对原动作后再收尾本次尝试。")}</Typography.Paragraph> : null}

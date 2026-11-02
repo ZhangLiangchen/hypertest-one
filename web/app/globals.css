@@ -736,6 +736,9 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-sha { min-width: 0; overflow-wrap: anywhere; }
 .cloud-task-sha code { white-space: normal; overflow-wrap: anywhere; }
 .cloud-task-sha .entity-key { margin-top: 8px; }
+.cloud-attempt-recovery { margin-top: 20px; }
+.cloud-attempt-recovery > .ant-space + .ant-typography, .cloud-attempt-recovery > .ant-space + details { margin-top: 12px; }
+.cloud-attempt-recovery > .ant-typography:last-child { margin-bottom: 0; }
 .cloud-task-intent .ant-descriptions-item-label { color: var(--ht-muted); font-weight: 600; }
 .cloud-task-intent .ant-descriptions-item-content { padding-right: 24px; }
 .cloud-task-intent details { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--ht-line); }
@@ -743,8 +746,7 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-records > section > h2.ant-typography { margin: 0 0 8px; font-size: 20px; line-height: 1.45; }
 .cloud-task-records > section > .ant-typography.muted { max-width: 85ch; margin-bottom: 16px; line-height: 1.7; }
 .cloud-task-records > section > h2.ant-typography + .data-surface { margin-top: 16px; }
-.cloud-task-record-heading { padding: 22px 24px; }
-.cloud-task-record-heading h2.ant-typography { margin: 0; font-size: 20px; line-height: 1.45; }
+.cloud-task-history > h2.ant-typography { margin: 0 0 16px; font-size: 20px; line-height: 1.45; }
 
 /* Cloud project resources: keep configuration and credential actions distinct. */
 .cloud-resources-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }

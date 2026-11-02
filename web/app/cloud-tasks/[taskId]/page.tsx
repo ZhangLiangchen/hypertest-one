@@ -129,10 +129,10 @@ export default function CloudTaskPage() {
         </section>
       </div> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },
-      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history data-surface" aria-labelledby="cloud-attempt-history-heading"><div className="cloud-task-record-heading"><Typography.Title id="cloud-attempt-history-heading" level={2}>{t("Attempt history", "尝试历史")}</Typography.Title></div><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
+      { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history" aria-labelledby="cloud-attempt-history-heading"><Typography.Title id="cloud-attempt-history-heading" level={2}>{t("Attempt history", "尝试历史")}</Typography.Title><div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} columns={[
         { title: t("Attempt", "尝试"), dataIndex: "attempt_no" }, { title: t("Progress", "进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
         { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> }, { title: t("Reason", "原因"), dataIndex: "reason" },
-      ]} /></section> },
+      ]} /></div></section> },
     ]} />
   </main>;
 }

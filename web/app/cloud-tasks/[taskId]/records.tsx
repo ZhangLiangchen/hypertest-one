@@ -45,10 +45,10 @@ export function CloudTaskRecords({ document }: { document: CloudDocument }) {
     </section>
     <section aria-labelledby="cloud-runs-title"><Typography.Title id="cloud-runs-title" level={2}>{t("Every framework execution", "每轮框架执行")}</Typography.Title>
       <div className="data-surface"><Table rowKey={(row) => String(row.id)} dataSource={document.runs || []} scroll={{ x: 750 }} pagination={{ pageSize: 20, hideOnSinglePage: true }} locale={{ emptyText: t("No execution has been reported. SDK activity does not create a test run.", "尚无已报告执行；SDK 活动不会生成测试执行记录。 ") }}
-        columns={[{ title: t("Run key", "执行标识"), dataIndex: "run_key", render: (value) => <span className="entity-key">{literal(value)}</span> },
-          { title: t("Source", "来源"), key: "source", render: (_, row) => literal((row.execution as CloudRecord)?.source) },
+        columns={[{ title: t("Run key", "执行标识"), dataIndex: "run_key", width: 220, render: (value) => <span className="entity-key">{literal(value)}</span> },
+          { title: t("Source", "来源"), key: "source", width: 170, render: (_, row) => literal((row.execution as CloudRecord)?.source) },
           { title: t("Command", "执行命令"), key: "command", render: (_, row) => <span className="session-literal">{literal((row.execution as CloudRecord)?.entrypoint)}</span> },
-          { title: t("Result", "结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> }]}
+          { title: t("Result", "结果"), dataIndex: "reported_result", width: 130, render: (value) => <ReportedResultTag result={value} /> }]}
         expandable={{ expandedRowRender: (row) => { const execution = row.execution as CloudRecord || {}; const cases = document.run_cases?.filter((item) => item.run_id === row.id) || []; return <>
           <Descriptions column={1} items={[{ key: "build", label: t("Observed SUT build", "观察到的被测版本"), children: literal(execution.actual_sut_build) },
             { key: "framework", label: t("Framework SHA", "框架 SHA"), children: <span className="entity-key">{literal(execution.framework_sha)}</span> },
