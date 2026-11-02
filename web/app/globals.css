@@ -736,10 +736,24 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-metadata strong { font-size: 13px; font-variant-numeric: tabular-nums; }
 .cloud-task-flow { margin: 0 0 24px; padding: 20px 24px; border: 1px solid var(--ht-line); border-radius: var(--ht-radius-surface); background: var(--ht-surface); }
 .cloud-task-flow p { margin: 14px 0 0; font-size: 13px; line-height: 1.6; }
-.cloud-task-flow .ant-steps-item-title a { position: relative; color: inherit; border-radius: 4px; text-decoration: underline; text-decoration-color: #a9b8cf; }
-.cloud-task-flow .ant-steps-item-title a::before { content: ""; position: absolute; top: 50%; left: -32px; width: 24px; height: 24px; transform: translateY(-50%); }
-.cloud-task-flow .ant-steps-item-title a:hover { color: var(--ht-accent); text-decoration: underline; }
+.cloud-flow-summary { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 20px; }
+.cloud-flow-position { color: var(--ht-ink); font-size: 14px; font-weight: 600; }
+.cloud-flow-position strong { margin-left: 8px; color: var(--ht-accent); font-size: 18px; font-variant-numeric: tabular-nums; }
+.cloud-flow-position strong span { color: var(--ht-muted); font-weight: 400; }
+.cloud-flow-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; color: var(--ht-muted); font-size: 12px; }
+.cloud-flow-facts > span { display: inline-flex; align-items: center; gap: 8px; }
+.cloud-flow-facts .ant-tag { margin: 0; }
+.cloud-task-flow .ant-steps-small .ant-steps-item-icon { width: 32px; height: 32px; margin-inline-end: 10px; line-height: 32px; }
+.cloud-task-flow .ant-steps-item-custom .ant-steps-item-icon > .ant-steps-icon { top: 0; line-height: 32px; }
+.cloud-flow-number { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #a9b8cf; border-radius: 50%; background: #f4f7fb; color: #526177; font-size: 14px; font-weight: 600; }
+.cloud-task-flow .ant-steps-item-process .cloud-flow-number { border-color: var(--ht-accent); background: var(--ht-accent); color: #fff; box-shadow: 0 0 0 4px #e4ecfb; }
+.cloud-task-flow .ant-steps-item-title { line-height: 32px; }
+.cloud-task-flow .ant-steps-item-title::after { top: 16px; background: var(--ht-line) !important; }
+.cloud-task-flow .ant-steps-item-title a { position: relative; color: var(--ht-ink); border-radius: 4px; text-decoration: none; }
+.cloud-task-flow .ant-steps-item-title a::before { content: ""; position: absolute; top: 50%; left: -42px; width: 32px; height: 32px; transform: translateY(-50%); }
+.cloud-task-flow .ant-steps-item-title a:hover { color: var(--ht-accent); text-decoration: none; }
 .cloud-task-flow .ant-steps-item-title a:focus-visible { outline: 2px solid var(--ht-accent); outline-offset: 4px; }
+.cloud-task-flow .ant-steps-item-process .ant-steps-item-title a { color: #1e40af; font-weight: 650; }
 .cloud-task-detail :is(#cloud-task-inputs, #cloud-task-resolution, #cloud-attempt-history-heading, #cloud-assets-title, #cloud-runs-title) { scroll-margin-top: 104px; }
 
 .cloud-task-overview { display: flex; flex-direction: column; gap: 24px; }

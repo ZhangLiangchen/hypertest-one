@@ -237,7 +237,7 @@ function taskPage(status, options = {}) {
     if (name === "@ant-design/icons") return { ArrowLeftOutlined: "ArrowLeftOutlined", ReloadOutlined: "ReloadOutlined" };
     if (name === "next/link") return "Link";
     if (name === "next/navigation") return { useParams: () => ({ taskId }), useSearchParams: () => new URLSearchParams({ projectId }) };
-    if (name === "@tanstack/react-query") return { useQuery: (options) => { queries[options.queryKey[0]] = options; return { data: values[options.queryKey[0]], dataUpdatedAt: 1, refetch() { reads.push(options.queryKey[0]); }, isError: false }; } };
+    if (name === "@tanstack/react-query") return { useQuery: (queryOptions) => { queries[queryOptions.queryKey[0]] = queryOptions; return { data: values[queryOptions.queryKey[0]], dataUpdatedAt: 1, refetch() { reads.push(queryOptions.queryKey[0]); }, isError: options.liveError === true && queryOptions.queryKey[0] === "cloud-task-live" }; } };
     if (name === "@/lib/cloud") return { ...helpers(), ...(options.cloudDocument ? { cloudDocument: options.cloudDocument } : {}) };
     if (name === "@/lib/run-polling") return load("lib/run-polling.ts", { require });
     if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit() { writes++; throw new Error("render must not write"); } }) };
@@ -274,7 +274,7 @@ test("Missing live identity and early terminal states show no inferred completed
 
 test("Workflow links navigate to their matching task sections without submitting work", () => {
   const page = taskPage("DRAFT");
-  const links = page.steps.items.map((item) => item.title);
+  const links = page.steps.items.map((item) => item.title.props.children);
   assert.equal(links[0].props.href, "/projects/00000000-0000-4000-8000-000000000001/cloud?tab=resources");
   const destinations = [["overview", "cloud-task-inputs"], ["overview", "cloud-task-resolution"],
     ["attempts", "cloud-attempt-history-heading"], ["artifacts", "cloud-assets-title"], ["artifacts", "cloud-runs-title"]];
@@ -293,7 +293,7 @@ test("Workflow links navigate to their matching task sections without submitting
 test("In-flight work stays on Harness work instead of marking it finished without a delivered result", () => {
   for (const status of ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"]) {
     const page = taskPage(status);
-    assert.equal(page.steps.items[page.steps.current].title.props.children, "Harness work");
+    assert.equal(page.steps.items[page.steps.current].title.props.children.props.children, "Harness work");
     assert.equal(page.unknown, false);
     assert.equal(page.result, "NOT_RUN");
   }
@@ -302,9 +302,18 @@ test("In-flight work stays on Harness work instead of marking it finished withou
 
 test("A delivered task can reach execution/report while retaining its original reported FAIL", () => {
   const page = taskPage("COMPLETED", { result: "FAIL" });
-  assert.equal(page.steps.items[page.steps.current].title.props.children, "Execution and report");
+  assert.equal(page.steps.items[page.steps.current].title.props.children.props.children, "Execution and report");
   assert.equal(page.result, "FAIL");
   assert.equal(page.unknown, false);
+  assert.equal(page.steps.items.filter((item) => item.title.props["aria-current"] === "step").length, 1);
+  assert.equal(page.steps.items[5].title.props["aria-current"], "step");
+  assert.equal(taskPage("COMPLETED", { result: "PASS" }).result, "PASS");
+});
+
+test("A failed live refresh does not present an old phase as current", () => {
+  const page = taskPage("RUNNING", { liveError: true });
+  assert.equal(page.steps.current, -1);
+  assert.equal(page.steps.items.filter((item) => item.title.props["aria-current"] === "step").length, 0);
 });
 
 test("Browser reconciliation only reads the original key and retains the pending stream", () => {

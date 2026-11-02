@@ -88,7 +88,7 @@ export default function CloudTaskPage() {
   const questions = detail.questions.filter((row) => !answered.has(row.id));
   // State identifies current work, not a history of completed business phases.
   // Unknown/recovery/failed/cancelled states cannot establish how far work got.
-  const step = status === "DRAFT" ? accepted ? 2 : 1
+  const step = live.isError ? -1 : status === "DRAFT" ? accepted || inResolution ? 2 : 1
     : ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"].includes(status || "") ? 3
       : status === "COMPLETED" ? 5 : -1;
   return <main className="workspace-page cloud-task-detail">
@@ -106,6 +106,10 @@ export default function CloudTaskPage() {
       description={t("Accepted artifacts remain unchanged. Controls wait for matching Project, Task, Attempt and version observations; refresh both views to continue.", "已接受产物保持原样；控制操作等待 Project、Task、Attempt 和版本一致的观察，请刷新两类视图后继续。 ")} /> : null}
     <CloudOperationNotice operation={operation} />
     <section className="cloud-task-flow" aria-label={t("Task workflow", "任务流程")}>
+      <div className="cloud-flow-summary">
+        <div className="cloud-flow-position">{step < 0 ? t("Current phase unknown", "当前阶段未知") : <>{t("Current phase", "当前阶段")} <strong>{step + 1} <span>/</span> 6</strong></>}</div>
+        <div className="cloud-flow-facts"><span>{live.isError && status ? t("Last observed progress", "上次观察的进度") : t("Task progress", "任务进度")} <Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Unknown", "未知")}</Tag></span><span>{t("Reported test result", "报告的测试结果")} <ReportedResultTag result={task.reported_result} /></span></div>
+      </div>
       <Steps current={step} size="small" responsive items={[
         { title: <a href={`/projects/${projectId}/cloud?tab=resources`}>{t("Project resources", "项目资源")}</a> },
         ...[
@@ -115,7 +119,8 @@ export default function CloudTaskPage() {
           { title: t("Test artifacts", "测试产物"), tab: "artifacts", id: "cloud-assets-title" },
           { title: t("Execution and report", "执行与汇报"), tab: "artifacts", id: "cloud-runs-title" },
         ].map(({ title, tab: nextTab, id }) => ({ title: <a href={`#${id}`} onClick={(event) => goToSection(event, nextTab, id)}>{title}</a> })),
-      ]} />
+      ].map((item, index) => ({ ...item, icon: <span className="cloud-flow-number" aria-hidden="true">{index + 1}</span>,
+        title: <span aria-current={index === step ? "step" : undefined}>{item.title}</span> }))} />
       {step < 0 ? <p className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</p> : null}
     </section>
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
