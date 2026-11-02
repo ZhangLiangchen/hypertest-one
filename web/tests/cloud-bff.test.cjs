@@ -234,3 +234,20 @@ test("Cloud conflicts distinguish stale versions, unsupported SDK resume and unm
     assert.equal(JSON.stringify(body).includes(canary), false);
   }
 });
+
+
+test("Live question endpoints retain the Cloud same-origin and route boundary", async () => {
+  const question = "00000000-0000-4000-8000-000000000003";
+  const calls = [];
+  const routes = moduleFor(async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ items: [] })); });
+  const listing = await routes.GET(request(`http://web/api/cloud/tasks/${task}/live-questions?project_id=${project}`), context("tasks", task, "live-questions"));
+  assert.equal(listing.status, 200);
+  const answerPath = `http://web/api/cloud/tasks/${task}/live-questions/${question}/answer`;
+  const body = JSON.stringify({ project_id: project, operation_key: "original", answers: [], cancelled: true });
+  const denied = await routes.POST(request(answerPath, { method: "POST", headers: { origin: "http://other", "content-type": "application/json" }, body }), context("tasks", task, "live-questions", question, "answer"));
+  assert.equal(denied.status, 403);
+  assert.equal(calls.length, 1);
+  const accepted = await routes.POST(request(answerPath, { method: "POST", headers: { origin: "http://web", "content-type": "application/json" }, body }), context("tasks", task, "live-questions", question, "answer"));
+  assert.equal(accepted.status, 200);
+  assert.equal(calls[1].url, `https://cloud-api.example.invalid/api/v1/cloud/tasks/${task}/live-questions/${question}/answer`);
+});

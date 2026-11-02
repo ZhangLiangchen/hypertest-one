@@ -1256,3 +1256,10 @@ profile 以 server/client/actor 隔离，可跨工作目录和 Agent 会话复�
 复用现有私有凭据读取、HTTPS、TaskSyncCore、冻结快照和账本库，并消除它们对旧 daemon/MCP 入口的依赖。ArchiveAdapter、旧 Local 只读恢复 adapter 和 CloudSyncAdapter 分别保有 profile、授权及账本 namespace，不共享全局 journal。新旧业务 API、领域不靠通用 Task 表或放宽旧 caller fence 合并。
 
 在新 API/CLI/Skill/Web 可用后执行旧接入切换：新 CLI 使用标准库 zipapp，不包含 MCP/Hooks/bridge/daemon；按安装收据精确清理自有宿主配置；服务端关闭旧 Local 会话新写准入，保留历史读取和原 key 回执。CLI 显式 `legacy retire` 按旧收据精确处理配置，停止进程前核私有 IPC runtime 与配置指纹；`legacy reconcile` 仅对真实已有 SYNC/BIND/协作账本执行 GET，不启动旧 daemon，不重放 POST。compact 旧账本原正文缺失时明确标记未比较原请求；CREATE 恢复继续归属原 Web journal。共享库、Cloud、独立 Memory 服务和其他插件配置按真实依赖保留。具体顺序与开发文件见[计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)，精确合同由 TMP§51、领域§56 与 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)拥有。
+
+
+## 51. 宿主薄 Worker 的实时用户提问
+
+Cloud 页面通过受同源和 Operator 边界保护的 BFF 与 Cloud API 读写活问题；API 负责 Project/Task/Attempt 授权与状态，不运行 Agent。宿主薄 Worker 通过独立工作凭据、原 lease 和 generation 维护问题与回答，并使用私有 stdin/stdout 将问题和回答传给当前 SDK 回调。用户答案不授予其他工具、网络或执行权限，原生权限批准类请求不经此入口扩权。
+
+原生 Worker 使用单独固定的 SDK/runtime 配对；旧 Cloud SDK 的版本准入保持独立。回答已保存、回调取走与 Agent 继续工作是不同事实；进程退出后的原会话恢复仍未实现。领域约束见领域 §57，交互合同见 TMP §52；实现、部署和用户验收分别记录。

@@ -111,3 +111,18 @@ test("Cloud original-key conflict remains UNKNOWN and cannot permit another POST
   await harness.render().reconcile(); await harness.render().submit({ operation: "DISPATCH", task_id: "task-a", expected_version: 4 });
   assert.equal(harness.render().pending.operation_key, original); assert.equal(posts, 1); harness.close();
 });
+
+
+test("Live-question journals serialize each original answer across tabs and remain separate from Cloud operations", async () => {
+  const factory = new IDBFactory(), a = operationHarness({}, { factory }), b = operationHarness({}, { factory });
+  const make = (h) => h.journals.createOperationJournal("cloud-live-question", (value) => value, (value) => value.task_id + ":" + value.question_id);
+  const first = { project_id: "project-a", task_id: "task-a", question_id: "question-a", operation_key: "web:first", digest: "a".repeat(64), state: "SENT" };
+  const [x, y] = await Promise.all([make(a).reserve(first), make(b).reserve({ ...first, operation_key: "web:second" })]);
+  assert.equal(Number(x.created) + Number(y.created), 1);
+  assert.equal((await make(a).reserve({ ...first, question_id: "question-b", operation_key: "web:third" })).created, true);
+  assert.equal((await a.journal.read("project-a")).length, 0);
+  const records = await make(b).read("project-a");
+  assert.equal(records.length, 2);
+  assert.ok(records.every((row) => !("answers" in row)));
+  a.close(); b.close();
+});

@@ -274,3 +274,59 @@ async def artifact(body: Artifact, worker_id: str = Depends(authenticate_worker)
     if not row or row.project_id != body.project_id or row.task_id != body.task_id or row.attempt_id != body.attempt_id or not row.verified_at or row.byte_count > 8 * 1024 * 1024:
         raise HTTPException(404, "Original Worker artifact not found")
     return {"content_base64": base64.b64encode(row.content).decode("ascii")}
+
+
+class LiveOpen(Attempt):
+    request_id: str = Field(min_length=1, max_length=255)
+    session_id: str = Field(min_length=1, max_length=255)
+    questions: list[dict] = Field(min_length=1, max_length=20)
+    timeout_seconds: int = Field(default=600, ge=1, le=3600)
+
+
+class LiveLookup(Attempt):
+    request_id: str = Field(min_length=1, max_length=255)
+    session_id: str = Field(min_length=1, max_length=255)
+
+
+class LiveQuestion(Attempt):
+    question_id: UUID
+
+
+class LiveFinish(LiveQuestion):
+    outcome: Literal["DELIVERED", "CANCELLED", "UNKNOWN"]
+
+
+@router.post("/live-question/open")
+@controlled_errors
+async def live_open(body: LiveOpen, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
+    from hypertest.application import cloud_live_questions as live_questions
+    check_identity(worker_id, body.identity)
+    task, attempt = await live_questions.task_attempt(db, body.project_id, body.task_id, body.attempt_id)
+    return await live_questions.open_question(db, task, attempt, body.identity.service_identity(), body.request_id, body.session_id, body.questions, body.timeout_seconds)
+
+
+@router.post("/live-question/lookup")
+@controlled_errors
+async def live_lookup(body: LiveLookup, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
+    from hypertest.application import cloud_live_questions as live_questions
+    check_identity(worker_id, body.identity)
+    task, attempt = await live_questions.task_attempt(db, body.project_id, body.task_id, body.attempt_id)
+    return await live_questions.worker_lookup(db, task, attempt, body.identity.service_identity(), body.request_id, body.session_id)
+
+
+@router.post("/live-question/poll")
+@controlled_errors
+async def live_poll(body: LiveQuestion, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
+    from hypertest.application import cloud_live_questions as live_questions
+    check_identity(worker_id, body.identity)
+    task, attempt = await live_questions.task_attempt(db, body.project_id, body.task_id, body.attempt_id)
+    return await live_questions.worker_poll(db, task, attempt, body.identity.service_identity(), body.question_id)
+
+
+@router.post("/live-question/finish")
+@controlled_errors
+async def live_finish(body: LiveFinish, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
+    from hypertest.application import cloud_live_questions as live_questions
+    check_identity(worker_id, body.identity)
+    task, attempt = await live_questions.task_attempt(db, body.project_id, body.task_id, body.attempt_id)
+    return await live_questions.worker_finish(db, task, attempt, body.identity.service_identity(), body.question_id, body.outcome)

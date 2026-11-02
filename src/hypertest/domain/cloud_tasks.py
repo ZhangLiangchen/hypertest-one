@@ -429,3 +429,30 @@ class CloudOperationReceipt(CloudRow, Base):
     accepted_version: Mapped[int] = mapped_column(BigInteger)
     response: Mapped[dict] = mapped_column(JSONB)
     task_snapshot: Mapped[dict | None] = mapped_column(JSONB)
+
+
+class CloudLiveQuestion(CloudRow, Base):
+    """A native SDK question attached to one fenced live attempt."""
+    __tablename__ = "cloud_live_questions"
+    __table_args__ = (UniqueConstraint("attempt_id", "generation", "request_id"),
+        UniqueConstraint("project_id", "answer_operation_key"),
+        ForeignKeyConstraint(["project_id", "task_id"], ["cloud_tasks.project_id", "cloud_tasks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["task_id", "attempt_id"], ["cloud_attempts.task_id", "cloud_attempts.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["project_id", "attempt_id"], ["cloud_attempts.project_id", "cloud_attempts.id"], ondelete="RESTRICT"),
+        CheckConstraint("generation > 0"),
+        CheckConstraint("status IN ('OPEN','ANSWERED','DELIVERING','DELIVERED','CANCELLED','UNKNOWN')"),
+        CheckConstraint("((answer IS NULL AND answer_operation_key IS NULL AND answer_digest IS NULL AND answered_by IS NULL) OR (answer IS NOT NULL AND answer_operation_key IS NOT NULL AND answer_digest IS NOT NULL AND answered_by IS NOT NULL)) AND (status NOT IN ('ANSWERED','DELIVERING','DELIVERED') OR answer IS NOT NULL) AND (status <> 'OPEN' OR answer IS NULL)"),)
+    project_id: Mapped[UUID] = mapped_column()
+    task_id: Mapped[UUID] = mapped_column()
+    attempt_id: Mapped[UUID] = mapped_column()
+    generation: Mapped[int] = mapped_column(BigInteger)
+    request_id: Mapped[str] = mapped_column(String(255))
+    session_id: Mapped[str] = mapped_column(String(255))
+    request_digest: Mapped[str] = mapped_column(String(64))
+    questions: Mapped[list] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(16))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    answer: Mapped[dict | None] = mapped_column(JSONB)
+    answer_operation_key: Mapped[str | None] = mapped_column(String(128))
+    answer_digest: Mapped[str | None] = mapped_column(String(64))
+    answered_by: Mapped[str | None] = mapped_column(String(255))

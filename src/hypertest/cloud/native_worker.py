@@ -179,6 +179,11 @@ def native_prompt(task: dict, attempt: dict, workspace: Path) -> str:
         "they are not an inventory of the host environment's capabilities. "
         "Do not infer extra authorization from the host's ability to perform an action.")
     value["instructions"].append(
+        "When a user decision or clarification is necessary, use the native ask_user_question tool. "
+        "The current SDK session waits for the answer; do not publish a REQUEST_INPUT handoff for live interaction. "
+        "Ask only within the frozen task authorization, never include credentials, and do not infer additional authorization from a response. "
+        "Native approval requests that would change execution permissions are not supported by this channel.")
+    value["instructions"].append(
         "After publishing COMPLETE_ATTEMPT, end your turn immediately without waiting for its receipt. "
         "The Worker must observe the direct SDK process exit before accepting that terminal handoff.")
     return json.dumps(value, ensure_ascii=False)
@@ -187,6 +192,7 @@ def native_prompt(task: dict, attempt: dict, workspace: Path) -> str:
 async def execute(api, args, state: Path, claim: dict):
     from hypertest.sync_core import digest
 
+    from .live_question_bridge import LiveQuestionBridge
     from .manifests import MANIFEST_PROFILE, Handoff
     from .native_git import NativeGitResolver
     from .native_sdk_adapter import NativeSdkAdapter
@@ -208,6 +214,7 @@ async def execute(api, args, state: Path, claim: dict):
     lease_failure = None
     started = time.monotonic()
     reader = None
+    bridge = None
 
     async def heartbeat():
         nonlocal lease_failure
@@ -242,13 +249,16 @@ async def execute(api, args, state: Path, claim: dict):
         prompt = native_prompt(task, attempt, workspace)
         save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
-        process = await adapter.start(session_id="cloud-" + attempt["id"], prompt=prompt)
-        reader = asyncio.create_task(CloudWorker.consume_runtime(process))
+        session_id = "cloud-" + attempt["id"]
+        process = await adapter.start(session_id=session_id, prompt=prompt, interaction_enabled=True)
+        bridge = LiveQuestionBridge(broker, adapter, session_id)
+        reader = asyncio.create_task(bridge.read(process))
         accepted_keys = {}
         terminal = None
         while process.returncode is None:
             if lease_failure is not None:
                 raise CloudBlocked("WORKER_LEASE_UNCONFIRMED", "Original lease needs reconciliation")
+            bridge.check()
             if reader.done() and reader.exception() is not None:
                 raise reader.exception()
             observed = await CloudWorker.collect(None, reporter, workspace, accepted_keys, stopped=False)
@@ -258,6 +268,9 @@ async def execute(api, args, state: Path, claim: dict):
             await asyncio.sleep(0.2)
         await process.wait()
         await reader
+        bridge.check()
+        if bridge.tasks:
+            raise CloudBlocked("SDK_QUESTION_DELIVERY_UNKNOWN", "SDK exited with pending questions")
         if lease_failure is not None:
             raise CloudBlocked("WORKER_LEASE_UNCONFIRMED", "Original lease needs reconciliation")
         await broker.assert_current()
@@ -289,6 +302,8 @@ async def execute(api, args, state: Path, claim: dict):
         if reader is not None and not reader.done():
             reader.cancel()
             await asyncio.gather(reader, return_exceptions=True)
+        if bridge is not None:
+            await bridge.close()
         reporter.close()
 
 
@@ -298,9 +313,9 @@ async def run(args) -> int:
     state = private_root(args.state_dir)
     # Detect missing/incompatible local runtime before taking any task lease.
     from .native_profile import check_sdk_profile
-    from .sdk import inspect_sdk
+    from .sdk import inspect_native_sdk
 
-    inspect_sdk()
+    inspect_native_sdk()
     check_sdk_profile(args.dsh_home)
     credential = read_private_file(args.worker_credential_file, max_bytes=65536)
     api = WorkerAPI(args.api_url, credential, ca_file=args.ca_file)

@@ -3,7 +3,7 @@
  * only refresh the view and never grant permission to submit a request.
  */
 export type JournalIdentity = { project_id: string; task_id?: string; operation_key: string; state: "SENT" | "UNKNOWN" };
-type Domain = "cloud" | "local-archive" | "cli-authorization";
+type Domain = "cloud" | "cloud-live-question" | "local-archive" | "cli-authorization";
 const databaseName = "hypertest-operation-journals-v1";
 const channelName = "hypertest-operation-journals-changed-v1";
 const listeners = new Set<(domain: Domain, projectId: string) => void>();
@@ -11,12 +11,12 @@ const listeners = new Set<(domain: Domain, projectId: string) => void>();
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") { reject(new Error("PRIVATE_JOURNAL_UNAVAILABLE")); return; }
-    const request = indexedDB.open(databaseName, 4);
+    const request = indexedDB.open(databaseName, 5);
     request.onupgradeneeded = () => {
       for (const name of ["local-create", "local-collaboration"]) {
         if (request.result.objectStoreNames.contains(name)) request.result.deleteObjectStore(name);
       }
-      for (const name of ["cloud", "local-archive", "cli-authorization"]) {
+      for (const name of ["cloud", "cloud-live-question", "local-archive", "cli-authorization"]) {
         if (request.result.objectStoreNames.contains(name)) continue;
         const store = request.result.createObjectStore(name, { keyPath: ["project_id", "operation_key"] });
         store.createIndex("project", "project_id");

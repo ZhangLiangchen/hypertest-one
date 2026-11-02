@@ -2652,3 +2652,12 @@ profile 原子保存/合并，只合并同 server/client/actor 的已批准授�
 > **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。
 
 新 CLI 只读取用户明确指定私有配置下的旧 `client.sqlite3` 与批准快照，支持既有 SYNC/BIND/协作 namespace，不修改原 journal 或迁移为新归档 Submission。完整原请求在场时逐字段核对原回执与固定版本；旧 compact 记录缺少原正文时只保存新的只读恢复记录，并明确 `LEGACY_ACCEPTED_READBACK`、`original_request_verified=false`，不得重建原正文或补造原请求比较。旧 CREATE 的原 key 与冻结管理请求仍由原 Web IndexedDB journal 拥有，通过 Web 只读恢复，不向 CLI 转授 Operator 身份。
+
+
+## 57. Cloud 原生活会话提问
+
+CloudLiveQuestion 是独立的运行时交互记录，不是测试结果、Evidence 或任务完成。它绑定 Project、CloudTask、当前 CloudAttempt、有效 Worker lease generation、SDK 原 request ID 和根 session ID；同一 (Attempt, generation, request ID) 只能对应一个原问题正文摘要。跨 Project/Task/Attempt 的复合外键、正 generation 和原请求唯一性由数据库约束。仅当前 RUNNING Attempt 的有效 Worker 能创建和领取问题；Agent 子进程不持平台凭据。仅有 cloud:read 的主体可读取；回答需当前 cloud:control 授权，且不能扩大冻结任务授权。未经支持的授权批准问题拒绝接入。
+
+原问题保存有界结构化题目和截止时间。回答按独立原 operation key 固定完整结构和摘要，项目内原 key 唯一；同 key、同身份、同正文读取原结果，异正文或另一 key 不覆盖。每题必须恰好回答一次，选择值属于原选项，单选不能多选；允许的自由文本和取消由同一原问题表达。敏感信息检查适用于题目和回答。
+
+正常状态为 OPEN → ANSWERED → DELIVERING → DELIVERED。Worker 对 ANSWERED 的领取与 DELIVERING 转换原子化；领取失答、进程失联或无法确认交接不得再次投递。DELIVERED 仅表示 SDK 回调已取走回答，不证明 SDK runtime 或 Agent 已接收、执行或完成。原调用取消、到期、任务终结或 fence 后不得回答或投递；已领取且不确定的回答显示 UNKNOWN，未领取的活问题显示 CANCELLED。记录独立于 Task 业务 version，交互不改变测试结果、尝试终态或既有资产。

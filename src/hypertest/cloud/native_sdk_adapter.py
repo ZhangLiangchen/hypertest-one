@@ -39,13 +39,14 @@ class NativeSdkAdapter:
         self.process: asyncio.subprocess.Process | None = None
         self._started = False
 
-    async def start(self, *, session_id: str, prompt: str):
+    async def start(self, *, session_id: str, prompt: str, interaction_enabled: bool = False):
         if self._started:
             raise CloudBlocked("SDK_ORIGINAL_OPERATION_QUERY_ONLY", "An SDK prompt cannot be started twice")
         if not self.workspace.is_dir() or not self.dsh_home.is_dir() or not session_id or not prompt:
             raise CloudBlocked("HARNESS_CONFIGURATION_INVALID", "A workspace, Harness home and prompt are required")
         payload = json.dumps({"workspace": str(self.workspace), "dsh_home": str(self.dsh_home),
-                              "session_id": session_id, "prompt": prompt}).encode()
+                              "session_id": session_id, "prompt": prompt,
+                              "interaction_enabled": interaction_enabled}).encode() + b"\n"
         if len(payload) > 1024 * 1024:
             raise CloudBlocked("HARNESS_CONFIGURATION_INVALID", "Harness prompt exceeds the input limit")
         # One start attempt per adapter, including uncertain subprocess failures.
@@ -53,7 +54,8 @@ class NativeSdkAdapter:
         self.process = await asyncio.create_subprocess_exec(
             sys.executable, "-P", "-m", "hypertest.cloud.native_sdk_driver", cwd=str(self.workspace),
             env=host_environment(os.environ), stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, start_new_session=True,
+            limit=131073)
         try:
             self.process.stdin.write(payload)
             await self.process.stdin.drain()
@@ -63,14 +65,34 @@ class NativeSdkAdapter:
             await self.stop()
             raise
         finally:
-            self.process.stdin.close()
+            if not interaction_enabled:
+                self.process.stdin.close()
         return self.process
+
+    async def answer_question(self, request_id: str, answer: dict):
+        """Send one answer to the original live child; a pipe write is not an SDK acknowledgement."""
+        process = self.process
+        if (process is None or process.returncode is not None or process.stdin is None
+                or process.stdin.is_closing() or not isinstance(request_id, str) or not request_id
+                or len(request_id) > 255 or not isinstance(answer, dict)):
+            raise CloudBlocked("SDK_QUESTION_CHANNEL_CLOSED", "Original SDK question channel is unavailable")
+        payload = json.dumps({"type": "question_response", "request_id": request_id, "answer": answer},
+                             ensure_ascii=False, separators=(",", ":")).encode() + b"\n"
+        if len(payload) > 131072:
+            raise CloudBlocked("SDK_QUESTION_RESPONSE_INVALID", "SDK question response is too large")
+        try:
+            process.stdin.write(payload)
+            await process.stdin.drain()
+        except (BrokenPipeError, ConnectionError, RuntimeError):
+            raise CloudBlocked("SDK_QUESTION_DELIVERY_UNKNOWN", "Original question response needs reconciliation") from None
 
     async def stop(self) -> dict:
         process = self.process
         if process is None:
             return {"direct_process_stopped": not self._started,
                     "all_local_processes_stopped": None, "external_operations_reconciled": None}
+        if process.stdin is not None and not process.stdin.is_closing():
+            process.stdin.close()
         if process.returncode is None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)

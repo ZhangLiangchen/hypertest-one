@@ -150,6 +150,7 @@ def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     assert prompt["capabilities"]["ssh"] == "HOST_USER_ACCESS_UNVERIFIED"
     assert prompt["capabilities"]["https_controlled_api"] == "HOST_USER_ACCESS_UNVERIFIED"
     assert any("end your turn immediately without waiting" in line for line in prompt["instructions"])
+    assert any("native ask_user_question" in line and "do not publish a REQUEST_INPUT" in line for line in prompt["instructions"])
     assert all("SSH diagnostics are unavailable" not in line for line in prompt["instructions"])
     assert any(str(tmp_path / "framework") in line for line in prompt["instructions"])
 

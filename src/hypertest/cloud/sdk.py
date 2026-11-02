@@ -16,6 +16,8 @@ from .runtime_activity import project_finish_reason
 
 SDK_VERSION = "0.2.1rc2"
 SOURCE_COMMIT = "687f282e8625c6b8d11ff58211a90524be2e4317"
+NATIVE_SDK_VERSION = "0.2.2a2"
+NATIVE_SOURCE_COMMIT = "ce7073d51254c26cd63b22a60835b8f948deb447"
 SDK_PHASES = frozenset({"CONFIGURATION", "CLIENT_CONFIGURATION", "SDK_START", "INITIALIZE",
     "SESSION_CREATE", "DELEGATE_READY", "PROMPT_ENQUEUE", "WAIT", "CLOSE", "DELEGATE_CLOSED", "OTHER"})
 SDK_ERROR_TYPES = frozenset({"TIMEOUT", "JSON_RPC", "TRANSPORT_CLOSED", "PROTOCOL", "CAPABILITY",
@@ -152,6 +154,33 @@ def inspect_sdk() -> dict[str, Any]:
                 "per_session_cancel": False, "model_started": False}
     except ImportError as exc:
         raise CloudBlocked("SDK_UNAVAILABLE", "Pinned SDK/runtime cannot be loaded") from exc
+
+
+def inspect_native_sdk() -> dict[str, Any]:
+    """Inspect the separately installed native Worker pair without weakening legacy admission."""
+    try:
+        sdk = importlib.metadata.version("deepseek-harness-sdk")
+        runtime = importlib.metadata.version("deepseek-harness-runtime-bin")
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise CloudBlocked("SDK_UNAVAILABLE", "Install the pinned native Cloud SDK/runtime pair") from exc
+    if sdk != NATIVE_SDK_VERSION or runtime != NATIVE_SDK_VERSION:
+        raise CloudBlocked("SDK_VERSION_MISMATCH", "Native Cloud SDK and runtime must match the pinned pair")
+    try:
+        from deepseek_harness import DeepSeekHarness, DeepSeekHarnessConfig, HarnessConfig
+        from deepseek_harness_runtime import resolve_bundled_launch_args
+
+        if ("on_user_question" not in inspect.signature(HarnessConfig).parameters
+                or "on_user_question" not in inspect.signature(DeepSeekHarnessConfig).parameters):
+            raise CloudBlocked("SDK_CONTRACT_MISMATCH", "Native SDK question callback is unavailable")
+        launch = resolve_bundled_launch_args()
+        return {"sdk_version": sdk, "runtime_version": runtime, "expected_source_commit": NATIVE_SOURCE_COMMIT,
+                "profile": "sdk", "launch_executable": launch[0], "launch_paths": list(launch),
+                "user_questions_api_available": True,
+                "sdk_resume_api_available": callable(getattr(DeepSeekHarness, "resume_session", None)),
+                "supports_resume": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
+                "per_session_cancel": False, "model_started": False}
+    except (ImportError, FileNotFoundError) as exc:
+        raise CloudBlocked("SDK_UNAVAILABLE", "Pinned native SDK/runtime cannot be loaded") from exc
 
 
 def run_official_sdk(config: dict, prompt: str, *, on_notification=None, before_prompt=None, on_phase=None):

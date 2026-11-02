@@ -250,6 +250,7 @@ function taskPage(status, options = {}) {
     if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice" };
     if (name === "@/app/projects/[projectId]/cloud/task-form") return { CloudTaskForm: "CloudTaskForm" };
     if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
+    if (name === "./live-questions-panel") return { LiveQuestionsPanel: "LiveQuestionsPanel" };
     if (name === "./delete-task") return { CloudTaskDelete: "CloudTaskDelete" };
     return require(name);
   } });

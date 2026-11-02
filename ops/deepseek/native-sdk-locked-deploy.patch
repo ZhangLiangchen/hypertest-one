@@ -1,0 +1,28 @@
+diff --git a/scripts/build-exe-for-python-sdk.ts b/scripts/build-exe-for-python-sdk.ts
+index 447c98ff14..dbfd3e3224 100644
+--- a/scripts/build-exe-for-python-sdk.ts
++++ b/scripts/build-exe-for-python-sdk.ts
+@@ -9,0 +10 @@ import { createHash } from 'node:crypto'
++import { load as parseYaml } from 'js-yaml'
+@@ -311 +312,3 @@ class SingleExeBuild {
+-      '--legacy',
++      '--config.inject-workspace-packages=true',
++      '--config.strict-dep-builds=false',
++      '--config.node-linker=hoisted',
+@@ -315,2 +317,0 @@ class SingleExeBuild {
+-      '--config.node-linker=hoisted',
+-      '--config.auto-install-peers=false',
+@@ -323,0 +325,10 @@ class SingleExeBuild {
++    // Verify every deployed registry package against the pinned workspace lock.
++    const originalLock = parseYaml(await readFile(join(root, 'pnpm-lock.yaml'), 'utf8')) as { packages: Record<string, { resolution?: unknown }> }
++    const deployedLock = parseYaml(await readFile(join(this.staging, 'pnpm-lock.yaml'), 'utf8')) as { packages: Record<string, { resolution?: unknown }> }
++    for (const [key, value] of Object.entries(deployedLock.packages ?? {})) {
++      if (key.includes('@file:')) continue
++      if (!originalLock.packages?.[key] || JSON.stringify(value.resolution) !== JSON.stringify(originalLock.packages[key].resolution))
++        throw new Error(`deployed package differs from locked identity: ${key}`)
++    }
++    // The sole ignored workspace script has been reviewed: it only chmods node-pty's helper.
++    await this.run('approved subprocess helper', process.execPath, [join(this.staging, 'node_modules/@deepseek-ai/dsh-subprocess-local/scripts/ensure-spawn-helper.mjs')])
+@@ -358 +369 @@ class SingleExeBuild {
+-    await deduplicateStagedWorkspacePackages(this.staging, root)
++    await deduplicateStagedWorkspacePackages(this.staging, this.staging)

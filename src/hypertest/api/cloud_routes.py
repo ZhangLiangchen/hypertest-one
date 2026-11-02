@@ -2,7 +2,9 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.cloud_schemas import PROFILE, CloudMutation
@@ -207,4 +209,67 @@ async def directory(project_id: UUID, request: Request,
         provider=provider, offset=offset, limit=limit)
     for item in result["items"]:
         item["id"] = item["task_id"]
+    return result
+
+
+class LiveAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    project_id: UUID
+    operation_key: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+    answers: list[dict] = Field(default_factory=list, max_length=20)
+    cancelled: bool = False
+
+
+@router.get("/cloud/tasks/{task_id}/live-questions")
+@controlled_errors
+async def list_live_questions(task_id: UUID, project_id: UUID, request: Request, response: Response,
+    authorization: str | None = Header(default=None), x_hypertest_operator_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db)):
+    from hypertest.application import cloud_live_questions as live_questions
+    from hypertest.domain.cloud_tasks import CloudLiveQuestion
+    await identity(request, db, project_id, "cloud:read", authorization, x_hypertest_operator_key)
+    task = await service._task(db, task_id, project_id)
+    rows = (await db.scalars(select(CloudLiveQuestion).where(CloudLiveQuestion.project_id == project_id,
+        CloudLiveQuestion.task_id == task_id).order_by(CloudLiveQuestion.created_at, CloudLiveQuestion.id))).all()
+    attempt = await service._attempt(db, task, task.latest_attempt_id) if task.latest_attempt_id else None
+    result = [live_questions.projected(row, bool(attempt and await live_questions.live(db, task, attempt, row))) for row in rows]
+    response.headers["Cache-Control"] = "no-store"
+    return {"items": result}
+
+
+@router.post("/cloud/tasks/{task_id}/live-questions/{question_id}/answer")
+@controlled_errors
+async def answer_live_question(task_id: UUID, question_id: UUID, body: LiveAnswer, request: Request,
+    authorization: str | None = Header(default=None), x_hypertest_operator_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db)):
+    from hypertest.application import cloud_live_questions as live_questions
+    from hypertest.domain.cloud_tasks import CloudLiveQuestion
+    actor, _, _ = await identity(request, db, body.project_id, "cloud:control", authorization, x_hypertest_operator_key, lock=True)
+    task, attempt = await live_questions.task_attempt(db, body.project_id, task_id)
+    row = await live_questions.fetch_row(db, task, attempt, question_id)
+    answer = {"answers": body.answers, "cancelled": body.cancelled}
+    digest = service.canonical_json_sha256(answer)
+    if row.answer_operation_key is not None:
+        if row.answer_operation_key != body.operation_key or row.answer_digest != digest or row.answered_by != actor:
+            raise HTTPException(409, "Live question already answered")
+        return live_questions.projected(row, await live_questions.live(db, task, attempt, row))
+    other = await db.scalar(select(CloudLiveQuestion.id).where(CloudLiveQuestion.project_id == body.project_id,
+        CloudLiveQuestion.answer_operation_key == body.operation_key, CloudLiveQuestion.id != row.id))
+    if other is not None:
+        raise HTTPException(409, "Live answer operation key conflicts")
+    if row.status != "OPEN" or not await live_questions.live(db, task, attempt, row):
+        raise HTTPException(409, "Live question expired or fenced")
+    live_questions.validate_answer(row.questions, answer)
+    await service._reject_secrets(db, task.project_id, answer)
+    if not await live_questions.live(db, task, attempt, row):
+        raise HTTPException(409, "Live question expired or fenced")
+    row.answer, row.answer_operation_key, row.answer_digest, row.answered_by = answer, body.operation_key, digest, actor
+    row.status = "ANSWERED"
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "Live answer operation key conflicts") from None
+    result = live_questions.projected(row, True)
+    await db.commit()
     return result

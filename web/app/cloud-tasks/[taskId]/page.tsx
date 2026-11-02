@@ -15,6 +15,7 @@ import { useCloudOperation } from "@/lib/cloud-operation";
 import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument } from "@/lib/run-polling";
 import { useI18n } from "@/lib/i18n";
 import { CloudTaskRecords } from "./records";
+import { LiveQuestionsPanel } from "./live-questions-panel";
 import { CloudTaskForm } from "@/app/projects/[projectId]/cloud/task-form";
 import { CloudTaskDelete } from "./delete-task";
 import type { CloudTask } from "@/lib/cloud";
@@ -150,6 +151,8 @@ export default function CloudTaskPage() {
         description: <span className={`cloud-flow-state cloud-flow-state-${phaseStates[index].tone}`}>{phaseStates[index].text}</span> }))} />
       {step < 0 ? <p className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</p> : null}
     </section>
+    {attempt ? <LiveQuestionsPanel key={`${projectId}:${taskId}:${attempt.id}`} projectId={projectId} taskId={taskId} attemptId={attempt.id}
+      running={status === "RUNNING" && attempt.status === "RUNNING"} blocked={blocked || live.isError} /> : null}
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
         <div className="cloud-task-control-grid">

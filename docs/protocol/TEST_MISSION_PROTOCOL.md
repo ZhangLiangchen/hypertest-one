@@ -1777,3 +1777,10 @@ CREATE 固定配对上下文，APPROVE 固定实际授权，REDEEM 绑定该批�
 ### Cloud 原动作只读恢复
 
 已发送动作处于 `RECOVERY_REQUIRED` 时，Operator 可用独立 `AUTHORIZE_ACTION_OBSERVATION` 请求固定原 Task、Attempt、identity 和原 operation key。该请求仅授权 Worker 私有观察五分钟，旧 writer 必须已 fenced 且原容器有可信停止记录。Worker 只取受限只读凭据，按原 client ID 请求冻结订单路径并使用固定适配器独立核对；不接受 Agent 提供的 ID、URL、响应或终态，不授予签名、POST、重发或其他动作权。状态 UNKNOWN 或验证不全继续保持 HELD；业务终态、独立链上 receipt 和实际到账分别报告。观察失败只返回固定阶段代码，不返回认证、地址或响应内容。
+
+
+## 52. Cloud 原生 SDK 活提问
+
+宿主薄 Worker 对运行中的根 SDK session 接收原生用户提问，通过私有有界双向通道与 SDK 子进程交互；该子进程不获得平台令牌、数据库或 Worker lease。Worker 使用本次 Attempt 的 work token 和 generation 提交原 request/session ID、原问题数组及截止时间，查询与回应都受同一执行权 fence。页面通过独立活问题接口轮询，保留题目、选项和自由文本，不把回答当作测试结论或授权扩展。
+
+网页发送前持久化原 operation key 和回答摘要，不保存回答正文；失答只读取该原问题并核对同一 key 与摘要，不自动重发、换 key 或将回答交给另一进程。服务端原子记录一次回答，Worker 原子领取一次；领取后若传输或进程状态未知，保留 UNKNOWN，不重投。SDK 取消、到期、任务终结或执行权丢失后拒绝迟到回答。DELIVERED 是本地回调已取走回答的观察，SDK runtime 和 Agent 是否接收仍未确认。旧 REQUEST_INPUT / WAITING_INPUT 为停止后的独立合同，不可伪装为实时续接；SDK 进程退出后的会话恢复仍不支持。
