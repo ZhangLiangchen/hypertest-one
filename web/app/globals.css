@@ -676,10 +676,30 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cli-section-description { margin: 0; color: var(--ht-muted); font-size: 13px; line-height: 1.6; }
 
 /* Cloud task directory: keep the execution boundary close, and the records easy to scan. */
-.cloud-capabilities-compact .ant-alert-message { margin-bottom: 4px; font-weight: 600; }
-.cloud-worker-notice { margin: 0; line-height: 1.6; }
-.cloud-capabilities-details summary { width: fit-content; padding: 3px 0; color: #225d83; cursor: pointer; font-weight: 500; }
-.cloud-capabilities-details > div { max-width: 100ch; padding: 12px 0 2px; }
+.cloud-capabilities { padding: 20px 24px 16px; border: 1px solid var(--ht-line); border-radius: var(--ht-radius-surface); background: var(--ht-surface); }
+.cloud-capabilities-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.cloud-capabilities-header h2 { margin: 0; color: var(--ht-ink); font-size: 17px; font-weight: 600; line-height: 1.5; }
+.cloud-capabilities-header p { margin: 3px 0 0; color: var(--ht-muted); font-size: 12px; }
+.cloud-capabilities-worker, .cloud-capability-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.cloud-capabilities-worker { padding: 6px 10px; border-radius: 8px; background: #f2f7f4; color: #20613d; white-space: nowrap; }
+.cloud-capabilities-worker.is-disabled { background: #fff8df; color: #805507; }
+.cloud-capabilities-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.cloud-worker-notice { margin: 16px 0 0; padding: 10px 12px; border-radius: 8px; background: #fffcf3; color: #805507; font-size: 13px; line-height: 1.6; }
+.cloud-capabilities-agents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18px; padding: 16px 0; border-top: 1px solid var(--ht-line); border-bottom: 1px solid var(--ht-line); }
+.cloud-capability-agent { min-width: 0; padding: 0 24px; border-left: 1px solid var(--ht-line); }
+.cloud-capability-agent:first-child { padding-left: 0; border-left: 0; }
+.cloud-capability-agent-name { display: flex; align-items: baseline; gap: 10px; color: var(--ht-ink); font-size: 14px; font-weight: 600; }
+.cloud-capability-agent-name span { color: var(--ht-muted); font-size: 12px; font-weight: 400; }
+.cloud-capability-status { margin-top: 8px; }
+.cloud-capability-status.is-ready { color: #22734c; }
+.cloud-capability-status.is-partial { color: #805507; }
+.cloud-capability-status.is-unavailable { color: #a53338; }
+.cloud-capability-status.is-unknown { color: var(--ht-muted); }
+.cloud-capabilities-details { margin-top: 12px; font-size: 12px; }
+.cloud-capabilities-details summary { width: fit-content; color: #225d83; cursor: pointer; font-weight: 500; line-height: 1.7; }
+.cloud-capabilities-details summary:focus-visible { outline: 3px solid var(--ht-accent); outline-offset: 3px; border-radius: 3px; }
+.cloud-capabilities-details > div { max-width: 100ch; padding-top: 8px; color: var(--ht-muted); line-height: 1.7; }
+.cloud-capabilities-details p { margin: 0 0 8px; }
 .cloud-task-list-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; }
 .cloud-task-list-header > div { min-width: 0; }
 .cloud-task-list-header > .ant-btn { flex-shrink: 0; }

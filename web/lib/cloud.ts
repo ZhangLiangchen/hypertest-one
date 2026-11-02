@@ -27,7 +27,7 @@ export type CloudReceipt = { status: string; profile: string; project_id: string
 export type CloudMutation = { profile: string; project_id: string; operation_key: string; expected_version: number; operation: string; [key: string]: unknown };
 export type CloudPending = { project_id: string; operation_key: string; expected_version: number; operation: string; task_id?: string; attempt_id?: string; digest: string; state: "SENT" | "UNKNOWN" };
 export type CloudCapabilities = { enabled?: boolean; worker_enabled?: boolean;
-  supported?: { codex_delegation?: boolean; claude_code_delegation?: boolean; ssh_fixed_diagnostics?: boolean; ssh_profile?: string; resume_attempt?: boolean; reconcile_attempt?: boolean };
+  supported?: { root_agent?: boolean; codex_delegation?: boolean; claude_code_delegation?: boolean; ssh_fixed_diagnostics?: boolean; ssh_profile?: string; resume_attempt?: boolean; reconcile_attempt?: boolean };
   recovery?: { resume_supported?: boolean; resume_reason?: string; reconcile_supported?: boolean; reconciliation_source?: string; independent_stop_proof?: boolean; budget_disposition?: string };
   configuration?: { codex_enabled?: boolean; ssh_fixed_diagnostics_enabled?: boolean };
   admission?: { state?: string; scope?: string }; [key: string]: unknown };

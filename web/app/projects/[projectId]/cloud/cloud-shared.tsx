@@ -85,25 +85,55 @@ export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked,
   </div>;
 }
 
-export function CloudCapabilitiesNotice({ configured, capabilities, compact = false }: { configured: boolean; capabilities?: CloudCapabilities; compact?: boolean }) {
+export function CloudCapabilitiesNotice({ configured, capabilities }: { configured: boolean; capabilities?: CloudCapabilities; compact?: boolean }) {
   const { t } = useI18n();
   if (!configured) return <Alert showIcon type="info" message={t("Cloud Web setup required", "需要配置云端 Web 访问")}
     description={t("The deployment operator must enable the Cloud Web boundary and configure its server-side authorization. Existing Local tasks remain available.", "部署操作者需启用云端 Web 入口并配置服务端授权。现有 Local 任务仍可使用。")} />;
   if (!capabilities) return <Alert showIcon type="warning" message={t("Cloud capabilities have not been read", "尚未读取云端能力")} description={t("Refresh and check server authorization if this persists. Your inputs remain available; no execution is submitted by a capability read.", "请刷新；若持续失败，请核对服务端授权。保留当前输入，能力读取不会下发执行。")} />;
   if (!capabilities?.enabled) return <Alert showIcon type="info" message={t("Cloud dispatch is disabled", "云端下发尚未启用")}
     description={t("Previously saved records remain readable. Resource changes and new execution require the deployment operator to enable Cloud.", "已保存记录仍可读取；修改资源和新增执行需要部署操作者启用 Cloud。")} />;
-  const details = <><Typography.Paragraph style={{ marginBottom: 8 }}>{t("DeepSeek Harness uses the official Python SDK to work with HTTPS repositories and workspace-local project tests. Claude Code is reserved for future configuration; general remote shell and CI are unavailable.", "DeepSeek Harness 通过官方 Python SDK 处理 HTTPS 仓库及工作区内项目测试。Claude Code 保留占位；通用远端 Shell 和 CI 尚不可用。")}</Typography.Paragraph>
-      <Tag>{t("Project framework", "项目原有框架")}</Tag><Tag>{t("Workspace-local", "工作区内执行")}</Tag>
-      {capabilities.supported?.codex_delegation ? <Tag>{capabilities.configuration?.codex_enabled ? t("Codex delegation enabled", "Codex 委派已启用") : t("Codex delegation implemented · disabled", "Codex 委派已实现 · 未启用")}</Tag> : null}
-      <Typography.Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{capabilities.recovery?.resume_supported === true
-        ? t("Runtime resume capability is reported; the original session, workspace and unresolved operations still require explicit verification.", "运行端声明具有续接能力；原会话、工作区和未决操作仍须显式核验。")
-        : t("Original SDK session resume is unavailable. Cancellation, original-key reconciliation and authorized manual closure remain separate controls; closing an attempt does not release HELD budget.", "当前不支持原 SDK 会话续接。请求取消、原 key 对账和有权人工收尾是独立操作；人工收尾不释放 HELD 预算。")}</Typography.Paragraph>
-      {capabilities.supported?.ssh_fixed_diagnostics ? <Typography.Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{t("A separate fixed SSH diagnostics profile is implemented. It requires an exact approved configuration and does not authorize staging SSH or 166dev cloud execution.", "独立的固定 SSH 诊断配置已实现，需要确切的受权配置；不授权 staging SSH 或 166dev 云端执行。")}</Typography.Paragraph> : null}
-      <Typography.Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{t("These are configured capabilities. Provider authentication and real execution are verified separately for each task.", "这里显示配置能力；模型身份与真实执行按每个任务分别核验。 ")}</Typography.Paragraph>
-      {!compact && !capabilities.worker_enabled ? <Typography.Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{t("The Cloud worker is disabled. You can prepare inputs; dispatch stays disabled until a worker is enabled.", "Cloud Worker 尚未启用。可以准备输入，启用 Worker 后才能下发。")}</Typography.Paragraph> : null}</>;
-  return <Alert showIcon type="info" className={compact ? "cloud-capabilities-compact" : undefined} message={t("Current execution boundary", "当前执行能力")}
-    description={compact ? <>
-      {!capabilities.worker_enabled ? <p className="cloud-worker-notice">{t("The Cloud worker is disabled. You can prepare inputs; dispatch stays disabled until a worker is enabled.", "Cloud Worker 尚未启用。可以准备输入，启用 Worker 后才能下发。")}</p> : null}
-      <details className="cloud-capabilities-details"><summary>{t("View execution capabilities", "查看执行能力说明")}</summary><div>{details}</div></details>
-    </> : details} />;
+  type CapabilityTone = "ready" | "partial" | "unavailable" | "unknown";
+  const supported = capabilities.supported;
+  const rootTone: CapabilityTone = supported?.root_agent === true ? "ready" : supported?.root_agent === false ? "unavailable" : "unknown";
+  const codexTone: CapabilityTone = supported?.codex_delegation === false ? "unavailable"
+    : supported?.codex_delegation !== true ? "unknown"
+      : capabilities.configuration?.codex_enabled === true ? "ready" : capabilities.configuration?.codex_enabled === false ? "partial" : "unknown";
+  const claudeTone: CapabilityTone = supported?.claude_code_delegation === true ? "partial" : supported?.claude_code_delegation === false ? "unavailable" : "unknown";
+  const unknown = t("Unknown", "状态未知");
+  const agents = [
+    { name: "DeepSeek Harness", role: t("Root agent", "主 Agent"), tone: rootTone,
+      status: rootTone === "ready" ? t("Adapted", "已适配") : rootTone === "unavailable" ? t("Not supported", "暂未支持") : unknown },
+    { name: "Codex", role: t("Delegation", "委派"), tone: codexTone,
+      status: codexTone === "ready" ? t("Delegation enabled", "委派已启用") : codexTone === "partial" ? t("Implemented · not enabled", "已实现 · 未启用") : codexTone === "unavailable" ? t("Not supported", "暂未支持") : unknown },
+    { name: "Claude Code", role: t("Delegation", "委派"), tone: claudeTone,
+      status: claudeTone === "partial" ? t("Implemented", "已实现") : claudeTone === "unavailable" ? t("Not supported", "暂未支持") : unknown },
+  ];
+  return <section className="cloud-capabilities" aria-labelledby="cloud-capabilities-heading">
+    <div className="cloud-capabilities-header">
+      <div><h2 id="cloud-capabilities-heading">{t("Current execution capabilities", "当前执行能力")}</h2>
+        <p>{t("Agent integration", "Agent 适配")}</p></div>
+      <span className={`cloud-capabilities-worker ${capabilities.worker_enabled === true ? "is-enabled" : "is-disabled"}`}>
+        <span className="cloud-capabilities-dot" aria-hidden="true" />
+        {capabilities.worker_enabled === true ? t("Worker enabled", "Worker 已启用") : capabilities.worker_enabled === false ? t("Worker disabled", "Worker 未启用") : t("Worker status unknown", "Worker 状态未知")}
+      </span>
+    </div>
+    {!capabilities.worker_enabled ? <p className="cloud-worker-notice">{t("The Cloud worker is disabled or its configuration is unknown. You can prepare inputs; dispatch requires an enabled worker.", "Cloud Worker 未启用或配置状态未知。可以准备输入；下发需要启用 Worker。")}</p> : null}
+    <div className="cloud-capabilities-agents" aria-label={t("Agent integration status", "Agent 适配状态")}>
+      {agents.map((agent) => <div className="cloud-capability-agent" key={agent.name}>
+        <div className="cloud-capability-agent-name">{agent.name}<span>{agent.role}</span></div>
+        <div className={`cloud-capability-status is-${agent.tone}`}><span className="cloud-capabilities-dot" aria-hidden="true" />{agent.status}</div>
+      </div>)}
+    </div>
+    <details className="cloud-capabilities-details">
+      <summary>{t("View execution capability details", "查看执行能力说明")}</summary>
+      <div>
+        <p>{t("DeepSeek Harness uses the official Python SDK with HTTPS repositories and workspace-local project tests. Codex is an optional delegation path in the existing integration; the native profile currently connects only the official DeepSeek provider. General remote shell and CI are unavailable.", "DeepSeek Harness 通过官方 Python SDK 处理 HTTPS 仓库及工作区内的项目测试。Codex 是现有集成中的可选委派路径；原生模式目前仅接通 DeepSeek 官方 provider。通用远端 Shell 和 CI 尚不可用。")}</p>
+        <p>{capabilities.recovery?.resume_supported === true
+          ? t("A reported resume capability does not verify the original session, workspace or unresolved operations.", "运行端声明可续接，不代表原会话、工作区及未决操作已核验。")
+          : t("The original SDK session cannot be resumed. Cancellation, original-key reconciliation and authorized manual closure are separate; closure does not release HELD budget.", "当前不支持原 SDK 会话续接。取消、原 key 对账与有权人工收尾相互独立；人工收尾不会释放 HELD 预算。")}</p>
+        {supported?.ssh_fixed_diagnostics ? <p>{t("The separate fixed SSH diagnostics profile requires exact authorization; it does not authorize staging SSH or 166dev cloud execution.", "独立的固定 SSH 诊断配置需要确切授权；不授权 staging SSH 或 166dev 云端执行。")}</p> : null}
+        <p>{t("These indicators describe implementation and configuration, not Worker health. Provider authentication and execution are checked for each task.", "状态灯表示实现与配置情况，并非 Worker 健康检查；模型身份和真实执行按任务分别核验。")}</p>
+      </div>
+    </details>
+  </section>;
 }
