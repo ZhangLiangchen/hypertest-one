@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from hypertest.api.archive_routes import router as archive_router
 from hypertest.api.cli_authorization_routes import router as cli_authorization_router
 from hypertest.api.cloud_routes import router as cloud_router
+from hypertest.api.cloud_worker_routes import router as cloud_worker_router
 from hypertest.api.connector_routes import router as connector_router
 from hypertest.api.interactive_routes import router as interactive_router
 from hypertest.api.memory_routes import router as memory_router
@@ -45,6 +46,7 @@ app.include_router(interactive_router, prefix=settings.api_prefix)
 
 app.include_router(native_router, prefix=settings.api_prefix)
 app.include_router(cloud_router, prefix=settings.api_prefix)
+app.include_router(cloud_worker_router, prefix=settings.api_prefix)
 
 app.include_router(memory_router, prefix=settings.api_prefix)
 

@@ -158,11 +158,10 @@ export function CloudCapabilitiesNotice({ configured, capabilities, authStatus }
     <details className="cloud-capabilities-details">
       <summary>{t("View execution capability details", "查看执行能力说明")}</summary>
       <div>
-        <p>{t("DeepSeek Harness uses the official Python SDK with HTTPS repositories and workspace-local project tests. Codex is an optional delegation path in the existing integration; the native profile currently connects only the official DeepSeek provider. General remote shell and CI are unavailable.", "DeepSeek Harness 通过官方 Python SDK 处理 HTTPS 仓库及工作区内的项目测试。Codex 是现有集成中的可选委派路径；原生模式目前仅接通 DeepSeek 官方 provider。通用远端 Shell 和 CI 尚不可用。")}</p>
+        <p>{t("The configured Harness performs the testing work using the project’s tools. Actual access and execution depend on the connected runtime and its configuration.", "已配置的 Harness 使用项目工具完成测试工作；实际访问和执行取决于所连接的运行环境及其配置。")}</p>
         <p>{capabilities.recovery?.resume_supported === true
           ? t("A reported resume capability does not verify the original session, workspace or unresolved operations.", "运行端声明可续接，不代表原会话、工作区及未决操作已核验。")
           : t("The original SDK session cannot be resumed. Cancellation, original-key reconciliation and authorized manual closure are separate; closure does not release HELD budget.", "当前不支持原 SDK 会话续接。取消、原 key 对账与有权人工收尾相互独立；人工收尾不会释放 HELD 预算。")}</p>
-        {supported?.ssh_fixed_diagnostics ? <p>{t("The separate fixed SSH diagnostics profile requires exact authorization; it does not authorize staging SSH or 166dev cloud execution.", "独立的固定 SSH 诊断配置需要确切授权；不授权 staging SSH 或 166dev 云端执行。")}</p> : null}
         <p>{t("Integration and authentication are separate. Authentication status describes the observation at the time shown and can change; it does not guarantee Worker health or a successful test. Task execution is verified separately.", "适配与认证分别显示。认证状态仅反映所示时间的观察结果，可能随时变化；不代表 Worker 健康或测试通过。任务执行仍需单独核验。")}</p>
       </div>
     </details>

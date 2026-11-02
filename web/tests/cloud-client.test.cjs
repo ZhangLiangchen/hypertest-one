@@ -80,7 +80,9 @@ test("Repository selectors reject embedded credentials and freeze complete SHA o
   const { credentialFreeUrl, cloudSelector } = helpers();
   assert.equal(credentialFreeUrl("https://git.example.org/team/repo.git"), true);
   assert.equal(credentialFreeUrl("ssh://git@git.example.org/team/repo.git"), true);
-  for (const url of ["https://token@git.example.org/team/repo", "https://user:secret@git.example.org/team/repo", "file:///tmp/repo", "https://git.example.org/repo?token=secret"]) assert.equal(credentialFreeUrl(url), false);
+  assert.equal(credentialFreeUrl("ssh://alice@git.example.org/team/repo.git"), true);
+  assert.equal(credentialFreeUrl("git@git.example.org:team/repo.git"), true);
+  for (const url of ["https://token@git.example.org/team/repo", "https://user:secret@git.example.org/team/repo", "ssh://git:secret@git.example.org/team/repo", "ssh://git:@git.example.org/team/repo", "git@git.example.org:repo with spaces", "git.example.org:team/repo", "file:/tmp/repo", "file:///tmp/repo", "https://git.example.org/repo?token=secret"]) assert.equal(credentialFreeUrl(url), false);
   assert.equal(cloudSelector("SHA", "a".repeat(40)).value, "a".repeat(40));
   assert.throws(() => cloudSelector("SHA", "abcdef"));
   assert.throws(() => cloudSelector("BRANCH", "--upload-pack=command"));

@@ -1,5 +1,7 @@
 # HyperTest Technical Architecture
 
+> **2026-11-02 Cloud 方向：** [ADR-032](ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 将轻量 Worker 与 Harness 适配器作为快速原型的目标交付；现有容器路径在替换部署前仍为运行事实。未来以全容器化强化项目资源隔离。
+
 > **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
 
 **阅读范围（2026-10-27 起）：** 新 Local 采用 [ADR-027](ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与本文 §50 的显式 Skill/CLI 归档架构；领域 §56、TMP §51 分别拥有字段和协议。下文 ADR-018/020/024/026 的 SessionTask、Hooks/MCP、BIND/JOIN 与对应部署状态只描述旧 profile 或当时快照，仍约束其历史与恢复，不是新 Local 的接入前提。交付状态见 [TODO](../TODO.md) 和交付记录；实际运行状态需单独核实。

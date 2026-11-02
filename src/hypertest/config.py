@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # ADR-019: independent opt-in Cloud worker; no Local authorization coupling.
     cloud_enabled: bool = False
     cloud_worker_enabled: bool = False
+    # Dedicated host Worker bootstrap identity; unrelated to Operator / DB keys.
+    # Empty disables the host Worker API until explicitly provisioned.
+    cloud_worker_api_token_file: str = ""
+    cloud_worker_api_worker_id: str = ""
     # Docker execution and side-effecting actions require separate explicit opt-ins.
     cloud_docker_enabled: bool = False
     cloud_container_intents_enabled: bool = False

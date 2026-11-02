@@ -47,16 +47,18 @@ def _parse_selection(data: bytes) -> dict:
     return result
 
 
-def read_native_selection(*, dsh_home: str, cwd: str) -> dict:
+def read_native_selection(*, dsh_home: str, cwd: str, environment: dict[str, str] | None = None) -> dict:
     """Project SDK profile selection using the pinned runtime, with no prompt."""
     from deepseek_harness_runtime import resolve_bundled_launch_args
 
     process = None
     try:
         command = [*resolve_bundled_launch_args(), "--profile", "sdk", "--dump-config"]
-        # No ambient credentials are passed in this diagnostic process.
-        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(Path(dsh_home).parent),
-               "DSH_HOME": dsh_home, "LANG": "C.UTF-8"}
+        # Existing isolated callers receive a minimal environment. The host
+        # driver may explicitly supply its already filtered native environment.
+        env = ({"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(Path(dsh_home).parent),
+                "LANG": "C.UTF-8"} if environment is None else dict(environment))
+        env["DSH_HOME"] = dsh_home
         process = subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         assert process.stdout is not None

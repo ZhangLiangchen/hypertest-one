@@ -112,13 +112,17 @@ class CloudSyncAdapter:
                                   | {("LOG", ref) for ref in payload["log_artifact_ids"]})
             if observed_cases != expected_cases or observed_artifacts != expected_artifacts:
                 raise SyncError("CLOUD_RUN_READBACK_MISMATCH")
-        if payload["operation"] == "COMPLETE_ATTEMPT":
+        if payload["operation"] in {"COMPLETE_ATTEMPT", "COMPLETE_NATIVE_ATTEMPT"}:
             checkpoint = attempt["checkpoint"]
             if (task.get("status") != "COMPLETED" or attempt.get("status") != "COMPLETED"
                     or task.get("reported_result") != payload["reported_result"]
                     or attempt.get("reported_result") != payload["reported_result"]
                     or checkpoint.get("final_report_revision") != payload["final_report_revision"]
                     or checkpoint.get("completion_manifest") != payload["completion_manifest"]):
+                raise SyncError("CLOUD_COMPLETION_READBACK_MISMATCH")
+            if payload["operation"] == "COMPLETE_NATIVE_ATTEMPT" and checkpoint.get("native_completion_observation") != {
+                "runtime": "DIRECT_SDK_PROCESS_EXITED", "other_local_processes": "UNKNOWN",
+                "external_operations": "NOT_OBSERVED"}:
                 raise SyncError("CLOUD_COMPLETION_READBACK_MISMATCH")
         return document
 
@@ -198,6 +202,43 @@ class CloudTaskReporter:
             if not result.synced:
                 raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original report requires receipt/readback reconciliation")
             self.version = result.receipt["version"]
+
+    async def submit_native_completion(self, handoff: Handoff, handoff_digest: str, *, usage_seconds: int):
+        """Accept a report after direct SDK exit without asserting host-wide cleanup."""
+        if handoff.operation != "COMPLETE_ATTEMPT":
+            raise CloudBlocked("NATIVE_HANDOFF_INVALID", "Native completion requires the original completion handoff")
+        key = "c:" + digest([self.broker.attempt_id, handoff.key])
+        previous = self.journal.get(self.namespace, key)
+        if previous:
+            intent = self.snapshots.load(self.namespace, key)
+            if intent.target["handoff_digest"] != handoff_digest:
+                raise CloudBlocked("HANDOFF_CHANGED", "A published handoff cannot change")
+        else:
+            if self.pending():
+                raise CloudBlocked("REPORT_STREAM_PENDING", "Reconcile the original pending report first")
+            self.prevalidate_handoff(handoff, handoff_digest)
+            payload = dict(handoff.payload)
+            if {"runtime_observation", "budget_settlement", "budget_reservation", "usage_seconds", "cost_microunits"} & payload.keys():
+                raise CloudBlocked("HANDOFF_AUTHORITY_OVERRIDE", "Only the Worker supplies runtime observations")
+            manifest = payload.get("completion_manifest")
+            if not isinstance(manifest, dict) or manifest.get("pending_operation_keys"):
+                raise CloudBlocked("NATIVE_COMPLETION_UNRESOLVED", "Pending operations require original-key reconciliation")
+            payload["completion_manifest"] = {**manifest, "all_local_processes_stopped": False,
+                                               "external_operations_reconciled": False}
+            native = Handoff(profile=handoff.profile, task_id=handoff.task_id, attempt_id=handoff.attempt_id,
+                key=handoff.key, operation="COMPLETE_NATIVE_ATTEMPT", payload=payload)
+            request = self._typed_request(native, {**payload, "usage_seconds": usage_seconds, "cost_microunits": 0,
+                "runtime_observation": "DIRECT_SDK_PROCESS_EXITED"}, handoff_digest)
+            await self.broker.validate_payload(request)
+            intent = FrozenIntent(self.namespace, key,
+                {"project_id": self.broker.project_id, "task_id": self.broker.task_id,
+                 "attempt_id": self.broker.attempt_id, "generation": self.broker.identity.generation,
+                 "handoff_key": handoff.key, "handoff_digest": handoff_digest}, request, self.version)
+            self.snapshots.save(intent)
+        result = await self.core.deliver(intent)
+        if result.synced:
+            self.version = result.receipt["version"]
+        return result
 
     async def submit_handoff(self, handoff: Handoff, handoff_digest: str, *,
                              usage_seconds=0, cost_microunits=0, runtime_stopped=False,

@@ -1,5 +1,7 @@
 # HyperTest Domain Model & State Machine Specification
 
+> **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定快速原型的宿主 Worker 模式，取代 §51 中与之冲突的任务容器准入；目标合同和实际交付分别记录。
+
 > **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
 
 **阅读范围（2026-10-27 起）：** 新 Local 归档的字段、关系、版本和状态由本文 §56 及 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 约束；协议与组件分别见 TMP §51、技术架构 §50。§50 的 SessionTask 与 ADR-024/026 的绑定和协作继续约束旧 profile 及历史，不是新归档前提。下文部署、发行与验收叙述记录各自时点，不能作为当前运行状态；交付和待办见 [TODO](../TODO.md) 及对应记录。
@@ -2333,6 +2335,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 所有 FK 默认 ON DELETE RESTRICT；跨表引用检查同 Project/Task/Attempt 归属，Asset 的 source Attempt 不能挂到另一任务，CloudRunCase 的 case 不能挂到另一项目。Task 输入、修订、终结 Attempt、Run、Artifact、回执与审计禁止硬删除或回填成功。凭据保留/销毁遵守专门策略；销毁秘密时保留非秘密版本与使用审计，不删除历史归属。运行内容保留期限与受控清理由项目策略明示，不能静默清除未回收产物或恢复 checkpoint。
 
 ### 51.2 项目资源、凭据与授权
+
+ADR-032 轻量宿主 Worker 的原生完成保存 `native_completion_observation.runtime=DIRECT_SDK_PROCESS_EXITED`、`other_local_processes=UNKNOWN` 与 `external_operations=NOT_OBSERVED`，并保留 `external_operations_reconciled=false`。`COMPLETED` 表示显式报告被接受，不证明所有宿主进程或远端工作终止，也不升级 reported result。必须先接受同 Attempt 的原始报告及必需产物；已知未决原 key 拒绝完成，原结果不因重连被重放。旧隔离 profile 的完整进程和外部对账条件不变。
 
 项目可手动登记 SUT Git、framework Git、仓库 token / SSH Git 方式，以及环境地址与连接方式；保存为项目默认供后续任务复用由用户选择。SSH 连接至少记录主机/端口、用户、跳板/网络需求与已核验 host key；不得关闭 host-key 校验。SSH 客户端认证密钥与应用签名/鉴权私钥是不同类型和用途，不可互换。环境连接成功不证明可执行业务动作，也不证明环境部署了目标 SHA。
 

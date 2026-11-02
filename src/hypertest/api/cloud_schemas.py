@@ -67,10 +67,19 @@ class Repository(Input):
     @field_validator("url")
     @classmethod
     def safe_url(cls, value):
+        if any(c.isspace() or ord(c) < 32 for c in value):
+            raise ValueError("Repository URL cannot contain whitespace")
+        # Native Git also accepts scp-style SSH remotes, without embedding a
+        # password, query or local filesystem path in the repository input.
+        if re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[A-Za-z0-9_./~-]+", value):
+            return value
         parsed = urlsplit(value)
-        if parsed.scheme not in {"https", "ssh"} or not parsed.hostname or parsed.password or parsed.query or parsed.fragment:
+        if (parsed.scheme not in {"https", "ssh"} or not parsed.hostname or not parsed.path.strip("/")
+                or parsed.password is not None or parsed.query or parsed.fragment
+                or (parsed.scheme == "ssh" and parsed.username == "")):
             raise ValueError("Repository requires credential-free HTTPS or SSH URL")
-        if parsed.username and (parsed.scheme != "ssh" or parsed.username != "git"):
+        _ = parsed.port  # Reject malformed or out-of-range ports.
+        if parsed.username and (parsed.scheme != "ssh" or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", parsed.username)):
             raise ValueError("Repository URL cannot contain credentials")
         return value
 
@@ -582,4 +591,22 @@ class CloudFinish(AttemptMutation):
     budget_settlement: CloudBudgetSettlement | None = None
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish, Field(discriminator="operation")]
+class CloudNativeFinish(AttemptMutation):
+    """A host-reported delivery, without claiming whole-host or remote isolation."""
+    operation: Literal["COMPLETE_NATIVE_ATTEMPT"] = "COMPLETE_NATIVE_ATTEMPT"
+    final_report_revision: UUID
+    reported_result: Result
+    completion_manifest: CompletionManifest
+    usage_seconds: int = Field(ge=0)
+    cost_microunits: int = Field(ge=0)
+    runtime_observation: Literal["DIRECT_SDK_PROCESS_EXITED"]
+
+    @model_validator(mode="after")
+    def limited_observation(self):
+        manifest = self.completion_manifest
+        if manifest.all_local_processes_stopped or manifest.external_operations_reconciled or manifest.pending_operation_keys:
+            raise ValueError("Native completion must preserve unobserved process and external scope")
+        return self
+
+
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]

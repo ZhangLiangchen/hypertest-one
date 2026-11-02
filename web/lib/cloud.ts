@@ -117,7 +117,16 @@ export function cloudProgressTone(status: string): "blue" | "gold" | "red" | und
 }
 
 export function credentialFreeUrl(value: string): boolean {
-  try { const url = new URL(value); return ["https:", "ssh:"].includes(url.protocol) && !!url.hostname && !url.password && !url.search && !url.hash && (!url.username || (url.protocol === "ssh:" && url.username === "git")); }
+  if (!value || /[\s\x00-\x1f]/.test(value)) return false;
+  if (/^[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[A-Za-z0-9_./~-]+$/.test(value)) return true;
+  try {
+    const url = new URL(value);
+    const authority = value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i)?.[1] || "";
+    const userInfo = authority.includes("@") ? authority.slice(0, authority.lastIndexOf("@")) : null;
+    return ["https:", "ssh:"].includes(url.protocol) && !!url.hostname && !!url.pathname.replace(/^\/+/, "")
+      && !url.password && !url.search && !url.hash
+      && (userInfo === null || (url.protocol === "ssh:" && /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(userInfo)));
+  }
   catch { return false; }
 }
 

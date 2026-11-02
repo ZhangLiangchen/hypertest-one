@@ -9,7 +9,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getProject } from "@/lib/api";
-import { cloudAgentAuthStatus, cloudCapabilities, cloudConfiguration, cloudCredentials, cloudDirectory, cloudProgressTone, cloudSetup } from "@/lib/cloud";
+import { cloudAgentAuthStatus, cloudCapabilities, cloudConfiguration, cloudDirectory, cloudProgressTone, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
@@ -35,12 +35,11 @@ export default function CloudProjectPage() {
   const agentAuth = useQuery({ queryKey: ["cloud-agent-auth-status"], queryFn: cloudAgentAuthStatus, enabled: configured, retry: false,
     refetchInterval: 30_000, refetchIntervalInBackground: false, refetchOnWindowFocus: "always" });
   const configuration = useQuery({ queryKey: ["cloud-config", projectId], queryFn: () => cloudConfiguration(projectId), enabled: configured });
-  const credentials = useQuery({ queryKey: ["cloud-credentials", projectId], queryFn: () => cloudCredentials(projectId), enabled: configured });
   const tasks = useQuery({ queryKey: ["cloud-directory", projectId, "CLOUD", page], queryFn: () => cloudDirectory(projectId, "CLOUD", (page - 1) * 20), enabled: configured });
   const latest = configuration.data?.items.slice().sort((a, b) => b.revision - a.revision)[0];
   useEffect(() => { if (tasks.data && page > Math.max(1, Math.ceil(tasks.data.total / 20))) setPage(Math.max(1, Math.ceil(tasks.data.total / 20))); }, [tasks.data, page]);
   const enabled = capabilities.data?.enabled === true && project.isSuccess && !project.isError && !project.data?.deleted_at;
-  function refresh() { void configuration.refetch(); void credentials.refetch(); void tasks.refetch(); void capabilities.refetch(); void agentAuth.refetch(); }
+  function refresh() { void configuration.refetch(); void tasks.refetch(); void capabilities.refetch(); void agentAuth.refetch(); }
   return <main className="workspace-page">
     <ProjectWorkspaceHeading project={project.data} projectId={projectId} mode="cloud" />
     <ProjectNavigation projectId={projectId} active="cloud" />
@@ -48,7 +47,7 @@ export default function CloudProjectPage() {
     {project.isError || project.data?.deleted_at ? <Alert showIcon type="error" style={{ marginTop: 20 }} message={project.data?.deleted_at ? t("Project is in the recycle bin", "项目已在回收站") : t("Project could not be read", "无法读取项目")}
       description={t("Drafts and loaded records are retained. Return to the project workspace to restore the project or check access before creating or changing Cloud resources.", "保留草稿及已加载记录。请返回项目工作台恢复项目或核对访问权限后，再创建任务或修改云端资源。")}
       action={<Link href={`/projects/${projectId}`}>{t("Open project", "打开项目")}</Link>} /> : null}
-    {setup.isError || capabilities.isError || configuration.isError || credentials.isError || tasks.isError ? <Alert showIcon type="warning" style={{ marginTop: 20 }} message={t("Some Cloud records could not be refreshed", "部分云端记录无法刷新")} description={t("Loaded records and drafts remain visible. Refresh to verify current access and versions.", "已加载记录和草稿保留；请刷新核对当前访问与版本。 ")} /> : null}
+    {setup.isError || capabilities.isError || configuration.isError || tasks.isError ? <Alert showIcon type="warning" style={{ marginTop: 20 }} message={t("Some Cloud records could not be refreshed", "部分云端记录无法刷新")} description={t("Loaded records and drafts remain visible. Refresh to verify current access and versions.", "已加载记录和草稿保留；请刷新核对当前访问与版本。 ")} /> : null}
     <div style={{ marginTop: 24 }}><CloudOperationNotice operation={operation} /></div>
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "tasks", label: t("Project tasks", "项目任务"), children: <section className="cloud-task-list data-surface" aria-labelledby="cloud-task-list-heading">
@@ -63,7 +62,7 @@ export default function CloudProjectPage() {
             { title: t("Version", "版本"), dataIndex: "version" }, { title: t("Updated", "更新时间"), dataIndex: "updated_at", render: (value: string) => formatDate(value) },
           ]} />
       </section> },
-      { key: "resources", label: t("Project resources", "项目资源"), children: <CloudResources key={projectId} project={project.data} latest={latest} credentials={credentials.data?.credentials || []} versions={credentials.data?.versions || []} operation={operation} enabled={enabled} onSaved={refresh} /> },
+      { key: "resources", label: t("Project resources", "项目资源"), children: <CloudResources key={projectId} project={project.data} latest={latest} operation={operation} enabled={enabled} onSaved={refresh} /> },
     ]} />
   </main>;
 }

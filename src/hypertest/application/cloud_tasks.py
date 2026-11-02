@@ -48,7 +48,7 @@ SCOPES = {
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
     "DELETE_TASK": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
     "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
-    "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work",
+    "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work", "COMPLETE_NATIVE_ATTEMPT": "cloud:work",
 }
 ALLOWED = {
     "QUEUED": {"PREPARING", "CANCELLED"},
@@ -96,7 +96,7 @@ async def clock(db):
 
 
 def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=None):
-    """Inherit the local-only access envelope without imposing a task budget."""
+    """Record source-read authorization without setting Harness runtime access."""
     data = inputs.model_dump(mode="json")
     if original is not None:
         if "framework_entrypoints" not in inputs.model_fields_set:
@@ -114,7 +114,7 @@ def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=N
             "targets": list(dict.fromkeys([configuration["sut"]["url"], configuration["framework"]["url"]])),
             "permitted_actions": ["git:read", "framework:execute"],
             "network_targets": [],
-            "side_effect_limits": "Workspace-local test execution; no additional external actions authorized.",
+            "side_effect_limits": "Runtime tools, network access and credentials are managed by the execution environment; preserve unknown external operations.",
             "expires_at": (now + timedelta(days=3650)).isoformat(),
         }
     return data
@@ -412,8 +412,11 @@ def _events(db, project_id, actor_ref, operation, entity_id, response):
 
 
 async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=None, grant_id=None, container_observed=False,
-                 container_recovery=False, container_recovery_secret=None, container_recovery_provisioned=False):
+                 container_recovery=False, container_recovery_secret=None, container_recovery_provisioned=False,
+                 native_worker=False):
     """One immutable key / optimistic version / current authority / transaction."""
+    if payload.operation == "COMPLETE_NATIVE_ATTEMPT" and native_worker is not True:
+        raise HTTPException(403, "CLOUD_NATIVE_WORKER_REQUIRED")
     if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not container_intents_enabled():
         raise HTTPException(503, "CLOUD_CONTAINER_INTENT_UNAVAILABLE")
     if payload.operation in {"CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and container_observed is not True:
@@ -892,15 +895,21 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         _state(task, attempt, "WAITING_INPUT", "Input required", await clock(db))
         await _fence(db, attempt)
         refs = {"question_id": str(question.id)}
-    elif op == "COMPLETE_ATTEMPT":
-        await _finish(db, task, attempt, payload)
+    elif op in {"COMPLETE_ATTEMPT", "COMPLETE_NATIVE_ATTEMPT"}:
+        if op == "COMPLETE_NATIVE_ATTEMPT" and task.inputs.get("budgets") is not None:
+            raise HTTPException(409, "Native completion cannot settle legacy task budgets")
+        await _finish(db, task, attempt, payload, native=op == "COMPLETE_NATIVE_ATTEMPT")
         _usage(attempt, payload.usage_seconds, payload.cost_microunits)
-        if payload.budget_settlement is not None:
+        if getattr(payload, "budget_settlement", None) is not None:
             await _settle_budget(db, attempt, payload, worker)
-        _state(task, attempt, "COMPLETED", "Explicit manifest accepted", await clock(db))
+        _state(task, attempt, "COMPLETED", "Native report accepted; process and external scope unobserved" if op == "COMPLETE_NATIVE_ATTEMPT" else "Explicit manifest accepted", await clock(db))
         attempt.reported_result = task.reported_result = payload.reported_result
         attempt.checkpoint = {**attempt.checkpoint, "final_report_revision": str(payload.final_report_revision),
             "completion_manifest": payload.completion_manifest.model_dump(mode="json")}
+        if op == "COMPLETE_NATIVE_ATTEMPT":
+            attempt.checkpoint = {**attempt.checkpoint, "native_completion_observation": {
+                "runtime": payload.runtime_observation, "other_local_processes": "UNKNOWN", "external_operations": "NOT_OBSERVED"},
+                "external_operations_reconciled": False}
         await _fence(db, attempt)
     else:
         raise HTTPException(422, "Unsupported Cloud operation")
@@ -1241,12 +1250,12 @@ async def _delegation(db, task, attempt, payload, version):
     return {"delegation_id": str(row.id)}
 
 
-async def _finish(db, task, attempt, payload):
+async def _finish(db, task, attempt, payload, *, native=False):
     from .cloud_ssh import ensure_remote_closed
     await ensure_remote_closed(db, task_id=task.id)
     await _ensure_container_closed(db, task.id)
     manifest = payload.completion_manifest
-    if not manifest.all_local_processes_stopped or not manifest.external_operations_reconciled or manifest.pending_operation_keys:
+    if manifest.pending_operation_keys or (not native and (not manifest.all_local_processes_stopped or not manifest.external_operations_reconciled)):
         raise HTTPException(409, "Completion is blocked by active processes or unresolved external operations")
     if attempt.checkpoint.get("pending_operation_keys"):
         raise HTTPException(409, "Runtime checkpoint still contains unresolved operation keys")

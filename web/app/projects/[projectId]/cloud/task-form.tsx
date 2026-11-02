@@ -50,7 +50,6 @@ export function CloudTaskForm({ config: latestConfig, operation, enabled, onCrea
   const configChanged = !!editTask && config?.id !== editTask.config_id;
   const sutKind = Form.useWatch("sut_kind", form) || "BRANCH";
   const frameworkKind = Form.useWatch("framework_kind", form) || "BRANCH";
-  const remote = config?.configuration.environment.connection !== "NONE";
   async function create(values: Values) {
     if (!config || !enabled || operation.blocked) return;
     const title = sharedFields?.title ?? values.title;
@@ -81,7 +80,6 @@ export function CloudTaskForm({ config: latestConfig, operation, enabled, onCrea
     <Typography.Paragraph className="muted">{editTask ? t("The existing resource revision and authorization remain unchanged unless explicitly edited. Review versions again after saving.", "除显式修改外，保留原资源修订及授权；保存后需重新核对版本。") : t("Create the draft, resolve both repository versions, review their exact SHAs, then dispatch. Creating a draft does not start an Agent.", "先创建草稿，再解析双仓版本、核对确切 SHA，最后下发；创建草稿不会启动 Agent。 ")}</Typography.Paragraph>
     {!editTask && latestConfig && latestConfig.id !== config.id ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("This draft retains its selected resource revision", "草稿保留原选定的资源修订")} description={t("Project defaults changed while you were editing. This task will still use the resource revision shown below; your draft has not been replaced.", "编辑期间项目默认配置已变化。本任务仍使用下方显示的资源修订，当前草稿未被替换。 ")} /> : null}
     {project && (project.repository_url !== config.configuration.sut.url || project.test_framework_repository_url !== config.configuration.framework.url) ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Saved Cloud resources differ from project repositories", "已保存的云端资源与项目仓库不同")} description={t("This task uses the saved Cloud resource revision shown below. Update project resources first if you want to use the current project addresses.", "本任务使用下方已保存的云端资源修订；如需使用当前项目地址，请先更新项目资源。 ")} /> : null}
-    {remote ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Selected environment is not supported by this runtime", "当前运行配置不支持所选环境")} description={t("Switch Project resources to workspace-local fixtures before dispatch. The saved remote configuration remains intact.", "请先将项目资源改为工作区内测试再下发；已保存远端配置会保留。 ")} /> : null}
     {issue ? <Alert showIcon type="error" message={issue} style={{ marginBottom: 20 }} /> : null}
     <Form form={form} className="workspace-form cloud-task-fields" layout="vertical" onFinish={(values) => void create(values)} scrollToFirstError initialValues={editTask ? { config_id: editTask.config_id, confirm_resource_authorization: false, title: editTask.title, sut_kind: sut?.kind, sut_ref: sut?.value, sut_strategy: sut?.checkout_strategy, sut_base: sut?.base_ref,
       framework_kind: framework?.kind, framework_ref: framework?.value, framework_strategy: framework?.checkout_strategy, framework_base: framework?.base_ref,

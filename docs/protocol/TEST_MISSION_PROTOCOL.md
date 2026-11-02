@@ -1,5 +1,7 @@
 # Test Mission Protocol Specification
 
+> **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定由轻量 Worker 对接宿主 Harness；目标协议及实现、部署状态分别记录。
+
 > **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
 
 **阅读范围（2026-10-27 起）：** 新 Local 归档协议以 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与本文 §51 为准；字段及状态由领域 §56 拥有。§45/47 的 SessionTask、Hooks/MCP、BIND/JOIN 与旧回执继续约束旧 profile 和历史，不是新归档前提。下文部署、发行与验收叙述记录各自时点，不能作为当前运行状态；交付和待办见 [TODO](../TODO.md) 及对应记录。
@@ -1457,6 +1459,8 @@ SDK [`session/wait` 完成语义](https://github.com/deepseek-ai/deepseek-harnes
 Codex 官方生命周期观察通过专属有界 UDS 发送序号化 READY / DELEGATION / CLOSED 并等待 ACK；仅使用已固定版本公开 plugin lifecycle，不扩 SDK wire、不扫描 transcript。READY 只证明 provider / tool / shim 已加载。委派 handoff 必须引用官方工具回执的 child UUID（不是产品 thread ID），由 Worker 用 start / terminal 观察注入状态；所有 child 终态、父任务各委派贡献回执、观察通道关闭、整 namespace 停止及 broker drained 共同核对后才能收尾。该来源标为 runtime-reported；2026-10-22的r10无模型探针仅观察四组件就绪 / 干净关闭，无OAuth请求或child，不能据该探针推定委派。后续source-r18已完整读回v14 COMPLETED / reported PASS、根工作及Codex原生推理 / 文本贡献，正式child身份与接受资产引用也已核验；该Task子文件 / 命令工具保留SIGTRAP历史；后续source-r21的native16任务因Artifact引用误用遭拒，RECOVERY / HELD历史保留；source-r22新任务已接受v17 COMPLETED / reported PASS、子原件 / 资产 / Run及独立重放9项，来源仍runtime-reported。DESIGN经ANALYSIS传递关联子原件有效，但未字面满足本次PRD两者均直接ref的要求，不称strict PRD全部PASS或独立writer证明。source-r21所选535通过 / 1跳过、source-r22针对性169通过与实际Task分别登记，精确结果见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md)。Claude保留placeholder；后续r8固定SSH专项PASS，source31对同v19固定快照strict重评PASS、旧source30 NON_PASS保留，故障矩阵与真实staging未验收，CI不支持，默认关闭、本会话未部署生产。
 
 ### 46.3 Typed operations 与权限
+
+ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 lease/work capability 回传；Agent 不接收平台凭据。`COMPLETE_NATIVE_ATTEMPT` 是 Worker 在观察到直接 SDK 进程退出后的报告接收操作：必须保持 `all_local_processes_stopped=false` 和 `external_operations_reconciled=false`，记录其他进程 `UNKNOWN`、外部操作 `NOT_OBSERVED`，不能伪称全部停止；已知原 key 未决时拒绝完成。接受的 reported result 保持其来源，不成为独立 Evidence。失答只核对原操作，不自动重发。旧 `COMPLETE_ATTEMPT` 隔离 profile 的停止与对账要求不变。
 
 以下是领域操作，不等同 SDK 方法名或 MCP 工具；当前 typed HTTP 入口见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md#服务端-api-与权限)。所有普通写操作带 `profile, project_id, operation_key, expected_version`；Task 创建为 expected_version=0，资源配置/凭据用各自聚合版本。输入严格校验未知字段、长度/字节上限、引用归属和当前权限；明确错误，不静默截断。各通道的实际限额由实现 schema 发布，不扩大 §45 现有限额。
 

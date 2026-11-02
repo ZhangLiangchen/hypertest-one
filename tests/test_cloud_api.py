@@ -12,10 +12,16 @@ from hypertest.main import app
 
 
 @pytest.mark.parametrize("url", ["https://user:secret@git.invalid/repo", "https://git.invalid/repo?token=secret",
-                                      "file:///etc/passwd", "http://git.invalid/repo", "ssh://root@git.invalid/repo"])
+                                      "file:///etc/passwd", "file:/etc/passwd", "http://git.invalid/repo", "ssh://root:secret@git.invalid/repo",
+                                      "https://git.invalid", "ssh://@git.invalid/repo", "https://git.invalid:99999/repo"])
 def test_repository_contract_refuses_secret_or_local_url(url):
     with pytest.raises(ValidationError):
         Repository(url=url, default_selector={"value": "main"})
+
+
+def test_repository_contract_accepts_scp_style_ssh():
+    assert Repository(url="git@gitlab.example:team/project.git").url == "git@gitlab.example:team/project.git"
+    assert Repository(url="ssh://alice@gitlab.example/team/project.git").url == "ssh://alice@gitlab.example/team/project.git"
 
 
 def test_mr_has_explicit_base_and_exact_checkout_strategy():
