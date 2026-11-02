@@ -9,7 +9,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getProject } from "@/lib/api";
-import { cloudCapabilities, cloudConfiguration, cloudCredentials, cloudDirectory, cloudProgressTone, cloudSetup } from "@/lib/cloud";
+import { cloudAgentAuthStatus, cloudCapabilities, cloudConfiguration, cloudCredentials, cloudDirectory, cloudProgressTone, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
 import { ReportedResultTag } from "@/app/tasks/task-records";
@@ -32,17 +32,19 @@ export default function CloudProjectPage() {
   const setup = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup });
   const configured = setup.data?.configured === true;
   const capabilities = useQuery({ queryKey: ["cloud-capabilities"], queryFn: cloudCapabilities, enabled: configured });
+  const agentAuth = useQuery({ queryKey: ["cloud-agent-auth-status"], queryFn: cloudAgentAuthStatus, enabled: configured, retry: false,
+    refetchInterval: 30_000, refetchIntervalInBackground: false, refetchOnWindowFocus: "always" });
   const configuration = useQuery({ queryKey: ["cloud-config", projectId], queryFn: () => cloudConfiguration(projectId), enabled: configured });
   const credentials = useQuery({ queryKey: ["cloud-credentials", projectId], queryFn: () => cloudCredentials(projectId), enabled: configured });
   const tasks = useQuery({ queryKey: ["cloud-directory", projectId, "CLOUD", page], queryFn: () => cloudDirectory(projectId, "CLOUD", (page - 1) * 20), enabled: configured });
   const latest = configuration.data?.items.slice().sort((a, b) => b.revision - a.revision)[0];
   useEffect(() => { if (tasks.data && page > Math.max(1, Math.ceil(tasks.data.total / 20))) setPage(Math.max(1, Math.ceil(tasks.data.total / 20))); }, [tasks.data, page]);
   const enabled = capabilities.data?.enabled === true && project.isSuccess && !project.isError && !project.data?.deleted_at;
-  function refresh() { void configuration.refetch(); void credentials.refetch(); void tasks.refetch(); void capabilities.refetch(); }
+  function refresh() { void configuration.refetch(); void credentials.refetch(); void tasks.refetch(); void capabilities.refetch(); void agentAuth.refetch(); }
   return <main className="workspace-page">
     <ProjectWorkspaceHeading project={project.data} projectId={projectId} mode="cloud" />
     <ProjectNavigation projectId={projectId} active="cloud" />
-    {setup.isLoading ? <WorkspaceLoading label={t("Checking Cloud access", "正在检查云端访问")} /> : <CloudCapabilitiesNotice configured={configured} capabilities={capabilities.data} compact />}
+    {setup.isLoading ? <WorkspaceLoading label={t("Checking Cloud access", "正在检查云端访问")} /> : <CloudCapabilitiesNotice configured={configured} capabilities={capabilities.data} authStatus={agentAuth.isError || agentAuth.isFetching ? undefined : agentAuth.data} compact />}
     {project.isError || project.data?.deleted_at ? <Alert showIcon type="error" style={{ marginTop: 20 }} message={project.data?.deleted_at ? t("Project is in the recycle bin", "项目已在回收站") : t("Project could not be read", "无法读取项目")}
       description={t("Drafts and loaded records are retained. Return to the project workspace to restore the project or check access before creating or changing Cloud resources.", "保留草稿及已加载记录。请返回项目工作台恢复项目或核对访问权限后，再创建任务或修改云端资源。")}
       action={<Link href={`/projects/${projectId}`}>{t("Open project", "打开项目")}</Link>} /> : null}

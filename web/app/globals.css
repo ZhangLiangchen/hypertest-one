@@ -695,6 +695,12 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-capability-status.is-partial { color: #805507; }
 .cloud-capability-status.is-unavailable { color: #a53338; }
 .cloud-capability-status.is-unknown { color: var(--ht-muted); }
+.cloud-capability-auth { display: flex; align-items: center; gap: 12px; margin-top: 8px; color: var(--ht-muted); font-size: 12px; line-height: 1.5; }
+.cloud-capability-auth-state { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.cloud-capability-auth-state.is-ready { color: #22734c; }
+.cloud-capability-auth-state.is-unavailable { color: #a53338; }
+.cloud-capability-auth-state.is-unknown { color: var(--ht-muted); }
+.cloud-capability-checked { margin: 4px 0 0; color: var(--ht-muted); font-size: 12px; line-height: 1.5; }
 .cloud-capabilities-details { margin-top: 12px; font-size: 12px; }
 .cloud-capabilities-details summary { width: fit-content; color: #225d83; cursor: pointer; font-weight: 500; line-height: 1.7; }
 .cloud-capabilities-details summary:focus-visible { outline: 3px solid var(--ht-accent); outline-offset: 3px; border-radius: 3px; }

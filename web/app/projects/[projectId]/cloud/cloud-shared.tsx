@@ -2,10 +2,10 @@
 
 import { Alert, Button, Checkbox, Form, Input, Select, Space, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import type { useCloudOperation } from "@/lib/cloud-operation";
-import type { CloudAttempt, CloudCapabilities, CloudRecord, CloudRecoverySummary } from "@/lib/cloud";
+import type { CloudAgentAuthEntry, CloudAttempt, CloudAuthStatus, CloudCapabilities, CloudRecord, CloudRecoverySummary } from "@/lib/cloud";
 import { cloudRecoveryView } from "@/lib/cloud-recovery";
 
 export function CloudOperationNotice({ operation }: { operation: ReturnType<typeof useCloudOperation> }) {
@@ -85,8 +85,29 @@ export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked,
   </div>;
 }
 
-export function CloudCapabilitiesNotice({ configured, capabilities }: { configured: boolean; capabilities?: CloudCapabilities; compact?: boolean }) {
-  const { t } = useI18n();
+export function cloudAuthObservationStatus(entry: CloudAgentAuthEntry | undefined, now: number): CloudAgentAuthEntry["status"] {
+  if (!entry || (entry.status !== "VALID" && entry.status !== "INVALID")) return entry?.status === "NOT_SUPPORTED" ? "NOT_SUPPORTED" : "UNKNOWN";
+  const observed = entry.checked_at ? Date.parse(entry.checked_at) : NaN;
+  const age = now - observed;
+  return Number.isFinite(observed) && age >= 0 && age < 180_000 ? entry.status : "UNKNOWN";
+}
+
+export function CloudCapabilitiesNotice({ configured, capabilities, authStatus }: { configured: boolean; capabilities?: CloudCapabilities; authStatus?: CloudAuthStatus; compact?: boolean }) {
+  const { t, formatDate } = useI18n();
+  const [authNow, setAuthNow] = useState(() => Date.now());
+  useEffect(() => {
+    const now = Date.now();
+    setAuthNow(now);
+    const expires = Object.values(authStatus?.agents || {})
+      .filter((entry) => entry?.status === "VALID" || entry?.status === "INVALID")
+      .map((entry) => entry.checked_at ? Date.parse(entry.checked_at) + 180_000 : NaN)
+      .filter((time) => Number.isFinite(time) && time > now);
+    const timers = expires.map((time) => window.setTimeout(() => setAuthNow(Date.now()), time - now));
+    const update = () => setAuthNow(Date.now());
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => { timers.forEach((timer) => window.clearTimeout(timer)); window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
+  }, [authStatus]);
   if (!configured) return <Alert showIcon type="info" message={t("Cloud Web setup required", "需要配置云端 Web 访问")}
     description={t("The deployment operator must enable the Cloud Web boundary and configure its server-side authorization. Existing Local tasks remain available.", "部署操作者需启用云端 Web 入口并配置服务端授权。现有 Local 任务仍可使用。")} />;
   if (!capabilities) return <Alert showIcon type="warning" message={t("Cloud capabilities have not been read", "尚未读取云端能力")} description={t("Refresh and check server authorization if this persists. Your inputs remain available; no execution is submitted by a capability read.", "请刷新；若持续失败，请核对服务端授权。保留当前输入，能力读取不会下发执行。")} />;
@@ -100,12 +121,20 @@ export function CloudCapabilitiesNotice({ configured, capabilities }: { configur
       : capabilities.configuration?.codex_enabled === true ? "ready" : capabilities.configuration?.codex_enabled === false ? "partial" : "unknown";
   const claudeTone: CapabilityTone = supported?.claude_code_delegation === true ? "partial" : supported?.claude_code_delegation === false ? "unavailable" : "unknown";
   const unknown = t("Unknown", "状态未知");
+  function authView(entry?: CloudAgentAuthEntry) {
+    switch (cloudAuthObservationStatus(entry, authNow)) {
+      case "VALID": return { tone: "ready", text: t("Valid", "有效") };
+      case "INVALID": return { tone: "unavailable", text: t("Invalid", "无效") };
+      case "NOT_SUPPORTED": return { tone: "unknown", text: t("Not supported", "暂不支持") };
+      default: return { tone: "unknown", text: t("Unconfirmed", "未确认") };
+    }
+  }
   const agents = [
-    { name: "DeepSeek Harness", role: t("Root agent", "主 Agent"), tone: rootTone,
+    { name: "DeepSeek Harness", role: t("Root agent", "主 Agent"), tone: rootTone, auth: authStatus?.agents?.deepseek,
       status: rootTone === "ready" ? t("Adapted", "已适配") : rootTone === "unavailable" ? t("Not supported", "暂未支持") : unknown },
-    { name: "Codex", role: t("Delegation", "委派"), tone: codexTone,
+    { name: "Codex", role: t("Delegation", "委派"), tone: codexTone, auth: authStatus?.agents?.codex,
       status: codexTone === "ready" ? t("Delegation enabled", "委派已启用") : codexTone === "partial" ? t("Implemented · not enabled", "已实现 · 未启用") : codexTone === "unavailable" ? t("Not supported", "暂未支持") : unknown },
-    { name: "Claude Code", role: t("Delegation", "委派"), tone: claudeTone,
+    { name: "Claude Code", role: t("Delegation", "委派"), tone: claudeTone, auth: authStatus?.agents?.claude_code,
       status: claudeTone === "partial" ? t("Implemented", "已实现") : claudeTone === "unavailable" ? t("Not supported", "暂未支持") : unknown },
   ];
   return <section className="cloud-capabilities" aria-labelledby="cloud-capabilities-heading">
@@ -119,10 +148,12 @@ export function CloudCapabilitiesNotice({ configured, capabilities }: { configur
     </div>
     {!capabilities.worker_enabled ? <p className="cloud-worker-notice">{t("The Cloud worker is disabled or its configuration is unknown. You can prepare inputs; dispatch requires an enabled worker.", "Cloud Worker 未启用或配置状态未知。可以准备输入；下发需要启用 Worker。")}</p> : null}
     <div className="cloud-capabilities-agents" aria-label={t("Agent integration status", "Agent 适配状态")}>
-      {agents.map((agent) => <div className="cloud-capability-agent" key={agent.name}>
+      {agents.map((agent) => { const auth = authView(agent.auth); return <div className="cloud-capability-agent" key={agent.name}>
         <div className="cloud-capability-agent-name">{agent.name}<span>{agent.role}</span></div>
         <div className={`cloud-capability-status is-${agent.tone}`}><span className="cloud-capabilities-dot" aria-hidden="true" />{agent.status}</div>
-      </div>)}
+        <div className="cloud-capability-auth"><span>{t("Authentication", "认证")}</span><span className={`cloud-capability-auth-state is-${auth.tone}`}><span className="cloud-capabilities-dot" aria-hidden="true" />{auth.text}</span></div>
+        {agent.auth?.checked_at ? <p className="cloud-capability-checked">{t("Checked", "核验时间")}: <time dateTime={agent.auth.checked_at}>{formatDate(agent.auth.checked_at)}</time></p> : null}
+      </div>; })}
     </div>
     <details className="cloud-capabilities-details">
       <summary>{t("View execution capability details", "查看执行能力说明")}</summary>
@@ -132,7 +163,7 @@ export function CloudCapabilitiesNotice({ configured, capabilities }: { configur
           ? t("A reported resume capability does not verify the original session, workspace or unresolved operations.", "运行端声明可续接，不代表原会话、工作区及未决操作已核验。")
           : t("The original SDK session cannot be resumed. Cancellation, original-key reconciliation and authorized manual closure are separate; closure does not release HELD budget.", "当前不支持原 SDK 会话续接。取消、原 key 对账与有权人工收尾相互独立；人工收尾不会释放 HELD 预算。")}</p>
         {supported?.ssh_fixed_diagnostics ? <p>{t("The separate fixed SSH diagnostics profile requires exact authorization; it does not authorize staging SSH or 166dev cloud execution.", "独立的固定 SSH 诊断配置需要确切授权；不授权 staging SSH 或 166dev 云端执行。")}</p> : null}
-        <p>{t("These indicators describe implementation and configuration, not Worker health. Provider authentication and execution are checked for each task.", "状态灯表示实现与配置情况，并非 Worker 健康检查；模型身份和真实执行按任务分别核验。")}</p>
+        <p>{t("Integration and authentication are separate. Authentication status describes the observation at the time shown and can change; it does not guarantee Worker health or a successful test. Task execution is verified separately.", "适配与认证分别显示。认证状态仅反映所示时间的观察结果，可能随时变化；不代表 Worker 健康或测试通过。任务执行仍需单独核验。")}</p>
       </div>
     </details>
   </section>;

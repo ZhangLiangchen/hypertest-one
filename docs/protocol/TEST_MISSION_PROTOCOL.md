@@ -1422,6 +1422,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 - `configuration` 分别给出 `cloud_enabled`、`worker_enabled`、`codex_enabled`、`ssh_fixed_diagnostics_enabled`；这些是当前开关值，不是认证、payload、网络、预算或隔离预检成功。
 - `admission={"state":"NOT_CHECKED","scope":"PER_ATTEMPT","checked_by":"WORKER"}` 明确本 GET 未做准入。原 `profile` / `enabled` / `worker_enabled` / `sdk_package_version` / `not_proven` 保留；模型身份、执行和委派仍由 Worker 在具体 Attempt 领取前检查并单独留证。
 
+独立的 `GET /cloud/agent-auth-status` 仅向安全传输上的 Operator 返回脱敏的最近认证观察；不改变上述静态能力合同，也不发起上游请求。Worker 使用独立、限时的只读 provider 检查，将本实例状态 `VALID` / `INVALID` / `UNKNOWN` 与数据库时间写入短期运行时投影；不得保存凭据、账号、上游响应或余额。每次写入仅清理该投影中超过一天的观察，不删除任务历史。API 仅在 Cloud 与 Worker 配置均开启且恰有一个 180 秒内的新鲜 Worker 观察时投影该观察；无观察、过期或多个新鲜实例均为 `UNKNOWN`。本次 DeepSeek 只读认证观察不证明余额、模型推理或任务准入；Codex 尚无可靠上游认证观察，为 `UNKNOWN`，Claude Code 为 `NOT_SUPPORTED`。状态不授予任务权限，也不改变任何历史测试结果。
+
 
 ### 46.1 版本、模式与六步职责
 

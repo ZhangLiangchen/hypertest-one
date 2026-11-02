@@ -42,6 +42,27 @@ test("Cloud Web is explicitly disabled without exposing any server credential", 
   assert.equal(calls, 0);
 });
 
+test("Cloud agent authentication status is allowlisted and exposes only redacted state", async () => {
+  const calls = [];
+  const routes = moduleFor(async (url) => {
+    calls.push(url);
+    return new Response(JSON.stringify({ agents: {
+      deepseek: { status: "VALID", checked_at: "2026-11-02T12:34:56Z", secret: canary },
+      codex: { status: canary, checked_at: canary }, claude_code: { status: "NOT_SUPPORTED", checked_at: null },
+    }, secret: canary }));
+  });
+  const response = await routes.GET(request("http://web/api/cloud/agent-auth-status"), context("agent-auth-status"));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.equal(calls[0], "https://cloud-api.example.invalid/api/v1/cloud/agent-auth-status?");
+  const body = await response.text();
+  assert.equal(body.includes(canary), false);
+  assert.deepEqual(JSON.parse(body), { agents: {
+    deepseek: { status: "VALID", checked_at: "2026-11-02T12:34:56Z" },
+    codex: { status: "UNKNOWN", checked_at: null }, claude_code: { status: "NOT_SUPPORTED", checked_at: null },
+  } });
+});
+
 test("Cloud BFF forwards only declared paths and requires same-origin JSON mutations", async () => {
   const calls = [];
   const routes = moduleFor(async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ status: "ACCEPTED" })); });

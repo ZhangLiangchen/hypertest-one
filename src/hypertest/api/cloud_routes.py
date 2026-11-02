@@ -1,14 +1,14 @@
 """ADR-019 typed Cloud operations; API processes never start SDK or test commands."""
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.cloud_schemas import PROFILE, CloudMutation
 from hypertest.api.interactive_routes import bearer, controlled_errors
+from hypertest.application import cloud_agent_auth, interactive
 from hypertest.application import cloud_tasks as service
-from hypertest.application import interactive
 from hypertest.cloud.errors import CloudBlocked
 from hypertest.config import get_settings
 from hypertest.connector.security import require_operator
@@ -74,6 +74,19 @@ async def capabilities():
                           "remote_ci": False, "project_framework": True,
                           "resume_attempt": False, "reconcile_attempt": True},
             "not_proven": ["provider_authentication", "model_execution", "delegation", "production_acceptance"]}
+
+
+@router.get("/cloud/agent-auth-status")
+async def agent_auth_status(request: Request, response: Response,
+                            x_hypertest_operator_key: str | None = Header(default=None),
+                            db: AsyncSession = Depends(get_db)):
+    """Global runtime observations are only visible at the operator boundary."""
+    secure_transport(request)
+    await require_operator(x_hypertest_operator_key)
+    response.headers["Cache-Control"] = "no-store"
+    settings = get_settings()
+    return await cloud_agent_auth.read_auth_status(
+        db, enabled=settings.cloud_enabled and settings.cloud_worker_enabled)
 
 
 @router.post("/cloud/operations")

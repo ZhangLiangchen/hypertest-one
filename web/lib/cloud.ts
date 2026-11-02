@@ -31,6 +31,8 @@ export type CloudCapabilities = { enabled?: boolean; worker_enabled?: boolean;
   recovery?: { resume_supported?: boolean; resume_reason?: string; reconcile_supported?: boolean; reconciliation_source?: string; independent_stop_proof?: boolean; budget_disposition?: string };
   configuration?: { codex_enabled?: boolean; ssh_fixed_diagnostics_enabled?: boolean };
   admission?: { state?: string; scope?: string }; [key: string]: unknown };
+export type CloudAgentAuthEntry = { status: "VALID" | "INVALID" | "UNKNOWN" | "NOT_SUPPORTED"; checked_at: string | null };
+export type CloudAuthStatus = { agents: { deepseek: CloudAgentAuthEntry; codex: CloudAgentAuthEntry; claude_code: CloudAgentAuthEntry } };
 export type CloudCredential = { id: string; label: string; kind: string; purpose: string; allowed_targets: string[]; allowed_actions: string[]; version: number; status: string };
 export type CloudCredentialVersion = { id: string; credential_id: string; version: number; expires_at?: string | null };
 
@@ -62,6 +64,7 @@ export async function cloudRequest<T>(path: string, init?: RequestInit): Promise
 
 export const cloudSetup = () => cloudRequest<{ configured: boolean }>("setup");
 export const cloudCapabilities = () => cloudRequest<CloudCapabilities>("capabilities");
+export const cloudAgentAuthStatus = () => cloudRequest<CloudAuthStatus>("agent-auth-status");
 export const cloudConfiguration = (projectId: string) => cloudRequest<{ items: CloudConfigRevision[] }>(`projects/${encodeURIComponent(projectId)}/configuration`);
 export const cloudCredentials = (projectId: string) => cloudRequest<{ credentials: CloudCredential[]; versions: CloudCredentialVersion[] }>(`projects/${encodeURIComponent(projectId)}/credentials`);
 export const cloudTasks = (projectId: string, offset = 0) => cloudRequest<{ items: CloudTask[]; total: number }>(`projects/${encodeURIComponent(projectId)}/tasks?offset=${offset}&limit=20`);

@@ -65,7 +65,13 @@ async def run(*, once: bool) -> int:
             from .action_runtime import ActionRuntime
 
             worker_options["action_runtime"] = ActionRuntime(sessions=AsyncSessionLocal, observer_factory=ActionObserver)
-    worker = CloudWorker(AsyncSessionLocal, settings, "cloud-worker-" + uuid4().hex, **worker_options)
+    worker_id = "cloud-worker-" + uuid4().hex
+    worker = CloudWorker(AsyncSessionLocal, settings, worker_id, **worker_options)
+    auth_monitor = None
+    if not once:
+        from .agent_auth_monitor import monitor_agent_auth
+
+        auth_monitor = asyncio.create_task(monitor_agent_auth(AsyncSessionLocal, settings, worker_id))
     active = asyncio.current_task()
     loop = asyncio.get_running_loop()
     for signum in (signal.SIGINT, signal.SIGTERM):
@@ -112,6 +118,12 @@ async def run(*, once: bool) -> int:
         cancelled = True
         exit_code = 130
     finally:
+        if auth_monitor is not None:
+            auth_monitor.cancel()
+            try:
+                await auth_monitor
+            except asyncio.CancelledError:
+                pass
         if docker_runtime is not None:
             docker_runtime.close()
         try:

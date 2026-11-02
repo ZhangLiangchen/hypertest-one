@@ -7,7 +7,7 @@ import { cloudServerRequest, cloudServerTransportReady } from "@/lib/cloud-serve
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const UUID = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
-const GET_PATH = new RegExp(`^(?:capabilities|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/artifacts/${UUID})?)$`);
+const GET_PATH = new RegExp(`^(?:capabilities|agent-auth-status|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/artifacts/${UUID})?)$`);
 const safeError = (status: number, detail: string, code?: string) => NextResponse.json({ detail, ...(code ? { code } : {}) }, { status, headers: { "Cache-Control": "no-store" } });
 
 /** A 409 can mean a failed safety precondition, not only a stale version. */
@@ -133,7 +133,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pat
     const target = path.endsWith("/task-directory") ? path : `cloud/${path}`;
     const response = await upstream(`${target}?${query}`, key);
     if (!response.ok) return safeError(response.status, "Cloud records could not be read. Refresh and check access.");
-    return NextResponse.json(await response.json(), { headers: { "Cache-Control": "no-store" } });
+    const data = await response.json();
+    if (path === "agent-auth-status") {
+      const agents = Object.fromEntries(["deepseek", "codex", "claude_code"].map((name) => {
+        const entry = data?.agents?.[name];
+        const status = ["VALID", "INVALID", "UNKNOWN", "NOT_SUPPORTED"].includes(entry?.status) ? entry.status : "UNKNOWN";
+        const checkedAt = typeof entry?.checked_at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(entry.checked_at) && !Number.isNaN(Date.parse(entry.checked_at)) ? entry.checked_at : null;
+        return [name, { status, checked_at: checkedAt }];
+      }));
+      return NextResponse.json({ agents }, { headers: { "Cache-Control": "no-store" } });
+    }
+    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch { return safeError(502, "Cloud readback could not be verified. Previously loaded records remain available."); }
 }
 

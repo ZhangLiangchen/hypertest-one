@@ -1207,6 +1207,8 @@ Cloud 消费方按下文独立集成与验收；Local 发行不包含或发布 C
 
 CloudTaskReporter 与 CloudSyncAdapter 已有源码，位于当前 CloudAttempt 的 fenced Worker 内。reporter 接受根指挥官明确交付的 workspace manifest，结合 collector 原件及 Worker 执行观察，构造对应 typed operation；不是把活动事件直接转成业务进度或 PASS。官方 Python SDK 驱动 DeepSeek，Codex 通过固定官方 native bundle 参与；Cloud Claude 占位。根/子代理没有平台 writer token、DB 或 Operator key，不各建 Local SessionTask。
 
+Agent 认证状态采用独立于任务的 Worker 只读探测与短期数据库投影：Worker 使用自己的私有模型凭据访问固定 provider 认证检查端点，只写脱敏状态及数据库时间；API 不读取该凭据，也不发探测，仅通过安全传输向 Operator 返回新鲜且无多实例歧义的观察。投影按 Worker 实例分开，超过 180 秒视为未知，超过一天的观察可从投影表定向清理。静态 `/cloud/capabilities` 合同不变；认证观察不证明模型执行、Worker 准入或测试通过。Codex 未有可靠上游认证观察时保持未知，Claude 未支持时明确标识。
+
 ### 47.2 Cloud 交付、停止与恢复
 
 Cloud 中途进度以 SubmitCloudAssets 的非最终 REPORT 修订保存，可用 checkpoint_report_key 绑定本批已接受 REPORT；最终报告单独指定。每 Attempt 的账本与原件来源隔离于 Local；冻结完整请求/key/expected_version及适用 lease generation，SENT/UNKNOWN/NOT_FOUND只查原key，接受后完整读回固定版本，不能用最新版本替代。上传、领域接受、SDK/child退出、namespace停止、model broker drain与远端副作用是不同事实，未决时保留恢复态和原预算，不能用传输成功或取消标记洗掉FAIL/UNKNOWN。

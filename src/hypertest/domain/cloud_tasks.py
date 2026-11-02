@@ -36,6 +36,15 @@ class CloudRow:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class CloudAgentAuthObservation(Base):
+    """Ephemeral Worker observation; never contains credentials or provider bodies."""
+    __tablename__ = "cloud_agent_auth_observations"
+    __table_args__ = (CheckConstraint("status IN ('VALID','INVALID','UNKNOWN')"),)
+    worker_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProjectCredential(CloudRow, Base):
     __tablename__ = "project_credentials"
     __table_args__ = (UniqueConstraint("project_id", "id"), CheckConstraint("version > 0"),
