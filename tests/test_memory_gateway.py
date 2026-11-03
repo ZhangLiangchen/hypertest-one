@@ -177,6 +177,115 @@ async def query(f, *, headers=None):
         "project_id": f["project_id"], "query": "synthetic", "limit": 20})
 
 
+async def visibility(f, records, *, headers=None, **changes):
+    refs = [{key: record[key] for key in ("artifact_id", "revision", "content_digest")} for record in records]
+    scope_id = f["upstream"].scopes["hypertest-project-" + f["project_id"]]
+    return await f["client"].post("/api/v1/memory/visibility", headers=headers or f["headers"], json={
+        "project_id": f["project_id"], "scope_id": scope_id, "artifacts": refs, **changes})
+
+
+async def test_visibility_requires_current_exact_ref_digest_and_never_returns_old_bodies(memory_context):
+    f = memory_context
+    receipt = await candidate(f)
+    assert (await publish(f, receipt)).json()["status"] == "ACCEPTED"
+    original = f["upstream"].records[0]
+    # The exact PC bytes contain only reviewed fields and a non-authorizing
+    # server-generated opaque locator, never the private source/actor/key.
+    async with AsyncSessionLocal() as db:
+        operation = await db.scalar(select(MemoryOperation).where(MemoryOperation.entry_id == UUID(receipt["entry_id"]),
+            MemoryOperation.operation == "PUBLISH"))
+        assert "HyperTest operation: " + operation.marker in original["content"]
+        for private in (operation.operation_key, operation.actor_ref, str(receipt["entry_id"]),
+                f["source"]["task_id"], f["source"]["submission_id"], f["source"]["asset_revision_id"]):
+            assert private not in original["content"]
+    reads, writes = f["upstream"].reads, f["upstream"].writes
+    response = await visibility(f, [original])
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    item = response.json()["items"][0]
+    assert item["disposition"] == "PLATFORM_CURRENT" and item["content_digest"] == original["content_digest"]
+    assert item["entry_id"] == receipt["entry_id"] and item["version"] == 2
+    assert item["publication"]["content"] == "Synthetic shareable method"
+    assert set(item["publication"]["source"]) == {"mode", "provenance_id"}
+    for private in (operation.operation_key, operation.actor_ref, f["source"]["task_id"],
+            f["source"]["submission_id"], f["source"]["asset_revision_id"]):
+        assert private not in response.text
+    wrong = await visibility(f, [{**original, "content_digest": "sha256:" + "0" * 64}])
+    assert wrong.json()["items"] == [{"artifact_id": original["artifact_id"], "revision": 1, "disposition": "PLATFORM_NOT_CURRENT"}]
+    assert (f["upstream"].reads, f["upstream"].writes) == (reads, writes)
+    assert (await publish(f, receipt, operation="REVISE", version=2)).json()["status"] == "ACCEPTED"
+    current = f["upstream"].records[-1]
+    projected = (await visibility(f, [original, current])).json()["items"]
+    assert [item["disposition"] for item in projected] == ["PLATFORM_NOT_CURRENT", "PLATFORM_CURRENT"]
+    assert (await mutate(f, "RETRACT", 3, entry_id=receipt["entry_id"], publication_note="Withdraw current")).json()["status"] == "ACCEPTED"
+    projected = (await visibility(f, [original, current])).json()["items"]
+    assert all(set(item) == {"artifact_id", "revision", "disposition"} and item["disposition"] == "PLATFORM_NOT_CURRENT" for item in projected)
+
+
+async def test_visibility_expiry_boundary_unknown_operation_and_unmanaged_classification(memory_context, monkeypatch):
+    f = memory_context
+    receipt = await candidate(f)
+    expires = datetime.now(UTC) + timedelta(minutes=5)
+    assert (await publish(f, receipt, expires_at=expires.isoformat())).json()["status"] == "ACCEPTED"
+    published = f["upstream"].records[0]
+    class AtExpiry(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return expires
+    monkeypatch.setattr(service, "datetime", AtExpiry)
+    assert (await visibility(f, [published])).json()["items"][0]["disposition"] == "PLATFORM_NOT_CURRENT"
+    monkeypatch.setattr(service, "datetime", datetime)
+    candidate2 = await candidate(f)
+    f["upstream"].mismatch_read = True
+    assert (await publish(f, candidate2)).json()["status"] == "UNKNOWN"
+    pending = f["upstream"].records[-1]
+    external = {**published, "artifact_id": "art_unmanaged"}
+    items = (await visibility(f, [pending, external])).json()["items"]
+    assert [item["disposition"] for item in items] == ["PLATFORM_NOT_CURRENT", "EXTERNAL_UNMANAGED"]
+    assert all(set(item) == {"artifact_id", "revision", "disposition"} for item in items)
+
+
+async def test_visibility_authority_scope_bounds_other_project_and_revoked_grant(memory_context):
+    f = memory_context
+    receipt = await candidate(f)
+    assert (await publish(f, receipt)).json()["status"] == "ACCEPTED"
+    record = f["upstream"].records[0]
+    assert (await visibility(f, [record], scope_id="scp_wrong")).status_code == 409
+    assert (await visibility(f, [record] * 51)).status_code == 422
+    assert (await visibility(f, [], artifacts=[])).status_code == 422
+    sync_only, _ = await register(f, ["task:sync"])
+    assert (await visibility(f, [record], headers=sync_only)).status_code == 403
+    worker = {**f["headers"], "X-Hypertest-Memory-Worker-Id": "fixture-worker", "X-Hypertest-Memory-Lease-Token": "fixture-lease",
+        "X-Hypertest-Memory-Generation": "1", "X-Hypertest-Memory-Work-Token": "fixture-work"}
+    assert (await visibility(f, [record], headers=worker)).status_code == 403
+    async with AsyncSessionLocal() as db:
+        other = await create_project(db, ProjectCreate(key=public_key("MEMORY"), name="Other visibility project"))
+    other_f = {**f, "project_id": str(other.id)}
+    assert (await mutate(other_f, "CONFIGURE", enabled=True)).json()["status"] == "ACCEPTED"
+    assert (await visibility(other_f, [record])).status_code == 403
+    other_headers, _ = await register(other_f, ["memory:read"])
+    hidden = (await visibility(other_f, [record], headers=other_headers)).json()["items"]
+    assert hidden == [{"artifact_id": record["artifact_id"], "revision": 1, "disposition": "PLATFORM_NOT_CURRENT"}]
+    async with AsyncSessionLocal() as db:
+        grant = await db.get(InteractiveIntegrationGrant, UUID(f["auth"]["grant_id"]))
+        grant.status, grant.revoked_at = "REVOKED", datetime.now(UTC)
+        grant.row_version += 1
+        await db.commit()
+    denied = await visibility(f, [record])
+    assert denied.status_code == 403 and record["content"] not in denied.text
+
+
+async def test_visibility_deadline_fails_closed_without_upstream_access(memory_context, monkeypatch):
+    f = memory_context
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 0.1)
+    async def stalled(*args):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(service, "visibility", stalled)
+    reads, writes = f["upstream"].reads, f["upstream"].writes
+    response = await visibility(f, [{"artifact_id": "art_unchecked", "revision": 1, "content_digest": "sha256:" + "a" * 64}])
+    assert response.status_code == 503 and "items" not in response.json()
+    assert (f["upstream"].reads, f["upstream"].writes) == (reads, writes)
+
+
 async def test_retired_session_task_cannot_be_used_as_a_new_memory_source(memory_context):
     f = memory_context
     response = await mutate(f, "CREATE_CANDIDATE", title="retired source", content="synthetic",
