@@ -16,7 +16,22 @@ MR 用于 Agent 检索改动，测试环境由任务 prompt 描述；新快照�
 - 旧手动 acceptance 脚本停止创建项目/资源/任务及新解析/下发，保留已记录请求的原 key 读取与恢复；新工作使用当前任务页面。
 - 该旧脚本的直接调用回归 117 项通过：退休的新创建零 POST，历史 UNKNOWN 保持原 key GET。后端及控制器合计 307 项不同测试通过。
 
-临时测试容器和本轮测试临时目录已清理。部署尚未执行，最终 Git SHA、镜像在完成后更新。
+临时测试容器和本轮测试临时目录已清理。
+
+部署自已推送 Git `bc1cfdba82e07e85638e2292fa83c9ab933b09ad`（`codex/cloud-web-lifecycle-validation`）：
+
+| 组件 | 实际部署身份 |
+| --- | --- |
+| API | `hypertest-mac-api:bc1cfdb`；`sha256:6ab7ca86ca1f56b059293c19b0a1e5cc6c851cc0b97500c66d97910373cb968c` |
+| Web | `hypertest-mac-web:bc1cfdb`；`sha256:f8b83bbe011405247c1df2f4ee5edce4409ccce90ff793d7ed54a615b18349b6` |
+| 宿主 Worker | 同一固定 Git 源码；原 PID 61878 → 新 PID 76421；running，领取 EMPTY / closed=true |
+| Schema | `0045_local_archive_status`，无迁移、无业务数据清理 |
+
+API 复用原镜像依赖层并替换固定提交源码；继承的 wheel RECORD 未重发行。Web 构建含类型检查通过。API/Web healthy，API health、指定项目任务列表与创建页均 HTTP 200；服务端页面无项目资源导航。Worker 更新复用既有固定源码目录和 LaunchAgent，Memory 环境保持。
+
+本次完整 Compose 链末尾追加 `~/.local/share/hypertest-mac/task-focus-20261103/compose.json`，只改变 API、Web 和维护迁移容器的镜像引用。BFF/数据库容器身份和启动时间未变；WireGuard、TLS、凭据及独立 PowerContext 配置未修改。当前部署清单和本机 README 已更新，包含此前并行交付的 Local 状态及 Memory 功能。
+
+本机证据位于 `~/.local/share/hypertest-mac/task-focus-20261103/` 的 `deployment.json`、`scope-health.json`、构建/启动日志；后续操作以实际容器和当前部署清单为准。
 
 ## 功能验收边界
 
