@@ -49,7 +49,6 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   function open(mode: ManagementDraft["mode"]) {
     if (!task) return;
     setSaved(false);
-    if (draft?.mode === mode) { document.getElementById("task-archive-edit")?.focus(); return; }
     const previous = query.data?.publications.at(-1);
     setDraft({ mode, version: task.version, task, root: task.archive_version, children: children.map((c) => ({ subtask_id: c.id, archive_version: c.archive_version, title: c.title, status: c.status })) });
     form.resetFields(); form.setFieldsValue(mode === "status" ? { status: task.status, reason: "" } : mode === "publish" ? { status: task.status, reported_result: task.reported_result, summary: previous?.summary || "", selected_children: previous?.subtask_versions.map((c) => c.subtask_id) || [], asset_revision_ids: previous?.asset_revision_ids.slice() || [] }
