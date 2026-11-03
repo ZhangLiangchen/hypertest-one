@@ -6,7 +6,8 @@
 
 - [当前待办](TODO.md)：未完成的开发、操作和用户验收。
 - [ADR-038：Cloud 聚焦任务输入、下发与产物归档](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 与 [Cloud 任务指南](CLOUD_TASK_WORKFLOW.md)：项目详情管理仓库，MR/PR 为必填改动上下文，环境由 prompt 说明；移除资源页和预期部署版本。
-- [Cloud 任务职责精简交付（2026-11-03）](CLOUD_TASK_FOCUS_DELIVERY_20261103.md)：本轮实现、自测、部署与用户验收边界。
+- [Cloud MR 链接创建交付（2026-11-03）](CLOUD_MR_INPUT_DELIVERY_20261103.md)：仅 MR 必填、可选说明、自动名称与框架 main；实现、自测、部署及用户验收边界。
+- [Cloud 任务职责精简交付（2026-11-03）](CLOUD_TASK_FOCUS_DELIVERY_20261103.md)：前一轮资源和环境入口退休的实现、自测及部署。
 - [产品白皮书](foundation/HYPERTEST_WHITEPAPER.md)、[技术架构](architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)、[测试任务协议](protocol/TEST_MISSION_PROTOCOL.md)、[领域模型与状态机](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)：按 [AGENTS.md](../AGENTS.md) 的优先级及后续 ADR 增补阅读。
 - [当前系统架构总览（2026-10-28）](architecture/SYSTEM_ARCHITECTURE_OVERVIEW_20261028.md)：当前实现、部署拓扑与外部集成（DeepSeek Harness、PowerContext 等）的全景快照；运行状态仍须现场核实。
 - [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)：新 Local 显式归档及安装授权；旧 SessionTask 的合同与恢复只适用于仍存在的旧路径，清理按 ADR-028 执行。
