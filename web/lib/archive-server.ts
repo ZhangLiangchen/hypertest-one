@@ -6,7 +6,7 @@ import { trustedServerRequest, cloudServerTransportReady } from "@/lib/cloud-ser
 
 const UUID = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
 const archiveGet = new RegExp(`^(?:capabilities|actors|tasks|operations/by-key|tasks/${UUID}(?:/(?:archive|subtasks/${UUID}/archive))?|submissions/${UUID})$`);
-const archivePost = new RegExp(`^(?:tasks|tasks/${UUID}/(?:subtasks|authorize|update|publications))$`);
+const archivePost = new RegExp(`^(?:tasks|tasks/${UUID}/(?:subtasks|authorize|update|status|publications))$`);
 const authGet = new RegExp(`^(?:grants|requests/by-key|requests/${UUID}|grants/${UUID}/operations/by-key)$`);
 const authPost = new RegExp(`^(?:requests/${UUID}/(?:approve|revoke)|grants/${UUID}/revoke)$`);
 const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "no-store" } });

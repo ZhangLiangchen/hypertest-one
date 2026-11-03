@@ -4,7 +4,7 @@ import { Alert, Button, Descriptions, Empty, Form, Input, InputNumber, Select, S
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { errorText } from "@/lib/api";
-import { archiveApi, getArchiveSnapshot, getArchiveTask, type ArchiveAsset, type ArchiveSnapshot, type ArchiveTask } from "@/lib/archive";
+import { archiveApi, getArchiveSnapshot, getArchiveTask, type ArchiveAsset, type ArchiveDetail, type ArchiveManagement, type ArchiveSnapshot, type ArchiveTask } from "@/lib/archive";
 import { useArchiveOperation } from "@/lib/archive-operation";
 import { useI18n } from "@/lib/i18n";
 import { WorkspaceHeading, WorkspaceLoading, ProjectNavigation } from "@/app/workspace-ui";
@@ -16,15 +16,17 @@ import { ReloadOutlined } from "@ant-design/icons";
 
 const statuses = ["DRAFT", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"];
 const results = ["NOT_RUN", "PASS", "FAIL", "ERROR", "SKIPPED", "UNKNOWN", "BLOCKED"];
-type ManagementDraft = { mode: "subtask" | "update" | "publish"; version: number; task: ArchiveTask; root: number; children: { subtask_id: string; archive_version: number; title: string; status: string }[] };
+type ManagementDraft = { mode: "subtask" | "update" | "publish" | "status"; version: number; task: ArchiveTask; root: number; children: { subtask_id: string; archive_version: number; title: string; status: string }[] };
 export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: string; projectId: string }) {
   const { t, locale, label, formatDate } = useI18n(); const cache = useQueryClient();
   const [target, setTarget] = useState(""), [version, setVersion] = useState<number | undefined>(), [submissionId, setSubmissionId] = useState<string | undefined>();
   const [draft, setDraft] = useState<ManagementDraft | null>(null);
+  const [saved, setSaved] = useState(false);
   const [form] = Form.useForm();
   const includedChildren: string[] = Form.useWatch("selected_children", form) || [];
-  useEffect(() => { setDraft(null); setTarget(""); setVersion(undefined); setSubmissionId(undefined); form.resetFields(); }, [projectId, taskId, form]);
-  useEffect(() => { if (draft) document.getElementById("task-archive-edit")?.scrollIntoView({ block: "start" }); }, [draft]);
+  const selectedAssets: string[] = Form.useWatch("asset_revision_ids", form) || [];
+  useEffect(() => { setDraft(null); setSaved(false); setTarget(""); setVersion(undefined); setSubmissionId(undefined); form.resetFields(); }, [projectId, taskId, form]);
+  useEffect(() => { if (draft) { const editor = document.getElementById("task-archive-edit"); editor?.scrollIntoView({ block: "start" }); editor?.focus({ preventScroll: true }); } }, [draft]);
   const publicationAssets = useQuery({ queryKey: ["archive-publication-assets", projectId, taskId, draft?.version, draft?.root], enabled: draft?.mode === "publish", retry: false,
     queryFn: async () => { if (!draft) return []; const spaces = await Promise.all([getArchiveSnapshot(projectId, taskId, draft.root), ...draft.children.map((c) => getArchiveSnapshot(projectId, taskId, c.archive_version, c.subtask_id))]); return spaces.flatMap((space) => space.assets.map((item) => ({ ...item, space: space.subtask_id }))); } });
   const query = useQuery({ queryKey: ["archive-task", projectId, taskId], queryFn: () => getArchiveTask(projectId, taskId), enabled: Boolean(projectId), retry: false });
@@ -33,16 +35,29 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   const latestVersion = child?.archive_version || task?.archive_version || 1;
   const snapshot = useQuery({ queryKey: ["archive-snapshot", projectId, taskId, target, version || latestVersion, submissionId], enabled: Boolean(task), retry: false,
     queryFn: () => submissionId ? archiveApi<ArchiveSnapshot>(`submissions/${submissionId}?project_id=${projectId}&readback=complete`) : getArchiveSnapshot(projectId, taskId, version || latestVersion, target || undefined) });
-  const accepted = (_result: unknown) => { setDraft(null); form.resetFields(); void cache.invalidateQueries({ queryKey: ["archive-task", projectId, taskId] }); void cache.invalidateQueries({ queryKey: ["archive-tasks", projectId] }); };
+  const accepted = (value: unknown) => {
+    const result = value as ArchiveManagement;
+    cache.setQueryData<ArchiveDetail>(["archive-task", projectId, taskId], (current) => !current || current.task.version > result.task.version ? current : {
+      ...current, task: result.task, subtasks: result.subtasks,
+      publications: result.publication && !current.publications.some((p) => p.id === result.publication!.id) ? [...current.publications, result.publication] : current.publications,
+      management_history: current.management_history.some((r) => r.idempotency_key === result.receipt.idempotency_key) ? current.management_history : [...current.management_history, result.receipt],
+    });
+    setDraft(null); setSaved(true); form.resetFields();
+    void cache.invalidateQueries({ queryKey: ["archive-task", projectId, taskId] }); void cache.invalidateQueries({ queryKey: ["archive-tasks", projectId] });
+    document.getElementById("task-overview")?.scrollIntoView({ block: "start" });
+  };
   function open(mode: ManagementDraft["mode"]) {
     if (!task) return;
+    setSaved(false);
+    if (draft?.mode === mode) { document.getElementById("task-archive-edit")?.focus(); return; }
+    const previous = query.data?.publications.at(-1);
     setDraft({ mode, version: task.version, task, root: task.archive_version, children: children.map((c) => ({ subtask_id: c.id, archive_version: c.archive_version, title: c.title, status: c.status })) });
-    form.resetFields(); form.setFieldsValue(mode === "publish" ? { status: task.status, reported_result: task.reported_result, summary: "", selected_children: [], asset_revision_ids: [] }
+    form.resetFields(); form.setFieldsValue(mode === "status" ? { status: task.status, reason: "" } : mode === "publish" ? { status: task.status, reported_result: task.reported_result, summary: previous?.summary || "", selected_children: previous?.subtask_versions.map((c) => c.subtask_id) || [], asset_revision_ids: previous?.asset_revision_ids.slice() || [] }
       : mode === "update" ? { title: task.title, objective: task.objective } : { title: "", objective: "" });
   }
   async function manage(values: Record<string, unknown>) {
     if (!draft) return;
-    let fields: Record<string, unknown> = { ...values, expected_task_version: draft.version };
+    let fields: Record<string, unknown> = draft.mode === "status" ? { status: values.status, reason: values.reason || null, expected_task_version: draft.version } : { ...values, expected_task_version: draft.version };
     let action: string = draft.mode;
     if (draft.mode === "subtask") action = "subtasks";
     if (draft.mode === "publish") { action = "publications"; fields = { expected_task_version: draft.version, root_archive_version: draft.root, subtask_versions: draft.children.filter((c) => (values.selected_children as string[] || []).includes(c.subtask_id)).map(({ subtask_id, archive_version }) => ({ subtask_id, archive_version })), asset_revision_ids: values.asset_revision_ids || [], summary: values.summary, status: values.status, reported_result: values.reported_result }; }
@@ -52,6 +67,8 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   const plans = assets.filter((item) => item.kind === "PLAN");
   const cases = assets.filter((item) => item.kind === "CASE");
   const reports = assets.filter((item) => item.kind === "REPORT");
+  const availablePublicationAssets = publicationAssets.data?.filter((item) => !item.space || includedChildren.includes(item.space));
+  const missingReferences = Boolean(publicationAssets.data && (selectedAssets.some((id) => !availablePublicationAssets?.some((item) => item.id === id)) || includedChildren.some((id) => !draft?.children.some((c) => c.subtask_id === id))));
   const snapshotTarget = submissionId ? snapshot.data?.subtask_id : target;
   const snapshotTitle = children.find((item) => item.id === snapshotTarget)?.title || (snapshotTarget ? snapshotTarget : t("Task root", "任务根空间"));
   function viewSnapshot(subtaskId: string, archiveVersion?: number, submission?: string) {
@@ -63,7 +80,7 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   if (!task) return <main className="workspace-page"><WorkspaceHeading title={t("Local archive", "本地归档")} backHref={`/projects/${projectId}`} backLabel={t("Project", "项目")} /><Alert type="error" showIcon message={t("Archive unavailable", "无法读取归档")} description={errorText(query.error, locale)} action={<Button onClick={() => void query.refetch()}>{t("Retry", "重试")}</Button>} /></main>;
   return <main className="workspace-page archive-task-page">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}`} backLabel={t("Project tasks", "项目任务")}
-      actions={<Space><Button onClick={() => open("update")} disabled={operation.blocked}>{t("Edit task", "编辑任务")}</Button><Button icon={<ReloadOutlined aria-hidden />} onClick={() => { void query.refetch(); void snapshot.refetch(); }} loading={query.isFetching || snapshot.isFetching}>{t("Refresh", "刷新")}</Button></Space>} />
+      actions={<Space><Button type="primary" onClick={() => open("status")} disabled={operation.blocked}>{t("Change status", "修改状态")}</Button><Button onClick={() => open("update")} disabled={operation.blocked}>{t("Edit task", "编辑任务")}</Button><Button icon={<ReloadOutlined aria-hidden />} onClick={() => { void query.refetch(); void snapshot.refetch(); }} loading={query.isFetching || snapshot.isFetching}>{t("Refresh", "刷新")}</Button></Space>} />
     <ProjectNavigation projectId={projectId} active="local" />
     {query.isError ? <Alert type="warning" showIcon message={t("Refresh failed; previously loaded records remain visible", "刷新失败，保留已读取记录")} description={errorText(query.error, locale)} /> : null}
     <div className="task-detail-layout">
@@ -111,12 +128,32 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
           </> : null}
           <Typography.Paragraph className="muted archive-overview-note">{t("The local Agent performs testing. Archive completed plans, cases and reports explicitly with the CLI. Uploading artifacts does not mark the task complete or change its reported result.", "测试由本地 Agent 完成，通过 CLI 显式归档已完成的计划、用例与报告。上传产物不会自动完成任务或改变报告结果。")}</Typography.Paragraph>
         </section>
+        {saved ? <Alert type="success" showIcon role="status" message={t("Saved. The task now shows the confirmed values.", "保存成功，任务已显示确认后的状态与结果。")} /> : null}
         <ArchiveOperationNotice operation={operation} onAccepted={accepted} />
-        {draft ? <section id="task-archive-edit" tabIndex={-1} className="data-surface session-record"><Typography.Title level={2}>{draft.mode === "subtask" ? t("Add subtask", "添加子任务") : draft.mode === "publish" ? t("Publish task summary", "发布任务汇总") : t("Edit task", "编辑任务")}</Typography.Title>
+        {draft ? <section id="task-archive-edit" tabIndex={-1} className="data-surface session-record"><Typography.Title level={2}>{draft.mode === "subtask" ? t("Add subtask", "添加子任务") : draft.mode === "publish" ? t("Publish task summary", "发布任务汇总") : draft.mode === "status" ? t("Change status", "修改状态") : t("Edit task", "编辑任务")}</Typography.Title>
       <Form className="archive-management-form" form={form} layout="vertical" onFinish={manage} disabled={operation.blocked} requiredMark="optional">
         {draft.mode === "subtask" || draft.mode === "update" ? <><Form.Item name="title" label={t("Title", "标题")} rules={[{ required: true, whitespace: true }, { max: 512 }]}><Input maxLength={512} /></Form.Item><Form.Item name="objective" label={t("Objective / responsibility", "目标 / 分工")} rules={[{ max: 16000 }]}><Input.TextArea rows={3} maxLength={16000} /></Form.Item></> : null}
-        {draft.mode === "publish" ? <><Typography.Paragraph>{t("This summary freezes root version", "此次汇总固定根归档版本")} v{draft.root} · {t("management version", "管理版本")} {draft.version}</Typography.Paragraph><Form.Item name="selected_children" label={t("Included subtask versions", "纳入的子任务版本")} extra={t("Unselected and unfinished subtasks remain visible below and are not silently counted as complete.", "未选择及未完成的子任务仍保留显示，不会被自动视作完成。") }><Select mode="multiple" options={draft.children.map((c) => ({ value: c.subtask_id, label: `${c.title} · v${c.archive_version} · ${label(c.status)}` }))} /></Form.Item><Form.Item name="asset_revision_ids" label={t("Referenced artifact revisions", "引用的产物修订")}><Select mode="multiple" loading={publicationAssets.isFetching} options={publicationAssets.data?.filter((item) => !item.space || includedChildren.includes(item.space)).map((item) => ({ value: item.id, label: `${item.title} · ${item.kind} · r${item.revision}` }))} /></Form.Item>{publicationAssets.isError ? <Alert type="warning" showIcon message={t("Artifact references could not be loaded", "无法读取产物引用")} action={<Button onClick={() => void publicationAssets.refetch()}>{t("Retry", "重试")}</Button>} /> : null}<Form.Item name="summary" label={t("Summary, omissions and unfinished work", "汇总、未纳入范围与未完成工作")} rules={[{ required: true, whitespace: true }, { max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item><div className="archive-management-states"><Form.Item name="status" label={t("Task progress", "任务进度")} rules={[{ required: true }]}><Select options={statuses.map((value) => ({ value, label: label(value) }))} /></Form.Item><Form.Item name="reported_result" label={t("Explicit reported result", "明确报告结果")} rules={[{ required: true }]}><Select options={results.map((value) => ({ value, label: value }))} /></Form.Item></div></> : null}
-        <div className="archive-management-actions"><Space><Button type="primary" htmlType="submit" loading={operation.busy}>{draft.mode === "publish" ? t("Publish summary", "发布汇总") : t("Save", "保存")}</Button><Button onClick={() => setDraft(null)}>{t("Cancel", "取消")}</Button></Space></div>
+        {draft.mode === "status" ? <>
+          <Typography.Paragraph>{t("Save task progress directly, without publishing a summary. Completing the task does not mean tests passed or complete any subtasks.", "直接保存任务进度，无需发布汇总。任务已完成不代表测试通过，也不会自动完成子任务。")}</Typography.Paragraph>
+          <Form.Item name="status" label={t("Task status", "任务状态")} rules={[{ required: true }]}><Select options={statuses.map((value) => ({ value, label: label(value) }))} /></Form.Item>
+          <Typography.Paragraph>{t("Reported result (unchanged)", "报告结果（保持不变）")}: <ReportedResultTag result={draft.task.reported_result} /></Typography.Paragraph>
+          <Form.Item name="reason" label={t("Reason for status change", "状态变更原因")} rules={[{ max: 16000 }]} extra={t("Optional. Recorded in management history; existing reports, scope, limitations and summaries stay unchanged.", "选填，记录到管理历史；已有报告、测试范围、限制及汇总保持不变。") }><Input.TextArea rows={3} maxLength={16000} /></Form.Item>
+        </> : null}
+        {draft.mode === "publish" ? <>
+          <Typography.Paragraph>{t("Saving publishes a new task summary and updates the task progress and reported result below. Artifact contents, archive versions and earlier summaries stay unchanged.", "保存将发布一条新的任务汇总，并更新下方选择的任务进度和报告结果。归档产物内容、归档版本及历史汇总保持不变。")}</Typography.Paragraph>
+          <div className="archive-management-states">
+            <Form.Item name="status" label={t("Task progress", "任务进度")} rules={[{ required: true }]} extra={t("Completed does not mean PASS or complete any subtasks.", "已完成不代表 PASS，也不会完成子任务。") }><Select options={statuses.map((value) => ({ value, label: label(value) }))} /></Form.Item>
+            <Form.Item name="reported_result" label={t("Reported result", "报告结果")} rules={[{ required: true }]} extra={t("Keep the current result unless explicitly changing it; case results are unchanged.", "独立选择，默认保留当前结果；不会改动用例结果。") }><Select options={results.map((value) => ({ value, label: value }))} /></Form.Item>
+          </div>
+          <Form.Item name="summary" label={t("Summary, scope and limitations", "汇总、测试范围与限制")} extra={t("The latest summary is retained. Preserve its scope and limitations; add any excluded scope or unfinished work. Original reports remain in the artifacts below.", "已回显最近一次汇总。请保留已有测试范围和限制，补充未纳入范围或未完成工作；报告原文仍保留在下方归档产物中。") } rules={[{ required: true, whitespace: true, message: t("Describe the scope, limitations and unfinished work before publishing.", "请填写测试范围、限制及未完成工作后再发布。") }, { max: 262144 }]}><Input.TextArea rows={6} maxLength={262144} /></Form.Item>
+          <Typography.Paragraph className="muted">{t("This summary uses the current root archive version", "此次汇总采用当前根归档版本")} v{draft.root} · {t("management version", "管理版本")} {draft.version}</Typography.Paragraph>
+          <Form.Item name="selected_children" label={t("Included subtask versions", "纳入的子任务版本")} extra={t("Existing selections are retained at their current archive versions. Unselected and unfinished subtasks are recorded separately; review any new material.", "保留原子任务选择，采用当前归档版本。未纳入和未完成项单独记录；如有新材料，请核对范围。") }><Select mode="multiple" options={draft.children.map((c) => ({ value: c.subtask_id, label: `${c.title} · v${c.archive_version} · ${label(c.status)}` }))} /></Form.Item>
+          <Typography.Paragraph className="muted">{t("Excluded", "未纳入")}: {draft.children.filter((c) => !includedChildren.includes(c.subtask_id)).map((c) => c.title).join(", ") || t("None", "无")} · {t("Included but unfinished", "纳入但未完成")}: {draft.children.filter((c) => includedChildren.includes(c.subtask_id) && c.status !== "COMPLETED").map((c) => c.title).join(", ") || t("None", "无")}</Typography.Paragraph>
+          <Form.Item name="asset_revision_ids" label={t("Referenced artifact revisions", "引用的产物修订")}><Select mode="multiple" loading={publicationAssets.isFetching} options={availablePublicationAssets?.map((item) => ({ value: item.id, label: `${item.title} · ${item.kind} · r${item.revision}` }))} /></Form.Item>
+          {missingReferences ? <Alert type="warning" showIcon message={t("Some retained references are outside the current scope", "部分原引用已不在当前范围")} description={t("No references were removed automatically. Review newer revisions or excluded subtasks and explicitly update the selection before saving; retain the explanation of the earlier scope.", "未自动删除任何引用。请核对更新的产物修订或被排除的子任务，明确调整选择后保存，并保留原范围说明。") } /> : null}
+          {publicationAssets.isError ? <Alert type="error" showIcon message={t("Artifact references could not be loaded", "无法读取产物引用")} description={errorText(publicationAssets.error, locale)} action={<Button onClick={() => void publicationAssets.refetch()}>{t("Retry", "重试")}</Button>} /> : null}
+        </> : null}
+        <div className="archive-management-actions"><Space><Button type="primary" htmlType="submit" loading={operation.busy} disabled={draft.mode === "publish" && (publicationAssets.isPending || publicationAssets.isError || missingReferences)}>{draft.mode === "publish" ? t("Publish summary", "发布汇总") : draft.mode === "status" ? t("Save status", "保存状态") : t("Save", "保存")}</Button><Button onClick={() => setDraft(null)}>{t("Cancel", "取消")}</Button></Space></div>
       </Form></section> : null}
         <section id="task-upload" tabIndex={-1} className="data-surface session-record archive-upload" aria-labelledby="archive-upload-heading">
           <div className="activity-heading"><Typography.Title id="archive-upload-heading" level={2}>{t("Archive test artifacts", "归档测试产物")}</Typography.Title></div>
@@ -178,7 +215,12 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
         <section id="task-management" tabIndex={-1} className="session-task-section" aria-labelledby="task-management-heading">
           <Typography.Title id="task-management-heading" level={2}>{t("Management history", "管理历史")} ({query.data?.management_history.length || 0})</Typography.Title>
           <div className="data-surface"><Table rowKey={(row) => String(row.operation_id)} dataSource={query.data?.management_history || []} pagination={{ pageSize: 20, hideOnSinglePage: true }} scroll={{ x: 680 }} expandable={{ expandedRowRender: (row) => <pre className="artifact-content">{JSON.stringify(row.request_payload, null, 2)}</pre> }} columns={[
-            { title: t("Operation", "操作"), dataIndex: "operation" }, { title: t("Management version", "管理版本"), dataIndex: "task_version" }, { title: t("Original request key", "原请求标识"), key: "key", render: (_, row) => <Typography.Text code copyable>{String(row.idempotency_key)}</Typography.Text> },
+            { title: t("Operation", "操作"), dataIndex: "operation", render: (value) => value === "UPDATE_STATUS" ? t("Change status", "修改状态") : value },
+            { title: t("Status change", "状态变更"), key: "transition", render: (_, row) => row.from_status && row.to_status ? `${label(String(row.from_status))} → ${label(String(row.to_status))}` : "—" },
+            { title: t("Reason", "原因"), dataIndex: "reason", render: (value) => value ? <span className="session-literal">{String(value)}</span> : "—" },
+            { title: t("Operator", "操作者"), dataIndex: "actor_ref", render: (value) => value || "—" },
+            { title: t("Time", "时间"), dataIndex: "created_at", render: (value) => value ? formatDate(value) : "—" },
+            { title: t("Management version", "管理版本"), dataIndex: "task_version" }, { title: t("Original request key", "原请求标识"), key: "key", render: (_, row) => <Typography.Text code copyable>{String(row.idempotency_key)}</Typography.Text> },
           ]} /></div>
         </section>
       </div>

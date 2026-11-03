@@ -1719,6 +1719,7 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 | `GET /actors` | 旧归档上传身份列表已退休，Operator 认证后返回 410 |
 | `GET /tasks` | Operator 或 archive:read 获取项目内当前获准任务的有界目录 |
 | `POST /tasks/{id}/update` | Operator；显式 title/objective 管理变更，原管理 key 与 expected_task_version；结果通过 Publication 更新 |
+| `POST /tasks/{id}/status` | Operator；ADR-037 独立 UPDATE_STATUS，project_id、原管理 idempotency_key、expected_task_version、既有 status 枚举及可选 reason（≤16000字符）；只改进度与必要管理元数据，不发布汇总 |
 | `POST /tasks`、`POST /tasks/{id}/subtasks` | Operator；明确 Project/父 Task 和 title；管理 key 与适用 expected_task_version。新 Task 不选择或自动分配 owner，新 Subtask 的 uploader 字段保持空；显式指定非空 owner 的新 CREATE 拒绝。创建 Task 可选 `sut_branch`、`framework_branch` 和 `expected_project_version`，API 固定当时 Project 的 `repository_url` 与 `test_framework_repository_url`；四项作为声明在任务读取及原创建回执中返回 |
 | `POST /tasks/{id}/authorize` | Operator；新 AUTHORIZE 已退休并明确拒绝；已接受原 key 的精确对账仍可用，不签发或扩大 integration grant |
 | `POST /tasks/{id}/publications` | Operator；expected_task_version、root_archive_version、精确子任务归档版本清单、显式汇总与原 key |
@@ -1728,6 +1729,8 @@ namespace仅访问固定Unix socket，用单行JSON请求：`{verb:INVOKE,key,re
 | `POST /tasks/{id}/submissions` | archive:write，CLI 同时需 archive:read 完成确认；上传者由认证得出，归档正文见下节 |
 | `GET /submissions/by-key` | archive:read；Project/原操作 key，按原上传 actor 权限返回瘦回执，NOT_FOUND 不授权重传 |
 | `GET /submissions/{id}` | archive:read；固定接受的 TASK/SUBTASK 空间快照及引用资产正文，分页参数与下节一致 |
+
+独立状态响应仍为 `{task, subtasks, receipt}`，不返回 publication；receipt 追加 actor_ref、created_at、from_status、to_status、reason（省略原因时 null）。额外字段（包括 reported_result/summary）拒绝。既有结果和产物不变；当前授权、原 key 与 expected_task_version 校验继续适用，失答只 GET `/operations/by-key`，不重新 POST。详情管理历史使用固定回执展示变更，旧历史不补造状态/操作者。发布汇总仍单独显式执行，保存汇总的行为不因状态入口而改变。
 
 每次归档显式传 Project ID、Task ID，Subtask ID 可选，路径和正文目标必须一致。省略 Subtask 时 target_kind=TASK；指定时 target_kind=SUBTASK，目标不存在/跨任务/越权均拒绝，不能回退 Task 或推断子任务。所有读取检查目标授权，不凭 UUID 或来源字符串开放跨项目数据。新的 CLI 不携带 Operator key；Web 创建者和 integration 上传者的身份域分别记录。管理页不展示或设置任务、子任务上传身份；历史 owner 和定向授权检查保留。旧 `task:sync` 或 `cloud:work` 不满足新 scope。
 

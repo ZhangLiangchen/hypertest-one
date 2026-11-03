@@ -10,6 +10,7 @@
 - [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)：新 Local 显式归档及安装授权；旧 SessionTask 的合同与恢复只适用于仍存在的旧路径，清理按 ADR-028 执行。
 - [CLI 全项目授权交付（2026-10-28）](CLI_GLOBAL_AUTHORIZATION_DELIVERY_20261028.md)：存量授权迁移、0.1.2 发行、本机部署和用户验收边界。
 - [Local 任务上传身份清理（2026-11-01）](LOCAL_UPLOADER_RETIREMENT_DELIVERY_20261101.md)：任务级旧身份入口退役、授权回归和本机部署。
+- [ADR-037：Local 任务状态独立管理](architecture/ADR-037_LOCAL_TASK_STATUS_MANAGEMENT.md)：单独保存任务进度和原因，保留结果、汇总、归档及原 key 恢复。
 - [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md)：快速原型期替代不兼容旧实现与定向清除旧数据的决策。
 - [服务器操作](SERVER_OPERATIONS.md)：现行本机容器测试环境的操作规则和入口；运行身份以现场检查为准。
 - [PowerContext 服务](POWERCONTEXT_SERVICE.md)及 [Cloud 实现状态](CLOUD_IMPLEMENTATION_STATUS.md)：各自能力与范围，部署和验收以具体轮次记录为准。

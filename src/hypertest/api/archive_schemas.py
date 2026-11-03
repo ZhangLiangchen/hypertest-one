@@ -144,6 +144,12 @@ class ArchiveSubtaskCreate(ArchiveManagement):
     objective: str = Field(default="", max_length=16000)
 
 
+class ArchiveTaskStatusUpdate(ArchiveManagement):
+    expected_task_version: int = Field(ge=1)
+    status: TaskStatus
+    reason: str | None = Field(default=None, max_length=16000)
+
+
 class ArchiveAuthorize(ArchiveManagement):
     expected_task_version: int = Field(ge=1)
     subtask_id: UUID | None = None

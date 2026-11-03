@@ -158,7 +158,7 @@ class LocalArchiveOperation(TaskRow, Base):
         ForeignKeyConstraint(["project_id", "task_id"], ["local_archive_tasks.project_id", "local_archive_tasks.id"], ondelete="RESTRICT"),
         UniqueConstraint("project_id", "actor_ref", "idempotency_key", name="uq_archive_management_key"),
         UniqueConstraint("task_id", "task_version"), CheckConstraint("task_version>0"),
-        CheckConstraint("operation IN ('CREATE','UPDATE','SUBTASK_CREATE','AUTHORIZE','PUBLISH')"),
+        CheckConstraint("operation IN ('CREATE','UPDATE','UPDATE_STATUS','SUBTASK_CREATE','AUTHORIZE','PUBLISH')", name="ck_archive_management_operation"),
     )
     project_id: Mapped[UUID] = mapped_column()
     task_id: Mapped[UUID] = mapped_column()

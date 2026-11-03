@@ -39,6 +39,26 @@ test("Local BFF preserves safe rejection codes and hides arbitrary upstream erro
     if (typeof detail === "string" && detail !== secret) assert.equal(body.detail, detail);
   }
 });
+test("independent status route retains same-origin, operator and upstream rejection boundaries", async () => {
+  const path = `tasks/${task}/status`, calls = [];
+  const upstream = async (...args) => { calls.push(args); return new Response(JSON.stringify({ task: { status: "COMPLETED", reported_result: "FAIL" } })); };
+  const route = boundary(upstream);
+  assert.equal((await route(req(path, post("https://evil.example")), path, "archive", "POST")).status, 403);
+  assert.equal((await boundary(upstream, { HYPERTEST_ARCHIVE_WEB_OPERATOR_KEY_FILE: "" })(req(path, post()), path, "archive", "POST")).status, 503);
+  assert.equal(calls.length, 0);
+  const body = JSON.stringify({ project_id: p, expected_task_version: 7, status: "COMPLETED", reason: "Scope complete", idempotency_key: "original-status-key" });
+  const response = await route(req(path, { ...post(), body }), path, "archive", "POST");
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], `local-archive/${path}`);
+  assert.equal(calls[0][1], secret);
+  assert.equal(calls[0][2].body, body);
+  assert.equal((await response.text()).includes(secret), false);
+  const rejected = boundary(async () => new Response(JSON.stringify({ detail: "ARCHIVE_TASK_VERSION_CONFLICT" }), { status: 409 }));
+  const failure = await rejected(req(path, { ...post(), body }), path, "archive", "POST");
+  assert.equal(failure.status, 409);
+  assert.deepEqual(await failure.json(), { detail: "ARCHIVE_TASK_VERSION_CONFLICT" });
+});
 test("CLI setup publishes only a validated configured HTTPS CLI origin and public CA, never the internal API address", async () => {
   const up = async () => new Response("{}");
   const base = { HYPERTEST_ARCHIVE_WEB_ENABLED: "true", HYPERTEST_ARCHIVE_WEB_OPERATOR_KEY_FILE: "/private/operator", HYPERTEST_ARCHIVE_WEB_ORIGIN: "https://web.example" };

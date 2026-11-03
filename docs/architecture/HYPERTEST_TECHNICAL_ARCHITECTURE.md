@@ -1246,6 +1246,8 @@ Cloud Worker新增独立默认关闭的HttpBroker；namespace仍unshare-all，�
 
 ## 50. ADR-027 Local 显式归档目标架构
 
+2026-11-03 [ADR-037](ADR-037_LOCAL_TASK_STATUS_MANAGEMENT.md)：Web 的“修改状态”通过既有 Operator BFF 调用独立 `/local-archive/tasks/{id}/status`，复用管理事务、版本与原 key 账本，不依赖汇总或归档上传。只改变任务进度及必要管理元数据；CLI integration scope 不获得状态管理权。原 Publication 流程独立保留，API 不因此执行测试。
+
 > **ADR-028 退休：** 产品新建任务统一使用 Local 归档或 Cloud 创建；旧 SessionTask 页面/API/协作与专属数据退出，不合并新旧身份。已发行 CLI 仍使用 `/archives` 地址，该归档地址继续跳转至当前任务页面。旧受管 TestRun 及其关联执行、报告、证据与旧 API 按用户决定退出；独立 Native、Cloud、Archive、Memory 不混用。
 
 > **ADR-028 覆盖：** 以下旧实现的兼容、记录及恢复保留义务不阻止退休不兼容实现并定向删除其旧数据；实际仍可访问的记录按原语义解释，未知外部操作不得自动重发。

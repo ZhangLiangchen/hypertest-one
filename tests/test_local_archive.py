@@ -193,6 +193,119 @@ async def test_conflicting_keys_versions_and_invalid_targets_reject_atomically(a
     assert absent.status_code == 404 and "does not authorize replay" in absent.text
 
 
+async def test_status_management_preserves_result_publications_archives_and_unfinished_children(archive_context):
+    f = archive_context
+    included = await add_child(f, "included-unfinished")
+    omitted = await add_child(f, "outside-scope", expected=3)
+    root_body = payload(f, assets=[*payload(f)["assets"], {
+        "kind": "CASE", "stable_key": "not-executed", "title": "Still unexecuted", "reported_result": "NOT_RUN"}])
+    root = await upload(f, root_body)
+    child = await upload(f, payload(f, subtask_id=included, idempotency_key="unfinished-material",
+        assets=[{"kind": "CASE", "stable_key": "blocked-case", "title": "Blocked case", "reported_result": "NOT_RUN"}],
+        subtask_update={"status": "BLOCKED", "reported_result": "UNKNOWN"}))
+    assert root.status_code == child.status_code == 200, (root.text, child.text)
+    root_document = await read_submission(f, root.json())
+    child_document = await read_submission(f, child.json())
+    before = await detail(f)
+    summary = "# 测试范围\r\n只核对归档管理。\n\n## 限制与未完成工作\n未执行用例保留 NOT_RUN；范围外子任务未纳入。\n"
+    body = {"project_id": f["project_id"], "idempotency_key": "progress-summary", "expected_task_version": before["task"]["version"],
+        "root_archive_version": 2, "subtask_versions": [{"subtask_id": included, "archive_version": 2}],
+        "asset_revision_ids": [asset["id"] for asset in root_document["assets"] + child_document["assets"]],
+        "summary": summary, "status": "IN_PROGRESS", "reported_result": "UNKNOWN"}
+    url = PREFIX + f"/tasks/{f['task_id']}/publications"
+    first = await f["client"].post(url, headers=f["operator"], json=body)
+    assert first.status_code == 200, first.text
+    before = await detail(f)
+    reason = "已完成管理核对；范围外事项仍待执行。\r\n不改变报告结论。"
+    status_body = {"project_id": f["project_id"], "idempotency_key": "complete-progress-only",
+        "expected_task_version": before["task"]["version"], "status": "COMPLETED", "reason": reason}
+    completed = await f["client"].post(PREFIX + f"/tasks/{f['task_id']}/status", headers=f["operator"], json=status_body)
+    assert completed.status_code == 200, completed.text
+    assert "publication" not in completed.json()
+    current = await detail(f)
+    assert current["task"]["status"] == "COMPLETED" and current["task"]["reported_result"] == "UNKNOWN"
+    assert current["task"]["version"] == before["task"]["version"] + 1
+    for field, value in before["task"].items():
+        if field not in ("status", "version", "updated_at"):
+            assert current["task"][field] == value
+    assert current["subtasks"] == before["subtasks"]
+    assert current["submission_history"] == before["submission_history"]
+    assert await read_submission(f, root.json()) == root_document
+    assert await read_submission(f, child.json()) == child_document
+    assert [asset["reported_result"] for asset in root_document["assets"]] == ["NOT_RUN", "FAIL"]
+    assert child_document["status"] == "BLOCKED" and child_document["assets"][0]["reported_result"] == "NOT_RUN"
+    assert len(current["management_history"]) == len(before["management_history"]) + 1
+    assert current["management_history"][:-1] == before["management_history"]
+    assert current["publications"] == before["publications"]
+    assert len(current["publications"]) == 1
+    assert current["publications"][0] == first.json()["publication"]
+    for publication in current["publications"]:
+        assert publication["summary"] == summary
+        assert publication["reported_result"] == "UNKNOWN"
+        assert publication["root_archive_version"] == 2
+        assert publication["subtask_versions"] == body["subtask_versions"]
+        assert publication["asset_revision_ids"] == body["asset_revision_ids"]
+        assert publication["incomplete_subtask_ids"] == [included]
+        assert publication["omitted_subtask_ids"] == [omitted]
+    receipt = completed.json()["receipt"]
+    assert current["management_history"][-1] == receipt
+    assert receipt["operation"] == "UPDATE_STATUS"
+    assert receipt["from_status"] == "IN_PROGRESS" and receipt["to_status"] == "COMPLETED"
+    assert receipt["reason"] == reason
+    assert receipt["actor_ref"] == "operator:" + get_settings().connector_operator_identity
+    assert receipt["created_at"] == current["task"]["updated_at"]
+    assert receipt["request_payload"]["request"] == status_body
+    async with AsyncSessionLocal() as db:
+        operation = await db.get(LocalArchiveOperation, UUID(receipt["operation_id"]))
+        audit = await db.scalar(select(AuditEvent).where(AuditEvent.entity_id == UUID(f["task_id"]), AuditEvent.action == "local_archive.update_status"))
+        outbox = await db.scalar(select(OutboxEvent).where(OutboxEvent.aggregate_id == UUID(f["task_id"]), OutboxEvent.event_type == "local_archive.update_status"))
+        assert operation.response == completed.json() and operation.request_payload == receipt["request_payload"]
+        assert audit.actor_ref == receipt["actor_ref"] and audit.event_metadata == receipt
+        assert outbox.payload == receipt
+
+
+async def test_status_management_rejections_and_original_key_leave_history_unchanged(archive_context):
+    f = archive_context
+    root = await upload(f, payload(f))
+    assert root.status_code == 200, root.text
+    document = await read_submission(f, root.json())
+    body = {"project_id": f["project_id"], "idempotency_key": "status-only", "expected_task_version": 2, "status": "COMPLETED"}
+    url = PREFIX + f"/tasks/{f['task_id']}/status"
+    accepted = await f["client"].post(url, headers=f["operator"], json=body)
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["task"]["status"] == "COMPLETED"
+    assert accepted.json()["task"]["reported_result"] == "NOT_RUN"
+    assert accepted.json()["receipt"]["reason"] is None
+    before = await detail(f)
+    assert before["publications"] == []
+    failures = (
+        ({**body, "idempotency_key": "stale-status"}, 409, "ARCHIVE_TASK_VERSION_CONFLICT"),
+        ({**body, "status": "IN_PROGRESS"}, 409, "ARCHIVE_OPERATION_KEY_CONFLICT"),
+        ({**body, "reason": "Changed reason"}, 409, "ARCHIVE_OPERATION_KEY_CONFLICT"),
+    )
+    for rejected_body, status, reason in failures:
+        response = await f["client"].post(url, headers=f["operator"], json=rejected_body)
+        assert response.status_code == status and response.json()["detail"] == reason
+    for forbidden in ({"reported_result": "PASS"}, {"summary": "Overwrite"}, {"objective": "Overwrite"}, {"status": "PASS"}, {"reason": "x" * 16001}):
+        rejected = await f["client"].post(url, headers=f["operator"], json={**body, "idempotency_key": "invalid-fields", "expected_task_version": 3, **forbidden})
+        assert rejected.status_code == 422
+    denied = await f["client"].post(url, headers=f["auth"], json={**body, "idempotency_key": "uploader-cannot-manage", "expected_task_version": 3})
+    assert denied.status_code == 401
+    assert (await f["client"].post(url, headers=f["operator"], json=body)).json() == accepted.json()
+    recovered = await f["client"].get(PREFIX + "/operations/by-key", headers=f["operator"], params={
+        "project_id": f["project_id"], "idempotency_key": body["idempotency_key"]})
+    assert recovered.status_code == 200 and recovered.json() == accepted.json()
+    missing = await f["client"].get(PREFIX + "/operations/by-key", headers=f["operator"], params={
+        "project_id": f["project_id"], "idempotency_key": "stale-status"})
+    assert missing.status_code == 404 and "does not authorize replay" in missing.text
+    assert await detail(f) == before
+    assert await read_submission(f, root.json()) == document
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(func.count()).select_from(LocalArchiveOperation).where(LocalArchiveOperation.task_id == UUID(f["task_id"]), LocalArchiveOperation.operation == "UPDATE_STATUS")) == 1
+        assert await db.scalar(select(func.count()).select_from(AuditEvent).where(AuditEvent.entity_id == UUID(f["task_id"]), AuditEvent.action == "local_archive.update_status")) == 1
+        assert await db.scalar(select(func.count()).select_from(OutboxEvent).where(OutboxEvent.aggregate_id == UUID(f["task_id"]), OutboxEvent.event_type == "local_archive.update_status")) == 1
+
+
 async def test_scopes_operator_and_revocation_guard_reads_and_writes(archive_context):
     f = archive_context
     assert (await f["client"].get(PREFIX + "/tasks", params={"project_id": f["project_id"]})).status_code == 401

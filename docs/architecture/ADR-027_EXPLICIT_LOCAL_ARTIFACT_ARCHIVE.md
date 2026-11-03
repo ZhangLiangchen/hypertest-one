@@ -1,5 +1,7 @@
 # ADR-027：Local 显式 Skill 与 CLI 后置产物归档
 
+> **2026-11-03 状态管理增补：** [ADR-037](ADR-037_LOCAL_TASK_STATUS_MANAGEMENT.md)允许 Operator 独立更新任务进度及记录原因，无需发布汇总；测试结果、汇总及归档产物不变。下文首片的汇总管理行为保留，进度不再只能经 Publication 修改。
+
 > **2026-10-28 增补：** [ADR-028](ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 取代本 ADR 对被新实现替代且不兼容的旧 Local 客户端、入口、SessionTask 数据和恢复路径的无条件兼容与保留要求。相关旧实现及对应旧数据可定向移除；现行归档合同与无关授权、源文件、服务仍适用。此增补不表示清理已实施。
 
 日期：2026-10-27（Asia/Singapore）。状态：**架构决定已采用，首片产品实现完成**。部署、CLI/Skill 发行及 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)；源码与自动回归不替代用户功能验收。

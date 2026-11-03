@@ -25,6 +25,66 @@ test("archive key conflict remains UNKNOWN; unavailable journal sends no POST", 
   assert.equal(h.render().pending.state, "UNKNOWN"); assert.equal(h.calls.length, 1); h.close();
   const unavailable = harness({ unavailable: true }); await unavailable.mount(); await unavailable.render().submit("tasks", () => "key", {}); assert.equal(unavailable.calls.length, 0); unavailable.close();
 });
+test("status permission and version rejections settle the request without reporting success", async () => {
+  for (const [status, detail] of [[401, "ARCHIVE_OPERATOR_REQUIRED"], [403, "ARCHIVE_OPERATOR_REQUIRED"], [409, "ARCHIVE_TASK_VERSION_CONFLICT"]]) {
+    const h = harness({ send: async () => { throw new ApiError(status, detail); } });
+    await h.mount();
+    const result = await h.render().submit("tasks/task-a/status", (key) => `operations/by-key?idempotency_key=${key}`, { expected_task_version: 7, status: "COMPLETED", reason: "Recorded completion only" });
+    assert.equal(result, null);
+    assert.equal(h.render().error.detail, detail);
+    assert.equal(h.render().pending, null);
+    assert.equal(h.calls.length, 1);
+    h.close();
+  }
+});
+test("uncertain status save persists the reason and recovers by its original key without another update", async () => {
+  const a = harness(); await a.mount();
+  const fields = { expected_task_version: 7, status: "COMPLETED", reason: "Keep FAIL and unfinished children" };
+  assert.equal(await a.render().submit("tasks/task-a/status", (key) => `operations/by-key?idempotency_key=${key}`, fields), null);
+  const frozen = plain(a.render().pending); a.close();
+  const accepted = { task: { status: "COMPLETED", reported_result: "FAIL", version: 8 } };
+  const b = harness({ factory: a.factory, recover: async () => accepted }); await b.mount();
+  assert.deepEqual(plain(b.render().pending), frozen);
+  await b.render().submit("tasks/task-a/status", () => "new-key", { ...fields, status: "IN_PROGRESS" });
+  assert.equal(b.calls.length, 0, "a new status update cannot bypass an unresolved request");
+  assert.equal(await b.render().reconcile(), accepted);
+  assert.deepEqual(b.calls, [["GET", frozen.recovery_path]]);
+  assert.equal(b.render().pending, null);
+  b.close();
+});
+function plain(value) { return JSON.parse(JSON.stringify(value)); }
+test("status ACK verifies the independent action and immutable change-history fields", () => {
+  const h = harness();
+  for (const reason of [undefined, null, "Original reason\r\n未覆盖事项保持原样"]) {
+    const payload = { project_id: "project-a", idempotency_key: "status-key", expected_task_version: 7, status: "COMPLETED", ...(reason !== undefined ? { reason } : {}) };
+    const original = { project_id: "project-a", operation_key: "status-key", path: "tasks/task-a/status", payload };
+    const result = {
+      task: { id: "task-a", project_id: "project-a", version: 8, status: "COMPLETED", reported_result: "FAIL", archive_version: 3 }, subtasks: [],
+      receipt: { project_id: "project-a", task_id: "task-a", task_version: 8, idempotency_key: "status-key", operation: "UPDATE_STATUS", actor_ref: "operator:test", created_at: "2026-11-03T00:00:00Z", from_status: "BLOCKED", to_status: "COMPLETED", reason: reason ?? null, request_payload: { operation: "UPDATE_STATUS", task_id: "task-a", request: payload } },
+    };
+    assert.equal(h.module.validateManagement(original, result).task.reported_result, "FAIL");
+    for (const mutate of [
+      (v) => { v.receipt.operation = "PUBLISH"; }, (v) => { v.task.status = "IN_PROGRESS"; },
+      (v) => { v.receipt.to_status = "CANCELLED"; }, (v) => { v.receipt.from_status = "PASS"; },
+      (v) => { v.receipt.reason = "Replaced reason"; }, (v) => { v.receipt.actor_ref = ""; },
+      (v) => { delete v.receipt.created_at; }, (v) => { v.publication = { id: "unrequested-publication" }; },
+      (v) => { v.receipt.request_payload.request.reason = "Changed frozen request"; },
+    ]) {
+      const changed = structuredClone(result); mutate(changed);
+      assert.throws(() => h.module.validateManagement(original, changed), /RECEIPT_MISMATCH/);
+    }
+  }
+});
+test("publication ACK still verifies the explicitly published result, summary and version vector", () => {
+  const h = harness();
+  const payload = { project_id: "project-a", idempotency_key: "publish-key", expected_task_version: 7, status: "COMPLETED", reported_result: "FAIL", summary: "Scope unchanged\n未完成性能测试", root_archive_version: 3, subtask_versions: [{ subtask_id: "child", archive_version: 2 }], asset_revision_ids: ["report"] };
+  const original = { project_id: "project-a", operation_key: "publish-key", path: "tasks/task-a/publications", payload };
+  const result = { task: { id: "task-a", project_id: "project-a", version: 8, archive_version: 3, status: "COMPLETED", reported_result: "FAIL" }, subtasks: [], publication: { ...payload, task_version: 8 }, receipt: { project_id: "project-a", task_id: "task-a", task_version: 8, idempotency_key: "publish-key", operation: "PUBLISH", request_payload: { operation: "PUBLISH", task_id: "task-a", request: payload } } };
+  assert.equal(h.module.validateManagement(original, result).publication.summary, payload.summary);
+  for (const mutate of [(v) => { delete v.publication; }, (v) => { v.task.reported_result = "PASS"; }, (v) => { v.publication.summary = ""; }, (v) => { v.publication.asset_revision_ids = []; }, (v) => { v.publication.subtask_versions = []; }]) {
+    const changed = structuredClone(result); mutate(changed); assert.throws(() => h.module.validateManagement(original, changed), /RECEIPT_MISMATCH/);
+  }
+});
 test("archive ACK is not accepted when frozen receipt or version is inconsistent", () => {
   const h = harness(); const original = { project_id: "project-a", operation_key: "original", path: "tasks", payload: { project_id: "project-a", idempotency_key: "original", title: "Literal", objective: "Original", owner_uploader_actor_ref: null } };
   const result = { task: { id: "task-a", project_id: "project-a", version: 1, archive_version: 1, status: "DRAFT", reported_result: "NOT_RUN", title: "Literal", objective: "Original", owner_uploader_actor_ref: null }, subtasks: [], receipt: { project_id: "project-a", task_id: "task-a", task_version: 1, idempotency_key: "original", operation: "CREATE", request_payload: { operation: "CREATE", task_id: null, request: original.payload } } };

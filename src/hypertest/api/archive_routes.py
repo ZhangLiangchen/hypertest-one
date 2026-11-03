@@ -13,6 +13,7 @@ from hypertest.api.archive_schemas import (
     ArchiveSubmit,
     ArchiveSubtaskCreate,
     ArchiveTaskCreate,
+    ArchiveTaskStatusUpdate,
     ArchiveTaskUpdate,
 )
 from hypertest.api.interactive_routes import bearer, controlled_errors
@@ -81,6 +82,11 @@ async def create(payload: ArchiveTaskCreate, operator: str = Depends(require_ope
 @router.post("/tasks/{task_id}/update")
 async def update(task_id: UUID, payload: ArchiveTaskUpdate, operator: str = Depends(require_operator), db: AsyncSession = Depends(get_db)):
     return await service.manage(db, payload, "operator:" + operator, "UPDATE", task_id)
+
+
+@router.post("/tasks/{task_id}/status")
+async def update_status(task_id: UUID, payload: ArchiveTaskStatusUpdate, operator: str = Depends(require_operator), db: AsyncSession = Depends(get_db)):
+    return await service.manage(db, payload, "operator:" + operator, "UPDATE_STATUS", task_id)
 
 
 @router.post("/tasks/{task_id}/subtasks")

@@ -109,6 +109,7 @@ async def manage(db, payload, actor, operation, task_id=None):
         raise HTTPException(410, "ARCHIVE_UPLOADER_MANAGEMENT_RETIRED")
     timestamp = await clock(db)
     publication = None
+    status_change = None
     if operation == "CREATE":
         if payload.expected_project_version is not None and project_row.row_version != payload.expected_project_version:
             raise HTTPException(409, "ARCHIVE_PROJECT_VERSION_CONFLICT")
@@ -135,6 +136,10 @@ async def manage(db, payload, actor, operation, task_id=None):
         elif operation == "UPDATE":
             for field in payload.model_fields_set & {"title", "objective"}:
                 setattr(task, field, getattr(payload, field))
+        elif operation == "UPDATE_STATUS":
+            status_change = {"from_status": task.status, "to_status": payload.status,
+                "reason": payload.reason, "actor_ref": actor, "created_at": timestamp.isoformat()}
+            task.status = payload.status
         elif operation == "PUBLISH":
             publication = await prepare_publication(db, task, payload, actor, timestamp)
             task.status, task.reported_result = payload.status, payload.reported_result
@@ -147,6 +152,8 @@ async def manage(db, payload, actor, operation, task_id=None):
     receipt = {"operation_id": str(operation_id), "operation": operation,
         "idempotency_key": payload.idempotency_key, "project_id": str(task.project_id), "task_id": str(task.id),
         "task_version": task.version, "request_digest": digest, "request_payload": frozen}
+    if status_change:
+        receipt.update(status_change)
     response = {"task": public(task), "subtasks": [public(row) for row in await children(db, task.id)], "receipt": receipt}
     if publication:
         response["publication"] = public(publication)

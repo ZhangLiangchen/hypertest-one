@@ -19,7 +19,7 @@ const journals = {
 const canonical = (v: unknown): string => JSON.stringify(v && typeof v === "object" ? Array.isArray(v) ? v.map((x) => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map((k) => [k, JSON.parse(canonical((v as Record<string, unknown>)[k]))])) : v);
 export function validateManagement(original: LocalWebPending, result: ArchiveManagement) {
   const receipt = result?.receipt;
-  const names: Record<string, string> = { tasks: "CREATE", subtasks: "SUBTASK_CREATE", authorize: "AUTHORIZE", update: "UPDATE", publications: "PUBLISH" };
+  const names: Record<string, string> = { tasks: "CREATE", subtasks: "SUBTASK_CREATE", authorize: "AUTHORIZE", update: "UPDATE", status: "UPDATE_STATUS", publications: "PUBLISH" };
   const action = names[original.path.split("/").at(-1)!];
   const frozen = { operation: action, task_id: action === "CREATE" ? null : original.path.split("/")[1], request: original.payload };
   const expectedVersion = action === "CREATE" ? 1 : Number(original.payload.expected_task_version) + 1;
@@ -31,6 +31,15 @@ export function validateManagement(original: LocalWebPending, result: ArchiveMan
   if (action === "CREATE" && (result.task.archive_version !== 1 || result.task.reported_result !== "NOT_RUN" || result.task.status !== "DRAFT"
     || ("owner_uploader_actor_ref" in original.payload && original.payload.owner_uploader_actor_ref !== result.task.owner_uploader_actor_ref))) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
   if (action === "CREATE" && (["sut_branch", "framework_branch"] as const).some((field) => field in original.payload && original.payload[field] !== (result.task[field] ?? null))) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
+  if (action === "PUBLISH" && (!result.publication || result.publication.task_version !== expectedVersion
+    || result.task.status !== original.payload.status || result.task.reported_result !== original.payload.reported_result
+    || result.task.archive_version !== original.payload.root_archive_version
+    || ["summary", "status", "reported_result", "root_archive_version", "subtask_versions", "asset_revision_ids"].some((field) =>
+      canonical(result.publication![field as keyof typeof result.publication]) !== canonical(original.payload[field])))) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
+  if (action === "UPDATE_STATUS" && (result.task.status !== original.payload.status || receipt.to_status !== original.payload.status
+    || typeof receipt.from_status !== "string" || !["DRAFT", "IN_PROGRESS", "BLOCKED", "COMPLETED", "CANCELLED"].includes(receipt.from_status)
+    || receipt.reason !== (original.payload.reason ?? null) || typeof receipt.actor_ref !== "string" || !receipt.actor_ref
+    || typeof receipt.created_at !== "string" || !receipt.created_at || result.publication)) throw new Error("ARCHIVE_RECEIPT_MISMATCH");
   return result;
 }
 /** Persist SENT before the sole POST; failed delivery is only reconciled by GET. */

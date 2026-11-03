@@ -2619,7 +2619,7 @@ Project/Task/Submission/AssetRevision 及非空 Subtask 以复合外键保证归
 
 ### 56.2 资产修订、状态与接受事务
 
-首片 kind 为 PLAN、CASE、REPORT，正文和结构按 TMP§51。归档请求是显式的完整资产 upsert 集合：每个所选资产携完整内容/结果/来源，省略已有资产保留其当前版本及历史。subtask_update 仅对 SUBTASK 目标有效；子任务 status/reported_result 只接受明确出现的更新，缺省沿用当前值，null 不代表清空。TASK 目标带 subtask_update 则拒绝；根归档不修改 Task 整体状态/结果，整体汇总通过管理 Publication 更新。首片不提供隐式删除、CLEAR 或资产搬迁。
+首片 kind 为 PLAN、CASE、REPORT，正文和结构按 TMP§51。归档请求是显式的完整资产 upsert 集合：每个所选资产携完整内容/结果/来源，省略已有资产保留其当前版本及历史。subtask_update 仅对 SUBTASK 目标有效；子任务 status/reported_result 只接受明确出现的更新，缺省沿用当前值，null 不代表清空。TASK 目标带 subtask_update 则拒绝；根归档不修改 Task 整体状态/结果，整体报告结果通过管理 Publication 更新；任务进度也可经 ADR-037 的独立 UPDATE_STATUS 管理操作更新。首片不提供隐式删除、CLEAR 或资产搬迁。
 
 资产修订只追加：根空间在 `(task_id, kind, stable_key, revision) WHERE subtask_id IS NULL` 内唯一，子任务空间在 `(subtask_id, kind, stable_key, revision) WHERE subtask_id IS NOT NULL` 内唯一，不能依赖普通 nullable 唯一键实现根约束。同名 key 跨空间互不覆盖。比较内容包含结果和来源 metadata，不能仅按正文 digest 去重。新的测试发生可以用新 stable_key 或显式来源发生记录区分；原 FAIL/UNKNOWN 和被替代原文保持。
 
@@ -2636,6 +2636,8 @@ Task/子任务进度使用 DRAFT、IN_PROGRESS、BLOCKED、COMPLETED、CANCELLED
 本地私有请求在网络前冻结并记 SENT。失答、UNKNOWN、NOT_FOUND 只查原 key；有效 ACK 后只继续该固定版本完整读回。一个归档空间的未决写阻止依赖它的新意图，不阻塞无依赖的其他空间；CLI 不通过跨 root 私有目录扫描寻找未知请求。Submission 接受结果与客户端传输状态分别记录，传输 UNKNOWN 不覆盖 reported_result。
 
 ### 56.4 任务管理与整体汇总
+
+2026-11-03 [ADR-037](../architecture/ADR-037_LOCAL_TASK_STATUS_MANAGEMENT.md)：新增独立 `UPDATE_STATUS`，仅显式变更 Task.status、管理 version（+1）与 updated_at，不改 reported_result、title/objective、子任务、用例、归档版本/正文或任何 Publication。可选 reason 最多 16000 字符；同状态的显式操作也记录一次管理版本。LocalArchiveOperation 固定响应/回执及 Audit/Outbox 保存 actor_ref、created_at、from_status、to_status、reason；旧历史缺失值不补造。当前 Operator 权限核验后先按原 key 恢复，同 key 同请求不重复写，异请求拒绝；新 key 核 expected_task_version。COMPLETED 不推导 PASS。`0045_local_archive_status` 只扩展操作类型 CHECK，不改变已有状态枚举或旧数据。PUBLISH 仍按下文显式更新整体汇总及其状态/结果。
 
 Task 元数据、创建/调整子任务目录和任务汇总更新使用 expected_task_version 并递增 Task version；这些管理变更不伪造一次归档或更改旧接受快照。根和子任务的 archive_version 均独立。Operator 管理写也具有独立 operation key、冻结管理快照及原 key 查询，不使用上传者 scope 扩权。
 
