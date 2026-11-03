@@ -38,27 +38,23 @@ async def test_claim_requires_dedicated_worker_identity(worker_client, monkeypat
     client, headers = worker_client
     calls = []
 
-    async def expire(_db):
-        calls.append("expire")
+    async def claim(_db, request):
+        calls.append(request)
+        return {"worker_id": request["worker_id"], "sequence": request["sequence"],
+                "request_key": request["request_key"], "kind": "EMPTY", "closed": True, "claim": None}
 
-    async def resolution(_db, worker_id, lease_seconds):
-        calls.append((worker_id, lease_seconds))
-        return None
-
-    async def attempt(_db, worker_id, lease_seconds, *, supports_attempt_manifest=False):
-        return None
-
-    monkeypatch.setattr(cloud_worker_routes.service, "expire_leases", expire)
-    monkeypatch.setattr(cloud_worker_routes.service, "claim_resolution", resolution)
-    monkeypatch.setattr(cloud_worker_routes.service, "claim_attempt", attempt)
-    payload = {"worker_id": "host-fixture", "lease_seconds": 90}
+    monkeypatch.setattr(cloud_worker_routes.cloud_worker_claims, "claim", claim)
+    payload = {"worker_id": "host-fixture", "sequence": 1,
+               "request_key": "fixture-claim-" + uuid4().hex, "lease_seconds": 90}
     assert (await client.post("/api/v1/cloud/worker/claim", json=payload)).status_code == 401
     assert (await client.post("/api/v1/cloud/worker/claim", headers=headers,
                               json={**payload, "worker_id": "another"})).status_code == 403
     assert not calls
     response = await client.post("/api/v1/cloud/worker/claim", headers=headers, json=payload)
-    assert response.status_code == 200 and response.json() == {"kind": "EMPTY", "claim": None}
-    assert calls == ["expire", ("host-fixture", 90)]
+    assert response.status_code == 200 and response.json() == {
+        "worker_id": payload["worker_id"], "sequence": 1, "request_key": payload["request_key"],
+        "kind": "EMPTY", "closed": True, "claim": None}
+    assert calls == [{**payload, "supports_attempt_manifest": False}]
 
 
 async def test_auth_observation_requires_worker_and_accepts_only_status(worker_client, monkeypatch):

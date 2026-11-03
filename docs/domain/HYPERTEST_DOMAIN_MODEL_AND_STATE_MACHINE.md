@@ -2332,6 +2332,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 `cloud_agent_auth_observations` 是与上述 Canonical 业务实体独立的短期运行时投影，按 Worker 实例保存 DeepSeek 最近一次非秘密认证状态和数据库观察时间，不保存凭据、账户、上游响应或余额；每次新观察只清理该表中超过一天的记录，不触及任务、原件或历史。API 仅在 Cloud 与 Worker 开启且恰有一个 180 秒内的新鲜实例时显示该观察，其余均为 UNKNOWN；多实例不能合并成单个有效认证结论。该观察不构成任务准入、模型执行或测试结果，也不授予任何凭据或任务权限。
 
+[ADR-036](../architecture/ADR-036_WORKER_CLAIM_RECOVERY.md) 增加独立运行状态 `CloudWorkerClaimState / cloud_worker_claim_states`：每 Worker 单行保存 sequence 高水位、当前 key/完整请求 digest、kind/closed、目标复合 FK 和 generation，不保存 capability 原文。只有原槽已关闭才能递增一位；同序号身份不可变，关闭不可重开，高水位不可删除或回退。领取、grant 和高水位同事务提交；reconcile 只原子封口未接受序号或 fence/关闭原目标，不重跑工作、不改历史结果。旧序号 RETIRED 不是未到达/未执行证明，旧无序号 pending 不自动迁移或清空；完整恢复及人工退役边界见该 ADR。
+
 所有 FK 默认 ON DELETE RESTRICT；跨表引用检查同 Project/Task/Attempt 归属，Asset 的 source Attempt 不能挂到另一任务，CloudRunCase 的 case 不能挂到另一项目。Task 输入、修订、终结 Attempt、Run、Artifact、回执与审计禁止硬删除或回填成功。凭据保留/销毁遵守专门策略；销毁秘密时保留非秘密版本与使用审计，不删除历史归属。运行内容保留期限与受控清理由项目策略明示，不能静默清除未回收产物或恢复 checkpoint。
 
 ### 51.2 项目资源、凭据与授权

@@ -29,6 +29,9 @@ def test_worker_proxy_only_adds_narrow_post_routes():
     assert 'proxy_set_header X-Hypertest-Operator-Key "";' in staged
     assert staged.index("location ~ ^/api/v1/cloud/worker/") < staged.index(module.ANCHOR)
     assert module.bff_config(staged) == staged
+    previous = staged.replace(module.ROUTES, "auth-observation|" + module.LEGACY_ROUTES
+                              + "|live-question/(open|lookup|poll|finish)")
+    assert module.bff_config(previous) == staged
     with pytest.raises(ValueError):
         module.bff_config(original.replace(module.ANCHOR, "location ~ ^/api/v1/cloud/worker/.* {}\n" + module.ANCHOR))
 

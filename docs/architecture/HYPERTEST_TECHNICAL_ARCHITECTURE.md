@@ -1080,6 +1080,8 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 [ADR-035](ADR-035_NATIVE_COMPLETION_MANAGEMENT.md) 在控制平面区分“正常原生完成但宿主外部范围未观察”与“存在已知未决工作”。API 从原完成回执和报告核验身份，复用同一准入检查支持 live summary 与复测/删除写入；Web 使用版本匹配的实时管理提示。直接 SDK 退出及其他范围 UNKNOWN 仍原样保存，不由 UI 或 Worker 补成独立停止证明，也不增加常驻 Harness、容器或新测试引擎。
 
+[ADR-036](ADR-036_WORKER_CLAIM_RECOVERY.md) 以每 Worker 单行 sequence 高水位处理薄 Worker 领取失答，原领取与该状态同事务提交；恢复入口仅返回非秘密状态并封口/fence 原领取，首次 claim capability 不再次交付。客户端私有完整意图与进程级 flock 防止重复发送及执行；空闲网络/5xx 故障有界退避，实际 runtime 异常关闭原槽后仍停止。恢复不运行 Git、SDK 或测试，也不提供外部停止证明；旧无序号 pending 需关闭旧入口、核对原授权并人工退役，保持 UNKNOWN。该机制独立于任务报告和外部操作账本，不增加常驻 Harness。
+
 
 项目可以保存 SUT / framework 两个 credential-free origin、测试工作目录 / 入口、环境地址和连接方式；允许同仓，但各自角色和实际 SHA 必须明确。新 Cloud 资源配置无需默认分支；旧配置的默认 selector 原样保留，两个实际 selector 在创建任务时确定。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
 

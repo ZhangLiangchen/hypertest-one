@@ -1,3 +1,5 @@
+import asyncio
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -7,16 +9,76 @@ import pytest
 from hypertest.cloud.broker import BrokerFailure
 from hypertest.cloud.errors import CloudBlocked
 from hypertest.cloud.manifests import MANIFEST_PROFILE, Handoff
-from hypertest.cloud.native_worker import WorkerAPI, complete_claim, prepare_claim
+from hypertest.cloud.native_worker import (
+    WorkerAPI,
+    complete_claim,
+    pending_claim,
+    prepare_claim,
+    worker_lock,
+)
 from hypertest.cloud.reporter import CloudTaskReporter
+from hypertest.cloud.worker import save_once
+
+
+def claim_request(**changes):
+    return {"worker_id": "native-fixture", "sequence": 1, "request_key": "original-claim-key-123456",
+        "lease_seconds": 90, "supports_attempt_manifest": True, **changes}
+
+
+def claim_response(request=None, *, kind="EMPTY", closed=True, **fields):
+    return {"worker_id": "native-fixture", "sequence": request["sequence"] if request else 0,
+        "request_key": request["request_key"] if request else None, "kind": kind, "closed": closed, **fields}
+
+
+@pytest.fixture
+def loop_args(tmp_path, monkeypatch):
+    from hypertest.cloud import native_profile, sdk
+
+    credential = tmp_path / "worker-token"
+    credential.write_text("test-only-worker-" + "x" * 40)
+    credential.chmod(0o600)
+    monkeypatch.setattr(sdk, "inspect_native_sdk", lambda: None)
+    monkeypatch.setattr(native_profile, "check_sdk_profile", lambda _: None)
+    return SimpleNamespace(worker_id="native-fixture", state_dir=str(tmp_path), dsh_home="fixture",
+        worker_credential_file=str(credential), api_url="https://example.invalid", ca_file=None,
+        lease_seconds=90, once=True, poll_seconds=1)
+
+
+def mock_worker_api(monkeypatch, request):
+    from hypertest.cloud import native_worker
+
+    class API:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def request(self, operation, body):
+            if operation == "auth-observation":
+                return {"recorded": True}
+            return await request(operation, body)
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(native_worker, "WorkerAPI", API)
 
 
 def test_claim_must_not_be_replayed_after_unconfirmed_send(tmp_path):
-    pending = prepare_claim(tmp_path, "worker-test")
+    request = claim_request()
+    pending = prepare_claim(tmp_path, request)
+    assert pending_claim(tmp_path, "native-fixture") == (pending, request)
     with pytest.raises(CloudBlocked, match="Original claim"):
-        prepare_claim(tmp_path, "worker-test")
+        prepare_claim(tmp_path, request)
     complete_claim(pending)
-    assert prepare_claim(tmp_path, "worker-test").exists()
+    assert prepare_claim(tmp_path, claim_request(sequence=2)).exists()
+
+
+def test_worker_state_is_exclusive_and_lock_releases_after_exit(tmp_path):
+    with worker_lock(tmp_path):
+        with pytest.raises(CloudBlocked) as failure, worker_lock(tmp_path):
+            pass
+        assert failure.value.code == "WORKER_ALREADY_RUNNING"
+    with worker_lock(tmp_path):
+        pass
 
 
 @pytest.mark.asyncio
@@ -93,34 +155,261 @@ async def test_legacy_worker_fences_retry_snapshot_before_runtime_creation(monke
 
 
 @pytest.mark.asyncio
-async def test_native_worker_claim_advertises_attempt_snapshot_support(tmp_path, monkeypatch):
-    from hypertest.cloud import native_profile, native_worker, sdk
+async def test_native_worker_claim_advertises_attempt_snapshot_support(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
 
     requests = []
 
-    class API:
-        def __init__(self, *args, **kwargs):
-            pass
+    async def request(operation, body):
+        requests.append((operation, body))
+        if operation == "claim/state":
+            return claim_response()
+        assert pending_claim(tmp_path, "native-fixture")[1] == body
+        return claim_response(body, claim=None)
 
-        async def request(self, operation, body):
-            requests.append((operation, body))
-            return {"kind": "EMPTY"}
-
-        async def close(self):
-            pass
-
-    monkeypatch.setattr(native_worker, "WorkerAPI", API)
-    monkeypatch.setattr(native_worker, "read_private_file", lambda *args, **kwargs: b"test-identity")
-    monkeypatch.setattr(native_worker, "private_root", lambda _: tmp_path)
-    monkeypatch.setattr(sdk, "inspect_native_sdk", lambda: None)
-    monkeypatch.setattr(native_profile, "check_sdk_profile", lambda _: None)
-    args = SimpleNamespace(worker_id="native-fixture", state_dir=str(tmp_path), dsh_home="fixture",
-        worker_credential_file="fixture", api_url="https://example.invalid", ca_file=None,
-        lease_seconds=90, once=True, poll_seconds=1)
-    assert await native_worker.run(args) == 0
-    assert requests == [("claim", {"worker_id": "native-fixture", "lease_seconds": 90,
-                                    "supports_attempt_manifest": True})]
+    mock_worker_api(monkeypatch, request)
+    assert await native_worker.run(loop_args) == 0
+    assert [operation for operation, _ in requests] == ["claim/state", "claim"]
+    sent = requests[-1][1]
+    assert sent["sequence"] == 1 and sent["supports_attempt_manifest"] is True and sent["lease_seconds"] == 90
+    assert len(sent["request_key"]) >= 16
     assert not (tmp_path / "claim-pending.json").exists()
+
+
+@pytest.mark.parametrize("kind", ["ABANDONED", "RETIRED"])
+async def test_pending_claim_restart_only_closes_original_without_runtime(tmp_path, monkeypatch, loop_args, kind):
+    from hypertest.cloud import native_worker, sdk
+
+    original = claim_request(lease_seconds=120)
+    prepare_claim(tmp_path, original)
+    requests = []
+
+    def unexpected_runtime(*args, **kwargs):
+        raise AssertionError("Recovering a claim must not load or start a runtime")
+
+    monkeypatch.setattr(sdk, "inspect_native_sdk", unexpected_runtime)
+    monkeypatch.setattr(native_worker, "execute", unexpected_runtime)
+    monkeypatch.setattr(native_worker, "resolve", unexpected_runtime)
+
+    async def request(operation, body):
+        requests.append((operation, body))
+        fields = {"current_sequence": body["sequence"] + 1} if kind == "RETIRED" else {}
+        return claim_response(body, kind=kind, **fields)
+
+    mock_worker_api(monkeypatch, request)
+    assert await native_worker.run(loop_args) == 0
+    assert requests == [("claim/reconcile", original)]
+    assert pending_claim(tmp_path, loop_args.worker_id) is None
+
+
+@pytest.mark.parametrize("damage", ["legacy", "digest", "worker"])
+async def test_legacy_or_damaged_pending_never_gets_discarded(tmp_path, monkeypatch, loop_args, damage):
+    from hypertest.cloud import native_worker
+
+    if damage == "legacy":
+        pending = tmp_path / "claim-pending.json"
+        save_once(pending, {"status": "SENT", "worker_id": loop_args.worker_id, "local_key": "old-local-only-key"})
+    else:
+        pending = prepare_claim(tmp_path, claim_request())
+        record = json.loads(pending.read_text())
+        if damage == "digest":
+            record["request"]["lease_seconds"] = 180
+        else:
+            record["request"]["worker_id"] = "different-worker"
+        pending.write_text(json.dumps(record))
+    before = pending.read_bytes()
+
+    async def unexpected_request(*args):
+        raise AssertionError("Unsafe journal must be rejected before API access")
+
+    mock_worker_api(monkeypatch, unexpected_request)
+    with pytest.raises(CloudBlocked):
+        await native_worker.run(loop_args)
+    assert pending.read_bytes() == before
+
+
+@pytest.mark.parametrize("status", [None, 503, 401, 403])
+async def test_once_unconfirmed_or_rejected_claim_keeps_exact_intent(tmp_path, monkeypatch, loop_args, status):
+    from hypertest.cloud import native_worker
+
+    requests = []
+
+    async def request(operation, body):
+        requests.append((operation, body))
+        if operation == "claim/state":
+            return claim_response()
+        if status is None:
+            raise CloudBlocked("WORKER_API_UNCONFIRMED", "Synthetic transport failure")
+        raise BrokerFailure(status, "CLOUD_OPERATION_REJECTED")
+
+    mock_worker_api(monkeypatch, request)
+    with pytest.raises(CloudBlocked):
+        await native_worker.run(loop_args)
+    assert pending_claim(tmp_path, loop_args.worker_id)[1] == requests[-1][1]
+    assert [operation for operation, _ in requests] == ["claim/state", "claim"]
+
+
+async def test_idle_failure_recovers_original_key_then_polls_new_sequence(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
+
+    loop_args.once = False
+    requests, delays = [], []
+    original = None
+    state_failures = reconcile_failures = 0
+
+    async def request(operation, body):
+        nonlocal original, state_failures, reconcile_failures
+        requests.append((operation, dict(body)))
+        if operation == "claim/state":
+            if state_failures == 0:
+                state_failures += 1
+                raise BrokerFailure(503, "CLOUD_OPERATION_REJECTED")
+            return claim_response(original, kind="ABANDONED" if original else "EMPTY")
+        if operation == "claim":
+            if original is None:
+                original = dict(body)
+                raise CloudBlocked("WORKER_API_UNCONFIRMED", "Synthetic lost response after delivery")
+            assert body["sequence"] == original["sequence"] + 1 and body["request_key"] != original["request_key"]
+            loop_args.once = True
+            return claim_response(body, claim=None)
+        assert operation == "claim/reconcile" and body == original
+        if reconcile_failures == 0:
+            reconcile_failures += 1
+            raise BrokerFailure(502, "CLOUD_OPERATION_REJECTED")
+        return claim_response(body, kind="ABANDONED")
+
+    async def sleep(delay):
+        delays.append(delay)
+
+    monkeypatch.setattr(native_worker.asyncio, "sleep", sleep)
+    mock_worker_api(monkeypatch, request)
+    assert await native_worker.run(loop_args) == 0
+    claims = [body for operation, body in requests if operation == "claim"]
+    assert [body["sequence"] for body in claims] == [1, 2]
+    assert all(body == original for operation, body in requests if operation == "claim/reconcile")
+    assert delays and all(0 < delay <= 30 for delay in delays)
+    assert pending_claim(tmp_path, loop_args.worker_id) is None
+
+
+@pytest.mark.parametrize("kind", ["ATTEMPT", "RESOLUTION"])
+async def test_restart_after_work_started_never_replays_it(tmp_path, monkeypatch, loop_args, kind):
+    from hypertest.cloud import native_worker
+
+    requests, executions = [], []
+
+    async def request(operation, body):
+        requests.append((operation, dict(body)))
+        if operation == "claim/state":
+            return claim_response()
+        if operation == "claim":
+            return claim_response(body, kind=kind, closed=False, claim={"synthetic": True})
+        assert operation == "claim/reconcile"
+        return claim_response(body, kind=kind)
+
+    async def interrupted(*args):
+        executions.append(kind)
+        raise asyncio.CancelledError()
+
+    mock_worker_api(monkeypatch, request)
+    monkeypatch.setattr(native_worker, "execute" if kind == "ATTEMPT" else "resolve", interrupted)
+    with pytest.raises(asyncio.CancelledError):
+        await native_worker.run(loop_args)
+    original = pending_claim(tmp_path, loop_args.worker_id)[1]
+    assert await native_worker.run(loop_args) == 0
+    assert executions == [kind]
+    assert requests[-1] == ("claim/reconcile", original)
+    assert len([operation for operation, _ in requests if operation == "claim"]) == 1
+
+
+async def test_terminal_slot_close_retries_without_executing_again(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
+
+    loop_args.once = False
+    executions, closes = [], []
+
+    async def request(operation, body):
+        if operation == "claim/state":
+            return claim_response()
+        if operation == "claim":
+            return claim_response(body, kind="ATTEMPT", closed=False, claim={"synthetic": True})
+        assert operation == "claim/reconcile"
+        closes.append(dict(body))
+        if len(closes) == 1:
+            raise CloudBlocked("WORKER_API_UNCONFIRMED", "Synthetic lost close response")
+        loop_args.once = True
+        return claim_response(body, kind="ATTEMPT")
+
+    async def execute(*args):
+        executions.append("completed")
+
+    async def sleep(_delay):
+        pass
+
+    monkeypatch.setattr(native_worker, "execute", execute)
+    monkeypatch.setattr(native_worker.asyncio, "sleep", sleep)
+    mock_worker_api(monkeypatch, request)
+    assert await native_worker.run(loop_args) == 0
+    assert executions == ["completed"] and closes[0] == closes[1]
+    assert pending_claim(tmp_path, loop_args.worker_id) is None
+
+
+async def test_runtime_failure_closes_original_slot_then_stops(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
+
+    loop_args.once = False
+    requests = []
+
+    async def request(operation, body):
+        requests.append((operation, dict(body)))
+        if operation == "claim/state":
+            return claim_response()
+        if operation == "claim":
+            return claim_response(body, kind="ATTEMPT", closed=False, claim={"synthetic": True})
+        assert operation == "claim/reconcile"
+        return claim_response(body, kind="ATTEMPT")
+
+    async def execute(*args):
+        raise CloudBlocked("SYNTHETIC_RUNTIME_FAILED", "Synthetic runtime stopped")
+
+    monkeypatch.setattr(native_worker, "execute", execute)
+    mock_worker_api(monkeypatch, request)
+    with pytest.raises(CloudBlocked) as failure:
+        await native_worker.run(loop_args)
+    assert failure.value.code == "SYNTHETIC_RUNTIME_FAILED"
+    assert [operation for operation, _ in requests] == ["claim/state", "claim", "claim/reconcile"]
+    assert requests[1][1] == requests[2][1] and pending_claim(tmp_path, loop_args.worker_id) is None
+
+
+async def test_server_unclosed_claim_without_local_intent_stops_before_delivery(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
+
+    requests = []
+
+    async def request(operation, body):
+        requests.append(operation)
+        return claim_response(claim_request(), kind="ATTEMPT", closed=False)
+
+    mock_worker_api(monkeypatch, request)
+    with pytest.raises(CloudBlocked) as failure:
+        await native_worker.run(loop_args)
+    assert failure.value.code == "CLAIM_RECONCILIATION_REQUIRED"
+    assert requests == ["claim/state"] and pending_claim(tmp_path, loop_args.worker_id) is None
+
+
+async def test_mismatched_recovery_response_never_clears_pending(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
+
+    original = claim_request()
+    pending = prepare_claim(tmp_path, original)
+
+    async def request(operation, body):
+        assert operation == "claim/reconcile" and body == original
+        return claim_response(claim_request(request_key="different-claim-key-123456"), kind="RETIRED", current_sequence=2)
+
+    mock_worker_api(monkeypatch, request)
+    with pytest.raises(CloudBlocked):
+        await native_worker.run(loop_args)
+    assert pending_claim(tmp_path, loop_args.worker_id) == (pending, original)
 
 
 @pytest.mark.asyncio

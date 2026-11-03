@@ -28,4 +28,4 @@ DeepSeek 插件可在已常驻 Harness 中承担任务接入，但使交付和�
 
 本 ADR 是已决定的目标，不能作为已完成实现、已部署或已验收的证据。新 Worker 的宿主安装、认证与通信、任务领取、SDK 适配、结果回传及原 key 恢复应分别实现和验证。现有容器 Worker 的行为在替换部署前仍是运行事实；真实 Harness、凭据、项目测试和用户验收需分别观察。
 
-宿主安装准备工具 `scripts/prepare-macos-cloud-worker.py` 生成指定已推送 Git SHA 的 LaunchAgent 和受限 BFF 配置，`scripts/install-macos-cloud-worker.py` 可安装该 LaunchAgent；它们不配置用户的 Git、SSH、模型身份或 Harness 插件。SDK 的 `sdk` profile 与相应认证需由执行环境提供。LaunchAgent 登录时启动，运行中发生不确定领取或异常后不自动重启；必须核对原领取及租约后再处理，不能重放未知请求。Shell 临时 `export` 不一定属于 launchd 环境；需要在执行服务的真实环境中配置身份，不能假设交互终端的环境变量自动继承。
+宿主安装准备工具 `scripts/prepare-macos-cloud-worker.py` 生成指定已推送 Git SHA 的 LaunchAgent 和受限 BFF 配置，`scripts/install-macos-cloud-worker.py` 可安装该 LaunchAgent；它们不配置用户的 Git、SSH、模型身份或 Harness 插件。SDK 的 `sdk` profile 与相应认证需由执行环境提供。LaunchAgent 登录时启动，异常退出后不自动重启。[ADR-036](ADR-036_WORKER_CLAIM_RECOVERY.md) 增补空闲 transport 故障的原序号/key 恢复：Worker 保留完整意图并退避，服务端只封口或 fence 原领取，不重发 claim、解析或 SDK 工作；实际 runtime 异常仍在原领取关闭后停止。旧无序号记录必须受控人工退役并保留 UNKNOWN，不能自动清空。Shell 临时 `export` 不一定属于 launchd 环境；需要在执行服务的真实环境中配置身份，不能假设交互终端的环境变量自动继承。

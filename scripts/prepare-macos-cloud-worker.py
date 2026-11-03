@@ -18,7 +18,10 @@ from urllib.parse import urlsplit
 
 LABEL = "com.hypertest.cloud-native-worker"
 ANCHOR = "        location ~ ^/api/v1/(local-archive|cli-authorizations)/ {"
-ROUTES = "claim|renew|assert|fence|resolution/accept|resolution/assert|submit|validate-payload|receipt|page|artifact"
+LEGACY_ROUTES = "claim|renew|assert|fence|resolution/accept|resolution/assert|submit|validate-payload|receipt|page|artifact"
+ROUTES = ("auth-observation|claim|claim/state|claim/reconcile|renew|assert|fence|resolution/accept|resolution/assert|"
+          "submit|validate-payload|receipt|page|artifact|live-question/open|live-question/lookup|"
+          "live-question/poll|live-question/finish")
 LOCATION = f'''        # Host Cloud Worker: dedicated bearer only, no Operator key.
         location ~ ^/api/v1/cloud/worker/({ROUTES})$ {{
             limit_except POST {{ deny all; }}
@@ -44,6 +47,11 @@ def bff_config(original: str) -> str:
     if LOCATION in original and original.count("location ~ ^/api/v1/cloud/worker/") == 1:
         return original
     if "location ~ ^/api/v1/cloud/worker/" in original:
+        for routes in (LEGACY_ROUTES, LEGACY_ROUTES + "|live-question/(open|lookup|poll|finish)",
+                       "auth-observation|" + LEGACY_ROUTES + "|live-question/(open|lookup|poll|finish)"):
+            previous = LOCATION.replace(ROUTES, routes)
+            if previous in original and original.count("location ~ ^/api/v1/cloud/worker/") == 1:
+                return original.replace(previous, LOCATION, 1)
         raise ValueError("Unexpected existing Worker route")
     return original.replace(ANCHOR, LOCATION + ANCHOR, 1)
 
@@ -65,7 +73,8 @@ def agent_plist(*, python: Path, source: Path, api_url: str, worker_id: str,
         "--api-url", api_url, "--worker-id", worker_id, "--worker-credential-file", str(credential),
         "--dsh-home", str(dsh_home), "--state-dir", str(state), "--ca-file", str(ca)],
         "EnvironmentVariables": environment, "WorkingDirectory": str(source),
-        # An uncertain claim needs reconciliation, not an automatic restart.
+        # Transport failures recover in-process by original key. Runtime faults
+        # still stop for inspection; launchd must not replay uncertain work.
         "RunAtLoad": True, "KeepAlive": False, "ProcessType": "Background"}
 
 

@@ -1627,7 +1627,7 @@ async def directory(db, project_id, *, actor_ref, local_allowed, cloud_allowed,
     return {"items": entries[offset:offset + limit], "total": len(entries), "offset": offset, "limit": limit}
 
 
-async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, supports_attempt_manifest=False):
+async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, supports_attempt_manifest=False, commit=True):
     """Operational claim; never reclaims an expired active runtime automatically."""
     enabled()
     # A short SKIP LOCKED Task lock serializes with controls and avoids acquiring
@@ -1658,7 +1658,10 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
     auth_expiry = authorization_expiry(inputs["authorization"])
     if auth_expiry is not None and now >= auth_expiry:
         _state(task, attempt, "CANCELLED", "Execution authorization expired before claim", now)
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return None
     budgets = inputs["budgets"]
     budget_remaining = None
@@ -1668,7 +1671,10 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
         available_cost = max(0, budgets["total_cost_microunits"] - other_cost - attempt.cost_microunits)
         if available_seconds < 1 or available_cost < 1:
             _state(task, attempt, "CANCELLED", "Cumulative budget exhausted before claim", now)
-            await db.commit()
+            if commit:
+                await db.commit()
+            else:
+                await db.flush()
             return None
         budget_remaining = {"seconds": available_seconds, "cost_microunits": available_cost}
     token, work_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
@@ -1691,7 +1697,10 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
     # Claim is operational, so it does not spend an optimistic business version.
     _events(db, task.project_id, "worker:" + worker_id, "CLAIM", task.id,
         {"attempt_id": str(attempt.id), "generation": attempt.lease_generation})
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     return {"task": public(task), "attempt": public(attempt), "lease_token": token,
         "generation": attempt.lease_generation, "work_token": work_token,
         "budget_remaining": budget_remaining}
@@ -1715,27 +1724,38 @@ async def renew_lease(db, attempt_id, worker_id, lease_token, generation, work_t
     return {"expires_at": attempt.lease_expires_at.isoformat(), "generation": generation}
 
 
-async def claim_resolution(db, worker_id, lease_seconds=90, *, project_id=None):
+async def claim_resolution(db, worker_id, lease_seconds=90, *, project_id=None, commit=True):
     enabled()
-    query = select(CloudInputResolution).where(CloudInputResolution.status == "PENDING")
+    query = select(CloudTask).join(CloudInputResolution, CloudInputResolution.task_id == CloudTask.id).where(
+        CloudInputResolution.status == "PENDING")
     if project_id is not None:
         query = query.where(CloudInputResolution.project_id == project_id)
-    row = await db.scalar(query.order_by(CloudInputResolution.created_at, CloudInputResolution.id)
-                          .with_for_update(skip_locked=True).limit(1))
+    task = await db.scalar(query.order_by(CloudInputResolution.created_at, CloudInputResolution.id)
+                          .with_for_update(of=CloudTask, skip_locked=True).limit(1))
+    if task is None:
+        return None
+    row = await db.scalar(select(CloudInputResolution).where(CloudInputResolution.task_id == task.id,
+        CloudInputResolution.status == "PENDING").order_by(CloudInputResolution.created_at, CloudInputResolution.id)
+        .with_for_update().limit(1))
     if row is None:
         return None
     await _current_grant(db, row.grant_id, row.project_id)
-    task = await _task(db, row.task_id)
     if task.status != "DRAFT" or task.version != row.source_draft_version:
         row.status = "FAILED"
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return None
     config = await _configuration(db, row.project_id, task.config_id)
     try:
         _authorize_input_reads(task.inputs, config.configuration, await clock(db))
     except HTTPException:
         row.status = "FAILED"
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return None
     token, work_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     row.status, row.worker_id, row.lease_token_hash = "RESOLVING", worker_id, token_hash(token)
@@ -1743,7 +1763,10 @@ async def claim_resolution(db, worker_id, lease_seconds=90, *, project_id=None):
     db.add(CloudWorkGrant(project_id=row.project_id, resolution_id=row.id,
         worker_id=worker_id, lease_generation=1, token_hash=token_hash(work_token),
         expires_at=row.lease_expires_at, created_at=await clock(db)))
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     return {"resolution": public(row), "task": public(task), "configuration": config.configuration,
             "lease_token": token, "work_token": work_token, "generation": 1}
 
@@ -1864,7 +1887,7 @@ async def materialize_resolution_credentials(db, resolution_id, worker_id, lease
     return await _materialize_config_credentials(db, config.configuration, row.project_id, {"git:read"})
 
 
-async def expire_leases(db):
+async def expire_leases(db, *, commit=True):
     """Fence lost workers; never automatically replay an expired runtime."""
     now = await clock(db)
     tasks = list(await db.scalars(select(CloudTask).join(CloudAttempt, CloudAttempt.id == CloudTask.latest_attempt_id).where(
@@ -1875,9 +1898,20 @@ async def expire_leases(db):
         await _fence(db, attempt)
         _state(task, attempt, "RECOVERY_REQUIRED", "Worker lease expired; no automatic execution retry", now)
         _events(db, task.project_id, "worker:lease-reconciler", "LEASE_EXPIRED", task.id, {"attempt_id": str(attempt.id)})
-    resolutions = list(await db.scalars(select(CloudInputResolution).where(CloudInputResolution.status == "RESOLVING",
-        CloudInputResolution.lease_expires_at < now).with_for_update(skip_locked=True)))
-    for row in resolutions:
-        row.status = "RECOVERY_REQUIRED"
-    await db.commit()
-    return len(tasks) + len(resolutions)
+    resolution_tasks = list(await db.scalars(select(CloudTask).join(
+        CloudInputResolution, CloudInputResolution.task_id == CloudTask.id).where(
+        CloudInputResolution.status == "RESOLVING", CloudInputResolution.lease_expires_at < now)
+        .with_for_update(of=CloudTask, skip_locked=True)))
+    expired_resolutions = 0
+    for task in resolution_tasks:
+        resolutions = await db.scalars(select(CloudInputResolution).where(
+            CloudInputResolution.task_id == task.id, CloudInputResolution.status == "RESOLVING",
+            CloudInputResolution.lease_expires_at < now).with_for_update())
+        for row in resolutions:
+            row.status = "RECOVERY_REQUIRED"
+            expired_resolutions += 1
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
+    return len(tasks) + expired_resolutions

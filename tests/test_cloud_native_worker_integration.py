@@ -35,8 +35,26 @@ from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask
 from hypertest.main import app
 
 
-async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_context, monkeypatch, tmp_path):
+@pytest.fixture
+def isolated_worker_queue(cloud_context, monkeypatch):
+    """Keep real DB acquisition inside this test's synthetic Project."""
+    original_resolution, original_attempt = service.claim_resolution, service.claim_attempt
+
+    async def resolution(db, worker_id, lease_seconds=90, **kwargs):
+        return await original_resolution(db, worker_id, lease_seconds,
+            **{**kwargs, "project_id": UUID(cloud_context["project_id"])})
+
+    async def attempt(db, worker_id, lease_seconds=90, **kwargs):
+        return await original_attempt(db, worker_id, lease_seconds,
+            **{**kwargs, "project_id": UUID(cloud_context["project_id"])})
+
+    monkeypatch.setattr(service, "claim_resolution", resolution)
+    monkeypatch.setattr(service, "claim_attempt", attempt)
+
+
+async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_context, isolated_worker_queue, monkeypatch, tmp_path):
     context = cloud_context
+    worker_id = "fixture-host-worker-" + uuid4().hex
     token = "worker-integration-" + "x" * 40
     key = tmp_path / "worker-token"
     key.write_text(token)
@@ -44,19 +62,20 @@ async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_
     settings = get_settings()
     monkeypatch.setattr(settings, "cloud_worker_enabled", True)
     monkeypatch.setattr(settings, "cloud_worker_api_token_file", str(key))
-    monkeypatch.setattr(settings, "cloud_worker_api_worker_id", "fixture-host-worker")
+    monkeypatch.setattr(settings, "cloud_worker_api_worker_id", worker_id)
     client = context["client"]
     headers = {"Authorization": "Bearer " + token}
     created = await draft(context)
     task_id, project_id = created["task_id"], context["project_id"]
     requested = await post(context, "RESOLVE_INPUTS", 1, task_id=task_id)
     assert requested.status_code == 200
-    response = await client.post("/api/v1/cloud/worker/claim", headers=headers,
-                                 json={"worker_id": "fixture-host-worker", "lease_seconds": 90})
+    resolution_request = {"worker_id": worker_id, "sequence": 1,
+                          "request_key": "resolution-claim-" + uuid4().hex, "lease_seconds": 90}
+    response = await client.post("/api/v1/cloud/worker/claim", headers=headers, json=resolution_request)
     assert response.status_code == 200, response.text
     assert response.json()["kind"] == "RESOLUTION"
     claimed = response.json()["claim"]
-    identity = {"worker_id": "fixture-host-worker", "lease_token": claimed["lease_token"],
+    identity = {"worker_id": worker_id, "lease_token": claimed["lease_token"],
                 "work_token": claimed["work_token"], "generation": claimed["generation"]}
     target = {"project_id": project_id, "task_id": task_id, "resolution_id": claimed["resolution"]["id"],
               "identity": identity}
@@ -71,14 +90,16 @@ async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_
         "observed_at": datetime.now(UTC).isoformat(), "source": "synthetic-no-git"}
     resolved = await client.post("/api/v1/cloud/worker/resolution/accept", headers=headers, json={**target, "result": result})
     assert resolved.status_code == 200, resolved.text
+    closed = await client.post("/api/v1/cloud/worker/claim/reconcile", headers=headers, json=resolution_request)
+    assert closed.status_code == 200 and closed.json()["closed"] is True
     sent = await post(context, "DISPATCH", resolved.json()["version"], task_id=task_id,
                       resolution_id=requested.json()["resolution_id"])
     assert sent.status_code == 200, sent.text
     attempt_claim = await client.post("/api/v1/cloud/worker/claim", headers=headers,
-                                      json={"worker_id": "fixture-host-worker", "lease_seconds": 90})
+        json={"worker_id": worker_id, "sequence": 2, "request_key": "attempt-claim-" + uuid4().hex, "lease_seconds": 90})
     assert attempt_claim.status_code == 200 and attempt_claim.json()["kind"] == "ATTEMPT"
     claim = attempt_claim.json()["claim"]
-    identity = {"worker_id": "fixture-host-worker", "lease_token": claim["lease_token"],
+    identity = {"worker_id": worker_id, "lease_token": claim["lease_token"],
                 "work_token": claim["work_token"], "generation": claim["generation"]}
     body = {"project_id": project_id, "task_id": task_id, "attempt_id": claim["attempt"]["id"], "identity": identity}
     payload = {"profile": "cloud-harness-task/v1alpha1", "project_id": project_id, "task_id": task_id,
@@ -99,9 +120,10 @@ async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_
     assert (await client.post("/api/v1/cloud/worker/receipt", headers=headers, json=wrong)).status_code == 403
 
 
-async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, monkeypatch, tmp_path):
+async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_worker_queue, monkeypatch, tmp_path):
     """Exercise real API + Worker reporting with a fake SDK, never a model or SUT."""
     context = cloud_context
+    worker_id = "fixture-host-worker-" + uuid4().hex
     settings = get_settings()
     token = "worker-integration-" + "y" * 40
     key = tmp_path / "worker-token"
@@ -109,10 +131,11 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, monkeypatc
     key.chmod(0o600)
     monkeypatch.setattr(settings, "cloud_worker_enabled", True)
     monkeypatch.setattr(settings, "cloud_worker_api_token_file", str(key))
-    monkeypatch.setattr(settings, "cloud_worker_api_worker_id", "fixture-host-worker")
+    monkeypatch.setattr(settings, "cloud_worker_api_worker_id", worker_id)
     queued = await dispatched(context)
     claim_response = await context["client"].post("/api/v1/cloud/worker/claim",
-        headers={"Authorization": "Bearer " + token}, json={"worker_id": "fixture-host-worker", "lease_seconds": 90})
+        headers={"Authorization": "Bearer " + token}, json={"worker_id": worker_id, "sequence": 1,
+            "request_key": "handoff-claim-" + uuid4().hex, "lease_seconds": 90})
     assert claim_response.status_code == 200 and claim_response.json()["kind"] == "ATTEMPT"
     claim = claim_response.json()["claim"]
 
@@ -191,7 +214,7 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, monkeypatc
                                    headers={"Authorization": "Bearer " + token})
     state = tmp_path / "worker-state"
     state.mkdir(mode=0o700)
-    args = SimpleNamespace(worker_id="fixture-host-worker", dsh_home=str(tmp_path), lease_seconds=90)
+    args = SimpleNamespace(worker_id=worker_id, dsh_home=str(tmp_path), lease_seconds=90)
     try:
         await native_worker.execute(api, args, state, claim)
     finally:

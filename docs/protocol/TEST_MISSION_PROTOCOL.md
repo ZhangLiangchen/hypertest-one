@@ -1464,6 +1464,8 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 
 [ADR-035](../architecture/ADR-035_NATIVE_COMPLETION_MANAGEMENT.md) 补全正常原生完成后的管理：同 Task/Attempt 的原生完成回执、报告、清单和直接 SDK 退出观察一致且已 fence，无已知未决 key/操作/容器/委派时，允许使用原有 `DISPATCH` 独立复测或 `DELETE_TASK` 移出列表。旧未知范围保持原值，不能补写为已停止或已对账；已知未决项及旧 profile 的拒绝规则继续有效。live summary 的 `management` 投影包含 `can_retry`、`retry_blocking_reasons`、`can_delete`、`delete_blocking_reasons` 和 `native_scope_unobserved`；该实时提示不是授权或幂等回执，写入时重新检查当前版本、授权及准入。`COMPLETED` 的 reported FAIL 也可显式复测，仍需新输入和双确认，不续接原 SDK 会话。
 
+[ADR-036](../architecture/ADR-036_WORKER_CLAIM_RECOVERY.md) 为私有 Worker `/claim` 强制固定 `worker_id, sequence, request_key, lease_seconds, supports_attempt_manifest`。首次成功响应只交付一次 capability；`/claim/state` 只读高水位，`/claim/reconcile` 接受原完整请求，只封口或 fence/关闭，不再次交付工作或能力。当前序号须匹配原 key/digest；旧序号 RETIRED 仅阻止再次领取，不证明原请求未到达或未执行。客户端持久化后仅发一次 claim，任何 pending 重启只 reconcile；网络/5xx 可退避，runtime 错误仍停止，无 SDK resume 或外部停止证明。旧无序号记录按该 ADR 人工受控退役，保持 UNKNOWN。
+
 以下是领域操作，不等同 SDK 方法名或 MCP 工具；当前 typed HTTP 入口见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md#服务端-api-与权限)。所有普通写操作带 `profile, project_id, operation_key, expected_version`；Task 创建为 expected_version=0，资源配置/凭据用各自聚合版本。输入严格校验未知字段、长度/字节上限、引用归属和当前权限；明确错误，不静默截断。各通道的实际限额由实现 schema 发布，不扩大 §45 现有限额。
 
 | 操作概念 | 输入/结果及授权 |

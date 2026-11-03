@@ -9,12 +9,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
+import stat
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -128,16 +132,74 @@ class RemoteBroker:
             raise CloudBlocked("ARTIFACT_READBACK_MISMATCH", "Original artifact readback failed") from None
 
 
-def prepare_claim(state: Path, worker_id: str) -> Path:
+CLAIM_PROFILE = "hypertest-native-worker-claim/v2"
+CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds", "supports_attempt_manifest"}
+
+
+def _validate_claim_request(request: object, worker_id: str) -> dict:
+    if (not isinstance(worker_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", worker_id)
+            or not isinstance(request, dict) or set(request) != CLAIM_FIELDS
+            or request.get("worker_id") != worker_id
+            or not isinstance(request.get("request_key"), str)
+            or not re.fullmatch(r"[A-Za-z0-9_.:-]{16,128}", request["request_key"])
+            or type(request.get("sequence")) is not int or request["sequence"] < 1
+            or type(request.get("lease_seconds")) is not int or not 15 <= request["lease_seconds"] <= 300
+            or type(request.get("supports_attempt_manifest")) is not bool):
+        raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim request is invalid")
+    return request
+
+
+def _claim_digest(request: dict) -> str:
+    return hashlib.sha256(json.dumps(request, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def prepare_claim(state: Path, request: dict) -> Path:
     """Never send another claim after an unconfirmed original request."""
+    _validate_claim_request(request, request.get("worker_id"))
     pending = state / "claim-pending.json"
     if pending.exists() or pending.is_symlink():
         raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim must be reconciled before another claim")
     try:
-        save_once(pending, {"status": "SENT", "worker_id": worker_id, "local_key": secrets.token_hex(16)})
+        save_once(pending, {"profile": CLAIM_PROFILE, "status": "SENT", "request": request,
+                            "request_sha256": _claim_digest(request)})
     except FileExistsError:
         raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim must be reconciled before another claim") from None
     return pending
+
+
+def pending_claim(state: Path, worker_id: str) -> tuple[Path, dict] | None:
+    pending = state / "claim-pending.json"
+    if not pending.exists() and not pending.is_symlink():
+        return None
+    try:
+        record = json.loads(read_private_file(pending, max_bytes=65536))
+    except (ValueError, TypeError):
+        raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim record is invalid") from None
+    if not isinstance(record, dict) or record.get("profile") != CLAIM_PROFILE:
+        raise CloudBlocked("LEGACY_CLAIM_RECONCILIATION_REQUIRED", "Legacy claim requires explicit original-state reconciliation")
+    request = _validate_claim_request(record.get("request"), worker_id)
+    if (set(record) != {"profile", "status", "request", "request_sha256"}
+            or record.get("status") != "SENT" or record.get("request_sha256") != _claim_digest(request)):
+        raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim record failed integrity verification")
+    return pending, request
+
+
+@contextmanager
+def worker_lock(state: Path):
+    """Only one process may inspect, send, execute or close this private journal."""
+    fd = os.open(state / "worker.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or info.st_mode & 0o077):
+            raise CloudBlocked("WORKER_LOCK_UNSAFE", "Worker lock requires a private regular file")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise CloudBlocked("WORKER_ALREADY_RUNNING", "Another Worker owns this state directory") from None
+        yield
+    finally:
+        os.close(fd)
 
 
 def complete_claim(pending: Path):
@@ -147,6 +209,54 @@ def complete_claim(pending: Path):
         os.fsync(directory)
     finally:
         os.close(directory)
+
+
+def _claim_response(value, worker_id, *, request=None, recovering=False):
+    valid = (isinstance(value, dict) and value.get("worker_id") == worker_id
+        and type(value.get("sequence")) is int and value["sequence"] >= 0
+        and type(value.get("closed")) is bool
+        and value.get("kind") in {"EMPTY", "RESOLUTION", "ATTEMPT", "ABANDONED", "RETIRED"})
+    if valid:
+        if value["sequence"] == 0:
+            valid = value.get("request_key") is None and value["kind"] == "EMPTY" and value["closed"]
+        else:
+            valid = (isinstance(value.get("request_key"), str)
+                and re.fullmatch(r"[A-Za-z0-9_.:-]{16,128}", value["request_key"]) is not None)
+    if valid and request is not None:
+        valid = value["sequence"] == request["sequence"] and value["request_key"] == request["request_key"]
+        if recovering:
+            valid = valid and value["closed"] and "claim" not in value
+        else:
+            valid = valid and ((value["kind"] == "EMPTY" and value["closed"] and value.get("claim") is None)
+                or (value["kind"] in {"RESOLUTION", "ATTEMPT"} and not value["closed"] and isinstance(value.get("claim"), dict)))
+    elif valid:
+        valid = "claim" not in value
+    if not valid:
+        raise CloudBlocked("WORKER_API_UNCONFIRMED", "Original claim response requires reconciliation")
+    return value
+
+
+def _retryable_api_failure(error: Exception) -> bool:
+    from .broker import BrokerFailure
+
+    return ((isinstance(error, CloudBlocked) and error.code == "WORKER_API_UNCONFIRMED")
+        or (isinstance(error, BrokerFailure) and 500 <= error.status < 600))
+
+
+async def _claim_read(api, args, operation, request):
+    """Retry only state reads or original-key closure, never a claim delivery."""
+    failures = 0
+    while True:
+        try:
+            value = await api.request(operation, request)
+            return _claim_response(value, args.worker_id,
+                request=request if operation == "claim/reconcile" else None,
+                recovering=operation == "claim/reconcile")
+        except Exception as error:
+            if args.once or not _retryable_api_failure(error):
+                raise
+            await asyncio.sleep(min(max(args.poll_seconds, 0.25) * 2 ** min(failures, 7), 30))
+            failures += 1
 
 
 async def resolve(api, args, state: Path, claim: dict):
@@ -376,13 +486,16 @@ async def execute(api, args, state: Path, claim: dict):
 async def run(args) -> int:
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", args.worker_id):
         raise CloudBlocked("WORKER_IDENTITY_INVALID", "Worker ID must match the provisioned identity")
+    if not math.isfinite(args.poll_seconds) or args.poll_seconds <= 0:
+        raise CloudBlocked("WORKER_POLL_INVALID", "Worker polling interval must be positive and finite")
     state = private_root(args.state_dir)
-    # Detect missing/incompatible local runtime before taking any task lease.
-    from .native_profile import check_sdk_profile
-    from .sdk import inspect_native_sdk
+    with worker_lock(state):
+        # Reject legacy or damaged journals before making any API request.
+        pending_claim(state, args.worker_id)
+        return await _run_locked(args, state)
 
-    inspect_native_sdk()
-    check_sdk_profile(args.dsh_home)
+
+async def _run_locked(args, state: Path) -> int:
     credential = read_private_file(args.worker_credential_file, max_bytes=65536)
     api = WorkerAPI(args.api_url, credential, ca_file=args.ca_file)
     del credential
@@ -398,34 +511,71 @@ async def run(args) -> int:
                 pass
             await asyncio.sleep(60)
 
-    auth_monitor = asyncio.create_task(observe_auth())
+    auth_monitor = None
     try:
+        runtime_checked = False
         while True:
-            pending = prepare_claim(state, args.worker_id)
-            claim_result = await api.request("claim", {"worker_id": args.worker_id, "lease_seconds": args.lease_seconds,
-                                                       "supports_attempt_manifest": True})
-            if not isinstance(claim_result, dict):
-                raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Unexpected claim response cannot be replayed")
-            kind = claim_result.get("kind")
+            original = pending_claim(state, args.worker_id)
+            if original is not None:
+                pending, request = original
+                await _claim_read(api, args, "claim/reconcile", request)
+                complete_claim(pending)
+                if args.once:
+                    return 0
+                continue
+            # Recovery never depends on an SDK installation. New work still
+            # checks the runtime before creating any server-side task lease.
+            if not runtime_checked:
+                from .native_profile import check_sdk_profile
+                from .sdk import inspect_native_sdk
+
+                inspect_native_sdk()
+                check_sdk_profile(args.dsh_home)
+                runtime_checked = True
+                auth_monitor = asyncio.create_task(observe_auth())
+            current = await _claim_read(api, args, "claim/state", {"worker_id": args.worker_id})
+            if not current["closed"]:
+                raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Server claim has no matching local intent; explicit recovery is required")
+            request = {"worker_id": args.worker_id, "request_key": secrets.token_hex(24),
+                "sequence": current["sequence"] + 1, "lease_seconds": args.lease_seconds,
+                "supports_attempt_manifest": True}
+            pending = prepare_claim(state, request)
+            try:
+                claim_result = _claim_response(await api.request("claim", request), args.worker_id, request=request)
+            except Exception as error:
+                # Even a 5xx may follow a committed claim. Never POST it again.
+                if args.once or not _retryable_api_failure(error):
+                    raise
+                await asyncio.sleep(min(max(args.poll_seconds, 0.25), 30))
+                continue
+            kind = claim_result["kind"]
             if kind == "EMPTY":
                 complete_claim(pending)
                 if args.once:
                     return 0
                 await asyncio.sleep(args.poll_seconds)
                 continue
-            if kind not in {"RESOLUTION", "ATTEMPT"} or not isinstance(claim_result.get("claim"), dict):
-                raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Unexpected claim response cannot be replayed")
             claim = claim_result["claim"]
-            if kind == "RESOLUTION":
-                await resolve(api, args, state, claim)
-            else:
-                await execute(api, args, state, claim)
+            work_error = None
+            try:
+                if kind == "RESOLUTION":
+                    await resolve(api, args, state, claim)
+                else:
+                    await execute(api, args, state, claim)
+            except Exception as error:
+                work_error = error
+            # Close the original scheduling slot even after normal completion;
+            # closure cannot accept reports, restart work or erase UNKNOWN.
+            await _claim_read(api, args, "claim/reconcile", request)
             complete_claim(pending)
+            if work_error is not None:
+                raise work_error
             if args.once:
                 return 0
     finally:
-        auth_monitor.cancel()
-        await asyncio.gather(auth_monitor, return_exceptions=True)
+        if auth_monitor is not None:
+            auth_monitor.cancel()
+            await asyncio.gather(auth_monitor, return_exceptions=True)
         await api.close()
 
 

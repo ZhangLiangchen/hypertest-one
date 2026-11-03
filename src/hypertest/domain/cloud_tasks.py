@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -198,6 +199,33 @@ class CloudWorkGrant(CloudRow, Base):
     lease_generation: Mapped[int] = mapped_column(BigInteger)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CloudWorkerClaimState(Base):
+    """Bounded per-Worker claim high-water mark; contains no capabilities."""
+    __tablename__ = "cloud_worker_claim_states"
+    __table_args__ = (
+        ForeignKeyConstraint(["project_id", "task_id"], ["cloud_tasks.project_id", "cloud_tasks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["task_id", "attempt_id"], ["cloud_attempts.task_id", "cloud_attempts.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["task_id", "resolution_id"], ["cloud_input_resolutions.task_id", "cloud_input_resolutions.id"], ondelete="RESTRICT"),
+        CheckConstraint("sequence >= 0"),
+        CheckConstraint("kind IN ('EMPTY','ATTEMPT','RESOLUTION','ABANDONED')"),
+        CheckConstraint("(sequence = 0 AND request_key IS NULL AND request_digest IS NULL AND kind = 'EMPTY' AND closed) OR (sequence > 0 AND request_key IS NOT NULL AND request_digest IS NOT NULL AND request_digest ~ '^[a-f0-9]{64}$')"),
+        CheckConstraint("(kind IN ('EMPTY','ABANDONED') AND closed AND project_id IS NULL AND task_id IS NULL AND attempt_id IS NULL AND resolution_id IS NULL AND generation IS NULL) OR (kind = 'ATTEMPT' AND project_id IS NOT NULL AND task_id IS NOT NULL AND attempt_id IS NOT NULL AND resolution_id IS NULL AND generation IS NOT NULL AND generation > 0) OR (kind = 'RESOLUTION' AND project_id IS NOT NULL AND task_id IS NOT NULL AND attempt_id IS NULL AND resolution_id IS NOT NULL AND generation IS NOT NULL AND generation = 1)"),
+    )
+    worker_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger, default=0)
+    request_key: Mapped[str | None] = mapped_column(String(128))
+    request_digest: Mapped[str | None] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16), default="EMPTY")
+    closed: Mapped[bool] = mapped_column(Boolean, default=True)
+    project_id: Mapped[UUID | None] = mapped_column()
+    task_id: Mapped[UUID | None] = mapped_column()
+    attempt_id: Mapped[UUID | None] = mapped_column()
+    resolution_id: Mapped[UUID | None] = mapped_column()
+    generation: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class CloudRemoteOperation(CloudRow, Base):
