@@ -18,6 +18,7 @@
 - [ADR-029 草案：单次 Cloud Attempt 的 Docker 隔离](architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md)：待实现、待验证的备选方案，不改变现行准入。
 - [ADR-030 草案：Cloud 受控认证与外部写入](architecture/ADR-030_CLOUD_AUTHENTICATED_ACTION_PROPOSAL.md)：待实现的凭据、单次发送与业务终态边界。
 - [ADR-031：云端 Harness 原生配置](architecture/ADR-031_CLOUD_NATIVE_HARNESS_CONFIGURATION.md)：模型、推理和插件由云端 Harness profile 管理，新任务不设置平台预算；远程能力与部署验收分别记录。
+- [ADR-034：Cloud 列表删除与执行收尾分离](architecture/ADR-034_CLOUD_DELETION_AND_RECOVERY.md)：已请求取消且已隔离写入权的待恢复任务可移出列表，UNKNOWN 与受限对账能力保留。
 - [ADR-032：快速原型期的轻量 Harness Worker](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md)：项目笔记与已决定的职责边界；全容器化是未来资源隔离方向，实现和部署分别记录。
 - [Cloud 原生交互 SDK 构建（2026-11-02）](CLOUD_NATIVE_INTERACTION_SDK_BUILD_20261102.md)：固定上游、锁文件构建修复与配套包验证。
 - [Cloud Agent 运行中提问调查（2026-11-02）](CLOUD_AGENT_INTERACTION_INVESTIGATION_20261102.md)：官方 SDK 能力、模拟验证、构建阻塞与未实现的交互通道。

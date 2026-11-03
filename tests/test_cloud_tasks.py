@@ -445,7 +445,8 @@ async def test_cancel_already_recovering_attempt_preserves_unknown_work_and_orig
     assert (await read_all(context, receipt["task_id"], accepted["version"])) == fixed
 
 
-async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_hold(cloud_context):
+@pytest.mark.parametrize("delete_before_reconcile", [False, True])
+async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_hold(cloud_context, delete_before_reconcile):
     context = cloud_context
     receipt, _, identity = await legacy_claimed(context)
     receipt = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
@@ -464,6 +465,12 @@ async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_
     assert summary["recovery"]["old_owner_fenced"] is True
     assert summary["recovery"]["local_processes_stopped_observed"] is False
     assert summary["recovery"]["can_reconcile"] is True
+    reconcile_version = cancelled.json()["version"]
+    if delete_before_reconcile:
+        deleted = await post(context, "DELETE_TASK", reconcile_version, task_id=receipt["task_id"])
+        assert deleted.status_code == 200, deleted.text
+        reconcile_version = deleted.json()["version"]
+        deleted_snapshot = await read_all(context, receipt["task_id"], reconcile_version)
     fields = dict(task_id=receipt["task_id"], attempt_id=receipt["attempt_id"], status="FAILED",
         reason="Manual fixture finish", reconciliation={"old_owner_fenced": True,
             "local_processes_stopped": True, "external_operations_reconciled": True,
@@ -472,7 +479,7 @@ async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_
             "independent_stop_proof": True, "model_drain_observed": True,
             "reconciliation_source": "INDEPENDENT_STOP_PROOF", "arbitrary_stop_proof": "must not persist",
             "model_budget_disposition": "RELEASE"})
-    finished = await post(context, "RECONCILE_ATTEMPT", cancelled.json()["version"], **fields)
+    finished = await post(context, "RECONCILE_ATTEMPT", reconcile_version, **fields)
     assert finished.status_code == 200, finished.text
     final = await read_all(context, receipt["task_id"], finished.json()["version"])
     attempt = final["attempts"][-1]
@@ -486,6 +493,9 @@ async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_
     assert attempt["runtime_metadata"] == original["attempts"][-1]["runtime_metadata"]
     assert attempt["reported_result"] == original["attempts"][-1]["reported_result"]
     assert await read_all(context, receipt["task_id"], receipt["version"]) == original
+    assert bool(final["task"]["deleted_at"]) == delete_before_reconcile
+    if delete_before_reconcile:
+        assert await read_all(context, receipt["task_id"], reconcile_version) == deleted_snapshot
 
 
 @pytest.mark.parametrize("pending_kind", ["platform_key", "delegation"])
@@ -1045,6 +1055,70 @@ async def test_cloud_task_delete_rejects_active_attempt(cloud_context):
     context = cloud_context
     running = await dispatched(context)
     assert (await post(context, "DELETE_TASK", running["version"], task_id=running["task_id"])).status_code == 409
+
+
+async def test_delete_cancelled_recovery_preserves_unknown_work_and_allows_only_recovery(cloud_context):
+    context = cloud_context
+    receipt, _, identity = await legacy_claimed(context)
+    recovery = await worker_submit(context, identity, receipt, "TRANSITION", status="RECOVERY_REQUIRED",
+        reason="Synthetic runtime failed")
+    assert (await post(context, "DELETE_TASK", recovery["version"], task_id=receipt["task_id"])).status_code == 409
+    cancelled = await post(context, "CANCEL_ATTEMPT", recovery["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], reason="Synthetic cancellation")
+    assert cancelled.status_code == 200
+    async with AsyncSessionLocal() as db:
+        attempt = await db.get(CloudAttempt, UUID(receipt["attempt_id"]))
+        attempt.lease_owner = "unfenced-fixture-owner"
+        await db.commit()
+    assert (await post(context, "DELETE_TASK", cancelled.json()["version"], task_id=receipt["task_id"])).status_code == 409
+    async with AsyncSessionLocal() as db:
+        attempt = await db.get(CloudAttempt, UUID(receipt["attempt_id"]))
+        attempt.lease_owner = None
+        attempt.checkpoint = {**attempt.checkpoint, "pending_operation_keys": ["original-unknown"],
+                              "external_operations_reconciled": False}
+        await db.commit()
+    key = "delete-recovery-" + uuid4().hex
+    deleted = await post(context, "DELETE_TASK", cancelled.json()["version"],
+                         operation_key=key, task_id=receipt["task_id"])
+    assert deleted.status_code == 200, deleted.text
+    fixed = await read_all(context, receipt["task_id"], deleted.json()["version"])
+    attempt = fixed["attempts"][-1]
+    assert fixed["task"]["deleted_at"] and fixed["task"]["status"] == attempt["status"] == "RECOVERY_REQUIRED"
+    assert attempt["reason"] == "Synthetic runtime failed"
+    assert attempt["checkpoint"]["pending_operation_keys"] == ["original-unknown"]
+    assert attempt["checkpoint"]["external_operations_reconciled"] is False
+    assert attempt["runtime_metadata"]["preparation_budget_reservation"]["state"] == "HELD"
+    assert fixed["task"]["reported_result"] == attempt["reported_result"] == "NOT_RUN"
+    assert (await post(context, "DELETE_TASK", cancelled.json()["version"], operation_key=key,
+                       task_id=receipt["task_id"])).json() == deleted.json()
+    directory = await context["client"].get(f"/api/v1/cloud/projects/{context['project_id']}/tasks", headers=context["headers"])
+    assert receipt["task_id"] not in [row["task_id"] for row in directory.json()["items"]]
+    fields = dict(task_id=receipt["task_id"], attempt_id=receipt["attempt_id"], status="CANCELLED",
+        reason="Cannot erase unknown work", reconciliation={"old_owner_fenced": True,
+            "local_processes_stopped": True, "external_operations_reconciled": True,
+            "observations": "Unverified synthetic declaration"})
+    stale = await post(context, "RECONCILE_ATTEMPT", cancelled.json()["version"], **fields)
+    assert stale.status_code == 409 and "version is stale" in stale.text
+    denied = await post(context, "RECONCILE_ATTEMPT", deleted.json()["version"], **fields)
+    assert denied.status_code == 409 and "pending operations" in denied.text
+    assert (await post(context, "RESOLVE_INPUTS", deleted.json()["version"], task_id=receipt["task_id"])).status_code == 409
+    with pytest.raises(HTTPException, match="deleted"):
+        await worker_submit(context, identity, {**deleted.json(), "attempt_id": receipt["attempt_id"]}, "SUBMIT_ASSETS", assets=[{
+            "kind": "REPORT", "key": "late", "title": "Late writer", "markdown": "Forbidden"}])
+    async with AsyncSessionLocal() as db:
+        assert await service.claim_attempt(db, "new-worker", project_id=UUID(context["project_id"])) is None
+        task = await db.get(CloudTask, UUID(receipt["task_id"]))
+        task.title = "Forbidden change"
+        with pytest.raises(DBAPIError, match="deleted cloud task is immutable"):
+            await db.flush()
+        await db.rollback()
+        task = await db.get(CloudTask, UUID(receipt["task_id"]))
+        task.status = "RUNNING"
+        task.version += 1
+        with pytest.raises(DBAPIError, match="deleted cloud task is immutable"):
+            await db.flush()
+        await db.rollback()
+    assert (await read_all(context, receipt["task_id"], deleted.json()["version"])) == fixed
 
 
 async def test_cloud_delete_rejects_unclosed_container(cloud_context, monkeypatch):

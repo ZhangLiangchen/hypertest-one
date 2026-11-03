@@ -66,6 +66,28 @@ def _trusted_objects(task, attempt):
 
 
 @pytest.mark.asyncio
+async def test_deleted_recovery_can_authorize_only_original_action_observation(recovery_context):
+    context = recovery_context
+    receipt = context["op"]
+    op_context = {**context, "headers": context["operator_headers"]}
+    cancelled = await post(op_context, "CANCEL_ATTEMPT", receipt["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], reason="Synthetic cancellation")
+    assert cancelled.status_code == 200, cancelled.text
+    deleted = await post(op_context, "DELETE_TASK", cancelled.json()["version"], task_id=receipt["task_id"])
+    assert deleted.status_code == 200, deleted.text
+    fields = {"task_id": receipt["task_id"], "attempt_id": receipt["attempt_id"],
+              "identity_id": context["original"]["identity_id"], "original_operation_key": "original-key"}
+    denied = await post(op_context, "AUTHORIZE_ACTION_OBSERVATION", deleted.json()["version"],
+                        **{**fields, "original_operation_key": "not-original"})
+    assert denied.status_code == 404
+    accepted = await post(op_context, "AUTHORIZE_ACTION_OBSERVATION", deleted.json()["version"], **fields)
+    assert accepted.status_code == 200, accepted.text
+    authority = ActionRecoveryAuthority(AsyncSessionLocal, task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], authorization_key=accepted.json()["operation_key"])
+    assert (await authority.get_by_key("original-key"))["identity_id"] == context["original"]["identity_id"]
+
+
+@pytest.mark.asyncio
 async def test_original_only_read_grant_and_unobserved_do_not_close(recovery_context, monkeypatch):
     context, authority = recovery_context, recovery_context["recovery"]
     original = context["original"]

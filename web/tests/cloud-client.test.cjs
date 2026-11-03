@@ -256,7 +256,7 @@ function taskPage(status, options = {}) {
   const projectId = "00000000-0000-4000-8000-000000000001", taskId = "00000000-0000-4000-8000-000000000002";
   const attempt = status === "DRAFT" ? null : { id: "attempt-1", attempt_no: 1, status, checkpoint: {}, reason: "MODEL_KEY_UNAVAILABLE" };
   const document = { task: { id: taskId, project_id: projectId, version: 1, config_id: "config-1", title: "Task",
-    latest_attempt_id: attempt?.id ?? null, status, reported_result: options.result || "NOT_RUN", inputs: {} },
+    latest_attempt_id: attempt?.id ?? null, status, reported_result: options.result || "NOT_RUN", inputs: {}, deleted_at: options.deletedAt },
     attempts: attempt ? [attempt] : [], resolutions: [], questions: [], answers: [], assets: [{ markdown: "Original FAIL" }], runs: [], run_cases: [], artifacts: [], delegations: [] };
   const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: options.resolutions || [], observed_at: "2026-10-23T00:00:00Z" };
   const values = { "cloud-web-setup": { configured: true }, "cloud-capabilities": { enabled: true, worker_enabled: true },
@@ -277,14 +277,14 @@ function taskPage(status, options = {}) {
     if (name === "@tanstack/react-query") return { useQuery: (queryOptions) => { queries[queryOptions.queryKey[0]] = queryOptions; return { data: values[queryOptions.queryKey[0]], dataUpdatedAt: 1, refetch() { reads.push(queryOptions.queryKey[0]); }, isError: options.liveError === true && queryOptions.queryKey[0] === "cloud-task-live" }; } };
     if (name === "@/lib/cloud") return { ...helpers(), ...(options.cloudDocument ? { cloudDocument: options.cloudDocument } : {}) };
     if (name === "@/lib/run-polling") return load("lib/run-polling.ts", { require });
-    if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit() { writes++; throw new Error("render must not write"); } }) };
+    if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit(fields) { writes++; if (options.submit) return options.submit(fields); throw new Error("render must not write"); } }) };
     if (name === "@/lib/i18n") return { useI18n: () => ({ t: (en) => en, label: (value) => value }) };
     if (name === "@/app/tasks/task-records") return { ReportedResultTag: "ReportedResultTag" };
     if (name === "@/app/workspace-ui") return {
       WorkspaceHeading: ({ title, description, metadata, actions }) => jsx("header", { children: [jsx("h1", { children: title }), description, metadata, actions] }),
       WorkspaceLoading: "WorkspaceLoading",
     };
-    if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice" };
+    if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice", CloudAttemptRecovery: "CloudAttemptRecovery" };
     if (name === "@/app/projects/[projectId]/cloud/task-form") return { CloudTaskForm: "CloudTaskForm" };
     if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
     if (name === "./live-questions-panel") return { LiveQuestionsPanel: "LiveQuestionsPanel" };
@@ -293,14 +293,30 @@ function taskPage(status, options = {}) {
     return require(name);
   } });
   const tree = page.default();
-  const nodes = (value) => !value || typeof value !== "object" ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children)];
+  const nodes = (value) => !value || typeof value !== "object" ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children), ...nodes(value.props?.items), ...nodes(value.children)];
   const rendered = nodes(tree);
   assert.equal(JSON.stringify(document), original, "a progress projection cannot rewrite accepted history");
   assert.equal(writes, 0);
-  return { queries, effects, reads, stateUpdates, document, live, steps: rendered.find((node) => node.type === "Steps").props,
+  return { queries, effects, reads, stateUpdates, document, live, rendered, recovery: rendered.find((node) => node.type === "CloudAttemptRecovery")?.props, steps: rendered.find((node) => node.type === "Steps").props,
     result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
     unknown: rendered.some((node) => String(node.props?.children).includes("Phase completion is unknown")) };
 }
+
+test("Removed task pages preserve manual reconciliation while refusing new task work", async () => {
+  const submitted = [];
+  const page = taskPage("RECOVERY_REQUIRED", { deletedAt: "2026-11-03T00:00:00Z", submit: async (fields) => { submitted.push(fields); return null; } });
+  assert.equal(page.recovery.blocked, false);
+  assert.ok(page.rendered.some((node) => node.type === "Alert" && node.props.message === "Removed from the task list"));
+  for (const operation of ["DISPATCH", "CANCEL_ATTEMPT", "ANSWER_INPUT", "DELETE_TASK"]) {
+    await page.recovery.onSubmit({ operation, attempt_id: "attempt-1" });
+  }
+  assert.equal(submitted.length, 0);
+  await page.recovery.onSubmit({ operation: "RECONCILE_ATTEMPT", attempt_id: "attempt-1", status: "CANCELLED" });
+  assert.equal(submitted.length, 1);
+  assert.equal(submitted[0].expected_version, 1);
+  assert.equal(submitted[0].operation, "RECONCILE_ATTEMPT");
+  assert.equal(taskPage("RECOVERY_REQUIRED", { deletedAt: "2026-11-03T00:00:00Z", liveError: true }).recovery.blocked, true);
+});
 
 test("Missing live identity and early terminal states show no inferred completed Harness phase", () => {
   for (const [status, options] of [["DRAFT", { missingLive: true }], ["COMPLETED", { foreignLive: true }], ["FAILED", {}], ["CANCELLED", {}], ["RECOVERY_REQUIRED", {}]]) {

@@ -511,12 +511,18 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     task = attempt = None
     if hasattr(payload, "task_id"):
         task = await _task(db, payload.task_id, payload.project_id, lock=True)
-        if await db.get(CloudTaskDeletion, task.id):
+        deleted = await db.get(CloudTaskDeletion, task.id)
+        recovery_control = payload.operation in {"RECONCILE_ATTEMPT", "AUTHORIZE_ACTION_OBSERVATION"}
+        container_observation = container_recovery and payload.operation in {
+            "CONFIRM_CONTAINER_ID", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"}
+        if deleted and not (recovery_control or container_observation):
             raise HTTPException(409, "Cloud Task has been deleted")
         if payload.expected_version != task.version:
             raise HTTPException(409, "Cloud Task version is stale")
         if hasattr(payload, "attempt_id"):
             attempt = await _attempt(db, task, payload.attempt_id)
+        if deleted and not await _cancelled_recovery(db, task, attempt):
+            raise HTTPException(409, "Deleted Cloud Task only accepts fenced cancellation recovery")
         if SCOPES[payload.operation] == "cloud:work":
             if payload.operation in {"CONFIRM_CONTAINER_ID", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and container_recovery:
                 if payload.operation != "OBSERVE_CONTAINER_STOP" and not isinstance(container_recovery_secret, bytes):
@@ -608,13 +614,14 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if migrated_budget:
             refs["legacy_draft_budget_removed"] = True
     elif op == "DELETE_TASK":
-        if task.status not in {"DRAFT", "COMPLETED", "FAILED", "CANCELLED"}:
+        latest_attempt = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None
+        recovery_deletion = await _cancelled_recovery(db, task, latest_attempt)
+        if task.status not in {"DRAFT", "COMPLETED", "FAILED", "CANCELLED"} and not recovery_deletion:
             raise HTTPException(409, "Active Cloud Task must be stopped and reconciled before deletion")
         if await db.scalar(select(CloudInputResolution.id).where(CloudInputResolution.task_id == task.id,
                 CloudInputResolution.status.in_(["PENDING", "RESOLVING", "RECOVERY_REQUIRED"]))):
             raise HTTPException(409, "Unresolved input resolution prevents deletion")
-        if task.latest_attempt_id:
-            latest_attempt = await db.get(CloudAttempt, task.latest_attempt_id)
+        if task.latest_attempt_id and not recovery_deletion:
             if not latest_attempt or latest_attempt.status not in TERMINAL or latest_attempt.checkpoint.get("pending_operation_keys") or latest_attempt.checkpoint.get("external_operations_reconciled") is False:
                 raise HTTPException(409, "Unreconciled attempt prevents deletion")
             from .cloud_ssh import ensure_remote_closed
@@ -1154,6 +1161,14 @@ async def _owner_fenced(db, attempt):
         CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.revoked_at.is_(None)).limit(1))
 
 
+async def _cancelled_recovery(db, task, attempt):
+    """Directory removal cannot claim stopping or prevent original recovery."""
+    return bool(attempt and task.latest_attempt_id == attempt.id
+        and task.status == attempt.status == "RECOVERY_REQUIRED"
+        and attempt.checkpoint.get("cancellation_requested") is True
+        and await _owner_fenced(db, attempt))
+
+
 async def _delegations_unresolved(db, attempt):
     return bool(await db.scalar(select(CloudDelegation.id).where(
         CloudDelegation.attempt_id == attempt.id,
@@ -1503,7 +1518,8 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
     # A short SKIP LOCKED Task lock serializes with controls and avoids acquiring
     # Attempt before Task, which would invert the mutation lock order.
     query = select(CloudTask).join(CloudAttempt, CloudAttempt.id == CloudTask.latest_attempt_id).where(
-        CloudAttempt.status.in_(["QUEUED", "PREPARING"]), CloudAttempt.lease_owner.is_(None)
+        CloudAttempt.status.in_(["QUEUED", "PREPARING"]), CloudAttempt.lease_owner.is_(None),
+        ~select(CloudTaskDeletion.task_id).where(CloudTaskDeletion.task_id == CloudTask.id).exists()
     )
     if not supports_attempt_manifest:
         # Accept both SQL NULL and historical JSON null for ordinary attempts.

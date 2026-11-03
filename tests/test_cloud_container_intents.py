@@ -240,7 +240,7 @@ async def test_confirm_and_stop_bind_original_attempt_and_allow_later_retry(clou
     assert retry.status_code == 409 and "requires new scope and authorization" in retry.text
 
 
-@pytest.mark.parametrize("fence_kind", ["cancel", "lease_expired"])
+@pytest.mark.parametrize("fence_kind", ["cancel", "lease_expired", "cancel_deleted"])
 async def test_fenced_original_grant_can_only_append_original_stop_observation(cloud_context, candidate_enabled, fence_kind, tmp_path):
     from copy import deepcopy
 
@@ -262,11 +262,15 @@ async def test_fenced_original_grant_can_only_append_original_stop_observation(c
         operation_key="confirm-" + uuid4().hex, expected_version=intent["version"], stopped=False)
     started = await broker.prepare_container_start(engine=engine, create_operation_key=args["operation_key"], container_id="e" * 64,
         operation_key="start-" + uuid4().hex, expected_version=confirmed["version"])
-    if fence_kind == "cancel":
+    if fence_kind in {"cancel", "cancel_deleted"}:
         cancelled = await post(cloud_context, "CANCEL_ATTEMPT", started["version"], task_id=receipt["task_id"],
             attempt_id=receipt["attempt_id"], reason="synthetic")
         assert cancelled.status_code == 200
         fenced_version = cancelled.json()["version"]
+        if fence_kind == "cancel_deleted":
+            deleted = await post(cloud_context, "DELETE_TASK", fenced_version, task_id=receipt["task_id"])
+            assert deleted.status_code == 200, deleted.text
+            fenced_version = deleted.json()["version"]
     else:
         async with AsyncSessionLocal() as db:
             await db.execute(text("UPDATE cloud_attempts SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=:id"),

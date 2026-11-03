@@ -76,7 +76,7 @@ export default function CloudTaskPage() {
     }
   }, [retry, taskId, operation.receipt, live.refetch, document.refetch]);
   async function mutate(fields: CloudRecord) {
-    if (!document.data || document.data.task.deleted_at || !cloudOperationalView(document.data, live.data).valid) return;
+    if (!document.data || (document.data.task.deleted_at && fields.operation !== "RECONCILE_ATTEMPT") || !cloudOperationalView(document.data, live.data).valid) return;
     const receipt = await operation.submit({ task_id: taskId, expected_version: document.data.task.version, ...fields });
     if (receipt) { await document.refetch(); await live.refetch(); }
   }
@@ -125,7 +125,9 @@ export default function CloudTaskPage() {
   return <main className="workspace-page cloud-task-detail">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")}
       metadata={<div className="cloud-task-metadata"><div><span>{t("Source", "来源")}</span><Tag>Cloud · DeepSeek</Tag></div><div><span>{t("Task progress", "任务进度")}</span><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag></div><div><span>{t("Reported test result", "报告的测试结果")}</span><ReportedResultTag result={task.reported_result} /></div><div><span>{t("Accepted version", "接受版本")}</span><strong>{task.version}</strong></div></div>}
-      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !configRevision} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
+      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !configRevision} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} recovery={live.isError ? undefined : live.data?.recovery} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
+    {task.deleted_at ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Removed from the task list", "已从任务列表移除")}
+      description={t("Records and original operation references remain available at this link. You can continue reconciliation here; deletion does not confirm stopping or resolve unknown outcomes, and this task cannot start new execution.", "本链接仍可查看历史记录和原操作引用，并继续对账。删除不代表进程已停止或未知结果已确认；此任务不能再下发执行。 ")} /> : null}
     <Modal open={!!editing} title={null} footer={null} width={1000} destroyOnHidden closable={!operation.busy && !operation.pending} maskClosable={!operation.busy && !operation.pending} keyboard={!operation.busy && !operation.pending} onCancel={() => { if (!operation.busy && !operation.pending) setEditing(null); }}>
       {editing ? <><CloudOperationNotice operation={operation} />{(task.deleted_at || task.version !== editing.version || status !== "DRAFT" || !!task.frozen_manifest || !operational.valid || inResolution) ? <Alert showIcon type="warning" message={t("The draft changed or its current state cannot be verified. Close and reopen the editor after refreshing.", "草稿已变化或当前状态无法核验，请关闭编辑并刷新后重新打开。")} /> : null}
         <CloudTaskForm key={`${editing.id}:${editing.version}`} config={configurations.data?.items.find((row) => row.id === editing.config_id)} operation={operation} configOptions={configurations.data?.items} enabled={enabled && operational.valid && !task.deleted_at && status === "DRAFT" && !task.frozen_manifest && !inResolution && task.version === editing.version} editTask={editing} onCancel={() => setEditing(null)} onCreated={() => { setEditing(null); void live.refetch(); void document.refetch(); }} />
@@ -194,7 +196,7 @@ export default function CloudTaskPage() {
               <Button htmlType="submit" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !answers[String(question.id)]?.trim()}>{t("Save answer", "保存回答")}</Button>
             </Form>) : null}
             <CloudAttemptRecovery key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} capabilities={capabilities.data} recovery={live.data?.recovery}
-              blocked={operation.blocked || !!task.deleted_at || !operational.valid} onSubmit={mutate} />
+              blocked={operation.blocked || !operational.valid || live.isError} onSubmit={mutate} />
           </section> : null}
           {status && !["COMPLETED", "FAILED", "CANCELLED"].includes(status) ? <section className="overview-section"><Typography.Title level={2}>{t("Cancel this task or attempt", "取消当前任务或尝试")}</Typography.Title>
             <Typography.Paragraph className="muted">{t("Cancellation fences the writer first. Active or uncertain work stays in recovery until cleanup and external operations are reconciled.", "取消会先隔离写入权；活动或未知工作在清理及外部操作完成对账前保持待恢复。 ")}</Typography.Paragraph>
