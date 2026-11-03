@@ -49,7 +49,6 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
   function open(mode: ManagementDraft["mode"]) {
     if (!task) return;
     setSaved(false);
-    if (draft?.mode === mode) { document.getElementById("task-archive-edit")?.focus(); return; }
     const previous = query.data?.publications.at(-1);
     setDraft({ mode, version: task.version, task, root: task.archive_version, children: children.map((c) => ({ subtask_id: c.id, archive_version: c.archive_version, title: c.title, status: c.status })) });
     form.resetFields(); form.setFieldsValue(mode === "status" ? { status: task.status, reason: "" } : mode === "publish" ? { status: task.status, reported_result: task.reported_result, summary: previous?.summary || "", selected_children: previous?.subtask_versions.map((c) => c.subtask_id) || [], asset_revision_ids: previous?.asset_revision_ids.slice() || [] }
@@ -153,7 +152,7 @@ export default function ArchiveTaskDetail({ taskId, projectId }: { taskId: strin
           {missingReferences ? <Alert type="warning" showIcon message={t("Some retained references are outside the current scope", "部分原引用已不在当前范围")} description={t("No references were removed automatically. Review newer revisions or excluded subtasks and explicitly update the selection before saving; retain the explanation of the earlier scope.", "未自动删除任何引用。请核对更新的产物修订或被排除的子任务，明确调整选择后保存，并保留原范围说明。") } /> : null}
           {publicationAssets.isError ? <Alert type="error" showIcon message={t("Artifact references could not be loaded", "无法读取产物引用")} description={errorText(publicationAssets.error, locale)} action={<Button onClick={() => void publicationAssets.refetch()}>{t("Retry", "重试")}</Button>} /> : null}
         </> : null}
-        <div className="archive-management-actions"><Space><Button type="primary" htmlType="submit" loading={operation.busy} disabled={draft.mode === "publish" && (publicationAssets.isPending || publicationAssets.isError || missingReferences)}>{draft.mode === "publish" ? t("Publish summary", "发布汇总") : draft.mode === "status" ? t("Save status", "保存状态") : t("Save", "保存")}</Button><Button onClick={() => setDraft(null)}>{t("Cancel", "取消")}</Button></Space></div>
+        <div className="archive-management-actions"><Space><Button type="primary" htmlType="submit" loading={operation.busy} disabled={operation.blocked || (draft.mode === "publish" && (publicationAssets.isPending || publicationAssets.isError || missingReferences))}>{draft.mode === "publish" ? t("Publish summary", "发布汇总") : draft.mode === "status" ? t("Save status", "保存状态") : t("Save", "保存")}</Button><Button onClick={() => setDraft(null)}>{t("Cancel", "取消")}</Button></Space></div>
       </Form></section> : null}
         <section id="task-upload" tabIndex={-1} className="data-surface session-record archive-upload" aria-labelledby="archive-upload-heading">
           <div className="activity-heading"><Typography.Title id="archive-upload-heading" level={2}>{t("Archive test artifacts", "归档测试产物")}</Typography.Title></div>
