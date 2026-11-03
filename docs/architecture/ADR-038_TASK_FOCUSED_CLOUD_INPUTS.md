@@ -17,10 +17,21 @@
 - `inputs.mr_url` 为新建及编辑草稿的必填项，接受无凭据 HTTPS GitLab `/-/merge_requests/<id>` 或 GitHub `/pull/<id>` 地址。它是 Agent 检索 MR/PR 改动、定位被测对象、目标及内容的上下文；不是 SUT 部署版本、部署指令、部署证明或自动授权。MR 内容仍按不可信仓库材料处理。MR 仓库须与 Project SUT 地址同主机，且属于其精确仓库或下级路径范围；GitLab `/groups/<scope>` 按实际 namespace 规范化。内部快照以该范围内 MR 所在仓库作为 SUT origin，以 Project 测试框架地址作为 framework origin，拒绝兄弟路径和跨主机来源。
 - 新建页面保留必填任务名称和 MR/PR 地址，另提供单个可选 `inputs.prompt`，供用户补充测试环境、流程、范围或需求；不再要求填写 PRD、PRD 版本、目标、流程、范围或检出选择器表单。Web 提交用户填写的 `title`；API 仍支持省略 `title` 时由服务端以仓库名和 MR/PR 编号生成（如 `service MR !123`），这是接口默认行为，不取代页面名称输入。旧 `prd_markdown`、`prd_version`、`objective`、`basic_flow`、`test_scope` 可省略，不把自动提示文字或 MR URL 伪装成用户提供的 PRD；实际提供的内容仍原样保存，未提供 PRD 时不生成 `prd_sha256`。
 - 源码检出选择器与 MR 上下文分别记录。省略 `sut_selector` 时，服务端从 MR/PR 地址生成对应 head ref：GitLab 为 `refs/merge-requests/<id>/head`，GitHub 为 `refs/pull/<id>/head`，均以 `BRANCH` 选择器解析；省略 `framework_selector` 时使用 `BRANCH main`。最新提交指输入解析时观察并冻结的完整 SHA；下发后分支移动不改变本次输入。明确提交的既有选择器仍按原合同解析，已存草稿、冻结任务和复测来源不因默认值调整自动改写。Agent 使用已配置的原生工具（如 glab）从 MR 查询改动、关联需求和测试内容；仓库材料仍是不可信上下文。
+- 保存草稿后，任务详情只提供一次“开始测试”操作，由 `START_TASK` 在服务端持久化开始意图，自动完成版本准备和首次下发。源码准备不再是用户必须单独操作的步骤，页面关闭不影响已接受的开始意图。界面区分准备中、已排队和 Agent 运行中；源码 SHA 作为可展开的追溯信息，不要求用户填写或确认。任务输入意图移除旧“框架入口”展示，Agent 从项目工具链选择入口并在执行记录中报告实际命令；历史冻结输入中的显式入口限制不因展示调整而取消。
 - 哪个测试环境、执行位置和操作流程可由用户在任务 `prompt` 中告知 Agent，旧任务提供的目标、基本流程等内容仍保留；缺少信息时由 Agent 查询或澄清，不凭空补造。新仓库快照不保存 `environment`、`expected_deployment` 或部署匹配要求；HyperTest 不提供测试环境目录、环境配置、部署编排或目标部署版本管理。SUT 的 CI 和项目工具链负责部署，执行环境负责其网络、登录和工具准备。
 - 产物可以如实记录 Agent/框架实际观察到的 SUT build、环境、命令、日志和未知项。这些是执行材料及结果来源，不构成平台对环境或部署的管理，也不能从 Git SHA、MR 或任务 COMPLETED 推断部署成功或测试 PASS。
 - 任务身份、版本、原 key 对账、Worker lease/fence、独立 Attempt、报告来源及权限边界保持。任务 prompt 不自动授予新的平台权限或解除宿主访问限制；凭据不得放入 MR URL、prompt、报告或普通日志。模型和插件仍由 Harness 原生配置负责。
 - 新建和编辑草稿的内部源码读取授权由当前双仓快照生成，不接受用户指定 `authorization`，编辑器不回传旧授权。这样更换项目仓库或 MR 后不会沿用旧目标，也不会继承旧环境权限；已冻结任务和独立复测仍使用各自原合同。
+
+## 一次开始与异步准备
+
+`START_TASK` 使用现有 `cloud:dispatch` 权限、原 `operation_key` 和 `expected_version`，只用于未冻结的 DRAFT。若存在与当前版本、输入摘要一致的已接受解析，则直接冻结输入并入队首个 Attempt；否则在同一事务保存开始回执和待解析记录。开始意图通过原操作回执与对应解析记录关联，不写入用户 prompt，不依赖浏览器继续提交第二个请求，也不新增通用工作流引擎或数据库表。
+
+受限 Worker 在事务外解析仓库。接受解析时重新核对任务状态、原草稿版本、输入摘要、当前授权和 Worker grant；校验通过后，在同一接受事务保存解析结果、固定 manifest 并创建唯一的 QUEUED Attempt。旧 `RESOLVE_INPUTS` 仍只准备版本，旧 `DISPATCH` 及独立复测保持其原合同。重复原 key 或重复接受只能读回原回执与同一执行尝试，不能重复排队。
+
+开始回执已接受仅证明开始意图已持久保存；解析、排队、Harness 启动和测试结果仍分别记录。准备失败不得创建执行尝试；过期、撤权、版本改变、取消或删除均不能被晚到的解析结果绕过。`RECOVERY_REQUIRED` 和未决原操作先按原身份恢复/对账，不得通过新的 `START_TASK` 自动重放。确定失败后的再次开始须来自用户的新显式操作；旧失败与未知事实保留。
+
+`CLOSE_INPUT_RESOLUTION` 提供限定的原准备收尾：使用 `cloud:control`、当前 Task 版本、独立原 key，并精确指定 `resolution_id` 与其 `original_operation_key`。仅未冻结且从未产生 Attempt 的 DRAFT 可收尾；原解析须为未接受结果的 RECOVERY_REQUIRED，lease/hash 均清空、无未撤销 work grant、原领取关闭事务的 fence 审计存在且无该解析的活动 claim。操作者另声明已观察本地准备进程停止并提供原因；服务端不将其升级为独立停机证明。事务只把该解析关闭为 FAILED，保留原身份/回执和原未知 Git 事实，在新回执记录原状态、原因及来源，递增 Task 版本；不接受 SHA、重放 Git 或启动 Agent。随后新测试必须使用另一次显式 START_TASK。无需新表或迁移。
 
 ## 旧入口与历史范围
 
@@ -32,4 +43,4 @@
 
 ## 验证范围
 
-必要自动回归覆盖页面名称输入和接口仅 MR 创建默认、可选 prompt 与无虚构需求、MR/PR head ref 和框架 main 默认值、Project 仓库快照与版本冲突、MR 必填/非法地址/范围越界拒绝、旧配置新写退役、草稿更新和原 key/版本行为，以及 Worker 对 MR 与 prompt 的传递。前端验证简化创建表单、项目仓库编辑保留及任务详情。实现、自动回归、部署健康和 USER_OWNED 功能验收分别记入交付记录。
+必要自动回归覆盖页面名称输入和接口仅 MR 创建默认、可选 prompt 与无虚构需求、MR/PR head ref 和框架 main 默认值、Project 仓库快照与版本冲突、MR 必填/非法地址/范围越界拒绝、旧配置新写退役、草稿更新和原 key/版本行为，以及 Worker 对 MR 与 prompt 的传递。一次开始流程验证解析后唯一入队、已有解析复用、重复请求/接受、准备失败及未知恢复阻止下发，以及版本/授权/取消后的晚到拒绝。前端验证单一开始操作、明确准备状态和源码详情折叠；任务输入意图不再展示旧框架入口。实现、自动回归、部署健康和 USER_OWNED 功能验收分别记入交付记录。

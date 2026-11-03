@@ -13,15 +13,20 @@ export const cloudJournal = createOperationJournal<CloudPending>("cloud", (value
 });
 
 async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise<void> {
-  if (receipt.operation === "DISPATCH" && !receipt.task_id) throw new Error("READBACK_PENDING");
+  if (["START_TASK", "DISPATCH"].includes(receipt.operation) && !receipt.task_id) throw new Error("READBACK_PENDING");
   if (receipt.task_id) {
     const document = await cloudDocument(projectId, receipt.task_id, receipt.version);
     if (document.task?.id !== receipt.task_id || document.task.project_id !== projectId || document.task.version !== receipt.version
       || (receipt.operation === "DELETE_TASK" && !document.task.deleted_at)
       || ![document.attempts, document.resolutions, document.assets, document.artifacts, document.runs, document.run_cases, document.delegations, document.questions, document.answers].every(Array.isArray)) throw new Error("READBACK_PENDING");
-    if (receipt.operation === "DISPATCH" && (!receipt.attempt_id || !receipt.input_digest || !/^[a-f0-9]{64}$/.test(receipt.input_digest)
+    if ((receipt.operation === "DISPATCH" || (receipt.operation === "START_TASK" && !!receipt.attempt_id)) && (!receipt.attempt_id || !receipt.input_digest || !/^[a-f0-9]{64}$/.test(receipt.input_digest)
       || document.task.latest_attempt_id !== receipt.attempt_id
       || !document.attempts.some((attempt) => attempt.id === receipt.attempt_id && attempt.input_digest === receipt.input_digest))) throw new Error("READBACK_PENDING");
+    if (receipt.operation === "START_TASK" && !receipt.attempt_id && (receipt.start_requested !== true || !receipt.resolution_id
+      || document.task.status !== "DRAFT" || !!document.task.latest_attempt_id
+      || !document.resolutions.some((resolution) => resolution.id === receipt.resolution_id
+        && resolution.operation_key === receipt.operation_key && resolution.source_draft_version === receipt.version
+        && resolution.status === "PENDING"))) throw new Error("READBACK_PENDING");
     return;
   }
   if (receipt.operation === "CONFIGURE") {

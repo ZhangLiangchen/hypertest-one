@@ -1019,7 +1019,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 | --- | --- | --- |
 | 1. 创建项目 | 创建或复用共享 Project，在项目详情编辑 SUT 与 framework 仓库 | 不启动 Harness 或测试；允许两仓相同；可与 Local 任务共存 |
 | 2. 创建任务 | 创建 CloudTask，必填 MR/PR URL，保存目标、PRD、基本流程和范围；测试环境由 prompt 说明，检出版本可选 | 不因表单保存开始执行；不配置平台环境、部署版本、预算或 Agent |
-| 3. 下发任务 | DRAFT 阶段受限 Worker 预检 ResolveCloudInputs，得到不可变 CloudInputResolution；dispatch 引用 resolution_id 并核验版本 / 授权后冻结、入队，PREPARING 只 checkout / 核验 | 未固定双仓完整 SHA 或未通过运行预检不得接收任务 prompt |
+| 3. 开始测试 | START_TASK 在服务端持久保存开始意图，受限 Worker 准备不可变 CloudInputResolution，接受解析与首次入队同事务完成；已有当前有效解析则直接复用。用户不再单独准备源码，PREPARING 只 checkout / 核验 | 未固定双仓完整 SHA 或未通过运行预检不得接收任务 prompt |
 | 4. 接取与分工 | 隔离 CloudAttempt 并通过官方 Python SDK 驱动 DeepSeek，投影进度和持久问答 | DeepSeek 自行工作或委派 Codex；Claude Code 保持占位，内部安排推理和工具调用 |
 | 5. 输出产物 | 接受带版本 / 来源的分析、设计、用例、代码与 commit / patch；保留原件 | 根与子代理按职责产出文件；主指挥官汇总 |
 | 6. 执行与汇报 | 回收原始框架结果、日志、实际环境与报告，核对完整性后更新进度 / reported result | 调用项目已有测试入口、授权远端框架或 CI，诊断并可回到第 5 步 |
@@ -1089,7 +1089,7 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 Project 保存 SUT / framework 两个 credential-free origin；允许同仓，但各自角色和实际 SHA 分别记录。新任务的内部仓库快照来自 Project 与其范围内的 MR 仓库，检出选择器可省略；不保存环境地址、连接方式或预期部署版本。可选 prompt 及实际提供的 PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行；缺省不伪造正文或需求证明。默认 MR/PR head 与框架 main，以及明确提交的既有选择器均须解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
 
-CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA 与对应选择器的实际 checkout 身份，返回不可变 CloudInputResolution。默认 MR/PR head ref 固定为实际 head commit；显式 MR 选择器仍按原合同记录 base / head 和 head 或 merge commit。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
+CloudTask 仅 DRAFT 可编辑。任务详情的一次“开始测试”通过 START_TASK 在服务端保存开始意图，复用既有 CloudOperationReceipt 与 CloudInputResolution 关联，无新表、通用工作流引擎或浏览器续传依赖。受限 Worker 从批准 origin 解析 SUT SHA、framework SHA 与实际 checkout 身份，在事务外进行 Git 操作。默认 MR/PR head ref 固定为实际 head commit；显式 MR 选择器仍按原合同记录 base / head 和 head 或 merge commit。接受结果重查版本、摘要、任务状态、授权及 grant 后，在同一事务固定 manifest 并入队唯一首个 Attempt；已有当前有效解析时直接复用。解析本身不启动 Harness 或测试，API 不运行 Git。源码身份作为折叠追溯详情，框架实际入口记录在执行材料中，不展示为空的用户意图字段。旧 ResolveCloudInputs 仍只准备版本，直接 DISPATCH 与复测合同不变；失败和 UNKNOWN 不因自动衔接而重放，具体回执、版本和恢复由领域 §51、TMP §46 定义。
 
 dispatch 只接受有效 resolution_id，重新校验版本和当前授权，原子冻结精确双仓输入、MR/PR 上下文、任务 prompt 与内部操作范围并入队；新输入不生成环境或预算。草稿 / 配置变化必须重新解析；排队后 branch 移动不改变本次输入。PREPARING 仅按固定 SHA checkout、核对身份和执行前能力，不能改为最新分支。相同输入的显式 rerun 复用原固定 SHA；精确持久化规则由领域 §51 定义。
 

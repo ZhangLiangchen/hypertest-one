@@ -2323,7 +2323,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 | --- | --- |
 | ProjectCloudConfigRevision | Project FK、递增 revision、创建者/时间；ADR-038 新写仅为服务端生成的 SUT/framework 仓库快照，不含 environment。旧配置的环境、credential ref 等仅按原 profile 读取。同仓库合法，角色分别记录；追加修订不改写已下发任务 |
 | ProjectCredential / CredentialVersion | Project FK、类型、用途、允许目标、权限范围、状态/有效期、创建/轮换审计；不可变 version 与专用加密秘密存储的引用。普通业务数据只保存 metadata/ref/version，不保存原文。秘密在专用持久层加密，主密钥与数据库/备份隔离；撤销/轮换不改写已用版本 |
-| CloudInputResolution | DRAFT Task FK、解析操作 key、source_draft_version、accepted_task_version、config version 与选择器摘要、双仓库完整 SHA/MR checkout 身份、PRD/资源版本、观察时间与来源；不可变解析结果及 digest。接受结果核验原 draft version 并递增 Task version；dispatch 须匹配 accepted_task_version，不能为改变后的 DRAFT 复用旧解析快照。只由受限输入预检 Worker 产生，不启动 Harness/测试 |
+| CloudInputResolution | DRAFT Task FK、解析操作 key、source_draft_version、accepted_task_version、config version 与选择器摘要、双仓库完整 SHA/MR checkout 身份、PRD/资源版本、观察时间与来源；不可变解析结果及 digest。接受结果核验原 draft version 并递增 Task version；dispatch 须匹配 accepted_task_version，不能为改变后的 DRAFT 复用旧解析快照。由受限输入预检 Worker 产生；若原操作为 START_TASK，接受解析与首次入队同事务完成，Git 解析本身不启动 Harness/测试 |
 | CloudTask | UUID、Project FK、固定创建者、profile、title、输入、配置修订/资源引用、status、reported_result、递增 version、latest_attempt FK、创建/更新时间；首次下发后输入 manifest/digest 不变，latest_attempt 必须属于本 Task |
 | CloudAttempt | Task FK、递增 attempt_no、冻结输入 digest、status、reported_result、排队/开始/结束时间、原因、checkpoint 与已接受资产引用、专属 workspace / runtime namespace / dsh_home 身份、原生 session 来源；task/attempt_no 唯一，所属 Task/输入/序号不可变 |
 | CloudAssetRevision | Task FK、来源 Attempt FK、kind、稳定 key、递增 revision、接受时 task version、来源/时间、文本原件或 CloudArtifact FK；kind 至少为 ANALYSIS / DESIGN / CASE / IMPLEMENTATION / REPORT。同 task/kind/key/revision 唯一，同内容复用，不覆写旧修订；CASE 保存步骤、预期、actual 与 reported_result，来源 Attempt 必须同 Task |
@@ -2402,10 +2402,16 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 
 1. 创建或复用 Project，在项目详情维护 SUT 与 framework 仓库地址；不另建资源或环境配置。
 2. 创建 DRAFT CloudTask，页面填写任务名称及 MR/PR URL，可选在单个 prompt 补充测试环境、目标、流程和范围。SUT 默认 MR/PR head，框架默认 main 最新提交并在解析时固定 SHA；MR 不是部署版本。创建界面不再要求 PRD、PRD 版本、目标、流程、范围或检出选择器表单，也不输入平台环境、授权、预算、框架命令或 Agent 配置。
-3. 先用 `ResolveCloudInputs` 将 DRAFT 的仓库快照与选择器交给受限 Worker 解析，形成不可变 CloudInputResolution；Git 解析在 Worker 和聚合行锁外进行，API 不运行 Git，也不预检或部署 SUT 环境。显式 dispatch 引用 resolution_id，重新检查授权、draft/config version 与 expected_version，原子接受冻结 manifest、首个 QUEUED Attempt、操作回执、Audit 和 Outbox。排队成功不代表已启动 Harness 或测试通过。
+3. 用户在详情点击一次“开始测试”，`START_TASK` 将开始意图与待准备来源持久保存；已有当前版本的有效解析时直接首次入队，否则由受限 Worker 在事务外解析，接受结果时自动完成首次下发。API 不运行 Git，也不预检或部署 SUT 环境。开始、解析接受和首次下发按下述规则检查授权、draft/config version 与输入摘要，原子保存冻结 manifest、首个 QUEUED Attempt、操作回执、Audit 和 Outbox；页面关闭不影响服务端继续处理。排队成功不代表已启动 Harness 或测试通过。
 4. Worker 领取该 Attempt，按 ADR-032 准备工作区，以官方 Python SDK 启动 DeepSeek harness、提交冻结任务并记录分工；宿主路径不宣称 OS 强隔离。
 5. 持久接受分析、设计、用例和实现修订；原件回收独立于主进程是否仍存活。
 6. Agent 调用已有测试入口，保存每次 Run、case actual、日志/原报告及最终汇报。第 5/6 步可循环，所有失败与修订保留。
+
+**ADR-038 一次开始语义：** `START_TASK` 仅接受未冻结的 DRAFT，使用既有 `cloud:dispatch` 权限、原 key 和 expected_version。未有有效解析时，在同一事务追加 CloudInputResolution、保存含 `resolution_id` 与 `start_requested=true` 的 CloudOperationReceipt，并递增 Task version，Task 保持 DRAFT；开始意图由该原回执和对应解析记录关联，不新增表或写入用户 inputs。若当前版本已有 ACCEPTED 且摘要匹配的解析，则直接复用并在本次 START_TASK 事务冻结首个 Attempt，Task 递增一版并进入 QUEUED。
+
+待准备的 START_TASK 在 Worker 接受解析时，重查原任务仍为未删除 DRAFT、source_draft_version、输入/配置摘要、当前内部授权和 Worker grant。解析接受与首次下发共用一个事务和一个新 Task version，`accepted_task_version` 指向该接受版本，ACCEPT_RESOLUTION 回执引用唯一的 `attempt_id`。开始时的回执和 DRAFT 固定快照不回填为后续执行结果；实时 `resolutions.start_requested` 仅投影原开始意图，不是 Harness 运行证明。旧 RESOLVE_INPUTS 仍只准备版本，直接 DISPATCH 与独立复测保持原合同。
+
+重复原 key 或重复接受读回同一回执和 Attempt，不新增执行。PENDING、RESOLVING 或 RECOVERY_REQUIRED 阻止新的 START_TASK；确定 FAILED 后可由新的显式操作重新开始。准备失败、未知操作、过期/撤销 grant、授权失效、任务变更、取消或删除都不能产生晚到的首次下发。旧 DRAFT 预算按重新解析规则清除并重新固定来源，不复用带旧预算的解析。首次开始回执只证明持久意图，准备成功、排队、Agent 启动和测试结果分别记录。
 
 冻结 manifest 必须包含两个仓库的规范地址、角色、选择器、完整 commit SHA 与访问配置版本。默认 MR/PR head ref 保存实际 checkout SHA 与来源 URL，不因 URL 存在而虚构已查询的 MR base/head 元数据。显式 MR 选择器仍记录 base/head SHA、来源 MR 和 checkout_strategy（HEAD 或 MERGE），MERGE 结果须实际存在且被固定，不自行猜测合并 SHA。同仓双角色也分别固定。实际提供 PRD 时保存确切内容/附件版本及 digest，不能只保存一个可变 URL；未提供时省略 `prd_sha256`，不伪造需求正文或已取得需求的证明。可选 prompt、实际提供的目标/流程/范围、MR/PR URL、framework 入口与内部授权同时冻结。新 manifest 不包含平台环境或预算；旧环境连接修订及预算只解释其历史 profile。
 
@@ -2424,6 +2430,8 @@ ADR-038 新写由服务端从 Project 和其范围内 MR 仓库自动生成内�
 CloudAttempt 既有 `runtime_metadata` 保存独立预算记录，不新增实体或改变任务身份。claim 在任何 Git 准备之前持久化 `preparation_budget_reservation`：状态 `HELD`，保留本次允许的完整准备 / 执行截止秒数、generation 和时间。进入 RUNNING 前，当前 Worker 必须用严格类型的 `budget_reservation` 持久预留整个截止区间（包含准备时间），以及 ROOT / 获准 child 各 scope 的 `max_requests × cost_per_request_microunits` 最坏额度；所有 scope 共用 Task 剩余额度，不能各得一份完整预算。服务端按 Task 锁串行检查累计上限；Agent 不能提交、覆盖或结算这些记录。
 
 `budget_reservation` 保留原 operation key、generation、时间和请求上限，状态仅为 `HELD` / `SETTLED`。累计用量按每 Attempt 的 `max(已观察用量, 未释放预留)` 计入；准备期间也计时间 hold，不能等实际模型费用回写后才限制复测。丢失 lease、取消、超时、报告 UNKNOWN 或人工 RECONCILE 均不自动释放 hold。只有当前 fenced Worker 观察整 namespace 已停止、所有模型 broker 关闭并 join / 无在途请求，才可在原 typed mutation 中附 `budget_settlement`：相同 accounting unit、完整 scope 请求计数、观察耗时及停止 / drained 为 true 的证据。计数不得超预留上限，计数乘预留费率须与提交的 observed usage 一致；原 hold 和结算记录同时保留。无法证明收尾则继续 HELD；结算不伪称供应商账单，不能由模型自述替代。结算、终态及 fencing 必须在同一接受事务完成，终态记录首次落库后仍不可变。
+
+**输入解析显式收尾：** `CLOSE_INPUT_RESOLUTION`（cloud:control）只作用于未删除、未冻结且无任何 Attempt 的 DRAFT。原解析按 Project/Task/resolution_id/original_operation_key 精确匹配，须为 RECOVERY_REQUIRED、无已接受 result/digest/accepted version/time、lease/hash 清空、无未撤销 grant。原 RESOLVE_INPUTS/START_TASK 回执必须匹配来源与提交者；同解析的 CLAIM_RECOVERY_FENCED 审计证明原 claim 关闭事务已提交，仍有活动原 claim 时拒绝。操作者提交停止观察及原因；它是 OPERATOR_ATTESTATION，不是独立进程停止证明，也不证明原 Git 未执行。仅转解析为 FAILED并追加版本化收尾回执/Audit/Outbox；Task 保持 DRAFT/NOT_RUN，原来源与旧回执不变。关闭不自动排队；新的显式 START_TASK 可开始独立准备。原 key 幂等和异正文冲突保持，无新表。
 
 ### 51.4 生命周期、复测与恢复
 

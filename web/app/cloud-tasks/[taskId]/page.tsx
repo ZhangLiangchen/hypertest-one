@@ -87,12 +87,12 @@ export default function CloudTaskPage() {
   const detail = document.data; const task = detail.task; const operational = cloudOperationalView(detail, live.data); const attempt = operational.attempt;
   const status = operational.status;
   const accepted = detail.resolutions.find((row) => row.status === "ACCEPTED" && row.accepted_task_version === task.version);
-  const legacyDraftBudget = status === "DRAFT" && !task.frozen_manifest && task.inputs.budgets != null;
   const resolution = (accepted?.result || task.frozen_manifest?.resolution) as CloudRecord | undefined;
   const repositories = resolution?.repositories as Record<string, CloudRecord> | undefined;
-  const inResolution = operational.resolutions.some((row) => ["PENDING", "RESOLVING"].includes(String(row.status)));
+  const inResolution = operational.resolutions.some((row) => row.source_draft_version === task.version && ["PENDING", "RESOLVING"].includes(String(row.status)));
+  const preparationBlocked = operational.resolutions.some((row) => ["PENDING", "RESOLVING", "RECOVERY_REQUIRED"].includes(String(row.status)));
   const enabled = capabilities.data?.enabled === true; const dispatchEnabled = enabled && capabilities.data?.worker_enabled === true;
-  const blocked = operation.blocked || !enabled || !operational.valid || !!task.deleted_at;
+  const blocked = operation.blocked || !enabled || !operational.valid || live.isError || !!task.deleted_at;
   const management = operational.valid && !live.isError ? live.data?.management : undefined;
   const terminalAttempt = !!attempt && ["COMPLETED", "FAILED", "CANCELLED"].includes(status || "") && attempt.status === status;
   const canRetry = terminalAttempt && management?.can_retry === true;
@@ -159,7 +159,7 @@ export default function CloudTaskPage() {
       <Steps current={step} size="small" responsive items={[
         ...[
           { title: t("Task inputs", "任务输入"), tab: "overview", id: "cloud-task-inputs" },
-          { title: t("Prepare source context", "准备源码上下文"), tab: "overview", id: "cloud-task-resolution" },
+          { title: t("Test preparation", "测试准备"), tab: "overview", id: "cloud-task-resolution" },
           { title: t("Harness work", "Harness 工作"), tab: "attempts", id: "cloud-attempt-history-heading" },
           { title: t("Test artifacts", "测试产物"), tab: "artifacts", id: "cloud-assets-title" },
           { title: t("Execution and report", "执行与汇报"), tab: "artifacts", id: "cloud-runs-title" },
@@ -174,16 +174,25 @@ export default function CloudTaskPage() {
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
         <div className="cloud-task-control-grid">
-          <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Source context", "源码上下文")}</Typography.Title><Typography.Paragraph className="muted">{t("Repository checkouts support the Agent’s analysis. The running SUT is deployed by its own CI; its test environment is described in the task prompt.", "仓库检出用于 Agent 分析。被测对象由自身 CI 部署，使用的测试环境在任务 Prompt 中说明。")}</Typography.Paragraph>
-            {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT source SHA", "被测对象源码 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
-            {status === "DRAFT" ? <Space wrap><Button loading={inResolution} disabled={blocked || inResolution || (!!accepted && !legacyDraftBudget)} onClick={() => void mutate({ operation: "RESOLVE_INPUTS" })}>{inResolution ? t("Preparing source context", "正在准备源码上下文") : t("Prepare source context", "准备源码上下文")}</Button>
-              <Button type="primary" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !dispatchEnabled || !accepted || legacyDraftBudget} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch test task", "下发测试任务")}</Button></Space> : null}
-            {legacyDraftBudget ? <Alert showIcon type="info" style={{ marginTop: 16 }} message={t("Resolve versions again to use the current Harness configuration", "请重新解析版本以使用当前 Harness 配置")} description={t("This undispatched draft uses an older task budget. Resolving again removes that budget and refreshes the frozen version inputs.", "此未下发草稿使用旧任务预算。重新解析后将移除该预算并更新版本解析。 ")} /> : null}
+          <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Test execution", "测试执行")}</Typography.Title>
+            {status === "DRAFT" ? <>
+              <Typography.Paragraph className="muted">{t("Start once to prepare the code and dispatch the task automatically. Work continues even if you close this page.", "点击开始后，系统自动准备代码并下发任务。无需另行操作，关闭页面也会继续。")}</Typography.Paragraph>
+              <Button type="primary" loading={operation.busy || inResolution} disabled={blocked || !dispatchEnabled || preparationBlocked} onClick={() => void mutate({ operation: "START_TASK" })}>{inResolution ? t("Preparing test", "正在准备测试") : t("Start test", "开始测试")}</Button>
+              {inResolution ? <Typography.Paragraph className="muted" role="status" style={{ marginTop: 16 }}>{currentResolution?.start_requested === true
+                ? t("Preparing repository versions. The Agent will be dispatched automatically when preparation succeeds.", "正在准备仓库版本，成功后会自动下发给 Agent。")
+                : t("A previous code preparation request is running. When it finishes, select Start test to continue.", "此前的代码准备请求正在处理，完成后点击开始测试即可继续。")}</Typography.Paragraph> : null}
+            </> : null}
             {!dispatchEnabled ? <Typography.Paragraph className="muted" style={{ marginTop: 16 }}>{t("Dispatch requires enabled Cloud admission and an enabled worker. Historical reads remain available.", "下发需要启用 Cloud 准入和 Worker；历史读取继续可用。 ")}</Typography.Paragraph> : null}
-            {currentResolution && ["FAILED", "RECOVERY_REQUIRED"].includes(String(currentResolution.status))
-              ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Input resolution needs attention", "输入解析需要处理")} description={t("Check repository access, selectors and the original operation. Do not restart an uncertain resolution automatically.", "请核对仓库访问、版本选择和原操作；不要自动重新开始结果不明的解析。 ")} />
+            {status === "DRAFT" && operational.resolutions.some((row) => row.status === "RECOVERY_REQUIRED")
+              ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Code preparation needs recovery", "代码准备需要恢复")} description={t("An earlier preparation result is unconfirmed. Review and reconcile its original record before starting; the Agent has not been dispatched.", "此前的准备结果尚未确认，需先核对原准备记录并完成恢复；Agent 尚未下发。")}/>
+              : currentResolution?.status === "FAILED"
+              ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Code preparation failed", "代码准备失败")} description={t("The Agent has not been dispatched. Check repository access, then select Start test to prepare again.", "Agent 尚未下发。请检查仓库访问，处理后点击开始测试重新准备。")}/>
               : operational.resolutions.some((row) => ["FAILED", "RECOVERY_REQUIRED"].includes(String(row.status)))
                 ? <Alert showIcon type="info" style={{ marginTop: 16 }} message={t("Historical input resolution issues are retained", "历史输入解析异常记录已保留")} description={t("Use the resolved or frozen versions shown above for the current attempt. Historical unknown outcomes remain unknown; a new attempt does not replay earlier requests.", "当前解析或冻结版本以上方显示为准。历史未知结果仍保留，新尝试不会重放旧请求。")} /> : null}
+            <details className="cloud-task-source-details"><summary>{t("Code version details", "代码版本详情")}</summary>
+              <Typography.Paragraph className="muted">{t("The MR / PR source and test framework versions are recorded for this task. They do not confirm which version is deployed in the test environment.", "记录本次使用的 MR / PR 源码和测试框架版本，不代表测试环境已部署这些版本。")}</Typography.Paragraph>
+              {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT source SHA", "被测对象源码 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("Code versions will appear after preparation succeeds.", "代码准备成功后将在此显示版本。")}</Typography.Paragraph>}
+            </details>
           </section>
           {attempt ? <section className="overview-section"><Typography.Title level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
             {terminalAttempt && !task.deleted_at ? <div style={{ marginBottom: 16 }}>
@@ -216,7 +225,6 @@ export default function CloudTaskPage() {
             ...(task.inputs.test_scope ? [{ key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> }] : []),
             { key: "mr", label: t("MR / PR URL", "MR / PR 地址"), span: 2, children: <span className="session-literal">{text(task.inputs.mr_url)}</span> },
             ...(task.inputs.basic_flow ? [{ key: "flow", label: t("Testing instructions / prompt", "测试说明 / Prompt"), span: 2, children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> }] : []),
-            ...(task.inputs.framework_entrypoints ? [{ key: "entrypoints", label: t("Framework entrypoints", "框架入口"), span: 2, children: <pre className="session-literal">{text(task.inputs.framework_entrypoints)}</pre> }] : []),
             ...(task.inputs.budgets != null ? [{ key: "budgets", label: t("Frozen budgets", "冻结预算"), span: 2, children: <pre className="session-literal">{text(task.inputs.budgets)}</pre> }] : []),
           ]} />{task.inputs.prd_markdown ? <details><summary>{t("Read original PRD", "查看 PRD 原文")}</summary><pre className="artifact-content session-markdown">{text(task.inputs.prd_markdown)}</pre></details> : null}
         </section>

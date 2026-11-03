@@ -21,7 +21,7 @@
 
 **任务创建更新（ADR-028）：** 项目使用统一入口创建 Local 归档或 Cloud 任务；旧 SessionTask 不再是当前任务方案，旧创建/同步/协作入口和对应旧数据按本次迁移退出。旧受管 TestRun 及其关联执行、报告和证据按用户决定退出；独立 Native、Cloud、Archive、Memory 不混用。实施与部署分别记录。
 
-Cloud 按 ADR-019 与 ADR-038 组织流程：项目仓库 → MR/PR 与可选测试 prompt → 下发固定输入 → Harness 接取 → 测试产物 → 项目框架执行及报告。仓库仅在项目详情编辑，不设置独立资源或环境配置步骤。CloudTask / CloudAttempt、LocalArchiveTask 及旧 Local SessionTask 可共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史。
+Cloud 按 ADR-019 与 ADR-038 组织流程：项目仓库 → MR/PR 与可选测试 prompt → 一次开始测试 → Harness 接取 → 测试产物 → 项目框架执行及报告。仓库仅在项目详情编辑，不设置独立资源或环境配置步骤；保存草稿后，服务端自动衔接版本准备和首次下发，用户无需单独准备源码，关闭页面不影响已接受的开始意图。CloudTask / CloudAttempt、LocalArchiveTask 及旧 Local SessionTask 可共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史。
 
 Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
@@ -157,7 +157,7 @@ ADR-016 当前 `CLOUD / LOCAL` 只区分 Agent 的位置，测试仍走服务器
 | --- | --- | --- |
 | 1. 创建或复用项目 | 在项目详情编辑被测对象和测试框架仓库；两个角色允许同仓。执行环境准备工具和访问条件，SUT 的独立 CI 负责部署；不设置 Cloud 资源或环境表单 | 共享 Project、双仓地址及审计；秘密不进入普通配置和报告 |
 | 2. 创建测试任务 | 填写任务名称、粘贴 MR/PR 地址，可选补充单个测试说明。SUT 默认取 MR/PR head，测试框架默认取 main 最新提交；Agent 查询改动和项目上下文，不要求重复填写 PRD、目标、流程、范围和版本表单 | 独立 CloudTask 草稿及版本；保存原始输入，不虚构需求或 SessionTask |
-| 3. 下发任务 | Worker 解析两仓来源，接受 dispatch 前冻结实际 SHA、MR/PR 地址、用户提供的测试说明和内部授权；API 引用已解析结果入队，准备工作区和独立执行尝试。解析后分支移动不改变本次来源 | 不可变输入快照、CloudAttempt、解析记录；实际 SUT build 由 Agent/框架如实报告，未知项保留，仓库 SHA 不构成部署证明 |
+| 3. 开始测试 | 一次开始请求由后台自动完成版本准备和首次下发；Worker 解析两仓来源，API 固定实际 SHA、MR/PR 地址、测试说明和内部授权并入队独立 Attempt。源码详情可展开追溯，解析后分支移动不改变本次来源 | 开始回执、不可变输入快照、CloudAttempt、解析记录分别保留；准备失败或未知不得推定已执行，实际 SUT build 由 Agent/框架如实报告，仓库 SHA 不构成部署证明 |
 | 4. 接取与分工 | Python Worker 通过官方 `deepseek-harness-sdk` 启动 `dsh --profile sdk`、提交任务并收集事件；DeepSeek 自行参与或委派 Codex（Claude Code 保持占位） | Attempt 内 Harness 身份、委派关联、进度与操作记录；主指挥官统一回写平台 |
 | 5. 保存测试产物 | 分阶段保存测试分析、设计、用例及自动化测试代码；代码落在测试框架仓库工作区，保留 commit 或完整 patch，push 受任务授权约束 | 带来源和版本的分析 / 设计 / 用例 / 代码资产；附件须真正上传并读回核验，单一 URI 不表示原件已保存 |
 | 6. 执行并汇报 | Agent 调用项目已有框架 / CI，逐轮保存结果、日志、原始报告、实际版本 / 环境出处与用例 actual / reported result | 各轮执行记录、原始报告和最终测试结论；第 5、6 步可迭代，原 FAIL、ERROR、BLOCKED 与未完成记录继续保留 |
