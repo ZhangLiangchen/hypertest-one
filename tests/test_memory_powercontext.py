@@ -67,7 +67,7 @@ async def test_shared_search_reads_current_state_and_exact_digest_excludes_histo
             records = [{"artifact": ref(), "kind": kind, "state": "active", "text": "stale untrusted index text"}
                 for kind in ("fact", "historical_technical_record")]
             return httpx.Response(200, json={"mode": "hybrid", "hits": [
-                {"memory": row, "matched_by": ["vector"]} for row in records]})
+                {"memory": row, "score": 0.0123, "matched_by": ["vector"]} for row in records]})
         if request.url.path.endswith("/state"):
             return httpx.Response(200, json={"artifact": {**ref(), "revision": revision}, "state": state, "state_version": 4})
         assert request.url.path.endswith("/revisions/1")
@@ -77,6 +77,7 @@ async def test_shared_search_reads_current_state_and_exact_digest_excludes_histo
     if expected:
         assert result["hits"][0]["content"] == "Verified shared lesson"
         assert result["hits"][0]["matched_by"] == ["vector"] and result["hits"][0]["state_version"] == 4
+        assert result["hits"][0]["score"] == 0.0123
     assert len(calls) == 2 + expected
 
 

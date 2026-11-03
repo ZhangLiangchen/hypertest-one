@@ -14,7 +14,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import or_, select
 
-from hypertest.api.memory_schemas import PROFILE, MemoryQuery
+from hypertest.api.memory_schemas import PROFILE, MemoryQuery, MemoryVisibility
 from hypertest.application import cloud_tasks, interactive
 from hypertest.application.services import canonical_json_sha256
 from hypertest.cloud.errors import CloudBlocked
@@ -339,7 +339,11 @@ def _new_revision(entry, request, actor, *, status, upstream_ref=None):
 
 
 def upstream_content(operation):
-    """The server-only marker is a locator, not upstream idempotency or proof."""
+    """Server-generated opaque locator; no credential, private source or proof.
+
+    Authorized readers may receive these exact accepted bytes after current
+    visibility/digest verification. The marker grants no API authority.
+    """
     request = operation.request
     text = (f"# {request['title']}\n\n{request['content']}\n\n"
         f"Applicability: {request.get('applicability', '')}\n\n"
@@ -707,17 +711,14 @@ async def query(db, payload: MemoryQuery, context):
     # Platform-owned artifacts never become external knowledge, even if a
     # direct service writer changes their kind after retraction or expiry.
     hit_ids = [hit.get("artifact_id") for hit in hits if shared_kind(hit.get("kind"))]
-    platform_refs = await db.scalars(select(MemoryRevision.upstream_ref).where(
-        MemoryRevision.upstream_ref["artifact_id"].astext.in_(hit_ids)).union_all(
-            select(MemoryOperation.upstream_ref).where(
-                MemoryOperation.upstream_ref["artifact_id"].astext.in_(hit_ids)))) if shared and hit_ids else []
-    platform_artifacts = {ref["artifact_id"] for ref in platform_refs if isinstance(ref, dict) and ref.get("artifact_id")}
+    platform_artifacts = await _platform_artifact_ids(db, hit_ids) if shared and hit_ids else set()
     result, external, seen = [], [], set()
     for hit in hits:
         identity = (hit.get("artifact_id"), hit.get("revision"))
         if identity in visible and identity not in seen:
             entry, revision = visible[identity]
-            result.append(revision_view(entry, revision, context))
+            result.append({**revision_view(entry, revision, context), "upstream_ref": revision.upstream_ref,
+                "matched_by": hit.get("matched_by", []), **({"score": hit["score"]} if "score" in hit else {})})
             seen.add(identity)
         elif (shared and shared_kind(hit.get("kind")) and identity not in seen
                 and hit["artifact_id"] not in platform_artifacts):
@@ -725,6 +726,7 @@ async def query(db, payload: MemoryQuery, context):
                 "scope_id": scope_id, "artifact_id": hit["artifact_id"], "revision": hit["revision"],
                 "kind": hit["kind"], "content": hit["content"], "content_digest": hit["content_digest"],
                 "state": "active", "state_version": hit["state_version"], "matched_by": hit["matched_by"],
+                **({"score": hit["score"]} if "score" in hit else {}),
                 "review_status": "EXTERNAL_NOT_HYPERTEST_REVIEWED",
                 "notice": "Explicitly shared project knowledge; not HyperTest publication, test evidence or execution permission. Verify current applicability. Legacy source references in text are not native lineage."})
             seen.add(identity)
@@ -738,3 +740,59 @@ async def query(db, payload: MemoryQuery, context):
     return {"profile": PROFILE, "project_id": str(payload.project_id), "results": result,
         "external_results": external, "search_mode": search["mode"],
         "degraded": False, "notice": NOTICE}
+
+
+async def _platform_artifact_ids(db, artifact_ids):
+    refs = await db.scalars(select(MemoryRevision.upstream_ref).where(
+        MemoryRevision.upstream_ref["artifact_id"].astext.in_(artifact_ids)).union_all(
+            select(MemoryOperation.upstream_ref).where(
+                MemoryOperation.upstream_ref["artifact_id"].astext.in_(artifact_ids))))
+    return {ref["artifact_id"] for ref in refs if isinstance(ref, dict) and ref.get("artifact_id")}
+
+
+async def visibility(db, payload: MemoryVisibility, context):
+    """Current PG visibility for exact PC bytes; never grants upstream access.
+
+    Standalone readers only. Cloud uses query with its original claim fence.
+    Unknown upstream artifacts still require the client's PC lifecycle/digest
+    check; this endpoint does not turn absence from PG into a trusted fact.
+    """
+    if context.worker:
+        raise HTTPException(403, "Worker memory reads require the fenced query endpoint")
+    enabled()
+    await authorize(db, context, "memory:read", payload.project_id, lock=True)
+    await cloud_tasks.project(db, payload.project_id, lock=True)
+    mapped = await mapping(db, payload.project_id, ready=True, lock=True)
+    if mapped.scope_id != payload.scope_id:
+        raise HTTPException(409, "Visibility scope must match the current project binding")
+    artifact_ids = {ref.artifact_id for ref in payload.artifacts}
+    managed = await _platform_artifact_ids(db, artifact_ids)
+    rows = await db.execute(select(MemoryEntry, MemoryRevision).join(MemoryRevision,
+        (MemoryRevision.entry_id == MemoryEntry.id) & (MemoryRevision.version == MemoryEntry.version)).where(
+            MemoryEntry.project_id == payload.project_id, MemoryEntry.status == "PUBLISHED",
+            MemoryRevision.status == "PUBLISHED", MemoryRevision.upstream_ref["artifact_id"].astext.in_(artifact_ids)))
+    current = {}
+    now = datetime.now(UTC)
+    for entry, revision in rows:
+        ref = revision.upstream_ref
+        if revision.expires_at is None or revision.expires_at > now:
+            current[(ref["artifact_id"], ref["revision"], ref.get("content_digest"))] = (entry, revision)
+    items = []
+    for ref in payload.artifacts:
+        item = {"artifact_id": ref.artifact_id, "revision": ref.revision}
+        accepted = current.get((ref.artifact_id, ref.revision, ref.content_digest))
+        if accepted:
+            entry, revision = accepted
+            item.update(disposition="PLATFORM_CURRENT", content_digest=ref.content_digest,
+                entry_id=str(entry.id), version=revision.version,
+                publication=revision_view(entry, revision, context))
+        else:
+            item["disposition"] = "PLATFORM_NOT_CURRENT" if ref.artifact_id in managed else "EXTERNAL_UNMANAGED"
+        items.append(item)
+    # Same output boundary as query; absence from the ledger never returns
+    # candidate/operation content or identifies another owning project.
+    publications = [row["publication"] for row in items if "publication" in row]
+    if publications:
+        await reject_secrets(db, payload.project_id, {"publications": publications}, context)
+    return {"profile": PROFILE, "project_id": str(payload.project_id), "scope_id": mapped.scope_id,
+        "configuration_version": mapped.version, "items": items, "notice": NOTICE}

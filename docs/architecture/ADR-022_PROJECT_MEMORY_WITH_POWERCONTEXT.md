@@ -14,6 +14,10 @@
 
 共享检索整体（含有界并发读回）仍受同一 ≤5 秒网络预算和前后 Gateway 授权 / Cloud fence 约束；超时返回空结果和 degraded。响应携带实际 search_mode、matched_by 与精确 artifact/revision/digest，向量降级不伪装语义命中。现行 Native Worker 按显式配置启动独立 CloudMemoryBridge（HTTPS 或私有 UDS、独立逐项目 grant），将两类结果完整传入原任务的 memory-responses，任务 envelope 明确消费两类结果和各自标签；Web 显示独立只读外部知识区，不提供平台编辑 / 发布按钮。既有独立 memory grant 必须明确授予，cloud:work 不扩权。托管 framework 与业务项目的绑定仅决定 canonical 项目归属，不赋予测试执行权。
 
+本机直接 PowerContext 读取不具备 PostgreSQL 的平台撤回 / 过期权威。为保持单向权威且不增加第二次 lifecycle 写，新增只读 `POST /memory/visibility`：独立 memory:read（或 Operator）、exact READY scope，批量 1..50 个 `{artifact_id,revision,content_digest}`。仅当前 PUBLISHED、未过期且完整 ref/digest 相等返回 `PLATFORM_CURRENT` 和公开 publication；任意平台 revision/operation 已占用但非当前的 ID 返回 `PLATFORM_NOT_CURRENT`，无正文 / 归属；未管理的 ID 为 `EXTERNAL_UNMANAGED`，仍必须由客户端核 PC 当前 active / exact revision / digest，不能据此提升为当前事实。此接口不调用上游、不写状态，响应 no-store；Worker 不使用此接口，继续原 query + claim fence。query 的平台结果补充 upstream_ref 及实际检索分数 / 通道，供本机保留官方 MCP 结果形状。接入的本机 MCP search/get/default recall 须实际消费此投影，对失败、缺 digest 或无法核验的条目关闭输出；单纯文档提醒不构成生命周期接通。
+
+PLATFORM_CURRENT 通过后，memory:read 客户端可接收原 PC 固定字节和摘要。其 `htmemory…` marker 是服务端生成的 opaque locator，既非凭据，也非 operation_key、来源引用或鉴权依据；不包含私有 task/session/source/actor。不要删除该非敏感 locator 后仍宣称原件摘要不变；若展示平台 publication 投影，须与 PC 原件明确区分。
+
 ### ADR-027 本地归档来源增补
 
 新显式归档增加 `LOCAL_ARCHIVE` 来源，由 Operator 选择固定 `task_id`、`submission_id`、`archive_version` 与 `asset_revision_id`。Gateway 验证同 Project、同 Task/目标空间、固定已接受 Submission 和不可变快照，确认快照实际包含该 REPORT 修订及其内容；冻结报告摘要与来源元数据，不把原报告公开。此类型仅 Operator 可提出和重验，普通 Memory grant 与 CLI archive grant 彼此不扩权；公开投影仍仅显示 opaque provenance。历史 LOCAL / CLOUD 合同不变，归档结果仍为报告者声明，不升级为可信执行事实。
