@@ -527,6 +527,11 @@ def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     assert any("PEM private-key header markers" in line and "redaction accurately" in line for line in prompt["instructions"])
     assert all("SSH diagnostics are unavailable" not in line for line in prompt["instructions"])
     assert any(str(tmp_path / "framework") in line for line in prompt["instructions"])
+    assert prompt["capabilities"]["memory"]["configured"] is False
+    shared = json.loads(native_prompt({"id": task_id, "frozen_manifest": {}}, {"id": attempt_id}, tmp_path, memory_enabled=True))
+    assert shared["capabilities"]["memory"]["requires_separate_project_grant"] is True
+    assert shared["memory_contract"]["response_directory"] == ".hypertest-cloud/memory-responses"
+    assert any("external_results" in line and "not HyperTest human-reviewed" in line for line in shared["instructions"])
 
 
 def test_native_retry_uses_its_verified_manifest_without_changing_the_original(tmp_path):
