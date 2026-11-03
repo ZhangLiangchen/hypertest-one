@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { ReportedResultTag } from "@/app/tasks/task-records";
 import { WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 import { CloudAttemptRecovery, CloudCapabilitiesNotice, CloudOperationNotice } from "@/app/projects/[projectId]/cloud/cloud-shared";
-import { cloudCapabilities, cloudCancellation, cloudConfiguration, cloudDocument, cloudOperationalView, cloudProgressTone, cloudSetup, cloudSummary } from "@/lib/cloud";
+import { cloudCapabilities, cloudCancellation, cloudConfiguration, cloudDocument, cloudManagementMessage, cloudOperationalView, cloudProgressTone, cloudSetup, cloudSummary } from "@/lib/cloud";
 import type { CloudRecord } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument } from "@/lib/run-polling";
@@ -94,6 +94,9 @@ export default function CloudTaskPage() {
   const configRevision = configurations.data?.items.find((row) => row.id === task.config_id);
   const config = configRevision?.configuration;
   const blocked = operation.blocked || !enabled || !operational.valid || !!task.deleted_at;
+  const management = operational.valid && !live.isError ? live.data?.management : undefined;
+  const terminalAttempt = !!attempt && ["COMPLETED", "FAILED", "CANCELLED"].includes(status || "") && attempt.status === status;
+  const canRetry = terminalAttempt && management?.can_retry === true;
   const answered = new Set(detail.answers.map((row) => row.question_id));
   const questions = detail.questions.filter((row) => !answered.has(row.id));
   // State identifies current work, not a history of completed business phases.
@@ -125,7 +128,7 @@ export default function CloudTaskPage() {
   return <main className="workspace-page cloud-task-detail">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")}
       metadata={<div className="cloud-task-metadata"><div><span>{t("Source", "来源")}</span><Tag>Cloud · DeepSeek</Tag></div><div><span>{t("Task progress", "任务进度")}</span><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag></div><div><span>{t("Reported test result", "报告的测试结果")}</span><ReportedResultTag result={task.reported_result} /></div><div><span>{t("Accepted version", "接受版本")}</span><strong>{task.version}</strong></div></div>}
-      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !configRevision} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} recovery={live.isError ? undefined : live.data?.recovery} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
+      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !configRevision} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} recovery={live.isError ? undefined : live.data?.recovery} management={management} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
     {task.deleted_at ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Removed from the task list", "已从任务列表移除")}
       description={t("Records and original operation references remain available at this link. You can continue reconciliation here; deletion does not confirm stopping or resolve unknown outcomes, and this task cannot start new execution.", "本链接仍可查看历史记录和原操作引用，并继续对账。删除不代表进程已停止或未知结果已确认；此任务不能再下发执行。 ")} /> : null}
     <Modal open={!!editing} title={null} footer={null} width={1000} destroyOnHidden closable={!operation.busy && !operation.pending} maskClosable={!operation.busy && !operation.pending} keyboard={!operation.busy && !operation.pending} onCancel={() => { if (!operation.busy && !operation.pending) setEditing(null); }}>
@@ -134,11 +137,11 @@ export default function CloudTaskPage() {
       </> : null}
     </Modal>
     {retry ? <RetryDialog task={task} actions={live.data?.controlled_actions_history?.flatMap((group) => group.actions.map((action) => ({ ...action, attempt_id: group.attempt_id }))) ?? live.data?.controlled_actions} notice={<CloudOperationNotice operation={operation} />}
-      invalid={blocked || live.isError || !dispatchEnabled || retry.version !== task.version || retry.attemptId !== attempt?.id || status !== "FAILED"}
-      stale={!operational.valid || live.isError || retry.version !== task.version || retry.attemptId !== attempt?.id || status !== "FAILED"}
+      invalid={blocked || !dispatchEnabled || retry.version !== task.version || retry.attemptId !== attempt?.id || !canRetry}
+      stale={!operational.valid || live.isError || retry.version !== task.version || retry.attemptId !== attempt?.id || !canRetry}
       busy={operation.busy || !!operation.pending}
       onCancel={() => setRetry(null)} onSubmit={(retryInputs) => {
-        if (retry.version !== task.version || retry.attemptId !== attempt?.id || blocked || live.isError || !dispatchEnabled || status !== "FAILED") return;
+        if (retry.version !== task.version || retry.attemptId !== attempt?.id || blocked || !dispatchEnabled || !canRetry) return;
         void (async () => {
           const receipt = await operation.submit({ task_id: taskId, expected_version: retry.version, operation: "DISPATCH", retry_of_attempt_id: retry.attemptId,
             retry_scope_confirmed: true, retry_authorization_confirmed: true, retry_inputs: retryInputs, reason: "Operator confirmed scope and authorization for a new attempt" });
@@ -183,10 +186,12 @@ export default function CloudTaskPage() {
             {operational.resolutions.some((row) => ["FAILED", "RECOVERY_REQUIRED"].includes(String(row.status))) ? <Alert showIcon type="warning" style={{ marginTop: 16 }} message={t("Input resolution needs attention", "输入解析需要处理")} description={t("Check repository access, selectors and the original operation. Do not restart an uncertain resolution automatically.", "请核对仓库访问、版本选择和原操作；不要自动重新开始结果不明的解析。 ")} /> : null}
           </section>
           {attempt ? <section className="overview-section"><Typography.Title level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
-            {status === "FAILED" && attempt.status === "FAILED" ? <div style={{ marginBottom: 16 }}>
+            {terminalAttempt && !task.deleted_at ? <div style={{ marginBottom: 16 }}>
               <Typography.Paragraph className="muted">{t("Start a new attempt after reviewing its scope and authorization. The previous attempt and its records remain available.", "核对本次范围和授权后可下发新尝试，原尝试及其记录会保留。")}</Typography.Paragraph>
+              {management?.native_scope_unobserved ? <Typography.Paragraph className="muted">{t("The direct Harness process exited. Other host processes and external outcomes remain unobserved; starting a new attempt does not change those records.", "已观察到 Harness 直接进程退出；其他宿主进程与外部结果仍未观察，新尝试不会改变这些记录。")}</Typography.Paragraph> : null}
               {(live.data?.controlled_actions_history?.flatMap((group) => group.actions) ?? live.data?.controlled_actions)?.some((action) => action.state === "SENT_UNRECONCILED" || action.state === "IDENTIFIED_UNRECONCILED") ? <Alert showIcon type="warning" style={{ marginBottom: 12 }} message={t("An earlier action remains unreconciled", "此前动作尚未对账")} description={t("Reconcile the original action by its original key before retrying.", "下发前请按原操作键对账。 ")} /> : null}
-              <Button disabled={blocked || live.isError || !dispatchEnabled} onClick={() => setRetry({ attemptId: attempt.id, version: task.version })}>{t("Retry task", "重试任务")}</Button>
+              {!canRetry ? <Typography.Paragraph className="muted">{cloudManagementMessage(management?.retry_blocking_reasons[0], t)}</Typography.Paragraph> : null}
+              <Button disabled={blocked || !dispatchEnabled || !canRetry} onClick={() => { if (!blocked && dispatchEnabled && canRetry) setRetry({ attemptId: attempt.id, version: task.version }); }}>{t("Start new attempt", "新建执行尝试")}</Button>
             </div> : null}
             {attempt.status === "WAITING_INPUT" ? <Alert showIcon type="warning" style={{ marginBottom: 16 }} message={t("Answers are recorded but cannot resume this agent session", "回答只会保存，无法继续此 Agent 会话")} description={t("The current worker does not support original-session continuation. Review previous external operations before planning further work.", "当前 Worker 不支持继续原会话。安排后续工作前，请核对此前的外部操作。 ")} /> : null}
             {attempt.status === "WAITING_INPUT" ? questions.map((question) => <Form key={String(question.id)} className="workspace-form form-section cloud-task-fields" layout="vertical" onFinish={() => void mutate({ operation: "ANSWER_INPUT", attempt_id: attempt.id, question_id: question.id, answer: answers[String(question.id)] })}>

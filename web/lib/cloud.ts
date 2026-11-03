@@ -20,7 +20,30 @@ export type CloudRecoverySummary = {
   reconciliation_source: string; budget_disposition: string;
   phase: "ACTIVE" | "CANCELLATION_REQUESTED" | "STOP_UNCONFIRMED" | "RECONCILIATION_REQUIRED" | "TERMINATED";
 };
-export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; controlled_actions?: CloudRecord[]; controlled_actions_history?: { attempt_id: string; actions: CloudRecord[] }[]; observed_at: string; recovery?: CloudRecoverySummary };
+export type CloudManagementSummary = {
+  can_retry: boolean; retry_blocking_reasons: string[];
+  can_delete: boolean; delete_blocking_reasons: string[]; native_scope_unobserved: boolean;
+};
+export function cloudManagementMessage(reason: string | undefined, t: (en: string, zh: string) => string): string {
+  if (!reason) return t("Refresh records to verify whether this action is available.", "请刷新记录以核验此操作是否可用。");
+  const messages: Record<string, [string, string]> = {
+    TASK_DELETED: ["This task was removed from the list and cannot start new work.", "此任务已从列表移除，不能下发新工作。"],
+    TASK_NOT_TERMINAL: ["Finish or cancel the current task before starting another attempt.", "请先结束或取消当前任务，再安排新尝试。"],
+    FROZEN_ATTEMPT_REQUIRED: ["A previous attempt with frozen inputs is required.", "需要已有冻结输入的执行尝试。"],
+    ATTEMPT_NOT_TERMINAL: ["The current attempt has not finished.", "当前执行尝试尚未结束。"],
+    UNRESOLVED_INPUT_RESOLUTION: ["Repository resolution still needs to finish or be reconciled.", "仓库版本解析尚需完成或对账。"],
+    PENDING_ORIGINAL_OPERATIONS: ["Reconcile pending operations by their original keys first.", "请先按原操作键核对未决请求。"],
+    EXTERNAL_OPERATIONS_UNRECONCILED: ["Earlier external operations still need reconciliation.", "此前外部操作尚未完成对账。"],
+    OLD_OWNER_NOT_FENCED: ["The previous worker still has writing authority.", "原 Worker 的写入权尚未隔离。"],
+    DELEGATIONS_UNRECONCILED: ["A delegated agent still needs a terminal observation.", "尚有子代理缺少结束观察。"],
+    SSH_REMOTE_OPERATIONS_UNRECONCILED: ["Reconcile the original remote operation first.", "请先核对原远端操作。"],
+    HTTPS_REMOTE_OPERATIONS_UNRECONCILED: ["Reconcile the original HTTP operation first.", "请先核对原 HTTP 操作。"],
+    CLOUD_ACTION_BUSINESS_UNRECONCILED: ["Reconcile the original controlled action first.", "请先核对原受控动作。"],
+    CLOUD_CONTAINER_UNRECONCILED: ["The previous execution container still needs closure confirmation.", "原执行容器尚需确认收尾。"],
+  };
+  return t(...(messages[reason] ?? ["This action is blocked by the current task state. Refresh and review its records.", "当前任务状态不允许此操作，请刷新并核对记录。"]));
+}
+export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; controlled_actions?: CloudRecord[]; controlled_actions_history?: { attempt_id: string; actions: CloudRecord[] }[]; observed_at: string; recovery?: CloudRecoverySummary; management?: CloudManagementSummary };
 export type CloudAsset = { id: string; attempt_id: string; kind: string; key: string; title: string; revision: number; task_version: number; markdown: string; details: CloudRecord; reported_result: CloudResult; artifact_id?: string | null };
 export type CloudDocument = { task: CloudTask; attempts: CloudAttempt[]; resolutions: CloudRecord[]; assets: CloudAsset[]; artifacts: CloudRecord[]; runs: CloudRecord[]; run_cases: CloudRecord[]; delegations: CloudRecord[]; questions: CloudRecord[]; answers: CloudRecord[] };
 export type CloudReceipt = { status: string; profile: string; project_id: string; operation_key: string; operation: string; version: number; task_id?: string; attempt_id?: string; input_digest?: string; config_id?: string; resolution_id?: string; credential_id?: string; credential_version_id?: string };

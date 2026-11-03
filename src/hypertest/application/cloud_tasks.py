@@ -12,7 +12,12 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select, text
 
-from hypertest.api.cloud_schemas import PROFILE, CloudBudgetReservation, CloudBudgetSettlement
+from hypertest.api.cloud_schemas import (
+    PROFILE,
+    CloudBudgetReservation,
+    CloudBudgetSettlement,
+    CompletionManifest,
+)
 from hypertest.application import interactive
 from hypertest.application.services import canonical_json_sha256
 from hypertest.common.ids import uuid7
@@ -622,11 +627,11 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
                 CloudInputResolution.status.in_(["PENDING", "RESOLVING", "RECOVERY_REQUIRED"]))):
             raise HTTPException(409, "Unresolved input resolution prevents deletion")
         if task.latest_attempt_id and not recovery_deletion:
-            if not latest_attempt or latest_attempt.status not in TERMINAL or latest_attempt.checkpoint.get("pending_operation_keys") or latest_attempt.checkpoint.get("external_operations_reconciled") is False:
+            if not latest_attempt or latest_attempt.status not in TERMINAL:
                 raise HTTPException(409, "Unreconciled attempt prevents deletion")
-            from .cloud_ssh import ensure_remote_closed
-            await ensure_remote_closed(db, task_id=task.id)
-            await _ensure_container_closed(db, task.id)
+            blocking = await _terminal_attempt_blocking_reasons(db, task, latest_attempt)
+            if blocking:
+                raise HTTPException(409, blocking[0])
         deletion = CloudTaskDeletion(task_id=task.id, project_id=task.project_id, deleted_at=await clock(db),
                                      deleted_by=actor_ref, accepted_version=version)
         db.add(deletion)
@@ -673,11 +678,9 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             old = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None
             if not task.frozen_manifest or not old or old.id != payload.retry_of_attempt_id or old.status not in TERMINAL:
                 raise HTTPException(409, "Explicit retry requires the terminal latest Attempt and its frozen input")
-            if old.checkpoint.get("pending_operation_keys") or old.checkpoint.get("external_operations_reconciled") is False:
-                raise HTTPException(409, "Unreconciled external operations prevent retry")
-            from .cloud_ssh import ensure_remote_closed
-            await ensure_remote_closed(db, task_id=task.id)
-            await _ensure_container_closed(db, task.id)
+            blocking = await _terminal_attempt_blocking_reasons(db, task, old)
+            if blocking:
+                raise HTTPException(409, blocking[0])
             # Historical inputs and held budgets are immutable. The host-native
             # retry uses its own authorization and no legacy execution broker.
             effective_inputs = {**task.inputs, **payload.retry_inputs.model_dump(mode="json"), "budgets": None}
@@ -1175,6 +1178,116 @@ async def _delegations_unresolved(db, attempt):
         or_(CloudDelegation.status.not_in(TERMINAL), CloudDelegation.terminal_observation.is_(None))).limit(1)))
 
 
+async def _native_completed_delivery(db, task, attempt):
+    """Recognize an accepted native delivery, never a claim of host-wide stopping."""
+    if (task.status != "COMPLETED" or attempt.status != "COMPLETED"
+            or task.latest_attempt_id != attempt.id or attempt.task_id != task.id
+            or attempt.project_id != task.project_id or attempt.ended_at is None
+            or attempt_inputs(task, attempt).get("budgets") is not None):
+        return False
+    checkpoint = attempt.checkpoint
+    if (checkpoint.get("native_completion_observation") != {
+            "runtime": "DIRECT_SDK_PROCESS_EXITED", "other_local_processes": "UNKNOWN",
+            "external_operations": "NOT_OBSERVED"}
+            or checkpoint.get("external_operations_reconciled") is not False):
+        return False
+    try:
+        manifest = CompletionManifest.model_validate(checkpoint.get("completion_manifest"))
+        report_id = UUID(str(checkpoint["final_report_revision"]))
+    except (ValueError, TypeError, KeyError):
+        return False
+    if (manifest.all_local_processes_stopped or manifest.external_operations_reconciled
+            or manifest.pending_operation_keys or report_id not in manifest.required_asset_ids):
+        return False
+    report = await db.get(CloudAssetRevision, report_id)
+    if (report is None or report.task_id != task.id or report.attempt_id != attempt.id
+            or report.kind != "REPORT" or report.reported_result != attempt.reported_result
+            or task.reported_result != attempt.reported_result):
+        return False
+    # Only the authenticated native completion transaction creates this receipt.
+    # A marker copied into a legacy checkpoint cannot acquire the exception.
+    accepted = await db.scalar(select(CloudOperationReceipt.response).where(
+        CloudOperationReceipt.project_id == task.project_id,
+        CloudOperationReceipt.task_id == task.id, CloudOperationReceipt.attempt_id == attempt.id,
+        CloudOperationReceipt.operation == "COMPLETE_NATIVE_ATTEMPT",
+        CloudOperationReceipt.accepted_version <= task.version).limit(1))
+    return bool(accepted and accepted.get("status") == "ACCEPTED"
+        and accepted.get("operation") == "COMPLETE_NATIVE_ATTEMPT"
+        and accepted.get("task_id") == str(task.id) and accepted.get("attempt_id") == str(attempt.id)
+        and accepted.get("checkpoint") == checkpoint)
+
+
+async def _terminal_attempt_blocking_reasons(db, task, attempt, *, native_delivery=None):
+    """Shared management admission; unobserved native scope is not a pending action."""
+    from .cloud_ssh import ensure_remote_closed
+
+    blocking = []
+    if attempt.checkpoint.get("pending_operation_keys"):
+        blocking.append("PENDING_ORIGINAL_OPERATIONS")
+    if native_delivery is None:
+        native_delivery = await _native_completed_delivery(db, task, attempt)
+    if attempt.checkpoint.get("external_operations_reconciled") is False and not native_delivery:
+        blocking.append("EXTERNAL_OPERATIONS_UNRECONCILED")
+    if native_delivery:
+        if not await _owner_fenced(db, attempt):
+            blocking.append("OLD_OWNER_NOT_FENCED")
+        checkpoints = await db.scalars(select(CloudAttempt.checkpoint).where(CloudAttempt.task_id == task.id))
+        if any(checkpoint.get("pending_operation_keys") for checkpoint in checkpoints):
+            if "PENDING_ORIGINAL_OPERATIONS" not in blocking:
+                blocking.append("PENDING_ORIGINAL_OPERATIONS")
+        if await db.scalar(select(CloudDelegation.id).where(CloudDelegation.task_id == task.id,
+                or_(CloudDelegation.status.not_in(TERMINAL), CloudDelegation.terminal_observation.is_(None),
+                    CloudDelegation.terminal_observation == text("'null'::jsonb"))).limit(1)):
+            blocking.append("DELEGATIONS_UNRECONCILED")
+    # This covers every prior Attempt's SSH, HTTPS and controlled-action ledger.
+    # The native exception does not close or replay any of those operations.
+    try:
+        await ensure_remote_closed(db, task_id=task.id)
+    except HTTPException as error:
+        if error.detail not in {"SSH_REMOTE_OPERATIONS_UNRECONCILED", "HTTPS_REMOTE_OPERATIONS_UNRECONCILED",
+                                "CLOUD_ACTION_BUSINESS_UNRECONCILED"}:
+            raise
+        blocking.append(error.detail)
+    try:
+        await _ensure_container_closed(db, task.id)
+    except HTTPException as error:
+        if error.detail != "CLOUD_CONTAINER_UNRECONCILED":
+            raise
+        blocking.append(error.detail)
+    return blocking
+
+
+async def _management_controls(db, task, attempt, *, deleted, resolutions):
+    """Live UI hints only; each mutation repeats admission under the Task lock."""
+    native_delivery = bool(attempt and await _native_completed_delivery(db, task, attempt))
+    terminal_blocking = (await _terminal_attempt_blocking_reasons(db, task, attempt,
+        native_delivery=native_delivery) if attempt and attempt.status in TERMINAL else [])
+    retry = []
+    if task.status not in TERMINAL:
+        retry.append("TASK_NOT_TERMINAL")
+    if not task.frozen_manifest or attempt is None:
+        retry.append("FROZEN_ATTEMPT_REQUIRED")
+    if attempt is not None and attempt.status not in TERMINAL:
+        retry.append("ATTEMPT_NOT_TERMINAL")
+    retry.extend(terminal_blocking)
+    removal = []
+    recovery_deletion = await _cancelled_recovery(db, task, attempt)
+    if task.status not in {"DRAFT", *TERMINAL} and not recovery_deletion:
+        removal.append("TASK_NOT_TERMINAL")
+    if any(row["status"] in {"PENDING", "RESOLVING", "RECOVERY_REQUIRED"} for row in resolutions):
+        removal.append("UNRESOLVED_INPUT_RESOLUTION")
+    if task.latest_attempt_id and not recovery_deletion:
+        if attempt is None or attempt.status not in TERMINAL:
+            removal.append("ATTEMPT_NOT_TERMINAL")
+        removal.extend(terminal_blocking)
+    if deleted:
+        retry.insert(0, "TASK_DELETED")
+        removal.insert(0, "TASK_DELETED")
+    return {"can_retry": not retry, "retry_blocking_reasons": retry,
+        "can_delete": not removal, "delete_blocking_reasons": removal,
+        "native_scope_unobserved": native_delivery}
+
+
 async def fence_attempt_for_recovery(db, task_id, attempt_id, identity, reason, *, metadata=None):
     """Remove only this original owner's rights; never renew or submit work.
 
@@ -1419,6 +1532,8 @@ async def task_summary(db, task_id, *, project_id=None):
         resolutions=[{"id": str(row.id), "status": row.status,
                       "source_draft_version": row.source_draft_version,
                       "accepted_task_version": row.accepted_task_version} for row in resolutions])
+    result["management"] = await _management_controls(db, task, attempt,
+        deleted=deletion is not None, resolutions=result["resolutions"])
     from .cloud_ssh import live_operations
     result["remote_operations"] = await live_operations(db, attempt.id) if attempt else []
     from .cloud_http import live_operations as http_operations

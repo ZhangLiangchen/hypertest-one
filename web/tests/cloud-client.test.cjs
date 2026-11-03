@@ -258,17 +258,22 @@ function taskPage(status, options = {}) {
   const document = { task: { id: taskId, project_id: projectId, version: 1, config_id: "config-1", title: "Task",
     latest_attempt_id: attempt?.id ?? null, status, reported_result: options.result || "NOT_RUN", inputs: {}, deleted_at: options.deletedAt },
     attempts: attempt ? [attempt] : [], resolutions: [], questions: [], answers: [], assets: [{ markdown: "Original FAIL" }], runs: [], run_cases: [], artifacts: [], delegations: [] };
-  const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: options.resolutions || [], observed_at: "2026-10-23T00:00:00Z" };
+  const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: options.resolutions || [], management: options.management, observed_at: "2026-10-23T00:00:00Z" };
   const values = { "cloud-web-setup": { configured: true }, "cloud-capabilities": { enabled: true, worker_enabled: true },
     "cloud-config": { items: [{ id: "config-1", configuration: { environment: { connection: "NONE" }, sut: { url: "https://git.invalid/sut" }, framework: { url: "https://git.invalid/framework" } } }] },
     "cloud-task": document, "cloud-task-live": options.missingLive ? undefined : options.foreignLive ? { ...live, project_id: "other-project" } : live };
   const ui = Object.fromEntries(["Alert", "Button", "Checkbox", "Descriptions", "Space", "Spin", "Steps", "Table", "Tabs", "Tag"].map((name) => [name, name]));
   Object.assign(ui, { Form: { Item: "Form.Item" }, Input: { TextArea: "Input.TextArea" }, Typography: { Title: "Title", Text: "Text", Paragraph: "Paragraph" } });
   let writes = 0; const queries = {}; const effects = []; const reads = []; const stateUpdates = [];
+  let hookIndex = 0; const hookValues = [];
   const jsx = (type, props) => typeof type === "function" ? type(props) : ({ type, props });
   const original = JSON.stringify(document);
   const page = load("app/cloud-tasks/[taskId]/page.tsx", { require: (name) => {
-    if (name === "react") return { useState: (initial) => [initial, (value) => stateUpdates.push(value)], useEffect(effect) { effects.push(effect); } };
+    if (name === "react") return { useState(initial) {
+      const index = hookIndex++;
+      if (!(index in hookValues)) hookValues[index] = initial;
+      return [hookValues[index], (value) => { hookValues[index] = value; stateUpdates.push(value); }];
+    }, useEffect(effect) { effects.push(effect); } };
     if (name === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "Fragment" };
     if (name === "antd") return ui;
     if (name === "@ant-design/icons") return { ArrowLeftOutlined: "ArrowLeftOutlined", ReloadOutlined: "ReloadOutlined" };
@@ -292,15 +297,66 @@ function taskPage(status, options = {}) {
     if (name === "./retry-dialog") return { RetryDialog: "RetryDialog" };
     return require(name);
   } });
-  const tree = page.default();
+  const render = () => { hookIndex = 0; return page.default(); };
+  const tree = render();
   const nodes = (value) => !value || typeof value !== "object" ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children), ...nodes(value.props?.items), ...nodes(value.children)];
   const rendered = nodes(tree);
   assert.equal(JSON.stringify(document), original, "a progress projection cannot rewrite accepted history");
   assert.equal(writes, 0);
-  return { queries, effects, reads, stateUpdates, document, live, rendered, recovery: rendered.find((node) => node.type === "CloudAttemptRecovery")?.props, steps: rendered.find((node) => node.type === "Steps").props,
+  return { queries, effects, reads, stateUpdates, document, live, rendered, rerender: () => nodes(render()), recovery: rendered.find((node) => node.type === "CloudAttemptRecovery")?.props, steps: rendered.find((node) => node.type === "Steps").props,
     result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
     unknown: rendered.some((node) => String(node.props?.children).includes("Phase completion is unknown")) };
 }
+
+const retryManagement = { can_retry: true, retry_blocking_reasons: [], can_delete: true, delete_blocking_reasons: [], native_scope_unobserved: true };
+const newAttemptButton = (rendered) => rendered.find((node) => node.type === "Button" && node.props.children === "Start new attempt");
+
+test("Completed reported FAIL, failed and cancelled attempts can dispatch an explicitly confirmed new attempt", async () => {
+  for (const status of ["COMPLETED", "FAILED", "CANCELLED"]) {
+    const submitted = [];
+    const page = taskPage(status, { result: "FAIL", management: retryManagement, submit: async (fields) => { submitted.push(fields); return null; } });
+    const button = newAttemptButton(page.rendered);
+    assert.equal(button.props.disabled, false);
+    button.props.onClick();
+    assert.equal(submitted.length, 0, "opening the review dialog never dispatches");
+    const dialog = page.rerender().find((node) => node.type === "RetryDialog");
+    assert.equal(dialog.props.invalid, false);
+    const freshInputs = { objective: "New scope", test_scope: "Read-only", basic_flow: "New steps", authorization: { targets: ["https://git.invalid/sut"], permitted_actions: ["git:read"], side_effect_limits: "No writes" } };
+    dialog.props.onSubmit(freshInputs);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(submitted.length, 1);
+    assert.equal(submitted[0].operation, "DISPATCH");
+    assert.equal(submitted[0].retry_of_attempt_id, "attempt-1");
+    assert.equal(submitted[0].expected_version, 1);
+    assert.equal(submitted[0].retry_scope_confirmed, true);
+    assert.equal(submitted[0].retry_authorization_confirmed, true);
+    assert.equal(submitted[0].retry_inputs, freshInputs);
+    assert.equal(page.document.task.reported_result, "FAIL");
+  }
+});
+
+test("Retry controls require current server admission and refuse a forced stale dialog submit", () => {
+  for (const options of [{}, { management: { ...retryManagement, can_retry: false, retry_blocking_reasons: ["PENDING_ORIGINAL_OPERATIONS"] } },
+    { management: retryManagement, liveError: true }, { management: retryManagement, liveVersion: 2 },
+    { management: retryManagement, deletedAt: "2026-11-03T00:00:00Z" }]) {
+    const page = taskPage("COMPLETED", options);
+    const button = newAttemptButton(page.rendered);
+    if (button) { assert.equal(button.props.disabled, true); button.props.onClick(); }
+    assert.equal(page.rerender().some((node) => node.type === "RetryDialog"), false);
+  }
+  for (const status of ["DRAFT", "RUNNING", "RECOVERY_REQUIRED", "WAITING_INPUT"]) {
+    assert.equal(newAttemptButton(taskPage(status, { management: retryManagement }).rendered), undefined);
+  }
+  const submitted = [];
+  const page = taskPage("COMPLETED", { management: { ...retryManagement }, submit: async (fields) => submitted.push(fields) });
+  newAttemptButton(page.rendered).props.onClick();
+  page.live.management.can_retry = false;
+  page.live.management.retry_blocking_reasons = ["PENDING_ORIGINAL_OPERATIONS"];
+  const dialog = page.rerender().find((node) => node.type === "RetryDialog");
+  assert.equal(dialog.props.invalid, true);
+  dialog.props.onSubmit({});
+  assert.equal(submitted.length, 0);
+});
 
 test("Removed task pages preserve manual reconciliation while refusing new task work", async () => {
   const submitted = [];

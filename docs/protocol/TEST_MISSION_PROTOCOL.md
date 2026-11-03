@@ -1462,6 +1462,8 @@ Codex 官方生命周期观察通过专属有界 UDS 发送序号化 READY / DEL
 
 ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 lease/work capability 回传；Agent 不接收平台凭据。`COMPLETE_NATIVE_ATTEMPT` 是 Worker 在观察到直接 SDK 进程退出后的报告接收操作：必须保持 `all_local_processes_stopped=false` 和 `external_operations_reconciled=false`，记录其他进程 `UNKNOWN`、外部操作 `NOT_OBSERVED`，不能伪称全部停止；已知原 key 未决时拒绝完成。接受的 reported result 保持其来源，不成为独立 Evidence。失答只核对原操作，不自动重发。旧 `COMPLETE_ATTEMPT` 隔离 profile 的停止与对账要求不变。
 
+[ADR-035](../architecture/ADR-035_NATIVE_COMPLETION_MANAGEMENT.md) 补全正常原生完成后的管理：同 Task/Attempt 的原生完成回执、报告、清单和直接 SDK 退出观察一致且已 fence，无已知未决 key/操作/容器/委派时，允许使用原有 `DISPATCH` 独立复测或 `DELETE_TASK` 移出列表。旧未知范围保持原值，不能补写为已停止或已对账；已知未决项及旧 profile 的拒绝规则继续有效。live summary 的 `management` 投影包含 `can_retry`、`retry_blocking_reasons`、`can_delete`、`delete_blocking_reasons` 和 `native_scope_unobserved`；该实时提示不是授权或幂等回执，写入时重新检查当前版本、授权及准入。`COMPLETED` 的 reported FAIL 也可显式复测，仍需新输入和双确认，不续接原 SDK 会话。
+
 以下是领域操作，不等同 SDK 方法名或 MCP 工具；当前 typed HTTP 入口见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md#服务端-api-与权限)。所有普通写操作带 `profile, project_id, operation_key, expected_version`；Task 创建为 expected_version=0，资源配置/凭据用各自聚合版本。输入严格校验未知字段、长度/字节上限、引用归属和当前权限；明确错误，不静默截断。各通道的实际限额由实现 schema 发布，不扩大 §45 现有限额。
 
 | 操作概念 | 输入/结果及授权 |

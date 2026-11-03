@@ -2456,6 +2456,8 @@ WAITING_INPUT 必须先保存问题、已接受产物和 checkpoint，再停止�
 
 ### 51.6 产物、执行记录与完成条件
 
+[ADR-035](../architecture/ADR-035_NATIVE_COMPLETION_MANAGEMENT.md) 区分正常宿主完成的观察限制与已知未决操作。已接受的同 Task/Attempt 原生完成回执、最终报告、完成清单及直接 SDK 退出观察须一致，旧 writer 已 fence；其其他进程 `UNKNOWN`、外部范围 `NOT_OBSERVED` 和 `external_operations_reconciled=false` 保持原值。没有原 pending key、已知未结 SSH/HTTP/受控动作、容器或委派时，可显式追加 ADR-033 独立 Attempt 或按墓碑协议删除；该例外不适用于旧 profile、伪造 marker 或待恢复状态，也不把未观察当作停止/未执行证明。复测保存旧 Attempt、旧结果及原预算；删除保存历史。既有合法完成记录无需回填，`RECONCILE_ATTEMPT` 不因此开放改写终态。
+
 分析、设计、用例、实现和报告分阶段版本化。实现必须关联精确 framework 基线 SHA、工作目录、commit（若存在）、dirty/untracked 清单与足以重建测试树的完整 patch/新增文件；未 push 代码不能只有不可访问本地路径或 commit 文本。push/MR/Issue 写入须在本任务既有授权内，不能因要保存产物自动获得仓库写权限。
 
 云端中途业务进度保存为同一 CloudTask/当前 CloudAttempt 的 **CloudAssetRevision，kind=REPORT**；每个 Attempt 选择独立稳定进度 key，同 Task 内不跨 Attempt 复用该 key，在本 Attempt 内追加非最终报告修订。原文明确阶段、里程碑、阻塞/未观察项和已接受产物的确切修订引用；只记录活动不构成正式进度报告。引用检查同 Project/Task，复用旧 Attempt 材料须保留真实来源；当前报告的 source Attempt 不得伪造。CloudAttempt 既有 checkpoint 可引用此报告修订：SubmitCloudAssets 的可选参数 `checkpoint_report_key` 只选择本批一个正式 REPORT key；接受事务将其确切接受/复用 revision 绑定为同 Task/Attempt 的 checkpoint，省略不改，不允许任意 ref 或隐式清除。资产与引用按同一 Task version、原 key、lease/generation 原子校验/保存，回执和固定接受版本读回包含该绑定，历史可重建。它不是新实体、状态或 REPORT 子类型 enum，也不新增独立无 key 的更新。进度资产接受不改变 Task/Attempt status/reported_result；不得用 schema 默认空值/NOT_RUN 覆盖既有结果。最终报告仍由显式 completion manifest 的 final_report_revision 指定并接受全部收尾校验，不从“最新 REPORT”自动推导。
