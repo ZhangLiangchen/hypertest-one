@@ -2573,6 +2573,8 @@ Cloud模型与子代理不持有平台writer/DB/Operator凭据，子贡献回到
 
 2026-11-03 增补见 [ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)：Operator 可首次采纳经 exact project external reference 核验的既有 scope，采用请求冻结在 MemoryOperation；同一个 mapping 唯一 scope 和绑定不可变约束保持。共享外部 atomic-memory 只是 query 的 `external_results` 投影，不创建 MemoryEntry/Revision 或人工审核事件，不改变 Canonical Testing State；读取 current active + exact revision/digest，排除平台任意 revision / operation 曾引用的全部 artifact ID，因此改 kind 也不能复活已撤回记录。平台 `results` 仍仅当前 PUBLISHED/未过期，候选仍私有，history 和 Source 归档不自动召回。
 
+本机读取使用同一 PG 权威的只读 visibility 投影；已知平台 ID 即使只有 UNKNOWN operation 引用，也不能退回未管理外部记忆。当前判断按 Entry 当前版本、PUBLISHED、expires_at > now、完整 upstream ref/digest，旧版 / 到期边界 / 撤回无正文输出。不存在新的同步表、双向复制或 PG→PC retire 双写协议。
+
 本节拥有Memory的持久字段与状态，不属于Canonical测试事实链。`0027_project_memory`新增MemoryProjectMapping、MemoryEntry、MemoryRevision、MemoryOperation，精确列/约束见[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)与迁移；不改变SessionTask、CloudTask/Attempt、reported_result、SyncReceipt或CloudOperationReceipt。
 
 Mapping按Project唯一，服务端namespace及上游scope分别唯一；version>0，status=PENDING/READY/UNKNOWN，enabled单独控制使用。Entry固定Project、owner及经服务端核验的source，version>0，status=CANDIDATE/PENDING/PUBLISHED/RETRACTED；每(entry_id,version)唯一的Revision不可修改/删除，保留内容、适用条件、观察/到期时间、人工确认/撤回原因、content_digest与upstream固定ref。历史投影另派生SUPERSEDED/EXPIRED，不回写旧revision。MemoryOperation按(Project,原key)唯一，保存完整批准请求与input_digest、原actor/grant、expected_version、target_version=expected+1、SENT/UNKNOWN/ACCEPTED、marker、原upstream ref与冻结回执；Project/entry复合FK拒绝跨域关系。接受回执与历史不可变，downgrade有记录时拒绝破坏性删除。
