@@ -38,15 +38,12 @@ test("A cancelled fenced recovery task can be removed without asserting that UNK
   assert.deepEqual(view.props.recovery.pending_operation_keys, ["original-unknown-key"]);
 });
 
-test("Recovery removal requires current matching state, cancellation and writer fencing even on a forced confirm", () => {
+test("Removal fails closed without current server admission even on a forced confirm", () => {
   const original = deletionView().props;
   for (const changes of [
     { management: undefined }, { management: { can_delete: false, delete_blocking_reasons: ["PENDING_ORIGINAL_OPERATIONS"] } },
-    { recovery: undefined }, { recovery: { old_owner_fenced: false } },
+    { management: { can_delete: "true", delete_blocking_reasons: [] } },
     { operational: { ...original.operational, valid: false } },
-    { operational: { ...original.operational, status: "RUNNING" } },
-    { operational: { ...original.operational, attempt: { ...original.operational.attempt, checkpoint: {} } } },
-    { operational: { ...original.operational, resolutions: [{ status: "RESOLVING" }] } },
     { detail: { task: { ...original.detail.task, deleted_at: "2026-11-03T00:00:00Z" } } },
     { operation: { ...original.operation, blocked: true } },
   ]) {
@@ -54,6 +51,40 @@ test("Recovery removal requires current matching state, cancellation and writer 
     assert.equal(view.disabled, true);
     view.confirm();
     assert.equal(view.writes.length, 0);
+  }
+});
+
+test("Fenced input recovery follows server deletion admission without claiming the resolution finished", () => {
+  const operational = { valid: true, status: "DRAFT", attempt: null,
+    resolutions: [{ id: "resolution-1", status: "RECOVERY_REQUIRED" }] };
+  const before = JSON.stringify(operational);
+  const view = deletionView({ operational, recovery: undefined });
+  assert.equal(view.disabled, false);
+  assert.match(view.tree.props.description, /does not confirm/);
+  view.confirm();
+  assert.deepEqual(JSON.parse(JSON.stringify(view.writes)), [{ operation: "DELETE_TASK", task_id: "task-1", expected_version: 22 }]);
+  assert.equal(JSON.stringify(operational), before);
+
+  for (const status of ["PENDING", "RESOLVING", "RECOVERY_REQUIRED"]) {
+    const blocked = deletionView({ operational: { ...operational, resolutions: [{ status }] },
+      management: { can_delete: false, delete_blocking_reasons: ["UNRESOLVED_INPUT_RESOLUTION"] } });
+    assert.equal(blocked.disabled, true);
+    blocked.confirm();
+    assert.equal(blocked.writes.length, 0);
+  }
+});
+
+test("Deletion admission cannot be reused across task identities or accepted versions", () => {
+  const { cloudOperationalView } = load("lib/cloud.ts", { URL, TextEncoder });
+  const detail = { task: { id: "task-1", project_id: "project-1", version: 22,
+    latest_attempt_id: null, status: "DRAFT" }, attempts: [], resolutions: [] };
+  const live = { ...detail.task, current_attempt: null, resolutions: [], observed_at: "2026-11-03T00:00:00Z" };
+  assert.equal(deletionView({ detail, operational: cloudOperationalView(detail, live) }).disabled, false);
+  for (const changes of [{ id: "other-task" }, { project_id: "other-project" }, { version: 21 }, { version: 23 }]) {
+    const blocked = deletionView({ detail, operational: cloudOperationalView(detail, { ...live, ...changes }) });
+    assert.equal(blocked.disabled, true);
+    blocked.confirm();
+    assert.equal(blocked.writes.length, 0);
   }
 });
 

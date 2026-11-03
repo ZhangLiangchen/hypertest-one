@@ -17,10 +17,11 @@ export function CloudTaskDelete({ projectId, detail, operational, recovery, mana
 }) {
   const { t } = useI18n(); const router = useRouter(); const cache = useQueryClient();
   const task = detail.task;
-  const blockedResolution = operational.resolutions.some((row) => ["PENDING", "RESOLVING", "RECOVERY_REQUIRED"].includes(String(row.status)));
   const cancelledRecovery = operational.status === "RECOVERY_REQUIRED" && operational.attempt?.status === "RECOVERY_REQUIRED"
     && operational.attempt.checkpoint.cancellation_requested === true && recovery?.old_owner_fenced === true;
-  const eligible = operational.valid && !task.deleted_at && management?.can_delete === true && (["DRAFT", "COMPLETED", "FAILED", "CANCELLED"].includes(operational.status || "") || cancelledRecovery) && !blockedResolution;
+  // The matching live summary applies the same admission rules as DELETE_TASK,
+  // including fenced resolutions whose outcome remains unknown.
+  const eligible = operational.valid && !task.deleted_at && management?.can_delete === true;
   useEffect(() => {
     if (operation.receipt?.operation !== "DELETE_TASK" || operation.receipt.task_id !== task.id) return;
     void cache.invalidateQueries({ queryKey: ["cloud-directory", projectId] });
