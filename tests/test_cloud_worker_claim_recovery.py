@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +17,7 @@ from test_cloud_tasks import (
     configuration,
     new_inputs,
     post,
+    read_all,
 )
 from test_cloud_tasks import cloud_context as cloud_context
 
@@ -95,8 +96,8 @@ async def pending_resolution(context):
     return resolved.json()
 
 
-async def queued(context):
-    pending = await pending_resolution(context)
+async def queued(context, pending=None):
+    pending = pending or await pending_resolution(context)
     async with AsyncSessionLocal() as db:
         claimed = await service.claim_resolution(db, "synthetic-source-resolver", project_id=UUID(context["project_id"]))
         assert claimed["resolution"]["id"] == pending["resolution_id"]
@@ -350,6 +351,87 @@ async def test_resolution_claim_recovery_revokes_capability_without_accepting_in
         assert (await db.get(CloudTask, UUID(pending["task_id"]))).status == "DRAFT"
         grants = list(await db.scalars(select(CloudWorkGrant).where(CloudWorkGrant.resolution_id == resolution.id)))
         assert grants and all(grant.revoked_at is not None for grant in grants)
+
+
+async def test_fenced_resolution_recovery_allows_removal_after_new_resolution_and_attempt(claim_context):
+    context = claim_context
+    pending = await pending_resolution(context)
+    task_id = pending["task_id"]
+    original_snapshot = await read_all(context, task_id, pending["version"])
+    original_claim = request(context)
+    assert (await api(context, "", original_claim)).json()["kind"] == "RESOLUTION"
+    assert (await api(context, "/reconcile", original_claim)).json()["closed"] is True
+
+    # Explicitly resolve again, then finish a new synthetic queued Attempt.
+    # No Git, SDK, or SUT is run, and the first resolution is never replayed.
+    new_resolution = await post(context, "RESOLVE_INPUTS", pending["version"], task_id=task_id)
+    assert new_resolution.status_code == 200, new_resolution.text
+    work = await queued(context, new_resolution.json())
+    cancelled = await post(context, "CANCEL_ATTEMPT", work["version"], task_id=task_id,
+        attempt_id=work["attempt_id"], reason="Synthetic fixture; no execution")
+    assert cancelled.status_code == 200, cancelled.text
+    version = cancelled.json()["version"]
+    terminal_snapshot = await read_all(context, task_id, version)
+    summary = await context["client"].get(f"/api/v1/cloud/tasks/{task_id}/summary",
+        headers=context["headers"], params={"project_id": context["project_id"]})
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["management"]["can_delete"] is True
+    assert summary.json()["management"]["delete_blocking_reasons"] == []
+
+    deleted = await post(context, "DELETE_TASK", version, task_id=task_id)
+    assert deleted.status_code == 200, deleted.text
+    assert await read_all(context, task_id, pending["version"]) == original_snapshot
+    assert await read_all(context, task_id, version) == terminal_snapshot
+    async with AsyncSessionLocal() as db:
+        old = await db.get(CloudInputResolution, UUID(pending["resolution_id"]))
+        assert old.status == "RECOVERY_REQUIRED" and old.result is None and old.digest is None
+        assert old.accepted_at is None and old.accepted_task_version is None
+        assert old.lease_token_hash is None and old.lease_expires_at is None
+        grants = list(await db.scalars(select(CloudWorkGrant).where(CloudWorkGrant.resolution_id == old.id)))
+        assert grants and all(grant.revoked_at is not None for grant in grants)
+    directory = await context["client"].get(f"/api/v1/cloud/projects/{context['project_id']}/tasks",
+        headers=context["headers"])
+    assert task_id not in [item["task_id"] for item in directory.json()["items"]]
+
+
+@pytest.mark.parametrize("blocking_state", ["PENDING", "RESOLVING", "LEASE_HASH", "LEASE_EXPIRY", "EXPIRED_GRANT"])
+async def test_resolution_removal_requires_complete_fencing(claim_context, blocking_state):
+    context = claim_context
+    pending = await pending_resolution(context)
+    task_id = pending["task_id"]
+    original_claim = request(context)
+    if blocking_state != "PENDING":
+        assert (await api(context, "", original_claim)).json()["kind"] == "RESOLUTION"
+    if blocking_state not in {"PENDING", "RESOLVING"}:
+        # Represent legacy partial fencing only in the dedicated fixture DB.
+        async with AsyncSessionLocal() as db:
+            resolution = await db.get(CloudInputResolution, UUID(pending["resolution_id"]))
+            resolution.status = "RECOVERY_REQUIRED"
+            if blocking_state != "LEASE_HASH":
+                resolution.lease_token_hash = None
+            resolution.lease_expires_at = (datetime.now(UTC) - timedelta(seconds=1)
+                if blocking_state == "LEASE_EXPIRY" else None)
+            grants = list(await db.scalars(select(CloudWorkGrant).where(CloudWorkGrant.resolution_id == resolution.id)))
+            assert grants
+            for grant in grants:
+                if blocking_state == "EXPIRED_GRANT":
+                    grant.expires_at = grant.created_at + timedelta(microseconds=1)
+                else:
+                    grant.revoked_at = datetime.now(UTC)
+            await db.commit()
+    summary = await context["client"].get(f"/api/v1/cloud/tasks/{task_id}/summary",
+        headers=context["headers"], params={"project_id": context["project_id"]})
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["management"]["can_delete"] is False
+    assert summary.json()["management"]["delete_blocking_reasons"] == ["UNRESOLVED_INPUT_RESOLUTION"]
+    denied = await post(context, "DELETE_TASK", pending["version"], task_id=task_id)
+    assert denied.status_code == 409 and denied.json()["detail"] == "Unresolved input resolution prevents deletion"
+    # Leave no synthetic pending resolver for another test to acquire.
+    if blocking_state == "PENDING":
+        assert (await post(context, "CANCEL_TASK", pending["version"], task_id=task_id,
+            reason="Synthetic fixture cleanup")).status_code == 200
+    else:
+        assert (await api(context, "/reconcile", original_claim)).json()["closed"] is True
 
 
 async def test_terminal_attempt_reconciliation_preserves_accepted_result_and_history(claim_context):

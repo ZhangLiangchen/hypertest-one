@@ -1,7 +1,8 @@
 """Host Git access with the operator's existing credential helpers and SSH agent.
 
 Only the trusted Worker calls this adapter. Credentials are never accepted in a
-repository URL or as a platform token. Git output and errors are not logged.
+repository URL or as a platform token. Raw Git errors are never logged; bounded
+stderr is used only to select fixed diagnostic codes and read-only fetch retries.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import re
 import shutil
 import signal
 import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -18,6 +20,61 @@ from .errors import CloudBlocked
 from .git import SHA, _ref, require_private_empty_checkout_target
 
 _SCP = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*:[A-Za-z0-9_./~-]+\Z")
+_FETCH_TIMEOUT = 90.0
+_FETCH_ATTEMPTS = 3
+_TRANSIENT = {"GIT_DNS_FAILED", "GIT_CONNECT_FAILED", "GIT_CONNECTION_RESET", "GIT_HTTP2_FAILED",
+              "GIT_SERVER_UNAVAILABLE", "GIT_TIMEOUT"}
+
+
+class GitOperationFailure(CloudBlocked):
+    """Finite diagnostics only: no URL, ref, command output or environment."""
+
+    def __init__(self, code: str, operation: str, exit_code: int | None = None):
+        self.operation = operation if operation in {"init", "fetch", "rev-parse", "checkout", "rev-list"} else "git"
+        self.exit_code = exit_code
+        super().__init__(code, f"Host Git {self.operation} failed ({code})")
+
+
+def _failure_code(stderr: bytes) -> str:
+    value = stderr.lower()
+    # Permanent authorization, identity and source failures take precedence.
+    for code, markers in (
+        ("GIT_AUTH_FAILED", (b"authentication failed", b"could not read username", b"permission denied (publickey",
+                              b"returned error: 401", b"returned error: 403")),
+        ("GIT_HOST_KEY_FAILED", (b"host key verification failed", b"remote host identification has changed")),
+        ("GIT_TLS_VERIFICATION_FAILED", (b"ssl certificate problem", b"certificate verification failed",
+                                          b"server certificate verification failed")),
+        ("GIT_REVISION_NOT_FOUND", (b"couldn't find remote ref", b"not our ref", b"unadvertised object")),
+        ("GIT_REPOSITORY_NOT_FOUND", (b"repository not found", b"does not appear to be a git repository")),
+        ("GIT_DNS_FAILED", (b"could not resolve host", b"could not resolve proxy", b"temporary failure in name resolution",
+                             b"could not resolve hostname")),
+        ("GIT_CONNECT_FAILED", (b"failed to connect", b"connection refused", b"network is unreachable", b"no route to host")),
+        ("GIT_HTTP2_FAILED", (b"http/2 stream", b"http2 framing", b"curl 92")),
+        ("GIT_CONNECTION_RESET", (b"connection reset", b"recv failure", b"send failure",
+                                  b"remote end hung up unexpectedly", b"unexpected disconnect",
+                                  b"tls connection was non-properly terminated")),
+        ("GIT_TIMEOUT", (b"connection timed out", b"operation timed out", b"curl 28")),
+    ):
+        if any(marker in value for marker in markers):
+            return code
+    if re.search(rb"(?:returned error:|http(?:/[0-9.]+)?)[ \t]+(?:500|502|503|504)\b", value):
+        return "GIT_SERVER_UNAVAILABLE"
+    return "GIT_OPERATION_FAILED"
+
+
+async def _bounded_output(stream, limit: int, *, tail: bool = False) -> tuple[bytes, bool]:
+    retained = bytearray()
+    exceeded = False
+    while chunk := await stream.read(65536):
+        if len(retained) + len(chunk) > limit:
+            exceeded = True
+        if tail:
+            retained.extend(chunk)
+            if len(retained) > limit:
+                del retained[:-limit]
+        elif len(retained) < limit:
+            retained.extend(chunk[:limit - len(retained)])
+    return bytes(retained), exceeded
 
 
 def repository_url(value: str) -> str:
@@ -57,26 +114,41 @@ async def _git(args: list[str], *, cwd: Path | None = None, timeout: float = 90)
     executable = shutil.which("git", path=env.get("PATH", os.defpath))
     if executable is None:
         raise CloudBlocked("GIT_UNAVAILABLE", "Git is unavailable on the host")
-    process = await asyncio.create_subprocess_exec(
-        executable, "-c", "core.hooksPath=/dev/null", *args, cwd=cwd, env=env,
-        stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL, start_new_session=True,
-    )
+    operation = args[0] if args else "git"
     try:
-        stdout, _ = await asyncio.wait_for(process.communicate(), timeout)
-    except (TimeoutError, asyncio.CancelledError):
+        process = await asyncio.create_subprocess_exec(
+            executable, "-c", "core.hooksPath=/dev/null", *args, cwd=cwd, env=env,
+            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE, start_new_session=True,
+        )
+    except OSError:
+        raise GitOperationFailure("GIT_START_FAILED", operation) from None
+    output = asyncio.gather(_bounded_output(process.stdout, 2 * 1024 * 1024),
+        _bounded_output(process.stderr, 65536, tail=True), process.wait())
+    try:
+        # Timeout must not cancel the bounded readers: a paused pipe can keep
+        # process.wait() pending even after the process group has been killed.
+        stdout_result, stderr_result, _ = await asyncio.wait_for(asyncio.shield(output), timeout)
+    except (TimeoutError, asyncio.CancelledError) as error:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        await process.wait()
+        await output
+        if isinstance(error, TimeoutError):
+            raise GitOperationFailure("GIT_TIMEOUT", operation) from None
         raise
-    if process.returncode or len(stdout) > 2 * 1024 * 1024:
-        raise CloudBlocked("GIT_OPERATION_FAILED", "Host repository operation failed")
+    stdout, stdout_exceeded = stdout_result
+    stderr, _ = stderr_result
+    if process.returncode:
+        code = "GIT_PROCESS_INTERRUPTED" if process.returncode < 0 else _failure_code(stderr)
+        raise GitOperationFailure(code, operation, process.returncode)
+    if stdout_exceeded:
+        raise GitOperationFailure("GIT_OUTPUT_LIMIT", operation, process.returncode)
     try:
         return stdout.decode("utf-8", errors="strict").strip()
     except UnicodeError:
-        raise CloudBlocked("GIT_OPERATION_FAILED", "Host repository operation failed") from None
+        raise GitOperationFailure("GIT_OUTPUT_INVALID", operation, process.returncode) from None
 
 
 class NativeGitResolver:
@@ -88,7 +160,22 @@ class NativeGitResolver:
             raise CloudBlocked("GIT_PLATFORM_TOKEN_UNSUPPORTED", "Host Git uses the operator's configured identity")
 
     async def _fetch(self, root: Path, url: str, ref: str) -> str:
-        await _git(["fetch", "--no-tags", "--no-recurse-submodules", url, ref], cwd=root)
+        # Fetch only reads the remote and writes this private Git object store.
+        # Never retry checkout, source validation, SDK work or external actions.
+        deadline = time.monotonic() + _FETCH_TIMEOUT
+        for attempt in range(_FETCH_ATTEMPTS):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise GitOperationFailure("GIT_TIMEOUT", "fetch")
+            try:
+                await _git(["fetch", "--no-tags", "--no-recurse-submodules", url, ref], cwd=root, timeout=remaining)
+                break
+            except GitOperationFailure as error:
+                delay = float(attempt + 1)
+                if (error.code not in _TRANSIENT or attempt + 1 >= _FETCH_ATTEMPTS
+                        or deadline - time.monotonic() <= delay):
+                    raise
+                await asyncio.sleep(delay)
         commit = await _git(["rev-parse", "--verify", "FETCH_HEAD^{commit}"], cwd=root)
         if not SHA.fullmatch(commit):
             raise CloudBlocked("GIT_SHA_INVALID", "Git did not return a full commit hash")

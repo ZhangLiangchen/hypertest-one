@@ -27,6 +27,8 @@ ADR-032 的宿主薄 Worker 在发送领取前保存本地 `claim-pending.json`�
 
 reconcile 与 claim 使用同一互斥边界。对于尚未接受的下一序号，reconcile 原子记录 `ABANDONED / closed=true`；迟到的原 `/claim` 因而不能再领取。单纯查询不存在或网络返回 5xx 不能替代这个封口事务。对于当前已领取目标，reconcile 核对原目标、Worker 和 generation，隔离其写入权；未完成的目标进入或保持恢复状态，不自动重新排队。已终结 Attempt、已接受或失败的 Resolution 保持原事实，只关闭领取槽。
 
+输入解析处于 `RECOVERY_REQUIRED`，且 lease hash 与到期时间均已清空、没有任何未撤销的 work grant 时，已无旧解析写入权，可在任务满足其余删除准入时移出列表。`PENDING`、`RESOLVING` 或缺少上述撤权证明的恢复记录仍阻止删除；租约或 grant 仅过期不等于已 fence。删除与 live management 使用同一判断，保留原解析的恢复状态及未知事实；移出列表不证明原 Git 操作未发生，不接受解析结果，也不触发重跑。
+
 低于持久高水位的旧序号返回 `RETIRED / closed=true` 及 `current_sequence`。**RETIRED 只说明该旧序号不能再领取，不证明旧请求未到达、未被接受或未执行。** 单行状态不保留该旧序号的请求 digest；返回的旧 key 是调用方提供的标识，不是服务端重新核验的旧接受回执。它不能替代旧任务、原件、操作回执或外部账本。
 
 ## 客户端恢复

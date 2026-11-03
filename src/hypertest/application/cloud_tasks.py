@@ -623,8 +623,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         recovery_deletion = await _cancelled_recovery(db, task, latest_attempt)
         if task.status not in {"DRAFT", "COMPLETED", "FAILED", "CANCELLED"} and not recovery_deletion:
             raise HTTPException(409, "Active Cloud Task must be stopped and reconciled before deletion")
-        if await db.scalar(select(CloudInputResolution.id).where(CloudInputResolution.task_id == task.id,
-                CloudInputResolution.status.in_(["PENDING", "RESOLVING", "RECOVERY_REQUIRED"]))):
+        if await _input_resolution_blocks_removal(db, task.id):
             raise HTTPException(409, "Unresolved input resolution prevents deletion")
         if task.latest_attempt_id and not recovery_deletion:
             if not latest_attempt or latest_attempt.status not in TERMINAL:
@@ -1257,7 +1256,20 @@ async def _terminal_attempt_blocking_reasons(db, task, attempt, *, native_delive
     return blocking
 
 
-async def _management_controls(db, task, attempt, *, deleted, resolutions):
+async def _input_resolution_blocks_removal(db, task_id):
+    """Fenced recovery remains unknown history, but has no active input writer."""
+    unrevoked_grant = select(CloudWorkGrant.id).where(
+        CloudWorkGrant.resolution_id == CloudInputResolution.id,
+        CloudWorkGrant.revoked_at.is_(None)).exists()
+    return bool(await db.scalar(select(CloudInputResolution.id).where(
+        CloudInputResolution.task_id == task_id,
+        or_(CloudInputResolution.status.in_(["PENDING", "RESOLVING"]),
+            (CloudInputResolution.status == "RECOVERY_REQUIRED") & or_(
+                CloudInputResolution.lease_token_hash.is_not(None),
+                CloudInputResolution.lease_expires_at.is_not(None), unrevoked_grant))).limit(1)))
+
+
+async def _management_controls(db, task, attempt, *, deleted):
     """Live UI hints only; each mutation repeats admission under the Task lock."""
     native_delivery = bool(attempt and await _native_completed_delivery(db, task, attempt))
     terminal_blocking = (await _terminal_attempt_blocking_reasons(db, task, attempt,
@@ -1274,7 +1286,7 @@ async def _management_controls(db, task, attempt, *, deleted, resolutions):
     recovery_deletion = await _cancelled_recovery(db, task, attempt)
     if task.status not in {"DRAFT", *TERMINAL} and not recovery_deletion:
         removal.append("TASK_NOT_TERMINAL")
-    if any(row["status"] in {"PENDING", "RESOLVING", "RECOVERY_REQUIRED"} for row in resolutions):
+    if await _input_resolution_blocks_removal(db, task.id):
         removal.append("UNRESOLVED_INPUT_RESOLUTION")
     if task.latest_attempt_id and not recovery_deletion:
         if attempt is None or attempt.status not in TERMINAL:
@@ -1533,7 +1545,7 @@ async def task_summary(db, task_id, *, project_id=None):
                       "source_draft_version": row.source_draft_version,
                       "accepted_task_version": row.accepted_task_version} for row in resolutions])
     result["management"] = await _management_controls(db, task, attempt,
-        deleted=deletion is not None, resolutions=result["resolutions"])
+        deleted=deletion is not None)
     from .cloud_ssh import live_operations
     result["remote_operations"] = await live_operations(db, attempt.id) if attempt else []
     from .cloud_http import live_operations as http_operations

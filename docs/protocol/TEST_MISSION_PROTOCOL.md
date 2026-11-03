@@ -1466,6 +1466,8 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 
 [ADR-036](../architecture/ADR-036_WORKER_CLAIM_RECOVERY.md) 为私有 Worker `/claim` 强制固定 `worker_id, sequence, request_key, lease_seconds, supports_attempt_manifest`。首次成功响应只交付一次 capability；`/claim/state` 只读高水位，`/claim/reconcile` 接受原完整请求，只封口或 fence/关闭，不再次交付工作或能力。当前序号须匹配原 key/digest；旧序号 RETIRED 仅阻止再次领取，不证明原请求未到达或未执行。客户端持久化后仅发一次 claim，任何 pending 重启只 reconcile；网络/5xx 可退避，runtime 错误仍停止，无 SDK resume 或外部停止证明。旧无序号记录按该 ADR 人工受控退役，保持 UNKNOWN。
 
+输入解析 RECOVERY_REQUIRED 的 lease hash/expiry 均已清空且无未撤销 work grant 时，不再阻塞 `DELETE_TASK` 和 live management 的删除准入，其余准入仍须满足。PENDING、RESOLVING 及缺少完整撤权证明的恢复记录继续拒绝；过期不是撤权。删除只是移出列表，保留原恢复状态与未知事实，不证明原 Git 操作未发生，不接受或重跑旧解析。
+
 以下是领域操作，不等同 SDK 方法名或 MCP 工具；当前 typed HTTP 入口见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md#服务端-api-与权限)。所有普通写操作带 `profile, project_id, operation_key, expected_version`；Task 创建为 expected_version=0，资源配置/凭据用各自聚合版本。输入严格校验未知字段、长度/字节上限、引用归属和当前权限；明确错误，不静默截断。各通道的实际限额由实现 schema 发布，不扩大 §45 现有限额。
 
 | 操作概念 | 输入/结果及授权 |
@@ -1473,7 +1475,7 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 | ConfigureCloudProject | 仓库角色/地址、可选历史兼容默认 ref、环境连接 metadata、credential ref/version；追加配置修订，`cloud:configure` |
 | Store/RotateProjectCredential | 专门秘密入口接收 token/私钥与类型、目标/用途、有效期；加密持久化，返回非秘密 ref/version；`credential:manage`。原文不进入普通操作回执/读取接口 |
 | Create/UpdateCloudTask | `title, selectors, config_revision, prd, objective, basic_flow, framework_entrypoints, environment_ref, authorization_manifest, budgets`；DRAFT 可改，`cloud:dispatch` |
-| DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；原有 DRAFT/终态无未决准入保留；ADR-034 额外允许已请求取消且 writer 已 fence 的 RECOVERY_REQUIRED Task，保留未决外部操作/容器/委派但拒绝未决输入解析。追加墓碑与版本化回执，固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读。删除后仅允许既有人工收尾、原动作观察授权及原容器恢复确认/停止观察，仍按原权限和未决检查，禁止新执行与普通写入。删除不会取消任务、改写结果或重发外部操作 |
+| DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；原有 DRAFT/终态无未决准入保留；ADR-034 额外允许已请求取消且 writer 已 fence 的 RECOVERY_REQUIRED Task，保留未决外部操作/容器/委派但拒绝 PENDING/RESOLVING 及未完全撤权的恢复解析。追加墓碑与版本化回执，固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读。删除后仅允许既有人工收尾、原动作观察授权及原容器恢复确认/停止观察，仍按原权限和未决检查，禁止新执行与普通写入。删除不会取消任务、改写结果或重发外部操作 |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
 | DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_inputs, retry_scope_confirmed=true, retry_authorization_confirmed=true`（本次范围和授权独立冻结）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
 | GetCloudTask / GetCloudOperation | 固定 task/version 的任务/Attempt/资产分页，或 project/原 operation_key 的回执查询；`cloud:read`，回执查询另核验原提交者/授权委派关系 |

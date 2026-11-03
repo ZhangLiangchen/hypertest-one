@@ -34,6 +34,14 @@
 
 macOS crash 符号栈与离线真实子进程复现共同确认：实时问答线程阻塞在 buffered stdin 读取，解释器 `Py_FinalizeEx` 清理输入时在 `_enter_buffered_busy` 中 abort。新增无缓冲、可中断的共享管道读取器与显式 close/join；父端 stdin 保持打开的正常/异常退出及合并帧等 7 项相关测试通过。Worker 另保存不含内容的直接 SDK exit code，并保留已支持的具体恢复原因。此修复只涉及宿主执行进程，API/schema 不重复部署。
 
-修复后的真实验收结果在执行结束后补充；首轮原失败、原报告和 UNKNOWN 范围不改写。
+首轮失败任务随后显式取消并移出列表，删除前后的固定版本 12 读回完全一致；没有伪造完成或消除 UNKNOWN。
+
+宿主 SDK 退出修复提交为 `3ce67f3876d56326783b601c87dc8a16852acea1`。新验证 Task `01a1a01e-e98a-734b-b348-af4c0ed3a002` 固定该 SHA：首次输入解析失败且已撤权，新显式只读解析成功。首个 Attempt `01a1a021-6b2a-7336-8bdd-5a91696998b4` 已 `COMPLETED / PASS`（v13）；直接 SDK returncode 0，JUnit 35 passed，3 个原件完整读回及哈希一致，完成管理显示可以独立复测。
+
+实际复测创建新 Attempt `01a1a023-e61d-7fd5-b1bc-faa44e1300b0`，但在 Git 准备阶段结束，尚无 SDK prompt 意图、无 framework checkout、无模型/测试执行。旧 owner、lease 与 grant 均已撤权，按这些观察通过 `OPERATOR_ATTESTATION` 收尾为 `FAILED / NOT_RUN`；该证明不是独立的宿主全局停止证据，原通过 Attempt 不变。原 Git stderr 已丢弃，不能追溯具体原因；一次复用 LaunchAgent 环境的只读 fetch 在 5.45 秒成功并匹配原 SHA，未据此猜测 HTTP/TLS/代理问题。
+
+后续增补只对识别出的瞬态错误执行有界 Git **只读 fetch** 重试，保留原 URL/ref；认证、证书、缺失引用、未知错误、取消、checkout、SDK 与测试均不自动重试。原始 stderr 不落盘，只映射有限诊断码。另修复已完全撤权的 `RECOVERY_REQUIRED` 输入解析错误阻止删除的问题；仍有 lease 或未撤销 grant 的解析继续拒绝，6 项专用数据库正反例通过，原解析未知状态保持。
+
+最终部署、复测和删除结果待本轮实际执行结束后补充。
 
 原请求、逐阶段回执、固定版读回和部署身份存于本机私有 `~/.local/share/hypertest-mac/claim-recovery-20261103/`。这些是本轮操作证据，不是新的常驻平台机制。
