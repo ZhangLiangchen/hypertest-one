@@ -85,6 +85,8 @@ def test_archive_only_exposes_scoped_web_transport_without_cloud_or_memory(tmp_p
 
 
 @pytest.mark.parametrize("key,value", [
+    ("HYPERTEST_MEMORY_SEARCH_MODE", "auto"),
+    ("HYPERTEST_MEMORY_SHARED_KNOWLEDGE_ENABLED", "yes"),
     ("HYPERTEST_MEMORY_GATEWAY", "true"),
     ("HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN", "http://memory.example.invalid:8443"),
     ("HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN", "https://secret@memory.example.invalid"),

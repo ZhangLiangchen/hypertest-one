@@ -103,6 +103,8 @@ class Settings(BaseSettings):
     memory_powercontext_ca_file: str | None = None
     memory_timeout_seconds: float = Field(default=4.0, ge=0.1, le=5.0)
     memory_max_response_bytes: int = Field(default=1048576, ge=16384, le=2097152)
+    memory_search_mode: Literal["fts", "hybrid"] = "fts"
+    memory_shared_knowledge_enabled: bool = False
     # A separately granted integration token, never the PowerContext admin key.
     cloud_memory_enabled: bool = False
     cloud_memory_api_url: str = "https://hypertest.invalid/api/v1"

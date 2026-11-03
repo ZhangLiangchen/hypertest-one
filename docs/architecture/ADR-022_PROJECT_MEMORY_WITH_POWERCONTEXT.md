@@ -4,6 +4,16 @@
 
 ## 0. 本轮实施决定
 
+### 2026-11-03 同一 Project 知识库增补
+
+本增补取代下文首次必须创建新 scope、只支持 1.4.0 FTS 及所有查询仅限平台发布记录的限制，其余人工审核、独立授权、原 key / UNKNOWN、精确修订与非测试事实边界不变。Operator 可在未绑定项目的 CONFIGURE 中显式提供 `existing_scope_id`，服务端只读核验其唯一 `hypertest-project` external reference 等于 `hypertest-project-<Project UUID>`；原 title 可保留。目标 ID 冻结于原操作，UNKNOWN 只 GET 同一 ID，不能新建、重试写或改绑。省略该字段维持旧请求摘要；已有 scope 永不改绑，不需要数据库迁移。
+
+经明确部署配置可使用 1.4.1 私有 embedding / hybrid 检索；`memory_search_mode` 默认 `fts`，`memory_shared_knowledge_enabled` 默认 false，generation / processing 不因接入开启。发布仍写 `hypertest-experience`，UNKNOWN 的 marker 查询仍严格 FTS。已绑定项目与本地 Agent 共享同一 canonical scope，不双向复制知识。Source 归档及独立 history scope 不参加默认检索，不新增 context references。
+
+`POST /query` 的 `results` 保持 PostgreSQL 当前 PUBLISHED、未过期记录及 opaque provenance；新增 `external_results` 只读当前 active atomic-memory，排除 `hypertest-experience`、`historical_technical_record` 及任意平台 MemoryRevision / MemoryOperation 曾引用的 artifact ID（包括撤回、过期、旧版和其他项目）。逐条核当前 lifecycle / revision 后读取不可变正文并验证 scope / family / digest；类型为 `EXTERNAL_PROJECT_KNOWLEDGE`，审阅标签为 `EXTERNAL_NOT_HYPERTEST_REVIEWED`，不伪造 MemoryEntry、confirmed_by、平台发布回执或来源 lineage。正文中的 legacy 引用仅为原文声明，需要结合日期、更正和当前环境核验。直接服务写入仍遵循该服务凭据的实际授权，scope 本身不是多租户 ACL。
+
+共享检索整体（含有界并发读回）仍受同一 ≤5 秒网络预算和前后 Gateway 授权 / Cloud fence 约束；超时返回空结果和 degraded。响应携带实际 search_mode、matched_by 与精确 artifact/revision/digest，向量降级不伪装语义命中。现行 Native Worker 按显式配置启动独立 CloudMemoryBridge（HTTPS 或私有 UDS、独立逐项目 grant），将两类结果完整传入原任务的 memory-responses，任务 envelope 明确消费两类结果和各自标签；Web 显示独立只读外部知识区，不提供平台编辑 / 发布按钮。既有独立 memory grant 必须明确授予，cloud:work 不扩权。托管 framework 与业务项目的绑定仅决定 canonical 项目归属，不赋予测试执行权。
+
 ### ADR-027 本地归档来源增补
 
 新显式归档增加 `LOCAL_ARCHIVE` 来源，由 Operator 选择固定 `task_id`、`submission_id`、`archive_version` 与 `asset_revision_id`。Gateway 验证同 Project、同 Task/目标空间、固定已接受 Submission 和不可变快照，确认快照实际包含该 REPORT 修订及其内容；冻结报告摘要与来源元数据，不把原报告公开。此类型仅 Operator 可提出和重验，普通 Memory grant 与 CLI archive grant 彼此不扩权；公开投影仍仅显示 opaque provenance。历史 LOCAL / CLOUD 合同不变，归档结果仍为报告者声明，不升级为可信执行事实。

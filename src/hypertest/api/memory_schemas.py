@@ -62,6 +62,7 @@ class Experience(StrictModel):
 class Configure(Mutation):
     operation: Literal["CONFIGURE"]
     enabled: bool
+    existing_scope_id: str | None = Field(default=None, min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_.:-]+$")
 
 
 class CreateCandidate(Mutation, Experience):

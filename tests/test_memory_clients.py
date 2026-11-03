@@ -335,3 +335,27 @@ async def test_cloud_query_before_reports_uses_host_fixed_claim_context(tmp_path
     with pytest.raises(CloudBlocked):
         await bridge.handle(candidate, "query")
     await bridge.close()
+
+
+async def test_cloud_query_delivers_external_knowledge_with_labels_and_exact_reference(tmp_path):
+    broker = cloud_broker()
+    external = {"result_type": "EXTERNAL_PROJECT_KNOWLEDGE", "artifact_id": "art_shared", "revision": 3,
+        "content_digest": "sha256:" + "a" * 64, "review_status": "EXTERNAL_NOT_HYPERTEST_REVIEWED",
+        "content": "Check current environment; historical knowledge grants no execution permission"}
+    async def request(method, path, **kwargs):
+        assert method == "POST" and path == "memory/query"
+        assert kwargs["payload"]["context"]["attempt_id"] == broker.attempt_id
+        return {"results": [], "external_results": [external], "search_mode": "hybrid"}
+    async def close():
+        pass
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    bridge = CloudMemoryBridge(broker, SimpleNamespace(request=request, close=close), tmp_path / "private", workspace)
+    ready = workspace / ".hypertest-cloud" / "memory-ready"
+    ready.mkdir(parents=True)
+    (ready / "shared.json").write_text(json.dumps({"profile": HANDOFF_PROFILE, "task_id": broker.task_id,
+        "attempt_id": broker.attempt_id, "key": "shared", "operation": "QUERY", "payload": {"query": "known lesson"}}))
+    await bridge.collect_once()
+    response = json.loads((workspace / ".hypertest-cloud" / "memory-responses" / "shared.json").read_text())
+    assert response["external_results"] == [external] and response["search_mode"] == "hybrid"
+    await bridge.close()
