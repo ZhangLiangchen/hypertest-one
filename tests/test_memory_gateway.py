@@ -23,6 +23,7 @@ from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.interactive import InteractiveIntegrationGrant
 from hypertest.domain.memory import MemoryOperation
 from hypertest.main import app
+from hypertest.memory.powercontext import MemoryUpstreamError
 
 OPERATOR = "synthetic-memory-operator"
 
@@ -35,6 +36,8 @@ class InertPowerContext:
         self.lose_scope_ack = self.lose_write_ack = False
         self.mismatch_read = self.fail_search = False
         self.on_remember = self.on_search = None
+        self.adoptions = 0
+        self.lose_adoption_ack = False
 
     async def create_scope(self, namespace, operation_key):
         self.creates += 1
@@ -47,6 +50,15 @@ class InertPowerContext:
     async def find_scope(self, namespace):
         self.reads += 1
         return self.scopes.get(namespace)
+
+    async def adopt_scope(self, scope_id, namespace):
+        self.reads += 1
+        self.adoptions += 1
+        if self.scopes.get(namespace) != scope_id:
+            raise MemoryUpstreamError("MEMORY_UPSTREAM_SCOPE_MISMATCH")
+        if self.lose_adoption_ack and self.adoptions > 1:
+            raise OSError("synthetic lost read after preflight")
+        return scope_id
 
     async def remember(self, scope_id, content, metadata=None):
         self.writes += 1
@@ -78,6 +90,9 @@ class InertPowerContext:
     async def find_operation(self, scope_id, marker):
         self.reads += 1
         return [row for row in self.records if row["scope_id"] == scope_id and marker in row["content"]]
+
+    async def search_project(self, scope_id, query, limit, shared_limit):
+        return {"mode": "hybrid", "hits": await self.search(scope_id, query, limit)}
 
 
 async def register(f, scopes, *, project_id=None):
@@ -162,12 +177,213 @@ async def query(f, *, headers=None):
         "project_id": f["project_id"], "query": "synthetic", "limit": 20})
 
 
+async def visibility(f, records, *, headers=None, **changes):
+    refs = [{key: record[key] for key in ("artifact_id", "revision", "content_digest")} for record in records]
+    scope_id = f["upstream"].scopes["hypertest-project-" + f["project_id"]]
+    return await f["client"].post("/api/v1/memory/visibility", headers=headers or f["headers"], json={
+        "project_id": f["project_id"], "scope_id": scope_id, "artifacts": refs, **changes})
+
+
+async def test_visibility_requires_current_exact_ref_digest_and_never_returns_old_bodies(memory_context):
+    f = memory_context
+    receipt = await candidate(f)
+    assert (await publish(f, receipt)).json()["status"] == "ACCEPTED"
+    original = f["upstream"].records[0]
+    # The exact PC bytes contain only reviewed fields and a non-authorizing
+    # server-generated opaque locator, never the private source/actor/key.
+    async with AsyncSessionLocal() as db:
+        operation = await db.scalar(select(MemoryOperation).where(MemoryOperation.entry_id == UUID(receipt["entry_id"]),
+            MemoryOperation.operation == "PUBLISH"))
+        assert "HyperTest operation: " + operation.marker in original["content"]
+        for private in (operation.operation_key, operation.actor_ref, str(receipt["entry_id"]),
+                f["source"]["task_id"], f["source"]["submission_id"], f["source"]["asset_revision_id"]):
+            assert private not in original["content"]
+    reads, writes = f["upstream"].reads, f["upstream"].writes
+    response = await visibility(f, [original])
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    item = response.json()["items"][0]
+    assert item["disposition"] == "PLATFORM_CURRENT" and item["content_digest"] == original["content_digest"]
+    assert item["entry_id"] == receipt["entry_id"] and item["version"] == 2
+    assert item["publication"]["content"] == "Synthetic shareable method"
+    assert set(item["publication"]["source"]) == {"mode", "provenance_id"}
+    for private in (operation.operation_key, operation.actor_ref, f["source"]["task_id"],
+            f["source"]["submission_id"], f["source"]["asset_revision_id"]):
+        assert private not in response.text
+    wrong = await visibility(f, [{**original, "content_digest": "sha256:" + "0" * 64}])
+    assert wrong.json()["items"] == [{"artifact_id": original["artifact_id"], "revision": 1, "disposition": "PLATFORM_NOT_CURRENT"}]
+    assert (f["upstream"].reads, f["upstream"].writes) == (reads, writes)
+    assert (await publish(f, receipt, operation="REVISE", version=2)).json()["status"] == "ACCEPTED"
+    current = f["upstream"].records[-1]
+    projected = (await visibility(f, [original, current])).json()["items"]
+    assert [item["disposition"] for item in projected] == ["PLATFORM_NOT_CURRENT", "PLATFORM_CURRENT"]
+    assert (await mutate(f, "RETRACT", 3, entry_id=receipt["entry_id"], publication_note="Withdraw current")).json()["status"] == "ACCEPTED"
+    projected = (await visibility(f, [original, current])).json()["items"]
+    assert all(set(item) == {"artifact_id", "revision", "disposition"} and item["disposition"] == "PLATFORM_NOT_CURRENT" for item in projected)
+
+
+async def test_visibility_expiry_boundary_unknown_operation_and_unmanaged_classification(memory_context, monkeypatch):
+    f = memory_context
+    receipt = await candidate(f)
+    expires = datetime.now(UTC) + timedelta(minutes=5)
+    assert (await publish(f, receipt, expires_at=expires.isoformat())).json()["status"] == "ACCEPTED"
+    published = f["upstream"].records[0]
+    class AtExpiry(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return expires
+    monkeypatch.setattr(service, "datetime", AtExpiry)
+    assert (await visibility(f, [published])).json()["items"][0]["disposition"] == "PLATFORM_NOT_CURRENT"
+    monkeypatch.setattr(service, "datetime", datetime)
+    candidate2 = await candidate(f)
+    f["upstream"].mismatch_read = True
+    assert (await publish(f, candidate2)).json()["status"] == "UNKNOWN"
+    pending = f["upstream"].records[-1]
+    external = {**published, "artifact_id": "art_unmanaged"}
+    items = (await visibility(f, [pending, external])).json()["items"]
+    assert [item["disposition"] for item in items] == ["PLATFORM_NOT_CURRENT", "EXTERNAL_UNMANAGED"]
+    assert all(set(item) == {"artifact_id", "revision", "disposition"} for item in items)
+
+
+async def test_visibility_authority_scope_bounds_other_project_and_revoked_grant(memory_context):
+    f = memory_context
+    receipt = await candidate(f)
+    assert (await publish(f, receipt)).json()["status"] == "ACCEPTED"
+    record = f["upstream"].records[0]
+    assert (await visibility(f, [record], scope_id="scp_wrong")).status_code == 409
+    assert (await visibility(f, [record] * 51)).status_code == 422
+    assert (await visibility(f, [], artifacts=[])).status_code == 422
+    sync_only, _ = await register(f, ["task:sync"])
+    assert (await visibility(f, [record], headers=sync_only)).status_code == 403
+    worker = {**f["headers"], "X-Hypertest-Memory-Worker-Id": "fixture-worker", "X-Hypertest-Memory-Lease-Token": "fixture-lease",
+        "X-Hypertest-Memory-Generation": "1", "X-Hypertest-Memory-Work-Token": "fixture-work"}
+    assert (await visibility(f, [record], headers=worker)).status_code == 403
+    async with AsyncSessionLocal() as db:
+        other = await create_project(db, ProjectCreate(key=public_key("MEMORY"), name="Other visibility project"))
+    other_f = {**f, "project_id": str(other.id)}
+    assert (await mutate(other_f, "CONFIGURE", enabled=True)).json()["status"] == "ACCEPTED"
+    assert (await visibility(other_f, [record])).status_code == 403
+    other_headers, _ = await register(other_f, ["memory:read"])
+    hidden = (await visibility(other_f, [record], headers=other_headers)).json()["items"]
+    assert hidden == [{"artifact_id": record["artifact_id"], "revision": 1, "disposition": "PLATFORM_NOT_CURRENT"}]
+    async with AsyncSessionLocal() as db:
+        grant = await db.get(InteractiveIntegrationGrant, UUID(f["auth"]["grant_id"]))
+        grant.status, grant.revoked_at = "REVOKED", datetime.now(UTC)
+        grant.row_version += 1
+        await db.commit()
+    denied = await visibility(f, [record])
+    assert denied.status_code == 403 and record["content"] not in denied.text
+
+
+async def test_visibility_deadline_fails_closed_without_upstream_access(memory_context, monkeypatch):
+    f = memory_context
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 0.1)
+    async def stalled(*args):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(service, "visibility", stalled)
+    reads, writes = f["upstream"].reads, f["upstream"].writes
+    response = await visibility(f, [{"artifact_id": "art_unchecked", "revision": 1, "content_digest": "sha256:" + "a" * 64}])
+    assert response.status_code == 503 and "items" not in response.json()
+    assert (f["upstream"].reads, f["upstream"].writes) == (reads, writes)
+
+
 async def test_retired_session_task_cannot_be_used_as_a_new_memory_source(memory_context):
     f = memory_context
     response = await mutate(f, "CREATE_CANDIDATE", title="retired source", content="synthetic",
         source={"mode": "LOCAL", "task_id": str(uuid4()), "task_version": 1, "report_id": str(uuid4())})
     assert response.status_code == 410 and "retired" in response.text
     assert f["upstream"].writes == 0
+
+
+async def test_operator_adopts_exact_existing_scope_and_unknown_only_reads_original(memory_context):
+    f = memory_context
+    async with AsyncSessionLocal() as db:
+        project = await create_project(db, ProjectCreate(key=public_key("MEMORY"), name="Scope adoption fixture"))
+    target = {**f, "project_id": str(project.id)}
+    namespace = "hypertest-project-" + str(project.id)
+    f["upstream"].scopes[namespace] = "scp_existing"
+    creates = f["upstream"].creates
+    wrong = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id="scp_other", key="wrong-scope")
+    assert wrong.status_code == 409
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(MemoryOperation).where(MemoryOperation.project_id == project.id)) is None
+        from hypertest.domain.memory import MemoryProjectMapping
+        assert await db.scalar(select(MemoryProjectMapping).where(MemoryProjectMapping.project_id == project.id)) is None
+    f["upstream"].adoptions = 0
+    f["upstream"].lose_adoption_ack = True
+    response = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id="scp_existing", key="original-adoption")
+    assert response.json()["status"] == "UNKNOWN", response.text
+    changed = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id="scp_other", key="original-adoption")
+    assert changed.status_code == 409
+    f["upstream"].lose_adoption_ack = False
+    recovered = await f["client"].get("/api/v1/memory/operations/by-key", headers=f["operator"],
+        params={"project_id": str(project.id), "operation_key": "original-adoption"})
+    assert recovered.json()["status"] == "ACCEPTED" and recovered.json()["configuration"]["scope_id"] == "scp_existing"
+    assert f["upstream"].creates == creates and f["upstream"].writes == 0
+    rebind = await mutate(target, "CONFIGURE", 1, enabled=True, existing_scope_id="scp_other")
+    assert rebind.status_code == 409
+
+
+async def test_legacy_configure_digest_and_original_receipt_are_unchanged(memory_context):
+    f = memory_context
+    response = await mutate(f, "CONFIGURE", 1, enabled=False, key="legacy-configure")
+    assert response.json()["status"] == "ACCEPTED"
+    async with AsyncSessionLocal() as db:
+        operation = await db.scalar(select(MemoryOperation).where(MemoryOperation.project_id == UUID(f["project_id"]), MemoryOperation.operation_key == "legacy-configure"))
+        assert "existing_scope_id" not in operation.request
+        from hypertest.application.services import canonical_json_sha256
+        assert operation.input_digest == canonical_json_sha256({"project_id": f["project_id"],
+            "operation": "CONFIGURE", "operation_key": "legacy-configure", "expected_version": 1, "enabled": False})
+    repeated = await mutate(f, "CONFIGURE", 1, enabled=False, key="legacy-configure")
+    assert repeated.json() == response.json()
+
+
+async def test_external_query_shares_same_scope_but_never_revives_platform_artifacts(memory_context, monkeypatch):
+    f = memory_context
+    monkeypatch.setattr(get_settings(), "memory_shared_knowledge_enabled", True)
+    accepted = await candidate(f)
+    assert (await publish(f, accepted)).json()["status"] == "ACCEPTED"
+    platform = f["upstream"].records[0]
+    assert (await mutate(f, "RETRACT", 2, entry_id=accepted["entry_id"], publication_note="Outdated")).json()["status"] == "ACCEPTED"
+    # A direct upstream writer changing kind must not bypass the PG tombstone.
+    platform.update(kind="fact", state_version=2, matched_by=["vector"])
+    shared = {**platform, "artifact_id": "art_external", "kind": "decision", "content": "Shared current decision"}
+    history = {**shared, "artifact_id": "art_history", "kind": "historical_technical_record"}
+    other_scope = {**shared, "artifact_id": "art_other_project", "scope_id": "scp_other"}
+    f["upstream"].records.extend([shared, history, other_scope])
+    response = await query(f)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["results"] == [] and data["search_mode"] == "hybrid"
+    assert [row["artifact_id"] for row in data["external_results"]] == ["art_external"]
+    assert data["external_results"][0]["review_status"] == "EXTERNAL_NOT_HYPERTEST_REVIEWED"
+    assert "confirmed_by" not in data["external_results"][0] and "source" not in data["external_results"][0]
+    sync_only, _ = await register(f, ["task:sync"])
+    assert (await query(f, headers=sync_only)).status_code == 403
+    shared["content"] = "Accidentally stored credential: " + OPERATOR
+    rejected = await query(f)
+    assert rejected.status_code == 422 and OPERATOR not in rejected.text
+
+
+async def test_external_query_rechecks_grant_after_network_and_deadline_is_total(memory_context, monkeypatch):
+    f = memory_context
+    monkeypatch.setattr(get_settings(), "memory_shared_knowledge_enabled", True)
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 0.1)
+    async def slow():
+        await asyncio.sleep(0.3)
+    f["upstream"].on_search = slow
+    response = await query(f)
+    assert response.json()["degraded"] and response.json()["external_results"] == []
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 5.0)
+    async def revoke():
+        async with AsyncSessionLocal() as db:
+            grant = await db.get(InteractiveIntegrationGrant, UUID(f["auth"]["grant_id"]))
+            grant.status = "REVOKED"
+            grant.row_version += 1
+            grant.revoked_at = datetime.now(UTC)
+            await db.commit()
+    f["upstream"].on_search = revoke
+    denied = await query(f)
+    assert denied.status_code == 403, denied.text
 
 
 async def test_archive_source_requires_operator_and_fixed_accepted_report(memory_context):
@@ -349,7 +565,7 @@ async def test_concurrent_original_key_and_versions_only_one_external_write(memo
     assert reused.status_code == 409
 
 
-async def test_retract_during_upstream_write_never_reactivates_old_response(memory_context):
+async def test_retract_during_upstream_write_never_reactivates_old_response(memory_context, monkeypatch):
     f = memory_context
     receipt = await candidate(f)
     async def retract_in_flight(_row):
@@ -361,6 +577,9 @@ async def test_retract_during_upstream_write_never_reactivates_old_response(memo
     assert response.json()["reason"] == "PUBLICATION_SUPERSEDED_OR_DISABLED"
     assert (await query(f)).json()["results"] == []
     assert f["upstream"].writes == 1
+    monkeypatch.setattr(get_settings(), "memory_shared_knowledge_enabled", True)
+    f["upstream"].records[0].update(kind="fact", state_version=1, matched_by=["vector"])
+    assert (await query(f)).json()["external_results"] == []
 
 
 async def test_disable_revoke_during_search_and_expired_visibility(memory_context):
@@ -466,13 +685,15 @@ async def test_scope_lost_ack_reads_original_namespace_and_keeps_disable(memory_
 async def test_timeout_preserves_sent_outbox_and_never_reposts(memory_context, monkeypatch):
     f = memory_context
     receipt = await candidate(f)
-    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 0.1)
+    # Allow the real test DB round trips before reaching the inert transport;
+    # the transport then blocks until the Gateway's finite deadline cancels it.
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 1.0)
     async def wait_after_write(_row):
         async with AsyncSessionLocal() as db:
             persisted = await db.scalar(select(MemoryOperation).where(MemoryOperation.entry_id == UUID(receipt["entry_id"]),
                 MemoryOperation.operation == "PUBLISH"))
             assert persisted.state == "SENT"  # Persisted before the external write.
-        await asyncio.sleep(1)
+        await asyncio.Event().wait()
     f["upstream"].on_remember = wait_after_write
     response = await publish(f, receipt)
     assert response.json()["status"] == "UNKNOWN"

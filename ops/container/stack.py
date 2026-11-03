@@ -236,6 +236,10 @@ def validate_cloud_web(values: dict[str, str], *, live: bool) -> None:
 
 def validate_memory_gateway(values: dict[str, str], *, live: bool) -> None:
     validate_web_facade(values, live=live)
+    if values.get("HYPERTEST_MEMORY_SEARCH_MODE", "fts") not in {"fts", "hybrid"}:
+        raise ValueError("Memory search mode must be fts or hybrid")
+    if values.get("HYPERTEST_MEMORY_SHARED_KNOWLEDGE_ENABLED", "false") not in {"true", "false"}:
+        raise ValueError("Shared project knowledge requires an explicit true or false")
     origin = values.get("HYPERTEST_MEMORY_POWERCONTEXT_ORIGIN", "")
     try:
         parsed = urlsplit(origin)

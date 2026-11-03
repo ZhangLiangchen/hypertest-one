@@ -62,6 +62,7 @@ class Experience(StrictModel):
 class Configure(Mutation):
     operation: Literal["CONFIGURE"]
     enabled: bool
+    existing_scope_id: str | None = Field(default=None, min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_.:-]+$")
 
 
 class CreateCandidate(Mutation, Experience):
@@ -97,3 +98,15 @@ class MemoryQuery(StrictModel):
     limit: int = Field(default=10, ge=1, le=20)
     source: MemorySource | None = None
     context: CloudQueryContext | None = None
+
+
+class MemoryArtifactReference(StrictModel):
+    artifact_id: str = Field(min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_.:-]+$")
+    revision: int = Field(ge=1)
+    content_digest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+
+
+class MemoryVisibility(StrictModel):
+    project_id: UUID
+    scope_id: str = Field(min_length=1, max_length=256, pattern=r"^[A-Za-z0-9_.:-]+$")
+    artifacts: list[MemoryArtifactReference] = Field(min_length=1, max_length=50)

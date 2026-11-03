@@ -1,12 +1,15 @@
-"""Bounded explicit PowerContext 1.4.0 REST adapter, with no inference or hooks.
+"""Bounded explicit PowerContext REST adapter, with no generation or hooks.
 
 Only the Gateway role mounts the configured administrator credential. Queries
-are FTS only; the context/prepare and generation surfaces are never called.
+use an explicitly configured retrieval profile. Publication recovery stays FTS;
+the context/prepare and generation surfaces are never called.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import math
 import re
 import ssl
 import unicodedata
@@ -18,8 +21,13 @@ from hypertest.cloud.private_file import read_private_file
 from hypertest.config import get_settings
 
 KIND = "hypertest-experience"
+RESERVED_KINDS = frozenset({KIND, "historical_technical_record"})
 _ID = re.compile(r"^[A-Za-z0-9_.:-]{1,256}$")
 _DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
+
+
+def shared_kind(kind):
+    return isinstance(kind, str) and 1 <= len(kind) <= 128 and kind not in RESERVED_KINDS
 
 
 class MemoryUpstreamError(Exception):
@@ -66,6 +74,8 @@ class PowerContextAdapter:
                     verify=tls, timeout=self.settings.memory_timeout_seconds, follow_redirects=False,
                     trust_env=False, transport=self.transport) as client:
                 async with client.stream(method, path, json=payload, params=params) as response:
+                    if response.status_code == 404:
+                        raise MemoryUpstreamError("MEMORY_UPSTREAM_NOT_FOUND")
                     if not 200 <= response.status_code < 300:
                         raise MemoryUpstreamError("MEMORY_UPSTREAM_RESPONSE_REJECTED")
                     chunks, size = [], 0
@@ -85,11 +95,22 @@ class PowerContextAdapter:
 
     async def capabilities(self):
         value = await self._request("GET", "/v1/capabilities")
-        if ("fts" not in value.get("search_modes", []) or any(value.get(key) is not False for key in
+        mode = getattr(self.settings, "memory_search_mode", "fts")
+        if (mode not in value.get("search_modes", []) or "fts" not in value.get("search_modes", []) or any(value.get(key) is not False for key in
                 ("memory_extraction", "experience_generation", "managed_skill_generation", "handoff_generation"))):
             raise MemoryUpstreamError("MEMORY_UPSTREAM_PROFILE_UNSUPPORTED")
-        return {"ready": True, "version": "1.4.0", "retrieval": "fts", "external_generation": False,
-                "external_embedding": False, "source": "CONFIGURED_FIXED_PROFILE"}
+        return {"ready": True, "retrieval": mode, "external_generation": False,
+                "external_embedding": mode == "hybrid", "source": "CONFIGURED_FIXED_PROFILE"}
+
+    async def adopt_scope(self, scope_id, namespace):
+        """Verify an Operator's exact target; neither rename nor create a scope."""
+        value = await self._request("GET", f"/v1/scopes/{_path_id(scope_id)}")
+        references = value.get("external_references", [])
+        expected = {"kind": "hypertest-project", "value": namespace}
+        project_refs = [ref for ref in references if isinstance(ref, dict) and ref.get("kind") == "hypertest-project"]
+        if value.get("scope_id") != scope_id or project_refs != [expected]:
+            raise MemoryUpstreamError("MEMORY_UPSTREAM_SCOPE_MISMATCH")
+        return scope_id
 
     async def create_scope(self, namespace, operation_key):
         _path_id(namespace)
@@ -147,14 +168,14 @@ class PowerContextAdapter:
             raise MemoryUpstreamError("MEMORY_UPSTREAM_ACK_INVALID")
         return _ref(records[0].get("artifact"))
 
-    async def get(self, scope_id, artifact_id, revision):
+    async def get(self, scope_id, artifact_id, revision, *, kind=KIND):
         scope, artifact = _path_id(scope_id), _path_id(artifact_id)
         ref = _ref({"family": "atomic-memory", "artifact_id": artifact_id, "revision": revision})
         value = await self._request("GET", f"/v1/scopes/{scope}/artifacts/atomic-memory/{artifact}/revisions/{revision}")
         content = value.get("content")
         if (value.get("scope_id") != scope_id or value.get("family") != "atomic-memory"
                 or value.get("artifact_id") != artifact_id or value.get("revision") != revision
-                or not isinstance(content, dict) or content.get("kind") != KIND
+                or not isinstance(content, dict) or content.get("kind") != kind
                 or not isinstance(content.get("text"), str) or len(content["text"].encode()) > 8192
                 or not isinstance(value.get("content_digest"), str) or not _DIGEST.fullmatch(value["content_digest"])):
             raise MemoryUpstreamError("MEMORY_UPSTREAM_READBACK_MISMATCH")
@@ -183,6 +204,55 @@ class PowerContextAdapter:
             if isinstance(memory, dict) and memory.get("kind") == KIND and memory.get("state") == "active":
                 result.append({**_ref(memory.get("artifact")), "content": memory.get("text")})
         return result
+
+    async def _shared_material(self, scope_id, hit):
+        # Search is only a locator. Re-read current lifecycle/ref, then immutable
+        # bytes and digest; never project a retired or superseded search hit.
+        path = f"/v1/scopes/{_path_id(scope_id)}/artifacts/atomic-memory/{_path_id(hit['artifact_id'])}/state"
+        state = await self._request("GET", path)
+        current = _ref(state.get("artifact"))
+        if state.get("state") != "active" or current != {key: hit[key] for key in ("artifact_id", "revision")}:
+            return None
+        if type(state.get("state_version")) is not int or state["state_version"] < 0:
+            raise MemoryUpstreamError("MEMORY_UPSTREAM_STATE_INVALID")
+        material = await self.get(scope_id, **current, kind=hit["kind"])
+        return {**hit, **material, "state_version": state["state_version"]}
+
+    async def search_project(self, scope_id, query, limit, shared_limit):
+        """Same-scope published locators and explicitly shared active lessons."""
+        _path_id(scope_id)
+        mode = getattr(self.settings, "memory_search_mode", "fts")
+        value = await self._request("POST", "/v1/memory/search", payload={"scope_id": scope_id,
+            "query": query, "limit": min(limit, 50), "mode": mode})
+        hits = value.get("hits")
+        allowed_modes = {"text"} if mode == "fts" else {"text", "vector", "hybrid"}
+        if value.get("mode") not in allowed_modes or not isinstance(hits, list) or len(hits) > 50:
+            raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
+        result, shared = [], []
+        for hit in hits:
+            memory = hit.get("memory") if isinstance(hit, dict) else None
+            if (not isinstance(memory, dict) or memory.get("state") != "active"
+                    or not (memory.get("kind") == KIND or shared_kind(memory.get("kind")))):
+                continue
+            row = {**_ref(memory.get("artifact")), "kind": memory["kind"]}
+            score = hit.get("score")
+            if isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score):
+                row["score"] = score
+            channels = hit.get("matched_by")
+            if not isinstance(channels, list) or any(item not in {"text", "vector"} for item in channels):
+                raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
+            row["matched_by"] = channels
+            if row["kind"] == KIND:
+                result.append(row)
+            elif len(shared) < shared_limit:
+                result.append(row)
+                shared.append(row)
+        # A bounded batch shares the Gateway's overall deadline. There are no
+        # retries, context references, Source reads or hidden generation calls.
+        material = await asyncio.gather(*(self._shared_material(scope_id, row) for row in shared))
+        by_identity = {(row["artifact_id"], row["revision"]): row for row in material if row is not None}
+        return {"mode": value["mode"], "hits": [row if row["kind"] == KIND else by_identity[(row["artifact_id"], row["revision"])]
+            for row in result if row["kind"] == KIND or (row["artifact_id"], row["revision"]) in by_identity]}
 
     async def find_operation(self, scope_id, marker):
         _path_id(marker)

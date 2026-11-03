@@ -1230,6 +1230,8 @@ Cloud 从自己的固定镜像/runtime 引用 TaskSyncCore，不要求安装面�
 
 ## 48. ADR-022 可选 Memory Gateway
 
+2026-11-03 增补取代本节旧 1.4.0 / FTS-only 限制：[ADR-022 §0](ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) 允许 Operator 首次只读核验并采用既有 canonical scope，1.4.1 私有 hybrid 由显式开关启用。query 的平台 `results` 与独立 `external_results` 共享同 scope，外部记录须 current lifecycle + exact revision/digest 验证且排除平台全部既有 artifact ID；原审核账本、撤回、Source 隐私与 UNKNOWN 恢复不变。Cloud broker 原路径交付两类结果，Web 分区只读展示，整体网络预算仍 ≤5 秒。没有新数据库迁移、历史复制或自动生成。
+
 ADR-027 显式本地归档可由 Operator 作为 Memory 来源：Gateway 验证固定 Submission、目标空间快照和 REPORT 修订，保留原归档与其权限边界；普通 Agent 不通过 memory grant 获得归档读取权，发布正文仍须独立审阅。
 
 Gateway在API管理角色内独立实现授权、Project映射、私有候选、人工发布/修订/撤回、当前可见目录与持久意图；只调用固定PowerContext 1.4.0显式remember/FTS/固定revision读取，不启动Agent/测试。仅该角色只读挂载PowerContext管理key；独立服务的SQLite/模型关闭配置/备份保持，平台仅增加0027的四个Memory目录表及独立scope约束，不合并测试状态。

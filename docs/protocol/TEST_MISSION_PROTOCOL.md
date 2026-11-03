@@ -1670,6 +1670,8 @@ Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的�
 
 ## 49. ADR-022 显式项目经验协议
 
+2026-11-03 扩展：[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) 允许未绑定且启用的 Operator CONFIGURE 带 `existing_scope_id`（省略不增加 null / 改变旧摘要），核 exact project external reference；目标冻结且原 key 仅只读恢复，不允许改绑。`POST /query` 保留 `results`，另返回 `external_results`（`EXTERNAL_PROJECT_KNOWLEDGE`、`EXTERNAL_NOT_HYPERTEST_REVIEWED`、scope/artifact/revision/content/content_digest/state_version/matched_by/notice）和实际 `search_mode`。两类结果合计 ≤limit；无服务端平台审批身份冒充，禁止将其作为任务状态或执行授权。独立 memory grant / 前后 Cloud fence 保持。历史种类、独立 history scope、raw Sources 与平台任意修订或未决操作曾引用的 artifact 不进入 external_results；整体 deadline 超时仅 memory degraded。显式 hybrid embedding 配置取代本节末尾一律关闭 Embedding 的旧限制，generation / 自动采集仍关闭。
+
 ADR-027 归档来源增补：Memory `CREATE_CANDIDATE` 的 `source` 可为 `{mode:"LOCAL_ARCHIVE", task_id, submission_id, archive_version, asset_revision_id}`。Operator 提供确切已接受 Submission 及快照中 REPORT 修订；Gateway 按领域 §54 核 Project、目标、版本和内容。此类型只允许 Operator，公开检索不附私有报告。`archive:read/write` 与 Memory scope 不互相授权，报告结果仍是上传者声明。
 
 独立profile为 `hypertest-project-memory/v1alpha1`；实体和状态由领域§54拥有，[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)定义本轮接口/信任边界。服务端前缀 `/api/v1/memory`，与任务sync/Cloud operation无共享key、版本、journal或成功判定。
@@ -1682,6 +1684,7 @@ ADR-027 归档来源增补：Memory `CREATE_CANDIDATE` 的 `source` 可为 `{mod
 | GET /projects/{id}/configuration?version=N | 固定接受的映射配置版本，当前开关与历史分开 |
 | GET /entries/{id}?project_id&version=N | 完整固定经验修订；旧版另标SUPERSEDED/EXPIRED等当前处置，不改原revision_status |
 | POST /query | `{project_id,query,limit?,source?,context?}`，query≤1000字符/limit≤20；显式最小query，固定来源与Cloud claim context互斥；没有自动prompt/聊天采集 |
+| POST /visibility | 独立 standalone memory:read 或 Operator；`{project_id,scope_id,artifacts:[{artifact_id,revision,content_digest}]}`，1..50 条、exact READY scope。返回 PLATFORM_CURRENT / PLATFORM_NOT_CURRENT / EXTERNAL_UNMANAGED；仅 CURRENT 附已接受 digest、entry_id/version、公开 publication。无上游调用、无状态写、no-store；Worker 使用原 query/fence。客户端仍核 PC 当前生命周期和原件摘要，UNMANAGED 不是事实认证 |
 
 独立scope为memory:read/propose/publish，配置/发布/修订/撤回还必须人工Operator。Local候选source为 `{mode:LOCAL,task_id,task_version,report_id}`，核当前BOUND owner、固定SyncReceipt和ReportRevision；Cloud候选source为 `{mode:CLOUD,task_id,task_version,attempt_id,asset_revision_id}`，核同Project/Attempt固定接受资产及当前Worker。Cloud私有HTTP headers携worker_id/lease_token/generation/work_token，不能进入业务请求摘要、账本、SDK/Agent或报告。独立memory bearer不替代fence，cloud:work不替代memory授权。Local查询无需报告，但私有MCP核真实父caller/绑定；Cloud查询context为原claim `{mode:CLOUD,task_id,attempt_id,task_version}`，Worker注入且Gateway前后核验，不需asset。共享读取只给opaque provenance，源报告另按原权限读取。
 
