@@ -62,7 +62,7 @@ raise SystemExit(driver.main())
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     try:
         child.stdin.write(json.dumps({"workspace": "synthetic", "dsh_home": "synthetic",
-            "session_id": "synthetic", "prompt": "No model", "interaction_enabled": True}).encode() + b"\n")
+            "session_id": "synthetic", "title": "Synthetic", "prompt": "No model", "interaction_enabled": True}).encode() + b"\n")
         child.stdin.flush()
         assert child.wait(timeout=5) == (1 if sdk_failure else 0)
         assert not child.stderr.read()

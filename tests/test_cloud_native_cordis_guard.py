@@ -48,10 +48,13 @@ def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
     module.HarnessConfig, module.HarnessClient = Config, Client
     monkeypatch.setitem(sys.modules, "deepseek_harness", module)
     overlay = ModuleType("hypertest.cloud.native_cordis")
-    overlay.prepare_cordis_overlay = lambda directory: directory / "overlay.yml"
+    def prepare(directory, *, title):
+        assert title == "任务标题"
+        return directory / "overlay.yml"
+    overlay.prepare_cordis_overlay = prepare
     monkeypatch.setitem(sys.modules, "hypertest.cloud.native_cordis", overlay)
     monkeypatch.setattr(driver, "read_native_selection", lambda **kwargs: {"provider": "x", "model": "y"})
-    config = {"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "root-1", "prompt": "test"}
+    config = {"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "root-1", "title": "任务标题", "prompt": "test"}
     if mode == "ok":
         driver.run(config, lambda value: None)
         assert calls == ["prompt", "wait"]

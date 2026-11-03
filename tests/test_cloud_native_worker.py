@@ -78,6 +78,22 @@ async def test_cordis_preflight_failure_does_not_claim_new_work(tmp_path, monkey
     assert not (tmp_path / "claim-pending.json").exists()
 
 
+def test_cordis_preflight_supplies_explicit_probe_title(monkeypatch):
+    from hypertest.cloud import native_cordis, native_worker
+
+    directories = []
+
+    def prepare(directory, *, title):
+        assert directory.is_dir()
+        assert title == "HyperTest Cordis preflight probe"
+        directories.append(directory)
+        return directory / "overlay.yml"
+
+    monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", prepare)
+    native_worker.check_cordis_runtime()
+    assert directories and not directories[0].exists()
+
+
 def mock_worker_api(monkeypatch, request):
     from hypertest.cloud import native_worker
 

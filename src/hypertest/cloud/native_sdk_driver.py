@@ -162,7 +162,7 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
     with tempfile.TemporaryDirectory(prefix="hypertest-cordis-") as directory:
         from .native_cordis import prepare_cordis_overlay
 
-        overlay = prepare_cordis_overlay(Path(directory))
+        overlay = prepare_cordis_overlay(Path(directory), title=config["title"])
         marker = Path(directory) / "ready.json"
         nonce = secrets.token_hex(32)
         options = {"profile": "sdk", "dsh_home": config["dsh_home"], "cwd": config["workspace"],
@@ -219,9 +219,10 @@ def main() -> int:
             raise ValueError("input too large")
         config = json.loads(raw)
         if (not isinstance(config, dict)
-                or set(config) - {"workspace", "dsh_home", "session_id", "prompt", "interaction_enabled"}
+                or set(config) - {"workspace", "dsh_home", "session_id", "title", "prompt", "interaction_enabled"}
                 or any(not isinstance(config.get(key), str) or not config[key]
-                       for key in ("workspace", "dsh_home", "session_id", "prompt"))
+                       for key in ("workspace", "dsh_home", "session_id", "title", "prompt"))
+                or not config["title"].strip() or len(config["title"]) > 512
                 or type(config.get("interaction_enabled", False)) is not bool):
             raise ValueError("invalid input")
         channel = QuestionChannel(config["session_id"], emit, source=source) if config.get("interaction_enabled", False) else None

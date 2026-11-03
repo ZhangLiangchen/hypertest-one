@@ -38,7 +38,7 @@ def sdk(monkeypatch, tmp_path):
     (profile / "cordis.patch.yml").write_text("[]\n")
     private = tmp_path / "private"
     private.mkdir(mode=0o700)
-    overlay = native_cordis.prepare_cordis_overlay(private)
+    overlay = native_cordis.prepare_cordis_overlay(private, title="测试任务名称" * 30)
     return harness, home, private, overlay
 
 
@@ -141,6 +141,7 @@ export function apply(ctx) {
       const agent = h.agent ?? h;
       result.root = {preset:ctx.agentPresets.composedPreset(agent.ctx),
         projection:ctx.sessionProjections.stateOf(agent.session,"agentPreset"),
+        title:ctx.sessionProjections.stateOf(agent.session,"title"),
         tools:ctx.tools.schemas(agent).map(x => x.name)};
       try {
         await ctx.tools.execute({agent,calls:[{name:"spawn_teammate",callId:"synthetic-spawn",
@@ -171,6 +172,7 @@ export function apply(ctx) {
         result = json.loads(out.read_text())
         assert "error" not in result, result
         assert result["root"]["preset"] == result["root"]["projection"] == "cordis"
+        assert result["root"]["title"] == "测试任务名称" * 30
         assert result["child"]["preset"] == result["child"]["projection"] == "cordis"
         assert {"bash", "read", "write", "grep", "glob", "web_search", "skill"}.issubset(result["child"]["tools"])
         assert {"spawn_teammate", "create_worktree", "terminal_open", "session_search", "ralph"}.issubset(result["root"]["tools"])

@@ -145,7 +145,7 @@ def check_cordis_runtime() -> None:
     from .native_cordis import prepare_cordis_overlay
 
     with tempfile.TemporaryDirectory(prefix="hypertest-cordis-preflight-") as directory:
-        prepare_cordis_overlay(Path(directory))
+        prepare_cordis_overlay(Path(directory), title="HyperTest Cordis preflight probe")
 
 
 def _validate_claim_request(request: object, worker_id: str) -> dict:
@@ -467,7 +467,7 @@ async def execute(api, args, state: Path, claim: dict):
         save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
         session_id = "cloud-" + attempt["id"]
-        process = await adapter.start(session_id=session_id, prompt=prompt, interaction_enabled=True)
+        process = await adapter.start(session_id=session_id, title=task["title"], prompt=prompt, interaction_enabled=True)
         bridge = LiveQuestionBridge(broker, adapter, session_id)
         reader = asyncio.create_task(bridge.read(process))
         accepted_keys = {}
