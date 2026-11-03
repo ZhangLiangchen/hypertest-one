@@ -604,9 +604,15 @@ def main(argv=None) -> int:
     try:
         return asyncio.run(run(args))
     except (Exception, KeyboardInterrupt) as error:
+        from .native_git import GitOperationFailure
+
         code = error.code if isinstance(error, CloudBlocked) else (
             "WORKER_INTERRUPTED" if isinstance(error, KeyboardInterrupt) else "WORKER_RUNTIME_FAILED")
-        print(json.dumps({"code": code}), flush=True)
+        diagnostic = {"code": code}
+        if isinstance(error, GitOperationFailure):
+            diagnostic["git_operation"] = error.operation
+            diagnostic["git_exit_code"] = error.exit_code
+        print(json.dumps(diagnostic), flush=True)
         return 1
 
 

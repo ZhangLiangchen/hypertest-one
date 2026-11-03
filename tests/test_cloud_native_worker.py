@@ -25,6 +25,21 @@ def claim_request(**changes):
         "lease_seconds": 90, "supports_attempt_manifest": True, **changes}
 
 
+def test_main_git_failure_emits_operation_and_exit_code_without_raw_error(monkeypatch, capsys):
+    from hypertest.cloud import native_worker
+    from hypertest.cloud.native_git import GitOperationFailure
+
+    async def fail(args):
+        error = GitOperationFailure("GIT_OPERATION_FAILED", "fetch", 128)
+        error.args = ("private URL, credential and stderr",)
+        raise error
+    monkeypatch.setattr(native_worker, "run", fail)
+    assert native_worker.main(["--api-url", "https://localhost:18444", "--worker-id", "fixture",
+        "--worker-credential-file", "/unused", "--dsh-home", "/unused", "--state-dir", "/unused"]) == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "code": "GIT_OPERATION_FAILED", "git_operation": "fetch", "git_exit_code": 128}
+
+
 def claim_response(request=None, *, kind="EMPTY", closed=True, **fields):
     return {"worker_id": "native-fixture", "sequence": request["sequence"] if request else 0,
         "request_key": request["request_key"] if request else None, "kind": kind, "closed": closed, **fields}
