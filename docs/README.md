@@ -22,6 +22,7 @@
 - [ADR-035：宿主原生完成后的任务管理](architecture/ADR-035_NATIVE_COMPLETION_MANAGEMENT.md)：保留未知观察范围，正常完成后允许独立复测与删除，已知未决操作继续阻断。
 - [ADR-036：薄 Worker 领取失答恢复](architecture/ADR-036_WORKER_CLAIM_RECOVERY.md)：有界 sequence 高水位、原 key 封口与 fence、空闲故障退避；不重放任务，旧无序号记录保持 UNKNOWN 并受控退役。
 - [宿主原生完成管理闭环交付（2026-11-03）](CLOUD_NATIVE_COMPLETION_DELIVERY_20261103.md)：复测/删除准入修复、相关回归、本机镜像及尚未恢复的独立领取问题。
+- [薄 Worker 领取恢复与真实闭环（2026-11-03）](CLOUD_WORKER_CLAIM_RECOVERY_DELIVERY_20261103.md)：领取恢复、SDK 退出崩溃、只读 Git 重试和撤权解析删除修复；本机部署及两次真实成功运行、失败保留和删除/历史读回。
 - [ADR-032：快速原型期的轻量 Harness Worker](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md)：项目笔记与已决定的职责边界；全容器化是未来资源隔离方向，实现和部署分别记录。
 - [Cloud 原生交互 SDK 构建（2026-11-02）](CLOUD_NATIVE_INTERACTION_SDK_BUILD_20261102.md)：固定上游、锁文件构建修复与配套包验证。
 - [Cloud Agent 运行中提问调查（2026-11-02）](CLOUD_AGENT_INTERACTION_INVESTIGATION_20261102.md)：官方 SDK 能力、模拟验证、构建阻塞与未实现的交互通道。
