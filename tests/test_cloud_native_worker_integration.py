@@ -29,6 +29,7 @@ from test_cloud_tasks import cloud_context as cloud_context
 
 from hypertest.application import cloud_tasks as service
 from hypertest.cloud import native_git, native_sdk_adapter, native_worker
+from hypertest.cloud.errors import CloudBlocked
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask
@@ -120,7 +121,8 @@ async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_
     assert (await client.post("/api/v1/cloud/worker/receipt", headers=headers, json=wrong)).status_code == 403
 
 
-async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_worker_queue, monkeypatch, tmp_path):
+@pytest.mark.parametrize("memory_available", [True, False])
+async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_worker_queue, monkeypatch, tmp_path, memory_available):
     """Exercise real API + Worker reporting with a fake SDK, never a model or SUT."""
     context = cloud_context
     worker_id = "fixture-host-worker-" + uuid4().hex
@@ -132,6 +134,46 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
     monkeypatch.setattr(settings, "cloud_worker_enabled", True)
     monkeypatch.setattr(settings, "cloud_worker_api_token_file", str(key))
     monkeypatch.setattr(settings, "cloud_worker_api_worker_id", worker_id)
+    # The actual native Worker consumes the existing memory-only bridge. This
+    # fixture uses the real Gateway/fence and an inert upstream, never a model.
+    from test_memory_gateway import InertPowerContext
+
+    from hypertest.application import memory_gateway
+    from hypertest.cloud import memory as memory_module
+    upstream = InertPowerContext()
+    monkeypatch.setattr(memory_gateway, "adapter", lambda: upstream)
+    monkeypatch.setattr(settings, "memory_enabled", True)
+    monkeypatch.setattr(settings, "memory_shared_knowledge_enabled", True)
+    admin_token = tmp_path / "synthetic-upstream-token"
+    admin_token.write_text("private-synthetic-upstream-token")
+    admin_token.chmod(0o600)
+    monkeypatch.setattr(settings, "memory_powercontext_token_file", str(admin_token))
+    configured = await context["client"].post("/api/v1/memory/operations", headers=context["operator_headers"], json={
+        "project_id": context["project_id"], "operation": "CONFIGURE", "operation_key": "native-memory-config",
+        "expected_version": 0, "enabled": True})
+    assert configured.json()["status"] == "ACCEPTED", configured.text
+    scope_id = configured.json()["configuration"]["scope_id"]
+    upstream.records.append({"scope_id": scope_id, "artifact_id": "art_native_shared", "revision": 2,
+        "kind": "fact", "content": "Shared project lesson; verify current conditions", "content_digest": "sha256:" + "a" * 64,
+        "state_version": 1, "matched_by": ["vector"]})
+    grant = await context["client"].post("/api/v1/interactive/registrations", headers=context["operator_headers"], json={
+        "actor_ref": "native-memory-reader-" + uuid4().hex, "client_instance_id": str(uuid4()),
+        "project_id": context["project_id"], "scopes": ["memory:read"]})
+    assert grant.status_code == 201, grant.text
+    memory_token = tmp_path / "memory-reader-token"
+    memory_token.write_text(grant.json()["integration_token"])
+    memory_token.chmod(0o600)
+    monkeypatch.setattr(settings, "cloud_memory_enabled", True)
+    monkeypatch.setattr(settings, "cloud_memory_token_file", str(memory_token))
+    monkeypatch.setattr(settings, "cloud_memory_token_directory", None)
+    monkeypatch.setattr(settings, "cloud_memory_api_url", "https://localhost/api/v1")
+    monkeypatch.setattr(settings, "cloud_memory_ca_file", None)
+    transport_type = memory_module.CloudMemoryTransport
+    def transport(broker, config):
+        if not memory_available:
+            raise CloudBlocked("MEMORY_IDENTITY_UNAVAILABLE", "Synthetic missing memory grant")
+        return transport_type(broker, config, transport=httpx.ASGITransport(app=app))
+    monkeypatch.setattr(memory_module, "CloudMemoryTransport", transport)
     queued = await dispatched(context)
     claim_response = await context["client"].post("/api/v1/cloud/worker/claim",
         headers={"Authorization": "Bearer " + token}, json={"worker_id": worker_id, "sequence": 1,
@@ -159,11 +201,26 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
         async def start(self, *, session_id, prompt, interaction_enabled=False):
             process = FakeProcess()
             envelope = json.loads(prompt)
+            assert envelope["capabilities"]["memory"]["configured"] is memory_available
             task_id, attempt_id = envelope["task_id"], envelope["attempt_id"]
             ready = self.workspace / ".hypertest-cloud" / "ready"
             ready.mkdir(parents=True)
 
             async def produce():
+                if memory_available:
+                    memory_ready = self.workspace / ".hypertest-cloud" / "memory-ready"
+                    memory_ready.mkdir(parents=True)
+                    (memory_ready / "lesson.json").write_text(json.dumps({"profile": memory_module.HANDOFF_PROFILE,
+                        "task_id": task_id, "attempt_id": attempt_id, "key": "lesson", "operation": "QUERY",
+                        "payload": {"query": "Shared project lesson", "limit": 5}}))
+                    response_path = self.workspace / ".hypertest-cloud" / "memory-responses" / "lesson.json"
+                    async with asyncio.timeout(10):
+                        while not response_path.exists():
+                            await asyncio.sleep(0.05)
+                    response = json.loads(response_path.read_text())
+                    assert response["external_results"][0]["artifact_id"] == "art_native_shared"
+                    assert response["external_results"][0]["review_status"] == "EXTERNAL_NOT_HYPERTEST_REVIEWED"
+                    assert response["results"] == []
                 assets = [
                     {"kind": "ANALYSIS", "key": "analysis", "title": "Synthetic", "markdown": "Fixture only"},
                     {"kind": "DESIGN", "key": "design", "title": "Synthetic", "markdown": "Fixture only"},

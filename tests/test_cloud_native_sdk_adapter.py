@@ -38,6 +38,8 @@ async def test_start_once_and_stop_reports_unproven_descendants(tmp_path, monkey
             pass
         def close(self):
             pass
+        def is_closing(self):
+            return False
     class Process:
         pid = 1234
         returncode = None
