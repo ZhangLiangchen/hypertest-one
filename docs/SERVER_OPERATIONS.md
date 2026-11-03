@@ -22,6 +22,8 @@ docker compose -p hypertest-mac-powercontext \
 
 宿主薄 Worker 是独立的常驻 Python 进程。更新仓库源码或重建 API 容器不会使它重新加载已导入的模块；涉及 Worker 源码时，须单独核对原领取及活动工作，按原 key 关闭/隔离未决领取后重新启动现有 LaunchAgent，并记录新 PID、启动时间与部署提交。不能以磁盘源码已更新或 API 健康代替 Worker 更新证据，也不能因重启而重放未知任务。Compose 后续操作使用当前完整 overlay 链，包含最近仅更新 Web 的 overlay，避免回退其他服务版本。
 
+Web 可通过非秘密环境变量 `HYPERTEST_HARNESS_WEB_URL` 配置原生 DeepSeek Harness Web UI 入口；本机入口为 `http://10.66.66.3:3080/`。只接受不含用户信息、查询参数和片段的 HTTP(S) 地址，允许反向代理路径前缀。未配置或格式无效时不展示入口，不影响任务下发。该配置只增加浏览器外链，不代理认证、不启动 Harness 服务、不改变 Worker 或会话；现有 Harness 登录和 WireGuard 访问边界保持。
+
 宿主原生 SDK Worker 为每个新根会话生成临时 Cordis（创造模式）适配层：使用经过核对的固定 SDK runtime 自带 preset，并在首个提示前要求适配器注册及根智能体成功挂载 preset。Worker 在领取新工作前预检该固定 runtime 和 preset，原 key 的领取恢复仍优先执行；实际调用时再次检查。SDK 二进制发生变化时预检会拒绝新领取，需要先核对新版本的 preset、监听器失败语义及工具兼容性并更新固定值，不能绕过校验。该适配只影响原生 SDK Worker，模型及实验插件仍由实际 `sdk` profile 配置；插件加载、工具可用、模型认证和测试结论分别核实。
 
 ### 复用现有环境与最小隔离（2026-10-24 增补）

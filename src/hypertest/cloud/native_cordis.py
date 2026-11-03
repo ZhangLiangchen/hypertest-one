@@ -28,12 +28,13 @@ _DISABLE_BASE = (
 _HOOK = r'''import {openSync, writeFileSync, closeSync} from "node:fs";
 import {isAbsolute} from "node:path";
 export const name = "hypertest-cordis-root";
-export const inject = ["agentPresets", "sessionProjections"];
-export function apply(ctx) {
+export const inject = ["agentPresets", "sessionProjections", "sessionTitle"];
+export function apply(ctx, config) {
   const root = process.env.DSH_SDK_CORDIS_ROOT;
   const nonce = process.env.DSH_SDK_CORDIS_NONCE;
   const receipt = process.env.DSH_SDK_CORDIS_HANDSHAKE;
-  if (!root || !/^[0-9a-f]{64}$/.test(nonce || "") || !receipt || !isAbsolute(receipt)) {
+  if (!root || !/^[0-9a-f]{64}$/.test(nonce || "") || !receipt || !isAbsolute(receipt) ||
+      typeof config?.title !== "string" || !config.title.trim()) {
     throw new Error("Cordis admission context unavailable");
   }
   ctx.on("agent/created", async ({agent}) => {
@@ -43,6 +44,9 @@ export function apply(ctx) {
         ctx.sessionProjections.stateOf(agent.session, "agentPreset") !== "cordis") {
       throw new Error("Cordis root preset not applied");
     }
+    // Native user titles are durable metadata and pinned against automatic
+    // generation. This does not add model input or rename child sessions.
+    ctx.sessionTitle.rename(agent.session, config.title);
   });
   const fd = openSync(receipt, "wx", 0o600);
   try { writeFileSync(fd, JSON.stringify({phase:"registered", nonce, root})); }
@@ -67,7 +71,7 @@ _Loader.add_constructor("tag:yaml.org,2002:js", lambda loader, node: _Expression
 _Dumper.add_representer(_Expression, lambda dumper, value: dumper.represent_scalar("tag:yaml.org,2002:js", str(value)))
 
 
-def prepare_cordis_overlay(directory: Path) -> Path:
+def prepare_cordis_overlay(directory: Path, *, title: str) -> Path:
     """Create a per-invocation overlay without changing an operator's profile.
 
     Only the exact audited runtime is accepted.  Its built-in Web template is
@@ -76,6 +80,8 @@ def prepare_cordis_overlay(directory: Path) -> Path:
     try:
         from deepseek_harness_runtime import resolve_bundled_launch_args
 
+        if not isinstance(title, str) or not title.strip() or len(title) > 512:
+            raise ValueError("invalid task title")
         directory = Path(directory).resolve(strict=True)
         if not directory.is_dir():
             raise ValueError("invalid overlay directory")
@@ -104,12 +110,16 @@ def prepare_cordis_overlay(directory: Path) -> Path:
         hook.write_text(_HOOK, encoding="utf-8")
         hook.chmod(0o600)
         entries = [{"id": item, "disabled": True} for item in _DISABLE_BASE]
+        # The pinned native default is only 80 UTF-8 bytes. Allow the complete
+        # Cloud task title (at most 512 Unicode characters) for this invocation.
+        entries.append({"id": "session-title", "config": {
+            "fallbackMaxWords": 5, "fallbackMaxBytes": 40, "maxTitleBytes": 2048}})
         entries.append({"insert": [
             {"id": "agent-preset-registry", "name": "@deepseek-ai/dsh-agent-preset-registry", "config": {"default": "cordis"}},
             {"id": "cordis-host-runner", "name": "@deepseek-ai/dsh-cordis-host-runner"},
             {"id": "cordis-inspect-providers", "name": "@deepseek-ai/dsh-tool-cordis/host"},
             preset[0],
-            {"id": "hypertest-cordis-root", "name": str(hook)},
+            {"id": "hypertest-cordis-root", "name": str(hook), "config": {"title": title}},
         ]})
         overlay = directory / "hypertest-cordis-overlay.yml"
         overlay.write_text(yaml.dump(entries, Dumper=_Dumper, sort_keys=False), encoding="utf-8")

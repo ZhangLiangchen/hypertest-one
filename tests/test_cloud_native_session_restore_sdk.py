@@ -101,6 +101,7 @@ async def test_fixed_sdk_interrupted_tool_is_not_replayed(tmp_path, monkeypatch)
     selection = {"provider": "deepseek-official", "model": "deepseek-flash"}
     identity = {"project_id": str(uuid4()), "task_id": str(uuid4()), "attempt_id": attempt_id,
                 "session_id": session_id, "input_digest": "a" * 64, "prompt_sha256": "b" * 64,
+                "title_sha256": hashlib.sha256(b"Synthetic task").hexdigest(),
                 "workspace": workspace, "dsh_home": home, "sut_commit": sut, "framework_commit": framework,
                 "selection": selection, "environment": dict(fake_env), "worker_id": "synthetic-worker",
                 "original_generation": 1}

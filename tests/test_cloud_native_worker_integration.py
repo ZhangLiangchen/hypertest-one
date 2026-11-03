@@ -198,7 +198,8 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
         def __init__(self, *, workspace, dsh_home):
             self.workspace = workspace
 
-        async def start(self, *, session_id, prompt, interaction_enabled=False):
+        async def start(self, *, session_id, title, prompt, interaction_enabled=False):
+            assert title == claim["task"]["title"]
             process = FakeProcess()
             envelope = json.loads(prompt)
             assert envelope["capabilities"]["memory"]["configured"] is memory_available

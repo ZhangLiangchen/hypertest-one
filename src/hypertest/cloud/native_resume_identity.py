@@ -322,7 +322,7 @@ def _private_attempt_root(root: Path) -> Path:
 
 
 def _identity(*, project_id: str, task_id: str, attempt_id: str, session_id: str,
-              input_digest: str, prompt_sha256: str, workspace: Path, dsh_home: Path,
+              input_digest: str, prompt_sha256: str, title_sha256: str, workspace: Path, dsh_home: Path,
               sut_commit: str, framework_commit: str, selection: dict, environment: dict,
               worker_id: str, original_generation: int) -> dict:
     project_id, task_id, attempt_id = _uuid(project_id), _uuid(task_id), _uuid(attempt_id)
@@ -337,6 +337,7 @@ def _identity(*, project_id: str, task_id: str, attempt_id: str, session_id: str
             "attempt_id": attempt_id, "session_id": session_id,
             "worker_id": worker_id, "original_generation": original_generation,
             "input_digest": _digest(input_digest), "prompt_sha256": _digest(prompt_sha256),
+            "title_sha256": _digest(title_sha256),
             "source": {"sut": _checked_head(workspace / "sut", sut_commit),
                        "framework": _checked_head(workspace / "framework", framework_commit)},
             "selection_sha256": _selection_digest(selection),

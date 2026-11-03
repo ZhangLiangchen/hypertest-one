@@ -58,7 +58,7 @@ _DISABLED_FOR_INSPECTION = (
     "tool-executor-native", "tool-executor-ptc", "llm-deepseek", "llm-deepseek-account", "llm-pi-ai",
     "deepseek-account",
 )
-_IDENTITY_FIELDS = frozenset({"project_id", "task_id", "attempt_id", "session_id", "input_digest", "prompt_sha256",
+_IDENTITY_FIELDS = frozenset({"project_id", "task_id", "attempt_id", "session_id", "input_digest", "prompt_sha256", "title_sha256",
                               "workspace", "dsh_home", "sut_commit", "framework_commit", "selection", "environment",
                               "worker_id", "original_generation"})
 _ERROR_CODES = frozenset({"NATIVE_SESSION_IDENTITY_UNAVAILABLE", "NATIVE_SESSION_RESTORE_UNAVAILABLE",
@@ -102,7 +102,9 @@ def _check_inspection_profile(dsh_home: Path) -> None:
 
 
 def _prepare_inspection_overlay(directory: Path) -> Path:
-    overlay = prepare_cordis_overlay(directory)
+    # The inspection guard returns before applying either a new preset or a
+    # new title.  The fixed label only satisfies the adapter's input contract.
+    overlay = prepare_cordis_overlay(directory, title="Original session inspection")
     hook = directory / "hypertest-cordis-root.mjs"
     if hook.read_text(encoding="utf-8") != _HOOK:
         raise ValueError("unexpected admission hook")
@@ -173,7 +175,8 @@ def anchored_identity_for_inspection(*, attempt_root: Path, dsh_home: Path, insp
         _environment_digest(environment)
         return {"project_id": project_id, "task_id": task_id, "attempt_id": attempt_id,
                 "session_id": session_id, "input_digest": inspection["input_digest"],
-                "prompt_sha256": record["prompt_sha256"], "workspace": str(workspace), "dsh_home": str(home),
+                "prompt_sha256": record["prompt_sha256"], "title_sha256": record["title_sha256"],
+                "workspace": str(workspace), "dsh_home": str(home),
                 "sut_commit": inspection["sut_commit"], "framework_commit": inspection["framework_commit"],
                 "selection": None, "environment": {k: v for k, v in environment.items()
                     if k in _NONSECRET_ENV or k == "DEEPSEEK_BASE_URL"},

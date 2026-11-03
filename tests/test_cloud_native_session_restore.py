@@ -20,7 +20,7 @@ def _profile(home):
     (root / "cordis.patch.yml").write_text("[]\n")
 
 
-def _overlay(directory):
+def _overlay(directory, *, title):
     (directory / "hypertest-cordis-root.mjs").write_text(restore._HOOK)
     path = directory / "overlay.yml"
     path.write_text("- id: example\n")
@@ -40,6 +40,7 @@ def test_inspection_overlay_disables_execution_and_redirects_credentials(tmp_pat
     assert creds["watch"] is False
     hook = (tmp_path / "hypertest-cordis-root.mjs").read_text()
     assert hook.index("return; // retain the original persisted preset") < hook.index('await ctx.agentPresets.select')
+    assert hook.index("return; // retain the original persisted preset") < hook.index('ctx.sessionTitle.rename')
 
 
 def test_unknown_profile_or_dotenv_never_starts_sdk(tmp_path, monkeypatch):
@@ -134,7 +135,8 @@ def test_child_ipc_strips_secrets_and_process_environment(tmp_path, monkeypatch)
     identity = {"workspace": tmp_path, "dsh_home": tmp_path, "session_id": "cloud-synthetic",
                 "environment": {"PATH": "/usr/bin:/bin", "DEEPSEEK_API_KEY": "must-not-leak"},
                 "project_id": "p", "task_id": "t", "attempt_id": "a", "input_digest": "b" * 64,
-                "prompt_sha256": "c" * 64, "sut_commit": "d" * 40, "framework_commit": "e" * 40,
+                "prompt_sha256": "c" * 64, "title_sha256": "f" * 64,
+                "sut_commit": "d" * 40, "framework_commit": "e" * 40,
                 "selection": {"provider": "deepseek-official", "model": "deepseek-flash"},
                 "worker_id": "synthetic", "original_generation": 1}
     assert restore.inspect_original_session(attempt_root=tmp_path, expected_identity_digest="a" * 64,

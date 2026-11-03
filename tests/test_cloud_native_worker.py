@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -96,6 +97,7 @@ async def test_native_identity_requires_anchor_readback(tmp_path, monkeypatch, s
     def snapshot(root, **kwargs):
         calls.append("snapshot")
         assert kwargs["session_id"] == "cloud-attempt"
+        assert kwargs["title_sha256"] == hashlib.sha256("任务标题".encode()).hexdigest()
         return "a" * 64
     class Reporter:
         async def submit_native_session_anchor(self, **kwargs):
@@ -106,7 +108,7 @@ async def test_native_identity_requires_anchor_readback(tmp_path, monkeypatch, s
     monkeypatch.setattr(native_selection, "read_native_selection", selection)
     monkeypatch.setattr(native_resume_identity, "record_initial_identity", snapshot)
     kwargs = dict(root=tmp_path, workspace=tmp_path, args=SimpleNamespace(dsh_home=str(tmp_path), worker_id="worker"),
-                  task={"project_id": "project", "id": "task"}, attempt={"id": "attempt", "input_digest": "d" * 64},
+                  task={"project_id": "project", "id": "task", "title": "任务标题"}, attempt={"id": "attempt", "input_digest": "d" * 64},
                   manifest={"resolution": {"repositories": {"sut": {"commit_sha": "a" * 40},
                                                            "framework": {"commit_sha": "b" * 40}}}},
                   broker=SimpleNamespace(identity=SimpleNamespace(generation=1)), reporter=Reporter(), prompt="test")
@@ -119,6 +121,22 @@ async def test_native_identity_requires_anchor_readback(tmp_path, monkeypatch, s
             await native_worker.prepare_native_session_identity(**kwargs)
         assert error.value.code == "REPORT_RECONCILIATION_PENDING"
     assert calls == ["selection", "snapshot", "anchor"]
+
+
+def test_cordis_preflight_supplies_explicit_probe_title(monkeypatch):
+    from hypertest.cloud import native_cordis, native_worker
+
+    directories = []
+
+    def prepare(directory, *, title):
+        assert directory.is_dir()
+        assert title == "HyperTest Cordis preflight probe"
+        directories.append(directory)
+        return directory / "overlay.yml"
+
+    monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", prepare)
+    native_worker.check_cordis_runtime()
+    assert directories and not directories[0].exists()
 
 
 def mock_worker_api(monkeypatch, request):

@@ -141,6 +141,7 @@ def test_anchored_identity_rejects_tampering_without_reading_profile(tmp_path, m
     metadata = {'profile': 'hypertest-native-session-identity/v1', 'project_id': project, 'task_id': task,
                 'attempt_id': attempt, 'session_id': 'cloud-' + attempt, 'input_digest': 'a' * 64,
                 'worker_id': 'synthetic-worker', 'original_generation': 1, 'prompt_sha256': 'b' * 64,
+                'title_sha256': 'f' * 64,
                 'workspace': restore._directory(workspace)[1], 'dsh_home': restore._directory(home)[1],
                 'source': {'sut': 'c' * 40, 'framework': 'd' * 40}, 'runtime': {'fixture': True}}
     encoded = restore._canonical(metadata)
@@ -157,7 +158,7 @@ def test_anchored_identity_rejects_tampering_without_reading_profile(tmp_path, m
                   'sut_commit': 'c' * 40, 'framework_commit': 'd' * 40}
     found = restore.anchored_identity_for_inspection(attempt_root=root, dsh_home=home, inspection=inspection,
                                                       worker_id='synthetic-worker', environment={'PATH': '/bin'})
-    assert found['selection'] is None and found['prompt_sha256'] == 'b' * 64
+    assert found['selection'] is None and found['prompt_sha256'] == 'b' * 64 and found['title_sha256'] == 'f' * 64
     path.write_bytes(encoded + b' ')
     with pytest.raises(CloudBlocked):
         restore.anchored_identity_for_inspection(attempt_root=root, dsh_home=home, inspection=inspection,
@@ -189,7 +190,8 @@ async def test_revoked_authority_kills_isolated_child(tmp_path, monkeypatch):
     identity = {'workspace': tmp_path, 'dsh_home': tmp_path, 'session_id': 'cloud-synthetic',
                 'environment': {'PATH': '/bin', 'DEEPSEEK_API_KEY': 'must-not-leak'},
                 'project_id': 'p', 'task_id': 't', 'attempt_id': 'a', 'input_digest': 'b' * 64,
-                'prompt_sha256': 'c' * 64, 'sut_commit': 'd' * 40, 'framework_commit': 'e' * 40,
+                'prompt_sha256': 'c' * 64, 'title_sha256': 'f' * 64,
+                'sut_commit': 'd' * 40, 'framework_commit': 'e' * 40,
                 'selection': None, 'worker_id': 'synthetic', 'original_generation': 1}
     with pytest.raises(CloudBlocked):
         await restore.inspect_original_session_guarded(attempt_root=tmp_path,

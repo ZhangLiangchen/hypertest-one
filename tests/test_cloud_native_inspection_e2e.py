@@ -110,6 +110,7 @@ async def test_original_session_inspection_through_api_worker_and_fixed_sdk(clou
         "attempt_id": dispatched_receipt["attempt_id"], "session_id": session_id,
         "worker_id": worker_id, "original_generation": original_writer.generation,
         "input_digest": dispatched_receipt["input_digest"], "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+        "title_sha256": hashlib.sha256(claim["task"]["title"].encode()).hexdigest(),
         "workspace": workspace, "dsh_home": home, "sut_commit": sut_sha, "framework_commit": framework_sha,
         "selection": selection, "environment": native_env}
     try:

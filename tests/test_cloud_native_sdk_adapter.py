@@ -55,13 +55,14 @@ async def test_start_once_and_stop_reports_unproven_descendants(tmp_path, monkey
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
     monkeypatch.setattr("hypertest.cloud.native_sdk_adapter.os.killpg", lambda *_: None)
     adapter = NativeSdkAdapter(workspace=tmp_path, dsh_home=tmp_path)
-    await adapter.start(session_id="cloud-test", prompt="test",
+    await adapter.start(session_id="cloud-test", title="中文任务名称", prompt="test",
                         resume_identity={"attempt_root": str(tmp_path), "digest": "a" * 64, "original": {}})
+    assert json.loads(child.stdin.value)["title"] == "中文任务名称"
     assert seen["start_new_session"] is True
     assert "HYPERTEST_WORKER_TOKEN" not in seen["env"]
     assert json.loads(child.stdin.value)["resume_identity"]["digest"] == "a" * 64
     with pytest.raises(CloudBlocked, match="cannot be started twice"):
-        await adapter.start(session_id="cloud-test", prompt="test")
+        await adapter.start(session_id="cloud-test", title="中文任务名称", prompt="test")
     result = await adapter.stop()
     assert result == {"direct_process_stopped": True, "all_local_processes_stopped": None,
                       "external_operations_reconciled": None}

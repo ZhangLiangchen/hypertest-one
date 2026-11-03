@@ -45,7 +45,7 @@ def original(tmp_path, monkeypatch):
               "attempt_id": "018f0000-0000-7000-8000-000000000003",
               "session_id": "cloud-018f0000-0000-7000-8000-000000000003",
               "worker_id": "native-fixture", "original_generation": 1,
-              "input_digest": "d" * 64, "prompt_sha256": "e" * 64,
+              "input_digest": "d" * 64, "prompt_sha256": "e" * 64, "title_sha256": "f" * 64,
               "workspace": workspace, "dsh_home": home,
               "sut_commit": commits[0], "framework_commit": commits[1],
               "selection": {"provider": "deepseek-official", "model": "deepseek-flash", "reasoning_effort": "max"},
@@ -61,6 +61,7 @@ def test_original_snapshot_is_anchored_non_secret_and_create_once(original):
     record = json.loads(raw)
     assert record["profile"] == identity.PROFILE
     assert record["session_id"] == values["session_id"]
+    assert record["title_sha256"] == values["title_sha256"]
     assert record["source"] == {"sut": values["sut_commit"], "framework": values["framework_commit"]}
     assert "NEVER_READ_OR_STORE_THIS_TEST_SECRET" not in raw
     assert "SECRET_NOT_IN_IDENTITY" not in raw
@@ -76,7 +77,7 @@ def test_original_snapshot_is_anchored_non_secret_and_create_once(original):
     assert (root / identity.FILENAME).read_text() == raw
 
 
-@pytest.mark.parametrize("change", ["missing", "wrong_anchor", "bad_record", "bad_session", "input", "profile", "source", "runtime", "workspace", "unsafe_mode", "selection", "permission", "generation"])
+@pytest.mark.parametrize("change", ["missing", "wrong_anchor", "bad_record", "bad_session", "input", "title", "profile", "source", "runtime", "workspace", "unsafe_mode", "selection", "permission", "generation"])
 def test_recovery_rejects_missing_tampered_or_drifted_original(original, monkeypatch, change):
     root, values = original
     anchor = identity.record_initial_identity(root, **values)
@@ -91,6 +92,8 @@ def test_recovery_rejects_missing_tampered_or_drifted_original(original, monkeyp
         values["session_id"] = "cloud-different"
     elif change == "input":
         values["input_digest"] = "f" * 64
+    elif change == "title":
+        values["title_sha256"] = "0" * 64
     elif change == "profile":
         (values["dsh_home"] / "profiles/sdk/cordis.patch.yml").write_text("- changed\n")
     elif change == "source":

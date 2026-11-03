@@ -11,6 +11,17 @@ const UUID = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-
 const GET_PATH = new RegExp(`^(?:capabilities|agent-auth-status|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/live-questions|/artifacts/${UUID})?)$`);
 const safeError = (status: number, detail: string, code?: string) => NextResponse.json({ detail, ...(code ? { code } : {}) }, { status, headers: { "Cache-Control": "no-store" } });
 
+/** Public navigation only; never include credentials or login tokens in the link. */
+function harnessWebUrl(): string | undefined {
+  const configured = process.env.HYPERTEST_HARNESS_WEB_URL;
+  if (!configured || configured !== configured.trim()) return undefined;
+  try {
+    const url = new URL(configured);
+    if (!/^https?:$/.test(url.protocol) || !url.hostname || url.username || url.password || url.search || url.hash) return undefined;
+    return url.href;
+  } catch { return undefined; }
+}
+
 /** A 409 can mean a failed safety precondition, not only a stale version. */
 async function conflictDetail(response: Response) {
   let detail: unknown;
@@ -122,7 +133,10 @@ async function completeReadback(path: string, query: URLSearchParams, key: strin
 export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   const key = await operatorKey();
-  if (path === "setup") return NextResponse.json({ configured: key !== null && await cloudServerTransportReady() }, { headers: { "Cache-Control": "no-store" } });
+  if (path === "setup") {
+    const configured = key !== null && await cloudServerTransportReady();
+    return NextResponse.json({ configured, ...(configured && { harness_web_url: harnessWebUrl() }) }, { headers: { "Cache-Control": "no-store" } });
+  }
   if (!key) return safeError(503, "Cloud Web access is not configured. Ask the deployment operator to enable it.");
   if (!GET_PATH.test(path)) return safeError(404, "Cloud route not found.");
   const query = new URLSearchParams(request.nextUrl.searchParams);

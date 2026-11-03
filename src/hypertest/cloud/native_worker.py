@@ -148,7 +148,7 @@ def check_cordis_runtime() -> None:
     from .native_cordis import prepare_cordis_overlay
 
     with tempfile.TemporaryDirectory(prefix="hypertest-cordis-preflight-") as directory:
-        prepare_cordis_overlay(Path(directory))
+        prepare_cordis_overlay(Path(directory), title="HyperTest Cordis preflight probe")
 
 
 async def prepare_native_session_identity(*, root, workspace, args, task, attempt, manifest, broker, reporter, prompt):
@@ -166,6 +166,7 @@ async def prepare_native_session_identity(*, root, workspace, args, task, attemp
                 "session_id": session_id, "worker_id": args.worker_id,
                 "original_generation": broker.identity.generation, "input_digest": attempt["input_digest"],
                 "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+                "title_sha256": hashlib.sha256(task["title"].encode()).hexdigest(),
                 "workspace": str(workspace), "dsh_home": str(Path(args.dsh_home).absolute()),
                 "sut_commit": repos["sut"]["commit_sha"], "framework_commit": repos["framework"]["commit_sha"]}
     snapshot = await asyncio.to_thread(record_initial_identity, root, **original,
@@ -685,7 +686,8 @@ async def execute(api, args, state: Path, claim: dict):
         save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
         options = {"resume_identity": resume_identity} if resume_identity is not None else {}
-        process = await adapter.start(session_id=session_id, prompt=prompt, interaction_enabled=True, **options)
+        process = await adapter.start(session_id=session_id, title=task["title"], prompt=prompt,
+                                      interaction_enabled=True, **options)
         bridge = LiveQuestionBridge(broker, adapter, session_id)
         reader = asyncio.create_task(bridge.read(process))
         accepted_keys = {}
