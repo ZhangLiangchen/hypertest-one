@@ -117,6 +117,20 @@ test("rejected status save retains the draft and original task without a success
   assert.ok(nodes.some((node) => node.type === "ArchiveOperationNotice" && node.props.operation.error.message === "ARCHIVE_TASK_VERSION_CONFLICT"));
 });
 
+test("an unresolved status request visibly disables saving until original-key reconciliation", () => {
+  const h = harness(); h.click("Change status");
+  h.form.setFieldsValue({ status: "COMPLETED", reason: "Keep this draft while reconciling" });
+  h.operation.pending = { operation_key: "original-status-key", state: "UNKNOWN" };
+  h.operation.blocked = true;
+  const nodes = h.render();
+  const submit = nodes.find((node) => node.type === "Button" && node.props.htmlType === "submit");
+  assert.ok(submit, "status form still shows its save action");
+  assert.equal(submit.props.disabled, true, "an explicit Button prop must not override the disabled form");
+  assert.equal(h.form.values.reason, "Keep this draft while reconciling");
+  assert.equal(h.calls.length, 0);
+  assert.equal(nodes.some((node) => node.type === "Alert" && node.props.type === "success"), false);
+});
+
 test("publish summary remains a separate form using the publication endpoint and explicit result", async () => {
   const h = harness({ rejected: true }); h.click("Publish summary");
   assert.ok(h.fields().includes("summary")); assert.ok(h.fields().includes("reported_result"));
