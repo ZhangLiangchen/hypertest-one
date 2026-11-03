@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import re
 import ssl
 import unicodedata
@@ -234,13 +235,16 @@ class PowerContextAdapter:
                     or not (memory.get("kind") == KIND or shared_kind(memory.get("kind")))):
                 continue
             row = {**_ref(memory.get("artifact")), "kind": memory["kind"]}
+            score = hit.get("score")
+            if isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score):
+                row["score"] = score
+            channels = hit.get("matched_by")
+            if not isinstance(channels, list) or any(item not in {"text", "vector"} for item in channels):
+                raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
+            row["matched_by"] = channels
             if row["kind"] == KIND:
                 result.append(row)
             elif len(shared) < shared_limit:
-                channels = hit.get("matched_by")
-                if not isinstance(channels, list) or any(item not in {"text", "vector"} for item in channels):
-                    raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
-                row["matched_by"] = channels
                 result.append(row)
                 shared.append(row)
         # A bounded batch shares the Gateway's overall deadline. There are no
