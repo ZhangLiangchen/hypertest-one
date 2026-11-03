@@ -286,8 +286,10 @@ async def resolve(api, args, state: Path, claim: dict):
         # Keep a finite diagnostic and never accept partial source resolution.
         raise CloudBlocked("RESOLUTION_TIMEOUT", "Repository resolution exceeded its lease window") from None
     result = {"repositories": repositories, "observed_at": datetime.now(UTC).isoformat(),
-              "source": "cloud-worker-fixed-git-resolution", "environment_observation": {
-                  "state": "UNOBSERVED", "reason": "Git preflight does not execute or attest the SUT environment"}}
+              "source": "cloud-worker-fixed-git-resolution"}
+    if "environment" in claim["configuration"]:
+        result["environment_observation"] = {"state": "UNOBSERVED",
+            "reason": "Git preflight does not execute or attest the SUT environment"}
     save_once(root / "result.json", result)
     await api.request("resolution/accept", {**body, "result": result})
 

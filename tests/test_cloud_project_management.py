@@ -6,7 +6,14 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 from test_cloud_tasks import cloud_context as _cloud_context
-from test_cloud_tasks import configuration, draft, inputs, new_inputs, post, read_all
+from test_cloud_tasks import (
+    configuration,
+    draft,
+    new_inputs,
+    post,
+    read_all,
+    seed_legacy_configuration,
+)
 
 from hypertest.application import cloud_tasks as service
 from hypertest.application.management import manage_project
@@ -45,9 +52,9 @@ async def test_deleted_project_stops_cloud_admission_but_preserves_original_key_
         "actor_ref": "another-cloud-reader-" + uuid4().hex, "client_instance_id": str(uuid4()),
         "project_id": f["project_id"], "scopes": ["cloud:read"]})
     assert other.status_code == 201
-    configured = await post(f, "CONFIGURE", operation_key="retained-cloud-config", configuration=configuration())
-    assert configured.status_code == 200, configured.text
-    original = configured.json()
+    await seed_legacy_configuration(f, operation_key="retained-cloud-config")
+    original = (await f["client"].get(
+        f"/api/v1/cloud/projects/{f['project_id']}/operations/retained-cloud-config", headers=f["headers"])).json()
     path = f"/api/v1/projects/{f['project_id']}"
     assert (await f["client"].delete(path, params={"expected_version": 1})).status_code == 200
     receipt = await f["client"].get(
@@ -65,23 +72,21 @@ async def test_deleted_project_stops_cloud_admission_but_preserves_original_key_
                                       headers=f["headers"])).status_code == 404
     assert (await f["client"].get(f"/api/v1/projects/{f['project_id']}/task-directory",
                                   headers=f["headers"])).status_code == 404
-    assert (await post(f, "CONFIGURE", 1, configuration=configuration())).status_code == 404
-    assert (await post(f, "CREATE_TASK", title="No resurrection", config_id=original["config_id"],
-                       inputs=inputs())).status_code == 404
+    assert (await post(f, "CONFIGURE", 1, configuration=configuration())).status_code == 410
+    assert (await post(f, "CREATE_TASK", title="No resurrection", expected_project_version=1,
+                       inputs=new_inputs())).status_code == 404
     # A POST is not the recovery path, even with the original accepted key.
     assert (await post(f, "CONFIGURE", operation_key="retained-cloud-config",
-                       configuration=configuration())).status_code == 404
+                       configuration=configuration())).status_code == 410
     assert (await f["client"].get(path, params={"include_deleted": True})).json()["row_version"] == 2
 
 
-@pytest.mark.parametrize("operation", ["CONFIGURE", "CREATE_TASK", "STORE_CREDENTIAL"])
+@pytest.mark.parametrize("operation", ["CREATE_TASK", "STORE_CREDENTIAL"])
 async def test_waiting_cloud_write_rechecks_project_after_delete_commits(cloud_context, monkeypatch, operation):
     f = cloud_context
     fields = {"configuration": configuration()}
     if operation == "CREATE_TASK":
-        configured = await post(f, "CONFIGURE", **fields)
-        assert configured.status_code == 200
-        fields = {"title": "Waiting admission", "config_id": configured.json()["config_id"], "inputs": inputs()}
+        fields = {"title": "Waiting admission", "expected_project_version": 1, "inputs": new_inputs()}
     elif operation == "STORE_CREDENTIAL":
         fields = {"kind": "GIT_TOKEN", "label": "Synthetic credential", "purpose": "git:read",
                   "allowed_targets": [configuration()["sut"]["url"]], "allowed_actions": ["git:read"],
@@ -116,19 +121,17 @@ async def test_waiting_cloud_write_rechecks_project_after_delete_commits(cloud_c
 
 async def test_cloud_admission_holds_project_lock_until_task_commit(cloud_context, monkeypatch):
     f = cloud_context
-    configured = await post(f, "CONFIGURE", configuration=configuration())
-    assert configured.status_code == 200
     entered, release = asyncio.Event(), asyncio.Event()
-    original = service._configuration
+    original = service._project_repository_snapshot
 
     async def gated(*args, **kwargs):
         entered.set()
         await release.wait()
         return await original(*args, **kwargs)
 
-    monkeypatch.setattr(service, "_configuration", gated)
+    monkeypatch.setattr(service, "_project_repository_snapshot", gated)
     pending = asyncio.create_task(post(f, "CREATE_TASK", title="Admission holds shared parent lock",
-        config_id=configured.json()["config_id"], inputs=new_inputs()))
+        expected_project_version=1, inputs=new_inputs()))
     try:
         await asyncio.wait_for(entered.wait(), timeout=10)
         async with AsyncSessionLocal() as db:

@@ -62,6 +62,8 @@ def task_prompt(task: dict, attempt: dict, *, allow_delegation: bool = False,
                                  "codex": allow_delegation, "claude_code": "PLACEHOLDER"},
                 "instructions": [
                     "Use the existing framework in /workspace/framework and SUT source in /workspace/sut.",
+                    "Use inputs.mr_url to retrieve the merge request description and changes and understand the SUT, testing objective and scope. It is change context, not a deployment version or proof of the code running in a test environment.",
+                    "The user describes the intended testing environment in the task prompt (objective, basic_flow, test_scope and PRD). Follow that scope and record the environment and results actually observed; ask for clarification when needed. HyperTest does not provision or deploy the SUT or manage its test environments.",
                     "Publish deliberate versioned test artifacts/checkpoints with exact original text; never publish chat, reasoning, prompts or credentials.",
                     "Publish each immutable handoff atomically as KEY.json in .hypertest-cloud/ready. Set profile, task_id, attempt_id, key, operation, payload.",
                     "Operations use Cloud typed payload fields only; the Worker supplies auth, IDs, operation key and expected version.",

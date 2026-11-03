@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { type ArchiveManagement } from "@/lib/archive";
 import { useArchiveOperation } from "@/lib/archive-operation";
-import { cloudCapabilities, cloudConfiguration, cloudSetup } from "@/lib/cloud";
+import { cloudCapabilities, cloudSetup } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { useI18n } from "@/lib/i18n";
 import { archiveTaskHref } from "@/lib/task-url";
@@ -27,16 +27,14 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
   const cloudSetupQuery = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup, retry: false });
   const cloudConfigured = cloudSetupQuery.data?.configured === true;
   const capabilities = useQuery({ queryKey: ["cloud-capabilities"], queryFn: cloudCapabilities, enabled: cloudConfigured, retry: false });
-  const configuration = useQuery({ queryKey: ["cloud-config", projectId], queryFn: () => cloudConfiguration(projectId), enabled: cloudConfigured, retry: false });
-  const latestConfig = configuration.data?.items.slice().sort((a, b) => b.revision - a.revision)[0];
-  const cloudReadFailed = cloudSetupQuery.isError || capabilities.isError || configuration.isError;
-  const loadingCloud = cloudSetupQuery.isPending || cloudConfigured && (capabilities.isPending || configuration.isPending);
-  const showCloudForm = Boolean(latestConfig) || (cloudConfigured && !loadingCloud && !cloudReadFailed);
+  const cloudReadFailed = cloudSetupQuery.isError || capabilities.isError;
+  const loadingCloud = cloudSetupQuery.isPending || cloudConfigured && capabilities.isPending;
+  const showCloudForm = Boolean(capabilities.data) || (cloudConfigured && !loadingCloud && !cloudReadFailed);
   const missingRepositories = Boolean(project && (!project.repository_url || !project.test_framework_repository_url));
   const localStreamBlocked = local.blocked;
   const localBlocked = localStreamBlocked || missingRepositories, cloudBlocked = cloudOperation.busy || Boolean(cloudOperation.pending) || cloudOperation.receipt?.operation === "CREATE_TASK";
   const accepted = (value: ArchiveManagement) => { void cache.invalidateQueries({ queryKey: ["archive-tasks", projectId] }); router.push(archiveTaskHref(value.task.id, projectId)); };
-  async function refreshCloud() { const setup = await cloudSetupQuery.refetch(); if (setup.data?.configured) await Promise.all([capabilities.refetch(), configuration.refetch()]); }
+  async function refreshCloud() { const setup = await cloudSetupQuery.refetch(); if (setup.data?.configured) await Promise.all([capabilities.refetch(), cache.invalidateQueries({ queryKey: ["project", projectId] })]); }
   async function submit(values: Values) {
     if (values.mode !== "local" || localBlocked || cloudBlocked) return;
     const result = await local.manage("tasks", { title: values.title, objective: values.objective,
@@ -51,7 +49,7 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
     <Typography.Title id="task-details-title" level={2}>{t("Task details", "任务信息")}</Typography.Title>
     <Form.Item name="mode" label={t("Execution mode", "执行方式")} rules={[{ required: true }]}><Radio.Group options={[{ value: "cloud", label: t("Cloud testing", "云端测试") }, { value: "local", label: t("Local testing", "本地测试") }]} /></Form.Item>
     <Form.Item name="title" label={t("Task title", "任务标题")} rules={[{ required: true, whitespace: true, message: t("Enter a task title.", "请输入任务标题。") }, { max: 512 }]}><Input maxLength={512} autoFocus autoComplete="off" /></Form.Item>
-    <Form.Item name="objective" label={t("Testing objective", "测试目标")} rules={[{ required: true, whitespace: true, message: t("Describe the testing objective.", "请描述测试目标。") }, { max: 16000 }]}><Input.TextArea rows={4} maxLength={16000} /></Form.Item>
+    <Form.Item name="objective" label={t("Testing objective", "测试目标")} extra={mode === "cloud" ? t("Tell the Agent what to test and which existing environment to use. The project CI owns deployment.", "用 Prompt 告知 Agent 测试目标及使用哪个现有测试环境；部署由项目 CI 负责。") : undefined} rules={[{ required: true, whitespace: true, message: t("Describe the testing objective.", "请描述测试目标。") }, { max: 16000 }]}><Input.TextArea rows={4} maxLength={16000} /></Form.Item>
     {mode === "local" ? <div className="form-section"><Typography.Title level={3}>{t("Local test setup", "本地测试配置")}</Typography.Title>
       <Typography.Paragraph className="muted">{t("The local Agent performs testing independently. After testing, explicitly archive selected artifacts to this task; optional subtasks can be added later.", "本地 Agent 独立完成测试。测试后将选定产物显式归档到此任务；子任务可在任务页按需添加。")}</Typography.Paragraph>
       {project && (!project.repository_url || !project.test_framework_repository_url) ? <Alert type="warning" showIcon style={{ marginBottom: 20 }} message={t("Project repository addresses are incomplete", "项目仓库地址尚未填写完整")} description={t("Edit the project to add the SUT and test framework repositories. Existing tasks and their recorded inputs remain unchanged.", "请编辑项目，补充被测对象和测试框架仓库地址；已有任务及其记录的输入保持不变。") } /> : null}
@@ -69,9 +67,9 @@ export function TaskCreateForm({ projectId, project, onModeChange }: { projectId
   <ArchiveOperationNotice operation={local} onAccepted={(value) => accepted(value as ArchiveManagement)} />
   {local.error && local.error instanceof ApiError && local.error.detail === "ARCHIVE_PROJECT_VERSION_CONFLICT" ? <Button onClick={() => void cache.invalidateQueries({ queryKey: ["project", projectId] })} style={{ marginTop: 12 }}>{t("Refresh project repositories", "刷新项目仓库")}</Button> : null}
   <CloudOperationNotice operation={cloudOperation} />
-  <div hidden={mode !== "cloud"} style={{ marginTop: 24 }}><Space wrap className="task-create-cloud-tools"><Button onClick={() => void refreshCloud()} loading={cloudSetupQuery.isFetching || capabilities.isFetching || configuration.isFetching}>{t("Refresh Cloud configuration", "刷新云端配置")}</Button>{latestConfig ? <Link href={`/projects/${projectId}/cloud?tab=resources`} target="_blank" rel="noopener noreferrer">{t("Project resources (new tab)", "项目资源（新标签页）")}</Link> : null}</Space>
+  <div hidden={mode !== "cloud"} style={{ marginTop: 24 }}><Space wrap className="task-create-cloud-tools"><Button onClick={() => void refreshCloud()} loading={cloudSetupQuery.isFetching || capabilities.isFetching}>{t("Refresh Cloud configuration", "刷新云端配置")}</Button><Link href={`/projects/${projectId}`} target="_blank" rel="noopener noreferrer">{t("Edit project repositories (new tab)", "编辑项目仓库（新标签页）")}</Link></Space>
     {!cloudSetupQuery.isPending && !cloudSetupQuery.isError && (!cloudConfigured || capabilities.data?.enabled === false) ? <CloudCapabilitiesNotice configured={cloudConfigured} capabilities={capabilities.data} /> : null}
     {cloudReadFailed ? <Alert showIcon type="error" style={{ marginBottom: 20 }} message={t("Cloud configuration could not be refreshed", "无法刷新云端配置")} description={t("Your inputs and loaded configuration are preserved. Refresh before creating a draft.", "当前输入和已读取配置已保留，请刷新后再创建草稿。") } /> : null}
-    {showCloudForm ? <CloudTaskForm config={latestConfig} project={project} operation={cloudOperation} enabled={cloudConfigured && capabilities.data?.enabled === true && !cloudReadFailed && !localStreamBlocked} sharedFields={{ title, objective }} resourcesHref={`/projects/${projectId}/cloud?tab=resources`} onCreated={(taskId) => { void cache.invalidateQueries({ queryKey: ["cloud-directory", projectId] }); router.push(`/cloud-tasks/${taskId}?projectId=${projectId}`); }} /> : loadingCloud && !cloudReadFailed ? <WorkspaceLoading label={t("Loading Cloud configuration…", "正在读取云端配置…")} /> : null}
+    {showCloudForm ? <CloudTaskForm project={project} operation={cloudOperation} enabled={cloudConfigured && capabilities.data?.enabled === true && !cloudReadFailed && !localStreamBlocked} sharedFields={{ title, objective }} onCreated={(taskId) => { void cache.invalidateQueries({ queryKey: ["cloud-directory", projectId] }); router.push(`/cloud-tasks/${taskId}?projectId=${projectId}`); }} /> : loadingCloud && !cloudReadFailed ? <WorkspaceLoading label={t("Loading Cloud configuration…", "正在读取云端配置…")} /> : null}
   </div><Button onClick={() => router.push(`/projects/${projectId}`)} style={{ marginTop: 20 }}>{t("Back to project", "返回项目")}</Button></>;
 }

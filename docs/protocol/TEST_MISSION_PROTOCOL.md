@@ -1,5 +1,7 @@
 # Test Mission Protocol Specification
 
+> **2026-11-03 输入合同：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 规定新 Cloud 任务从 Project 固定仓库、必填 MR/PR URL，以 prompt 描述测试环境；不再接受资源选择或预期部署版本配置。§46 中的旧配置与环境条款只解释历史 profile。
+
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定由轻量 Worker 对接宿主 Harness；目标协议及实现、部署状态分别记录。
 
 > **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
@@ -1433,8 +1435,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 | 用户流程 | HyperTest / 云端 Worker | Harness / 项目工具链 |
 | --- | --- | --- |
-| 1. 创建项目 | 在云端创建或复用共享 Project，登记 SUT/framework Git、连接方式及项目凭据；可选保存默认配置 | 不启动 Agent，不隐式导入本机登录 |
-| 2. 创建任务 | 在云端创建 DRAFT CloudTask，输入含版本选择器、PRD、测试目标、流程、环境/授权/预算 | 不执行测试 |
+| 1. 创建项目 | 创建或复用共享 Project，在项目详情登记 SUT/framework 仓库 | 不启动 Agent，不隐式导入本机登录 |
+| 2. 创建任务 | 创建 DRAFT CloudTask，必填 MR/PR URL、PRD、目标与流程；prompt 描述环境，检出选择器可选 | 不执行测试，不管理环境或部署 |
 | 3. 下发任务 | 输入预检 Worker 解析双 SHA，dispatch 冻结解析快照并原子入队独立 Attempt | 仅排队不构成已接取/测试通过 |
 | 4. Harness 接取 | Worker 通过官方 Python SDK 启动独立 runtime、提交冻结任务、收集受控进度 | DeepSeek 自行参与或委派 Codex/Claude，维护分工清单 |
 | 5. 输出产物 | 按阶段校验并持久接受 analysis/design/cases/implementation 修订与原件 | 生成分析、设计、用例和测试代码 |
@@ -1468,13 +1470,13 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 
 输入解析 RECOVERY_REQUIRED 的 lease hash/expiry 均已清空且无未撤销 work grant 时，不再阻塞 `DELETE_TASK` 和 live management 的删除准入，其余准入仍须满足。PENDING、RESOLVING 及缺少完整撤权证明的恢复记录继续拒绝；过期不是撤权。删除只是移出列表，保留原恢复状态与未知事实，不证明原 Git 操作未发生，不接受或重跑旧解析。
 
-以下是领域操作，不等同 SDK 方法名或 MCP 工具；当前 typed HTTP 入口见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md#服务端-api-与权限)。所有普通写操作带 `profile, project_id, operation_key, expected_version`；Task 创建为 expected_version=0，资源配置/凭据用各自聚合版本。输入严格校验未知字段、长度/字节上限、引用归属和当前权限；明确错误，不静默截断。各通道的实际限额由实现 schema 发布，不扩大 §45 现有限额。
+以下是领域操作，不等同 SDK 方法名或 MCP 工具；当前 typed HTTP 入口见[实现状态](../CLOUD_IMPLEMENTATION_STATUS.md#服务端-api-与权限)。所有普通写操作带 `profile, project_id, operation_key, expected_version`；Task 创建为 expected_version=0，新建/编辑另外核对 expected_project_version。凭据及旧资源回执用各自聚合版本。输入严格校验未知字段、长度/字节上限、引用归属和当前权限；明确错误，不静默截断。各通道的实际限额由实现 schema 发布，不扩大 §45 现有限额。
 
 | 操作概念 | 输入/结果及授权 |
 | --- | --- |
-| ConfigureCloudProject | 仓库角色/地址、可选历史兼容默认 ref、环境连接 metadata、credential ref/version；追加配置修订，`cloud:configure` |
+| ConfigureCloudProject（旧入口） | ADR-038 退役新 CONFIGURE，返回 HTTP 410；配置 GET 仅供历史 CONFIGURE 原 key 接受结果核对，产品不再提供配置列表入口 |
 | Store/RotateProjectCredential | 专门秘密入口接收 token/私钥与类型、目标/用途、有效期；加密持久化，返回非秘密 ref/version；`credential:manage`。原文不进入普通操作回执/读取接口 |
-| Create/UpdateCloudTask | `title, selectors, config_revision, prd, objective, basic_flow, framework_entrypoints, environment_ref, authorization_manifest, budgets`；DRAFT 可改，`cloud:dispatch` |
+| Create/UpdateCloudTask | `title, expected_project_version, inputs`；`inputs.mr_url` 必填，检出 selectors 可省略；不接受 config_id，API 从 Project 与其范围内 MR 仓库生成快照。DRAFT 可改，Task expected_version 与 Project row_version 分别校验；`cloud:dispatch` |
 | DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；原有 DRAFT/终态无未决准入保留；ADR-034 额外允许已请求取消且 writer 已 fence 的 RECOVERY_REQUIRED Task，保留未决外部操作/容器/委派但拒绝 PENDING/RESOLVING 及未完全撤权的恢复解析。追加墓碑与版本化回执，固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读。删除后仅允许既有人工收尾、原动作观察授权及原容器恢复确认/停止观察，仍按原权限和未决检查，禁止新执行与普通写入。删除不会取消任务、改写结果或重发外部操作 |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
 | DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_inputs, retry_scope_confirmed=true, retry_authorization_confirmed=true`（本次范围和授权独立冻结）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
@@ -1490,6 +1492,12 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 
 ### 46.4 下发输入与冻结快照
 
+**ADR-038 当前请求：** CREATE_TASK / UPDATE_TASK 必须提供 `expected_project_version >= 1`，与锁定的 Project.row_version 不符时返回 409，防止使用页面未确认的仓库。`inputs.mr_url` 必填且必须为无凭据 HTTPS GitLab MR 或 GitHub PR 地址；MR 仓库须与 Project SUT 地址同主机且属于其精确仓库或下级路径范围（GitLab `/groups/` 入口按实际 namespace 核对）。MR 随任务输入和 prompt 交付，仅作改动上下文，不自动替代检出选择器。`sut_selector` / `framework_selector` 省略时为 `BRANCH HEAD`。不接受 `config_id`；服务端固定 MR 所在的 SUT 仓库及 Project 框架仓库到内部快照，新快照不含 environment。环境由 objective / basic_flow 等 prompt 说明，不校验或管理预期部署版本。
+
+当前 CREATE_TASK / UPDATE_TASK 拒绝非空 `inputs.authorization`（422）；源码读取和框架执行的内部范围由本次仓库快照生成，编辑器不回传旧授权。该规则不改变冻结任务或独立复测的原授权合同。
+
+编辑草稿重新固定当前 Project 仓库并使旧输入解析失效；项目后续修改不回写已存任务。冻结 Task 和复测 Attempt 保留其原 MR/仓库来源。以下环境配置、显式部署匹配及旧预算字段仅描述旧 profile，不要求新请求提供或新 manifest 生成。
+
 **授权时间修订（2026-11-02）：** 新任务及新复测的测试授权不要求截止时间；显式历史期限仍按原合同校验，Worker lease、grant 和凭据有效期不受影响。
 
 **ADR-033 增补：** 新复测 Attempt 使用自己固定的测试范围、流程、授权及摘要，沿用原配置和已解析源码身份；不改写原 Task 冻结输入、原动作及原预算。旧受控动作按原 key 对账，宿主执行不代表强隔离或复用旧动作 broker。
@@ -1497,15 +1505,15 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 
 DRAFT 请求中，SUT selector 支持 branch、关联 feat、MR 或完整 SHA；framework 有独立 ref，允许同仓。feat 是变更标签，需要关联可解析 Git selector。PRD 必须冻结正文或附件版本；来源 URL 仅作出处。环境连接描述与 SSH/应用私钥 ref 分开，应用签名密钥不能拿来 SSH 登录。
 
-Cloud 新资源配置可省略两仓 `default_selector`，缺省不序列化该字段；历史配置及其请求摘要原样保留。新 Task 输入须显式提供 `sut_selector` 和 `framework_selector`；历史配置的 selector 可供兼容预填，但资源设置不再要求先选择分支。Project 通用仓库地址只用于用户可见的配置预填，不自动写 Cloud 资源修订或隐含授权。
+ADR-038 后 Project 仓库与其范围内的 MR 仓库是新任务快照的来源，用户无需预先创建资源修订。新任务的选择器可以省略；MR/PR URL 与选择器分别保存，URL 的用途是检索改动，不能被解释为部署目标或自动扩权。旧快照和请求摘要仍保留原身份。
 
 Environment的可选`cloud_access_policy=LOCAL_ONLY|WEB_ONLY|None`随配置冻结，None序列化省略保旧digest；LOCAL_ONLY在Cloud创建 / 更新 / 解析 / 下发 / 领取 / 物化及prompt前拒绝，WEB_ONLY只允许HTTPS且不授网或启用当前未实现的HTTPSruntime。它不新增scope / Project排他mode或Task转换；仅收紧用户已经批准的资源访问。
 
-ResolveCloudInputs 在聚合锁外通过受限 Worker 进行 Git/必要环境预检，记录 draft version、config/credential version、选择器、观察与完整解析结果；结果接受前重新核对当前权限与原 draft 版本。同一事务接受 resolution 并递增 task version，结果保存 source_draft_version 与 accepted_task_version。DRAFT 后续变更使原解析结果不能用于首次 dispatch。预检、暂存原件或成功 clone 不等于任务已下发。
+ResolveCloudInputs 在聚合锁外通过受限 Worker 进行 Git 解析，记录 draft version、仓库快照版本、选择器、观察与完整解析结果；新路径不预检或部署 SUT 环境；结果接受前重新核对当前权限与原 draft 版本。同一事务接受 resolution 并递增 task version，结果保存 source_draft_version 与 accepted_task_version。DRAFT 后续变更使原解析结果不能用于首次 dispatch。预检、暂存原件或成功 clone 不等于任务已下发。
 
 DispatchCloudTask 必须匹配 resolution 的 accepted_task_version、当前 expected_version 和未变的输入/资源摘要，只引用已接受解析快照；API 不运行 Git。事务内固定 manifest 与首个 Attempt 并写原 key 回执、Audit/Outbox，之后 PREPARING 仅获取/核验固定版本，不再次解析移动分支。
 
-冻结 manifest 至少包含：
+当前 manifest 固定仓库、解析 SHA、MR/PR URL、PRD 与目标/流程/范围、输出要求及内部授权，SDK 版本由 Attempt 记录；不生成环境或预算字段。下列完整示例只用于解释旧隔离 profile 的历史 manifest：
 
 ADR-031 覆盖此前过渡规则：新建请求不接受 `budgets`，服务端不生成任务预算；模型、推理和插件由云端 Harness 原生 profile 决定。省略 framework entrypoints 时如实记录执行入口，显式入口与冻结 framework runtime 仍按原规则检查。服务端仍按项目资源生成只含两仓读取和工作区框架执行的内部授权。旧预算及 hold 只用于历史对账，旧未冻结草稿在编辑 / 重新解析时转换，旧冻结任务不得直接重发。下列 manifest 预算及 §46.4 结算字段仅解释旧历史。
 

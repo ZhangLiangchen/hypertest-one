@@ -9,10 +9,11 @@ import { useEffect, useState } from "react";
 import { ReportedResultTag } from "@/app/tasks/task-records";
 import { WorkspaceHeading, WorkspaceLoading } from "@/app/workspace-ui";
 import { CloudAttemptRecovery, CloudCapabilitiesNotice, CloudOperationNotice } from "@/app/projects/[projectId]/cloud/cloud-shared";
-import { cloudCapabilities, cloudCancellation, cloudConfiguration, cloudDocument, cloudManagementMessage, cloudOperationalView, cloudProgressTone, cloudSetup, cloudSummary } from "@/lib/cloud";
+import { cloudCapabilities, cloudCancellation, cloudDocument, cloudManagementMessage, cloudOperationalView, cloudProgressTone, cloudSetup, cloudSummary } from "@/lib/cloud";
 import type { CloudRecord } from "@/lib/cloud";
 import { useCloudOperation } from "@/lib/cloud-operation";
 import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument } from "@/lib/run-polling";
+import { getProject } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { CloudTaskRecords } from "./records";
 import { LiveQuestionsPanel } from "./live-questions-panel";
@@ -51,7 +52,7 @@ export default function CloudTaskPage() {
   const setup = useQuery({ queryKey: ["cloud-web-setup"], queryFn: cloudSetup });
   const configured = setup.data?.configured === true;
   const capabilities = useQuery({ queryKey: ["cloud-capabilities"], queryFn: cloudCapabilities, enabled: configured });
-  const configurations = useQuery({ queryKey: ["cloud-config", projectId], queryFn: () => cloudConfiguration(projectId), enabled: configured && isUuid(projectId) });
+  const project = useQuery({ queryKey: ["project", projectId], queryFn: () => getProject(projectId, true), enabled: configured && isUuid(projectId) });
   const live = useQuery({ queryKey: ["cloud-task-live", projectId, taskId], queryFn: () => cloudSummary(projectId, taskId), enabled: configured && isUuid(projectId) && isUuid(taskId),
     refetchInterval: (query) => cloudSummaryPollInterval(projectId, taskId, query.state.data), refetchOnWindowFocus: true });
   const observedVersion = cloudPollingVersion(projectId, taskId, live.data);
@@ -91,8 +92,6 @@ export default function CloudTaskPage() {
   const repositories = resolution?.repositories as Record<string, CloudRecord> | undefined;
   const inResolution = operational.resolutions.some((row) => ["PENDING", "RESOLVING"].includes(String(row.status)));
   const enabled = capabilities.data?.enabled === true; const dispatchEnabled = enabled && capabilities.data?.worker_enabled === true;
-  const configRevision = configurations.data?.items.find((row) => row.id === task.config_id);
-  const config = configRevision?.configuration;
   const blocked = operation.blocked || !enabled || !operational.valid || !!task.deleted_at;
   const management = operational.valid && !live.isError ? live.data?.management : undefined;
   const terminalAttempt = !!attempt && ["COMPLETED", "FAILED", "CANCELLED"].includes(status || "") && attempt.status === status;
@@ -101,14 +100,13 @@ export default function CloudTaskPage() {
   const questions = detail.questions.filter((row) => !answered.has(row.id));
   // State identifies current work, not a history of completed business phases.
   // Unknown/recovery/failed/cancelled states cannot establish how far work got.
-  const step = live.isError ? -1 : status === "DRAFT" ? accepted || inResolution ? 2 : 1
-    : ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"].includes(status || "") ? 3
-      : status === "COMPLETED" ? 5 : -1;
+  const step = live.isError ? -1 : status === "DRAFT" ? accepted || inResolution ? 1 : 0
+    : ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"].includes(status || "") ? 2
+      : status === "COMPLETED" ? 4 : -1;
   // A record can confirm a specific fact without proving every earlier or later phase.
   const currentResolution = !live.isError && status === "DRAFT"
     ? operational.resolutions.filter((row) => row.source_draft_version === task.version && ["PENDING", "RESOLVING", "FAILED", "RECOVERY_REQUIRED"].includes(String(row.status))).slice(-1)[0] : undefined;
   const phaseStates: { tone: "complete" | "active" | "failed" | "unknown" | "waiting"; text: string }[] = [
-    configRevision || task.frozen_manifest?.configuration ? { tone: "complete", text: t("Resources recorded", "资源已记录") } : { tone: "unknown", text: t("Unknown", "未知") },
     { tone: "complete", text: t("Inputs saved", "输入已保存") },
     currentResolution?.status === "FAILED" ? { tone: "failed", text: t("Resolution failed", "解析失败") }
       : currentResolution?.status === "RECOVERY_REQUIRED" ? { tone: "unknown", text: t("Needs recovery", "需要恢复") }
@@ -128,12 +126,12 @@ export default function CloudTaskPage() {
   return <main className="workspace-page cloud-task-detail">
     <WorkspaceHeading title={task.title} backHref={`/projects/${projectId}/cloud`} backLabel={t("Project cloud tasks", "项目云端任务")}
       metadata={<div className="cloud-task-metadata"><div><span>{t("Source", "来源")}</span><Tag>Cloud · DeepSeek</Tag></div><div><span>{t("Task progress", "任务进度")}</span><Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Live state unavailable", "当前运行状态不可用")}</Tag></div><div><span>{t("Reported test result", "报告的测试结果")}</span><ReportedResultTag result={task.reported_result} /></div><div><span>{t("Accepted version", "接受版本")}</span><strong>{task.version}</strong></div></div>}
-      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !configRevision} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} recovery={live.isError ? undefined : live.data?.recovery} management={management} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
+      actions={<Space wrap>{status === "DRAFT" && !task.frozen_manifest && !task.deleted_at ? <Button disabled={blocked || inResolution || !project.data || project.isError} onClick={() => setEditing(task)}>{t("Edit draft", "编辑草稿")}</Button> : null}<CloudTaskDelete projectId={projectId} detail={detail} operational={operational} recovery={live.isError ? undefined : live.data?.recovery} management={management} operation={operation} /><Button icon={<ReloadOutlined aria-hidden />} loading={document.isFetching || live.isFetching} onClick={() => { void document.refetch(); void live.refetch(); void project.refetch(); }}>{t("Refresh records", "刷新记录")}</Button></Space>} />
     {task.deleted_at ? <Alert showIcon type="warning" style={{ marginBottom: 20 }} message={t("Removed from the task list", "已从任务列表移除")}
       description={t("Records and original operation references remain available at this link. You can continue reconciliation here; deletion does not confirm stopping or resolve unknown outcomes, and this task cannot start new execution.", "本链接仍可查看历史记录和原操作引用，并继续对账。删除不代表进程已停止或未知结果已确认；此任务不能再下发执行。 ")} /> : null}
     <Modal open={!!editing} title={null} footer={null} width={1000} destroyOnHidden closable={!operation.busy && !operation.pending} maskClosable={!operation.busy && !operation.pending} keyboard={!operation.busy && !operation.pending} onCancel={() => { if (!operation.busy && !operation.pending) setEditing(null); }}>
       {editing ? <><CloudOperationNotice operation={operation} />{(task.deleted_at || task.version !== editing.version || status !== "DRAFT" || !!task.frozen_manifest || !operational.valid || inResolution) ? <Alert showIcon type="warning" message={t("The draft changed or its current state cannot be verified. Close and reopen the editor after refreshing.", "草稿已变化或当前状态无法核验，请关闭编辑并刷新后重新打开。")} /> : null}
-        <CloudTaskForm key={`${editing.id}:${editing.version}`} config={configurations.data?.items.find((row) => row.id === editing.config_id)} operation={operation} configOptions={configurations.data?.items} enabled={enabled && operational.valid && !task.deleted_at && status === "DRAFT" && !task.frozen_manifest && !inResolution && task.version === editing.version} editTask={editing} onCancel={() => setEditing(null)} onCreated={() => { setEditing(null); void live.refetch(); void document.refetch(); }} />
+        <CloudTaskForm key={`${editing.id}:${editing.version}`} project={project.data} operation={operation} enabled={enabled && !project.isError && !project.isFetching && operational.valid && !task.deleted_at && status === "DRAFT" && !task.frozen_manifest && !inResolution && task.version === editing.version} editTask={editing} onCancel={() => setEditing(null)} onCreated={() => { setEditing(null); void live.refetch(); void document.refetch(); }} />
       </> : null}
     </Modal>
     {retry ? <RetryDialog task={task} actions={live.data?.controlled_actions_history?.flatMap((group) => group.actions.map((action) => ({ ...action, attempt_id: group.attempt_id }))) ?? live.data?.controlled_actions} notice={<CloudOperationNotice operation={operation} />}
@@ -155,14 +153,13 @@ export default function CloudTaskPage() {
     <CloudOperationNotice operation={operation} />
     <section className="cloud-task-flow" aria-label={t("Task workflow", "任务流程")}>
       <div className="cloud-flow-summary">
-        <div className="cloud-flow-position">{step < 0 ? t("Current phase unknown", "当前阶段未知") : <>{t("Current phase", "当前阶段")} <strong>{step + 1} <span>/</span> 6</strong></>}</div>
+        <div className="cloud-flow-position">{step < 0 ? t("Current phase unknown", "当前阶段未知") : <>{t("Current phase", "当前阶段")} <strong>{step + 1} <span>/</span> 5</strong></>}</div>
         <div className="cloud-flow-facts"><span>{live.isError && status ? t("Last observed progress", "上次观察的进度") : t("Task progress", "任务进度")} <Tag color={cloudProgressTone(status || "")}>{status === "PREPARING" ? t("Preparing", "准备中") : status ? label(status) : t("Unknown", "未知")}</Tag></span><span>{t("Reported test result", "报告的测试结果")} <ReportedResultTag result={task.reported_result} /></span></div>
       </div>
       <Steps current={step} size="small" responsive items={[
-        { title: <a href={`/projects/${projectId}/cloud?tab=resources`}>{t("Project resources", "项目资源")}</a> },
         ...[
           { title: t("Task inputs", "任务输入"), tab: "overview", id: "cloud-task-inputs" },
-          { title: t("Resolve and freeze", "解析与冻结"), tab: "overview", id: "cloud-task-resolution" },
+          { title: t("Prepare source context", "准备源码上下文"), tab: "overview", id: "cloud-task-resolution" },
           { title: t("Harness work", "Harness 工作"), tab: "attempts", id: "cloud-attempt-history-heading" },
           { title: t("Test artifacts", "测试产物"), tab: "artifacts", id: "cloud-assets-title" },
           { title: t("Execution and report", "执行与汇报"), tab: "artifacts", id: "cloud-runs-title" },
@@ -177,10 +174,10 @@ export default function CloudTaskPage() {
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
         <div className="cloud-task-control-grid">
-          <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Exact source versions", "确切源码版本")}</Typography.Title>
-            {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT SHA", "被测 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
-            {status === "DRAFT" ? <Space wrap><Button loading={inResolution} disabled={blocked || inResolution || (!!accepted && !legacyDraftBudget) || !config} onClick={() => void mutate({ operation: "RESOLVE_INPUTS" })}>{inResolution ? t("Resolving versions", "正在解析版本") : t("Resolve both repositories", "解析双仓版本")}</Button>
-              <Button type="primary" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !dispatchEnabled || !accepted || legacyDraftBudget || !config} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch these exact versions", "下发上述确切版本")}</Button></Space> : null}
+          <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Source context", "源码上下文")}</Typography.Title><Typography.Paragraph className="muted">{t("Repository checkouts support the Agent’s analysis. The running SUT is deployed by its own CI; its test environment is described in the task prompt.", "仓库检出用于 Agent 分析。被测对象由自身 CI 部署，使用的测试环境在任务 Prompt 中说明。")}</Typography.Paragraph>
+            {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT source SHA", "被测对象源码 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("The worker has not accepted immutable repository identities yet.", "Worker 尚未接受不可变仓库版本。 ")}</Typography.Paragraph>}
+            {status === "DRAFT" ? <Space wrap><Button loading={inResolution} disabled={blocked || inResolution || (!!accepted && !legacyDraftBudget)} onClick={() => void mutate({ operation: "RESOLVE_INPUTS" })}>{inResolution ? t("Preparing source context", "正在准备源码上下文") : t("Prepare source context", "准备源码上下文")}</Button>
+              <Button type="primary" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !dispatchEnabled || !accepted || legacyDraftBudget} onClick={() => void mutate({ operation: "DISPATCH", resolution_id: accepted?.id })}>{t("Dispatch test task", "下发测试任务")}</Button></Space> : null}
             {legacyDraftBudget ? <Alert showIcon type="info" style={{ marginTop: 16 }} message={t("Resolve versions again to use the current Harness configuration", "请重新解析版本以使用当前 Harness 配置")} description={t("This undispatched draft uses an older task budget. Resolving again removes that budget and refreshes the frozen version inputs.", "此未下发草稿使用旧任务预算。重新解析后将移除该预算并更新版本解析。 ")} /> : null}
             {!dispatchEnabled ? <Typography.Paragraph className="muted" style={{ marginTop: 16 }}>{t("Dispatch requires enabled Cloud admission and an enabled worker. Historical reads remain available.", "下发需要启用 Cloud 准入和 Worker；历史读取继续可用。 ")}</Typography.Paragraph> : null}
             {currentResolution && ["FAILED", "RECOVERY_REQUIRED"].includes(String(currentResolution.status))
@@ -215,7 +212,8 @@ export default function CloudTaskPage() {
         <section className="overview-section cloud-task-intent"><Typography.Title id="cloud-task-inputs" tabIndex={-1} level={2}>{t("Frozen task intent", "任务输入意图")}</Typography.Title>
           <Descriptions column={2} layout="vertical" items={[{ key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> },
             { key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> },
-            { key: "flow", label: t("Basic flow", "基本流程"), span: 2, children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
+            { key: "mr", label: t("MR / PR URL", "MR / PR 地址"), span: 2, children: <span className="session-literal">{text(task.inputs.mr_url)}</span> },
+            { key: "flow", label: t("Testing instructions / prompt", "测试说明 / Prompt"), span: 2, children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
             { key: "entrypoints", label: t("Framework entrypoints", "框架入口"), span: 2, children: <pre className="session-literal">{text(task.inputs.framework_entrypoints)}</pre> },
             ...(task.inputs.budgets != null ? [{ key: "budgets", label: t("Frozen budgets", "冻结预算"), span: 2, children: <pre className="session-literal">{text(task.inputs.budgets)}</pre> }] : []),
           ]} /><details><summary>{t("Read original PRD", "查看 PRD 原文")}</summary><pre className="artifact-content session-markdown">{text(task.inputs.prd_markdown)}</pre></details>

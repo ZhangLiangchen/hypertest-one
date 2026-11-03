@@ -69,14 +69,15 @@ def test_existing_explicit_task_envelope_is_preserved():
     assert result["budgets"]["total_seconds"] == draft["budgets"]["total_seconds"]
 
 
-def test_update_without_envelope_preserves_authorization_and_removes_old_draft_budget():
+def test_update_without_envelope_regenerates_source_authorization_and_removes_old_draft_budget():
     from test_cloud_tasks import configuration, inputs
     original = TaskInputs.model_validate(inputs()).model_dump(mode="json")
     edited = dict(original)
     edited.pop("authorization")
     edited.pop("budgets")
     result = _task_inputs_with_runtime_defaults(TaskInputs.model_validate(edited), configuration(), datetime.now(UTC), original=original)
-    assert result["authorization"] == original["authorization"]
+    assert result["authorization"]["targets"] == original["authorization"]["targets"]
+    assert result["authorization"]["expires_at"] is None
     assert result["budgets"] is None
 
 
@@ -97,7 +98,8 @@ async def test_create_rejects_new_platform_budget_but_original_receipt_still_rec
 
     from hypertest.application import cloud_tasks
     payload = CloudTaskCreate(project_id=uuid4(), operation_key="fixture-create", expected_version=0,
-        title="fixture", config_id=uuid4(), inputs=inputs())
+        title="fixture", expected_project_version=1, inputs={**inputs(), "authorization": None,
+            "mr_url": "https://git.example.invalid/sut/-/merge_requests/1"})
     db = SimpleNamespace(scalar=AsyncMock(return_value=None))
     monkeypatch.setattr(cloud_tasks, "project", AsyncMock())
     monkeypatch.setattr(cloud_tasks, "_lock", AsyncMock())

@@ -7,6 +7,7 @@ import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -17,6 +18,7 @@ from hypertest.api.cloud_schemas import (
     CloudBudgetReservation,
     CloudBudgetSettlement,
     CompletionManifest,
+    Repository,
 )
 from hypertest.application import interactive
 from hypertest.application.services import canonical_json_sha256
@@ -29,7 +31,6 @@ from hypertest.domain.cloud_tasks import (
     CloudAssetReference,
     CloudAssetRevision,
     CloudAttempt,
-    CloudConfigCredential,
     CloudDelegation,
     CloudDelegationAsset,
     CloudInputAnswer,
@@ -116,8 +117,6 @@ def _task_inputs_with_runtime_defaults(inputs, configuration, now, *, original=N
     if original is not None:
         if "framework_entrypoints" not in inputs.model_fields_set:
             data["framework_entrypoints"] = original["framework_entrypoints"]
-        if data["authorization"] is None:
-            data["authorization"] = original["authorization"]
         # A user may submit the unchanged legacy envelope from an old draft,
         # but cannot set a new one. The enclosing UPDATE_TASK operation has
         # already verified this is undispatched and records a new version.
@@ -195,7 +194,7 @@ async def worker_authority(db, task, attempt, identity):
 
 def authorize_cloud_environment(configuration):
     """An environment restriction can only remove Cloud admission paths."""
-    environment = configuration["environment"]
+    environment = configuration.get("environment", {})
     policy = environment.get("cloud_access_policy")
     if policy not in (None, "LOCAL_ONLY", "WEB_ONLY"):
         raise HTTPException(403, "CLOUD_ACCESS_POLICY_INVALID")
@@ -207,7 +206,7 @@ def authorize_cloud_environment(configuration):
 
 async def _credential_versions(db, config, *, now=None):
     rows = []
-    for role, resource in (("SUT", config["sut"]), ("FRAMEWORK", config["framework"]), ("ENVIRONMENT", config["environment"])):
+    for role, resource in (("SUT", config["sut"]), ("FRAMEWORK", config["framework"]), ("ENVIRONMENT", config.get("environment", {}))):
         ref = resource.get("credential_version_id")
         if not ref:
             continue
@@ -245,6 +244,61 @@ async def _configuration(db, project_id, config_id):
     return config
 
 
+def _sut_repository_from_mr(project_origin, mr_url):
+    """A Project may name a Git group; the MR identifies its concrete repository."""
+    mr = urlsplit(mr_url)
+    mr_path = re.sub(r"/(?:-/merge_requests|pull)/[1-9][0-9]*/?$", "", mr.path)
+    scp = re.fullmatch(r"([^@]+@)([^:]+):(.+)", project_origin) if "://" not in project_origin else None
+    origin = urlsplit(project_origin) if not scp else None
+    host = scp[2] if scp else origin.hostname
+    source_path = (scp[3] if scp else origin.path).strip("/")
+    exact_repository = source_path.endswith(".git")
+    path = source_path.removesuffix(".git")
+    group_url = "/-/merge_requests/" in mr.path and path.startswith("groups/")
+    if group_url:
+        path = path.removeprefix("groups/")
+    target = mr_path.strip("/").removesuffix(".git")
+    if (host.lower() != mr.hostname.lower() or not (target == path or (not exact_repository and target.startswith(path + "/")))
+            or (origin and origin.scheme == "https" and (origin.port or 443) != (mr.port or 443))):
+        raise HTTPException(422, "MR repository must belong to the Project repository or group scope")
+    if target == path and not group_url:
+        return project_origin
+    if scp:
+        return f"{scp[1]}{scp[2]}:{target}.git"
+    return urlunsplit((origin.scheme, origin.netloc, "/" + target + ".git", "", ""))
+
+
+async def _project_repository_snapshot(db, project_id, expected_project_version, actor_ref, mr_url):
+    """Freeze Project repositories without a second configuration surface."""
+    row = await project(db, project_id, lock=True)
+    if row.row_version != expected_project_version:
+        raise HTTPException(409, "Cloud Project version is stale")
+    if not row.repository_url or not row.test_framework_repository_url:
+        raise HTTPException(422, "Project requires SUT and test framework repositories")
+    from pydantic import ValidationError
+
+    try:
+        Repository(url=row.repository_url)
+        configuration = {
+            "sut": Repository(url=_sut_repository_from_mr(row.repository_url, mr_url)).model_dump(mode="json"),
+            "framework": Repository(url=row.test_framework_repository_url).model_dump(mode="json"),
+        }
+    except ValidationError:
+        raise HTTPException(422, "Project repositories require credential-free HTTPS or SSH URLs") from None
+    digest = canonical_json_sha256(configuration)
+    await _lock(db, f"cloud-config:{project_id}")
+    latest = await db.scalar(select(ProjectCloudConfigRevision).where(
+        ProjectCloudConfigRevision.project_id == project_id).order_by(ProjectCloudConfigRevision.revision.desc()).limit(1))
+    if latest and latest.digest == digest:
+        return latest
+    config = ProjectCloudConfigRevision(id=uuid7(), project_id=project_id,
+        revision=latest.revision + 1 if latest else 1, configuration=configuration,
+        digest=digest, created_by=actor_ref)
+    db.add(config)
+    await db.flush()
+    return config
+
+
 def authorization_expiry(authorization):
     """A missing expiry is unbounded; existing explicit deadlines remain binding."""
     raw = authorization.get("expires_at")
@@ -264,16 +318,16 @@ def _authorize_input_reads(task_inputs, configuration, now, *, native_retry=Fals
     authorize_cloud_environment(configuration)
     authorization = task_inputs["authorization"]
     expires_at = authorization_expiry(authorization)
-    if not native_retry and configuration["environment"].get("https_access") is not None:
+    if not native_retry and configuration.get("environment", {}).get("https_access") is not None:
         from types import SimpleNamespace
 
         from .cloud_http import authorize_environment
-        authorize_environment(SimpleNamespace(inputs=task_inputs), configuration["environment"], now)
+        authorize_environment(SimpleNamespace(inputs=task_inputs), configuration.get("environment", {}), now)
     targets = set(authorization["targets"])
     required_targets = {configuration[role]["url"] for role in ("sut", "framework")}
-    if configuration["environment"].get("host"):
+    if configuration.get("environment", {}).get("host"):
         from .cloud_ssh import exact_target
-        required_targets.add(exact_target(configuration["environment"]))
+        required_targets.add(exact_target(configuration.get("environment", {})))
     if (not required_targets <= targets or "git:read" not in authorization["permitted_actions"]
             or (expires_at is not None and expires_at <= now)):
         raise HTTPException(403, "Original input authorization does not permit current repository preflight")
@@ -451,6 +505,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
                  container_recovery=False, container_recovery_secret=None, container_recovery_provisioned=False,
                  native_worker=False):
     """One immutable key / optimistic version / current authority / transaction."""
+    if payload.operation == "CONFIGURE":
+        raise HTTPException(410, "CLOUD_PROJECT_RESOURCES_RETIRED")
     if payload.operation == "COMPLETE_NATIVE_ATTEMPT" and native_worker is not True:
         raise HTTPException(403, "CLOUD_NATIVE_WORKER_REQUIRED")
     if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not container_intents_enabled():
@@ -539,24 +595,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     version = task.version + 1 if task else payload.expected_version + 1
     refs = {}
     op = payload.operation
-    if op == "CONFIGURE":
-        await _lock(db, f"cloud-config:{payload.project_id}")
-        latest = await db.scalar(select(func.max(ProjectCloudConfigRevision.revision)).where(ProjectCloudConfigRevision.project_id == payload.project_id)) or 0
-        if latest != payload.expected_version:
-            raise HTTPException(409, "Cloud configuration version is stale")
-        configuration = payload.configuration.model_dump(mode="json")
-        credentials = await _credential_versions(db, configuration, now=await clock(db))
-        if any(row.project_id != payload.project_id for _, row, _ in credentials):
-            raise HTTPException(403, "Cross-Project credential reference")
-        config = ProjectCloudConfigRevision(id=uuid7(), project_id=payload.project_id, revision=latest + 1,
-            configuration=configuration, digest=canonical_json_sha256(configuration), created_by=actor_ref)
-        db.add(config)
-        await db.flush()
-        for role, credential, _ in credentials:
-            db.add(CloudConfigCredential(project_id=payload.project_id, config_id=config.id, credential_version_id=credential.id, role=role))
-        version = config.revision
-        refs = {"config_id": str(config.id)}
-    elif op in {"STORE_CREDENTIAL", "REVOKE_CREDENTIAL"}:
+    if op in {"STORE_CREDENTIAL", "REVOKE_CREDENTIAL"}:
         await _lock(db, f"cloud-credentials:{payload.project_id}")
         credential = await db.get(ProjectCredential, payload.credential_id) if payload.credential_id else None
         if payload.credential_id and (credential is None or credential.project_id != payload.project_id):
@@ -596,14 +635,13 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             raise HTTPException(409, "New Cloud Task requires expected_version=0")
         if payload.inputs.budgets is not None:
             raise HTTPException(422, "Cloud Task budget is not accepted")
-        config = await _configuration(db, payload.project_id, payload.config_id)
-        authorize_cloud_environment(config.configuration)
+        config = await _project_repository_snapshot(db, payload.project_id, payload.expected_project_version, actor_ref, payload.inputs.mr_url)
         if payload.related_task_id:
             await _task(db, payload.related_task_id, payload.project_id)
             if await db.get(CloudTaskDeletion, payload.related_task_id):
                 raise HTTPException(409, "Deleted Cloud Task cannot be used as a related task")
         task = CloudTask(id=uuid7(), project_id=payload.project_id, owner_actor_ref=actor_ref, title=payload.title,
-            config_id=payload.config_id, inputs=_task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db)), status="DRAFT", version=1,
+            config_id=config.id, inputs=_task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db)), status="DRAFT", version=1,
             reported_result="NOT_RUN", related_task_id=payload.related_task_id)
         db.add(task)
         version = 1
@@ -613,9 +651,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         migrated_budget = task.inputs.get("budgets") is not None
         if migrated_budget and await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id).limit(1)):
             raise HTTPException(409, "A draft with an existing Attempt cannot change its budget")
-        config = await _configuration(db, payload.project_id, payload.config_id)
-        authorize_cloud_environment(config.configuration)
-        task.title, task.inputs, task.config_id = payload.title, _task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db), original=task.inputs), payload.config_id
+        config = await _project_repository_snapshot(db, payload.project_id, payload.expected_project_version, actor_ref, payload.inputs.mr_url)
+        task.title, task.inputs, task.config_id = payload.title, _task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db), original=task.inputs), config.id
         if migrated_budget:
             refs["legacy_draft_budget_removed"] = True
     elif op == "DELETE_TASK":
@@ -661,7 +698,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         config = await _configuration(db, task.project_id, task.config_id)
         effective_inputs = task.inputs
         execution_manifest = None
-        environment = config.configuration["environment"]
+        environment = config.configuration.get("environment", {})
         if task.status == "DRAFT":
             resolution = await db.get(CloudInputResolution, payload.resolution_id)
             expected_digest = canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest})
@@ -1407,7 +1444,7 @@ async def _run(db, task, attempt, payload, version):
     if payload.execution.framework_sha != frozen["resolution"]["repositories"]["framework"]["commit_sha"]:
         raise HTTPException(422, "Run does not use the frozen framework baseline")
     _check_run_entrypoint(inputs, payload.execution.entrypoint)
-    if frozen["configuration"]["environment"]["require_matching_deployment"]:
+    if frozen["configuration"].get("environment", {}).get("require_matching_deployment"):
         if payload.execution.actual_sut_build == "UNKNOWN" or not payload.execution.environment_observation.get("deployment_matches_expected"):
             raise HTTPException(409, "Required deployment identity was not observed")
     if len({c.case_revision_id for c in payload.cases}) != len(payload.cases):
@@ -1601,6 +1638,7 @@ async def task_summary(db, task_id, *, project_id=None):
 
 
 async def configuration(db, project_id):
+    """Historical readback only; new task snapshots have no configuration editor."""
     await project(db, project_id)
     rows = list(await db.scalars(select(ProjectCloudConfigRevision).where(ProjectCloudConfigRevision.project_id == project_id)
         .order_by(ProjectCloudConfigRevision.revision.desc())))
@@ -1826,8 +1864,10 @@ async def accept_resolution(db, resolution_id, worker_id, lease_token, result, *
                 raise HTTPException(422, "MR resolution requires base/head and actual checkout identity")
             if repository["actual_checkout_sha"] != sha or repository.get("checkout_strategy") != selector["checkout_strategy"]:
                 raise HTTPException(422, "MR actual checkout strategy differs from resolved commit")
-    if not result.get("observed_at") or not result.get("source") or not result.get("environment_observation"):
-        raise HTTPException(422, "Resolution requires observed provenance and explicit environment observation")
+    if not result.get("observed_at") or not result.get("source"):
+        raise HTTPException(422, "Resolution requires observed source provenance")
+    if "environment" in config.configuration and not result.get("environment_observation"):
+        raise HTTPException(422, "Legacy resolution requires explicit environment observation")
     await _reject_secrets(db, row.project_id, result)
     row.result, row.digest, row.status = result, canonical_json_sha256(result), "ACCEPTED"
     row.accepted_task_version = task.version = task.version + 1

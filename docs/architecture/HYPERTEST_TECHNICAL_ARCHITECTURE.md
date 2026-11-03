@@ -1,5 +1,7 @@
 # HyperTest Technical Architecture
 
+> **2026-11-03 职责修订：** [ADR-038](ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 取消 Cloud 项目资源页和环境管理。Project 维护仓库，服务端仅为任务生成内部仓库快照；MR/PR 和环境说明经任务输入交给 Harness。旧环境/部署配置条款仅解释相应历史 profile。
+
 > **2026-11-02 Cloud 方向：** [ADR-032](ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 将轻量 Worker 与 Harness 适配器作为快速原型的目标交付；现有容器路径在替换部署前仍为运行事实。未来以全容器化强化项目资源隔离。
 
 > **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
@@ -1015,8 +1017,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 | 用户步骤 | HyperTest 控制平面 / Worker | Harness / 项目工具链 |
 | --- | --- | --- |
-| 1. 创建项目 | 在云端创建 Project 或配置既有共享 Project；配置 SUT 与 framework 仓库、环境连接、加密凭据引用和默认授权 | 不启动 Harness 或测试；允许两仓相同；可与 Local 任务共存 |
-| 2. 创建任务 | 在云端创建 CloudTask，保存分支、feat / MR / SHA、PRD、目标、基本流程、framework 版本选择和范围，复用项目环境 | 不因表单保存开始执行；不在创建界面配置授权、预算或 Agent |
+| 1. 创建项目 | 创建或复用共享 Project，在项目详情编辑 SUT 与 framework 仓库 | 不启动 Harness 或测试；允许两仓相同；可与 Local 任务共存 |
+| 2. 创建任务 | 创建 CloudTask，必填 MR/PR URL，保存目标、PRD、基本流程和范围；测试环境由 prompt 说明，检出版本可选 | 不因表单保存开始执行；不配置平台环境、部署版本、预算或 Agent |
 | 3. 下发任务 | DRAFT 阶段受限 Worker 预检 ResolveCloudInputs，得到不可变 CloudInputResolution；dispatch 引用 resolution_id 并核验版本 / 授权后冻结、入队，PREPARING 只 checkout / 核验 | 未固定双仓完整 SHA 或未通过运行预检不得接收任务 prompt |
 | 4. 接取与分工 | 隔离 CloudAttempt 并通过官方 Python SDK 驱动 DeepSeek，投影进度和持久问答 | DeepSeek 自行工作或委派 Codex；Claude Code 保持占位，内部安排推理和工具调用 |
 | 5. 输出产物 | 接受带版本 / 来源的分析、设计、用例、代码与 commit / patch；保留原件 | 根与子代理按职责产出文件；主指挥官汇总 |
@@ -1028,7 +1030,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ```mermaid
 flowchart LR
-    U[Cloud: Project resources / CloudTask inputs] --> API[API: validate, authorize, persist]
+    U[Cloud: Project repositories / MR URL / task prompt] --> API[API: validate, authorize, persist]
     LOCAL[Local: existing Codex session] --> MCP[MCP session sync]
     MCP --> API
     API --> DB[(PostgreSQL: tasks, attempts, receipts, audit, outbox)]
@@ -1050,7 +1052,7 @@ flowchart LR
 
 | 组件 | 职责及边界 |
 | --- | --- |
-| Web / API | 管理 Project 资源、CloudTask 草稿、dispatch / cancel / resume 等受控意图和只读投影；不执行 SDK、Git、SSH、安装脚本或测试 |
+| Web / API | 管理 Project 仓库、CloudTask 草稿和任务生命周期，接受 dispatch / cancel 等受控意图，归档产物并提供只读投影；不管理 SUT 环境或部署，不执行 SDK、Git、SSH 或测试 |
 | 项目资源与凭据保管 | 接收一次性秘密输入、加密保存、授予 / 撤销、按 attempt 使用；读取只返回引用与非秘密元数据，解密密钥与业务数据库分离 |
 | Cloud Worker | 使用 PostgreSQL 的可持久领取 / 租约和 fencing；受限 INPUT_RESOLUTION 工作先解析来源而不启动 Harness / 测试；指定 attempt 的工作准备工作区、实施资源策略、监督 runtime / 子进程、对账和提交产物；独立于原 legacy Job 执行身份 |
 | DeepSeek SDK Adapter | 在 Worker 执行侧封装官方 Python SDK，投影平台自己的状态 / 事件；SDK 类型与 JSON-RPC method 不渗入业务实体 |
@@ -1072,7 +1074,9 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 统一目录没有新的 Canonical Task 根实体；`(task_kind, task_id)` 是查询定位键，不可供存储层用一个无类型 FK 跨表引用。任务详情、修订、状态、写入授权和结果仍回到原 profile；同项目权限仍须核验对应操作，读取一类任务不自动取得另一类的同步、调度、控制或凭据权限。Local 不需要 CloudAttempt，Cloud 子代理不自动产生 Local SessionTask，旧记录也不经改标签转型。
 
-### 45.3 项目资源、固定输入与工作区
+### 45.3 项目仓库、任务输入与工作区
+
+**ADR-038 当前路径：** 项目详情是两仓地址的管理入口。CREATE/UPDATE 用 `expected_project_version` 核对 Project 版本，由 API 在既有不可变配置表生成内部仓库快照；新快照无 environment，不依赖资源列表或 CONFIGURE。`inputs.mr_url` 必填，检出选择器可省略并使用 HEAD。MR 仓库须属于 Project 的仓库或同主机下级范围，项目为 GitLab group 时从 MR 定位实际仓库。Worker 将 MR/PR 上下文和原任务 prompt 交给 Harness；环境访问和 SUT 部署由执行节点及项目工具负责。下文关于环境引用、部署匹配和受控凭据交付的旧条款仅解释旧 profile，不作为新任务前置配置。
 
 新任务和复测的测试授权不设截止；历史冻结期限及独立 Worker lease、grant 和凭据期限仍按各自合同执行。
 
@@ -1083,11 +1087,11 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 [ADR-036](ADR-036_WORKER_CLAIM_RECOVERY.md) 以每 Worker 单行 sequence 高水位处理薄 Worker 领取失答，原领取与该状态同事务提交；恢复入口仅返回非秘密状态并封口/fence 原领取，首次 claim capability 不再次交付。客户端私有完整意图与进程级 flock 防止重复发送及执行；空闲网络/5xx 故障有界退避，实际 runtime 异常关闭原槽后仍停止。恢复不运行 Git、SDK 或测试，也不提供外部停止证明；旧无序号 pending 需关闭旧入口、核对原授权并人工退役，保持 UNKNOWN。该机制独立于任务报告和外部操作账本，不增加常驻 Harness。
 
 
-项目可以保存 SUT / framework 两个 credential-free origin、测试工作目录 / 入口、环境地址和连接方式；允许同仓，但各自角色和实际 SHA 必须明确。新 Cloud 资源配置无需默认分支；旧配置的默认 selector 原样保留，两个实际 selector 在创建任务时确定。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
+Project 保存 SUT / framework 两个 credential-free origin；允许同仓，但各自角色和实际 SHA 分别记录。新任务的内部仓库快照来自 Project 与其范围内的 MR 仓库，检出选择器可省略；不保存环境地址、连接方式或预期部署版本。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
 
 CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA、MR base / head 和实际使用 head 或 merge commit，返回不可变 CloudInputResolution。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
 
-dispatch 只接受有效 resolution_id，重新校验版本和当前授权，原子冻结精确双仓输入、环境引用、操作范围 / 预算并入队。草稿 / 配置变化必须重新解析；排队后 branch 移动不改变本次输入。PREPARING 仅按固定 SHA checkout、核对身份和执行前能力，不能改为最新分支。相同输入的显式 rerun 复用原固定 SHA；精确持久化规则由领域 §51 定义。
+dispatch 只接受有效 resolution_id，重新校验版本和当前授权，原子冻结精确双仓输入、MR/PR 上下文、任务 prompt 与内部操作范围并入队；新输入不生成环境或预算。草稿 / 配置变化必须重新解析；排队后 branch 移动不改变本次输入。PREPARING 仅按固定 SHA checkout、核对身份和执行前能力，不能改为最新分支。相同输入的显式 rerun 复用原固定 SHA；精确持久化规则由领域 §51 定义。
 
 ADR-031 覆盖 2026-11-01 的过渡方案：新任务不再生成平台预算，云端独立 `sdk` profile 提供 Harness 原生模型、推理及插件配置；旧预算和未决账本仅保留历史与对账。租约/fence、项目资源授权与隔离不因移除预算消失。新模式的受控远程动作尚不支持，部署与实际模型/插件使用需分别核验。
 
@@ -1095,7 +1099,7 @@ ADR-031 覆盖 2026-11-01 的过渡方案：新任务不再生成平台预算，
 
 Worker claim 在 Git 前于数据库持久准备时间 hold，进入 RUNNING 前预留完整准备 / 执行截止及 ROOT / 获准 child 共同占用的最坏请求额度。原 hold 不充当实测费用；累计计量与 HELD / SETTLED 由领域 §51.3 拥有。停止整 namespace 且全部 host broker 关闭 / join、无在途请求后才按观察计数结算；丢失 lease、取消或人工对账不自动返还。显式 `REQUEST_CREDITS` 试点沿用 cost 字段记录请求额度，不称 USD，旧缺省单位和冻结任务保持原义。
 
-框架、Agent 与 SUT 的实际位置分别记录。云端源码解析和 SSH 连通不证明 SUT 已部署目标 SHA；记录部署版本 / binary 身份与 source-build 关联，缺少时说明已知缺口。每次执行观察实际环境，冻结引用不掩盖共享环境随时间改变。
+Agent/框架报告可记录其实际观察到的位置、SUT build 和未知项。源码解析或连通性不证明 SUT 部署版本；这些材料供结果追溯，不产生环境实体、部署匹配 Gate 或 HyperTest 部署职责。
 
 ### 45.4 持久凭据与可执行授权
 

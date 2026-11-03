@@ -20,7 +20,7 @@ from test_cloud_tasks import (
     configuration,
     inputs,
     legacy_claimed,
-    new_inputs,
+    legacy_draft,
     post,
     read_all,
     worker_submit,
@@ -131,18 +131,20 @@ def test_execution_authorization_requires_all_exact_ssh_boundaries(missing):
     ("WEB_ONLY", "NONE", "CLOUD_WEB_ONLY"),
     ("WEB_ONLY", "SSH", "CLOUD_WEB_ONLY"),
 ])
-async def test_restrictive_environment_can_be_saved_but_never_creates_a_cloud_task(cloud_context, policy, connection, code):
+async def test_historical_restrictive_environment_never_admits_cloud_resolution(cloud_context, policy, connection, code):
     environment = {"name": "Route-only metadata", "connection": connection, "cloud_access_policy": policy}
     if connection == "SSH":
         environment.update(host="host.example.invalid", user="diag", host_key=PUBLIC)
-    configured = await post(cloud_context, "CONFIGURE", configuration=configuration(environment=environment))
-    assert configured.status_code == 200, configured.text
-    created = await post(cloud_context, "CREATE_TASK", title="Must remain Local or Web-only",
-        config_id=configured.json()["config_id"], inputs=new_inputs())
-    assert created.status_code == 403 and created.json()["detail"] == code
+    # This restriction belongs to an existing historical draft. New tasks have
+    # no environment configuration; original authority still cannot be bypassed.
+    created = await legacy_draft(cloud_context, config=configuration(environment=environment),
+        task_inputs=inputs(budgets=None))
+    denied = await post(cloud_context, "RESOLVE_INPUTS", 1, task_id=created["task_id"])
+    assert denied.status_code == 403 and denied.json()["detail"] == code
     async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(func.count()).select_from(service.CloudTask).where(
-            service.CloudTask.project_id == UUID(cloud_context["project_id"]))) == 0
+        assert await db.scalar(select(func.count()).select_from(service.CloudInputResolution).where(
+            service.CloudInputResolution.task_id == UUID(created["task_id"]))) == 0
+        assert await service.claim_resolution(db, "restricted-fixture", project_id=UUID(cloud_context["project_id"])) is None
 
 
 def test_route_restrictions_precede_input_resolution_authority_and_do_not_enable_https_runtime():

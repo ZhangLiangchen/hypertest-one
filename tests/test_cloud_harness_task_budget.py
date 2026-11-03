@@ -13,36 +13,34 @@ from test_cloud_tasks import (
     FRAMEWORK_SHA,
     ORIGIN,
     SHA,
-    configuration,
     dispatched,
     draft,
     inputs,
+    new_inputs,
     post,
     read_all,
     worker_submit,
 )
+from test_cloud_tasks import cloud_context as _cloud_context
 
 from hypertest.application import cloud_tasks as service
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.cloud_tasks import CloudInputResolution, CloudTask, ProjectCloudConfigRevision
 
-pytest_plugins = ("test_cloud_tasks",)
+cloud_context = _cloud_context
 
 
 async def test_new_task_rejects_platform_budget(cloud_context):
     context = cloud_context
-    configured = await post(context, "CONFIGURE", configuration=configuration())
-    assert configured.status_code == 200, configured.text
     response = await post(context, "CREATE_TASK", title="Synthetic budget rejection",
-        config_id=configured.json()["config_id"], inputs=inputs())
+        expected_project_version=1, inputs={**new_inputs(), "budgets": inputs()["budgets"]})
     assert response.status_code == 422
     assert response.json()["detail"] == "Cloud Task budget is not accepted"
 
 
 async def test_no_budget_claim_runs_with_fencing_and_no_reservation(cloud_context):
     context = cloud_context
-    task_inputs = inputs()
-    task_inputs.pop("budgets")
+    task_inputs = new_inputs()
     receipt = await dispatched(context, task_inputs=task_inputs)
     async with AsyncSessionLocal() as db:
         claim = await service.claim_attempt(db, "fixture-worker", project_id=UUID(context["project_id"]))
@@ -71,6 +69,7 @@ async def test_legacy_draft_is_versioned_and_requires_fresh_resolution(cloud_con
     context = cloud_context
     task_inputs = inputs()
     old_budget = task_inputs.pop("budgets")
+    task_inputs["authorization"] = None
     created = await draft(context, task_inputs=task_inputs)
     # Fixture represents a pre-existing, undispatched legacy draft. Its synthetic
     # database setup is deliberately separate from the current CREATE contract.

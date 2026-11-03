@@ -729,10 +729,15 @@ def test_uncertain_project_creation_is_read_by_frozen_unique_key_not_reposted(tm
     state = {"project": {"state": "NEW", "request": {"key": "CLOUDSDK_FIXTURE", "name": "Isolated fixture"}}}
     with httpx.Client(base_url="https://isolated.invalid", transport=httpx.MockTransport(transport)) as client:
         run = controller.Controller(client, tmp_path / "state.json", state)
+        with pytest.raises(controller.Blocked, match="CLOUD_PROJECT_RESOURCES_RETIRED"):
+            run.project()
+        assert methods == []
+        # Represent an already-sent historical create, whose outcome is unknown.
+        state["project"]["state"] = "SENT"
         for _ in range(2):
             with pytest.raises(controller.Blocked, match="PROJECT_CREATE_UNCERTAIN"):
                 run.project()
-    assert methods == ["POST", "GET"]
+    assert methods == ["GET", "GET"]
 
 
 def test_only_explicit_loopback_http_and_finite_public_fixture_inputs_are_admitted():
@@ -838,39 +843,25 @@ def test_unknown_reconciliation_uses_original_key_without_a_new_proof_or_post(tm
     assert methods.count("POST") == 1 and state["writes"]["reconcile"]["request"] == frozen
 
 
-def test_followup_uses_same_project_config_and_frozen_dual_sha_with_explicit_related_task(tmp_path):
+def test_retired_followup_preserves_source_and_refuses_new_task_post(tmp_path):
     state = derived_state("FOLLOWUP")
+    source_writes = deepcopy(state["source_writes"])
     document = source_document("FAILED", 7)
-    posts = []
+    methods = []
 
     def transport(request):
+        methods.append(request.method)
+        assert request.method == "GET"
         if request.url.path.endswith("/capabilities"):
             return httpx.Response(200, json={"profile": controller.PROFILE, "enabled": True})
-        if request.method == "POST":
-            body = json.loads(request.content)
-            posts.append(body)
-            persisted = json.loads((tmp_path / "followup.json").read_text())
-            name = "create" if body["operation"] == "CREATE_TASK" else "resolve"
-            assert persisted["writes"][name]["request"] == body
-            assert request.url.path == "/api/v1/cloud/operations"  # Never /projects or CONFIGURE.
-            return httpx.Response(200, json={"status": "ACCEPTED", "profile": controller.PROFILE,
-                "project_id": PROJECT, "task_id": NEXT_TASK, "operation": body["operation"],
-                "operation_key": body["operation_key"], "version": 1 if name == "create" else 2,
-                "resolution_id": RESOLUTION})
-        if request.url.path.endswith(NEXT_TASK):
-            return httpx.Response(200, json=page({"task": {"id": NEXT_TASK, "project_id": PROJECT,
-                "version": int(request.url.params["version"])}}))
         return source_response(request, document)
 
     with httpx.Client(base_url="https://isolated.invalid", transport=httpx.MockTransport(transport)) as client:
-        result = controller.Controller(client, tmp_path / "followup.json", state).start_followup(seconds=600, credits=24)
-    assert [row["operation"] for row in posts] == ["CREATE_TASK", "RESOLVE_INPUTS"]
-    created = posts[0]
-    assert created["project_id"] == PROJECT and created["config_id"] == CONFIG and created["related_task_id"] == TASK
-    assert created["inputs"]["sut_selector"]["kind"] == "SHA" and created["inputs"]["sut_selector"]["value"] == "1" * 40
-    assert created["inputs"]["framework_selector"]["value"] == "2" * 40
-    assert created["inputs"]["budgets"]["total_cost_microunits"] == 24
-    assert result["task_id"] == NEXT_TASK and result["execution_started"] is False
+        with pytest.raises(controller.Blocked, match="CLOUD_PROJECT_RESOURCES_RETIRED"):
+            controller.Controller(client, tmp_path / "followup.json", state).start_followup(seconds=600, credits=24)
+    assert methods and "POST" not in methods
+    assert state["writes"] == {} and state["source_writes"] == source_writes
+    assert state["source_task_id"] == TASK
 
 
 @pytest.mark.parametrize("pending", [False, True])
@@ -909,65 +900,57 @@ def cli_source(tmp_path, **changes):
     return source_path, args
 
 
-@pytest.mark.parametrize("lost_response", [False, True])
-def test_new_codex_followup_from_root_keeps_source_and_existing_target_frozen(tmp_path, monkeypatch, capsys, lost_response):
+@pytest.mark.parametrize("historical_pending", [False, True])
+def test_retired_codex_followup_refuses_new_work_but_queries_original_unknown_key(tmp_path, monkeypatch, capsys, historical_pending):
     source_path, args = cli_source(tmp_path)
     original_source = source_path.read_bytes()
-    document, requests = source_document("FAILED", 7), []
+    source = json.loads(original_source)
+    path = tmp_path / "codex.json"
+    requests = []
+    original_key = "accept:historical-unknown-create"
+    if historical_pending:
+        state = {**derived_state("FOLLOWUP"), "profile": controller.STATE_PROFILE,
+            "api_origin": source["api_origin"], "operator_fingerprint": source["operator_fingerprint"],
+            "target": "codex", "source_target": "root",
+            "writes": {"create": {"state": "UNKNOWN", "request": {
+                "profile": controller.PROFILE, "project_id": PROJECT, "operation": "CREATE_TASK",
+                "operation_key": original_key, "expected_version": 0,
+                "title": "Historical followup", "config_id": CONFIG, "related_task_id": TASK,
+                "inputs": controller.task_inputs("codex", seconds=600, credits=24)}}}}
+        controller.save(path, state)
+    frozen = path.read_bytes() if path.exists() else None
     real_client = httpx.Client
-    original_key = None
 
     def transport(request):
-        nonlocal original_key
         requests.append((request.method, request.url.path))
+        assert historical_pending and request.method == "GET"
         if request.url.path.endswith("/capabilities"):
             return httpx.Response(200, json={"profile": controller.PROFILE, "enabled": True})
-        if request.method == "POST":
-            body = json.loads(request.content)
-            assert body["project_id"] == PROJECT
-            if body["operation"] == "CREATE_TASK":
-                assert body["related_task_id"] == TASK and body["config_id"] == CONFIG
-                assert "Codex child" in body["inputs"]["prd_markdown"]
-                original_key = body["operation_key"]
-                if lost_response:
-                    raise httpx.ReadTimeout("Synthetic lost create", request=request)
-            return httpx.Response(200, json={"status": "ACCEPTED", "profile": controller.PROFILE,
-                "project_id": PROJECT, "task_id": NEXT_TASK, "operation": body["operation"],
-                "operation_key": body["operation_key"], "version": 1 if body["operation"] == "CREATE_TASK" else 2,
-                "resolution_id": RESOLUTION})
-        if original_key and unquote(request.url.path).endswith(original_key):
-            return httpx.Response(404, json={"detail": "Original key unobserved"})
-        if request.url.path.endswith(NEXT_TASK):
-            return httpx.Response(200, json=page({"task": {"id": NEXT_TASK, "project_id": PROJECT,
-                "version": int(request.url.params["version"])}}))
-        return source_response(request, document)
+        assert unquote(request.url.path).endswith(original_key)
+        return httpx.Response(404, json={"detail": "Original key unobserved"})
 
     monkeypatch.setattr(controller.httpx, "Client", lambda **kwargs:
         real_client(**kwargs, transport=httpx.MockTransport(transport)))
-    assert controller.main(args) == int(lost_response)
-    output = json.loads(capsys.readouterr().out)
-    if lost_response:
-        assert output["code"] == "ORIGINAL_KEY_RECONCILIATION_REQUIRED"
-    else:
-        assert output["task_id"] == NEXT_TASK
-    path = tmp_path / "codex.json"
-    frozen = path.read_bytes()
-    state = json.loads(frozen)
-    assert state["target"] == "codex" and state["source_target"] == "root"
-    assert state["source_task_id"] == TASK and source_path.read_bytes() == original_source
-    # Replace only the explicit --target value, never the source state or key.
-    changed_target = list(args)
-    changed_target[changed_target.index("--target") + 1] = "root"
-    before = len(requests)
-    assert controller.main(changed_target) == 1
-    assert json.loads(capsys.readouterr().out)["code"] == "ORIGINAL_TARGET_OR_IDENTITY_MISMATCH"
-    assert len(requests) == before and path.read_bytes() == frozen
-    if lost_response:
+    assert controller.main(args) == 1
+    expected = "ORIGINAL_KEY_NOT_OBSERVED" if historical_pending else "CLOUD_PROJECT_RESOURCES_RETIRED_USE_CURRENT_TASK_UI"
+    assert json.loads(capsys.readouterr().out)["code"] == expected
+    assert source_path.read_bytes() == original_source
+    if historical_pending:
+        assert path.read_bytes() == frozen
+        assert requests and all(method == "GET" for method, _ in requests)
+        assert unquote(requests[-1][1]).endswith(original_key)
+        changed_target = list(args)
+        changed_target[changed_target.index("--target") + 1] = "root"
+        before = len(requests)
+        assert controller.main(changed_target) == 1
+        assert json.loads(capsys.readouterr().out)["code"] == "ORIGINAL_TARGET_OR_IDENTITY_MISMATCH"
+        assert len(requests) == before and path.read_bytes() == frozen
         assert controller.main(args) == 1
         assert json.loads(capsys.readouterr().out)["code"] == "ORIGINAL_KEY_NOT_OBSERVED"
         assert all(method == "GET" for method, _ in requests[before:])
-        assert path.read_bytes() == frozen and sum(method == "POST" for method, _ in requests) == 1
-    assert source_path.read_bytes() == original_source
+        assert path.read_bytes() == frozen
+    else:
+        assert requests == [] and not path.exists() and not Path(str(path) + ".lock").exists()
 
 
 @pytest.mark.parametrize("mode,changes", [
@@ -985,5 +968,6 @@ def test_new_followup_role_does_not_relax_identity_or_retarget_reconciliation(tm
 
     monkeypatch.setattr(controller.httpx, "Client", forbidden_client)
     assert controller.main(args) == 1
-    assert json.loads(capsys.readouterr().out)["code"] == "ORIGINAL_TARGET_OR_IDENTITY_MISMATCH"
+    expected = "ORIGINAL_TARGET_OR_IDENTITY_MISMATCH" if mode == "reconcile" else "CLOUD_PROJECT_RESOURCES_RETIRED_USE_CURRENT_TASK_UI"
+    assert json.loads(capsys.readouterr().out)["code"] == expected
     assert source_path.read_bytes() == original_source and not (tmp_path / "codex.json").exists()

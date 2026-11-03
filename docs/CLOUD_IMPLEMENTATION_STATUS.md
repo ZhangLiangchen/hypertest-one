@@ -1,5 +1,7 @@
 # 云端任务实现状态与接入入口
 
+> **当前产品边界：** [ADR-038](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 已取消资源页、环境和预期部署版本管理，使用 [Cloud 任务指南](CLOUD_TASK_WORKFLOW.md)。下列资源配置及环境步骤仅属于历史实现。
+
 > **历史实现和验收记录。** 下文保存各轮源码、部署、测试和验收时点；“当前”“最新”、开关值、版本、未完成项与操作步骤不可直接视作现状。请以 [当前 TODO](TODO.md)、[跟进交付](FOLLOWUP_DELIVERY_20261023.md) 和 [服务器操作](SERVER_OPERATIONS.md) 的后续记录为入口，实际运行状态须现场核对。Local 新接入已按 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 转为显式 CLI/Skill 归档，本文对旧 SessionTask 的描述仅保留历史与兼容边界。
 
 **2026-10-23 跟进交付时的部署记录：** API/独立Cloud Worker的Git为`76edb01a985b484bb1d1e1a88fcadd44b7a3532b`，新增[受控公开HTTPS首片/框架冻结](FOLLOWUP_DELIVERY_20261023.md)，开关保持false，schema0028；Web保留e28d23c，五容器健康。既有[Web未决保全与Cloud安全收尾](P0_RECOVERY_DELIVERY_20261023.md)及[PowerContext集成](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)保留；Memory逐Project grant仍须独立显式配置。完整剩余范围见[当前TODO](TODO.md)，P1整体及P2执行能力未因此标完成。下文C4/6d49属于旧轮次，不替代新镜像或用户验收。SDK原会话续接未实现，人工收尾不清UNKNOWN、不释放HELD。

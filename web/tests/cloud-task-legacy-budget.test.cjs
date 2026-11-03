@@ -31,6 +31,7 @@ function renderDraft(budgets, accepted = true) {
     if (name === '@ant-design/icons') return { ReloadOutlined: () => null };
     if (name === 'next/navigation') return { useParams: () => ({ taskId }), useSearchParams: () => new URLSearchParams({ projectId }) };
     if (name === '@tanstack/react-query') return { useQuery: ({ queryKey }) => ({ data: queries[queryKey[0]], refetch() {} }) };
+    if (name === '@/lib/api') return { getProject() {} };
     if (name === '@/lib/cloud') return cloud;
     if (name === '@/lib/i18n') return { useI18n: () => ({ t: (en) => en, label: (v) => v }) };
     if (name === '@/lib/cloud-operation') return { useCloudOperation: () => ({ blocked: false, submit() {} }) };
@@ -51,15 +52,15 @@ function renderDraft(budgets, accepted = true) {
 
 test('legacy budget draft can resolve again but cannot dispatch an old resolution', () => {
   const buttons = renderDraft({ total_seconds: 600 });
-  assert.equal(buttons['Resolve both repositories'], false);
-  assert.equal(buttons['Dispatch these exact versions'], true);
+  assert.equal(buttons['Prepare source context'], false);
+  assert.equal(buttons['Dispatch test task'], true);
 });
 
 test('new budgetless draft keeps normal resolution and dispatch controls', () => {
   const accepted = renderDraft(null);
-  assert.equal(accepted['Resolve both repositories'], true);
-  assert.equal(accepted['Dispatch these exact versions'], false);
+  assert.equal(accepted['Prepare source context'], true);
+  assert.equal(accepted['Dispatch test task'], false);
   const unresolved = renderDraft(null, false);
-  assert.equal(unresolved['Resolve both repositories'], false);
-  assert.equal(unresolved['Dispatch these exact versions'], true);
+  assert.equal(unresolved['Prepare source context'], false);
+  assert.equal(unresolved['Dispatch test task'], true);
 });

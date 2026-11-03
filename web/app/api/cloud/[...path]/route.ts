@@ -7,6 +7,7 @@ import { cloudServerRequest, cloudServerTransportReady } from "@/lib/cloud-serve
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const UUID = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
+// configuration is retained only for original-key readback of retired CONFIGURE operations.
 const GET_PATH = new RegExp(`^(?:capabilities|agent-auth-status|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/live-questions|/artifacts/${UUID})?)$`);
 const safeError = (status: number, detail: string, code?: string) => NextResponse.json({ detail, ...(code ? { code } : {}) }, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -16,7 +17,7 @@ async function conflictDetail(response: Response) {
   try { detail = (await response.json()).detail; } catch { /* Use the safe state-conflict fallback. */ }
   if (detail === "Cloud operation key conflicts with its original actor or request") return safeError(409,
     "This original operation key conflicts with an existing request. Preserve it and query its original receipt; do not submit again with a replacement key.", "OPERATION_KEY_CONFLICT");
-  if (["Cloud Task version is stale", "Cloud configuration version is stale", "Credential version is stale"].includes(String(detail))) {
+  if (["Cloud Task version is stale", "Cloud Project version is stale", "Cloud configuration version is stale", "Credential version is stale"].includes(String(detail))) {
     return safeError(409, "The accepted version changed. Refresh and review it before submitting a new intention.", "VERSION_CONFLICT");
   }
   if (detail === "SDK_RESUME_UNSUPPORTED") return safeError(409, "This runtime cannot resume the original SDK session. Reconcile original operations before authorized manual closure.", "SDK_RESUME_UNSUPPORTED");
@@ -30,7 +31,7 @@ async function rejectedFormDetail(response: Response): Promise<string> {
   try {
     const problem = await response.json();
     if (!Array.isArray(problem.detail)) return fallback;
-    const fields = new Set("configuration sut framework environment url default_selector credential_version_id kind value checkout_strategy base_ref name connection host port user host_key network_requirements expected_deployment require_matching_deployment cloud_access_policy ssh_access title config_id inputs sut_selector framework_selector prd_markdown prd_version objective basic_flow test_scope expected_outputs framework_entrypoints authorization targets permitted_actions network_targets side_effect_limits expires_at budgets accounting_unit total_seconds total_cost_microunits max_attempts max_concurrency credential_id label purpose allowed_targets allowed_actions secret reason task_id attempt_id resolution_id question_id answer expected_version operation operation_key profile project_id reconciliation old_owner_fenced local_processes_stopped external_operations_reconciled checkpoint_verified observations".split(" "));
+    const fields = new Set("title expected_project_version inputs mr_url kind value checkout_strategy base_ref sut_selector framework_selector prd_markdown prd_version objective basic_flow test_scope expected_outputs framework_entrypoints authorization targets permitted_actions network_targets side_effect_limits expires_at budgets accounting_unit total_seconds total_cost_microunits max_attempts max_concurrency credential_id label purpose allowed_targets allowed_actions secret reason task_id attempt_id resolution_id question_id answer expected_version operation operation_key profile project_id reconciliation old_owner_fenced local_processes_stopped external_operations_reconciled checkpoint_verified observations".split(" "));
     const paths = problem.detail.slice(0, 8).map((issue: { loc?: unknown }) => Array.isArray(issue.loc)
       ? issue.loc.filter((part: unknown) => typeof part === "string" && fields.has(part)).join(".") : "").filter(Boolean);
     return paths.length ? `Cloud form was rejected. Check fields: ${[...new Set(paths)].join(", ")}.` : fallback;

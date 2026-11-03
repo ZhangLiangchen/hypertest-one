@@ -1,7 +1,11 @@
-"""Private six-step Cloud acceptance controller; never executes a model or tests.
+"""Legacy Cloud acceptance ledger reader and original-operation recovery helper.
 
-Run against an explicitly isolated API/database. A separate operator-run Worker
-resolves inputs and executes the task. Sent writes are GET-only on every rerun.
+ADR-038 retired this controller's resource configuration and task-creation
+profile. New projects, resource configurations, tasks, resolutions and dispatches
+are refused before any POST; use the current task UI for new testing work.
+Historical fixed readback, strict assessment and explicitly authorized recovery
+remain available. Sent writes are GET-only on every rerun. This helper never
+executes a model or tests.
 """
 from __future__ import annotations
 
@@ -573,6 +577,8 @@ class Controller:
             return self.reconcile(existing)  # NOT_FOUND never permits another POST.
         if any(row["state"] not in {"READBACK_COMPLETE"} for row in self.state["writes"].values()):
             raise Blocked("ORIGINAL_PENDING_WRITE_BLOCKS_NEW_INTENTION")
+        if operation in {"CONFIGURE", "CREATE_TASK", "RESOLVE_INPUTS", "DISPATCH"}:
+            raise Blocked("CLOUD_PROJECT_RESOURCES_RETIRED_USE_CURRENT_TASK_UI")
         body = TypeAdapter(CloudMutation).validate_python({"project_id": self.state["project_id"],
             "operation": operation, "operation_key": "accept:" + str(uuid4()),
             "expected_version": expected_version, **fields}).model_dump(mode="json")
@@ -594,22 +600,13 @@ class Controller:
     def project(self):
         project = self.state["project"]
         if project["state"] == "NEW":
-            project["state"] = "SENT"
-            self.persist()
-            try:
-                response = self.client.post("/api/v1/projects", json=project["request"])
-                if response.status_code != 201:
-                    raise Blocked("PROJECT_CREATE_UNCERTAIN")
-                candidate = response.json()
-            except httpx.HTTPError:
-                raise Blocked("PROJECT_CREATE_UNCERTAIN") from None
-        else:
-            # Project creation has no Cloud receipt: its frozen unique key is the
-            # read-only reconciliation target. Absence still does not allow POST.
-            matches = [row for row in self.get("/projects") if row["key"] == project["request"]["key"]]
-            if len(matches) != 1:
-                raise Blocked("PROJECT_CREATE_UNCERTAIN")
-            candidate = matches[0]
+            raise Blocked("CLOUD_PROJECT_RESOURCES_RETIRED_USE_CURRENT_TASK_UI")
+        # Project creation has no Cloud receipt: its original unique key is
+        # the read-only recovery target. Absence never permits another POST.
+        matches = [row for row in self.get("/projects") if row["key"] == project["request"]["key"]]
+        if len(matches) != 1:
+            raise Blocked("PROJECT_CREATE_UNCERTAIN")
+        candidate = matches[0]
         if any(candidate.get(key) != value for key, value in project["request"].items()):
             raise Blocked("PROJECT_IDENTITY_MISMATCH")
         verified = self.get("/projects/" + candidate["id"])
@@ -862,6 +859,8 @@ def main(argv=None):
     parser.add_argument("--credits", type=int, choices=range(1, 1001), default=48, metavar="1..1000")
     args = parser.parse_args(argv)
     try:
+        if args.mode in {"prepare", "start-followup"} and not args.state_file.exists():
+            raise Blocked("CLOUD_PROJECT_RESOURCES_RETIRED_USE_CURRENT_TASK_UI")
         origin = api_origin(args.api_origin, args.allow_loopback_http)
         path = args.state_file.absolute()
         if path.parent.is_symlink() or path.parent.resolve() != path.parent or path.parent.stat().st_mode & 0o077:

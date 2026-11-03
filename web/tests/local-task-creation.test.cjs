@@ -9,12 +9,8 @@ const i18n = load("lib/i18n.tsx", { require });
 const workspaceUi = load("app/workspace-ui.tsx", { require: (name) => name === "@/lib/i18n" ? i18n
   : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
 
-function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {}, queries = {}, localResult = null, project = undefined, noDefaultSelectors = false } = {}) {
+function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = true, operation: operationChanges = {}, queries = {}, localResult = null, project = { id: "project-1", row_version: 3, repository_url: "https://git.example.org/team/sut.git", test_framework_repository_url: "https://git.example.org/team/framework.git" } } = {}) {
   const antd = require("antd"), forms = [], submissions = [], localWrites = [], navigation = [];
-  const config = { id: "config-1", revision: 1, configuration: { environment: { connection: "NONE" },
-    sut: { url: "https://git.example.org/team/sut.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } },
-    framework: { url: "https://git.example.org/team/framework.git", default_selector: { kind: "BRANCH", value: "main", checkout_strategy: "HEAD" } } } };
-  if (noDefaultSelectors) { delete config.configuration.sut.default_selector; delete config.configuration.framework.default_selector; }
   const shared = { title: "Shared task title", objective: "Shared testing objective" };
   const Form = Object.assign((props) => {
     forms.push(props);
@@ -28,12 +24,11 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
   let operationHookCalls = 0;
   const query = ({ queryKey }) => {
     const data = queryKey[0] === "cloud-web-setup" ? { configured }
-      : queryKey[0] === "cloud-capabilities" ? configured ? { enabled: true, worker_enabled: false } : undefined
-        : queryKey[0] === "cloud-config" ? configured ? { items: [config] } : undefined : { items: [], total: 0 };
+      : queryKey[0] === "cloud-capabilities" ? configured ? { enabled: true, worker_enabled: false } : undefined : { items: [], total: 0 };
     const result = { isSuccess: true, isLoading: false, isPending: false, isError: false, isFetching: false, data, ...queries[queryKey[0]] };
     return { ...result, refetch: async () => ({ data: result.data }) };
   };
-  const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
+  const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { URL, require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
   const notices = load("app/projects/[projectId]/cloud/cloud-shared.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cloud-recovery" ? load("lib/cloud-recovery.ts") : name === "next/link" ? link : require(name) });
   const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/task-url" ? load("lib/task-url.ts") : name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
     : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud
@@ -61,7 +56,8 @@ test("unified creation shares title and objective without nesting the Cloud form
     assert.doesNotMatch(modeLabel, /<span[^>]*>\s*(?:\(optional\)|（可选）)\s*<\/span>/i);
     assert.ok(html.indexOf("</form>") < html.indexOf('id="new-cloud-task-title"'), "the Cloud form is a sibling of the shared form");
     assert.equal((html.match(/<form\b/g) || []).length, 2);
-    assert.ok(html.includes('href="/projects/project-1/cloud?tab=resources" target="_blank"'), "resource setup retains this page's draft");
+    assert.ok(html.includes('href="/projects/project-1" target="_blank"'), "project editing retains this page's draft");
+    assert.equal(html.includes("tab=resources"), false);
     if (mode === "local") {
       assert.equal(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"), false);
       assert.equal(html.includes(locale === "en" ? "Refresh uploaders" : "刷新上传身份"), false);
@@ -71,19 +67,19 @@ test("unified creation shares title and objective without nesting the Cloud form
       assert.ok(html.includes(locale === "en" ? "CLI installation prompt &amp; authorization" : "CLI 安装 Prompt 与授权"));
       assert.ok(html.includes('hidden=""'), "the Cloud draft stays mounted but hidden in Local mode");
     } else {
-      assert.ok(html.includes(locale === "en" ? "Create draft and review versions" : "创建草稿并核对版本"));
+      assert.ok(html.includes(locale === "en" ? "Create draft and review inputs" : "创建草稿并核对输入"));
       assert.equal(html.includes(locale === "en" ? "Authorized uploader" : "获准上传的身份"), false);
     }
   }
 });
 
-test("Cloud creation warns only for a repository outside the project scope", () => {
-  const project = { id: "project-1", row_version: 1, repository_url: "https://git.example.org/groups/team", test_framework_repository_url: "https://git.example.org/team/framework/" };
-  const related = unifiedCreationHarness({ project });
-  assert.equal(related.html.includes("Saved Cloud resources differ from project repositories"), false);
-  assert.ok(related.html.includes("https://git.example.org/team/sut.git"));
-  const unrelated = unifiedCreationHarness({ project: { ...project, repository_url: "https://git.example.org/groups/teams" } });
-  assert.ok(unrelated.html.includes("Saved Cloud resources differ from project repositories"));
+test("Cloud creation uses current project repository addresses without a separate resource configuration", () => {
+  const project = { id: "project-1", row_version: 5, repository_url: "https://git.example.org/team/current", test_framework_repository_url: "https://git.example.org/team/framework/" };
+  const harness = unifiedCreationHarness({ project });
+  assert.ok(harness.html.includes(project.repository_url));
+  assert.ok(harness.html.includes(project.test_framework_repository_url));
+  assert.equal(harness.html.includes("Saved Cloud resources"), false);
+  assert.equal(harness.html.includes("Resource revision"), false);
 });
 
 test("the shared task form has a separate padded workspace surface", () => {
@@ -96,9 +92,8 @@ test("the shared task form has a separate padded workspace surface", () => {
 test("initial Cloud reads show loading without falsely reporting missing resources", () => {
   const pending = { data: undefined, isSuccess: false, isPending: true, isLoading: true, isFetching: true };
   const states = [
-    { "cloud-web-setup": pending, "cloud-capabilities": pending, "cloud-config": pending },
-    { "cloud-capabilities": pending, "cloud-config": pending },
-    { "cloud-config": pending },
+    { "cloud-web-setup": pending, "cloud-capabilities": pending },
+    { "cloud-capabilities": pending },
   ];
   for (const locale of ["en", "zh"]) for (const queries of states) {
     const { html, forms, localWrites, submissions } = unifiedCreationHarness({ locale, queries });
@@ -114,9 +109,8 @@ test("a failed initial Cloud read shows its error without a missing-resources or
   const idle = { data: undefined, isSuccess: false, isPending: true, isLoading: false, isFetching: false };
   const failed = { data: undefined, isSuccess: false, isPending: false, isLoading: false, isFetching: false, isError: true };
   const states = [
-    { "cloud-web-setup": failed, "cloud-capabilities": idle, "cloud-config": idle },
-    { "cloud-capabilities": failed, "cloud-config": idle },
-    { "cloud-config": failed },
+    { "cloud-web-setup": failed, "cloud-capabilities": idle },
+    { "cloud-capabilities": failed },
   ];
   for (const locale of ["en", "zh"]) for (const queries of states) {
     const { html, forms } = unifiedCreationHarness({ locale, queries });
@@ -128,18 +122,17 @@ test("a failed initial Cloud read shows its error without a missing-resources or
   }
 });
 
-test("only a successful empty resource read prompts project resource setup", () => {
+test("Cloud creation directs missing repository metadata to project details", () => {
   for (const locale of ["en", "zh"]) {
-    const { html, forms } = unifiedCreationHarness({ locale, queries: { "cloud-config": { data: { items: [] } } } });
-    assert.ok(html.includes(locale === "en" ? "Save project resources first" : "请先保存项目资源"));
-    assert.equal(html.includes(locale === "en" ? "Loading Cloud configuration" : "正在读取云端配置"), false);
-    assert.equal(html.includes(locale === "en" ? "Cloud configuration could not be refreshed" : "无法刷新云端配置"), false);
+    const { html, forms } = unifiedCreationHarness({ locale, project: { id: "project-1", row_version: 1, repository_url: "https://git.example.org/team/sut" } });
+    assert.ok(html.includes(locale === "en" ? "Project repository addresses are incomplete" : "项目仓库地址尚未填写完整"));
+    assert.equal(html.includes("tab=resources"), false);
     assert.equal(forms.length, 1);
   }
 });
 
 test("cached Cloud configuration remains visible after refresh failure and cannot create a draft", async () => {
-  for (const key of ["cloud-web-setup", "cloud-capabilities", "cloud-config"]) {
+  for (const key of ["cloud-web-setup", "cloud-capabilities"]) {
     const { html, forms, submissions } = unifiedCreationHarness({ queries: { [key]: { isSuccess: false, isError: true } } });
     assert.ok(html.includes("Cloud configuration could not be refreshed"));
     assert.ok(html.includes('id="new-cloud-task-title"'), "loaded Cloud fields stay rendered during a failed refresh");
@@ -148,7 +141,7 @@ test("cached Cloud configuration remains visible after refresh failure and canno
     assert.equal(html.includes("Loading Cloud configuration"), false);
     const cloudForm = forms.find((form) => form.initialValues?.sut_kind);
     assert.ok(cloudForm);
-    await cloudForm.onFinish({ ...cloudForm.initialValues, prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
+    await cloudForm.onFinish({ ...cloudForm.initialValues, mr_url: "https://git.example.org/team/sut/-/merge_requests/12", prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
     await new Promise(setImmediate);
     assert.equal(submissions.length, 0, "a stale read must not authorize a new write");
   }
@@ -157,11 +150,16 @@ test("cached Cloud configuration remains visible after refresh failure and canno
 test("the embedded Cloud form submits test inputs without agent configuration, authorization or budgets", async () => {
   const harness = unifiedCreationHarness();
   const cloudForm = harness.forms.find((form) => form.initialValues?.sut_kind);
-  await cloudForm.onFinish({ ...cloudForm.initialValues, title: "Ignored duplicate title", objective: "Ignored duplicate objective", prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
+  await cloudForm.onFinish({ ...cloudForm.initialValues, title: "Ignored duplicate title", objective: "Ignored duplicate objective", mr_url: "https://git.example.org/team/sut/-/merge_requests/12", prd: "# Requirements", basic_flow: "Read inputs", test_scope: "Approved fixture only", entrypoints: "python -m pytest tests" });
   await new Promise(setImmediate); // AntD's onFinish wrapper intentionally returns void.
   assert.equal(harness.submissions.length, 1);
   assert.equal(harness.submissions[0].operation, "CREATE_TASK");
   assert.equal(harness.submissions[0].expected_version, 0);
+  assert.equal(harness.submissions[0].expected_project_version, 3);
+  assert.equal(Object.hasOwn(harness.submissions[0], "config_id"), false);
+  assert.equal(Object.hasOwn(harness.submissions[0].inputs, "sut_selector"), false);
+  assert.equal(Object.hasOwn(harness.submissions[0].inputs, "framework_selector"), false);
+  assert.equal(harness.submissions[0].inputs.mr_url, "https://git.example.org/team/sut/-/merge_requests/12");
   assert.equal(harness.submissions[0].title, harness.shared.title);
   assert.equal(harness.submissions[0].inputs.objective, harness.shared.objective);
   for (const key of ["authorization", "budgets", "framework_entrypoints", "model", "reasoning_effort"]) assert.equal(Object.hasOwn(harness.submissions[0].inputs, key), false, key);
@@ -170,8 +168,8 @@ test("the embedded Cloud form submits test inputs without agent configuration, a
   assert.deepEqual(harness.navigation, ["/cloud-tasks/cloud-task-1?projectId=project-1"]);
 });
 
-test("cloud tasks without saved defaults require selecting each repository revision", () => {
-  const harness = unifiedCreationHarness({ noDefaultSelectors: true });
+test("source checkout selectors are optional and separate from the MR context URL", () => {
+  const harness = unifiedCreationHarness();
   const cloudForm = harness.forms.find((form) => form.initialValues?.sut_kind);
   assert.equal(cloudForm.initialValues.sut_ref, undefined);
   assert.equal(cloudForm.initialValues.framework_ref, undefined);
@@ -227,4 +225,13 @@ test("legacy project missing repository addresses cannot create a local task fro
   assert.ok(html.includes("Project repository addresses are incomplete"));
   await forms[0].onFinish({ mode: "local", title: "Test", objective: "Test", sut_branch: "main", framework_branch: "main" });
   assert.equal(localWrites.length, 0);
+});
+
+
+test("Cloud draft creation refuses a missing MR context URL before submitting", async () => {
+  const harness = unifiedCreationHarness();
+  const form = harness.forms.find((form) => form.initialValues?.sut_kind);
+  await form.onFinish({ ...form.initialValues, prd: "Requirements", basic_flow: "Use the existing QA environment", test_scope: "MR changes" });
+  await new Promise(setImmediate);
+  assert.equal(harness.submissions.length, 0);
 });
