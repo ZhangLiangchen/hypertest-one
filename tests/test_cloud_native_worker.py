@@ -47,16 +47,35 @@ def claim_response(request=None, *, kind="EMPTY", closed=True, **fields):
 
 @pytest.fixture
 def loop_args(tmp_path, monkeypatch):
-    from hypertest.cloud import native_profile, sdk
+    from hypertest.cloud import native_profile, native_worker, sdk
 
     credential = tmp_path / "worker-token"
     credential.write_text("test-only-worker-" + "x" * 40)
     credential.chmod(0o600)
     monkeypatch.setattr(sdk, "inspect_native_sdk", lambda: None)
     monkeypatch.setattr(native_profile, "check_sdk_profile", lambda _: None)
+    monkeypatch.setattr(native_worker, "check_cordis_runtime", lambda: None)
     return SimpleNamespace(worker_id="native-fixture", state_dir=str(tmp_path), dsh_home="fixture",
         worker_credential_file=str(credential), api_url="https://example.invalid", ca_file=None,
         lease_seconds=90, once=True, poll_seconds=1)
+
+
+@pytest.mark.asyncio
+async def test_cordis_preflight_failure_does_not_claim_new_work(tmp_path, monkeypatch, loop_args):
+    from hypertest.cloud import native_worker
+
+    async def unexpected_request(*args):
+        raise AssertionError("A failed Cordis preflight must not contact the claim API")
+
+    def unavailable():
+        raise CloudBlocked("HARNESS_CORDIS_UNAVAILABLE", "Preset unavailable")
+
+    monkeypatch.setattr(native_worker, "check_cordis_runtime", unavailable)
+    mock_worker_api(monkeypatch, unexpected_request)
+    with pytest.raises(CloudBlocked) as error:
+        await native_worker.run(loop_args)
+    assert error.value.code == "HARNESS_CORDIS_UNAVAILABLE"
+    assert not (tmp_path / "claim-pending.json").exists()
 
 
 def mock_worker_api(monkeypatch, request):
@@ -203,6 +222,7 @@ async def test_pending_claim_restart_only_closes_original_without_runtime(tmp_pa
         raise AssertionError("Recovering a claim must not load or start a runtime")
 
     monkeypatch.setattr(sdk, "inspect_native_sdk", unexpected_runtime)
+    monkeypatch.setattr(native_worker, "check_cordis_runtime", unexpected_runtime)
     monkeypatch.setattr(native_worker, "execute", unexpected_runtime)
     monkeypatch.setattr(native_worker, "resolve", unexpected_runtime)
 
