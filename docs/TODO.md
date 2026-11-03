@@ -4,7 +4,7 @@
 
 ## 用户操作与验收
 
-- Cloud 一键开始：自动准备后下发、折叠代码版本和任务输入旧字段清理已部署；真实页面操作与业务功能由用户验收。指定旧任务已按原解析身份关闭失败准备，按用户确认使用框架 master，经新流程进入 RUNNING，实际 SDK 进程已启动；测试结果尚未回传。见[交付记录](CLOUD_ONE_CLICK_START_DELIVERY_20261103.md)和[指定任务恢复记录](CLOUD_SOURCE_RECOVERY_20261103.md)。
+- Cloud 一键开始：自动准备后下发、折叠代码版本和任务输入旧字段清理已部署；真实页面操作与业务功能由用户验收。指定旧任务已恢复准备并使用框架 master 实际启动，后续因源码产物中的 PEM header 字面量被内容规则拒绝而进入 RECOVERY_REQUIRED；需处理产物拒绝并核对原执行后再确定恢复方式，不重发未知操作。原生会话标题已修正，历史接口读取成功不代表测试恢复。见[交付记录](CLOUD_ONE_CLICK_START_DELIVERY_20261103.md)、[指定任务恢复记录](CLOUD_SOURCE_RECOVERY_20261103.md)和[原生会话排查](CLOUD_NATIVE_SESSION_TITLE_20261103.md)。
 - Local 上传身份清理：本机既有 CLI 的真实根空间及子任务归档和读回已按用户要求验证；其他设备使用体验和任务页面显示待用户验收，见[本轮记录](LOCAL_UPLOADER_RETIREMENT_DELIVERY_20261101.md)。
 - Local CLI：真实设备升级到 0.1.2、默认全项目永久授权配对及归档由用户验收；存量授权迁移和交付见[本轮记录](CLI_GLOBAL_AUTHORIZATION_DELIVERY_20261028.md)。未知请求只按原 key 恢复，不重发。TLS 信任按本机 CA 配置，见 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)；2026-10-27 远端 CA 指引仅作历史。
 - Web：Local 任务统一页面、归档 Prompt、授权页面、任务导航与性能等的用户功能或体感验收仍待用户执行；自动回归和部署健康检查不等于用户验收。各轮范围见[历史交付](FOLLOWUP_DELIVERY_20261023.md)。
