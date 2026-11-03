@@ -1,6 +1,6 @@
 "use client";
 
-import { ReloadOutlined } from "@ant-design/icons";
+import { ExportOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Descriptions, Form, Input, Modal, Space, Steps, Table, Tabs, Tag, Typography } from "antd";
 import { useParams, useSearchParams } from "next/navigation";
@@ -175,6 +175,11 @@ export default function CloudTaskPage() {
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
         <div className="cloud-task-control-grid">
           <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Test execution", "测试执行")}</Typography.Title>
+            {setup.data?.harness_web_url ? <Space wrap size="middle" style={{ marginBottom: 16 }}>
+              <Button href={setup.data.harness_web_url} target="_blank" rel="noopener noreferrer" icon={<ExportOutlined aria-hidden />}
+                title={t("Opens the native Web UI in a new tab", "在新标签页打开原生 Web UI")}>{t("Open DeepSeek Harness", "打开 DeepSeek Harness")}</Button>
+              {attempt && isUuid(attempt.id) ? <Typography.Text type="secondary">{t("Session ID", "会话 ID")} <Typography.Text code copyable={{ tooltips: [t("Copy session ID", "复制会话 ID"), t("Copied", "已复制")] }}>{`cloud-${attempt.id}`}</Typography.Text></Typography.Text> : null}
+            </Space> : null}
             {status === "DRAFT" ? <>
               <Typography.Paragraph className="muted">{t("Start once to prepare the code and dispatch the task automatically. Work continues even if you close this page.", "点击开始后，系统自动准备代码并下发任务。无需另行操作，关闭页面也会继续。")}</Typography.Paragraph>
               <Button type="primary" loading={operation.busy || inResolution} disabled={blocked || !dispatchEnabled || preparationBlocked} onClick={() => void mutate({ operation: "START_TASK" })}>{inResolution ? t("Preparing test", "正在准备测试") : t("Start test", "开始测试")}</Button>

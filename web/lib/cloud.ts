@@ -78,7 +78,7 @@ export async function cloudRequest<T>(path: string, init?: RequestInit): Promise
   return response.json() as Promise<T>;
 }
 
-export const cloudSetup = () => cloudRequest<{ configured: boolean }>("setup");
+export const cloudSetup = () => cloudRequest<{ configured: boolean; harness_web_url?: string }>("setup");
 export const cloudCapabilities = () => cloudRequest<CloudCapabilities>("capabilities");
 export const cloudAgentAuthStatus = () => cloudRequest<CloudAuthStatus>("agent-auth-status");
 // Read only to reconcile pre-retirement CONFIGURE receipts by their original key.

@@ -22,6 +22,8 @@ docker compose -p hypertest-mac-powercontext \
 
 宿主薄 Worker 是独立的常驻 Python 进程。更新仓库源码或重建 API 容器不会使它重新加载已导入的模块；涉及 Worker 源码时，须单独核对原领取及活动工作，按原 key 关闭/隔离未决领取后重新启动现有 LaunchAgent，并记录新 PID、启动时间与部署提交。不能以磁盘源码已更新或 API 健康代替 Worker 更新证据，也不能因重启而重放未知任务。Compose 后续操作使用当前完整 overlay 链，包含最近仅更新 Web 的 overlay，避免回退其他服务版本。
 
+Web 可通过非秘密环境变量 `HYPERTEST_HARNESS_WEB_URL` 配置原生 DeepSeek Harness Web UI 入口；本机入口为 `http://10.66.66.3:3080/`。只接受不含用户信息、查询参数和片段的 HTTP(S) 地址，允许反向代理路径前缀。未配置或格式无效时不展示入口，不影响任务下发。该配置只增加浏览器外链，不代理认证、不启动 Harness 服务、不改变 Worker 或会话；现有 Harness 登录和 WireGuard 访问边界保持。
+
 ### 复用现有环境与最小隔离（2026-10-24 增补）
 
 复用已有干净 checkout、依赖与构建缓存，不重复创建全栈环境。自动回归只可使用明确专用的 test DB；破坏性迁移测试需要时可创建最小临时合成测试库，完成后清理，不将 fixtures 写入业务数据库。

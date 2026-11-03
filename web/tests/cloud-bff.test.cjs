@@ -7,7 +7,7 @@ const { NextRequest } = require("next/server");
 const project = "00000000-0000-4000-8000-000000000001";
 const task = "00000000-0000-4000-8000-000000000002";
 const canary = "synthetic-server-only-operator-key";
-function moduleFor(fetch, enabled = true, cloudOrigin, webOrigin, transportReady = true) {
+function moduleFor(fetch, enabled = true, cloudOrigin, webOrigin, transportReady = true, harnessWebUrl) {
   return load("app/api/cloud/[...path]/route.ts", {
     require: (name) => {
       if (name === "next/server") return { NextResponse: { json: (value, init) => new Response(JSON.stringify(value), init) } };
@@ -22,7 +22,7 @@ function moduleFor(fetch, enabled = true, cloudOrigin, webOrigin, transportReady
       };
       return require(name);
     },
-    process: { env: { HYPERTEST_CLOUD_WEB_ENABLED: enabled ? "true" : "false", HYPERTEST_CLOUD_WEB_OPERATOR_KEY: canary, HYPERTEST_API_ORIGIN: "http://isolated-api", HYPERTEST_CLOUD_API_ORIGIN: cloudOrigin, HYPERTEST_CLOUD_WEB_ORIGIN: webOrigin } },
+    process: { env: { HYPERTEST_CLOUD_WEB_ENABLED: enabled ? "true" : "false", HYPERTEST_CLOUD_WEB_OPERATOR_KEY: canary, HYPERTEST_API_ORIGIN: "http://isolated-api", HYPERTEST_CLOUD_API_ORIGIN: cloudOrigin, HYPERTEST_CLOUD_WEB_ORIGIN: webOrigin, HYPERTEST_HARNESS_WEB_URL: harnessWebUrl } },
     fetch, Buffer, AbortSignal, TextDecoder, URLSearchParams, URL,
   });
 }
@@ -30,6 +30,26 @@ const context = (...path) => ({ params: Promise.resolve({ path }) });
 const request = (url, options = {}) => {
   const value = new Request(url, options); value.nextUrl = new URL(url); return value;
 };
+
+test("Cloud setup exposes the native Harness URL without contacting or authenticating to Harness", async () => {
+  for (const url of ["http://10.66.66.3:3080/", "https://harness.example.test/prefix/"]) {
+    const routes = moduleFor(() => { throw new Error("Navigation must not call upstream"); }, true, undefined, undefined, true, url);
+    const response = await routes.GET(request("http://web/api/cloud/setup"), context("setup"));
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.deepEqual(await response.json(), { configured: true, harness_web_url: url });
+  }
+});
+
+test("Cloud setup omits invalid or credential-bearing Harness links and disabled configuration", async () => {
+  const forbidden = [undefined, "", "javascript:alert(1)", "ftp://harness.test/", `http://user:${canary}@harness.test/`, `https://harness.test/?token=${canary}`, `https://harness.test/#${canary}`, " https://harness.test/"];
+  for (const url of forbidden) {
+    const routes = moduleFor(() => { throw new Error("Unexpected request"); }, true, undefined, undefined, true, url);
+    const response = await routes.GET(request("http://web/api/cloud/setup"), context("setup"));
+    assert.deepEqual(await response.json(), { configured: true });
+  }
+  const routes = moduleFor(() => {}, false, undefined, undefined, true, "http://10.66.66.3:3080/");
+  assert.deepEqual(await (await routes.GET(request("http://web/api/cloud/setup"), context("setup"))).json(), { configured: false });
+});
 
 test("Cloud Web is explicitly disabled without exposing any server credential", async () => {
   let calls = 0;
