@@ -159,16 +159,19 @@ class NativeGitResolver:
         if token is not None:
             raise CloudBlocked("GIT_PLATFORM_TOKEN_UNSUPPORTED", "Host Git uses the operator's configured identity")
 
-    async def _fetch(self, root: Path, url: str, ref: str) -> str:
+    async def _fetch(self, root: Path, url: str, ref: str, *, identity_only: bool = False) -> str:
         # Fetch only reads the remote and writes this private Git object store.
         # Never retry checkout, source validation, SDK work or external actions.
+        # Plain input resolution needs only the selected commit's identity.
+        # Keep complete history for MR parent verification and SDK workspaces.
+        options = ["--depth=1", "--filter=tree:0"] if identity_only else []
         deadline = time.monotonic() + _FETCH_TIMEOUT
         for attempt in range(_FETCH_ATTEMPTS):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise GitOperationFailure("GIT_TIMEOUT", "fetch")
             try:
-                await _git(["fetch", "--no-tags", "--no-recurse-submodules", url, ref], cwd=root, timeout=remaining)
+                await _git(["fetch", "--no-tags", "--no-recurse-submodules", *options, url, ref], cwd=root, timeout=remaining)
                 break
             except GitOperationFailure as error:
                 delay = float(attempt + 1)
@@ -192,13 +195,13 @@ class NativeGitResolver:
             if kind == "SHA":
                 if not isinstance(value, str) or not SHA.fullmatch(value):
                     raise CloudBlocked("GIT_SHA_INVALID", "A SHA selector requires a full commit hash")
-                commit = await self._fetch(root, url, value)
+                commit = await self._fetch(root, url, value, identity_only=True)
                 if commit != value:
                     raise CloudBlocked("GIT_SHA_MISMATCH", "Fetched commit differs from the requested SHA")
                 return {"url": url, "selector": selector, "commit_sha": commit, "source": "worker-git-fetch"}
             if kind in {"BRANCH", "REF", "TAG"}:
                 ref = _ref("refs/tags/" + value if kind == "TAG" and not value.startswith("refs/") else value)
-                sha = await self._fetch(root, url, ref)
+                sha = await self._fetch(root, url, ref, identity_only=True)
                 return {"url": url, "selector": selector, "commit_sha": sha,
                         "resolved_ref": ref, "source": "worker-git-fetch"}
             if kind != "MR":

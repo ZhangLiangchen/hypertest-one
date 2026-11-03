@@ -275,11 +275,16 @@ async def resolve(api, args, state: Path, claim: dict):
     save_once(root / "claimed.json", {"resolution_id": resolution["id"], "worker_id": args.worker_id})
     resolver = NativeGitResolver()
     repositories = {}
-    async with asyncio.timeout(args.lease_seconds - 5):
-        for role in ("sut", "framework"):
-            await api.request("resolution/assert", body)
-            repositories[role] = await resolver.resolve(claim["configuration"][role]["url"],
-                task["inputs"][role + "_selector"])
+    try:
+        async with asyncio.timeout(args.lease_seconds - 5):
+            for role in ("sut", "framework"):
+                await api.request("resolution/assert", body)
+                repositories[role] = await resolver.resolve(claim["configuration"][role]["url"],
+                    task["inputs"][role + "_selector"])
+    except TimeoutError:
+        # The lease bounds both repositories, independently of each Git fetch.
+        # Keep a finite diagnostic and never accept partial source resolution.
+        raise CloudBlocked("RESOLUTION_TIMEOUT", "Repository resolution exceeded its lease window") from None
     result = {"repositories": repositories, "observed_at": datetime.now(UTC).isoformat(),
               "source": "cloud-worker-fixed-git-resolution", "environment_observation": {
                   "state": "UNOBSERVED", "reason": "Git preflight does not execute or attest the SUT environment"}}

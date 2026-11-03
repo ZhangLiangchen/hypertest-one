@@ -170,7 +170,8 @@ async def test_git_output_capture_is_bounded_and_retains_error_tail():
     assert exceeded and data == b"x" * 64
 
 
-async def test_noisy_real_process_timeout_drains_pipes_and_exits(monkeypatch, capsys):
+@pytest.mark.parametrize("outer_timeout", [False, True])
+async def test_noisy_real_process_timeout_drains_pipes_and_exits(monkeypatch, capsys, outer_timeout):
     spawn = asyncio.create_subprocess_exec
     processes = []
 
@@ -184,11 +185,74 @@ async def test_noisy_real_process_timeout_drains_pipes_and_exits(monkeypatch, ca
     monkeypatch.setattr(native_git.asyncio, "create_subprocess_exec", noisy_process)
     monkeypatch.setattr(native_git.shutil, "which", lambda *args, **kwargs: "/synthetic/git")
     started = time.monotonic()
-    with pytest.raises(GitOperationFailure) as failure:
-        await native_git._git(["fetch", URL, SHA], timeout=0.1)
-    assert failure.value.code == "GIT_TIMEOUT"
+    if outer_timeout:
+        with pytest.raises(TimeoutError) as failure:
+            await asyncio.wait_for(native_git._git(["fetch", URL, SHA], timeout=10), timeout=0.1)
+    else:
+        with pytest.raises(GitOperationFailure) as failure:
+            await native_git._git(["fetch", URL, SHA], timeout=0.1)
+        assert failure.value.code == "GIT_TIMEOUT"
     assert time.monotonic() - started < 3
     assert len(processes) == 1 and processes[0].returncode is not None
     assert processes[0].stdout.at_eof() and processes[0].stderr.at_eof()
     captured = capsys.readouterr()
     assert "synthetic-raw-noise" not in captured.out + captured.err + str(failure.value)
+
+
+@pytest.mark.parametrize("selector,ref", [
+    ({"kind": "SHA", "value": SHA}, SHA),
+    ({"kind": "BRANCH", "value": "main"}, "refs/heads/main"),
+    ({"kind": "REF", "value": "refs/heads/main"}, "refs/heads/main"),
+    ({"kind": "TAG", "value": "v1"}, "refs/tags/v1"),
+])
+async def test_plain_resolution_reads_only_selected_commit(monkeypatch, selector, ref):
+    fetches = []
+
+    async def git(args, **kwargs):
+        if args[0] == "fetch":
+            fetches.append(args)
+        return SHA if args[0] == "rev-parse" else ""
+
+    monkeypatch.setattr(native_git, "_git", git)
+    result = await NativeGitResolver().resolve(URL, selector)
+    assert result["commit_sha"] == SHA and result["selector"] == selector
+    assert fetches == [["fetch", "--no-tags", "--no-recurse-submodules", "--depth=1", "--filter=tree:0", URL, ref]]
+
+
+async def test_mr_resolution_keeps_history_and_verifies_merge_parents(monkeypatch):
+    head, base, merge = "b" * 40, "c" * 40, "d" * 40
+    refs = {"refs/merge-requests/1/head": head, "refs/heads/main": base, "refs/merge-requests/1/merge": merge}
+    fetched = []
+    parents = [head, base]
+
+    async def git(args, **kwargs):
+        if args[0] == "fetch":
+            assert not any(arg.startswith(("--depth", "--filter")) for arg in args)
+            fetched.append(refs[args[-1]])
+        if args[0] == "rev-parse":
+            return fetched[-1]
+        if args[0] == "rev-list":
+            return " ".join([merge, *parents])
+        return ""
+
+    monkeypatch.setattr(native_git, "_git", git)
+    selector = {"kind": "MR", "number": 1, "base_ref": "main", "checkout_strategy": "MERGE"}
+    result = await NativeGitResolver().resolve(URL, selector)
+    assert result["commit_sha"] == merge and result["head_sha"] == head and result["base_sha"] == base
+    parents[:] = [head]
+    with pytest.raises(native_git.CloudBlocked) as failure:
+        await NativeGitResolver().resolve(URL, selector)
+    assert failure.value.code == "MR_MERGE_PROVENANCE"
+
+
+async def test_sdk_workspace_checkout_keeps_history(monkeypatch, tmp_path):
+    fetched = []
+
+    async def git(args, **kwargs):
+        if args[0] == "fetch":
+            fetched.append(args)
+        return SHA if args[0] == "rev-parse" else ""
+
+    monkeypatch.setattr(native_git, "_git", git)
+    await NativeGitResolver().checkout({"url": URL, "commit_sha": SHA}, tmp_path / "workspace")
+    assert fetched == [["fetch", "--no-tags", "--no-recurse-submodules", URL, SHA]]

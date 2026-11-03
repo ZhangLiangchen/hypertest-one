@@ -512,6 +512,40 @@ async def test_resolution_rechecks_original_authority_before_each_git_access(tmp
     assert (tmp_path / ("resolution-" + ids[2]) / "result.json").exists()
 
 
+@pytest.mark.asyncio
+async def test_resolution_lease_timeout_cancels_git_without_accepting_partial_sources(tmp_path, monkeypatch):
+    import asyncio
+
+    from hypertest.cloud.errors import CloudBlocked
+    from hypertest.cloud.native_git import NativeGitResolver
+    from hypertest.cloud.native_worker import resolve
+
+    operations = []
+    cancelled = []
+    class API:
+        async def request(self, operation, body):
+            operations.append(operation)
+            return {"current": True}
+    async def stalled_git(self, url, selector, *, token=None):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.append(True)
+    monkeypatch.setattr(NativeGitResolver, "resolve", stalled_git)
+    resolution_id = str(uuid4())
+    claim = {"resolution": {"id": resolution_id}, "task": {"id": str(uuid4()), "project_id": str(uuid4()),
+        "inputs": {"sut_selector": {"kind": "SHA", "value": "a" * 40},
+                   "framework_selector": {"kind": "SHA", "value": "b" * 40}}},
+        "configuration": {"sut": {"url": "https://example.invalid/sut"},
+                          "framework": {"url": "https://example.invalid/framework"}},
+        "lease_token": "lease", "work_token": "work", "generation": 1}
+    with pytest.raises(CloudBlocked) as failure:
+        await resolve(API(), SimpleNamespace(worker_id="worker-test", lease_seconds=5.01), tmp_path, claim)
+    assert failure.value.code == "RESOLUTION_TIMEOUT"
+    assert cancelled and operations == ["resolution/assert"]
+    assert not (tmp_path / ("resolution-" + resolution_id) / "result.json").exists()
+
+
 def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     import json
 
