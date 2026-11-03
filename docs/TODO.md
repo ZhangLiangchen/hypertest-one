@@ -12,10 +12,13 @@
 - 外部设备严格 X.509 与原配对请求（2026-10-28）：CLI 叶子证书已补 SKI/AKI，Python 3.13+ 严格校验和本机 CLI `doctor` 已验证；原 request `58966389-8daf-44b0-8223-921eed7b1e38` 服务端从未创建（DB 0 行、无 CREATE POST），旧本机记录保持 UNKNOWN 不重放。外部设备需发起新的显式配对并完成真实配对/归档，属用户验收。见[本轮记录](CLI_TLS_AKI_AND_PAIRING_ATTEMPT_20261028.md)。
 - Cloud、P0 恢复与 PowerContext：各自用户功能验收仍待用户执行；Memory 项目授权需独立配置，不能由 Local 或 Cloud grant 推定。见[跟进记录](FOLLOWUP_DELIVERY_20261023.md)和[Memory 交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。
 - Cloud Harness 原生配置：ADR-031 的容器 profile 为历史路径；ADR-032 轻量宿主 Worker 已部署，真实模型身份、插件、Git 访问、项目测试和报告回传待用户验收。实现、部署和实际功能结果分别记录，见[本轮交付](CLOUD_LIGHTWEIGHT_WORKER_DELIVERY_20261102.md)。
+- Cloud 原生完成后的复测与删除：管理闭环已按 ADR-035 修复并部署；相关自动回归通过，真实业务与浏览器功能验收另计，见[交付记录](CLOUD_NATIVE_COMPLETION_DELIVERY_20261103.md)。
 - Cloud 草稿编辑、任务删除与资源页：用户功能验收待执行；现场无草稿，编辑器未在真实任务上打开。实现、测试和部署见[本轮记录](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)。
 - 任务创建清理用户验收：旧 SessionTask 和受管 TestRun 的 API、页面及数据迁移已完成本机容器部署，实际结果见[本轮记录](TASK_CREATION_RETIREMENT_20261028.md)；用户功能验收尚未执行。
 
 ## 未完成的开发与条件
+
+- 本机薄 Worker 的未决领取恢复：2026-11-03 实测宿主进程已退出，原 SENT/UNKNOWN 领取阻止新任务解析；当前记录保留，尚未恢复。需按原身份核对并完善恢复路径，不能删除未知记录或盲目重发。与原生完成后的管理修复分开，见[本轮交付](CLOUD_NATIVE_COMPLETION_DELIVERY_20261103.md)。
 
 - Cloud 原任务复测：按 [ADR-033](architecture/ADR-033_CLOUD_ATTEMPT_RETRY_SNAPSHOT.md) 实现独立 Attempt 快照和范围/授权确认，旧动作保留原 key 对账。宿主直接操作不经过旧受控 broker，也不提供强隔离；实际用户复测与原动作观测分别验收。部署状态以本机记录为准。
 

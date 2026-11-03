@@ -20,6 +20,7 @@
 - [ADR-031：云端 Harness 原生配置](architecture/ADR-031_CLOUD_NATIVE_HARNESS_CONFIGURATION.md)：模型、推理和插件由云端 Harness profile 管理，新任务不设置平台预算；远程能力与部署验收分别记录。
 - [ADR-034：Cloud 列表删除与执行收尾分离](architecture/ADR-034_CLOUD_DELETION_AND_RECOVERY.md)：已请求取消且已隔离写入权的待恢复任务可移出列表，UNKNOWN 与受限对账能力保留。
 - [ADR-035：宿主原生完成后的任务管理](architecture/ADR-035_NATIVE_COMPLETION_MANAGEMENT.md)：保留未知观察范围，正常完成后允许独立复测与删除，已知未决操作继续阻断。
+- [宿主原生完成管理闭环交付（2026-11-03）](CLOUD_NATIVE_COMPLETION_DELIVERY_20261103.md)：复测/删除准入修复、相关回归、本机镜像及尚未恢复的独立领取问题。
 - [ADR-032：快速原型期的轻量 Harness Worker](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md)：项目笔记与已决定的职责边界；全容器化是未来资源隔离方向，实现和部署分别记录。
 - [Cloud 原生交互 SDK 构建（2026-11-02）](CLOUD_NATIVE_INTERACTION_SDK_BUILD_20261102.md)：固定上游、锁文件构建修复与配套包验证。
 - [Cloud Agent 运行中提问调查（2026-11-02）](CLOUD_AGENT_INTERACTION_INVESTIGATION_20261102.md)：官方 SDK 能力、模拟验证、构建阻塞与未实现的交互通道。
