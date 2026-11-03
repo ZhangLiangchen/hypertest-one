@@ -1,6 +1,6 @@
 # Test Mission Protocol Specification
 
-> **2026-11-03 输入合同：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 规定新 Cloud 任务从 Project 固定仓库，仅 MR/PR URL 是必填测试输入，可选单个 prompt；名称自动生成，默认取 MR/PR head 与框架 main 并解析固定 SHA；不再接受资源选择或预期部署版本配置。§46 中的旧配置与环境条款只解释历史 profile。
+> **2026-11-03 输入合同：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 规定新 Cloud 任务从 Project 固定仓库，Web 创建页面填写任务名称及 MR/PR URL，可选单个 prompt；API 保留省略标题时自动命名的默认行为，默认取 MR/PR head 与框架 main 并解析固定 SHA；不再接受资源选择或预期部署版本配置。§46 中的旧配置与环境条款只解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定由轻量 Worker 对接宿主 Harness；目标协议及实现、部署状态分别记录。
 
@@ -1436,7 +1436,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 | 用户流程 | HyperTest / 云端 Worker | Harness / 项目工具链 |
 | --- | --- | --- |
 | 1. 创建项目 | 创建或复用共享 Project，在项目详情登记 SUT/framework 仓库 | 不启动 Agent，不隐式导入本机登录 |
-| 2. 创建任务 | 创建 DRAFT CloudTask，仅 MR/PR URL 是必填测试输入，可选单个 prompt；名称自动生成，SUT 默认 MR/PR head，框架默认 main | 不执行测试，不管理环境或部署 |
+| 2. 创建任务 | 创建 DRAFT CloudTask，页面填写任务名称及 MR/PR URL，可选单个 prompt；SUT 默认 MR/PR head，框架默认 main | 不执行测试，不管理环境或部署 |
 | 3. 下发任务 | 输入预检 Worker 解析双 SHA，dispatch 冻结解析快照并原子入队独立 Attempt | 仅排队不构成已接取/测试通过 |
 | 4. Harness 接取 | Worker 通过官方 Python SDK 启动独立 runtime、提交冻结任务、收集受控进度 | DeepSeek 自行参与或委派 Codex/Claude，维护分工清单 |
 | 5. 输出产物 | 按阶段校验并持久接受 analysis/design/cases/implementation 修订与原件 | 生成分析、设计、用例和测试代码 |
@@ -1476,7 +1476,7 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 | --- | --- |
 | ConfigureCloudProject（旧入口） | ADR-038 退役新 CONFIGURE，返回 HTTP 410；配置 GET 仅供历史 CONFIGURE 原 key 接受结果核对，产品不再提供配置列表入口 |
 | Store/RotateProjectCredential | 专门秘密入口接收 token/私钥与类型、目标/用途、有效期；加密持久化，返回非秘密 ref/version；`credential:manage`。原文不进入普通操作回执/读取接口 |
-| Create/UpdateCloudTask | `expected_project_version, inputs`；`inputs.mr_url` 必填，`inputs.prompt` 可选；创建 `title` 可省略，由服务端以仓库名与 MR/PR 编号生成，更新仍提交标题，检出 selectors 可省略；不接受 config_id，API 从 Project 与其范围内 MR 仓库生成快照。DRAFT 可改，Task expected_version 与 Project row_version 分别校验；`cloud:dispatch` |
+| Create/UpdateCloudTask | `expected_project_version, inputs`；`inputs.mr_url` 必填，`inputs.prompt` 可选；Web 创建提交用户填写的 `title`；API 允许创建省略标题，由服务端以仓库名与 MR/PR 编号生成，更新仍提交标题，检出 selectors 可省略；不接受 config_id，API 从 Project 与其范围内 MR 仓库生成快照。DRAFT 可改，Task expected_version 与 Project row_version 分别校验；`cloud:dispatch` |
 | DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；原有 DRAFT/终态无未决准入保留；ADR-034 额外允许已请求取消且 writer 已 fence 的 RECOVERY_REQUIRED Task，保留未决外部操作/容器/委派但拒绝 PENDING/RESOLVING 及未完全撤权的恢复解析。追加墓碑与版本化回执，固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读。删除后仅允许既有人工收尾、原动作观察授权及原容器恢复确认/停止观察，仍按原权限和未决检查，禁止新执行与普通写入。删除不会取消任务、改写结果或重发外部操作 |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
 | DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_inputs, retry_scope_confirmed=true, retry_authorization_confirmed=true`（本次范围和授权独立冻结）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
@@ -1492,7 +1492,7 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 
 ### 46.4 下发输入与冻结快照
 
-**ADR-038 当前请求：** CREATE_TASK / UPDATE_TASK 必须提供 `expected_project_version >= 1`，与锁定的 Project.row_version 不符时返回 409，防止使用页面未确认的仓库。`inputs.mr_url` 必填且必须为无凭据 HTTPS GitLab MR 或 GitHub PR 地址；MR 仓库须与 Project SUT 地址同主机且属于其精确仓库或下级路径范围（GitLab `/groups/` 入口按实际 namespace 核对）。MR 随任务输入和 prompt 交付；省略 `sut_selector` 时服务端生成 `BRANCH` 选择器，GitLab value 为 `refs/merge-requests/<id>/head`，GitHub value 为 `refs/pull/<id>/head`；省略 `framework_selector` 时为 `BRANCH main`。解析时固定当时观察的完整 SHA，后续分支移动不改变已冻结输入。不接受 `config_id`；服务端固定 MR 所在的 SUT 仓库及 Project 框架仓库到内部快照，新快照不含 environment。单个可选 `inputs.prompt` 保存用户测试说明；旧 `prd_markdown`、`prd_version`、`objective`、`basic_flow`、`test_scope` 均可省略，未提供时序列化省略，实际提供时保留，不伪造需求正文。创建 `title` 省略时从仓库名及 MR/PR 编号生成（GitLab 为 `repo MR !123`，GitHub 为 `repo PR #123`）；UPDATE_TASK 仍提交标题。环境可由 prompt 说明，不校验或管理预期部署版本；Agent 使用已有工具查询 MR 与项目上下文。
+**ADR-038 当前请求：** CREATE_TASK / UPDATE_TASK 必须提供 `expected_project_version >= 1`，与锁定的 Project.row_version 不符时返回 409，防止使用页面未确认的仓库。`inputs.mr_url` 必填且必须为无凭据 HTTPS GitLab MR 或 GitHub PR 地址；MR 仓库须与 Project SUT 地址同主机且属于其精确仓库或下级路径范围（GitLab `/groups/` 入口按实际 namespace 核对）。MR 随任务输入和 prompt 交付；省略 `sut_selector` 时服务端生成 `BRANCH` 选择器，GitLab value 为 `refs/merge-requests/<id>/head`，GitHub value 为 `refs/pull/<id>/head`；省略 `framework_selector` 时为 `BRANCH main`。解析时固定当时观察的完整 SHA，后续分支移动不改变已冻结输入。不接受 `config_id`；服务端固定 MR 所在的 SUT 仓库及 Project 框架仓库到内部快照，新快照不含 environment。单个可选 `inputs.prompt` 保存用户测试说明；旧 `prd_markdown`、`prd_version`、`objective`、`basic_flow`、`test_scope` 均可省略，未提供时序列化省略，实际提供时保留，不伪造需求正文。Web 创建页面保留必填任务名称并提交 `title`；API 创建请求省略 `title` 时仍按接口默认从仓库名及 MR/PR 编号生成（GitLab 为 `repo MR !123`，GitHub 为 `repo PR #123`），UPDATE_TASK 仍提交标题。环境可由 prompt 说明，不校验或管理预期部署版本；Agent 使用已有工具查询 MR 与项目上下文。
 
 当前 CREATE_TASK / UPDATE_TASK 拒绝非空 `inputs.authorization`（422）；源码读取和框架执行的内部范围由本次仓库快照生成，编辑器不回传旧授权。该规则不改变冻结任务或独立复测的原授权合同。
 

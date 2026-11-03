@@ -1,6 +1,6 @@
 # HyperTest 白皮书
 
-> **2026-11-03 产品边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 移除 Cloud 项目资源页与环境/预期部署版本管理。项目详情管理两个仓库；创建任务只需粘贴 MR/PR 地址，可选补充单个测试说明，名称自动生成；SUT 默认取 MR/PR head，测试框架默认取 main 最新提交并在解析时固定 SHA。HyperTest 聚焦测试任务生命周期、任务下发和产物归档，SUT 部署由其独立 CI 负责。
+> **2026-11-03 产品边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 移除 Cloud 项目资源页与环境/预期部署版本管理。项目详情管理两个仓库；创建任务填写任务名称、粘贴 MR/PR 地址，可选补充单个测试说明；SUT 默认取 MR/PR head，测试框架默认取 main 最新提交并在解析时固定 SHA。HyperTest 聚焦测试任务生命周期、任务下发和产物归档，SUT 部署由其独立 CI 负责。
 
 > **2026-11-02 决策：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 定义快速原型期轻量 Worker / Harness 适配器职责；项目资源隔离的全容器化是未来方向。实现、部署和用户验收各自记录。
 
@@ -154,7 +154,7 @@ ADR-016 当前 `CLOUD / LOCAL` 只区分 Agent 的位置，测试仍走服务器
 | 步骤 | 用户输入与平台职责 | 持久交付 |
 | --- | --- | --- |
 | 1. 创建或复用项目 | 在项目详情编辑被测对象和测试框架仓库；两个角色允许同仓。执行环境准备工具和访问条件，SUT 的独立 CI 负责部署；不设置 Cloud 资源或环境表单 | 共享 Project、双仓地址及审计；秘密不进入普通配置和报告 |
-| 2. 创建测试任务 | 粘贴 MR/PR 地址，可选补充单个测试说明；名称自动生成。SUT 默认取 MR/PR head，测试框架默认取 main 最新提交；Agent 查询改动和项目上下文，不要求重复填写 PRD、目标、流程、范围和版本表单 | 独立 CloudTask 草稿及版本；保存原始输入，不虚构需求或 SessionTask |
+| 2. 创建测试任务 | 填写任务名称、粘贴 MR/PR 地址，可选补充单个测试说明。SUT 默认取 MR/PR head，测试框架默认取 main 最新提交；Agent 查询改动和项目上下文，不要求重复填写 PRD、目标、流程、范围和版本表单 | 独立 CloudTask 草稿及版本；保存原始输入，不虚构需求或 SessionTask |
 | 3. 下发任务 | Worker 解析两仓来源，接受 dispatch 前冻结实际 SHA、MR/PR 地址、用户提供的测试说明和内部授权；API 引用已解析结果入队，准备工作区和独立执行尝试。解析后分支移动不改变本次来源 | 不可变输入快照、CloudAttempt、解析记录；实际 SUT build 由 Agent/框架如实报告，未知项保留，仓库 SHA 不构成部署证明 |
 | 4. 接取与分工 | Python Worker 通过官方 `deepseek-harness-sdk` 启动 `dsh --profile sdk`、提交任务并收集事件；DeepSeek 自行参与或委派 Codex（Claude Code 保持占位） | Attempt 内 Harness 身份、委派关联、进度与操作记录；主指挥官统一回写平台 |
 | 5. 保存测试产物 | 分阶段保存测试分析、设计、用例及自动化测试代码；代码落在测试框架仓库工作区，保留 commit 或完整 patch，push 受任务授权约束 | 带来源和版本的分析 / 设计 / 用例 / 代码资产；附件须真正上传并读回核验，单一 URI 不表示原件已保存 |

@@ -42,11 +42,12 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
   return { html, forms, shared, submissions, localWrites, navigation, operationHookCalls };
 }
 
-test("Cloud creation asks for a change link and optional instructions while Local retains its inputs", () => {
+test("Cloud creation retains its task title alongside a change link and optional instructions", () => {
   for (const mode of ["cloud", "local"]) for (const locale of ["en", "zh"]) {
     const { html, operationHookCalls } = unifiedCreationHarness({ mode, locale });
     assert.equal(html.includes("data-archive-prompt"), mode === "local");
     assert.equal((html.match(/id="title"/g) || []).length, mode === "local" ? 1 : 0);
+    assert.equal((html.match(/id="cloud-task_title"/g) || []).length, 1);
     assert.equal((html.match(/id="objective"/g) || []).length, mode === "local" ? 1 : 0);
     assert.equal(operationHookCalls, 1);
     assert.ok(html.includes(locale === "en" ? "Cloud testing" : "云端测试"));
@@ -150,7 +151,7 @@ test("cached Cloud configuration remains visible after refresh failure and canno
 test("the embedded Cloud form submits test inputs without agent configuration, authorization or budgets", async () => {
   const harness = unifiedCreationHarness();
   const cloudForm = harness.forms.find((form) => form.initialValues && Object.hasOwn(form.initialValues, "mr_url"));
-  await cloudForm.onFinish({ ...cloudForm.initialValues, title: "Ignored duplicate title", objective: "Ignored duplicate objective", mr_url: "https://git.example.org/team/sut/-/merge_requests/12", prompt: "Use staging; focus on transfer changes" });
+  await cloudForm.onFinish({ ...cloudForm.initialValues, title: "My MR regression task", objective: "Ignored duplicate objective", mr_url: "https://git.example.org/team/sut/-/merge_requests/12", prompt: "Use staging; focus on transfer changes" });
   await new Promise(setImmediate); // AntD's onFinish wrapper intentionally returns void.
   assert.equal(harness.submissions.length, 1);
   assert.equal(harness.submissions[0].operation, "CREATE_TASK");
@@ -160,7 +161,7 @@ test("the embedded Cloud form submits test inputs without agent configuration, a
   assert.equal(Object.hasOwn(harness.submissions[0].inputs, "sut_selector"), false);
   assert.equal(Object.hasOwn(harness.submissions[0].inputs, "framework_selector"), false);
   assert.equal(harness.submissions[0].inputs.mr_url, "https://git.example.org/team/sut/-/merge_requests/12");
-  assert.equal(Object.hasOwn(harness.submissions[0], "title"), false);
+  assert.equal(harness.submissions[0].title, "My MR regression task");
   assert.equal(harness.submissions[0].inputs.prompt, "Use staging; focus on transfer changes");
   for (const key of ["objective", "prd_markdown", "prd_version", "basic_flow", "test_scope"]) assert.equal(Object.hasOwn(harness.submissions[0].inputs, key), false, key);
   for (const key of ["authorization", "budgets", "framework_entrypoints", "model", "reasoning_effort"]) assert.equal(Object.hasOwn(harness.submissions[0].inputs, key), false, key);
@@ -169,17 +170,20 @@ test("the embedded Cloud form submits test inputs without agent configuration, a
   assert.deepEqual(harness.navigation, ["/cloud-tasks/cloud-task-1?projectId=project-1"]);
 });
 
-test("Cloud creation removes detailed requirements and source selectors and accepts the MR alone", async () => {
+test("Cloud creation accepts a task title and MR without source selectors or extra instructions", async () => {
   const harness = unifiedCreationHarness();
   for (const id of ["prd", "prd_version", "basic_flow", "test_scope", "sut_ref", "framework_ref", "sut_kind", "framework_kind"]) {
-    assert.equal(harness.html.includes(`id="${id}"`), false, id);
+    assert.equal(harness.html.includes(`id="cloud-task_${id}"`), false, id);
   }
   const cloudForm = harness.forms.find((form) => form.initialValues && Object.hasOwn(form.initialValues, "mr_url"));
-  await cloudForm.onFinish({ mr_url: "  https://git.example.org/team/sut/-/merge_requests/12  " });
+  await cloudForm.onFinish({ title: "Transfer regression", mr_url: "  https://git.example.org/team/sut/-/merge_requests/12  " });
   await new Promise(setImmediate);
   assert.equal(harness.submissions.length, 1);
   assert.equal(harness.submissions[0].inputs.mr_url, "https://git.example.org/team/sut/-/merge_requests/12");
   assert.equal(harness.submissions[0].inputs.prompt, "");
+  assert.equal(harness.submissions[0].title, "Transfer regression");
+  await cloudForm.onFinish({ title: "   ", mr_url: "https://git.example.org/team/sut/-/merge_requests/12" });
+  assert.equal(harness.submissions.length, 1, "blank task titles do not submit");
 });
 
 test("an unresolved Cloud creation keeps its original key visible and prevents a Local create", () => {

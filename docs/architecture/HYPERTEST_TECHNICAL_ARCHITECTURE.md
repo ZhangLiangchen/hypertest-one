@@ -1076,7 +1076,7 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 ### 45.3 项目仓库、任务输入与工作区
 
-**ADR-038 当前路径：** 项目详情是两仓地址的管理入口。CREATE/UPDATE 用 `expected_project_version` 核对 Project 版本，由 API 在既有不可变配置表生成内部仓库快照；新快照无 environment，不依赖资源列表或 CONFIGURE。`inputs.mr_url` 是唯一必填的测试输入，`inputs.prompt` 为可选补充说明；创建标题省略时由服务端生成，不补造旧 PRD、目标或流程。省略 SUT 选择器时从 URL 生成 GitLab `refs/merge-requests/<id>/head` 或 GitHub `refs/pull/<id>/head`，框架选择器默认 `BRANCH main`。MR 仓库须属于 Project 的仓库或同主机下级范围，项目为 GitLab group 时从 MR 定位实际仓库。Worker 解析并固定两仓完整 SHA，将 MR/PR 上下文和原任务 prompt 交给 Harness，由 Agent 使用已配置工具（如 glab）查询改动与需求；环境访问和 SUT 部署由执行节点及项目工具负责。下文关于环境引用、部署匹配和受控凭据交付的旧条款仅解释旧 profile，不作为新任务前置配置。
+**ADR-038 当前路径：** 项目详情是两仓地址的管理入口。CREATE/UPDATE 用 `expected_project_version` 核对 Project 版本，由 API 在既有不可变配置表生成内部仓库快照；新快照无 environment，不依赖资源列表或 CONFIGURE。Web 创建页面填写任务名称与 `inputs.mr_url`，`inputs.prompt` 为可选补充说明；API 保留省略创建标题时由服务端生成的默认行为，不补造旧 PRD、目标或流程。省略 SUT 选择器时从 URL 生成 GitLab `refs/merge-requests/<id>/head` 或 GitHub `refs/pull/<id>/head`，框架选择器默认 `BRANCH main`。MR 仓库须属于 Project 的仓库或同主机下级范围，项目为 GitLab group 时从 MR 定位实际仓库。Worker 解析并固定两仓完整 SHA，将 MR/PR 上下文和原任务 prompt 交给 Harness，由 Agent 使用已配置工具（如 glab）查询改动与需求；环境访问和 SUT 部署由执行节点及项目工具负责。下文关于环境引用、部署匹配和受控凭据交付的旧条款仅解释旧 profile，不作为新任务前置配置。
 
 新任务和复测的测试授权不设截止；历史冻结期限及独立 Worker lease、grant 和凭据期限仍按各自合同执行。
 

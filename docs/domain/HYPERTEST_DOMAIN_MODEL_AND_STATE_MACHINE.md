@@ -1,6 +1,6 @@
 # HyperTest Domain Model & State Machine Specification
 
-> **2026-11-03 领域边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 将 Project 两仓地址作为新 Cloud 任务仓库快照的配置来源；MR/PR URL 是唯一必填的测试输入，其仓库须位于 Project SUT 范围内，单个 prompt 可选。标题可自动生成，SUT 默认 MR/PR head，框架默认 main，解析时固定实际 SHA。新写不产生环境配置或预期部署版本。§51 的旧环境合同仅解释历史 profile。
+> **2026-11-03 领域边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 将 Project 两仓地址作为新 Cloud 任务仓库快照的配置来源；Web 创建页面填写任务名称及 MR/PR URL，MR 仓库须位于 Project SUT 范围内，单个 prompt 可选。API 保留省略创建标题时自动命名的默认行为，SUT 默认 MR/PR head，框架默认 main，解析时固定实际 SHA。新写不产生环境配置或预期部署版本。§51 的旧环境合同仅解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定快速原型的宿主 Worker 模式，取代 §51 中与之冲突的任务容器准入；目标合同和实际交付分别记录。
 
@@ -2311,7 +2311,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ### 51.1 身份、实体与关系
 
-**ADR-038 当前数据路径：** Project.repository_url 与 test_framework_repository_url 在项目详情编辑。新建/编辑草稿以 expected_project_version 校验 Project.row_version，并在既有 ProjectCloudConfigRevision 表追加只含两仓的内部不可变快照；SUT 取 Project 范围内 MR 所在仓库，framework 取 Project 地址，不要求用户配置资源，也不保存 environment。CloudTask.inputs.mr_url 为必填 HTTPS MR/PR 改动上下文，inputs.prompt 可选；创建 title 可省略并由服务端以仓库名与 MR/PR 编号生成。旧 PRD、版本、目标、流程和范围可省略，实际提供的正文仍保存，缺省不补造。省略 sut_selector 时生成 BRANCH 选择器，value 为 GitLab `refs/merge-requests/<id>/head` 或 GitHub `refs/pull/<id>/head`；省略 framework_selector 时为 BRANCH main。解析固定当时观察的完整 SHA，显式提供的旧选择器及已存任务不因默认值调整而重写。Project 编辑不回填已有任务；显式编辑 DRAFT 重新生成当前仓库快照并重新解析。该变化无需新表或迁移。
+**ADR-038 当前数据路径：** Project.repository_url 与 test_framework_repository_url 在项目详情编辑。新建/编辑草稿以 expected_project_version 校验 Project.row_version，并在既有 ProjectCloudConfigRevision 表追加只含两仓的内部不可变快照；SUT 取 Project 范围内 MR 所在仓库，framework 取 Project 地址，不要求用户配置资源，也不保存 environment。CloudTask.inputs.mr_url 为必填 HTTPS MR/PR 改动上下文，inputs.prompt 可选；Web 创建提交用户填写的任务名称；API 保留创建 title 省略时由服务端以仓库名与 MR/PR 编号生成的默认行为。旧 PRD、版本、目标、流程和范围可省略，实际提供的正文仍保存，缺省不补造。省略 sut_selector 时生成 BRANCH 选择器，value 为 GitLab `refs/merge-requests/<id>/head` 或 GitHub `refs/pull/<id>/head`；省略 framework_selector 时为 BRANCH main。解析固定当时观察的完整 SHA，显式提供的旧选择器及已存任务不因默认值调整而重写。Project 编辑不回填已有任务；显式编辑 DRAFT 重新生成当前仓库快照并重新解析。该变化无需新表或迁移。
 
 新建/编辑草稿的源码读取和框架执行内部授权随当前仓库快照生成，不接受非空 inputs.authorization，不继承旧环境权限或旧仓库目标。冻结任务及独立复测仍保留各自原授权，不因项目编辑改变。
 
@@ -2401,7 +2401,7 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 **ADR-031（2026-11-02）覆盖：** 新 CloudTask 的 `budgets` 为 null，不接受任务预算输入，不生成预算 hold / settlement。模型、推理和插件由云端 Harness 原生 `sdk` profile 管理。下文预算字段、累计额度和结算规则只解释旧冻结任务及其历史对账；旧冻结任务不能重新下发，未冻结且无 Attempt 的旧 DRAFT 在编辑或重新解析时移除预算并更新版本。隔离、授权、lease/fence 和原 key 未知操作恢复继续有效。新模式的受控 SSH、HTTPS 与外部写暂不支持。
 
 1. 创建或复用 Project，在项目详情维护 SUT 与 framework 仓库地址；不另建资源或环境配置。
-2. 创建 DRAFT CloudTask，只需填写 MR/PR URL，可选在单个 prompt 补充测试环境、目标、流程和范围，标题自动生成。SUT 默认 MR/PR head，框架默认 main 最新提交并在解析时固定 SHA；MR 不是部署版本。创建界面不再要求 PRD、PRD 版本、目标、流程、范围或检出选择器表单，也不输入平台环境、授权、预算、框架命令或 Agent 配置。
+2. 创建 DRAFT CloudTask，页面填写任务名称及 MR/PR URL，可选在单个 prompt 补充测试环境、目标、流程和范围。SUT 默认 MR/PR head，框架默认 main 最新提交并在解析时固定 SHA；MR 不是部署版本。创建界面不再要求 PRD、PRD 版本、目标、流程、范围或检出选择器表单，也不输入平台环境、授权、预算、框架命令或 Agent 配置。
 3. 先用 `ResolveCloudInputs` 将 DRAFT 的仓库快照与选择器交给受限 Worker 解析，形成不可变 CloudInputResolution；Git 解析在 Worker 和聚合行锁外进行，API 不运行 Git，也不预检或部署 SUT 环境。显式 dispatch 引用 resolution_id，重新检查授权、draft/config version 与 expected_version，原子接受冻结 manifest、首个 QUEUED Attempt、操作回执、Audit 和 Outbox。排队成功不代表已启动 Harness 或测试通过。
 4. Worker 领取该 Attempt，按 ADR-032 准备工作区，以官方 Python SDK 启动 DeepSeek harness、提交冻结任务并记录分工；宿主路径不宣称 OS 强隔离。
 5. 持久接受分析、设计、用例和实现修订；原件回收独立于主进程是否仍存活。
