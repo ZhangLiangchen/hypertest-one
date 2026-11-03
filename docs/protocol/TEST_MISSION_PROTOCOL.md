@@ -1437,7 +1437,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 | --- | --- | --- |
 | 1. 创建项目 | 创建或复用共享 Project，在项目详情登记 SUT/framework 仓库 | 不启动 Agent，不隐式导入本机登录 |
 | 2. 创建任务 | 创建 DRAFT CloudTask，页面填写任务名称及 MR/PR URL，可选单个 prompt；SUT 默认 MR/PR head，框架默认 main | 不执行测试，不管理环境或部署 |
-| 3. 下发任务 | 输入预检 Worker 解析双 SHA，dispatch 冻结解析快照并原子入队独立 Attempt | 仅排队不构成已接取/测试通过 |
+| 3. 开始测试 | START_TASK 保存开始意图，后台自动解析双 SHA、接受快照并原子入队独立 Attempt；不要求用户单独准备源码 | 开始已接受、准备中、已排队与 Harness 已接取分别记录 |
 | 4. Harness 接取 | Worker 通过官方 Python SDK 启动独立 runtime、提交冻结任务、收集受控进度 | DeepSeek 自行参与或委派 Codex/Claude，维护分工清单 |
 | 5. 输出产物 | 按阶段校验并持久接受 analysis/design/cases/implementation 修订与原件 | 生成分析、设计、用例和测试代码 |
 | 6. 执行并汇报 | 保存每次框架执行、原报告/日志、case actual 与最终汇报，核对收尾 | 调用项目已有框架/CI，诊断并迭代；第 5/6 步可循环 |
@@ -1478,6 +1478,7 @@ ADR-032 的宿主 Worker 使用独立身份领取任务，以 Attempt 范围的 
 | Store/RotateProjectCredential | 专门秘密入口接收 token/私钥与类型、目标/用途、有效期；加密持久化，返回非秘密 ref/version；`credential:manage`。原文不进入普通操作回执/读取接口 |
 | Create/UpdateCloudTask | `expected_project_version, inputs`；`inputs.mr_url` 必填，`inputs.prompt` 可选；Web 创建提交用户填写的 `title`；API 允许创建省略标题，由服务端以仓库名与 MR/PR 编号生成，更新仍提交标题，检出 selectors 可省略；不接受 config_id，API 从 Project 与其范围内 MR 仓库生成快照。DRAFT 可改，Task expected_version 与 Project row_version 分别校验；`cloud:dispatch` |
 | DeleteCloudTask (`DELETE_TASK`) | `project_id, task_id, operation_key, expected_version`；`cloud:control`；原有 DRAFT/终态无未决准入保留；ADR-034 额外允许已请求取消且 writer 已 fence 的 RECOVERY_REQUIRED Task，保留未决外部操作/容器/委派但拒绝 PENDING/RESOLVING 及未完全撤权的恢复解析。追加墓碑与版本化回执，固定接受版本 `task.deleted_at` 为删除时间；目录隐藏，历史与原 key 仍可读。删除后仅允许既有人工收尾、原动作观察授权及原容器恢复确认/停止观察，仍按原权限和未决检查，禁止新执行与普通写入。删除不会取消任务、改写结果或重发外部操作 |
+| StartCloudTask (`START_TASK`) | `task_id, expected_version`；`cloud:dispatch`；只对未冻结 DRAFT 接受一次开始意图。已有当前有效解析时直接首次入队，否则回执含 `resolution_id, start_requested=true`，后台准备成功后自动首次下发，不要求客户端再提交 DISPATCH。回执是原请求的固定结果，不代表 Harness 已启动 |
 | ResolveCloudInputs | `task_id, expected_version`；受限 Worker 预检固定输入，不启动 Harness/测试；接受不可变 `resolution_id`、完整双 SHA/MR 身份、资源版本与来源；`cloud:dispatch` 请求，限定 INPUT_RESOLUTION 的 `cloud:work` 执行 |
 | DispatchCloudTask | `task_id, resolution_id`（首次）或 `task_id, retry_of_attempt_id, reason, retry_inputs, retry_scope_confirmed=true, retry_authorization_confirmed=true`（本次范围和授权独立冻结）；返回冻结 input digest、task version、QUEUED Attempt 与原 key 回执；`cloud:dispatch` |
 | GetCloudTask / GetCloudOperation | 固定 task/version 的任务/Attempt/资产分页，或 project/原 operation_key 的回执查询；`cloud:read`，回执查询另核验原提交者/授权委派关系 |
@@ -1510,6 +1511,8 @@ ADR-038 后 Project 仓库与其范围内的 MR 仓库是新任务快照的来�
 Environment的可选`cloud_access_policy=LOCAL_ONLY|WEB_ONLY|None`随配置冻结，None序列化省略保旧digest；LOCAL_ONLY在Cloud创建 / 更新 / 解析 / 下发 / 领取 / 物化及prompt前拒绝，WEB_ONLY只允许HTTPS且不授网或启用当前未实现的HTTPSruntime。它不新增scope / Project排他mode或Task转换；仅收紧用户已经批准的资源访问。
 
 ResolveCloudInputs 在聚合锁外通过受限 Worker 进行 Git 解析，记录 draft version、仓库快照版本、选择器、观察与完整解析结果；新路径不预检或部署 SUT 环境；结果接受前重新核对当前权限与原 draft 版本。同一事务接受 resolution 并递增 task version，结果保存 source_draft_version 与 accepted_task_version。DRAFT 后续变更使原解析结果不能用于首次 dispatch。预检、暂存原件或成功 clone 不等于任务已下发。
+
+`START_TASK` 复用上述解析与首次下发，服务端以原开始回执及其 resolution 关联持久意图，关闭页面不会取消或中断该意图。无当前有效解析时，开始接受仅递增一版并保持 DRAFT；后续 ACCEPT_RESOLUTION 在重查版本、输入摘要、任务状态、当前内部授权和 Worker grant 后，同一事务接受解析、冻结 manifest、入队唯一 Attempt 并再递增一版，回执含 `attempt_id`。若开始时已有当前版本和摘要匹配的 ACCEPTED 解析，则在 START_TASK 事务中直接首次入队、递增一版。旧 RESOLVE_INPUTS 不自动下发；PENDING/RESOLVING/RECOVERY_REQUIRED 禁止新的开始，FAILED 后仅允许新的显式意图。重复原 key 与重复接受只返回原固定回执；未知请求按原 key 查询，不因页面刷新或新的开始请求重放。live summary 的 `resolutions.start_requested` 是开始意图投影，准备、排队和 Harness 运行分别显示；普通固定版本 document 仍保留原快照。
 
 DispatchCloudTask 必须匹配 resolution 的 accepted_task_version、当前 expected_version 和未变的输入/资源摘要，只引用已接受解析快照；API 不运行 Git。事务内固定 manifest 与首个 Attempt 并写原 key 回执、Audit/Outbox，之后 PREPARING 仅获取/核验固定版本，不再次解析移动分支。
 

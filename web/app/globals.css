@@ -775,6 +775,8 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-overview { display: flex; flex-direction: column; gap: 24px; }
 .cloud-task-control-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 24px; align-items: stretch; }
 .cloud-task-source-versions .ant-descriptions-item-label { padding-bottom: 4px; color: var(--ht-muted); }
+.cloud-task-source-details { margin-top: 20px; border-top: 1px solid var(--ht-line); }
+.cloud-task-source-details > summary { padding: 16px 0; cursor: pointer; font-weight: 600; }
 .cloud-task-sha { min-width: 0; overflow-wrap: anywhere; }
 .cloud-task-sha code { white-space: normal; overflow-wrap: anywhere; }
 .cloud-task-sha .entity-key { margin-top: 8px; }

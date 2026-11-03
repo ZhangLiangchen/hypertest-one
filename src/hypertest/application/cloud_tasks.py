@@ -51,7 +51,7 @@ from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 
 SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
-    "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
+    "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "START_TASK": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
     "DELETE_TASK": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
     "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work", "COMPLETE_NATIVE_ATTEMPT": "cloud:work",
@@ -509,6 +509,97 @@ def _events(db, project_id, actor_ref, operation, entity_id, response):
         event_type="cloud." + operation.lower(), payload=metadata))
 
 
+async def _request_resolution(db, task, *, operation_key, actor_ref, grant_id, version):
+    if task.status != "DRAFT" or task.frozen_manifest or task.latest_attempt_id is not None:
+        raise HTTPException(409, "Only DRAFT accepts input resolution")
+    config = await _configuration(db, task.project_id, task.config_id)
+    _authorize_input_reads(task.inputs, config.configuration, await clock(db))
+    migrated_budget = task.inputs.get("budgets") is not None
+    if migrated_budget:
+        if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id).limit(1)):
+            raise HTTPException(409, "A draft with an existing Attempt cannot change its budget")
+        # This mutation advances the draft version in the same transaction,
+        # so prior resolutions cannot be accepted for the changed input.
+        task.inputs = {**task.inputs, "budgets": None}
+    resolution = CloudInputResolution(id=uuid7(), project_id=task.project_id, task_id=task.id,
+        operation_key=operation_key, source_draft_version=version,
+        source_digest=canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest}),
+        status="PENDING", requested_by=actor_ref, grant_id=grant_id)
+    db.add(resolution)
+    refs = {"resolution_id": str(resolution.id), "resolution_status": "PENDING"}
+    if migrated_budget:
+        refs["legacy_draft_budget_removed"] = True
+    return refs
+
+
+async def _dispatch_task(db, task, *, grant_id, resolution_id=None, retry_of_attempt_id=None, retry_inputs=None):
+    """Queue one fixed-input Attempt under the already-held Task lock."""
+    if task.status == "DRAFT" and task.inputs.get("budgets") is not None:
+        raise HTTPException(409, "Legacy draft budget must be removed by resolving versions again")
+    config = await _configuration(db, task.project_id, task.config_id)
+    effective_inputs = task.inputs
+    execution_manifest = None
+    environment = config.configuration.get("environment", {})
+    if task.status == "DRAFT":
+        resolution = await db.get(CloudInputResolution, resolution_id)
+        expected_digest = canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest})
+        if (not resolution or resolution.task_id != task.id or resolution.status != "ACCEPTED"
+                or resolution.accepted_task_version != task.version or resolution.source_digest != expected_digest):
+            raise HTTPException(409, "Dispatch requires an accepted immutable resolution for this exact DRAFT version")
+        manifest = {"profile": PROFILE, "project_id": str(task.project_id), "cloud_task_id": str(task.id),
+            "config_id": str(config.id), "config_revision": config.revision, "configuration": config.configuration,
+            "inputs": task.inputs, "resolution": resolution.result, "resolution_id": str(resolution.id)}
+        if task.inputs.get("prd_markdown") is not None:
+            manifest["prd_sha256"] = hashlib.sha256(task.inputs["prd_markdown"].encode()).hexdigest()
+        task.frozen_manifest, task.input_digest = manifest, canonical_json_sha256(manifest)
+    else:
+        old = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None
+        if not task.frozen_manifest or not old or old.id != retry_of_attempt_id or old.status not in TERMINAL:
+            raise HTTPException(409, "Explicit retry requires the terminal latest Attempt and its frozen input")
+        blocking = await _terminal_attempt_blocking_reasons(db, task, old)
+        if blocking:
+            raise HTTPException(409, blocking[0])
+        # Historical inputs and held budgets are immutable. The host-native
+        # retry uses its own authorization and no legacy execution broker.
+        effective_inputs = {**task.inputs, **retry_inputs.model_dump(mode="json"), "budgets": None}
+        for field in ("controlled_actions", "framework_runtime", "agent_source_export"):
+            effective_inputs.pop(field, None)
+        execution_manifest = {**task.frozen_manifest, "inputs": effective_inputs,
+            "retry_of_attempt_id": str(old.id), "previous_input_digest": old.input_digest}
+    _authorize_input_reads(effective_inputs, config.configuration, await clock(db),
+                           native_retry=execution_manifest is not None)
+    if execution_manifest is None and environment.get("ssh_access") is not None:
+        from types import SimpleNamespace
+
+        from .cloud_ssh import authorize_environment
+        authorize_environment(SimpleNamespace(inputs=effective_inputs), environment, await clock(db))
+    authorization = effective_inputs["authorization"]
+    auth_expiry = authorization_expiry(authorization)
+    if auth_expiry is not None and auth_expiry <= await clock(db):
+        raise HTTPException(403, "Frozen execution authorization expired")
+    budgets = effective_inputs["budgets"]
+    if budgets is None:
+        count = await db.scalar(select(func.count()).select_from(CloudAttempt).where(CloudAttempt.task_id == task.id))
+    else:
+        count, seconds, cost = await _task_budget_usage(db, task.id)
+        if count >= budgets["max_attempts"] or seconds >= budgets["total_seconds"] or cost >= budgets["total_cost_microunits"]:
+            raise HTTPException(409, "Cloud Task cumulative budget is exhausted")
+    if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id, CloudAttempt.status.not_in(TERMINAL))):
+        raise HTTPException(409, "Task already has an unfinished Attempt")
+    attempt = CloudAttempt(id=uuid7(), task_id=task.id, project_id=task.project_id, attempt_no=count + 1,
+        input_digest=canonical_json_sha256(execution_manifest) if execution_manifest else task.input_digest,
+        execution_manifest=execution_manifest, status="QUEUED", reported_result="NOT_RUN", lease_generation=0,
+        checkpoint={}, runtime_metadata={}, usage_seconds=0, cost_microunits=0, authorization_grant_id=grant_id)
+    db.add(attempt)
+    await db.flush()
+    task.latest_attempt_id, task.status, task.reported_result = attempt.id, "QUEUED", "NOT_RUN"
+    refs = {"attempt_id": str(attempt.id), "input_digest": attempt.input_digest}
+    if retry_of_attempt_id:
+        refs["retry_confirmation"] = {"scope_confirmed": True, "authorization_confirmed": True,
+                                      "retry_of_attempt_id": str(retry_of_attempt_id)}
+    return refs, attempt
+
+
 async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=None, grant_id=None, container_observed=False,
                  container_recovery=False, container_recovery_secret=None, container_recovery_provisioned=False,
                  native_worker=False):
@@ -682,89 +773,31 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         db.add(deletion)
         await db.flush()
     elif op == "RESOLVE_INPUTS":
+        refs = await _request_resolution(db, task, operation_key=payload.operation_key,
+            actor_ref=actor_ref, grant_id=grant_id, version=version)
+    elif op == "START_TASK":
         if task.status != "DRAFT" or task.frozen_manifest or task.latest_attempt_id is not None:
-            raise HTTPException(409, "Only DRAFT accepts input resolution")
-        config = await _configuration(db, task.project_id, task.config_id)
-        _authorize_input_reads(task.inputs, config.configuration, await clock(db))
-        migrated_budget = task.inputs.get("budgets") is not None
-        if migrated_budget:
-            if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id).limit(1)):
-                raise HTTPException(409, "A draft with an existing Attempt cannot change its budget")
-            # This mutation advances the draft version in the same transaction,
-            # so prior resolutions cannot be accepted for the changed input.
-            task.inputs = {**task.inputs, "budgets": None}
-        resolution = CloudInputResolution(id=uuid7(), project_id=task.project_id, task_id=task.id,
-            operation_key=payload.operation_key, source_draft_version=version,
-            source_digest=canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest}),
-            status="PENDING", requested_by=actor_ref, grant_id=grant_id)
-        db.add(resolution)
-        refs = {"resolution_id": str(resolution.id), "resolution_status": "PENDING"}
-        if migrated_budget:
-            refs["legacy_draft_budget_removed"] = True
+            raise HTTPException(409, "Only an undispatched DRAFT can start")
+        # A new user intent cannot bypass an unresolved original preparation,
+        # including fenced UNKNOWN history. This operation never replays it.
+        if await db.scalar(select(CloudInputResolution.id).where(
+                CloudInputResolution.task_id == task.id,
+                CloudInputResolution.status.in_(["PENDING", "RESOLVING", "RECOVERY_REQUIRED"])).limit(1)):
+            raise HTTPException(409, "Unresolved input resolution prevents starting the task")
+        accepted = None
+        if task.inputs.get("budgets") is None:
+            accepted = await db.scalar(select(CloudInputResolution).where(
+                CloudInputResolution.task_id == task.id, CloudInputResolution.status == "ACCEPTED",
+                CloudInputResolution.accepted_task_version == task.version))
+        if accepted:
+            refs, attempt = await _dispatch_task(db, task, grant_id=grant_id, resolution_id=accepted.id)
+        else:
+            refs = await _request_resolution(db, task, operation_key=payload.operation_key,
+                actor_ref=actor_ref, grant_id=grant_id, version=version)
+        refs["start_requested"] = True
     elif op == "DISPATCH":
-        if task.status == "DRAFT" and task.inputs.get("budgets") is not None:
-            raise HTTPException(409, "Legacy draft budget must be removed by resolving versions again")
-        config = await _configuration(db, task.project_id, task.config_id)
-        effective_inputs = task.inputs
-        execution_manifest = None
-        environment = config.configuration.get("environment", {})
-        if task.status == "DRAFT":
-            resolution = await db.get(CloudInputResolution, payload.resolution_id)
-            expected_digest = canonical_json_sha256({"inputs": task.inputs, "config_id": str(task.config_id), "config_digest": config.digest})
-            if (not resolution or resolution.task_id != task.id or resolution.status != "ACCEPTED"
-                    or resolution.accepted_task_version != task.version or resolution.source_digest != expected_digest):
-                raise HTTPException(409, "Dispatch requires an accepted immutable resolution for this exact DRAFT version")
-            manifest = {"profile": PROFILE, "project_id": str(task.project_id), "cloud_task_id": str(task.id),
-                "config_id": str(config.id), "config_revision": config.revision, "configuration": config.configuration,
-                "inputs": task.inputs, "resolution": resolution.result, "resolution_id": str(resolution.id)}
-            if task.inputs.get("prd_markdown") is not None:
-                manifest["prd_sha256"] = hashlib.sha256(task.inputs["prd_markdown"].encode()).hexdigest()
-            task.frozen_manifest, task.input_digest = manifest, canonical_json_sha256(manifest)
-        else:
-            old = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None
-            if not task.frozen_manifest or not old or old.id != payload.retry_of_attempt_id or old.status not in TERMINAL:
-                raise HTTPException(409, "Explicit retry requires the terminal latest Attempt and its frozen input")
-            blocking = await _terminal_attempt_blocking_reasons(db, task, old)
-            if blocking:
-                raise HTTPException(409, blocking[0])
-            # Historical inputs and held budgets are immutable. The host-native
-            # retry uses its own authorization and no legacy execution broker.
-            effective_inputs = {**task.inputs, **payload.retry_inputs.model_dump(mode="json"), "budgets": None}
-            for field in ("controlled_actions", "framework_runtime", "agent_source_export"):
-                effective_inputs.pop(field, None)
-            execution_manifest = {**task.frozen_manifest, "inputs": effective_inputs,
-                "retry_of_attempt_id": str(old.id), "previous_input_digest": old.input_digest}
-        _authorize_input_reads(effective_inputs, config.configuration, await clock(db),
-                               native_retry=execution_manifest is not None)
-        if execution_manifest is None and environment.get("ssh_access") is not None:
-            from types import SimpleNamespace
-
-            from .cloud_ssh import authorize_environment
-            authorize_environment(SimpleNamespace(inputs=effective_inputs), environment, await clock(db))
-        authorization = effective_inputs["authorization"]
-        auth_expiry = authorization_expiry(authorization)
-        if auth_expiry is not None and auth_expiry <= await clock(db):
-            raise HTTPException(403, "Frozen execution authorization expired")
-        budgets = effective_inputs["budgets"]
-        if budgets is None:
-            count = await db.scalar(select(func.count()).select_from(CloudAttempt).where(CloudAttempt.task_id == task.id))
-        else:
-            count, seconds, cost = await _task_budget_usage(db, task.id)
-            if count >= budgets["max_attempts"] or seconds >= budgets["total_seconds"] or cost >= budgets["total_cost_microunits"]:
-                raise HTTPException(409, "Cloud Task cumulative budget is exhausted")
-        if await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id, CloudAttempt.status.not_in(TERMINAL))):
-            raise HTTPException(409, "Task already has an unfinished Attempt")
-        attempt = CloudAttempt(id=uuid7(), task_id=task.id, project_id=task.project_id, attempt_no=count + 1,
-            input_digest=canonical_json_sha256(execution_manifest) if execution_manifest else task.input_digest,
-            execution_manifest=execution_manifest, status="QUEUED", reported_result="NOT_RUN", lease_generation=0,
-            checkpoint={}, runtime_metadata={}, usage_seconds=0, cost_microunits=0, authorization_grant_id=grant_id)
-        db.add(attempt)
-        await db.flush()
-        task.latest_attempt_id, task.status, task.reported_result = attempt.id, "QUEUED", "NOT_RUN"
-        refs = {"attempt_id": str(attempt.id), "input_digest": attempt.input_digest}
-        if payload.retry_of_attempt_id:
-            refs["retry_confirmation"] = {"scope_confirmed": True, "authorization_confirmed": True,
-                                          "retry_of_attempt_id": str(payload.retry_of_attempt_id)}
+        refs, attempt = await _dispatch_task(db, task, grant_id=grant_id, resolution_id=payload.resolution_id,
+            retry_of_attempt_id=payload.retry_of_attempt_id, retry_inputs=payload.retry_inputs)
     elif op == "CANCEL_TASK":
         if task.status != "DRAFT" or task.latest_attempt_id is not None:
             raise HTTPException(409, "Task cancellation requires an undispatched DRAFT")
@@ -1585,12 +1618,15 @@ async def task_summary(db, task_id, *, project_id=None):
     attempt = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None
     resolutions = await db.scalars(select(CloudInputResolution).where(
         CloudInputResolution.task_id == task.id).order_by(CloudInputResolution.id))
+    start_keys = set(await db.scalars(select(CloudOperationReceipt.operation_key).where(
+        CloudOperationReceipt.task_id == task.id, CloudOperationReceipt.operation == "START_TASK")))
     result.update(task_kind="CLOUD_TASK", product_mode="CLOUD",
         observed_at=(await clock(db)).isoformat(),
         current_attempt=public(attempt) if attempt else None,
         resolutions=[{"id": str(row.id), "status": row.status,
                       "source_draft_version": row.source_draft_version,
-                      "accepted_task_version": row.accepted_task_version} for row in resolutions])
+                      "accepted_task_version": row.accepted_task_version,
+                      "start_requested": row.operation_key in start_keys} for row in resolutions])
     result["management"] = await _management_controls(db, task, attempt,
         deleted=deletion is not None)
     from .cloud_ssh import live_operations
@@ -1883,9 +1919,26 @@ async def accept_resolution(db, resolution_id, worker_id, lease_token, result, *
     row.accepted_task_version = task.version = task.version + 1
     row.accepted_at = task.updated_at = now
     await db.flush()
+    # START_TASK's immutable original receipt is the durable dispatch intent.
+    # Completion and Attempt creation commit together, so browser closure or a
+    # lost acceptance response cannot lose the intent or queue a second Attempt.
+    origin = await db.scalar(select(CloudOperationReceipt).where(
+        CloudOperationReceipt.project_id == row.project_id,
+        CloudOperationReceipt.operation_key == row.operation_key))
+    dispatch_refs = {}
+    queued_attempt = None
+    if origin is not None and origin.operation == "START_TASK":
+        enabled()
+        if (origin.task_id != task.id or origin.accepted_version != row.source_draft_version
+                or origin.response.get("resolution_id") != str(row.id)
+                or origin.actor_ref != row.requested_by or await db.get(CloudTaskDeletion, task.id)):
+            raise HTTPException(409, "Original start intention no longer matches the resolution")
+        dispatch_refs, queued_attempt = await _dispatch_task(db, task, grant_id=row.grant_id, resolution_id=row.id)
     response = {"status": "ACCEPTED", "profile": PROFILE, "project_id": str(task.project_id), "task_id": str(task.id),
-        "operation": "ACCEPT_RESOLUTION", "operation_key": "resolution:" + str(row.id), "resolution_id": str(row.id), "version": task.version}
+        "operation": "ACCEPT_RESOLUTION", "operation_key": "resolution:" + str(row.id), "resolution_id": str(row.id),
+        "version": task.version, **dispatch_refs}
     db.add(CloudOperationReceipt(project_id=task.project_id, task_id=task.id, operation_key=response["operation_key"],
+        attempt_id=queued_attempt.id if queued_attempt else None,
         operation="ACCEPT_RESOLUTION", actor_ref="worker:" + worker_id, input_digest=row.digest,
         expected_version=row.source_draft_version, accepted_version=task.version, response=response, task_snapshot=await _snapshot(db, task)))
     _events(db, task.project_id, "worker:" + worker_id, "ACCEPT_RESOLUTION", task.id, response)

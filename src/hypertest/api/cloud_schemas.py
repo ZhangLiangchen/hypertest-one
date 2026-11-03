@@ -362,6 +362,10 @@ class CloudResolveRequest(TaskMutation):
     operation: Literal["RESOLVE_INPUTS"] = "RESOLVE_INPUTS"
 
 
+class CloudStartTask(TaskMutation):
+    operation: Literal["START_TASK"] = "START_TASK"
+
+
 class CloudRetryInputs(Input):
     objective: str = Field(min_length=1, max_length=16000)
     test_scope: str = Field(min_length=1, max_length=16000)
@@ -676,4 +680,4 @@ class CloudNativeFinish(AttemptMutation):
         return self
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]
