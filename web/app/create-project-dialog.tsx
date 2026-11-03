@@ -69,7 +69,7 @@ export function CreateProjectDialog({ open, onClose, projects }: { open: boolean
         width={600}
       >
         <Typography.Paragraph className="muted">
-          {t("A project brings local and cloud testing tasks, plans, cases and reports together. After creation, connect a local Agent or configure cloud testing resources.", "项目集中管理本地与云端测试任务、计划、用例和报告。创建项目后，可接入本地 Agent 或配置云端测试资源。")}
+          {t("A project brings local and cloud testing tasks, plans, cases and reports together. After creation, create a testing task and provide its testing instructions.", "项目集中管理本地与云端测试任务、计划、用例和报告。创建项目后，可创建测试任务并填写测试说明。")}
         </Typography.Paragraph>
         {creation.isError ? (
           <Alert

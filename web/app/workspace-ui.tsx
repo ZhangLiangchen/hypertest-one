@@ -29,7 +29,7 @@ export function WorkspaceHeading({ title, description, backHref, backLabel, acti
   </div>;
 }
 
-/** Project resources share a workspace; Local and Cloud retain distinct task identities. */
+/** Project records share a workspace; Local and Cloud retain distinct task identities. */
 export function ProjectNavigation({ projectId, active }: { projectId: string; active: "local" | "cloud" | "memory" }) {
   const { t } = useI18n();
   const items = [

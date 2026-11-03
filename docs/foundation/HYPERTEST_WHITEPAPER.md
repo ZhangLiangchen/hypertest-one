@@ -1,5 +1,7 @@
 # HyperTest 白皮书
 
+> **2026-11-03 产品边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 移除 Cloud 项目资源页与环境/预期部署版本管理。项目详情管理两个仓库；任务以 MR/PR 地址提供改动上下文，以 prompt 说明测试环境。HyperTest 聚焦测试任务生命周期、任务下发和产物归档，SUT 部署由其独立 CI 负责。
+
 > **2026-11-02 决策：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 定义快速原型期轻量 Worker / Harness 适配器职责；项目资源隔离的全容器化是未来方向。实现、部署和用户验收各自记录。
 
 > **2026-10-28 快速原型决策：** [ADR-028](../architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 覆盖本文与旧 ADR 中要求对被新实现替代且不兼容的旧实现、入口及对应数据无条件兼容或保留的条款。对应旧任务和关联记录可定向删除；现行合同、无关数据、用户源文件与凭据不因此改变。历史描述不代表旧记录将永久可访问。
@@ -19,7 +21,7 @@
 
 **任务创建更新（ADR-028）：** 项目使用统一入口创建 Local 归档或 Cloud 任务；旧 SessionTask 不再是当前任务方案，旧创建/同步/协作入口和对应旧数据按本次迁移退出。旧受管 TestRun 及其关联执行、报告和证据按用户决定退出；独立 Native、Cloud、Archive、Memory 不混用。实施与部署分别记录。
 
-Cloud 采用 [ADR-019](../architecture/ADR-019_CLOUD_TEST_TASKS_WITH_DEEPSEEK_SDK.md) 的六步流程：项目资源 → 任务输入 → 下发冻结 → DeepSeek 接取与 Codex 委派 → 测试产物 → 项目框架执行及报告。CloudTask / CloudAttempt、LocalArchiveTask 及旧 Local SessionTask 可共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史。
+Cloud 按 ADR-019 与 ADR-038 组织流程：项目仓库 → MR/PR 与测试 prompt → 下发固定输入 → Harness 接取 → 测试产物 → 项目框架执行及报告。仓库仅在项目详情编辑，不设置独立资源或环境配置步骤。CloudTask / CloudAttempt、LocalArchiveTask 及旧 Local SessionTask 可共存于同一 Project，不设置排他的 Project 模式，不混用身份、权限或历史。
 
 Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Claude Code 保持占位。source30 Worker / source29 helper 的 r8 任务已固定完整读回 v19 COMPLETED / reported PASS，canonical 固定 SSH 专项通过；source31 只读验收器对同一 v19 固定快照的 SNAPSHOT_REASSESSMENT 为 strict PASS，独立只读重放 19 项通过并核对接受原件。该重评没有新的 current GET、模型、SSH 或 SUT 执行；来源仍是 runtime-reported，不是独立 writer 证明，不升级 legacy VERIFIED / Gate。旧 source30 NON_PASS、r7 UNKNOWN / HELD 和其他失败原件保持。C4已按固定Git部署到单人专用测试服务器，schema26、Cloud Worker以Codex=true / SSH=false空闲运行；构建、组件回归、doctor、迁移和基础健康只记部署检查。代码开关默认仍关闭，用户验收为PENDING / USER_OWNED，未经用户明确要求不擅自开展；Web Cloud详情步骤显示修正已按6d49单独部署，API / Worker / schema保持C4身份。精确Git / image / 轮次见[交付记录](../CLOUD_GIT_DELIVERY_20261023.md)，不以当前部署覆盖旧fixture身份。
 
@@ -663,8 +665,8 @@ Harness Run。原生框架材料、顺序贡献者交接和新状态页面没有
 不以重新实现测试执行引擎为职责。报告解析和集成优先服务首个真实 SUT 的现有产物。
 
 Agent 运行在已经具备工程工具链和授权的本地或远端环境，通过 MCP / API 与平台通信。
-项目自行维护测试框架、依赖和测试环境；HyperTest 记录环境身份、可用前提和实际结果，
-不因此建立统一镜像构建 / SUT 部署服务。通信或产物存储有明确需求时再增加组件，
+项目自行维护测试框架、依赖和测试环境，SUT 的独立 CI 负责部署。用户通过任务 prompt
+告知 Agent 测试环境；HyperTest 归档实际观察与结果，不管理环境、预期部署版本或 SUT 部署。通信或产物存储有明确需求时再增加组件，
 不预先引入 Kafka、Graph DB、完整事件溯源或通用 Workflow DSL。
 
 以下是最近交付记录中的现有实现，仍需兼容和保全：

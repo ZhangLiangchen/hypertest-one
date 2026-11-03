@@ -5,6 +5,8 @@
 ## 现行入口
 
 - [当前待办](TODO.md)：未完成的开发、操作和用户验收。
+- [ADR-038：Cloud 聚焦任务输入、下发与产物归档](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 与 [Cloud 任务指南](CLOUD_TASK_WORKFLOW.md)：项目详情管理仓库，MR/PR 为必填改动上下文，环境由 prompt 说明；移除资源页和预期部署版本。
+- [Cloud 任务职责精简交付（2026-11-03）](CLOUD_TASK_FOCUS_DELIVERY_20261103.md)：本轮实现、自测、部署与用户验收边界。
 - [产品白皮书](foundation/HYPERTEST_WHITEPAPER.md)、[技术架构](architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)、[测试任务协议](protocol/TEST_MISSION_PROTOCOL.md)、[领域模型与状态机](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)：按 [AGENTS.md](../AGENTS.md) 的优先级及后续 ADR 增补阅读。
 - [当前系统架构总览（2026-10-28）](architecture/SYSTEM_ARCHITECTURE_OVERVIEW_20261028.md)：当前实现、部署拓扑与外部集成（DeepSeek Harness、PowerContext 等）的全景快照；运行状态仍须现场核实。
 - [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 与 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)：新 Local 显式归档及安装授权；旧 SessionTask 的合同与恢复只适用于仍存在的旧路径，清理按 ADR-028 执行。
@@ -16,7 +18,7 @@
 - [服务器操作](SERVER_OPERATIONS.md)：现行本机容器测试环境的操作规则和入口；运行身份以现场检查为准。
 - [PowerContext 服务](POWERCONTEXT_SERVICE.md)及 [Cloud 实现状态](CLOUD_IMPLEMENTATION_STATUS.md)：各自能力与范围，部署和验收以具体轮次记录为准。
 - [Cloud Worker 首轮进展（2026-10-29）](CLOUD_WORKER_FIRST_SLICE_20261029.md)：本机准入阻塞、报告读回修复及项目框架合成回归。
-- [Cloud 任务管理与资源页交付（2026-10-30）](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)：草稿编辑、任务删除、资源页及本轮部署与验收边界。
+- [Cloud 任务管理与资源页历史交付（2026-10-30）](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)：当时的草稿编辑、任务删除及部署边界；资源页已由 ADR-038 决定移除，不再作为当前使用入口。
 - [ADR-029 草案：单次 Cloud Attempt 的 Docker 隔离](architecture/ADR-029_CLOUD_ATTEMPT_DOCKER_ISOLATION_PROPOSAL.md)：待实现、待验证的备选方案，不改变现行准入。
 - [ADR-030 草案：Cloud 受控认证与外部写入](architecture/ADR-030_CLOUD_AUTHENTICATED_ACTION_PROPOSAL.md)：待实现的凭据、单次发送与业务终态边界。
 - [ADR-031：云端 Harness 原生配置](architecture/ADR-031_CLOUD_NATIVE_HARNESS_CONFIGURATION.md)：模型、推理和插件由云端 Harness profile 管理，新任务不设置平台预算；远程能力与部署验收分别记录。

@@ -14,7 +14,6 @@ from test_cloud_tasks import (
     FRAMEWORK_SHA,
     ORIGIN,
     SHA,
-    configuration,
     new_inputs,
     post,
     read_all,
@@ -84,12 +83,8 @@ async def api(context, operation, body=None):
 
 
 async def pending_resolution(context):
-    if "config_id" not in context:
-        configured = await post(context, "CONFIGURE", configuration=configuration())
-        assert configured.status_code == 200, configured.text
-        context["config_id"] = configured.json()["config_id"]
     created = await post(context, "CREATE_TASK", title="Synthetic claim recovery",
-        config_id=context["config_id"], inputs=new_inputs(expected_outputs=["REPORT"]))
+        expected_project_version=1, inputs=new_inputs(expected_outputs=["REPORT"]))
     assert created.status_code == 200, created.text
     resolved = await post(context, "RESOLVE_INPUTS", 1, task_id=created.json()["task_id"])
     assert resolved.status_code == 200, resolved.text

@@ -251,8 +251,10 @@ class CloudWorker:
                 repositories[role] = await self.resolver.resolve(claim["configuration"][role]["url"],
                     claim["task"]["inputs"][role + "_selector"], token=credentials.get(role.upper()))
         result = {"repositories": repositories, "observed_at": datetime.now(UTC).isoformat(),
-            "source": "cloud-worker-fixed-git-resolution", "environment_observation": {
-                "state": "UNOBSERVED", "reason": "Git preflight does not execute or attest the SUT environment"}}
+            "source": "cloud-worker-fixed-git-resolution"}
+        if "environment" in claim["configuration"]:
+            result["environment_observation"] = {"state": "UNOBSERVED",
+                "reason": "Git preflight does not execute or attest the SUT environment"}
         save_once(root / "result.json", result)
         async with self.sessions() as db:
             # An interrupted acceptance leaves result.json and the original key;

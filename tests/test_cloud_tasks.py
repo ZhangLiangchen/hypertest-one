@@ -16,7 +16,13 @@ from pydantic import TypeAdapter
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from hypertest.api.cloud_schemas import CloudMutation, TaskInputs
+from hypertest.api.cloud_schemas import (
+    CloudConfigure,
+    CloudMutation,
+    CloudTaskInputs,
+    Configuration,
+    TaskInputs,
+)
 from hypertest.api.schemas import ProjectCreate
 from hypertest.application import cloud_tasks as service
 from hypertest.application.services import create_project
@@ -28,6 +34,7 @@ from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
 from hypertest.domain.cloud_tasks import (
     CloudAttempt,
+    CloudConfigCredential,
     CloudInputResolution,
     CloudOperationReceipt,
     CloudTask,
@@ -35,6 +42,7 @@ from hypertest.domain.cloud_tasks import (
     CredentialVersion,
     ProjectCloudConfigRevision,
 )
+from hypertest.domain.models import Project
 from hypertest.main import app
 
 SHA = "1" * 40
@@ -56,7 +64,8 @@ async def cloud_context(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "cloud_credential_key_file", str(key_file))
     monkeypatch.setattr(settings, "connector_operator_key", OPERATOR)
     async with AsyncSessionLocal() as db:
-        project = await create_project(db, ProjectCreate(key=public_key("CLOUD"), name="Cloud synthetic acceptance"))
+        project = await create_project(db, ProjectCreate(key=public_key("CLOUD"), name="Cloud synthetic acceptance",
+            repository_url=ORIGIN, test_framework_repository_url=FRAMEWORK_ORIGIN))
         project_id = str(project.id)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://localhost") as client:
         scopes = ["cloud:configure", "credential:manage", "cloud:dispatch", "cloud:control", "cloud:read", "task:sync"]
@@ -94,6 +103,8 @@ def new_inputs(**changes):
     """Current creation contract; historical budget fixtures use inputs()."""
     data = inputs(**changes)
     data.pop("budgets", None)
+    data.setdefault("mr_url", "https://git.example.invalid/sut/-/merge_requests/1")
+    data["authorization"] = changes.get("authorization")
     return data
 
 
@@ -105,14 +116,68 @@ async def post(context, operation, expected_version=0, operation_key=None, **fie
     return response
 
 
+async def seed_legacy_configuration(context, config=None, operation_key=None):
+    """Explicit historical fixture only; retired resource writes are not API setup."""
+    value = Configuration.model_validate(config or configuration()).model_dump(mode="json")
+    async with AsyncSessionLocal() as db:
+        await service._lock(db, f"cloud-config:{context['project_id']}")
+        latest = await db.scalar(select(ProjectCloudConfigRevision).where(
+            ProjectCloudConfigRevision.project_id == UUID(context["project_id"]))
+            .order_by(ProjectCloudConfigRevision.revision.desc()).limit(1))
+        row = ProjectCloudConfigRevision(id=uuid7(), project_id=UUID(context["project_id"]),
+            revision=latest.revision + 1 if latest else 1, configuration=value,
+            digest=service.canonical_json_sha256(value), created_by="legacy-fixture")
+        db.add(row)
+        await db.flush()
+        for role, version, _ in await service._credential_versions(db, value, now=await service.clock(db)):
+            db.add(CloudConfigCredential(project_id=row.project_id, config_id=row.id,
+                credential_version_id=version.id, role=role))
+        if operation_key:
+            from hypertest.domain.interactive import InteractiveIntegrationGrant
+            grant = await db.get(InteractiveIntegrationGrant, UUID(context["grant"]["grant_id"]))
+            payload = CloudConfigure(project_id=row.project_id, operation_key=operation_key,
+                expected_version=row.revision - 1, configuration=value)
+            response = {"status": "ACCEPTED", "profile": service.PROFILE, "project_id": str(row.project_id),
+                "operation_key": operation_key, "operation": "CONFIGURE", "version": row.revision,
+                "config_id": str(row.id)}
+            db.add(CloudOperationReceipt(id=uuid7(), project_id=row.project_id,
+                operation_key=operation_key, operation="CONFIGURE",
+                actor_ref="interactive:" + str(grant.actor_identity_id),
+                input_digest=service.canonical_json_sha256(service._safe_payload(payload)),
+                expected_version=row.revision - 1, accepted_version=row.revision, response=response))
+        await db.commit()
+        return row.id
+
+
 async def draft(context, *, config=None, task_inputs=None):
-    configured = await post(context, "CONFIGURE", configuration=config or configuration())
-    assert configured.status_code == 200, configured.text
-    task_data = task_inputs if task_inputs is not None else new_inputs()
-    created = await post(context, "CREATE_TASK", title="Cloud synthetic fixture", config_id=configured.json()["config_id"],
+    async with AsyncSessionLocal() as db:
+        project = await db.get(Project, UUID(context["project_id"]))
+        if config is not None:
+            project.repository_url = config["sut"]["url"]
+            project.test_framework_repository_url = config["framework"]["url"]
+            await db.commit()
+        project_version = project.row_version
+    task_data = dict(task_inputs) if task_inputs is not None else new_inputs()
+    task_data.setdefault("mr_url", "https://git.example.invalid/sut/-/merge_requests/1")
+    created = await post(context, "CREATE_TASK", title="Cloud synthetic fixture", expected_project_version=project_version,
                          inputs=task_data)
     assert created.status_code == 200, created.text
     return created.json()
+
+
+async def legacy_draft(context, *, task_inputs, config=None):
+    """Seed an old undispatched authorization; new requests cannot configure it."""
+    config_id = await seed_legacy_configuration(context, config)
+    value = dict(task_inputs)
+    value.pop("mr_url", None)
+    value = TaskInputs.model_validate(value).model_dump(mode="json")
+    async with AsyncSessionLocal() as db:
+        row = CloudTask(id=uuid7(), project_id=UUID(context["project_id"]), owner_actor_ref="legacy-fixture",
+            title="Legacy draft fixture", config_id=config_id, inputs=value, status="DRAFT", version=1,
+            reported_result="NOT_RUN")
+        db.add(row)
+        await db.commit()
+        return {"task_id": str(row.id), "version": 1}
 
 
 async def dispatched(context, *, framework_sha=FRAMEWORK_SHA, **draft_options):
@@ -143,9 +208,8 @@ async def legacy_dispatched(context, *, config=None, task_inputs=None, framework
     inserts a coherent frozen manifest, original attempt and receipt explicitly;
     it does not change the current API or replay any external action.
     """
-    configured = await post(context, "CONFIGURE", configuration=config or configuration())
-    assert configured.status_code == 200, configured.text
-    project_id, config_id = UUID(context["project_id"]), UUID(configured.json()["config_id"])
+    config_id = await seed_legacy_configuration(context, config)
+    project_id = UUID(context["project_id"])
     task_id, resolution_id, attempt_id = uuid7(), uuid7(), uuid7()
     task_input = TaskInputs.model_validate(task_inputs or inputs()).model_dump(mode="json")
     assert task_input["budgets"] is not None
@@ -232,7 +296,7 @@ def test_new_task_default_authorization_has_no_expiry():
     task_inputs = new_inputs()
     task_inputs["authorization"] = None
     now = datetime.now(UTC)
-    effective = service._task_inputs_with_runtime_defaults(TaskInputs.model_validate(task_inputs), configuration(), now)
+    effective = service._task_inputs_with_runtime_defaults(CloudTaskInputs.model_validate(task_inputs), configuration(), now)
     assert effective["authorization"]["expires_at"] is None
     service._authorize_input_reads(effective, configuration(), now + timedelta(days=3651))
 
@@ -262,7 +326,7 @@ async def test_freeze_idempotency_and_fixed_version_readback(cloud_context):
     assert frozen["task"]["status"] == "QUEUED"
     assert frozen["task_kind"] == "CLOUD_TASK" and frozen["product_mode"] == "CLOUD"
     edited = await post(context, "UPDATE_TASK", accepted["version"], task_id=task_id,
-                        title="Cannot change frozen input", config_id=frozen["task"]["config_id"], inputs=inputs())
+                        title="Cannot change frozen input", expected_project_version=1, inputs=new_inputs())
     assert edited.status_code == 409
     stale = await post(context, "CANCEL_ATTEMPT", 1, task_id=task_id, attempt_id=accepted["attempt_id"], reason="stale")
     assert stale.status_code == 409
@@ -346,7 +410,10 @@ async def test_secret_roundtrip_is_encrypted_scoped_and_binds_idempotency(cloud_
     wrong_action = await post(context, "STORE_CREDENTIAL", **{**payload, "allowed_actions": ["git:write"]})
     config = configuration()
     config["sut"]["credential_version_id"] = wrong_action.json()["credential_version_id"]
-    assert (await post(context, "CONFIGURE", configuration=config)).status_code == 403
+    async with AsyncSessionLocal() as db:
+        with pytest.raises(HTTPException) as denied:
+            await service._credential_versions(db, config, now=await service.clock(db))
+        assert denied.value.status_code == 403
 
 
 async def test_running_cancel_fences_worker_and_requires_observed_reconciliation(cloud_context):
@@ -795,7 +862,7 @@ async def test_local_archive_remains_independent_when_cloud_is_disabled(cloud_co
     assert cloud_read["task"]["status"] == "DRAFT"
     directory = await context["client"].get(f"/api/v1/projects/{context['project_id']}/task-directory", headers=context["headers"])
     assert {x["task_kind"] for x in directory.json()["items"]} == {"CLOUD_TASK"}
-    assert (await post(context, "CREATE_TASK", title="Disabled", config_id=cloud_read["task"]["config_id"], inputs=inputs())).status_code == 503
+    assert (await post(context, "CREATE_TASK", title="Disabled", expected_project_version=1, inputs=new_inputs())).status_code == 503
 
 
 async def test_scope_separation_worker_api_rejection_and_error_redaction(cloud_context):
@@ -890,14 +957,14 @@ async def test_existing_escaped_secret_cannot_enter_nested_testing_assets(cloud_
 @pytest.mark.parametrize("scope_gap", ["missing_target", "missing_git_read", "expired"])
 async def test_input_resolution_checks_original_authorization_before_any_git_access(cloud_context, scope_gap):
     context = cloud_context
-    task_inputs = new_inputs()
+    task_inputs = new_inputs(authorization=inputs()["authorization"])
     if scope_gap == "missing_target":
         task_inputs["authorization"]["targets"] = [ORIGIN]
     elif scope_gap == "missing_git_read":
         task_inputs["authorization"]["permitted_actions"] = ["framework:execute"]
     else:
         task_inputs["authorization"]["expires_at"] = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
-    created = await draft(context, task_inputs=task_inputs)
+    created = await legacy_draft(context, task_inputs=task_inputs)
     denied = await post(context, "RESOLVE_INPUTS", 1, task_id=created["task_id"])
     assert denied.status_code == 403, denied.text
     async with AsyncSessionLocal() as db:
@@ -907,9 +974,9 @@ async def test_input_resolution_checks_original_authorization_before_any_git_acc
 async def test_resolution_rechecks_expiration_at_claim_and_materialization(cloud_context, monkeypatch):
     context = cloud_context
     now = datetime.now(UTC)
-    task_inputs = new_inputs()
+    task_inputs = new_inputs(authorization=inputs()["authorization"])
     task_inputs["authorization"]["expires_at"] = (now + timedelta(seconds=60)).isoformat()
-    created = await draft(context, task_inputs=task_inputs)
+    created = await legacy_draft(context, task_inputs=task_inputs)
     requested = await post(context, "RESOLVE_INPUTS", 1, task_id=created["task_id"])
     assert requested.status_code == 200, requested.text
     async with AsyncSessionLocal() as db:
@@ -1009,7 +1076,7 @@ async def test_cloud_task_edit_delete_readback_and_original_key(cloud_context):
     task_id = created["task_id"]
     original = await read_all(context, task_id, 1)
     updated = await post(context, "UPDATE_TASK", 1, task_id=task_id, title="Edited fixture",
-                         config_id=original["task"]["config_id"], inputs=new_inputs(objective="Edited objective"))
+                         expected_project_version=1, inputs=new_inputs(objective="Edited objective"))
     assert updated.status_code == 200, updated.text
     changed = await read_all(context, task_id, updated.json()["version"])
     assert changed["task"]["title"] == "Edited fixture"

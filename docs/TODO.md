@@ -12,7 +12,7 @@
 - 外部设备严格 X.509 与原配对请求（2026-10-28）：CLI 叶子证书已补 SKI/AKI，Python 3.13+ 严格校验和本机 CLI `doctor` 已验证；原 request `58966389-8daf-44b0-8223-921eed7b1e38` 服务端从未创建（DB 0 行、无 CREATE POST），旧本机记录保持 UNKNOWN 不重放。外部设备需发起新的显式配对并完成真实配对/归档，属用户验收。见[本轮记录](CLI_TLS_AKI_AND_PAIRING_ATTEMPT_20261028.md)。
 - 其他 Cloud 场景、P0 恢复与 PowerContext：各自用户功能验收仍待用户执行；本机限定原生测试的网页主流程已见[实际闭环](CLOUD_WEB_LIFECYCLE_ACCEPTANCE_20261103.md)。Memory 项目授权需独立配置，不能由 Local 或 Cloud grant 推定。见[跟进记录](FOLLOWUP_DELIVERY_20261023.md)和[Memory 交付](POWERCONTEXT_INTEGRATION_DELIVERY_20261023.md)。
 - Cloud Harness 原生配置：其他插件、项目与远程业务仍分别验收；本机 DeepSeek SDK、固定源码、原生测试、报告回传以及网页创建/下发/查看/复测/删除已按用户要求验证，见[网页闭环记录](CLOUD_WEB_LIFECYCLE_ACCEPTANCE_20261103.md)。ADR-031 容器 profile 为历史路径。
-- Cloud 草稿编辑与资源页：用户功能验收待执行；编辑器未在真实任务上打开。本轮网页创建和完成任务删除已验证；原实现、测试和部署见[任务管理记录](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)。
+- Cloud 任务输入精简（ADR-038）：项目资源页和预期部署版本退出产品；项目编辑仓库、必填 MR/PR、prompt 指定测试环境及草稿编辑的用户功能验收待执行。旧资源页不再安排验收；当前合同见 [ADR-038](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md)，旧实现、测试和部署仅见[历史任务管理记录](CLOUD_TASK_MANAGEMENT_DELIVERY_20261030.md)。
 - 任务创建清理用户验收：旧 SessionTask 和受管 TestRun 的 API、页面及数据迁移已完成本机容器部署，实际结果见[本轮记录](TASK_CREATION_RETIREMENT_20261028.md)；用户功能验收尚未执行。
 
 ## 未完成的开发与条件

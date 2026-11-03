@@ -92,36 +92,6 @@ test("Repository selectors reject embedded credentials and freeze complete SHA o
   for (const base of ["--exec=secret", "refs/heads/../main", "main.lock", "refs/heads/main:other", "main@{1}"]) assert.throws(() => cloudSelector("MR", "3", "HEAD", base));
 });
 
-test("Cloud repository matches a project repository or a whole project-scope path", () => {
-  const { projectContainsCloudRepository: matches } = helpers();
-  const matching = [
-    ["https://GIT.example/team/repo/", "https://git.example/team/repo.git"],
-    ["https://git.example/team/repo.git", "git@git.example:team/repo"],
-    ["https://git.example/groups/a/b", "git@git.example:a/b/service.git"],
-    ["https://git.example/groups/a/b/", "https://git.example/a/b/nested/repo.git"],
-    ["https://git.example/a/b", "ssh://git@git.example/a/b/nested/repo.git"],
-    ["git@git.example:a/b", "https://git.example/a/b/repo.git"],
-    ["ssh://git@git.example/a/b", "https://git.example/a/b/repo.git"],
-    ["https://git.example:443/a/b", "ssh://git@git.example:22/a/b/repo.git"],
-  ];
-  for (const [project, cloud] of matching) assert.equal(matches(project, cloud), true, `${project} ${cloud}`);
-  const different = [
-    ["https://git.example/groups/a/b", "https://git.example/a/b2/repo.git"],
-    ["https://git.example/groups/a/b", "https://git.example/a/b"],
-    ["https://git.example/a/b.git", "https://git.example/a/b/child.git"],
-    ["https://git.example/groups/a/b", "https://other.example/a/b/repo.git"],
-    ["https://git.example/groups/A/b", "https://git.example/a/b/repo.git"],
-    ["https://git.example/groups/a/b", "https://git.example/a/B/repo.git"],
-    ["https://git.example:8443/groups/a", "https://git.example/a/repo.git"],
-    ["https://git.example/groups/a/b", "https://git.example/a/b%2Frepo.git"],
-    ["https://git.example/groups/a/b", "https://git.example/a/b/../repo.git"],
-    ["https://token@git.example/groups/a/b", "https://git.example/a/b/repo.git"],
-    ["ssh://git:@git.example/a/b", "https://git.example/a/b/repo.git"],
-    [null, "https://git.example/a/b/repo.git"],
-  ];
-  for (const [project, cloud] of different) assert.equal(matches(project, cloud), false, `${project} ${cloud}`);
-});
-
 const { operationHarness, until, document: completeDocument } = require("./operation-harness.cjs");
 
 test("Delete remains pending until its original receipt reads back a tombstone", async () => {
@@ -260,7 +230,7 @@ function taskPage(status, options = {}) {
     attempts: attempt ? [attempt] : [], resolutions: [], questions: [], answers: [], assets: [{ markdown: "Original FAIL" }], runs: [], run_cases: [], artifacts: [], delegations: [] };
   const live = { ...document.task, version: options.liveVersion || document.task.version, current_attempt: attempt, resolutions: options.resolutions || [], management: options.management, observed_at: "2026-10-23T00:00:00Z" };
   const values = { "cloud-web-setup": { configured: true }, "cloud-capabilities": { enabled: true, worker_enabled: true },
-    "cloud-config": { items: [{ id: "config-1", configuration: { environment: { connection: "NONE" }, sut: { url: "https://git.invalid/sut" }, framework: { url: "https://git.invalid/framework" } } }] },
+    project: { id: projectId, row_version: 1, repository_url: "https://git.invalid/sut", test_framework_repository_url: "https://git.invalid/framework" },
     "cloud-task": document, "cloud-task-live": options.missingLive ? undefined : options.foreignLive ? { ...live, project_id: "other-project" } : live };
   const ui = Object.fromEntries(["Alert", "Button", "Checkbox", "Descriptions", "Space", "Spin", "Steps", "Table", "Tabs", "Tag"].map((name) => [name, name]));
   Object.assign(ui, { Form: { Item: "Form.Item" }, Input: { TextArea: "Input.TextArea" }, Typography: { Title: "Title", Text: "Text", Paragraph: "Paragraph" } });
@@ -280,6 +250,7 @@ function taskPage(status, options = {}) {
     if (name === "next/link") return "Link";
     if (name === "next/navigation") return { useParams: () => ({ taskId }), useSearchParams: () => new URLSearchParams({ projectId }) };
     if (name === "@tanstack/react-query") return { useQuery: (queryOptions) => { queries[queryOptions.queryKey[0]] = queryOptions; return { data: values[queryOptions.queryKey[0]], dataUpdatedAt: 1, refetch() { reads.push(queryOptions.queryKey[0]); }, isError: options.liveError === true && queryOptions.queryKey[0] === "cloud-task-live" }; } };
+    if (name === "@/lib/api") return { getProject() {} };
     if (name === "@/lib/cloud") return { ...helpers(), ...(options.cloudDocument ? { cloudDocument: options.cloudDocument } : {}) };
     if (name === "@/lib/run-polling") return load("lib/run-polling.ts", { require });
     if (name === "@/lib/cloud-operation") return { useCloudOperation: () => ({ blocked: false, submit(fields) { writes++; if (options.submit) return options.submit(fields); throw new Error("render must not write"); } }) };
@@ -386,11 +357,11 @@ test("Missing live identity and early terminal states show no inferred completed
 test("Workflow links navigate to their matching task sections without submitting work", () => {
   const page = taskPage("DRAFT");
   const links = page.steps.items.map((item) => item.title.props.children);
-  assert.equal(links[0].props.href, "/projects/00000000-0000-4000-8000-000000000001/cloud?tab=resources");
+  assert.equal(links.length, 5);
   const destinations = [["overview", "cloud-task-inputs"], ["overview", "cloud-task-resolution"],
     ["attempts", "cloud-attempt-history-heading"], ["artifacts", "cloud-assets-title"], ["artifacts", "cloud-runs-title"]];
   destinations.forEach(([tab, id], index) => {
-    const link = links[index + 1]; let prevented = false;
+    const link = links[index]; let prevented = false;
     assert.equal(link.props.href, `#${id}`);
     link.props.onClick({ preventDefault() { prevented = true; } });
     assert.equal(prevented, true);
@@ -417,25 +388,25 @@ test("A delivered task can reach execution/report while retaining its original r
   assert.equal(page.result, "FAIL");
   assert.equal(page.unknown, false);
   assert.equal(page.steps.items.filter((item) => item.title.props["aria-current"] === "step").length, 1);
-  assert.equal(page.steps.items[5].title.props["aria-current"], "step");
+  assert.equal(page.steps.items[page.steps.current].title.props["aria-current"], "step");
   assert.equal(taskPage("COMPLETED", { result: "PASS" }).result, "PASS");
 });
 
 test("Workflow colors reflect recorded facts without inferring phase completion", () => {
   const tones = (page) => Array.from(page.steps.items, (item) => item.icon.props.className);
   const running = tones(taskPage("RUNNING"));
-  assert.match(running[3], /cloud-flow-active/);
+  assert.match(running[2], /cloud-flow-active/);
+  assert.match(running[3], /cloud-flow-unknown/);
   assert.match(running[4], /cloud-flow-unknown/);
-  assert.match(running[5], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("WAITING_INPUT"))[3], /cloud-flow-waiting/);
-  assert.match(tones(taskPage("COMPLETED", { result: "FAIL" }))[5], /cloud-flow-failed/);
-  assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[5], /cloud-flow-complete/);
+  assert.match(tones(taskPage("WAITING_INPUT"))[2], /cloud-flow-waiting/);
+  assert.match(tones(taskPage("COMPLETED", { result: "FAIL" }))[4], /cloud-flow-failed/);
   assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[4], /cloud-flow-complete/);
-  assert.match(tones(taskPage("COMPLETED", { result: "PASS", liveError: true }))[4], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("FAILED"))[3], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 1 }] }))[2], /cloud-flow-failed/);
-  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 0 }] }))[2], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("RUNNING", { liveError: true }))[3], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[3], /cloud-flow-complete/);
+  assert.match(tones(taskPage("COMPLETED", { result: "PASS", liveError: true }))[3], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("FAILED"))[2], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 1 }] }))[1], /cloud-flow-failed/);
+  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 0 }] }))[1], /cloud-flow-unknown/);
+  assert.match(tones(taskPage("RUNNING", { liveError: true }))[2], /cloud-flow-unknown/);
 });
 
 test("A failed live refresh does not present an old phase as current", () => {
@@ -494,4 +465,24 @@ test("same-version lease observations and foreign Projects cannot trigger comple
     page.effects.forEach((effect) => effect());
     assert.deepEqual(page.reads, []);
   }
+});
+
+
+test("retired CONFIGURE reconciles the original accepted revision without issuing a new write", async () => {
+  const pending = { project_id: "project-a", operation_key: "web:retired-config", operation: "CONFIGURE", expected_version: 2, digest: "a".repeat(64), state: "UNKNOWN" };
+  let recorded = false, posts = 0;
+  const session = new Map([["hypertest:cloud:pending:project-a", JSON.stringify(pending)]]);
+  const harness = operationHarness({
+    cloudRequest: async () => { posts++; throw Error("must not write"); },
+    cloudOperation: async (project, key) => ({ status: "ACCEPTED", profile: "cloud-harness-task/v1alpha1", project_id: project, operation_key: key, operation: "CONFIGURE", version: 3, config_id: "original-revision" }),
+    legacyCloudConfigurationReadback: async () => ({ items: recorded ? [{ id: "original-revision", revision: 3 }] : [] }),
+  }, { session });
+  await harness.mount("project-a");
+  assert.equal(await harness.render().reconcile(), null);
+  assert.equal(harness.render().pending.operation_key, pending.operation_key);
+  recorded = true;
+  assert.equal((await harness.render().reconcile()).operation_key, pending.operation_key);
+  assert.equal(harness.render().pending, null);
+  assert.equal(posts, 0);
+  harness.close();
 });

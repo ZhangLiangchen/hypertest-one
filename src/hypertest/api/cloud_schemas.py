@@ -290,11 +290,33 @@ class CloudCredentialRevoke(Mutation):
     reason: str = Field(min_length=1, max_length=4096)
 
 
+class CloudTaskInputs(TaskInputs):
+    """Current task inputs: MR context and source refs, never SUT deployment configuration."""
+    mr_url: str = Field(min_length=1, max_length=2048)
+    authorization: None = None
+    sut_selector: Selector = Field(default_factory=lambda: Selector(value="HEAD"))
+    framework_selector: Selector = Field(default_factory=lambda: Selector(value="HEAD"))
+
+    @field_validator("mr_url")
+    @classmethod
+    def safe_mr_url(cls, value):
+        if any(c.isspace() or ord(c) < 32 for c in value):
+            raise ValueError("MR URL cannot contain whitespace")
+        parsed = urlsplit(value)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+                or parsed.password is not None or parsed.query or parsed.fragment
+                or not re.fullmatch(r"/[A-Za-z0-9_.~-]+(?:/[A-Za-z0-9_.~-]+)*/(?:-/merge_requests|pull)/[1-9][0-9]*/?", parsed.path)
+                or any(part in {".", ".."} for part in parsed.path.split("/"))):
+            raise ValueError("MR requires a credential-free HTTPS merge request or pull request URL")
+        _ = parsed.port
+        return value
+
+
 class CloudTaskCreate(Mutation):
     operation: Literal["CREATE_TASK"] = "CREATE_TASK"
     title: str = Field(min_length=1, max_length=512)
-    config_id: UUID
-    inputs: TaskInputs
+    expected_project_version: int = Field(ge=1)
+    inputs: CloudTaskInputs
     related_task_id: UUID | None = None
 
 
@@ -305,8 +327,8 @@ class TaskMutation(Mutation):
 class CloudTaskUpdate(TaskMutation):
     operation: Literal["UPDATE_TASK"] = "UPDATE_TASK"
     title: str = Field(min_length=1, max_length=512)
-    config_id: UUID
-    inputs: TaskInputs
+    expected_project_version: int = Field(ge=1)
+    inputs: CloudTaskInputs
 
 
 class CloudTaskDelete(TaskMutation):

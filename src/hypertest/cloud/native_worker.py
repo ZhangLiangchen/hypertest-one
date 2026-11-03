@@ -286,16 +286,18 @@ async def resolve(api, args, state: Path, claim: dict):
         # Keep a finite diagnostic and never accept partial source resolution.
         raise CloudBlocked("RESOLUTION_TIMEOUT", "Repository resolution exceeded its lease window") from None
     result = {"repositories": repositories, "observed_at": datetime.now(UTC).isoformat(),
-              "source": "cloud-worker-fixed-git-resolution", "environment_observation": {
-                  "state": "UNOBSERVED", "reason": "Git preflight does not execute or attest the SUT environment"}}
+              "source": "cloud-worker-fixed-git-resolution"}
+    if "environment" in claim["configuration"]:
+        result["environment_observation"] = {"state": "UNOBSERVED",
+            "reason": "Git preflight does not execute or attest the SUT environment"}
     save_once(root / "result.json", result)
     await api.request("resolution/accept", {**body, "result": result})
 
 
-def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot: bool = False) -> str:
+def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot: bool = False, memory_enabled: bool = False) -> str:
     from .manifests import task_prompt
 
-    value = json.loads(task_prompt(task, attempt, native_harness=True))
+    value = json.loads(task_prompt(task, attempt, native_harness=True, memory_enabled=memory_enabled))
     value["capabilities"].update(remote_network="HOST_USER_NETWORK_UNVERIFIED",
         ssh="HOST_USER_ACCESS_UNVERIFIED", https_controlled_api="HOST_USER_ACCESS_UNVERIFIED")
     value["instructions"] = [line.replace("/workspace", str(workspace))
@@ -373,6 +375,7 @@ def native_execution_task(task: dict, attempt: dict) -> tuple[dict, dict, bool]:
 
 
 async def execute(api, args, state: Path, claim: dict):
+    from hypertest.config import get_settings
     from hypertest.sync_core import digest
 
     from .live_question_bridge import LiveQuestionBridge
@@ -399,6 +402,8 @@ async def execute(api, args, state: Path, claim: dict):
     started = time.monotonic()
     reader = None
     bridge = None
+    memory_bridge = None
+    memory_monitor = None
 
     async def heartbeat():
         nonlocal lease_failure
@@ -417,6 +422,24 @@ async def execute(api, args, state: Path, claim: dict):
     try:
         await reporter.recover()
         await broker.assert_current()
+        settings = get_settings()
+        if settings.cloud_memory_enabled:
+            from .memory import CloudMemoryBridge, CloudMemoryTransport
+            memory_transport = None
+            try:
+                memory_transport = CloudMemoryTransport(broker, settings)
+                memory_bridge = CloudMemoryBridge(broker, memory_transport, root / "memory", workspace,
+                    timeout_seconds=settings.cloud_memory_timeout_seconds)
+                memory_monitor = asyncio.create_task(memory_bridge.run())
+            except Exception:
+                # Optional independent Memory credentials never block reports
+                # or imply authorization from the platform Worker credential.
+                if memory_transport is not None:
+                    try:
+                        await memory_transport.close()
+                    except Exception:
+                        pass
+                memory_bridge = None
         if task["inputs"].get("budgets") is not None:
             raise CloudBlocked("LEGACY_ATTEMPT_UNSUPPORTED", "Frozen legacy budgets require their original runtime")
         resolver = NativeGitResolver()
@@ -430,7 +453,8 @@ async def execute(api, args, state: Path, claim: dict):
         result = await reporter.submit_handoff(transition, digest(transition.model_dump(mode="json")))
         if not result.synced:
             raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original transition needs reconciliation")
-        prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot)
+        prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
+            memory_enabled=memory_bridge is not None)
         save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
         session_id = "cloud-" + attempt["id"]
@@ -485,6 +509,14 @@ async def execute(api, args, state: Path, claim: dict):
         finished.set()
         monitor.cancel()
         await asyncio.gather(monitor, return_exceptions=True)
+        if memory_monitor is not None:
+            memory_monitor.cancel()
+            await asyncio.gather(memory_monitor, return_exceptions=True)
+        if memory_bridge is not None:
+            try:
+                await memory_bridge.close()
+            except Exception:
+                pass  # Memory cleanup must not change a task's accepted result.
         if reader is not None and not reader.done():
             reader.cancel()
             await asyncio.gather(reader, return_exceptions=True)

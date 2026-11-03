@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createUuid } from "@/lib/uuid";
 import { createOperationJournal } from "@/lib/operation-journal";
-import { CLOUD_PROFILE, CloudApiError, canReleaseCloudPending, cloudConfiguration, cloudCredentialReceiptVisible, cloudCredentials, cloudDocument, cloudInputIdentity, cloudOperation, cloudReceiptMatches, cloudRequest, cloudStorageKey, parseCloudPending, cloudSubmissionIssue } from "@/lib/cloud";
+import { CLOUD_PROFILE, CloudApiError, canReleaseCloudPending, legacyCloudConfigurationReadback, cloudCredentialReceiptVisible, cloudCredentials, cloudDocument, cloudInputIdentity, cloudOperation, cloudReceiptMatches, cloudRequest, cloudStorageKey, parseCloudPending, cloudSubmissionIssue } from "@/lib/cloud";
 import type { CloudMutation, CloudPending, CloudReceipt, CloudRecord } from "@/lib/cloud";
 
 export const cloudJournal = createOperationJournal<CloudPending>("cloud", (value, projectId) => {
@@ -25,7 +25,7 @@ async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise
     return;
   }
   if (receipt.operation === "CONFIGURE") {
-    const configurations = await cloudConfiguration(projectId);
+    const configurations = await legacyCloudConfigurationReadback(projectId);
     if (!configurations.items.some((row) => row.id === receipt.config_id && row.revision === receipt.version)) throw new Error("READBACK_PENDING");
   } else if (["STORE_CREDENTIAL", "REVOKE_CREDENTIAL"].includes(receipt.operation)) {
     const credentials = await cloudCredentials(projectId);

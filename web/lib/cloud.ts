@@ -4,13 +4,6 @@ export const CLOUD_CANCEL_REASON = "OPERATOR_REQUESTED_CANCELLATION";
 export type CloudResult = "NOT_RUN" | "PASS" | "FAIL" | "ERROR" | "SKIPPED" | "UNKNOWN" | "BLOCKED";
 export type CloudRecord = Record<string, unknown>;
 export type CloudSelector = { kind: "BRANCH" | "SHA" | "MR"; value: string; checkout_strategy: "HEAD" | "MERGE"; base_ref?: string };
-export type CloudRepository = { url: string; default_selector?: CloudSelector | null; credential_version_id?: string | null };
-export type CloudConfiguration = {
-  sut: CloudRepository; framework: CloudRepository;
-  environment: { name: string; connection: "NONE" | "HTTPS" | "SSH"; host?: string | null; port?: number | null; user?: string | null; host_key?: string | null; network_requirements?: string; credential_version_id?: string | null; expected_deployment: string; require_matching_deployment: boolean;
-    ssh_access?: CloudRecord | null; cloud_access_policy?: "LOCAL_ONLY" | "WEB_ONLY" | null };
-};
-export type CloudConfigRevision = { id: string; revision: number; configuration: CloudConfiguration };
 export type CloudTask = { id: string; project_id: string; title: string; status: string; reported_result: CloudResult; version: number; latest_attempt_id?: string | null; config_id: string; inputs: CloudRecord; frozen_manifest?: CloudRecord | null; updated_at?: string; deleted_at?: string | null };
 export type CloudAttempt = { id: string; status: string; reported_result: CloudResult; attempt_no: number; reason?: string | null; input_digest?: string; execution_manifest?: CloudRecord | null; checkpoint: CloudRecord; runtime_metadata: CloudRecord; lease_generation: number };
 export type CloudRecoverySummary = {
@@ -66,7 +59,7 @@ export class CloudApiError extends Error {
 export function cloudSubmissionIssue(error: CloudApiError): string {
   if (error.status !== 409) return "REQUEST_REJECTED";
   if (error.code === "OPERATION_KEY_CONFLICT" || error.message === "Cloud operation key conflicts with its original actor or request") return "OPERATION_KEY_CONFLICT";
-  if (error.code === "VERSION_CONFLICT" || ["Cloud Task version is stale", "Cloud configuration version is stale", "Credential version is stale"].includes(error.message)) return "VERSION_CONFLICT";
+  if (error.code === "VERSION_CONFLICT" || ["Cloud Task version is stale", "Cloud Project version is stale", "Cloud configuration version is stale", "Credential version is stale"].includes(error.message)) return "VERSION_CONFLICT";
   return error.code === "SDK_RESUME_UNSUPPORTED" ? "SDK_RESUME_UNSUPPORTED" : "REQUEST_PRECONDITION_REQUIRED";
 }
 
@@ -88,7 +81,8 @@ export async function cloudRequest<T>(path: string, init?: RequestInit): Promise
 export const cloudSetup = () => cloudRequest<{ configured: boolean }>("setup");
 export const cloudCapabilities = () => cloudRequest<CloudCapabilities>("capabilities");
 export const cloudAgentAuthStatus = () => cloudRequest<CloudAuthStatus>("agent-auth-status");
-export const cloudConfiguration = (projectId: string) => cloudRequest<{ items: CloudConfigRevision[] }>(`projects/${encodeURIComponent(projectId)}/configuration`);
+// Read only to reconcile pre-retirement CONFIGURE receipts by their original key.
+export const legacyCloudConfigurationReadback = (projectId: string) => cloudRequest<{ items: { id: string; revision: number }[] }>(`projects/${encodeURIComponent(projectId)}/configuration`);
 export const cloudCredentials = (projectId: string) => cloudRequest<{ credentials: CloudCredential[]; versions: CloudCredentialVersion[] }>(`projects/${encodeURIComponent(projectId)}/credentials`);
 export const cloudTasks = (projectId: string, offset = 0) => cloudRequest<{ items: CloudTask[]; total: number }>(`projects/${encodeURIComponent(projectId)}/tasks?offset=${offset}&limit=20`);
 export const cloudSummary = (projectId: string, taskId: string) => cloudRequest<CloudLiveSummary>(`tasks/${encodeURIComponent(taskId)}/summary?project_id=${encodeURIComponent(projectId)}`);
@@ -153,39 +147,7 @@ export function credentialFreeUrl(value: string): boolean {
   catch { return false; }
 }
 
-/** Compare displayed project scope and Cloud repository without changing either address. */
-export function projectContainsCloudRepository(projectAddress: string | null | undefined, repositoryAddress: string | null | undefined): boolean {
-  function parse(value: string | null | undefined) {
-    if (!value || /[\s\x00-\x1f]/.test(value)) return null;
-    const scp = value.match(/^[A-Za-z0-9_][A-Za-z0-9_.-]*@([A-Za-z0-9][A-Za-z0-9.-]*):([A-Za-z0-9_./~-]+)$/);
-    if (scp) {
-      const parts = scp[2].replace(/\/+$/, "").split("/");
-      return parts.some((part) => !part || part === "." || part === "..") ? null : { host: scp[1].toLowerCase(), port: "", parts, protocol: "ssh:" };
-    }
-    try {
-      // Refuse encoded separators and dot segments rather than guessing how a
-      // provider resolves paths that URL() would normalize.
-      if (/%(?:2f|5c|2e)/i.test(value) || /(?:^|\/)\.{1,2}(?:\/|$)/.test(value) || /[?#]/.test(value)) return null;
-      const url = new URL(value);
-      const authority = value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i)?.[1] || "";
-      const userInfo = authority.includes("@") ? authority.slice(0, authority.lastIndexOf("@")) : null;
-      if (!["https:", "ssh:"].includes(url.protocol) || !url.hostname || url.password || url.search || url.hash
-          || (userInfo !== null && (url.protocol !== "ssh:" || !/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(userInfo)))) return null;
-      const parts = url.pathname.replace(/^\/+|\/+$/g, "").split("/");
-      if (parts.some((part) => !part)) return null;
-      return { host: url.hostname.toLowerCase(), port: url.port === "22" && url.protocol === "ssh:" ? "" : url.port, parts, protocol: url.protocol };
-    } catch { return null; }
-  }
-  const project = parse(projectAddress), repository = parse(repositoryAddress);
-  if (!project || !repository || project.host !== repository.host || project.port !== repository.port) return false;
-  const repoPath = (parts: string[]) => parts.map((part, index) => index === parts.length - 1 ? part.replace(/\.git$/, "") : part);
-  const projectPath = repoPath(project.parts), cloudPath = repoPath(repository.parts);
-  if (projectPath.length === cloudPath.length && projectPath.every((part, index) => part === cloudPath[index])) return true;
-  if (project.parts.at(-1)?.endsWith(".git")) return false;
-  const scope = project.protocol === "https:" && project.parts[0] === "groups" ? project.parts.slice(1) : project.parts;
-  return scope.length > 0 && cloudPath.length > scope.length && scope.every((part, index) => part === cloudPath[index]);
-}
-
+/** Validate optional source checkout references independently of the change-context URL. */
 export function cloudSelector(kind: CloudSelector["kind"], value: string, strategy: CloudSelector["checkout_strategy"] = "HEAD", baseRef?: string): CloudSelector {
   const clean = value.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9_./:-]*$/.test(clean) || clean.includes("..") || clean.includes("@{") || (kind === "SHA" && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(clean))) throw new Error("INVALID_SELECTOR");
