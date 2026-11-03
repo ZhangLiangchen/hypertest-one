@@ -30,6 +30,17 @@ def stream(value=b""):
     (b"fatal: SSL certificate problem: certificate has expired", "GIT_TLS_VERIFICATION_FAILED"),
     (b"fatal: couldn't find remote ref missing", "GIT_REVISION_NOT_FOUND"),
     (b"fatal: unknown synthetic failure", "GIT_OPERATION_FAILED"),
+    (b"fatal: early EOF\nfatal: fetch-pack: invalid index-pack output", "GIT_CONNECTION_RESET"),
+    (b"error: RPC failed; curl 56 Failure when receiving data from the peer", "GIT_CONNECTION_RESET"),
+    (b"fatal: OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection", "GIT_CONNECTION_RESET"),
+    (b"error: RPC failed; curl 35 SSL connect error", "GIT_CONNECT_FAILED"),
+    (b"fatal: fetch-pack: invalid index-pack output", "GIT_OPERATION_FAILED"),
+    (b"fatal: synthetic curl 356 and curl 560", "GIT_OPERATION_FAILED"),
+    (b"fatal: Authentication failed\nfatal: early EOF\nerror: curl 56", "GIT_AUTH_FAILED"),
+    (b"fatal: SSL certificate problem\nerror: curl 35 SSL_ERROR_SYSCALL", "GIT_TLS_VERIFICATION_FAILED"),
+    (b"error: curl 35 OpenSSL: SSL routines::certificate verify failed", "GIT_TLS_VERIFICATION_FAILED"),
+    (b"SSL: no alternative certificate subject name matches target\nSSL_ERROR_SYSCALL", "GIT_TLS_VERIFICATION_FAILED"),
+    (b"fatal: couldn't find remote ref missing\nfatal: early EOF", "GIT_REVISION_NOT_FOUND"),
 ])
 async def test_git_failure_exposes_only_fixed_category(monkeypatch, stderr, expected):
     canary = b"https://synthetic-user:synthetic-secret@example.invalid/private?token=synthetic-token"
@@ -53,13 +64,16 @@ async def test_git_failure_exposes_only_fixed_category(monkeypatch, stderr, expe
     assert set(vars(failure.value)) == {"code", "operation", "exit_code"}
 
 
-async def test_transient_fetch_retries_same_read_and_keeps_frozen_sha(monkeypatch, tmp_path):
+@pytest.mark.parametrize("stderr", [
+    b"Connection reset", b"early EOF", b"RPC failed; curl 56", b"SSL_ERROR_SYSCALL", b"curl 35 SSL connect error",
+])
+async def test_transient_fetch_retries_same_read_and_keeps_frozen_sha(monkeypatch, tmp_path, stderr):
     calls, delays = [], []
 
     async def git(args, **kwargs):
         calls.append((args, kwargs))
         if args[0] == "fetch" and len(calls) < 3:
-            raise GitOperationFailure("GIT_CONNECTION_RESET", "fetch", 128)
+            raise GitOperationFailure(native_git._failure_code(stderr), "fetch", 128)
         return SHA if args[0] == "rev-parse" else ""
 
     async def sleep(delay):

@@ -43,7 +43,9 @@ def _failure_code(stderr: bytes) -> str:
                               b"returned error: 401", b"returned error: 403")),
         ("GIT_HOST_KEY_FAILED", (b"host key verification failed", b"remote host identification has changed")),
         ("GIT_TLS_VERIFICATION_FAILED", (b"ssl certificate problem", b"certificate verification failed",
-                                          b"server certificate verification failed")),
+                                          b"server certificate verification failed", b"certificate verify failed",
+                                          b"peer certificate cannot be authenticated",
+                                          b"no alternative certificate subject name matches")),
         ("GIT_REVISION_NOT_FOUND", (b"couldn't find remote ref", b"not our ref", b"unadvertised object")),
         ("GIT_REPOSITORY_NOT_FOUND", (b"repository not found", b"does not appear to be a git repository")),
         ("GIT_DNS_FAILED", (b"could not resolve host", b"could not resolve proxy", b"temporary failure in name resolution",
@@ -52,11 +54,18 @@ def _failure_code(stderr: bytes) -> str:
         ("GIT_HTTP2_FAILED", (b"http/2 stream", b"http2 framing", b"curl 92")),
         ("GIT_CONNECTION_RESET", (b"connection reset", b"recv failure", b"send failure",
                                   b"remote end hung up unexpectedly", b"unexpected disconnect",
-                                  b"tls connection was non-properly terminated")),
+                                  b"tls connection was non-properly terminated", b"early eof",
+                                  b"ssl_error_syscall")),
         ("GIT_TIMEOUT", (b"connection timed out", b"operation timed out", b"curl 28")),
     ):
         if any(marker in value for marker in markers):
             return code
+    # libcurl transport failures can omit the usual Git disconnect wording.
+    # Keep permanent checks above; index-pack errors alone are not transport proof.
+    if re.search(rb"\bcurl\s+35\b", value):
+        return "GIT_CONNECT_FAILED"
+    if re.search(rb"\bcurl\s+56\b", value):
+        return "GIT_CONNECTION_RESET"
     if re.search(rb"(?:returned error:|http(?:/[0-9.]+)?)[ \t]+(?:500|502|503|504)\b", value):
         return "GIT_SERVER_UNAVAILABLE"
     return "GIT_OPERATION_FAILED"
