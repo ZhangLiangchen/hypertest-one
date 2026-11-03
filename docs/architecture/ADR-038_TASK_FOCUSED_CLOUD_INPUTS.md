@@ -31,6 +31,8 @@
 
 开始回执已接受仅证明开始意图已持久保存；解析、排队、Harness 启动和测试结果仍分别记录。准备失败不得创建执行尝试；过期、撤权、版本改变、取消或删除均不能被晚到的解析结果绕过。`RECOVERY_REQUIRED` 和未决原操作先按原身份恢复/对账，不得通过新的 `START_TASK` 自动重放。确定失败后的再次开始须来自用户的新显式操作；旧失败与未知事实保留。
 
+`CLOSE_INPUT_RESOLUTION` 提供限定的原准备收尾：使用 `cloud:control`、当前 Task 版本、独立原 key，并精确指定 `resolution_id` 与其 `original_operation_key`。仅未冻结且从未产生 Attempt 的 DRAFT 可收尾；原解析须为未接受结果的 RECOVERY_REQUIRED，lease/hash 均清空、无未撤销 work grant、原领取关闭事务的 fence 审计存在且无该解析的活动 claim。操作者另声明已观察本地准备进程停止并提供原因；服务端不将其升级为独立停机证明。事务只把该解析关闭为 FAILED，保留原身份/回执和原未知 Git 事实，在新回执记录原状态、原因及来源，递增 Task 版本；不接受 SHA、重放 Git 或启动 Agent。随后新测试必须使用另一次显式 START_TASK。无需新表或迁移。
+
 ## 旧入口与历史范围
 
 `CONFIGURE` 新写退役并返回 HTTP 410，产品移除项目配置列表入口。配置 GET 只保留供旧 CONFIGURE 原 key 的接受结果读回核对，新任务不通过该接口配置资源，也不要求先保存资源。任务读取仍可返回其原冻结仓库/配置快照；原操作 key 的查询及恢复保持既有语义。旧页面地址 `cloud?tab=resources` 只呈现 Cloud 任务列表。

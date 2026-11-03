@@ -42,6 +42,7 @@ from hypertest.domain.cloud_tasks import (
     CloudRunRecord,
     CloudTask,
     CloudTaskDeletion,
+    CloudWorkerClaimState,
     CloudWorkGrant,
     CredentialVersion,
     ProjectCloudConfigRevision,
@@ -52,7 +53,7 @@ from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "START_TASK": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
-    "DELETE_TASK": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
+    "DELETE_TASK": "cloud:control", "CLOSE_INPUT_RESOLUTION": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
     "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work", "COMPLETE_NATIVE_ATTEMPT": "cloud:work",
 }
@@ -646,7 +647,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         raise HTTPException(422, "Retry requires explicit scope and authorization confirmation")
     if payload.operation == "DISPATCH" and payload.retry_of_attempt_id and payload.retry_inputs is None:
         raise HTTPException(409, "Task retry requires new scope and authorization")
-    if payload.operation not in {"DELETE_TASK", "CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
+    if payload.operation not in {"DELETE_TASK", "CLOSE_INPUT_RESOLUTION", "CANCEL_TASK", "CANCEL_ATTEMPT", "ANSWER_INPUT", "RECONCILE_ATTEMPT", "REVOKE_CREDENTIAL"}:
         enabled()
     fixed_control_fallback = False
     if payload.operation not in {"STORE_CREDENTIAL", "REVOKE_CREDENTIAL"}:
@@ -798,6 +799,50 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     elif op == "DISPATCH":
         refs, attempt = await _dispatch_task(db, task, grant_id=grant_id, resolution_id=payload.resolution_id,
             retry_of_attempt_id=payload.retry_of_attempt_id, retry_inputs=payload.retry_inputs)
+    elif op == "CLOSE_INPUT_RESOLUTION":
+        if (task.status != "DRAFT" or task.frozen_manifest or task.latest_attempt_id is not None
+                or await db.scalar(select(CloudAttempt.id).where(CloudAttempt.task_id == task.id).limit(1))):
+            raise HTTPException(409, "Input resolution closure requires an undispatched DRAFT")
+        resolution = await db.scalar(select(CloudInputResolution).where(
+            CloudInputResolution.id == payload.resolution_id, CloudInputResolution.task_id == task.id,
+            CloudInputResolution.project_id == task.project_id).with_for_update())
+        if resolution is None or resolution.operation_key != payload.original_operation_key:
+            raise HTTPException(404, "Original input resolution not found")
+        if (resolution.status != "RECOVERY_REQUIRED" or resolution.result is not None
+                or resolution.digest is not None or resolution.accepted_at is not None
+                or resolution.accepted_task_version is not None):
+            raise HTTPException(409, "Only unaccepted recovery input resolution can be closed")
+        if (resolution.lease_token_hash is not None or resolution.lease_expires_at is not None
+                or await db.scalar(select(CloudWorkGrant.id).where(
+                    CloudWorkGrant.resolution_id == resolution.id, CloudWorkGrant.revoked_at.is_(None)).limit(1))):
+            raise HTTPException(409, "Original input resolution ownership is not fenced")
+        origin = await db.scalar(select(CloudOperationReceipt).where(
+            CloudOperationReceipt.project_id == task.project_id,
+            CloudOperationReceipt.operation_key == resolution.operation_key))
+        if (origin is None or origin.task_id != task.id or origin.operation not in {"RESOLVE_INPUTS", "START_TASK"}
+                or origin.accepted_version != resolution.source_draft_version
+                or origin.actor_ref != resolution.requested_by
+                or origin.response.get("resolution_id") != str(resolution.id)):
+            raise HTTPException(409, "Original input resolution receipt requires reconciliation")
+        # This audit event commits with the original claim's closure. A later
+        # EMPTY slot cannot erase that fact; lease expiry alone is insufficient.
+        closed = await db.scalar(select(AuditEvent.id).where(
+            AuditEvent.project_id == task.project_id, AuditEvent.entity_id == task.id,
+            AuditEvent.action == "cloud.claim_recovery_fenced",
+            AuditEvent.actor_ref == "worker:" + str(resolution.worker_id),
+            AuditEvent.event_metadata["resolution_id"].as_string() == str(resolution.id)).limit(1))
+        open_claim = await db.scalar(select(CloudWorkerClaimState.worker_id).where(
+            CloudWorkerClaimState.resolution_id == resolution.id, CloudWorkerClaimState.closed.is_(False)).limit(1))
+        if closed is None or open_claim is not None:
+            raise HTTPException(409, "Original input resolution claim is not confirmed closed")
+        resolution.status = "FAILED"
+        refs = {"resolution_id": str(resolution.id), "resolution_status": "FAILED",
+            "resolution_closure": {"original_operation_key": resolution.operation_key,
+                "original_status": "RECOVERY_REQUIRED", "source_draft_version": resolution.source_draft_version,
+                "source": "OPERATOR_ATTESTATION", "actor_ref": actor_ref, "reason": payload.reason,
+                "local_processes_stopped": payload.local_processes_stopped,
+                "independent_process_stop_proof": False, "git_execution_outcome": "UNCONFIRMED",
+                "accepted_source_result": False, "automatically_restarted": False}}
     elif op == "CANCEL_TASK":
         if task.status != "DRAFT" or task.latest_attempt_id is not None:
             raise HTTPException(409, "Task cancellation requires an undispatched DRAFT")

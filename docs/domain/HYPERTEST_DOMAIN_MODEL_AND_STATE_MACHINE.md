@@ -2431,6 +2431,8 @@ CloudAttempt 既有 `runtime_metadata` 保存独立预算记录，不新增实�
 
 `budget_reservation` 保留原 operation key、generation、时间和请求上限，状态仅为 `HELD` / `SETTLED`。累计用量按每 Attempt 的 `max(已观察用量, 未释放预留)` 计入；准备期间也计时间 hold，不能等实际模型费用回写后才限制复测。丢失 lease、取消、超时、报告 UNKNOWN 或人工 RECONCILE 均不自动释放 hold。只有当前 fenced Worker 观察整 namespace 已停止、所有模型 broker 关闭并 join / 无在途请求，才可在原 typed mutation 中附 `budget_settlement`：相同 accounting unit、完整 scope 请求计数、观察耗时及停止 / drained 为 true 的证据。计数不得超预留上限，计数乘预留费率须与提交的 observed usage 一致；原 hold 和结算记录同时保留。无法证明收尾则继续 HELD；结算不伪称供应商账单，不能由模型自述替代。结算、终态及 fencing 必须在同一接受事务完成，终态记录首次落库后仍不可变。
 
+**输入解析显式收尾：** `CLOSE_INPUT_RESOLUTION`（cloud:control）只作用于未删除、未冻结且无任何 Attempt 的 DRAFT。原解析按 Project/Task/resolution_id/original_operation_key 精确匹配，须为 RECOVERY_REQUIRED、无已接受 result/digest/accepted version/time、lease/hash 清空、无未撤销 grant。原 RESOLVE_INPUTS/START_TASK 回执必须匹配来源与提交者；同解析的 CLAIM_RECOVERY_FENCED 审计证明原 claim 关闭事务已提交，仍有活动原 claim 时拒绝。操作者提交停止观察及原因；它是 OPERATOR_ATTESTATION，不是独立进程停止证明，也不证明原 Git 未执行。仅转解析为 FAILED并追加版本化收尾回执/Audit/Outbox；Task 保持 DRAFT/NOT_RUN，原来源与旧回执不变。关闭不自动排队；新的显式 START_TASK 可开始独立准备。原 key 幂等和异正文冲突保持，无新表。
+
 ### 51.4 生命周期、复测与恢复
 
 CloudTask 是任务聚合；DRAFT 仅表示尚未下发。下发后，其 status/reported_result 是最新 Attempt 的受控投影，历史状态通过回执、修订与审计重建。CloudAttempt 状态如下：

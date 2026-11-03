@@ -366,6 +366,14 @@ class CloudStartTask(TaskMutation):
     operation: Literal["START_TASK"] = "START_TASK"
 
 
+class CloudCloseInputResolution(TaskMutation):
+    operation: Literal["CLOSE_INPUT_RESOLUTION"] = "CLOSE_INPUT_RESOLUTION"
+    resolution_id: UUID
+    original_operation_key: str = Field(pattern=KEY)
+    reason: str = Field(min_length=1, max_length=4096)
+    local_processes_stopped: Literal[True]
+
+
 class CloudRetryInputs(Input):
     objective: str = Field(min_length=1, max_length=16000)
     test_scope: str = Field(min_length=1, max_length=16000)
@@ -680,4 +688,4 @@ class CloudNativeFinish(AttemptMutation):
         return self
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudCloseInputResolution | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]
