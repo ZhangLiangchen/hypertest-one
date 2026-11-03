@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import sys
 import threading
 
@@ -14,22 +15,50 @@ from .native_selection import read_native_selection
 from .runtime_activity import project_finish_reason, project_notification
 
 
+class _PipeInput:
+    """Read bounded frames without holding Python's buffered stdin lock."""
+
+    def __init__(self, fd):
+        self.fd = fd
+        self.buffer = bytearray()
+
+    def readline(self, limit, stopped=None):
+        while stopped is None or not stopped.is_set():
+            newline = self.buffer.find(b"\n")
+            if newline >= 0 or len(self.buffer) >= limit:
+                end = min(newline + 1, limit) if newline >= 0 else limit
+                line = bytes(self.buffer[:end])
+                del self.buffer[:end]
+                return line
+            if not select.select([self.fd], [], [], 0.1)[0]:
+                continue
+            chunk = os.read(self.fd, min(65536, limit - len(self.buffer)))
+            if not chunk:
+                line = bytes(self.buffer)
+                self.buffer.clear()
+                return line
+            self.buffer.extend(chunk)
+        return b""
+
+
 class QuestionChannel:
     """Bounded, private stdin/stdout bridge to the Worker, with no platform credential."""
 
-    def __init__(self, session_id: str, emit):
+    def __init__(self, session_id: str, emit, *, source=None):
         self.session_id = session_id
         self.emit = emit
         self.lock = threading.Lock()
         self.pending: dict[str, dict] = {}
         self.closed = False
-        self.reader = threading.Thread(target=self._read, name="cloud-question-input", daemon=True)
+        self.source = source if source is not None else _PipeInput(sys.stdin.fileno())
+        self.stopping = threading.Event()
+        self.reader = threading.Thread(target=self._read, name="cloud-question-input")
         self.reader.start()
 
     def _read(self):
         try:
-            while True:
-                line = sys.stdin.buffer.readline(131073)
+            while not self.stopping.is_set():
+                line = self.source.readline(131073, self.stopping)
                 if not line or len(line) > 131072 or not line.endswith(b"\n"):
                     break
                 try:
@@ -45,11 +74,19 @@ class QuestionChannel:
                     if pending is not None and pending["answer"] is None:
                         pending["answer"] = frame["answer"]
                         pending["ready"].set()
+        except (OSError, ValueError):
+            pass  # A closed/invalid private pipe cannot deliver another answer.
         finally:
             with self.lock:
                 self.closed = True
                 for pending in self.pending.values():
                     pending["ready"].set()
+
+    def close(self):
+        self.stopping.set()
+        self.reader.join(timeout=2)
+        if self.reader.is_alive():
+            raise RuntimeError("Question input thread did not stop")
 
     def ask(self, request, cancelled):
         request_id = request.request_id
@@ -138,13 +175,15 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
 
 def main() -> int:
     output_lock = threading.Lock()
+    channel = None
 
     def emit(value):
         with output_lock:
             print(json.dumps(value, ensure_ascii=False, separators=(",", ":")), flush=True)
 
     try:
-        raw = sys.stdin.buffer.readline(1024 * 1024 + 1)
+        source = _PipeInput(sys.stdin.fileno())
+        raw = source.readline(1024 * 1024 + 1)
         if len(raw) > 1024 * 1024:
             raise ValueError("input too large")
         config = json.loads(raw)
@@ -154,13 +193,16 @@ def main() -> int:
                        for key in ("workspace", "dsh_home", "session_id", "prompt"))
                 or type(config.get("interaction_enabled", False)) is not bool):
             raise ValueError("invalid input")
-        channel = QuestionChannel(config["session_id"], emit) if config.get("interaction_enabled", False) else None
+        channel = QuestionChannel(config["session_id"], emit, source=source) if config.get("interaction_enabled", False) else None
         run(config, emit, channel)
         return 0
     except Exception:
         # SDK exceptions can contain arbitrary content or credentials.
         emit({"runtime_observation": "ERROR", "code": "SDK_RUN_FAILED"})
         return 1
+    finally:
+        if channel is not None:
+            channel.close()
 
 
 if __name__ == "__main__":

@@ -32,8 +32,11 @@ from .worker import CloudWorker, private_root, save_once
 
 
 def _recovery_reason(error: BaseException) -> str:
-    if isinstance(error, CloudBlocked) and error.code == REPORT_CONTENT_REJECTED:
-        return REPORT_CONTENT_REJECTED
+    if isinstance(error, CloudBlocked) and error.code in {
+        REPORT_CONTENT_REJECTED, "WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED",
+        "RUNTIME_TIMEOUT", "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED",
+    }:
+        return error.code
     return "WORKER_RUNTIME_FAILED"
 
 
@@ -443,6 +446,8 @@ async def execute(api, args, state: Path, claim: dict):
             terminal = observed or terminal
             await asyncio.sleep(0.2)
         await process.wait()
+        save_once(root / "runtime-exit.json", {"source": "DIRECT_SDK_PROCESS",
+            "returncode": process.returncode, "observed_at": datetime.now(UTC).isoformat()})
         await reader
         bridge.check()
         if bridge.tasks:

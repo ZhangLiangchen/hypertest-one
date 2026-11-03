@@ -1,37 +1,91 @@
 """Synthetic native SDK question bridge; no provider or SUT is invoked."""
 import json
+import os
 import queue
+import subprocess
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from hypertest.cloud import sdk
 from hypertest.cloud.errors import CloudBlocked
-from hypertest.cloud.native_sdk_driver import QuestionChannel
+from hypertest.cloud.native_sdk_driver import QuestionChannel, _PipeInput
 
 
 class Input:
     def __init__(self):
-        self.lines = queue.Queue()
-
-    def readline(self, _limit):
-        return self.lines.get(timeout=5)
+        self.read_fd, self.write_fd = os.pipe()
 
     def send(self, frame):
-        self.lines.put(json.dumps(frame).encode() + b"\n")
+        os.write(self.write_fd, json.dumps(frame).encode() + b"\n")
+
+    def close(self):
+        os.close(self.read_fd)
+        os.close(self.write_fd)
 
 
 @pytest.fixture
-def channel(monkeypatch):
+def channel():
     source, emitted = Input(), queue.Queue()
-    monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=source))
-    bridge = QuestionChannel("root-session", emitted.put)
-    yield bridge, source, emitted
-    source.lines.put(b"")
-    bridge.reader.join(timeout=2)
-    assert not bridge.reader.is_alive()
+    bridge = QuestionChannel("root-session", emitted.put, source=_PipeInput(source.read_fd))
+    try:
+        yield bridge, source, emitted
+    finally:
+        bridge.close()
+        assert not bridge.reader.is_alive()
+        source.close()
+
+
+@pytest.mark.parametrize("sdk_failure", [False, True])
+def test_driver_exits_cleanly_while_worker_keeps_question_pipe_open(sdk_failure):
+    # Exercise real interpreter finalization, without an SDK/model or business DB.
+    # Closing stdin through communicate() would hide the original SIGABRT.
+    script = """
+import resource
+import sys
+import time
+from hypertest.cloud import native_sdk_driver as driver
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+def no_model(config, emit, question_channel):
+    time.sleep(0.1)
+    if sys.argv[1] == 'fail':
+        raise RuntimeError('synthetic SDK failure')
+driver.run = no_model
+raise SystemExit(driver.main())
+"""
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
+    child = subprocess.Popen([sys.executable, "-P", "-c", script, "fail" if sdk_failure else "success"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    try:
+        child.stdin.write(json.dumps({"workspace": "synthetic", "dsh_home": "synthetic",
+            "session_id": "synthetic", "prompt": "No model", "interaction_enabled": True}).encode() + b"\n")
+        child.stdin.flush()
+        assert child.wait(timeout=5) == (1 if sdk_failure else 0)
+        assert not child.stderr.read()
+        output = child.stdout.read()
+        assert (b'"code":"SDK_RUN_FAILED"' in output) is sdk_failure
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        child.stdin.close()
+        child.stdout.close()
+        child.stderr.close()
+
+
+def test_pipe_reader_preserves_coalesced_config_and_answer_frames():
+    source = Input()
+    try:
+        os.write(source.write_fd, b'{"config":1}\n{"answer":2}\n')
+        reader = _PipeInput(source.read_fd)
+        assert reader.readline(1024) == b'{"config":1}\n'
+        assert reader.readline(1024) == b'{"answer":2}\n'
+    finally:
+        source.close()
 
 
 def request(**changes):
