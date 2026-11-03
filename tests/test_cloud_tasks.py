@@ -393,6 +393,58 @@ async def test_recovery_capabilities_disable_unimplemented_resume_without_new_cl
     assert (await read_all(context, receipt["task_id"], recovery["version"]))["attempts"][-1]["checkpoint"]["runtime_context"]["session_id"] == "original-session"
 
 
+async def test_cancel_already_recovering_attempt_preserves_unknown_work_and_original_key(cloud_context):
+    context = cloud_context
+    receipt, _, identity = await legacy_claimed(context)
+    running = await worker_submit(context, identity, receipt, "TRANSITION", status="RUNNING",
+        budget_reservation={"reserved_seconds": 60, "request_limits": [
+            {"scope": "ROOT", "max_requests": 1, "cost_per_request_microunits": 100}]})
+    recovery = await worker_submit(context, identity, running, "TRANSITION", status="RECOVERY_REQUIRED",
+        reason="Synthetic runtime failure", checkpoint={"session_id": "original-session"})
+    # Represent an unresolved original external operation in the dedicated test DB.
+    async with AsyncSessionLocal() as db:
+        attempt = await db.get(CloudAttempt, UUID(receipt["attempt_id"]))
+        attempt.checkpoint = {**attempt.checkpoint, "pending_operation_keys": ["original-unknown-key"],
+                              "external_operations_reconciled": False}
+        generation = attempt.lease_generation
+        original_metadata = attempt.runtime_metadata
+        assert original_metadata["budget_reservation"]["state"] == "HELD"
+        await db.commit()
+
+    fields = {"task_id": receipt["task_id"], "attempt_id": receipt["attempt_id"],
+              "reason": "OPERATOR_REQUESTED_CANCELLATION"}
+    key = "cancel-recovery-" + uuid4().hex
+    cancelled = await post(context, "CANCEL_ATTEMPT", recovery["version"], operation_key=key, **fields)
+    assert cancelled.status_code == 200, cancelled.text
+    accepted = cancelled.json()
+    assert accepted["version"] == recovery["version"] + 1
+    fixed = await read_all(context, receipt["task_id"], accepted["version"])
+    attempt = fixed["attempts"][-1]
+    assert fixed["task"]["status"] == attempt["status"] == "RECOVERY_REQUIRED"
+    assert attempt["reason"] == "Synthetic runtime failure"
+    assert attempt["runtime_metadata"] == original_metadata
+    assert attempt["reported_result"] == fixed["task"]["reported_result"] == "NOT_RUN"
+    assert attempt["checkpoint"] == {"runtime_context": {"session_id": "original-session"},
+        "pending_operation_keys": ["original-unknown-key"], "external_operations_reconciled": False,
+        "cancellation_requested": True, "cancellation_reason": fields["reason"]}
+    assert attempt["lease_generation"] == generation + 1
+    assert (await post(context, "CANCEL_ATTEMPT", recovery["version"], operation_key=key, **fields)).json() == accepted
+    conflict = await post(context, "CANCEL_ATTEMPT", recovery["version"], operation_key=key,
+                          **{**fields, "reason": "Different intention"})
+    assert conflict.status_code == 409
+    assert (await post(context, "CANCEL_ATTEMPT", recovery["version"], **fields)).status_code == 409
+    assert (await post(context, "CANCEL_ATTEMPT", accepted["version"], **fields)).status_code == 409
+    with pytest.raises(HTTPException, match="stale"):
+        await worker_submit(context, identity, accepted, "SUBMIT_ASSETS", assets=[{
+            "kind": "REPORT", "key": "late", "title": "Late worker", "markdown": "Cannot write after fence"}])
+    reconciled = await post(context, "RECONCILE_ATTEMPT", accepted["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], status="CANCELLED", reason="Cannot claim completion", reconciliation={
+            "old_owner_fenced": True, "local_processes_stopped": True, "external_operations_reconciled": True,
+            "observations": "Synthetic unverified claim", "pending_operation_keys": []})
+    assert reconciled.status_code == 409
+    assert (await read_all(context, receipt["task_id"], accepted["version"])) == fixed
+
+
 async def test_lost_cancel_response_uses_original_receipt_and_attestation_keeps_hold(cloud_context):
     context = cloud_context
     receipt, _, identity = await legacy_claimed(context)

@@ -1559,6 +1559,8 @@ Worker 提问先持久化 question/checkpoint 和已接受资产，再安全停�
 
 租约/fencing 在本 profile 独立实施，Worker 结果写入须持当前短期能力、lease/generation 和 expected_version。失联时拒绝旧 owner 的迟到写入并进入 RECOVERY_REQUIRED；fencing 只保护平台提交，不证明外部动作终止。取消/超时终止整棵本地进程树，逐项记录委派、远端执行和未决副作用。仍有未知时不能仅标 CANCELLED 后重跑。
 
+Attempt 已处于 RECOVERY_REQUIRED 时，显式取消仍记录为保持该状态的控制意图，重新 fence 并保留原失败原因、checkpoint、未决操作、reported_result 和预算；不将其视为状态自转换或停止证明。原 key 幂等与 expected_version 检查继续适用。
+
 Resume 只能延续原 Attempt 的已保存上下文/文件/SDK session（确实可恢复时），不恢复 shell、浏览器、CI 或测试进程。恢复前读取原 operation key，核对外部动作、委派和产物，fence 旧 owner、重新鉴权并记录新 generation；无法安全续接则继续 RECOVERY_REQUIRED。只有对账结束且旧 Attempt 已明确终结，才允许显式新 Attempt。
 
 当前受控 Worker 不支持原 SDK 会话续接；SDK 包中存在 resume 方法不构成本运行端能力。能力 GET 必须明确该限制，Web 不提供可用的 RESUME 承诺，服务端拒绝新 RESUME_ATTEMPT，且不推进版本或重新排队。请求取消、平台写权已 fence 但停止待确认、待对账、已终止与可续接分别显示；只有实现支持并满足服务端前置条件时才能称为可续接。

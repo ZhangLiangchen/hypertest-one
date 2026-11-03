@@ -724,11 +724,18 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     elif op == "CANCEL_ATTEMPT":
         if attempt.status in TERMINAL:
             raise HTTPException(409, "Terminal Attempts are immutable")
+        if attempt.checkpoint.get("cancellation_requested") is True:
+            raise HTTPException(409, "Cancellation has already been requested")
         target = "CANCELLED" if attempt.status == "QUEUED" and attempt.lease_owner is None else "RECOVERY_REQUIRED"
         await _fence(db, attempt)
-        _state(task, attempt, target, payload.reason, await clock(db))
+        # Recovery is already fenced and is not a lifecycle transition. Record
+        # the new intent without replacing the original recovery diagnosis or
+        # claiming that the runtime and external operations have stopped.
+        if attempt.status != "RECOVERY_REQUIRED":
+            _state(task, attempt, target, payload.reason, await clock(db))
         checkpoint = dict(attempt.checkpoint)
         checkpoint["cancellation_requested"] = True
+        checkpoint["cancellation_reason"] = payload.reason
         attempt.checkpoint = checkpoint
     elif op == "RESUME_ATTEMPT":
         # The pinned SDK exposes an API, but the Worker has no verified original

@@ -2450,6 +2450,8 @@ WAITING_INPUT 必须先保存问题、已接受产物和 checkpoint，再停止�
 
 取消/超时首先 fence 管理写权，再终止该 Attempt 整棵本地进程树，记录结果；终止本地 runtime 不证明已触发的远程命令、CI 或业务副作用停止。已知未决操作存在时保持 RECOVERY_REQUIRED，reported_result 原样保留。租约失联、崩溃、半成品上传或提交失答均需对账，不以 runtime 重启自动重跑。
 
+已处于 RECOVERY_REQUIRED 的 Attempt 仍可接受显式取消请求：该操作再次 fence 写权并记录取消意图，状态保持 RECOVERY_REQUIRED，并非状态机自转换或停止证明。保留原失败原因、已有 checkpoint 和未决操作、reported_result 与预算；原 key 重读原回执，不重复执行或递增版本，新的请求仍须匹配当前版本；已记录取消后以新 key 重复请求被拒绝。
+
 恢复只保证可恢复的对话/文件/checkpoint，不能恢复旧 shell、浏览器或测试进程。须先只读核对原 operation key、进程/委派状态、CI/远端状态和已经保存的资产，再由有权操作者明确选择继续；无法确认安全续接则保留恢复阻塞，或完成对账后结束旧 Attempt，再显式新 Attempt。每个外部副作用在执行前固定 operation key 与非秘密输入摘要，结果失答不换 key、不再触发。operation UNKNOWN 的原 key 查询得到 NOT_FOUND 不证明外部未执行；消除 UNKNOWN 要有原操作/目标、观察时间、原始材料与有权对账记录。不得通过取消标记、复测或新 Task 绕过已知未决副作用。
 
 ### 51.6 产物、执行记录与完成条件
