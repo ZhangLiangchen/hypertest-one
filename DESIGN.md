@@ -282,7 +282,7 @@ Primary actions use electric blue, white text, capsule corners, the shared contr
 ### Inputs / Fields
 Use labeled opaque inputs and selects, vertical form layout, readable placeholder ink and visible validation messages. The shared theme sets the standard control height and radius. Readable help, optional labels, counters and guide descriptions receive the muted description token. Counted textareas reserve their own bottom line before help text.
 
-Keep drafts on the current page when dialogs close. Creation runs through source, requirements, environment, policy and review steps; language changes retain the draft, original PRD and current step. Invalid submission focuses the first failing field. Pending mutations guard dismissal and repeated submission as the existing forms do.
+Keep drafts on the current page when dialogs close or the execution mode changes. Cloud creation asks only for an MR/PR URL and optional testing instructions; the task name comes from the link, and the test framework defaults to main. Project details own repository addresses. The existing local and legacy creation flows retain their own fields. Language changes retain entered content. Invalid submission focuses the first failing field. Pending mutations guard dismissal and repeated submission as the existing forms do.
 
 ### Chips
 Tags show a written status. Green, red, gold, blue/geekblue and volcano retain explicit semantic overrides; neutral tags serve metadata and states that do not imply success. General tags can wrap long content. Project status labels remain on one line so English Archived stays intact in its status cell. A verified evidence tag does not imply a passing run.

@@ -315,7 +315,7 @@ def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot:
         value["instructions"].append(
             "This is a new attempt with an independently confirmed execution snapshot. "
             "The current objective, test scope, basic flow, framework entrypoints and authorization in that snapshot "
-            "are the user's only authorized instructions for this attempt. The original PRD is historical context; "
+            "are the user's only authorized instructions for this attempt. The original prompt and PRD are historical context; "
             "its prior one-time-only instruction applies to the original attempt, not the newly confirmed scope. "
             "Never resend an operation with an unknown outcome, even if this attempt has new instructions. "
             "Do not present a previous action identity or result as a new observation from this attempt.")

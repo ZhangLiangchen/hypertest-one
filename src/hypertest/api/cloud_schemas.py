@@ -291,11 +291,34 @@ class CloudCredentialRevoke(Mutation):
 
 
 class CloudTaskInputs(TaskInputs):
-    """Current task inputs: MR context and source refs, never SUT deployment configuration."""
+    """An MR and optional instructions, with server-derived source defaults."""
     mr_url: str = Field(min_length=1, max_length=2048)
+    prompt: str | None = Field(default=None, max_length=262144)
+    prd_markdown: str | None = Field(default=None, min_length=1, max_length=262144)
+    prd_version: str | None = Field(default=None, min_length=1, max_length=255)
+    objective: str | None = Field(default=None, min_length=1, max_length=16000)
+    basic_flow: str | None = Field(default=None, min_length=1, max_length=16000)
+    test_scope: str | None = Field(default=None, min_length=1, max_length=16000)
     authorization: None = None
-    sut_selector: Selector = Field(default_factory=lambda: Selector(value="HEAD"))
-    framework_selector: Selector = Field(default_factory=lambda: Selector(value="HEAD"))
+    sut_selector: Selector | None = None
+    framework_selector: Selector = Field(default_factory=lambda: Selector(value="main"))
+
+    @model_validator(mode="after")
+    def default_change_source(self):
+        if self.sut_selector is None:
+            path = urlsplit(self.mr_url).path.rstrip("/")
+            number = path.rsplit("/", 1)[1]
+            prefix = "refs/merge-requests" if "/-/merge_requests/" in path else "refs/pull"
+            self.sut_selector = Selector(value=f"{prefix}/{number}/head")
+        return self
+
+    @model_serializer(mode="wrap")
+    def preserve_optional_task_content(self, handler):
+        result = self.preserve_legacy_serialization(handler)
+        for field in ("prompt", "prd_markdown", "prd_version", "objective", "basic_flow", "test_scope"):
+            if getattr(self, field) is None:
+                result.pop(field, None)
+        return result
 
     @field_validator("mr_url")
     @classmethod
@@ -314,7 +337,7 @@ class CloudTaskInputs(TaskInputs):
 
 class CloudTaskCreate(Mutation):
     operation: Literal["CREATE_TASK"] = "CREATE_TASK"
-    title: str = Field(min_length=1, max_length=512)
+    title: str | None = Field(default=None, min_length=1, max_length=512)
     expected_project_version: int = Field(ge=1)
     inputs: CloudTaskInputs
     related_task_id: UUID | None = None
