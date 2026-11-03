@@ -4,6 +4,7 @@ export type MemoryAction = "CONFIGURE" | "CREATE_CANDIDATE" | "PUBLISH" | "REVIS
 export type MemorySource = { mode: "LOCAL" | "CLOUD" | "LOCAL_ARCHIVE"; task_id: string; task_version?: number; archive_version?: number; submission_id?: string; report_id?: string; attempt_id?: string; asset_revision_id?: string };
 export type MemoryEntry = { id: string; project_id: string; version: number; status: "CANDIDATE" | "PUBLISHED" | "RETRACTED" | "PENDING" | "SUPERSEDED" | "EXPIRED"; revision_status?: "CANDIDATE" | "PUBLISHED" | "RETRACTED"; title: string; content: string; source?: MemorySource | null; publication_note?: string; applicability?: string; observed_at?: string; expires_at?: string; created_at?: string; updated_at?: string };
 export type MemoryConfiguration = { project_id?: string; enabled: boolean; version: number; scope_id?: string; status?: string };
+export type ExternalProjectMemory = { result_type: "EXTERNAL_PROJECT_KNOWLEDGE"; project_id: string; scope_id: string; artifact_id: string; revision: number; kind: string; content: string; content_digest: string; state: "active"; state_version: number; matched_by: string[]; review_status: "EXTERNAL_NOT_HYPERTEST_REVIEWED"; notice: string };
 export type MemoryProject = { profile: string; enabled: boolean; configuration: MemoryConfiguration; entries: MemoryEntry[]; operations: MemoryReceipt[]; offset?: number; limit?: number; has_more?: boolean };
 export type MemoryMutation = { project_id: string; operation_key: string; operation: MemoryAction; expected_version: number; entry_id?: string; title?: string; content?: string; source?: MemorySource; publication_note?: string; applicability?: string; observed_at?: string; expires_at?: string; enabled?: boolean };
 export type MemoryPending = { project_id: string; operation_key: string; operation: MemoryAction; expected_version: number; entry_id?: string; digest: string; state: "SENT" | "UNKNOWN" };
@@ -19,7 +20,7 @@ export const memoryProject = (projectId: string, status = "PUBLISHED", offset = 
 export const memoryConfiguration = (projectId: string, version: number) => memoryRequest<MemoryConfiguration>(`projects/${encodeURIComponent(projectId)}/configuration?version=${version}`);
 export const memoryEntry = (projectId: string, entryId: string, version: number) => memoryRequest<MemoryEntry>(`entries/${encodeURIComponent(entryId)}?project_id=${encodeURIComponent(projectId)}&version=${version}`);
 export const memoryOperation = (projectId: string, key: string) => memoryRequest<MemoryReceipt>(`operations/by-key?${new URLSearchParams({ project_id: projectId, operation_key: key })}`);
-export const memoryQuery = (projectId: string, query: string) => memoryRequest<{ results: MemoryEntry[]; degraded?: boolean }>("query", { method: "POST", body: JSON.stringify({ project_id: projectId, query, limit: 20 }) });
+export const memoryQuery = (projectId: string, query: string) => memoryRequest<{ results: MemoryEntry[]; external_results?: ExternalProjectMemory[]; search_mode?: string; degraded?: boolean }>("query", { method: "POST", body: JSON.stringify({ project_id: projectId, query, limit: 20 }) });
 
 export function parseMemoryPending(value: unknown, projectId: string): MemoryPending {
   if (!value || typeof value !== "object") throw new Error("MEMORY_JOURNAL_INVALID");

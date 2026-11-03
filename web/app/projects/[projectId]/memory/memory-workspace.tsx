@@ -8,10 +8,22 @@ import { ProjectNavigation, WorkspaceHeading, WorkspaceLoading } from "@/app/wor
 import { getProject } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { memoryEntry, memoryProject, memoryQuery, memoryRequest } from "@/lib/memory";
-import type { MemoryAction, MemoryEntry, MemoryMutation, MemorySource } from "@/lib/memory";
+import type { ExternalProjectMemory, MemoryAction, MemoryEntry, MemoryMutation, MemorySource } from "@/lib/memory";
 import { useMemoryOperation } from "@/lib/memory-operation";
 
 const UUID = /^(?:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})$/;
+export function ExternalMemoryResults({ records }: { records: ExternalProjectMemory[] }) {
+  const { t } = useI18n();
+  if (!records.length) return null;
+  return <section aria-label={t("External project knowledge", "外部项目知识")}>
+    <Typography.Title level={3}>{t("External project knowledge", "外部项目知识")}</Typography.Title>
+    <Typography.Paragraph>{t("Shared with local agents in this project's canonical knowledge scope. These records have not passed HyperTest's publication review. Verify dates and applicability before use; they grant no execution permission. Archived Sources and separate history scopes are excluded.", "与本地 Agent 共用本项目知识库。这些记录未经过 HyperTest 发布审核，使用前须核对日期与适用条件，不授予执行权限。归档 Source 与独立历史 Scope 不纳入此检索。")}</Typography.Paragraph>
+    <Table<ExternalProjectMemory> rowKey={(row) => `${row.artifact_id}:${row.revision}`} dataSource={records} pagination={false} columns={[
+      { title: t("Knowledge", "知识"), render: (_, row) => <><Tag>{t("External · not platform reviewed", "外部 · 未经平台审核")}</Tag><Tag>{row.kind}</Tag><Typography.Paragraph style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{row.content}</Typography.Paragraph></> },
+      { title: t("Exact source", "精确来源"), render: (_, row) => <details><summary>{row.artifact_id} · r{row.revision}</summary><Typography.Paragraph code copyable>{`${row.scope_id}/${row.artifact_id}@${row.revision}`}</Typography.Paragraph><Typography.Paragraph code>{row.content_digest}</Typography.Paragraph><Typography.Text>{row.matched_by.join(" + ")}</Typography.Text></details> },
+    ]} />
+  </section>;
+}
 type Editor = { action: "CREATE_CANDIDATE" | "PUBLISH" | "REVISE" | "RETRACT"; entry?: MemoryEntry };
 type Fields = { title: string; content: string; applicability?: string; observed_at?: string; expires_at?: string; mode: "LOCAL" | "CLOUD" | "LOCAL_ARCHIVE"; task_id: string; task_version: number; archive_version: number; submission_id?: string; report_id?: string; attempt_id?: string; asset_revision_id?: string; publication_note: string; reviewed: boolean };
 
@@ -128,9 +140,9 @@ export function MemoryWorkspace({ projectId }: { projectId: string }) {
     {operation.receipt ? <Alert showIcon type="success" style={{ marginBottom: 20 }} message={t("Memory operation read back at its accepted revision", "经验操作已按固定接受修订完整读回")} description={`${actionText(operation.receipt.operation)} · ${t("revision", "修订")} ${operation.receipt.accepted_version}`} /> : null}
     <section className="workspace-panel" aria-labelledby="memory-search-title"><Typography.Title id="memory-search-title" level={2}>{t("Search shared experience", "检索共享经验")}</Typography.Title>
       <Input.Search value={query} onChange={(event) => { setQuery(event.target.value); search.reset(); }} maxLength={1000} aria-label={t("Explicit experience query", "显式经验查询")} placeholder={t("Describe the issue or framework to look up", "输入需要查找的问题或框架")} enterButton={t("Search", "检索")} loading={search.isPending} disabled={!enabled} onSearch={(value) => { if (value.trim()) search.mutate(value.trim()); }} />
-      <Typography.Paragraph className="muted" style={{ marginTop: 8 }}>{t("Only this explicit query is sent. Current prompts and conversations are never attached. Retrieval returns published, active experience from this project.", "仅发送此显式查询，不附带当前 prompt 或会话。检索仅返回本项目已发布且有效的经验。 ")}</Typography.Paragraph>
+      <Typography.Paragraph className="muted" style={{ marginTop: 8 }}>{t("Only this explicit query is sent. Current prompts and conversations are never attached. Results distinguish current platform publications from external shared project knowledge.", "仅发送此显式查询，不附带当前 prompt 或会话。检索结果区分平台当前有效发布与外部共享项目知识。")}</Typography.Paragraph>
       {search.isError && search.variables === query.trim() ? <Alert showIcon type="warning" message={t("Search is unavailable. Your query is retained; retry when the service is available.", "检索暂不可用。查询内容已保留，请在服务恢复后重试。 ")} /> : null}
-      {search.data && search.variables === query.trim() ? <><Typography.Paragraph>{search.data.degraded ? t("The external index is unavailable; results use the accepted local reference index.", "外部索引不可用，当前结果使用已接受的本地参考索引。") : t("Search results", "检索结果")}</Typography.Paragraph><Table<MemoryEntry> rowKey="id" dataSource={search.data.results} columns={columns.slice(0, 3)} pagination={false} scroll={{ x: 520 }} locale={{ emptyText: <Empty description={t("No published experience matches this query.", "没有匹配此查询的已发布经验。 ")} /> }} /></> : null}
+      {search.data && search.variables === query.trim() ? <><Typography.Paragraph>{search.data.degraded ? t("Knowledge search is unavailable; no results were returned.", "知识检索不可用，本次未返回结果。") : t("Platform publication results", "平台发布结果")}</Typography.Paragraph><Table<MemoryEntry> rowKey="id" dataSource={search.data.results} columns={columns.slice(0, 3)} pagination={false} scroll={{ x: 520 }} locale={{ emptyText: <Empty description={t("No published experience matches this query.", "没有匹配此查询的已发布经验。 ")} /> }} /><ExternalMemoryResults records={search.data.external_results || []} /></> : null}
     </section>
     <section className="workspace-panel" aria-labelledby="memory-list-title"><div className="activity-heading"><Typography.Title id="memory-list-title" level={2}>{t("Experience records", "经验记录")}</Typography.Title><Button type="primary" disabled={!canEdit || operation.blocked} onClick={() => setEditor({ action: "CREATE_CANDIDATE" })}>{t("Add private candidate", "新增私有候选")}</Button></div>
       <Tabs className="workspace-tabs" activeKey={tab} onChange={(value) => { setTab(value); setPage(1); }} animated={false} items={[{ key: "shared", label: t("Shared", "已共享") }, { key: "candidates", label: t("Private candidates", "私有候选") }, { key: "history", label: t("Withdrawn", "已撤回") }]} />
