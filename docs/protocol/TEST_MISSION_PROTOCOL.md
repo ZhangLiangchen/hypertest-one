@@ -1670,6 +1670,8 @@ Cloud/Local分别固定共享库、adapter和版本兼容性，关闭/失败的�
 
 ## 49. ADR-022 显式项目经验协议
 
+2026-11-03 扩展：[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md) 允许未绑定且启用的 Operator CONFIGURE 带 `existing_scope_id`（省略不增加 null / 改变旧摘要），核 exact project external reference；目标冻结且原 key 仅只读恢复，不允许改绑。`POST /query` 保留 `results`，另返回 `external_results`（`EXTERNAL_PROJECT_KNOWLEDGE`、`EXTERNAL_NOT_HYPERTEST_REVIEWED`、scope/artifact/revision/content/content_digest/state_version/matched_by/notice）和实际 `search_mode`。两类结果合计 ≤limit；无服务端平台审批身份冒充，禁止将其作为任务状态或执行授权。独立 memory grant / 前后 Cloud fence 保持。历史种类、独立 history scope、raw Sources 与平台任意修订或未决操作曾引用的 artifact 不进入 external_results；整体 deadline 超时仅 memory degraded。显式 hybrid embedding 配置取代本节末尾一律关闭 Embedding 的旧限制，generation / 自动采集仍关闭。
+
 ADR-027 归档来源增补：Memory `CREATE_CANDIDATE` 的 `source` 可为 `{mode:"LOCAL_ARCHIVE", task_id, submission_id, archive_version, asset_revision_id}`。Operator 提供确切已接受 Submission 及快照中 REPORT 修订；Gateway 按领域 §54 核 Project、目标、版本和内容。此类型只允许 Operator，公开检索不附私有报告。`archive:read/write` 与 Memory scope 不互相授权，报告结果仍是上传者声明。
 
 独立profile为 `hypertest-project-memory/v1alpha1`；实体和状态由领域§54拥有，[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)定义本轮接口/信任边界。服务端前缀 `/api/v1/memory`，与任务sync/Cloud operation无共享key、版本、journal或成功判定。

@@ -41,6 +41,7 @@ from hypertest.domain.memory import (
     MemoryRevision,
 )
 from hypertest.domain.models import AuditEvent, OutboxEvent
+from hypertest.memory.powercontext import MemoryUpstreamError, shared_kind
 
 SCOPES = {"CONFIGURE": "memory:publish", "CREATE_CANDIDATE": "memory:propose",
           "PUBLISH": "memory:publish", "REVISE": "memory:publish", "RETRACT": "memory:publish"}
@@ -358,6 +359,10 @@ async def operate(db, payload, context, authorization_check=None):
     old = await db.scalar(select(MemoryOperation).where(MemoryOperation.project_id == payload.project_id,
         MemoryOperation.operation_key == payload.operation_key))
     original = payload.model_dump(mode="json")
+    # Preserve digests of existing CONFIGURE intents created before adoption
+    # was supported. A supplied target is frozen, never inferred on recovery.
+    if payload.operation == "CONFIGURE" and original.get("existing_scope_id") is None:
+        original.pop("existing_scope_id", None)
     digest = canonical_json_sha256(original)
     if old:
         if old.actor_ref != context.actor_ref or old.input_digest != digest:
@@ -365,6 +370,34 @@ async def operate(db, payload, context, authorization_check=None):
         # An accepted duplicate is a local receipt read. In-flight duplicates do
         # not cause another network call, even if the first request lost its ACK.
         return old.response
+    if payload.operation == "CONFIGURE" and payload.existing_scope_id:
+        # Adoption performs no upstream mutation. Reject an invalid exact target
+        # before recording SENT, so a typo/cross-project target cannot freeze the
+        # project into UNKNOWN. Release locks across I/O and reacquire authority
+        # and the original key before committing the accepted intent.
+        mapped = await mapping(db, payload.project_id)
+        if (not payload.enabled or (mapped and mapped.scope_id)
+                or payload.expected_version != (mapped.version if mapped else 0)):
+            raise HTTPException(409, "Existing scope adoption requires an enabled, unbound project at its current version")
+        await db.commit()
+        try:
+            async with asyncio.timeout(get_settings().memory_timeout_seconds):
+                await adapter().adopt_scope(payload.existing_scope_id, "hypertest-project-" + str(payload.project_id))
+        except MemoryUpstreamError as error:
+            if error.code in {"MEMORY_UPSTREAM_SCOPE_MISMATCH", "MEMORY_UPSTREAM_NOT_FOUND"}:
+                raise HTTPException(409, "Existing scope does not identify this project; no adoption intent was stored") from None
+            raise HTTPException(503, "Existing scope verification unavailable; no adoption intent was stored") from None
+        except Exception:
+            raise HTTPException(503, "Existing scope verification unavailable; no adoption intent was stored") from None
+        await authorize(db, context, scope, payload.project_id, lock=True)
+        await cloud_tasks.project(db, payload.project_id, lock=True)
+        await cloud_tasks._lock(db, "memory-key:" + str(payload.project_id) + ":" + payload.operation_key)
+        old = await db.scalar(select(MemoryOperation).where(MemoryOperation.project_id == payload.project_id,
+            MemoryOperation.operation_key == payload.operation_key).execution_options(populate_existing=True))
+        if old:
+            if old.actor_ref != context.actor_ref or old.input_digest != digest:
+                raise HTTPException(409, "Memory operation key already belongs to a different frozen intent")
+            return old.response
     await cloud_tasks._lock(db, "memory-project:" + str(payload.project_id))
     if payload.operation in {"CREATE_CANDIDATE", "PUBLISH", "REVISE"}:
         await reject_secrets(db, payload.project_id, original, context)
@@ -379,6 +412,8 @@ async def operate(db, payload, context, authorization_check=None):
         current_version = mapped.version if mapped else 0
         if payload.expected_version != current_version:
             raise HTTPException(409, "Memory configuration version conflict")
+        if payload.existing_scope_id and (not payload.enabled or (mapped and mapped.scope_id)):
+            raise HTTPException(409, "Existing scope adoption requires an enabled, unbound project")
         if not mapped:
             mapped = MemoryProjectMapping(id=uuid7(), project_id=payload.project_id,
                 namespace="hypertest-project-" + str(payload.project_id), enabled=payload.enabled,
@@ -487,7 +522,9 @@ async def _dispatch_bounded(db, operation_id, context):
     try:
         upstream = adapter()
         if operation.operation == "CONFIGURE":
-            scope_id = await upstream.create_scope(mapped.namespace, operation.marker)
+            target = operation.request.get("existing_scope_id")
+            scope_id = (await upstream.adopt_scope(target, mapped.namespace) if target
+                else await upstream.create_scope(mapped.namespace, operation.marker))
             return await _accept_scope(db, operation_id, scope_id, context)
         await reject_secrets(db, operation.project_id, operation.request, context)
         result = await upstream.remember(mapped.scope_id, upstream_content(operation),
@@ -602,7 +639,9 @@ async def _reconcile_bounded(db, operation, context):
         upstream = adapter()
         mapped = await mapping(db, project_id)
         if operation.operation == "CONFIGURE":
-            scope_id = await upstream.find_scope(mapped.namespace)
+            target = operation.request.get("existing_scope_id")
+            scope_id = (await upstream.adopt_scope(target, mapped.namespace) if target
+                else await upstream.find_scope(mapped.namespace))
             if scope_id:
                 return await _accept_scope(db, operation.id, scope_id, context)
         elif operation.operation in {"PUBLISH", "REVISE"} and mapped and mapped.scope_id:
@@ -635,12 +674,18 @@ async def query(db, payload: MemoryQuery, context):
     mapped = await mapping(db, payload.project_id, ready=True)
     await reject_secrets(db, payload.project_id, {"query": payload.query}, context)
     scope_id = mapped.scope_id
+    shared = get_settings().memory_shared_knowledge_enabled
     await db.commit()  # Release authority/source locks before any external I/O.
     try:
         async with asyncio.timeout(getattr(get_settings(), "memory_timeout_seconds", 5.0)):
-            hits = await adapter().search(scope_id, payload.query, min(payload.limit * 4, 50))
+            if shared:
+                search = await adapter().search_project(scope_id, payload.query, min(payload.limit * 4, 50), payload.limit)
+                hits = search["hits"]
+            else:
+                hits = await adapter().search(scope_id, payload.query, min(payload.limit * 4, 50))
+                search = {"mode": "text"}
     except Exception:
-        return {"profile": PROFILE, "project_id": str(payload.project_id), "results": [],
+        return {"profile": PROFILE, "project_id": str(payload.project_id), "results": [], "external_results": [],
             "degraded": True, "reason": "MEMORY_SEARCH_UNAVAILABLE", "notice": NOTICE}
     # Recheck mutable configuration/auth after network I/O. A stale index result
     # is only a locator into the *current* published PostgreSQL visibility set.
@@ -659,14 +704,37 @@ async def query(db, payload: MemoryQuery, context):
         if not revision.upstream_ref or (revision.expires_at and revision.expires_at <= datetime.now(UTC)):
             continue
         visible[(revision.upstream_ref["artifact_id"], revision.upstream_ref["revision"])] = (entry, revision)
-    result, seen = [], set()
+    # Platform-owned artifacts never become external knowledge, even if a
+    # direct service writer changes their kind after retraction or expiry.
+    hit_ids = [hit.get("artifact_id") for hit in hits if shared_kind(hit.get("kind"))]
+    platform_refs = await db.scalars(select(MemoryRevision.upstream_ref).where(
+        MemoryRevision.upstream_ref["artifact_id"].astext.in_(hit_ids)).union_all(
+            select(MemoryOperation.upstream_ref).where(
+                MemoryOperation.upstream_ref["artifact_id"].astext.in_(hit_ids)))) if shared and hit_ids else []
+    platform_artifacts = {ref["artifact_id"] for ref in platform_refs if isinstance(ref, dict) and ref.get("artifact_id")}
+    result, external, seen = [], [], set()
     for hit in hits:
         identity = (hit.get("artifact_id"), hit.get("revision"))
         if identity in visible and identity not in seen:
             entry, revision = visible[identity]
             result.append(revision_view(entry, revision, context))
             seen.add(identity)
-            if len(result) == payload.limit:
-                break
+        elif (shared and shared_kind(hit.get("kind")) and identity not in seen
+                and hit["artifact_id"] not in platform_artifacts):
+            external.append({"result_type": "EXTERNAL_PROJECT_KNOWLEDGE", "project_id": str(payload.project_id),
+                "scope_id": scope_id, "artifact_id": hit["artifact_id"], "revision": hit["revision"],
+                "kind": hit["kind"], "content": hit["content"], "content_digest": hit["content_digest"],
+                "state": "active", "state_version": hit["state_version"], "matched_by": hit["matched_by"],
+                "review_status": "EXTERNAL_NOT_HYPERTEST_REVIEWED",
+                "notice": "Explicitly shared project knowledge; not HyperTest publication, test evidence or execution permission. Verify current applicability. Legacy source references in text are not native lineage."})
+            seen.add(identity)
+        if len(result) + len(external) == payload.limit:
+            break
+    # Direct service writes did not pass the platform's publication scanner.
+    # Refuse the response if known credentials appear; never redact bytes while
+    # retaining an immutable digest that would describe different content.
+    if external:
+        await reject_secrets(db, payload.project_id, {"external_results": [row["content"] for row in external]}, context)
     return {"profile": PROFILE, "project_id": str(payload.project_id), "results": result,
+        "external_results": external, "search_mode": search["mode"],
         "degraded": False, "notice": NOTICE}
