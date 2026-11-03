@@ -22,6 +22,13 @@ export const memoryEntry = (projectId: string, entryId: string, version: number)
 export const memoryOperation = (projectId: string, key: string) => memoryRequest<MemoryReceipt>(`operations/by-key?${new URLSearchParams({ project_id: projectId, operation_key: key })}`);
 export const memoryQuery = (projectId: string, query: string) => memoryRequest<{ results: MemoryEntry[]; external_results?: ExternalProjectMemory[]; search_mode?: string; degraded?: boolean }>("query", { method: "POST", body: JSON.stringify({ project_id: projectId, query, limit: 20 }) });
 
+export type KnowledgeRecord = { scope_id: string; artifact_id: string; revision: number; kind: string; content: string; content_digest: string; state_version: number; historical: boolean;
+  history_metadata?: { original_date: string | null; legacy_record_id: string | null; part_index: number | null; part_count: number | null; correction_notice: string | null } | null };
+export type KnowledgePage = { project_id: string; collection: "main" | "history"; configured: boolean; history_available: boolean; items: KnowledgeRecord[]; next_cursor: string | null; search_mode: string | null };
+export const memoryBrowse = (projectId: string, collection: "main" | "history", cursor?: string, query?: string) => memoryRequest<KnowledgePage>("browse", {
+  method: "POST", body: JSON.stringify({ project_id: projectId, collection, limit: 20, ...(cursor ? { cursor } : {}), ...(query ? { query } : {}) }),
+});
+
 export function parseMemoryPending(value: unknown, projectId: string): MemoryPending {
   if (!value || typeof value !== "object") throw new Error("MEMORY_JOURNAL_INVALID");
   const row = value as MemoryPending;

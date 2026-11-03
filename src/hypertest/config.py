@@ -105,6 +105,8 @@ class Settings(BaseSettings):
     memory_max_response_bytes: int = Field(default=1048576, ge=16384, le=2097152)
     memory_search_mode: Literal["fts", "hybrid"] = "fts"
     memory_shared_knowledge_enabled: bool = False
+    # Operator-only project -> exact main/history pair; never supplied by readers.
+    memory_history_bindings: dict[str, dict[str, str]] = Field(default_factory=dict)
     # A separately granted integration token, never the PowerContext admin key.
     cloud_memory_enabled: bool = False
     cloud_memory_api_url: str = "https://hypertest.invalid/api/v1"

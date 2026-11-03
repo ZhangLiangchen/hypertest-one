@@ -2575,6 +2575,8 @@ Cloud模型与子代理不持有平台writer/DB/Operator凭据，子贡献回到
 
 本机读取使用同一 PG 权威的只读 visibility 投影；已知平台 ID 即使只有 UNKNOWN operation 引用，也不能退回未管理外部记忆。当前判断按 Entry 当前版本、PUBLISHED、expires_at > now、完整 upstream ref/digest，旧版 / 到期边界 / 撤回无正文输出。不存在新的同步表、双向复制或 PG→PC retire 双写协议。
 
+显式browse主经验/独立历史亦排除所有平台revision/operation占用ID；历史只来自Operator固定项目/main/history三者关系且核history external reference。历史Atomic active仅为可检索存储状态，不是当前事实；原日期、原ID、分片和已知更正仅按原文头部展示，不以迁入时间替代。浏览不创建平台审核实体或修改任何生命周期，不开放raw Source全文，默认自动召回仍排除history。
+
 本节拥有Memory的持久字段与状态，不属于Canonical测试事实链。`0027_project_memory`新增MemoryProjectMapping、MemoryEntry、MemoryRevision、MemoryOperation，精确列/约束见[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)与迁移；不改变SessionTask、CloudTask/Attempt、reported_result、SyncReceipt或CloudOperationReceipt。
 
 Mapping按Project唯一，服务端namespace及上游scope分别唯一；version>0，status=PENDING/READY/UNKNOWN，enabled单独控制使用。Entry固定Project、owner及经服务端核验的source，version>0，status=CANDIDATE/PENDING/PUBLISHED/RETRACTED；每(entry_id,version)唯一的Revision不可修改/删除，保留内容、适用条件、观察/到期时间、人工确认/撤回原因、content_digest与upstream固定ref。历史投影另派生SUPERSEDED/EXPIRED，不回写旧revision。MemoryOperation按(Project,原key)唯一，保存完整批准请求与input_digest、原actor/grant、expected_version、target_version=expected+1、SENT/UNKNOWN/ACCEPTED、marker、原upstream ref与冻结回执；Project/entry复合FK拒绝跨域关系。接受回执与历史不可变，downgrade有记录时拒绝破坏性删除。

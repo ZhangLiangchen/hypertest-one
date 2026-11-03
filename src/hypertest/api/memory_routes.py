@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hypertest.api.cloud_routes import secure_transport
 from hypertest.api.interactive_routes import bearer, controlled_errors
-from hypertest.api.memory_schemas import MemoryMutation, MemoryQuery, MemoryVisibility
+from hypertest.api.memory_schemas import MemoryBrowse, MemoryMutation, MemoryQuery, MemoryVisibility
 from hypertest.application import memory_gateway as service
 from hypertest.application.cloud_tasks import WorkerIdentity, _contains_secret
 from hypertest.config import get_settings
@@ -86,6 +86,23 @@ async def receipt(project_id: UUID, operation_key: str, request: Request,
                   db: AsyncSession = Depends(get_db)):
     context = await identity(request, db, project_id, None, authorization, x_hypertest_operator_key)
     return await service.read_receipt(db, project_id, operation_key, context)
+
+
+@router.post("/memory/browse")
+@controlled_errors
+async def browse(payload: MemoryBrowse, request: Request, response: Response,
+                 authorization: str | None = Header(default=None),
+                 x_hypertest_operator_key: str | None = Header(default=None),
+                 db: AsyncSession = Depends(get_db)):
+    try:
+        async with asyncio.timeout(get_settings().memory_timeout_seconds):
+            context = await identity(request, db, payload.project_id, "memory:read", authorization, x_hypertest_operator_key)
+            reject_transport_secrets(payload, authorization, x_hypertest_operator_key)
+            response.headers["Cache-Control"] = "no-store"
+            return await service.browse(db, payload, context)
+    except TimeoutError:
+        await db.rollback()
+        raise HTTPException(503, "Project knowledge browsing is unavailable") from None
 
 
 @router.post("/memory/visibility")

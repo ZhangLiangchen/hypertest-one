@@ -57,3 +57,13 @@ test("Memory rejections and key conflicts expose only stable safe codes", async 
     assert.equal(response.status, status); assert.deepEqual(await response.json(), { code });
   }
 });
+
+test("knowledge browsing is explicit same-origin and does not expose an upstream scope selector", async () => {
+  const calls = []; const api = routes(async (...args) => { calls.push(args); return new Response(JSON.stringify({ items: [] })); });
+  const body = { project_id: project, collection: "history", limit: 20 };
+  assert.equal((await api.POST(mutation(body, "https://other.invalid"), context("browse"))).status, 403);
+  assert.equal(calls.length, 0);
+  assert.equal((await api.POST(mutation(body), context("browse"))).status, 200);
+  assert.equal(calls[0][0], "memory/browse");
+  assert.deepEqual(JSON.parse(calls[0][2].body), body);
+});

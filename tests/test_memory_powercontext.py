@@ -39,6 +39,33 @@ def external_material(kind="fact"):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("query", [None, "historical diagnosis"])
+async def test_history_inventory_and_query_verify_exact_current_material(tmp_path, query):
+    fixed = external_material("historical_technical_record")
+    def handle(request):
+        if request.method == "POST":
+            payload = json.loads(request.content)
+            assert payload["scope_id"] == "scp_original"
+            record = {"artifact": ref(), "kind": "historical_technical_record", "state": "active", "text": "stale"}
+            if query:
+                assert request.url.path == "/v1/memory/search"
+                assert set(payload) == {"scope_id", "query", "limit", "mode"}
+                return httpx.Response(200, json={"mode": "hybrid", "hits": [{"memory": record}]})
+            assert request.url.path == "/v1/atomic-memory/list"
+            assert payload["kind"] == "historical_technical_record" and payload["states"] == ["active"]
+            assert payload["cursor"] == "page-one"
+            return httpx.Response(200, json={"items": [record], "next_cursor": "page-two"})
+        if request.url.path.endswith("/state"):
+            return httpx.Response(200, json={"artifact": ref(), "state": "active", "state_version": 1})
+        return httpx.Response(200, json=fixed)
+    page = await make_adapter(tmp_path, handle, memory_search_mode="hybrid").browse(
+        "scp_original", history=True, query=query, cursor=None if query else "page-one", limit=20)
+    assert page["items"][0]["content"] == fixed["content"]["text"]
+    assert page["items"][0]["content_digest"] == fixed["content_digest"]
+    assert page["next_cursor"] == (None if query else "page-two")
+
+
+@pytest.mark.asyncio
 async def test_adopt_existing_scope_requires_unique_project_ref_without_renaming(tmp_path):
     namespace = "hypertest-project-123"
     value = {"scope_id": "scp_original", "title": "Existing project knowledge",
