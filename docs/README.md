@@ -6,6 +6,7 @@
 
 - [当前待办](TODO.md)：未完成的开发、操作和用户验收。
 - [ADR-038：Cloud 聚焦任务输入、下发与产物归档](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 与 [Cloud 任务指南](CLOUD_TASK_WORKFLOW.md)：项目详情管理仓库，创建填写任务名称及 MR/PR 地址，环境由可选 prompt 说明；移除资源页和预期部署版本。
+- [Cloud E2E 测试说明模板（2026-11-03）](CLOUD_TEST_PROMPT_TEMPLATE_20261103.md)：默认折叠、当前 MR 地址、复制辅助及两次 subagent 审查要求；实现、部署和用户验收边界。
 - [Cloud MR 链接创建交付（2026-11-03）](CLOUD_MR_INPUT_DELIVERY_20261103.md)：MR 链接输入、可选说明与框架 main 的前轮实现、自测及部署记录；现行创建页面保留任务名称输入，见上述指南。
 - [Cloud 任务职责精简交付（2026-11-03）](CLOUD_TASK_FOCUS_DELIVERY_20261103.md)：前一轮资源和环境入口退休的实现、自测及部署。
 - [产品白皮书](foundation/HYPERTEST_WHITEPAPER.md)、[技术架构](architecture/HYPERTEST_TECHNICAL_ARCHITECTURE.md)、[测试任务协议](protocol/TEST_MISSION_PROTOCOL.md)、[领域模型与状态机](domain/HYPERTEST_DOMAIN_MODEL_AND_STATE_MACHINE.md)：按 [AGENTS.md](../AGENTS.md) 的优先级及后续 ADR 增补阅读。
