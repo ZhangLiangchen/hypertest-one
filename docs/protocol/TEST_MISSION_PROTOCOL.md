@@ -1583,6 +1583,14 @@ Resume 只能延续原 Attempt 的已保存上下文/文件/SDK session（确实
 
 当前受控 Worker 不支持原 SDK 会话续接；SDK 包中存在 resume 方法不构成本运行端能力。能力 GET 必须明确该限制，Web 不提供可用的 RESUME 承诺，服务端拒绝新 RESUME_ATTEMPT，且不推进版本或重新排队。请求取消、平台写权已 fence 但停止待确认、待对账、已终止与可续接分别显示；只有实现支持并满足服务端前置条件时才能称为可续接。
 
+宿主原生 SDK 可为未来恢复准备身份材料：首次提示前，原 fenced Worker 先独占持久化仅含非秘密标识/摘要的会话、原工作区与 home、冻结源码、SDK/profile 和运行配置快照，再以原 operation key 提交 `ANCHOR_NATIVE_SESSION`，核对原回执及固定版本读回后才能进入后续发送。锚点仅绑定同 Project/Task/Attempt、session、输入与原 Worker/generation，不代表提示已发送或完成，不产生新的 Attempt、Run 或测试结论。失答、UNKNOWN 或 NOT_FOUND 只查锚点原 key；缺少原始快照或回执的历史会话保持不可验证，不得用恢复时的现状补造。该材料不改变本节对当前执行续接不支持的声明。
+
+此恢复身份材料的首个受审范围仅覆盖内置 SDK base、SDK app、已列明的官方实验 bundle 与受限的官方模型设置；未知配置、外部插件或未覆盖模型不作恢复认证，不扫描其内容猜测是否安全。这是恢复身份的支持边界，不声明其他 Harness profile 不能用于普通运行，也不暗示不受审 profile 自动可续接。
+
+SDK 历史恢复和显式继续是不同操作：前者不重发原 prompt、不恢复 shell/测试进程；后者需要独立授权、原 key 日志及范围约束，未知操作不能靠新输入或新 key 消除。路径摘要、inode 与 Git HEAD 不证明运行中工作区的内容未改变；宿主 Worker 与 Agent 同 UID 时，本地快照也不是独立防篡改证明。旧进程停止、远端动作、文件状态或委派仍未知时，继续保持 RECOVERY_REQUIRED。
+
+可选 `INSPECT_NATIVE_SESSION` 是单次打开历史会话的检查，默认关闭；不发送提示、不运行模型或工具、不创建新 Attempt，不改变原状态或测试结果。该请求及其 Worker 领取各有原 key 与持久序号，失答只查询或封存原请求；不能确认时为 UNKNOWN，不重领。平台必须校验原锚点、fenced owner、授权、版本、未决操作与委派，并记录操作者声明的来源；检查成功不证明会话内容真实性、外部操作收口或执行续接。
+
 具体能力字段为 `supported.resume_attempt=false`、`supported.reconcile_attempt=true`，`recovery.resume_supported=false` / `resume_reason="SDK_RESUME_UNSUPPORTED"`、`reconcile_supported=true`、`reconciliation_source="OPERATOR_ATTESTATION"`、`independent_stop_proof=false`、`budget_disposition="KEEP_HELD"`。当前 task summary 的 `recovery` 投影 owner fence、原 pending key、remote closure、phase、can_reconcile 和 blocking_reasons；这是已检查到的 Canonical 前置条件，不代表操作者已有 cloud:control，也不声明独立进程停止。
 
 RECONCILE_ATTEMPT 是 cloud:control / Operator 的显式人工收尾，不启动 runtime。服务端重新核对当前版本、最新 RECOVERY_REQUIRED Attempt、旧 writer 已 fence、平台/外部及 checkpoint 未决操作与委派状态；有 UNKNOWN 或未决原 key 时拒绝，不能由操作者声明清空。操作者须引用原停止/对账观察并作明确声明；声明保留为 operator-attested 来源，不构成独立进程停止证明、模型 drain 证明或测试结果。人工 FAILED/CANCELLED 收尾保留原 reported_result、checkpoint、完整回执及 HELD/preparation hold，不结算预算；旧终态不可改写。超时、异常和失联清理先封闭普通 broker 写入并按原 owner/generation 安全 fence，再停止本地进程；只有原 key 查询与限域清理保留。

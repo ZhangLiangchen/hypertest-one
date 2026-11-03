@@ -151,6 +151,18 @@ async def receipt(project_id: UUID, operation_key: str, request: Request,
     return await service.receipt_view(db, project_id, operation_key, actor, operator=operator)
 
 
+@router.get("/cloud/native-session-inspections/by-key")
+@controlled_errors
+async def native_session_inspection_by_key(project_id: UUID, operation_key: str, request: Request,
+                                           authorization: str | None = Header(default=None),
+                                           x_hypertest_operator_key: str | None = Header(default=None),
+                                           db: AsyncSession = Depends(get_db)):
+    actor, operator, _ = await identity(request, db, project_id, "cloud:read", authorization, x_hypertest_operator_key)
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.read_by_key(db, project_id=project_id, request_key=operation_key,
+                                                          actor_ref=actor, operator=operator)
+
+
 @router.get("/cloud/tasks/{task_id}")
 @controlled_errors
 async def detail(task_id: UUID, project_id: UUID, request: Request,

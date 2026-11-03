@@ -5,6 +5,7 @@ bounded, non-content observations. It never receives platform credentials.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import secrets
@@ -130,6 +131,27 @@ class QuestionChannel:
                 self.pending.pop(request_id, None)
 
 
+def _verify_anchored_identity(config: dict, selection: dict | None = None) -> None:
+    anchored = config.get("resume_identity")
+    if anchored is None:
+        return
+    from .native_resume_identity import verify_original_identity
+
+    if not isinstance(anchored, dict) or set(anchored) != {"attempt_root", "digest", "original"}:
+        raise ValueError("invalid original identity")
+    original = dict(anchored["original"])
+    if ("environment" in original or not isinstance(original.get("selection"), dict)
+            or (selection is not None and original["selection"] != selection)
+            or original.get("workspace") != config["workspace"]
+            or original.get("dsh_home") != config["dsh_home"]
+            or original.get("session_id") != config["session_id"]
+            or original.get("prompt_sha256") != hashlib.sha256(config["prompt"].encode()).hexdigest()):
+        raise ValueError("original identity mismatch")
+    original["environment"] = dict(os.environ)
+    verify_original_identity(Path(anchored["attempt_root"]),
+                             expected_identity_digest=anchored["digest"], **original)
+
+
 def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> None:
     from deepseek_harness import HarnessClient, HarnessConfig
     from pydantic import BaseModel
@@ -137,6 +159,9 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
     class WaitResponse(BaseModel):
         pass
 
+    # Validate the receipt-bound profile before even starting SDK configuration
+    # resolution, which must never run an unreviewed, drifted profile.
+    _verify_anchored_identity(config)
     selection = read_native_selection(dsh_home=config["dsh_home"], cwd=config["workspace"], environment=dict(os.environ))
     finish_reason = None
     count = 0
@@ -178,6 +203,7 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
             if info is None or info.name != "deepseek-harness-sdk-runtime" or info.version != "0.0.1":
                 raise ValueError("unexpected SDK protocol")
             _require_cordis_guard(marker, nonce, config["session_id"])
+            _verify_anchored_identity(config, selection)
             with client.subscribe_notifications() as subscription:
                 client.session_prompt(config["session_id"], [{"type": "text", "text": config["prompt"]}],
                                       on_notification=observe, notification_subscription=subscription)
@@ -219,7 +245,7 @@ def main() -> int:
             raise ValueError("input too large")
         config = json.loads(raw)
         if (not isinstance(config, dict)
-                or set(config) - {"workspace", "dsh_home", "session_id", "prompt", "interaction_enabled"}
+                or set(config) - {"workspace", "dsh_home", "session_id", "prompt", "interaction_enabled", "resume_identity"}
                 or any(not isinstance(config.get(key), str) or not config[key]
                        for key in ("workspace", "dsh_home", "session_id", "prompt"))
                 or type(config.get("interaction_enabled", False)) is not bool):

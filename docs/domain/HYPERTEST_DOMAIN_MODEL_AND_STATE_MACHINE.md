@@ -2460,6 +2460,10 @@ Task 还允许 DRAFT → CANCELLED；无 Attempt 的取消不伪造执行历史�
 
 2026-10-23 P0 恢复增补：当前固定 Worker 的 SDK 原会话续接未实现，静态能力与控制入口须据实拒绝新 RESUME_ATTEMPT，不因 SDK 方法存在而改变生命周期。人工 RECONCILE 仅允许有权限的操作者在服务端重新核对最新 RECOVERY_REQUIRED、旧 lease/token 已 fence、无 checkpoint/平台/远端未决操作及无活动委派后明确收尾为 FAILED 或 CANCELLED；不得清空 UNKNOWN key 以满足前置条件。停止观察引用与操作者声明追加为 operator-attested 元数据，不能改称独立停止/模型 drain 证明；reported_result、原 checkpoint、原件、回执及完整 HELD/preparation hold 保持。该增补不新增任务状态、执行身份或预算结算权。超时/异常/失联清理须先封闭普通 writer 并按原 owner/generation fence，再停止本地进程；失权 owner 仅保留原 key 读取与受限清理。
 
+宿主原生 SDK 会话可在首次提示之前由原 fenced Worker 固定非秘密身份快照，并以 `ANCHOR_NATIVE_SESSION` 将摘要绑定同一 Project/Task/Attempt、原 session ID、输入摘要及原 Worker/generation；这是未来恢复的材料，不是运行结果或已实现续接的声明。平台对同一 Attempt 只接受符合当前 PREPARING 所有权的一份原始锚点，原 key、请求摘要和固定版本读回保持幂等；缺失的历史快照或锚点不得在恢复时补造，不能用当前环境冒充原身份。锚点不改变 Attempt/Run 已接受结果或未知操作。真实续接仍须独立核对旧进程、外部动作、委派、权限和原 key；UNKNOWN 未消除时拒绝继续。快照中的路径摘要、目录 inode 与 Git HEAD 仅核对路径及提交身份，不证明运行中工作区全部内容未变，也不证明同 UID Agent 无法修改工作区；可信停止和状态观察缺失时仍拒绝恢复。
+
+单次原会话检查记录独立保存请求 key、原锚点、原 Worker 和检查状态，不创建或替换 Attempt；领取与原 Worker 的普通领取互斥。检查仅在明确启用且原身份和对账条件满足时打开历史，不启动模型或工具，不能更新 Attempt/Run 结果。请求或结果失答按原 key 处理，UNKNOWN 不重领；检查结果不证明会话内容未篡改或外部操作已结束。
+
 每 Attempt 拥有独立 runtime、workspace、dsh_home；恢复仍归同 Attempt，但新运行进程/代次另记来源。官方 Python SDK 经 `dsh --profile sdk` 子进程通信，不是免进程调用或更快测试引擎。SDK/runtime 配对版本和能力探针结果随 Attempt 固定；不能把尚未提供的单 session cancel/close 或实时审批当成可用能力。DeepSeek 是唯一任务汇总者；平台 Worker 是唯一管理提交边界，子代理只贡献产物，不各自创建 Task 或获得管理写密钥。
 
 当前固定 Codex opt-in profile 的 `CloudDelegation.native_ref` 是官方 `subagent_codex` 工具返回的 external activation child UUID；另存官方 run UUID 与受控生命周期观察。它不是 Codex app-server 的产品 thread ID，不证明原生会话可恢复。责任与已接受资产由父任务 handoff 提供，status / terminal_observation 仅由 Worker 的已验证事件观察注入，Agent 不能自报。该 runtime-reported 来源仍不等于独立执行证明；只有实际子代理验收后才记录 observed，Claude Code 仍为 placeholder。

@@ -53,8 +53,8 @@ from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "START_TASK": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
-    "DELETE_TASK": "cloud:control", "CLOSE_INPUT_RESOLUTION": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
-    "TRANSITION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
+    "DELETE_TASK": "cloud:control", "CLOSE_INPUT_RESOLUTION": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "INSPECT_NATIVE_SESSION": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
+    "TRANSITION": "cloud:work", "ANCHOR_NATIVE_SESSION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work", "COMPLETE_NATIVE_ATTEMPT": "cloud:work",
 }
 ALLOWED = {
@@ -607,7 +607,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     """One immutable key / optimistic version / current authority / transaction."""
     if payload.operation == "CONFIGURE":
         raise HTTPException(410, "CLOUD_PROJECT_RESOURCES_RETIRED")
-    if payload.operation == "COMPLETE_NATIVE_ATTEMPT" and native_worker is not True:
+    if payload.operation in {"COMPLETE_NATIVE_ATTEMPT", "ANCHOR_NATIVE_SESSION"} and native_worker is not True:
         raise HTTPException(403, "CLOUD_NATIVE_WORKER_REQUIRED")
     if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not container_intents_enabled():
         raise HTTPException(503, "CLOUD_CONTAINER_INTENT_UNAVAILABLE")
@@ -670,6 +670,16 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             # no unscanned free text, answer or reconciliation is persisted.
             fixed_control_fallback = True
     task = attempt = None
+    inspection_control = None
+    if payload.operation in {"INSPECT_NATIVE_SESSION", "CANCEL_TASK", "CANCEL_ATTEMPT", "RECONCILE_ATTEMPT", "DELETE_TASK"}:
+        # Enqueue and controls must serialize even when the inspection row is
+        # not yet visible.  A pre-lock lookup alone cannot lock an absent row.
+        await _lock(db, f"cloud-native-inspection-task:{payload.task_id}")
+    if payload.operation in {"CANCEL_TASK", "CANCEL_ATTEMPT", "RECONCILE_ATTEMPT", "DELETE_TASK"}:
+        # A native inspection claim locks Worker slot -> Task.  Take the same
+        # order for control operations so cancellation cannot race its launch.
+        from .cloud_native_session_restore import lock_control_before_task
+        inspection_control = await lock_control_before_task(db, payload.task_id)
     if hasattr(payload, "task_id"):
         task = await _task(db, payload.task_id, payload.project_id, lock=True)
         deleted = await db.get(CloudTaskDeletion, task.id)
@@ -682,6 +692,9 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             raise HTTPException(409, "Cloud Task version is stale")
         if hasattr(payload, "attempt_id"):
             attempt = await _attempt(db, task, payload.attempt_id)
+        if inspection_control is not None:
+            from .cloud_native_session_restore import guard_control_locked
+            await guard_control_locked(db, inspection_control, task.id, payload.operation)
         if deleted and not await _cancelled_recovery(db, task, attempt):
             raise HTTPException(409, "Deleted Cloud Task only accepts fenced cancellation recovery")
         if SCOPES[payload.operation] == "cloud:work":
@@ -876,6 +889,10 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         # session/workspace/budget continuation. Never accept an unexecutable
         # resume or let a new claim turn it into a replay of the original prompt.
         raise HTTPException(409, "SDK_RESUME_UNSUPPORTED")
+    elif op == "INSPECT_NATIVE_SESSION":
+        from .cloud_native_session_restore import enqueue_inspection
+        refs["native_session_inspection"] = await enqueue_inspection(db, task=task, attempt=attempt,
+            payload=payload, actor_ref=actor_ref, worker=worker)
     elif op == "RECONCILE_ATTEMPT":
         from .cloud_ssh import ensure_remote_closed
         await ensure_remote_closed(db, task_id=task.id)
@@ -1048,6 +1065,30 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             if op == "OBSERVE_CONTAINER_NEVER_STARTED":
                 refs["container_observation"]["engine_state"] = {"running": False, "pid": 0,
                     "started_at": "0001-01-01T00:00:00Z", "finished_at": "0001-01-01T00:00:00Z", "restart_count": 0}
+    elif op == "ANCHOR_NATIVE_SESSION":
+        # This receipt anchors only material produced by the original fenced
+        # native Worker before admitting RUNNING or sending its first prompt.
+        # It is immutable and cannot be supplied by a later recovery operator.
+        if (attempt.status != "PREPARING" or attempt.lease_generation != 1
+                or payload.input_digest != attempt.input_digest
+                or payload.session_id != "cloud-" + str(attempt.id)):
+            raise HTTPException(409, "NATIVE_SESSION_ANCHOR_IDENTITY_MISMATCH")
+        if "native_session_anchor" in attempt.checkpoint:
+            raise HTTPException(409, "NATIVE_SESSION_ANCHOR_MUST_PRECEDE_RUNTIME")
+        earlier = await db.scalar(select(CloudOperationReceipt.id).where(
+            CloudOperationReceipt.attempt_id == attempt.id,
+            CloudOperationReceipt.operation.in_(["ANCHOR_NATIVE_SESSION", "TRANSITION", "SUBMIT_ASSETS",
+                                                  "UPLOAD_ARTIFACT", "SUBMIT_RUN", "COMPLETE_NATIVE_ATTEMPT"])
+        ).limit(1))
+        if earlier:
+            raise HTTPException(409, "NATIVE_SESSION_ANCHOR_MUST_PRECEDE_RUNTIME")
+        refs["native_session_anchor"] = {"identity_profile": payload.identity_profile,
+            "snapshot_sha256": payload.snapshot_sha256, "input_digest": payload.input_digest,
+            "session_id": payload.session_id, "worker_id": worker.worker_id,
+            "generation": worker.generation}
+        # Include the same immutable anchor in the fixed-version Task snapshot
+        # so the original Worker can verify the accepted receipt and readback.
+        attempt.checkpoint = {**attempt.checkpoint, "native_session_anchor": refs["native_session_anchor"]}
     elif op == "SUBMIT_ASSETS":
         refs = await _assets(db, task, attempt, payload, version)
     elif op == "UPLOAD_ARTIFACT":

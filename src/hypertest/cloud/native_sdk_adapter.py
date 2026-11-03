@@ -39,14 +39,18 @@ class NativeSdkAdapter:
         self.process: asyncio.subprocess.Process | None = None
         self._started = False
 
-    async def start(self, *, session_id: str, prompt: str, interaction_enabled: bool = False):
+    async def start(self, *, session_id: str, prompt: str, interaction_enabled: bool = False,
+                    resume_identity: dict | None = None):
         if self._started:
             raise CloudBlocked("SDK_ORIGINAL_OPERATION_QUERY_ONLY", "An SDK prompt cannot be started twice")
         if not self.workspace.is_dir() or not self.dsh_home.is_dir() or not session_id or not prompt:
             raise CloudBlocked("HARNESS_CONFIGURATION_INVALID", "A workspace, Harness home and prompt are required")
-        payload = json.dumps({"workspace": str(self.workspace), "dsh_home": str(self.dsh_home),
+        config = {"workspace": str(self.workspace), "dsh_home": str(self.dsh_home),
                               "session_id": session_id, "prompt": prompt,
-                              "interaction_enabled": interaction_enabled}).encode() + b"\n"
+                              "interaction_enabled": interaction_enabled}
+        if resume_identity is not None:
+            config["resume_identity"] = resume_identity
+        payload = json.dumps(config).encode() + b"\n"
         if len(payload) > 1024 * 1024:
             raise CloudBlocked("HARNESS_CONFIGURATION_INVALID", "Harness prompt exceeds the input limit")
         # One start attempt per adapter, including uncertain subprocess failures.

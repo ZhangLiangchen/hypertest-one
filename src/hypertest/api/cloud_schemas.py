@@ -516,6 +516,22 @@ class CloudContainerStartIntent(AttemptMutation):
     spec_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class CloudNativeSessionAnchor(AttemptMutation):
+    """Commit the native Worker's pre-prompt session identity digest."""
+    operation: Literal["ANCHOR_NATIVE_SESSION"] = "ANCHOR_NATIVE_SESSION"
+    identity_profile: Literal["hypertest-native-session-identity/v1"]
+    snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    input_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    session_id: str = Field(min_length=1, max_length=128, pattern=KEY)
+
+
+class CloudInspectNativeSession(AttemptMutation):
+    """Request one bounded inspection, without executing a prompt or tool."""
+    operation: Literal["INSPECT_NATIVE_SESSION"] = "INSPECT_NATIVE_SESSION"
+    anchor_operation_key: str = Field(min_length=1, max_length=128, pattern=KEY)
+    reconciliation: dict = Field(min_length=1)
+
+
 class CloudTransition(AttemptMutation):
     operation: Literal["TRANSITION"] = "TRANSITION"
     status: Literal["RUNNING", "FAILED", "RECOVERY_REQUIRED"]
@@ -688,4 +704,4 @@ class CloudNativeFinish(AttemptMutation):
         return self
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudCloseInputResolution | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudCloseInputResolution | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudNativeSessionAnchor | CloudInspectNativeSession | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]

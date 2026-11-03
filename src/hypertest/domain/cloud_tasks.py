@@ -228,6 +228,65 @@ class CloudWorkerClaimState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class CloudNativeSessionRestore(CloudRow, Base):
+    """A single, bounded inspection of an original native SDK session.
+
+    This is independent of ordinary Attempt claims and grants no execution,
+    reporting, or model capability. UNKNOWN is intentionally not requeued.
+    """
+    __tablename__ = "cloud_native_session_restores"
+    __table_args__ = (
+        UniqueConstraint("project_id", "request_key"),
+        UniqueConstraint("attempt_id"),
+        UniqueConstraint("worker_id", "claim_key"),
+        ForeignKeyConstraint(["project_id", "task_id"], ["cloud_tasks.project_id", "cloud_tasks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["task_id", "attempt_id"], ["cloud_attempts.task_id", "cloud_attempts.id"], ondelete="RESTRICT"),
+        CheckConstraint("state IN ('PENDING','STARTED','RESTORED','FAILED','UNKNOWN','CANCELLED')"),
+        CheckConstraint("original_generation > 0 AND expected_version > 0"),
+        CheckConstraint("identity_digest ~ '^[a-f0-9]{64}$' AND input_digest ~ '^[a-f0-9]{64}$'"),
+        CheckConstraint("(state = 'PENDING' AND claim_key IS NULL AND token_hash IS NULL AND started_at IS NULL AND expires_at IS NULL AND finished_at IS NULL) OR (state = 'CANCELLED' AND claim_key IS NULL AND token_hash IS NULL AND started_at IS NULL AND expires_at IS NULL AND finished_at IS NOT NULL) OR (state IN ('STARTED','UNKNOWN') AND claim_key IS NOT NULL AND token_hash IS NOT NULL AND started_at IS NOT NULL AND expires_at IS NOT NULL AND finished_at IS NULL) OR (state IN ('RESTORED','FAILED') AND claim_key IS NOT NULL AND token_hash IS NOT NULL AND started_at IS NOT NULL AND expires_at IS NOT NULL AND finished_at IS NOT NULL)"),
+    )
+    project_id: Mapped[UUID] = mapped_column()
+    task_id: Mapped[UUID] = mapped_column()
+    attempt_id: Mapped[UUID] = mapped_column()
+    request_key: Mapped[str] = mapped_column(String(128))
+    requested_by: Mapped[str] = mapped_column(String(255))
+    expected_version: Mapped[int] = mapped_column(BigInteger)
+    original_anchor_key: Mapped[str] = mapped_column(String(128))
+    identity_digest: Mapped[str] = mapped_column(String(64))
+    input_digest: Mapped[str] = mapped_column(String(64))
+    session_id: Mapped[str] = mapped_column(String(128))
+    worker_id: Mapped[str] = mapped_column(String(128))
+    original_generation: Mapped[int] = mapped_column(BigInteger)
+    state: Mapped[str] = mapped_column(String(16), default="PENDING")
+    claim_key: Mapped[str | None] = mapped_column(String(128))
+    token_hash: Mapped[str | None] = mapped_column(String(64))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observation: Mapped[dict | None] = mapped_column(JSONB)
+
+
+class CloudNativeInspectionClaimState(Base):
+    """Separate high-water mark; ordinary claim wire/digests stay unchanged."""
+    __tablename__ = "cloud_native_inspection_claim_states"
+    __table_args__ = (
+        CheckConstraint("sequence >= 0"),
+        CheckConstraint("kind IN ('EMPTY','INSPECTION','ABANDONED')"),
+        CheckConstraint("(sequence = 0 AND request_key IS NULL AND request_digest IS NULL AND kind = 'EMPTY' AND closed) OR (sequence > 0 AND request_key IS NOT NULL AND request_digest ~ '^[a-f0-9]{64}$')"),
+        CheckConstraint("(kind IN ('EMPTY','ABANDONED') AND closed AND inspection_id IS NULL) OR (kind = 'INSPECTION' AND inspection_id IS NOT NULL)"),
+    )
+    worker_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger, default=0)
+    request_key: Mapped[str | None] = mapped_column(String(128))
+    request_digest: Mapped[str | None] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16), default="EMPTY")
+    closed: Mapped[bool] = mapped_column(Boolean, default=True)
+    inspection_id: Mapped[UUID | None] = mapped_column(ForeignKey("cloud_native_session_restores.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class CloudRemoteOperation(CloudRow, Base):
     """SENT-before-I/O intent; immutable identity, bounded mutable control state."""
     __tablename__ = "cloud_remote_operations"

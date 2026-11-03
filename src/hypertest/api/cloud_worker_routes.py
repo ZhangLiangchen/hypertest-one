@@ -8,7 +8,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, TypeAdapter, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +55,29 @@ class Claim(Worker):
     request_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
     lease_seconds: int = Field(default=90, ge=15, le=300)
     supports_attempt_manifest: bool = Field(default=False, strict=True)
+
+
+class InspectionClaim(Worker):
+    sequence: int = Field(ge=1, le=9223372036854775807, strict=True)
+    request_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+    lease_seconds: int = Field(default=90, ge=15, le=300, strict=True)
+
+
+class InspectionClaimLookup(Worker):
+    claim_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+
+
+class InspectionFinish(Worker):
+    inspection_id: UUID
+    claim_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+    token: SecretStr = Field(min_length=16, max_length=512)
+    status: Literal["RESTORED", "FAILED"]
+
+
+class InspectionAssert(Worker):
+    inspection_id: UUID
+    claim_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+    token: SecretStr = Field(min_length=16, max_length=512)
 
 
 class AuthObservation(Input):
@@ -175,6 +198,70 @@ async def claim_state(body: Worker, worker_id: str = Depends(authenticate_worker
     if not hmac.compare_digest(body.worker_id, worker_id):
         raise HTTPException(403, "Worker identity mismatch")
     return await cloud_worker_claims.state(db, worker_id)
+
+
+@router.post("/native-session-inspection/claim")
+@controlled_errors
+async def claim_native_session_inspection(body: InspectionClaim, worker_id: str = Depends(authenticate_worker),
+                                          db: AsyncSession = Depends(get_db)):
+    if not hmac.compare_digest(body.worker_id, worker_id):
+        raise HTTPException(403, "Worker identity mismatch")
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.claim(db, body.model_dump(mode="json"))
+
+
+@router.post("/native-session-inspection/claim-state")
+@controlled_errors
+async def native_session_inspection_claim_state(body: InspectionClaimLookup,
+                                                worker_id: str = Depends(authenticate_worker),
+                                                db: AsyncSession = Depends(get_db)):
+    if not hmac.compare_digest(body.worker_id, worker_id):
+        raise HTTPException(403, "Worker identity mismatch")
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.read_result_by_claim(db, worker_id=worker_id, claim_key=body.claim_key)
+
+
+@router.post("/native-session-inspection/state")
+@controlled_errors
+async def native_session_inspection_state(body: Worker, worker_id: str = Depends(authenticate_worker),
+                                          db: AsyncSession = Depends(get_db)):
+    if not hmac.compare_digest(body.worker_id, worker_id):
+        raise HTTPException(403, "Worker identity mismatch")
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.read_claim(db, worker_id=worker_id)
+
+
+@router.post("/native-session-inspection/claim-reconcile")
+@controlled_errors
+async def reconcile_native_session_inspection_claim(body: InspectionClaim,
+                                                    worker_id: str = Depends(authenticate_worker),
+                                                    db: AsyncSession = Depends(get_db)):
+    if not hmac.compare_digest(body.worker_id, worker_id):
+        raise HTTPException(403, "Worker identity mismatch")
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.reconcile_claim(db, body.model_dump(mode="json"))
+
+
+@router.post("/native-session-inspection/finish")
+@controlled_errors
+async def finish_native_session_inspection(body: InspectionFinish, worker_id: str = Depends(authenticate_worker),
+                                           db: AsyncSession = Depends(get_db)):
+    if not hmac.compare_digest(body.worker_id, worker_id):
+        raise HTTPException(403, "Worker identity mismatch")
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.finish(db, worker_id=worker_id, inspection_id=body.inspection_id,
+        claim_key=body.claim_key, token=body.token.get_secret_value(), status=body.status)
+
+
+@router.post("/native-session-inspection/assert")
+@controlled_errors
+async def assert_native_session_inspection(body: InspectionAssert, worker_id: str = Depends(authenticate_worker),
+                                           db: AsyncSession = Depends(get_db)):
+    if not hmac.compare_digest(body.worker_id, worker_id):
+        raise HTTPException(403, "Worker identity mismatch")
+    from hypertest.application import cloud_native_session_restore
+    return await cloud_native_session_restore.assert_active(db, worker_id=worker_id,
+        inspection_id=body.inspection_id, claim_key=body.claim_key, token=body.token.get_secret_value())
 
 
 @router.post("/claim/reconcile")

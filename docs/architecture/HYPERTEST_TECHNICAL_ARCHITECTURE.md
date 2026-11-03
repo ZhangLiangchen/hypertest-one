@@ -1139,6 +1139,8 @@ Worker 使用官方 `deepseek-harness-sdk`，在独立 runtime 中显式指定 h
 
 当前 Worker 尚不支持原 SDK 会话续接；能力响应、Web 和服务端控制必须一致拒绝新续接，真实 SDK 恢复另项交付。取消请求仅确认 fence，不代表整树或远端停止。超时、异常、失联先封闭 broker 普通写权并安全 fence，再执行限域停止/原 key 对账。人工 RECONCILE 复用原状态机，以服务端当前版本、fenced owner、原未决操作及委派检查为前提；声明明确标记 operator-attested，仅支持受控 FAILED/CANCELLED 收尾，保留 checkpoint/结果/回执及全部 HELD，不作独立停止证明或预算结算。
 
+宿主原生 SDK 的前向恢复材料由原 Worker 在首次提示前生成：私有身份快照绑定原 Project/Task/Attempt、原 session、输入与提示摘要、冻结双仓 HEAD、工作区及 DSH_HOME 路径摘要/设备/inode、实际导入 SDK Python 客户端的源码包摘要、runtime 二进制摘要及受审 profile/非秘密运行配置摘要；平台锚点在原 lease/generation 下接收该快照摘要并保留回执。快照及锚点不包含凭据、token 或会话正文，也不以 SDK 方法存在推断续接可用。历史缺失锚点不得由当前环境回填；锚定失答仅查原 key。HEAD 和 inode 只核对身份，不证明整个工作区内容未变；宿主 Agent 与 Worker 同 UID 可修改工作区，本地文件本身不是独立防篡改证明，仍需可信停止与状态观察。可选的单次检查使用与普通领取互斥的独立账本，在隔离子进程禁用模型/工具后只打开原会话；失答按原请求封存或查询，UNKNOWN 不自动重领。检查不替代外部操作对账，也不开放执行续接。
+
 任务主进度采用 `DRAFT → QUEUED → PREPARING → RUNNING → COMPLETED`。需要输入时进入 WAITING_INPUT，回答后显式回到 PREPARING 重查，再进入 RUNNING；另保留 FAILED、CANCELLED、RECOVERY_REQUIRED。精确合法迁移、attempt 状态、聚合和约束由领域 §51 拥有。`reported_result=NOT_RUN|PASS|FAIL|ERROR|SKIPPED|UNKNOWN|BLOCKED` 是独立结果维度，完成可以伴随 FAIL / BLOCKED。阶段活动、SDK finish reason、任务进度和执行结果分别显示。
 
 SDK 没有单会话 cancel / close，取消先持久化撤权，再由 Cloud Worker 关闭 runtime 并按受监督进程范围停止根 / 子代理与本地测试进程，保存实际停止观察。远端 SSH / CI 已接受动作须按原操作 ID 另行查询或受控取消；杀死本地 SDK 进程不证明远端停止。不能确认资源和外部动作状态时保留 RECOVERY_REQUIRED，不误报已完整取消。

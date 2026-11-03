@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
+from uuid import UUID
 
 import httpx
 
@@ -138,6 +139,8 @@ class RemoteBroker:
 
 CLAIM_PROFILE = "hypertest-native-worker-claim/v2"
 CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds", "supports_attempt_manifest"}
+INSPECTION_CLAIM_PROFILE = "hypertest-native-inspection-claim/v1"
+INSPECTION_CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds"}
 
 
 def check_cordis_runtime() -> None:
@@ -146,6 +149,33 @@ def check_cordis_runtime() -> None:
 
     with tempfile.TemporaryDirectory(prefix="hypertest-cordis-preflight-") as directory:
         prepare_cordis_overlay(Path(directory))
+
+
+async def prepare_native_session_identity(*, root, workspace, args, task, attempt, manifest, broker, reporter, prompt):
+    """Anchor an opt-in native session before RUNNING or any SDK prompt."""
+    from .native_resume_identity import record_initial_identity
+    from .native_sdk_adapter import host_environment
+    from .native_selection import read_native_selection
+
+    session_id = "cloud-" + attempt["id"]
+    environment = host_environment(os.environ)
+    selection = await asyncio.to_thread(read_native_selection, dsh_home=args.dsh_home,
+                                        cwd=str(workspace), environment=environment)
+    repos = manifest["resolution"]["repositories"]
+    original = {"project_id": task["project_id"], "task_id": task["id"], "attempt_id": attempt["id"],
+                "session_id": session_id, "worker_id": args.worker_id,
+                "original_generation": broker.identity.generation, "input_digest": attempt["input_digest"],
+                "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+                "workspace": str(workspace), "dsh_home": str(Path(args.dsh_home).absolute()),
+                "sut_commit": repos["sut"]["commit_sha"], "framework_commit": repos["framework"]["commit_sha"]}
+    snapshot = await asyncio.to_thread(record_initial_identity, root, **original,
+                                       selection=selection, environment=environment)
+    anchored = await reporter.submit_native_session_anchor(snapshot_sha256=snapshot,
+                     input_digest=attempt["input_digest"], session_id=session_id)
+    if not anchored.synced:
+        raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original session anchor requires reconciliation")
+    original["selection"] = selection
+    return {"attempt_root": str(root), "digest": snapshot, "original": original}
 
 
 def _validate_claim_request(request: object, worker_id: str) -> dict:
@@ -193,6 +223,46 @@ def pending_claim(state: Path, worker_id: str) -> tuple[Path, dict] | None:
     if (set(record) != {"profile", "status", "request", "request_sha256"}
             or record.get("status") != "SENT" or record.get("request_sha256") != _claim_digest(request)):
         raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim record failed integrity verification")
+    return pending, request
+
+
+def _inspection_claim_request(request: object, worker_id: str) -> dict:
+    if (not isinstance(request, dict) or set(request) != INSPECTION_CLAIM_FIELDS
+            or request.get("worker_id") != worker_id
+            or not isinstance(request.get("request_key"), str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{15,127}", request["request_key"])
+            or type(request.get("sequence")) is not int or not 1 <= request["sequence"] <= 9223372036854775807
+            or type(request.get("lease_seconds")) is not int or not 15 <= request["lease_seconds"] <= 300):
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection claim is invalid")
+    return request
+
+
+def prepare_inspection_claim(state: Path, request: dict) -> Path:
+    _inspection_claim_request(request, request.get("worker_id"))
+    pending = state / "inspection-claim-pending.json"
+    if pending.exists() or pending.is_symlink():
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection claim must be reconciled")
+    try:
+        save_once(pending, {"profile": INSPECTION_CLAIM_PROFILE, "status": "SENT", "request": request,
+                            "request_sha256": _claim_digest(request)})
+    except FileExistsError:
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection claim must be reconciled") from None
+    return pending
+
+
+def pending_inspection_claim(state: Path, worker_id: str) -> tuple[Path, dict] | None:
+    pending = state / "inspection-claim-pending.json"
+    if not pending.exists() and not pending.is_symlink():
+        return None
+    try:
+        record = json.loads(read_private_file(pending, max_bytes=65536))
+        request = _inspection_claim_request(record["request"], worker_id)
+        if (not isinstance(record, dict) or set(record) != {"profile", "status", "request", "request_sha256"}
+                or record["profile"] != INSPECTION_CLAIM_PROFILE or record["status"] != "SENT"
+                or record["request_sha256"] != _claim_digest(request)):
+            raise ValueError("invalid original inspection claim")
+    except (KeyError, TypeError, ValueError):
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection claim is invalid") from None
     return pending, request
 
 
@@ -269,6 +339,146 @@ async def _claim_read(api, args, operation, request):
                 raise
             await asyncio.sleep(min(max(args.poll_seconds, 0.25) * 2 ** min(failures, 7), 30))
             failures += 1
+
+
+def _inspection_slot_response(value, worker_id, *, request=None, claimed=False):
+    valid = (isinstance(value, dict) and value.get("worker_id") == worker_id
+             and type(value.get("sequence")) is int and value["sequence"] >= 0
+             and type(value.get("closed")) is bool
+             and value.get("kind") in {"EMPTY", "INSPECTION", "ABANDONED", "RETIRED"})
+    if valid and value["sequence"] == 0:
+        valid = (value.get("request_key") is None and value["kind"] == "EMPTY"
+                 and value["closed"] and value.get("inspection_id") is None)
+    elif valid:
+        valid = (isinstance(value.get("request_key"), str)
+                 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{15,127}", value["request_key"]) is not None)
+    if valid and value["kind"] == "INSPECTION":
+        try:
+            _inspection_uuid(value.get("inspection_id"))
+        except (TypeError, ValueError):
+            valid = False
+    elif valid and value["kind"] in {"EMPTY", "ABANDONED"}:
+        valid = value["closed"] and value.get("inspection_id") is None
+    if valid and request is not None:
+        valid = value["sequence"] == request["sequence"] and value.get("request_key") == request["request_key"]
+    if valid and claimed:
+        valid = ((value["kind"] == "EMPTY" and value["closed"] and value.get("inspection") is None)
+                 or (value["kind"] == "INSPECTION" and not value["closed"]
+                     and isinstance(value.get("inspection"), dict)))
+    if not valid:
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection response is unconfirmed")
+    return value
+
+
+async def _reconcile_inspection_claim(api, args, pending: Path, request: dict) -> None:
+    """Seal or query the one original claim; never obtain or replay its work."""
+    result = _inspection_slot_response(await api.request("native-session-inspection/claim-reconcile", request),
+                                       args.worker_id, request=request)
+    if not result["closed"]:
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection remains unconfirmed")
+    if result["kind"] in {"INSPECTION", "RETIRED"}:
+        # A received or lost capability may have launched a child.  Only a
+        # previously committed terminal result permits ordinary work to resume.
+        observed = await api.request("native-session-inspection/claim-state",
+                                     {"worker_id": args.worker_id, "claim_key": request["request_key"]})
+        if (not isinstance(observed, dict) or observed.get("claim_key") != request["request_key"]
+                or observed.get("state") not in {"RESTORED", "FAILED"}):
+            raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection result is unknown")
+    elif result["kind"] not in {"EMPTY", "ABANDONED"}:
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection result is unknown")
+    complete_claim(pending)
+
+
+def _inspection_uuid(value):
+    if not isinstance(value, str) or str(UUID(value)) != value:
+        raise ValueError("invalid inspection identity")
+    return value
+
+
+async def _perform_inspection(api, args, state: Path, request: dict, response: dict) -> None:
+    """Run one isolated inspection; no capability is persisted or replayed."""
+    from .native_sdk_adapter import host_environment
+    from .native_session_restore import (
+        anchored_identity_for_inspection,
+        inspect_original_session_guarded,
+    )
+
+    item = response["inspection"]
+    try:
+        attempt_id = _inspection_uuid(item["attempt_id"])
+        inspection_id = _inspection_uuid(item["id"])
+        _inspection_uuid(item["project_id"])
+        _inspection_uuid(item["task_id"])
+        token = item["token"]
+        source = item["source"]
+        if (item["worker_id"] != args.worker_id or item["state"] != "STARTED"
+                or response.get("inspection_id") != inspection_id
+                or item["session_id"] != "cloud-" + attempt_id
+                or not isinstance(token, str) or not 16 <= len(token) <= 512
+                or not isinstance(source, dict) or set(source) != {"sut", "framework"}):
+            raise ValueError("invalid inspection response")
+    except (KeyError, TypeError, ValueError):
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection identity is invalid") from None
+
+    authority = {"worker_id": args.worker_id, "inspection_id": inspection_id,
+                 "claim_key": request["request_key"], "token": token}
+
+    async def assert_active():
+        value = await api.request("native-session-inspection/assert", authority)
+        if value != {"active": True}:
+            raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Inspection authority is unconfirmed")
+
+    # Check current, scoped authority before opening the original private
+    # identity record; the guarded child checks again and polls while alive.
+    await asyncio.wait_for(assert_active(), 5)
+    evidence = {**item, "sut_commit": source["sut"], "framework_commit": source["framework"]}
+    root = state / ("attempt-" + attempt_id)
+    identity = anchored_identity_for_inspection(attempt_root=root, dsh_home=Path(args.dsh_home).absolute(),
+        inspection=evidence, worker_id=args.worker_id, environment=host_environment(os.environ))
+    await inspect_original_session_guarded(attempt_root=root, expected_identity_digest=item["identity_digest"],
+                                            identity=identity, assert_active=assert_active)
+    # Finish is sent exactly once.  If its response is lost, only the original
+    # claim's read-only status may be queried; no new capability is requested.
+    try:
+        result = await api.request("native-session-inspection/finish", {**authority, "status": "RESTORED"})
+        if (not isinstance(result, dict) or result.get("id") != inspection_id
+                or result.get("attempt_id") != attempt_id or result.get("state") != "RESTORED"):
+            raise ValueError("inspection result mismatch")
+    except Exception:
+        observed = await api.request("native-session-inspection/claim-state",
+                                     {"worker_id": args.worker_id, "claim_key": request["request_key"]})
+        if (not isinstance(observed, dict) or observed.get("id") != inspection_id
+                or observed.get("attempt_id") != attempt_id or observed.get("claim_key") != request["request_key"]
+                or observed.get("state") != "RESTORED"):
+            raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Original inspection result is unknown") from None
+
+
+async def inspect_next_original_session(api, args, state: Path) -> bool:
+    """Claim at most one original session inspection under the existing Worker lock."""
+    current = _inspection_slot_response(await api.request("native-session-inspection/state",
+                                                        {"worker_id": args.worker_id}), args.worker_id)
+    if not current["closed"]:
+        raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "An inspection claim remains outstanding")
+    request = {"worker_id": args.worker_id, "request_key": secrets.token_hex(24),
+               "sequence": current["sequence"] + 1, "lease_seconds": args.lease_seconds}
+    pending = prepare_inspection_claim(state, request)
+    try:
+        response = _inspection_slot_response(await api.request("native-session-inspection/claim", request),
+                                             args.worker_id, request=request, claimed=True)
+    except Exception:
+        # Original claim may have committed, even for a 5xx.  Never POST again.
+        await _reconcile_inspection_claim(api, args, pending, request)
+        return False
+    if response["kind"] == "EMPTY":
+        complete_claim(pending)
+        return False
+    try:
+        await _perform_inspection(api, args, state, request, response)
+    except Exception:
+        await _reconcile_inspection_claim(api, args, pending, request)
+        raise
+    complete_claim(pending)
+    return True
 
 
 async def resolve(api, args, state: Path, claim: dict):
@@ -456,18 +666,26 @@ async def execute(api, args, state: Path, claim: dict):
             await broker.assert_current()
             await resolver.checkout(manifest["resolution"]["repositories"][role], workspace / role)
         await broker.assert_current()
+        prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
+            memory_enabled=memory_bridge is not None)
+        session_id = "cloud-" + attempt["id"]
+        anchor_config = os.environ.get("HYPERTEST_CLOUD_NATIVE_RECOVERY_IDENTITY", "false").strip().lower()
+        if anchor_config not in {"true", "false"}:
+            raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Invalid native session identity setting")
+        resume_identity = None
+        if anchor_config == "true":
+            resume_identity = await prepare_native_session_identity(root=root, workspace=workspace, args=args,
+                task=task, attempt=attempt, manifest=manifest, broker=broker, reporter=reporter, prompt=prompt)
         transition = Handoff(profile=MANIFEST_PROFILE, task_id=task["id"], attempt_id=attempt["id"],
             key="worker-running", operation="TRANSITION", payload={"status": "RUNNING", "reason": "Native SDK runtime admitted",
             "runtime_metadata": {}, "usage_seconds": 0, "cost_microunits": 0})
         result = await reporter.submit_handoff(transition, digest(transition.model_dump(mode="json")))
         if not result.synced:
             raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original transition needs reconciliation")
-        prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
-            memory_enabled=memory_bridge is not None)
         save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
-        session_id = "cloud-" + attempt["id"]
-        process = await adapter.start(session_id=session_id, prompt=prompt, interaction_enabled=True)
+        options = {"resume_identity": resume_identity} if resume_identity is not None else {}
+        process = await adapter.start(session_id=session_id, prompt=prompt, interaction_enabled=True, **options)
         bridge = LiveQuestionBridge(broker, adapter, session_id)
         reader = asyncio.create_task(bridge.read(process))
         accepted_keys = {}
@@ -542,7 +760,10 @@ async def run(args) -> int:
     state = private_root(args.state_dir)
     with worker_lock(state):
         # Reject legacy or damaged journals before making any API request.
-        pending_claim(state, args.worker_id)
+        original = pending_claim(state, args.worker_id)
+        inspection = pending_inspection_claim(state, args.worker_id)
+        if original is not None and inspection is not None:
+            raise CloudBlocked("NATIVE_INSPECTION_RECONCILIATION_REQUIRED", "Conflicting original Worker claims")
         return await _run_locked(args, state)
 
 
@@ -574,6 +795,13 @@ async def _run_locked(args, state: Path) -> int:
                 if args.once:
                     return 0
                 continue
+            original_inspection = pending_inspection_claim(state, args.worker_id)
+            if original_inspection is not None:
+                pending, request = original_inspection
+                await _reconcile_inspection_claim(api, args, pending, request)
+                if args.once:
+                    return 0
+                continue
             # Recovery never depends on an SDK installation. New work still
             # checks the runtime before creating any server-side task lease.
             if not runtime_checked:
@@ -585,6 +813,12 @@ async def _run_locked(args, state: Path) -> int:
                 check_cordis_runtime()
                 runtime_checked = True
                 auth_monitor = asyncio.create_task(observe_auth())
+            from hypertest.config import get_settings
+            if get_settings().cloud_native_session_inspection_enabled:
+                if await inspect_next_original_session(api, args, state):
+                    if args.once:
+                        return 0
+                    continue
             current = await _claim_read(api, args, "claim/state", {"worker_id": args.worker_id})
             if not current["closed"]:
                 raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Server claim has no matching local intent; explicit recovery is required")

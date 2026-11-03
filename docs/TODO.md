@@ -23,7 +23,7 @@
 - [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker 的公司发行和未来项目资源隔离的全容器化另行设计；本机领取恢复与真实结果回传已见本轮交付，不重复列为开发待办。
 - 本机 Cloud Worker：独立 Docker Attempt、受控写入和自动观察收尾修复已部署；真实 Docker/SDK 的无兑换项目单测任务与报告闭环已观察，自动 action 观察及收尾另以专用测试库和合成目标验证，尚未在修复版本上以真实写操作复验。原历史任务、动作及报告保持不变；不能将合成结果推定为真实 SUT 测试通过。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
 - Cloud 框架与受控 HTTPS 只完成首片；真实目标授权、依赖闭包和离线供应、认证或写 API、其他工具链与浏览器等尚未完成。见[受控 HTTPS](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)和[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。
-- 真实 SDK 原会话恢复尚未实现，保持 `supports_resume=false`；需先明确可续接状态、原会话与工作区、旧 prompt 歧义、generation 和预算，不能重放未知请求。Cloud 原生实时提问已实现，配套 SDK 构建与合成测试见[构建记录](CLOUD_NATIVE_INTERACTION_SDK_BUILD_20261102.md)，部署和用户实际交互验收须分别核实；回调取走回答不证明 Agent 已接收。
+- SDK 原会话的实际执行续接尚未实现，保持 `supports_resume=false`；需先核对原会话和工作区、旧提示与外部动作是否未决、旧进程停止、授权和 generation，不能重放未知请求。仅打开历史的受限检查已实现，默认关闭；身份材料缺失时拒绝，不能代表可续跑。范围与原执行核对见[本轮记录](CLOUD_NATIVE_SESSION_INSPECTION_20261103.md)。Cloud 原生实时提问已实现，配套 SDK 构建与合成测试见[构建记录](CLOUD_NATIVE_INTERACTION_SDK_BUILD_20261102.md)，部署和用户实际交互验收须分别核实；回调取走回答不证明 Agent 已接收。
 - SUT CI adapter、一般 SSH 和 Cloud Claude 尚未实现；分别需要明确 provider 与独立权限、受限目标及 host key、云端服务身份和模型预算。见[P2 设计与输入](CLOUD_P2_FOLLOWUP_20261023.md)。
 - 平台完整回归 CI 为按需手动执行；日常按改动风险做必要检查。未运行不等于通过，发行标签构建单独保留。
 

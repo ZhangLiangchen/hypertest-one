@@ -1,5 +1,6 @@
 import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -34,8 +35,12 @@ def test_main_git_failure_emits_operation_and_exit_code_without_raw_error(monkey
         error.args = ("private URL, credential and stderr",)
         raise error
     monkeypatch.setattr(native_worker, "run", fail)
-    assert native_worker.main(["--api-url", "https://localhost:18444", "--worker-id", "fixture",
-        "--worker-credential-file", "/unused", "--dsh-home", "/unused", "--state-dir", "/unused"]) == 1
+    # main() uses asyncio.run(); keep its event-loop lifecycle isolated from
+    # the pytest-asyncio loop used by the rest of the suite.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        code = pool.submit(native_worker.main, ["--api-url", "https://localhost:18444", "--worker-id", "fixture",
+            "--worker-credential-file", "/unused", "--dsh-home", "/unused", "--state-dir", "/unused"]).result()
+    assert code == 1
     assert json.loads(capsys.readouterr().out) == {
         "code": "GIT_OPERATION_FAILED", "git_operation": "fetch", "git_exit_code": 128}
 
@@ -76,6 +81,44 @@ async def test_cordis_preflight_failure_does_not_claim_new_work(tmp_path, monkey
         await native_worker.run(loop_args)
     assert error.value.code == "HARNESS_CORDIS_UNAVAILABLE"
     assert not (tmp_path / "claim-pending.json").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("synced", [True, False])
+async def test_native_identity_requires_anchor_readback(tmp_path, monkeypatch, synced):
+    from hypertest.cloud import native_resume_identity, native_selection, native_worker
+
+    calls = []
+    def selection(**kwargs):
+        calls.append("selection")
+        assert "HYPERTEST_WORKER_TOKEN" not in kwargs["environment"]
+        return {"provider": "deepseek-official", "model": "deepseek-flash"}
+    def snapshot(root, **kwargs):
+        calls.append("snapshot")
+        assert kwargs["session_id"] == "cloud-attempt"
+        return "a" * 64
+    class Reporter:
+        async def submit_native_session_anchor(self, **kwargs):
+            calls.append("anchor")
+            assert kwargs["snapshot_sha256"] == "a" * 64
+            return SimpleNamespace(synced=synced)
+    monkeypatch.setenv("HYPERTEST_WORKER_TOKEN", "must-not-reach-sdk")
+    monkeypatch.setattr(native_selection, "read_native_selection", selection)
+    monkeypatch.setattr(native_resume_identity, "record_initial_identity", snapshot)
+    kwargs = dict(root=tmp_path, workspace=tmp_path, args=SimpleNamespace(dsh_home=str(tmp_path), worker_id="worker"),
+                  task={"project_id": "project", "id": "task"}, attempt={"id": "attempt", "input_digest": "d" * 64},
+                  manifest={"resolution": {"repositories": {"sut": {"commit_sha": "a" * 40},
+                                                           "framework": {"commit_sha": "b" * 40}}}},
+                  broker=SimpleNamespace(identity=SimpleNamespace(generation=1)), reporter=Reporter(), prompt="test")
+    if synced:
+        identity = await native_worker.prepare_native_session_identity(**kwargs)
+        assert identity["digest"] == "a" * 64
+        assert "environment" not in identity["original"]
+    else:
+        with pytest.raises(CloudBlocked) as error:
+            await native_worker.prepare_native_session_identity(**kwargs)
+        assert error.value.code == "REPORT_RECONCILIATION_PENDING"
+    assert calls == ["selection", "snapshot", "anchor"]
 
 
 def mock_worker_api(monkeypatch, request):

@@ -42,6 +42,14 @@ class CloudSyncAdapter:
                 or type(receipt.get("version")) is not int
                 or receipt["version"] != intent.expected_version + 1):
             raise SyncError("CLOUD_RECEIPT_MISMATCH")
+        if payload["operation"] == "ANCHOR_NATIVE_SESSION":
+            expected = {"identity_profile": payload["identity_profile"],
+                "snapshot_sha256": payload["snapshot_sha256"], "input_digest": payload["input_digest"],
+                "session_id": payload["session_id"], "worker_id": self.broker.identity.worker_id,
+                "generation": target["generation"]}
+            if (receipt.get("native_session_anchor") != expected
+                    or receipt.get("checkpoint", {}).get("native_session_anchor") != expected):
+                raise SyncError("NATIVE_SESSION_ANCHOR_RECEIPT_MISMATCH")
 
     async def readback(self, intent: FrozenIntent, receipt: dict) -> dict:
         version = receipt["version"]
@@ -202,6 +210,47 @@ class CloudTaskReporter:
             if not result.synced:
                 raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original report requires receipt/readback reconciliation")
             self.version = result.receipt["version"]
+
+    async def submit_native_session_anchor(self, *, snapshot_sha256: str, input_digest: str, session_id: str):
+        """Freeze and read back one host-only pre-prompt identity anchor.
+
+        A SENT/UNKNOWN original is only queried by its original key. The caller
+        must refuse to start the SDK unless the returned outcome is synced.
+        """
+        # Agent handoffs always use the c: namespace.  A separate host-only
+        # prefix prevents an Agent-chosen handoff key from colliding with it.
+        key = "native-anchor:" + digest([self.broker.attempt_id, "native-session-anchor-v1"])
+        previous = self.journal.get(self.namespace, key)
+        if previous:
+            intent = self.snapshots.load(self.namespace, key)
+            if (intent.target != {"project_id": self.broker.project_id, "task_id": self.broker.task_id,
+                                  "attempt_id": self.broker.attempt_id,
+                                  "generation": self.broker.identity.generation}
+                    or intent.payload.get("operation") != "ANCHOR_NATIVE_SESSION"
+                    or intent.payload.get("identity_profile") != "hypertest-native-session-identity/v1"
+                    or intent.payload.get("snapshot_sha256") != snapshot_sha256
+                    or intent.payload.get("input_digest") != input_digest
+                    or intent.payload.get("session_id") != session_id):
+                raise CloudBlocked("NATIVE_SESSION_ANCHOR_CHANGED", "The original session anchor is immutable")
+        else:
+            if self.pending():
+                raise CloudBlocked("REPORT_STREAM_PENDING", "Reconcile the original pending report before another mutation")
+            request = TypeAdapter(CloudMutation).validate_python({
+                "profile": PROFILE, "project_id": self.broker.project_id, "task_id": self.broker.task_id,
+                "attempt_id": self.broker.attempt_id, "operation_key": key, "expected_version": self.version,
+                "operation": "ANCHOR_NATIVE_SESSION", "identity_profile": "hypertest-native-session-identity/v1",
+                "snapshot_sha256": snapshot_sha256, "input_digest": input_digest, "session_id": session_id,
+            }).model_dump(mode="json")
+            await self.broker.validate_payload(request)
+            intent = FrozenIntent(self.namespace, key,
+                {"project_id": self.broker.project_id, "task_id": self.broker.task_id,
+                 "attempt_id": self.broker.attempt_id, "generation": self.broker.identity.generation},
+                request, self.version)
+            self.snapshots.save(intent)
+        result = await self.core.deliver(intent)
+        if result.synced:
+            self.version = result.receipt["version"]
+        return result
 
     async def submit_native_completion(self, handoff: Handoff, handoff_digest: str, *, usage_seconds: int):
         """Accept a report after direct SDK exit without asserting host-wide cleanup."""

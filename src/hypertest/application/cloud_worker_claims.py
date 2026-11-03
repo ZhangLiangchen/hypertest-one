@@ -71,6 +71,10 @@ async def state(db, worker_id):
 async def claim(db, request):
     worker_id = request["worker_id"]
     row = await _slot(db, worker_id, create=True)
+    # The native inspection path uses the very same transaction lock.  Its
+    # outstanding capability must never overlap an ordinary Worker claim.
+    from .cloud_native_session_restore import block_ordinary_claim_if_inspection_active
+    await block_ordinary_claim_if_inspection_active(db, worker_id)
     sequence = request["sequence"]
     if sequence < row.sequence:
         raise HTTPException(409, "CLAIM_SEQUENCE_RETIRED")
