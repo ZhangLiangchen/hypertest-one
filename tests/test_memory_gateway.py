@@ -184,6 +184,102 @@ async def visibility(f, records, *, headers=None, **changes):
         "project_id": f["project_id"], "scope_id": scope_id, "artifacts": refs, **changes})
 
 
+async def browse(f, **fields):
+    return await f["client"].post("/api/v1/memory/browse", headers=f["headers"], json={"project_id": f["project_id"], **fields})
+
+
+def setup_browse(f, monkeypatch):
+    monkeypatch.setattr(get_settings(), "memory_shared_knowledge_enabled", True)
+    main = f["upstream"].scopes["hypertest-project-" + f["project_id"]]
+    monkeypatch.setattr(get_settings(), "memory_history_bindings", {f["project_id"]: {
+        "main_scope_id": main, "history_scope_id": "scp_history"}})
+    row = {"artifact_id": "art_external", "revision": 1, "kind": "fact", "content": "Shared fact",
+        "content_digest": "sha256:" + "a" * 64, "state_version": 1}
+    calls = []
+    async def listing(scope_id, **kwargs):
+        calls.append((scope_id, kwargs))
+        return {"items": [row], "next_cursor": "next" if kwargs["cursor"] is None else None, "search_mode": None}
+    async def adopted(scope_id, namespace, **kwargs):
+        assert scope_id == "scp_history" and namespace == "hypertest-project-" + f["project_id"]
+        assert kwargs == {"reference_kind": "hypertest-project-history"}
+        return scope_id
+    monkeypatch.setattr(f["upstream"], "browse", listing, raising=False)
+    monkeypatch.setattr(f["upstream"], "adopt_scope", adopted)
+    return main, row, calls
+
+
+async def test_browse_initial_main_and_explicit_history_keep_literal_dates_corrections_and_bound_cursor(memory_context, monkeypatch):
+    f = memory_context
+    main, row, calls = setup_browse(f, monkeypatch)
+    response = await browse(f)
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store", response.text
+    assert response.json()["items"][0]["artifact_id"] == "art_external" and calls[0][0] == main
+    cursor = response.json()["next_cursor"]
+    assert (await browse(f, cursor=cursor)).json()["next_cursor"] is None
+    assert (await browse(f, collection="history", cursor=cursor)).status_code == 422
+    assert (await browse(f, scope_id="scp_other")).status_code == 422
+    row.update(kind="historical_technical_record", content=(
+        "历史技术记录\n原日期：2026-08-21T06:25:25Z；原项目：legacy；原记录ID：3205。\n"
+        "已知后续更正/补充：old_id=3208\n分块：1/2；以下原文保真：\n---\nOld corrected diagnosis"))
+    assert (await browse(f)).json()["items"] == []
+    history = await browse(f, collection="history")
+    assert history.status_code == 200, history.text
+    item = history.json()["items"][0]
+    assert item["historical"] is True and item["review_status"] == "EXTERNAL_NOT_HYPERTEST_REVIEWED"
+    assert item["history_metadata"] == {"original_date": "2026-08-21T06:25:25Z", "legacy_record_id": "3205",
+        "part_index": 1, "part_count": 2, "correction_notice": "已知后续更正/补充：old_id=3208"}
+    assert calls[-1][0] == "scp_history" and "confirmed_by" not in item
+    monkeypatch.setattr(get_settings(), "memory_history_bindings", {})
+    assert (await browse(f, collection="history")).json()["configured"] is False
+
+
+async def test_browse_never_revives_managed_records_or_exposes_secrets_and_rechecks_grant(memory_context, monkeypatch):
+    f = memory_context
+    _, row, calls = setup_browse(f, monkeypatch)
+    accepted = await candidate(f)
+    assert (await publish(f, accepted)).json()["status"] == "ACCEPTED"
+    row["artifact_id"] = f["upstream"].records[0]["artifact_id"]
+    assert (await mutate(f, "RETRACT", 2, entry_id=accepted["entry_id"], publication_note="Withdraw")).json()["status"] == "ACCEPTED"
+    assert (await browse(f)).json()["items"] == []
+    row["artifact_id"] = "art_external"
+    row["content"] = OPERATOR
+    rejected = await browse(f)
+    assert rejected.status_code == 422 and OPERATOR not in rejected.text
+    row["content"] = "Safe historical content"
+    original = f["upstream"].browse
+    async def revoked(*args, **kwargs):
+        async with AsyncSessionLocal() as db:
+            grant = await db.get(InteractiveIntegrationGrant, UUID(f["auth"]["grant_id"]))
+            grant.status = "REVOKED"
+            grant.row_version += 1
+            grant.revoked_at = datetime.now(UTC)
+            await db.commit()
+        return await original(*args, **kwargs)
+    monkeypatch.setattr(f["upstream"], "browse", revoked)
+    denied = await browse(f)
+    assert denied.status_code == 403 and row["content"] not in denied.text
+    before = len(calls)
+    assert (await browse(f)).status_code == 403 and len(calls) == before
+
+
+async def test_browse_rejects_wrong_project_history_identity_and_total_deadline(memory_context, monkeypatch):
+    f = memory_context
+    _, _, calls = setup_browse(f, monkeypatch)
+    assert (await browse(f, project_id=str(uuid4()))).status_code == 403
+    assert (await browse(f, limit=21)).status_code == 422
+    assert not calls
+    async def wrong_history(*args, **kwargs):
+        raise MemoryUpstreamError("MEMORY_UPSTREAM_SCOPE_MISMATCH")
+    monkeypatch.setattr(f["upstream"], "adopt_scope", wrong_history)
+    assert (await browse(f, collection="history")).status_code == 503 and not calls
+    async def slow(*args, **kwargs):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(f["upstream"], "browse", slow)
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 1.0)
+    timed_out = await browse(f)
+    assert timed_out.status_code == 503 and "Shared fact" not in timed_out.text
+
+
 async def test_visibility_requires_current_exact_ref_digest_and_never_returns_old_bodies(memory_context):
     f = memory_context
     receipt = await candidate(f)

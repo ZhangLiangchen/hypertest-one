@@ -4,6 +4,7 @@ Every external write has a committed SENT intent before the one permitted call.
 Only original-key reads reconcile SENT/UNKNOWN. Nothing redispatches the outbox.
 """
 import asyncio
+import base64
 import json
 import re
 import unicodedata
@@ -14,7 +15,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import or_, select
 
-from hypertest.api.memory_schemas import PROFILE, MemoryQuery, MemoryVisibility
+from hypertest.api.memory_schemas import PROFILE, MemoryBrowse, MemoryQuery, MemoryVisibility
 from hypertest.application import cloud_tasks, interactive
 from hypertest.application.services import canonical_json_sha256
 from hypertest.cloud.errors import CloudBlocked
@@ -748,6 +749,97 @@ async def _platform_artifact_ids(db, artifact_ids):
             select(MemoryOperation.upstream_ref).where(
                 MemoryOperation.upstream_ref["artifact_id"].astext.in_(artifact_ids))))
     return {ref["artifact_id"] for ref in refs if isinstance(ref, dict) and ref.get("artifact_id")}
+
+
+def history_binding(project_id, main_scope_id):
+    binding = get_settings().memory_history_bindings.get(str(project_id))
+    if not binding:
+        return None
+    if (set(binding) != {"main_scope_id", "history_scope_id"}
+            or binding.get("main_scope_id") != main_scope_id
+            or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,256}", binding.get("history_scope_id", ""))
+            or binding["history_scope_id"] == main_scope_id):
+        raise HTTPException(503, "Project history binding requires Operator reconciliation")
+    return dict(binding)
+
+
+def history_metadata(content):
+    """Literal migration-header claims only; never infer review or current validity."""
+    header = content.partition("\n---\n")[0]
+    origin = re.search(r"^原日期：([^；\n]+)；原项目：[^；\n]+；原记录ID：(\d+)。$", header, re.MULTILINE)
+    part = re.search(r"^分块：(\d+)/(\d+)；", header, re.MULTILINE)
+    correction = next((line for line in header.splitlines() if line.startswith("已知后续更正/补充")), None)
+    return {"original_date": origin[1] if origin else None, "legacy_record_id": origin[2] if origin else None,
+        "part_index": int(part[1]) if part else None, "part_count": int(part[2]) if part else None,
+        "correction_notice": correction}
+
+
+def browse_cursor(payload, scope_id, cursor, *, encode=False):
+    binding = {"project_id": str(payload.project_id), "scope_id": scope_id, "collection": payload.collection}
+    if cursor is None:
+        return None
+    if encode:
+        return base64.urlsafe_b64encode(json.dumps({**binding, "cursor": cursor}, separators=(",", ":")).encode()).decode()
+    try:
+        value = json.loads(base64.b64decode(cursor, altchars=b"-_", validate=True))
+        if (not isinstance(value, dict) or set(value) != {*binding, "cursor"}
+                or any(value[key] != expected for key, expected in binding.items())
+                or not isinstance(value["cursor"], str) or not 1 <= len(value["cursor"]) <= 4096):
+            raise ValueError
+        return value["cursor"]
+    except (ValueError, UnicodeError):
+        raise HTTPException(422, "Inventory cursor belongs to another project or collection; restart browsing") from None
+
+
+async def browse(db, payload: MemoryBrowse, context):
+    """Human-requested external inventory. Default query/Worker recall is unchanged."""
+    enabled()
+    if context.worker:
+        raise HTTPException(403, "Worker memory reads require the fenced query endpoint")
+    await authorize(db, context, "memory:read", payload.project_id, lock=True)
+    await cloud_tasks.project(db, payload.project_id)
+    mapped = await mapping(db, payload.project_id, ready=True)
+    main_scope_id, namespace = mapped.scope_id, mapped.namespace
+    binding = history_binding(payload.project_id, main_scope_id)
+    if not get_settings().memory_shared_knowledge_enabled:
+        raise HTTPException(503, "Shared project knowledge is disabled")
+    if payload.query is not None and (not payload.query.strip() or payload.cursor is not None):
+        raise HTTPException(422, "Search needs nonblank text and does not accept an inventory cursor")
+    response = {"profile": PROFILE, "project_id": str(payload.project_id), "collection": payload.collection,
+        "history_available": binding is not None, "items": [], "next_cursor": None, "configured": True,
+        "notice": ("SELECTED_TECHNICAL_HISTORY_CHUNKS_NOT_ALL_LEGACY_RECORDS_OR_CURRENT_FACTS"
+                   if payload.collection == "history" else "SHARED_PROJECT_KNOWLEDGE_NOT_PLATFORM_REVIEWED")}
+    if payload.collection == "history" and binding is None:
+        return {**response, "configured": False}
+    scope_id = binding["history_scope_id"] if payload.collection == "history" else main_scope_id
+    cursor = browse_cursor(payload, scope_id, payload.cursor)
+    await reject_secrets(db, payload.project_id, {"query": payload.query}, context)
+    await db.commit()
+    try:
+        upstream = adapter()
+        if payload.collection == "history":
+            await upstream.adopt_scope(scope_id, namespace, reference_kind="hypertest-project-history")
+        page = await upstream.browse(scope_id, history=payload.collection == "history",
+            query=payload.query, cursor=cursor, limit=payload.limit)
+    except MemoryUpstreamError:
+        raise HTTPException(503, "Project knowledge inventory is unavailable") from None
+    # Recheck grant/configuration after all external I/O, before disclosing text.
+    await authorize(db, context, "memory:read", payload.project_id, lock=True)
+    await cloud_tasks.project(db, payload.project_id)
+    current = await mapping(db, payload.project_id, ready=True, lock=True)
+    if (current.scope_id != main_scope_id or history_binding(payload.project_id, main_scope_id) != binding
+            or not get_settings().memory_shared_knowledge_enabled):
+        raise HTTPException(409, "Project knowledge configuration changed; refresh the page")
+    enabled()
+    managed = await _platform_artifact_ids(db, [row["artifact_id"] for row in page["items"]])
+    items = [{"project_id": str(payload.project_id), "scope_id": scope_id, **row,
+        "review_status": "EXTERNAL_NOT_HYPERTEST_REVIEWED", "historical": payload.collection == "history",
+        "history_metadata": history_metadata(row["content"]) if payload.collection == "history" else None}
+        for row in page["items"] if row["artifact_id"] not in managed and (
+            row.get("kind") == "historical_technical_record" if payload.collection == "history" else shared_kind(row.get("kind")))]
+    await reject_secrets(db, payload.project_id, {"knowledge": items}, context)
+    return {**response, "items": items, "next_cursor": browse_cursor(payload, scope_id, page["next_cursor"], encode=True),
+            "search_mode": page["search_mode"]}
 
 
 async def visibility(db, payload: MemoryVisibility, context):

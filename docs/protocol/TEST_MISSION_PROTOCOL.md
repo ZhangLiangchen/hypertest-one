@@ -1693,6 +1693,7 @@ ADR-027 归档来源增补：Memory `CREATE_CANDIDATE` 的 `source` 可为 `{mod
 | GET /entries/{id}?project_id&version=N | 完整固定经验修订；旧版另标SUPERSEDED/EXPIRED等当前处置，不改原revision_status |
 | POST /query | `{project_id,query,limit?,source?,context?}`，query≤1000字符/limit≤20；显式最小query，固定来源与Cloud claim context互斥；没有自动prompt/聊天采集 |
 | POST /visibility | 独立 standalone memory:read 或 Operator；`{project_id,scope_id,artifacts:[{artifact_id,revision,content_digest}]}`，1..50 条、exact READY scope。返回 PLATFORM_CURRENT / PLATFORM_NOT_CURRENT / EXTERNAL_UNMANAGED；仅 CURRENT 附已接受 digest、entry_id/version、公开 publication。无上游调用、无状态写、no-store；Worker 使用原 query/fence。客户端仍核 PC 当前生命周期和原件摘要，UNMANAGED 不是事实认证 |
+| POST /browse | standalone memory:read / Operator，`{project_id,collection:main或history,query?,cursor?,limit?}`；默认main、每页≤20，不接受scope。history只读Operator固定且核project-history引用的独立库。返回items、next_cursor、history_available/configured及原文字段元数据；片数不等于记录数，非当前事实/平台审核。查询最多20相关条目，inventory cursor绑定项目/分类。默认query/Worker召回不引入历史或Sources |
 
 独立scope为memory:read/propose/publish，配置/发布/修订/撤回还必须人工Operator。Local候选source为 `{mode:LOCAL,task_id,task_version,report_id}`，核当前BOUND owner、固定SyncReceipt和ReportRevision；Cloud候选source为 `{mode:CLOUD,task_id,task_version,attempt_id,asset_revision_id}`，核同Project/Attempt固定接受资产及当前Worker。Cloud私有HTTP headers携worker_id/lease_token/generation/work_token，不能进入业务请求摘要、账本、SDK/Agent或报告。独立memory bearer不替代fence，cloud:work不替代memory授权。Local查询无需报告，但私有MCP核真实父caller/绑定；Cloud查询context为原claim `{mode:CLOUD,task_id,attempt_id,task_version}`，Worker注入且Gateway前后核验，不需asset。共享读取只给opaque provenance，源报告另按原权限读取。
 

@@ -31,6 +31,8 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 2026-11-03 项目知识统一增补见 [ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)：Operator 可明确采用既有 canonical scope，让本地 Agent 与托管框架所属 Project 直接共享知识。平台审核发布与外部显式记忆分别展示，不复制为两套 corpus，不把外部记忆伪造为平台人审记录；私有向量检索须显式配置，generation 保持关闭。历史 Sources / 独立 history scope 只在其明确入口查找，默认召回不提升为当前事实。
 
+项目经验页面直接展示已有共享主经验，另设显式清洗历史技术记录入口，保留原日期、分片和更正说明；平台发布账本为空不代表知识为空。历史浏览不是全部旧档案公开，也不改变默认召回、人工审核或执行授权。
+
 **2026-10-27 后置归档首片实现完成：** [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)将新的 Local 接入改为用户显式调用 Skill 与 CLI 的后置产物归档，移除该模式 MCP/Hooks 和实时会话绑定依赖。下文 ADR-018/024/026 继续解释旧版本及历史合同；新 API、CLI/Skill 与 PC Web 已实现，部署、发行及 USER_OWNED 验收分别见[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)，用户机器的旧配置须显式按收据退休。
 
 [ADR-026 多会话协作](../architecture/ADR-026_MULTI_SESSION_TASK_COLLABORATION.md)已接受并启动实施：显式启用的 Local 任务可以由多个获授权真实 root 参与、分别追加贡献，由一个当前主会话汇总。任务 UUID、初始绑定和历史保持；未启用任务继续使用下列单会话合同。源码、部署、客户端发行与用户功能验收分别记录。

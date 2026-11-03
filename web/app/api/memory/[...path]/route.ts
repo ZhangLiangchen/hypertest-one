@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pat
 }
 export async function POST(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
-  if (!["operations", "query"].includes(path)) return safe(404, "MEMORY_ROUTE_NOT_FOUND");
+  if (!["operations", "query", "browse"].includes(path)) return safe(404, "MEMORY_ROUTE_NOT_FOUND");
   const origin = webOrigin(request);
   if (!origin) return safe(503, "MEMORY_WEB_UNAVAILABLE");
   if (request.headers.get("origin") !== origin || request.headers.get("sec-fetch-site") === "cross-site") return safe(403, "MEMORY_ORIGIN_REQUIRED");

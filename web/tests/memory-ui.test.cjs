@@ -13,7 +13,7 @@ function component({ unavailable = false, pending = false } = {}) {
   const records = { data: { enabled: true, configuration: { enabled: true, version: 1 }, entries: [entry], operations: [] }, isPending: false, isError: unavailable, refetch() {} };
   const operation = { ready: true, busy: false, blocked: pending, pending: pending ? { operation: "PUBLISH", operation_key: "original-key", state: "UNKNOWN" } : null, submit() {}, reconcile() {} };
   return load("app/projects/[projectId]/memory/memory-workspace.tsx", { Date, require: (name) => name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
-    : name === "@/lib/api" ? {} : name === "@/lib/memory" ? {} : name === "@/lib/memory-operation" ? { useMemoryOperation: () => operation }
+    : name === "./knowledge-browser" ? { KnowledgeBrowser: () => null } : name === "@/lib/api" ? {} : name === "@/lib/memory" ? {} : name === "@/lib/memory-operation" ? { useMemoryOperation: () => operation }
       : name === "@tanstack/react-query" ? { useQuery: ({ queryKey }) => queryKey[0] === "project" ? project : queryKey[0] === "memory" ? records : { data: { configured: true } }, useMutation: () => ({ reset() {} }) }
         : name === "next/link" ? { default: ({ children, ...props }) => React.createElement("a", props, children) } : require(name) });
 }
@@ -36,7 +36,7 @@ function editorHarness(editor) {
   Object.assign(ui, { Form, Input: { TextArea: "Input.TextArea" }, Radio: { Group: "Radio.Group" }, Typography: { Title: "Title", Paragraph: "Paragraph", Text: "Text" } });
   const { MemoryEditor } = load("app/projects/[projectId]/memory/memory-workspace.tsx", { Date, require: (name) => name === "react/jsx-runtime" ? { jsx, jsxs: jsx, Fragment: "Fragment" }
     : name === "antd" ? ui : name === "@/app/workspace-ui" ? workspaceUi : name === "@/lib/i18n" ? { useI18n: () => ({ t: (en) => en }) }
-      : ["@/lib/api", "@/lib/memory", "@/lib/memory-operation", "@tanstack/react-query"].includes(name) ? {} : name === "next/link" ? { default: "Link" } : require(name) });
+      : name === "./knowledge-browser" ? { KnowledgeBrowser: () => null } : ["@/lib/api", "@/lib/memory", "@/lib/memory-operation", "@tanstack/react-query"].includes(name) ? {} : name === "next/link" ? { default: "Link" } : require(name) });
   const nodes = (tree) => !tree || typeof tree !== "object" ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)];
   const tree = MemoryEditor({ editor, blocked: false, busy: false, onSubmit: async (value) => { values.push(value); return true; }, onClose() {} });
   return { values, form: nodes(tree).find((node) => node.type === Form), nodes: nodes(tree) };

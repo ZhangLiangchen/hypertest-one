@@ -18,6 +18,12 @@
 
 PLATFORM_CURRENT 通过后，memory:read 客户端可接收原 PC 固定字节和摘要。其 `htmemory…` marker 是服务端生成的 opaque locator，既非凭据，也非 operation_key、来源引用或鉴权依据；不包含私有 task/session/source/actor。不要删除该非敏感 locator 后仍宣称原件摘要不变；若展示平台 publication 投影，须与 PC 原件明确区分。
 
+### 2026-11-03 项目经验与显式历史浏览
+
+`POST /memory/browse` 为 standalone `memory:read` 或 Operator 提供外部主经验首屏分页及显式 `collection=history` 浏览/查询；Worker 使用既有 fenced query，默认召回不变。请求仅含 project_id、collection、可选 query/cursor 和 limit（1..20），不接受 scope。main 来自当前 READY mapping；history 必须由 Operator 的 `HYPERTEST_MEMORY_HISTORY_BINDINGS` JSON 固定 project→{main_scope_id,history_scope_id}，main 必须匹配现映射，history 不得等于 main；每次历史读取核唯一 `hypertest-project-history` external reference 等于项目 namespace。绑定不写入平台发布账本，不更改 scope context references。
+
+每页只读当前 active 的固定 Atomic revision/digest；main 排除保留 kind，history 仅 `historical_technical_record`，两者排除任意平台 revision/operation 占用的 ID，防止旧版、撤回、到期和 UNKNOWN 记录经外部列表复活。整体 ≤5 秒、网络前后重新授权/检查配置、输出前已知秘密扫描、no-store；cursor 绑定 project/collection/scope，不能选库。搜索最多返回20个相关条目，清空查询回到完整分页。历史按片浏览，不把片数等同原记录数；只展示原文头部真实提供的原日期、原ID、分片与纠正提示，缺失不推断。存储 active 不代表当前事实或平台审核。仅清洗保留的技术历史进入此界面，raw Sources 和全部旧档案不开放；全文含原更正头部且按需展开。平台审核/候选/撤回目录在独立管理区，空平台目录不再表示共享知识库为空。
+
 ### ADR-027 本地归档来源增补
 
 新显式归档增加 `LOCAL_ARCHIVE` 来源，由 Operator 选择固定 `task_id`、`submission_id`、`archive_version` 与 `asset_revision_id`。Gateway 验证同 Project、同 Task/目标空间、固定已接受 Submission 和不可变快照，确认快照实际包含该 REPORT 修订及其内容；冻结报告摘要与来源元数据，不把原报告公开。此类型仅 Operator 可提出和重验，普通 Memory grant 与 CLI archive grant 彼此不扩权；公开投影仍仅显示 opaque provenance。历史 LOCAL / CLOUD 合同不变，归档结果仍为报告者声明，不升级为可信执行事实。

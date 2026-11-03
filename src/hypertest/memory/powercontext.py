@@ -102,12 +102,12 @@ class PowerContextAdapter:
         return {"ready": True, "retrieval": mode, "external_generation": False,
                 "external_embedding": mode == "hybrid", "source": "CONFIGURED_FIXED_PROFILE"}
 
-    async def adopt_scope(self, scope_id, namespace):
+    async def adopt_scope(self, scope_id, namespace, *, reference_kind="hypertest-project"):
         """Verify an Operator's exact target; neither rename nor create a scope."""
         value = await self._request("GET", f"/v1/scopes/{_path_id(scope_id)}")
         references = value.get("external_references", [])
-        expected = {"kind": "hypertest-project", "value": namespace}
-        project_refs = [ref for ref in references if isinstance(ref, dict) and ref.get("kind") == "hypertest-project"]
+        expected = {"kind": reference_kind, "value": namespace}
+        project_refs = [ref for ref in references if isinstance(ref, dict) and ref.get("kind") == reference_kind]
         if value.get("scope_id") != scope_id or project_refs != [expected]:
             raise MemoryUpstreamError("MEMORY_UPSTREAM_SCOPE_MISMATCH")
         return scope_id
@@ -253,6 +253,45 @@ class PowerContextAdapter:
         by_identity = {(row["artifact_id"], row["revision"]): row for row in material if row is not None}
         return {"mode": value["mode"], "hits": [row if row["kind"] == KIND else by_identity[(row["artifact_id"], row["revision"])]
             for row in result if row["kind"] == KIND or (row["artifact_id"], row["revision"]) in by_identity]}
+
+    async def browse(self, scope_id, *, history=False, query=None, cursor=None, limit=20):
+        """Explicit inventory/search; never follows Scope references or reads Sources."""
+        _path_id(scope_id)
+        if query is not None:
+            if cursor is not None:
+                raise MemoryUpstreamError("MEMORY_SEARCH_CURSOR_UNSUPPORTED")
+            mode = getattr(self.settings, "memory_search_mode", "fts")
+            payload = {"scope_id": scope_id, "query": query, "limit": limit, "mode": mode}
+            value = await self._request("POST", "/v1/memory/search", payload=payload)
+            if value.get("mode") not in ({"text"} if mode == "fts" else {"text", "vector", "hybrid"}):
+                raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
+            hits = value.get("hits")
+            if not isinstance(hits, list) or len(hits) > limit:
+                raise MemoryUpstreamError("MEMORY_UPSTREAM_SEARCH_INVALID")
+            records = [hit.get("memory") for hit in hits if isinstance(hit, dict)]
+            next_cursor = None
+        else:
+            payload = {"scope_id": scope_id, "states": ["active"], "limit": limit}
+            if history:
+                payload["kind"] = "historical_technical_record"
+            if cursor is not None:
+                payload["cursor"] = cursor
+            value = await self._request("POST", "/v1/atomic-memory/list", payload=payload)
+            records, next_cursor = value.get("items"), value.get("next_cursor")
+            if not isinstance(records, list) or len(records) > limit or (next_cursor is not None and (
+                    not isinstance(next_cursor, str) or not next_cursor or len(next_cursor) > 4096 or next_cursor == cursor)):
+                raise MemoryUpstreamError("MEMORY_UPSTREAM_CURSOR_INVALID")
+        locators = []
+        for record in records:
+            if not isinstance(record, dict) or record.get("state") != "active":
+                continue
+            kind = record.get("kind")
+            if not (kind == "historical_technical_record" if history else shared_kind(kind)):
+                continue
+            locators.append({**_ref(record.get("artifact")), "kind": kind})
+        material = await asyncio.gather(*(self._shared_material(scope_id, row) for row in locators))
+        return {"items": [row for row in material if row is not None], "next_cursor": next_cursor,
+                "search_mode": value.get("mode") if query is not None else None}
 
     async def find_operation(self, scope_id, marker):
         _path_id(marker)
