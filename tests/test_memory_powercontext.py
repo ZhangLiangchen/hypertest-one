@@ -32,6 +32,71 @@ def material(text, **overrides):
             "content_digest": "sha256:" + digest, **overrides}
 
 
+def external_material(kind="fact"):
+    content = {"schema": "powercontext.atomic-memory.v1", "kind": kind, "text": "Verified shared lesson"}
+    digest = hashlib.sha256(json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return material(content["text"], content=content, content_digest="sha256:" + digest)
+
+
+@pytest.mark.asyncio
+async def test_adopt_existing_scope_requires_unique_project_ref_without_renaming(tmp_path):
+    namespace = "hypertest-project-123"
+    value = {"scope_id": "scp_original", "title": "Existing project knowledge",
+        "external_references": [{"kind": "hypertest-project", "value": namespace}]}
+    calls = []
+    def handle(request):
+        calls.append(request)
+        assert request.method == "GET" and request.url.path == "/v1/scopes/scp_original"
+        return httpx.Response(200, json=value)
+    adapter = make_adapter(tmp_path, handle)
+    assert await adapter.adopt_scope("scp_original", namespace) == "scp_original"
+    value["external_references"].append({"kind": "hypertest-project", "value": "another-project"})
+    with pytest.raises(MemoryUpstreamError, match="SCOPE_MISMATCH"):
+        await adapter.adopt_scope("scp_original", namespace)
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state,revision,expected", [("active", 1, 1), ("retired", 1, 0), ("active", 2, 0)])
+async def test_shared_search_reads_current_state_and_exact_digest_excludes_history(tmp_path, state, revision, expected):
+    calls = []
+    def handle(request):
+        calls.append(request.url.path)
+        if request.method == "POST":
+            assert json.loads(request.content)["mode"] == "hybrid"
+            records = [{"artifact": ref(), "kind": kind, "state": "active", "text": "stale untrusted index text"}
+                for kind in ("fact", "historical_technical_record")]
+            return httpx.Response(200, json={"mode": "hybrid", "hits": [
+                {"memory": row, "matched_by": ["vector"]} for row in records]})
+        if request.url.path.endswith("/state"):
+            return httpx.Response(200, json={"artifact": {**ref(), "revision": revision}, "state": state, "state_version": 4})
+        assert request.url.path.endswith("/revisions/1")
+        return httpx.Response(200, json=external_material())
+    result = await make_adapter(tmp_path, handle, memory_search_mode="hybrid").search_project("scp_original", "natural language", 20, 5)
+    assert result["mode"] == "hybrid" and len(result["hits"]) == expected
+    if expected:
+        assert result["hits"][0]["content"] == "Verified shared lesson"
+        assert result["hits"][0]["matched_by"] == ["vector"] and result["hits"][0]["state_version"] == 4
+    assert len(calls) == 2 + expected
+
+
+@pytest.mark.asyncio
+async def test_shared_search_rejects_cross_scope_and_bad_digest(tmp_path):
+    value = external_material()
+    def handle(request):
+        if request.method == "POST":
+            return httpx.Response(200, json={"mode": "text", "hits": [{"memory": {
+                "artifact": ref(), "kind": "fact", "state": "active"}, "matched_by": ["text"]}]})
+        if request.url.path.endswith("/state"):
+            return httpx.Response(200, json={"artifact": ref(), "state": "active", "state_version": 1})
+        return httpx.Response(200, json=value)
+    adapter = make_adapter(tmp_path, handle)
+    for changes in ({"scope_id": "scp_history"}, {"content_digest": "sha256:" + "0" * 64}):
+        value = {**external_material(), **changes}
+        with pytest.raises(MemoryUpstreamError):
+            await adapter.search_project("scp_original", "history", 20, 5)
+
+
 @pytest.mark.asyncio
 async def test_pinned_remember_transmits_only_approved_text_and_fixed_get(tmp_path):
     calls = []
