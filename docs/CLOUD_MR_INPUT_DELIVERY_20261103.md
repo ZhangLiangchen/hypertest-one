@@ -33,3 +33,11 @@ API/Web healthy，API health、项目任务列表、指定创建页 HTTP 200；�
 ## USER_OWNED 验收
 
 未创建业务任务、调用真实 MR、模型或 SUT。浏览器控制不可用（browser access host unavailable / cgWindowNotFound），未进行实际页面交互；自动回归、脚本交付检查及部署健康不代替用户功能验收。
+
+## 后续纠正：恢复任务名称输入（2026-11-03）
+
+用户明确要求保留任务名称输入。创建页面现为必填任务名称、MR/PR 地址和单个可选测试说明；名称随 CREATE_TASK 请求提交并校验空白，分支、MR 编号、SHA 选择表单继续移除，框架默认 main。API 省略 title 的默认命名能力保持，此默认不代替页面输入。
+
+19 项直接相关表单回归及差异、机械检测通过。仅部署 Web；构建包含类型检查并通过，创建页/API health HTTP 200，Web healthy，实际交付脚本确认名称输入与校验。未做业务任务或实际页面交互验收。
+
+部署 Git `94c44db054629c105f2032abcd24a90a799d9e45`，镜像 `hypertest-mac-web:94c44db` / `sha256:a272bea851a2f02faca759f61cffc3b75eb41050105b1986059bcb877946373a`。此提交合入当前已部署的 Memory `548416c`，相对该 Web 基线只修改名称表单和关联测试。API/BFF/数据库容器与宿主 Worker PID 未变，无迁移；完整 Compose 链追加 `cloud-title-20261103/compose.json`。本机当前部署清单、README 和现行产品文档已同步，前节自动名称页面描述仅为上一轮历史。证据：`~/.local/share/hypertest-mac/cloud-title-20261103/deployment.json` 和构建/启动日志。
