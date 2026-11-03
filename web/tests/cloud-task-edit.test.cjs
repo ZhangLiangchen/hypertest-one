@@ -12,12 +12,13 @@ const original = {
   authorization: { targets: ['https://example.test'], permitted_actions: ['git:read'], network_targets: ['example.test'], expires_at: '2027-02-03T08:11:12.123456Z', side_effect_limits: 'limits', other: 'keep' },
   budgets: { accounting_unit: 'REQUEST_CREDITS', total_seconds: 1800, total_cost_microunits: 1000, max_attempts: 3, max_concurrency: 2, other: 'keep' }, other: { untouched: true },
 };
-const values = () => ({ mr_url: original.mr_url, sut_kind:'BRANCH', sut_ref:'main', sut_strategy:'HEAD', framework_kind:'MR', framework_ref:'7', framework_strategy:'MERGE', framework_base:'refs/heads/main', prd:'requirements', prd_version:'v1', objective:'objective', basic_flow:'flow', test_scope:'scope' });
+const values = () => ({ mr_url: original.mr_url, prompt: 'Use staging' });
 test('editing a draft preserves test content and refreshes internal repository authorization', () => {
   const { authorization, ...content } = original;
-  assert.deepEqual(plain(editedCloudInputs(original, values())), content);
-  const changed = plain(editedCloudInputs(original, { ...values(), objective: 'new objective' }));
-  assert.equal(changed.objective, 'new objective');
+  assert.deepEqual(plain(editedCloudInputs(original, values())), { ...content, prompt: 'Use staging' });
+  const changed = plain(editedCloudInputs(original, { ...values(), prompt: 'new instructions' }));
+  assert.equal(changed.prompt, 'new instructions');
+  assert.equal(changed.objective, original.objective);
   assert.deepEqual(changed.budgets, original.budgets);
   assert.equal(changed.budgets.max_concurrency, 2);
   assert.equal(Object.hasOwn(changed, 'authorization'), false);
@@ -48,7 +49,7 @@ test('draft edit uses current project repositories and preserves its task versio
   assert.equal(submitted[0].expected_project_version, 8);
   assert.equal(submitted[0].title, 'Updated title');
   const { authorization, ...content } = original;
-  assert.deepEqual(plain(submitted[0].inputs), content);
+  assert.deepEqual(plain(submitted[0].inputs), { ...content, prompt: 'Use staging' });
   assert.deepEqual(original.authorization, authorization);
   assert.deepEqual(completed, [task.id]);
 });
@@ -57,4 +58,11 @@ test('MR context URL rejects credentials, non-HTTPS and unrelated pages', () => 
   const { validChangeUrl } = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
   for (const url of ['https://git.test/team/sut/-/merge_requests/1', 'https://github.com/org/repo/pull/12']) assert.equal(validChangeUrl(url), true);
   for (const url of ['', 'http://git.test/team/sut/-/merge_requests/1', 'https://user:secret@git.test/team/sut/-/merge_requests/1', 'https://git.test/team/sut', 'https://git.test/team/sut/-/merge_requests/0', 'https://git.test/team/sut/-/merge_requests/1?token=secret']) assert.equal(validChangeUrl(url), false);
+});
+
+test('changing an MR drops the old SUT selector without mutating the historical input', () => {
+  const changed = editedCloudInputs(original, { mr_url: 'https://example.test/team/sut/-/merge_requests/8', prompt: 'New focus' });
+  assert.equal(Object.hasOwn(changed, 'sut_selector'), false);
+  assert.deepEqual(plain(changed.framework_selector), original.framework_selector);
+  assert.equal(original.sut_selector.value, 'main');
 });

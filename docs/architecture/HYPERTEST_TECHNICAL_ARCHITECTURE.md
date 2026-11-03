@@ -1076,7 +1076,7 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 
 ### 45.3 项目仓库、任务输入与工作区
 
-**ADR-038 当前路径：** 项目详情是两仓地址的管理入口。CREATE/UPDATE 用 `expected_project_version` 核对 Project 版本，由 API 在既有不可变配置表生成内部仓库快照；新快照无 environment，不依赖资源列表或 CONFIGURE。`inputs.mr_url` 必填，检出选择器可省略并使用 HEAD。MR 仓库须属于 Project 的仓库或同主机下级范围，项目为 GitLab group 时从 MR 定位实际仓库。Worker 将 MR/PR 上下文和原任务 prompt 交给 Harness；环境访问和 SUT 部署由执行节点及项目工具负责。下文关于环境引用、部署匹配和受控凭据交付的旧条款仅解释旧 profile，不作为新任务前置配置。
+**ADR-038 当前路径：** 项目详情是两仓地址的管理入口。CREATE/UPDATE 用 `expected_project_version` 核对 Project 版本，由 API 在既有不可变配置表生成内部仓库快照；新快照无 environment，不依赖资源列表或 CONFIGURE。`inputs.mr_url` 是唯一必填的测试输入，`inputs.prompt` 为可选补充说明；创建标题省略时由服务端生成，不补造旧 PRD、目标或流程。省略 SUT 选择器时从 URL 生成 GitLab `refs/merge-requests/<id>/head` 或 GitHub `refs/pull/<id>/head`，框架选择器默认 `BRANCH main`。MR 仓库须属于 Project 的仓库或同主机下级范围，项目为 GitLab group 时从 MR 定位实际仓库。Worker 解析并固定两仓完整 SHA，将 MR/PR 上下文和原任务 prompt 交给 Harness，由 Agent 使用已配置工具（如 glab）查询改动与需求；环境访问和 SUT 部署由执行节点及项目工具负责。下文关于环境引用、部署匹配和受控凭据交付的旧条款仅解释旧 profile，不作为新任务前置配置。
 
 新任务和复测的测试授权不设截止；历史冻结期限及独立 Worker lease、grant 和凭据期限仍按各自合同执行。
 
@@ -1087,9 +1087,9 @@ Docker Attempt 候选的 Agent 源码由受信 Worker 从私有固定 Git 检出
 [ADR-036](ADR-036_WORKER_CLAIM_RECOVERY.md) 以每 Worker 单行 sequence 高水位处理薄 Worker 领取失答，原领取与该状态同事务提交；恢复入口仅返回非秘密状态并封口/fence 原领取，首次 claim capability 不再次交付。客户端私有完整意图与进程级 flock 防止重复发送及执行；空闲网络/5xx 故障有界退避，实际 runtime 异常关闭原槽后仍停止。恢复不运行 Git、SDK 或测试，也不提供外部停止证明；旧无序号 pending 需关闭旧入口、核对原授权并人工退役，保持 UNKNOWN。该机制独立于任务报告和外部操作账本，不增加常驻 Harness。
 
 
-Project 保存 SUT / framework 两个 credential-free origin；允许同仓，但各自角色和实际 SHA 分别记录。新任务的内部仓库快照来自 Project 与其范围内的 MR 仓库，检出选择器可省略；不保存环境地址、连接方式或预期部署版本。PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行。用户选择分支、feat 或 MR 时仍需解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
+Project 保存 SUT / framework 两个 credential-free origin；允许同仓，但各自角色和实际 SHA 分别记录。新任务的内部仓库快照来自 Project 与其范围内的 MR 仓库，检出选择器可省略；不保存环境地址、连接方式或预期部署版本。可选 prompt 及实际提供的 PRD / 测试目标 / 基本流程是任务输入原件，不作为可信系统指令执行；缺省不伪造正文或需求证明。默认 MR/PR head 与框架 main，以及明确提交的既有选择器均须解析到精确版本；任意 URL、仓库文本或 `.git/config` 不能自行扩展批准 origin / scope。
 
-CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA、MR base / head 和实际使用 head 或 merge commit，返回不可变 CloudInputResolution。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
+CloudTask 仅 DRAFT 可编辑。下发前，通过 ResolveCloudInputs 让受限 Worker 从批准 origin 解析 SUT SHA、framework SHA 与对应选择器的实际 checkout 身份，返回不可变 CloudInputResolution。默认 MR/PR head ref 固定为实际 head commit；显式 MR 选择器仍按原合同记录 base / head 和 head 或 merge commit。该快照绑定 draft / config 版本、原选择器、PRD、资源 / 凭据和授权范围；预检不启动 Harness 或测试，不等于执行 dispatch 接受，不在 API 运行 Git。无需为这一窄预检建立通用工作流引擎，具体身份、工作授权与 DTO 由领域 §51、TMP §46 定义。
 
 dispatch 只接受有效 resolution_id，重新校验版本和当前授权，原子冻结精确双仓输入、MR/PR 上下文、任务 prompt 与内部操作范围并入队；新输入不生成环境或预算。草稿 / 配置变化必须重新解析；排队后 branch 移动不改变本次输入。PREPARING 仅按固定 SHA checkout、核对身份和执行前能力，不能改为最新分支。相同输入的显式 rerun 复用原固定 SHA；精确持久化规则由领域 §51 定义。
 

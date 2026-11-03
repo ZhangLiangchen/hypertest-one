@@ -1,6 +1,6 @@
 # HyperTest Domain Model & State Machine Specification
 
-> **2026-11-03 领域边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 将 Project 两仓地址作为新 Cloud 任务仓库快照的配置来源；MR/PR URL 是必填变更上下文，其仓库须位于 Project SUT 范围内，环境在 prompt 中说明。新写不产生环境配置或预期部署版本。§51 的旧环境合同仅解释历史 profile。
+> **2026-11-03 领域边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 将 Project 两仓地址作为新 Cloud 任务仓库快照的配置来源；MR/PR URL 是唯一必填的测试输入，其仓库须位于 Project SUT 范围内，单个 prompt 可选。标题可自动生成，SUT 默认 MR/PR head，框架默认 main，解析时固定实际 SHA。新写不产生环境配置或预期部署版本。§51 的旧环境合同仅解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定快速原型的宿主 Worker 模式，取代 §51 中与之冲突的任务容器准入；目标合同和实际交付分别记录。
 
@@ -2311,7 +2311,7 @@ Cloud 本轮仅接入官方 Python SDK 驱动的 DeepSeek Harness + Codex；Clau
 
 ### 51.1 身份、实体与关系
 
-**ADR-038 当前数据路径：** Project.repository_url 与 test_framework_repository_url 在项目详情编辑。新建/编辑草稿以 expected_project_version 校验 Project.row_version，并在既有 ProjectCloudConfigRevision 表追加只含两仓的内部不可变快照；SUT 取 Project 范围内 MR 所在仓库，framework 取 Project 地址，不要求用户配置资源，也不保存 environment。CloudTask.inputs.mr_url 为必填 HTTPS MR/PR 改动上下文，允许省略的两仓选择器默认为 BRANCH HEAD。Project 编辑不回填已有任务；显式编辑 DRAFT 重新生成当前仓库快照并重新解析。该变化无需新表或迁移。
+**ADR-038 当前数据路径：** Project.repository_url 与 test_framework_repository_url 在项目详情编辑。新建/编辑草稿以 expected_project_version 校验 Project.row_version，并在既有 ProjectCloudConfigRevision 表追加只含两仓的内部不可变快照；SUT 取 Project 范围内 MR 所在仓库，framework 取 Project 地址，不要求用户配置资源，也不保存 environment。CloudTask.inputs.mr_url 为必填 HTTPS MR/PR 改动上下文，inputs.prompt 可选；创建 title 可省略并由服务端以仓库名与 MR/PR 编号生成。旧 PRD、版本、目标、流程和范围可省略，实际提供的正文仍保存，缺省不补造。省略 sut_selector 时生成 BRANCH 选择器，value 为 GitLab `refs/merge-requests/<id>/head` 或 GitHub `refs/pull/<id>/head`；省略 framework_selector 时为 BRANCH main。解析固定当时观察的完整 SHA，显式提供的旧选择器及已存任务不因默认值调整而重写。Project 编辑不回填已有任务；显式编辑 DRAFT 重新生成当前仓库快照并重新解析。该变化无需新表或迁移。
 
 新建/编辑草稿的源码读取和框架执行内部授权随当前仓库快照生成，不接受非空 inputs.authorization，不继承旧环境权限或旧仓库目标。冻结任务及独立复测仍保留各自原授权，不因项目编辑改变。
 
@@ -2401,13 +2401,13 @@ canonical远端操作绑定Project / Task / Attempt、原worker grant / generati
 **ADR-031（2026-11-02）覆盖：** 新 CloudTask 的 `budgets` 为 null，不接受任务预算输入，不生成预算 hold / settlement。模型、推理和插件由云端 Harness 原生 `sdk` profile 管理。下文预算字段、累计额度和结算规则只解释旧冻结任务及其历史对账；旧冻结任务不能重新下发，未冻结且无 Attempt 的旧 DRAFT 在编辑或重新解析时移除预算并更新版本。隔离、授权、lease/fence 和原 key 未知操作恢复继续有效。新模式的受控 SSH、HTTPS 与外部写暂不支持。
 
 1. 创建或复用 Project，在项目详情维护 SUT 与 framework 仓库地址；不另建资源或环境配置。
-2. 创建 DRAFT CloudTask，必填 MR/PR URL，提供 PRD、目标、流程和范围，在 prompt 中说明测试环境。两仓检出选择器可选，省略时使用 HEAD；MR 是变更上下文，不是部署版本。创建界面不输入平台环境、授权、预算、框架命令或 Agent 配置。
+2. 创建 DRAFT CloudTask，只需填写 MR/PR URL，可选在单个 prompt 补充测试环境、目标、流程和范围，标题自动生成。SUT 默认 MR/PR head，框架默认 main 最新提交并在解析时固定 SHA；MR 不是部署版本。创建界面不再要求 PRD、PRD 版本、目标、流程、范围或检出选择器表单，也不输入平台环境、授权、预算、框架命令或 Agent 配置。
 3. 先用 `ResolveCloudInputs` 将 DRAFT 的仓库快照与选择器交给受限 Worker 解析，形成不可变 CloudInputResolution；Git 解析在 Worker 和聚合行锁外进行，API 不运行 Git，也不预检或部署 SUT 环境。显式 dispatch 引用 resolution_id，重新检查授权、draft/config version 与 expected_version，原子接受冻结 manifest、首个 QUEUED Attempt、操作回执、Audit 和 Outbox。排队成功不代表已启动 Harness 或测试通过。
 4. Worker 领取该 Attempt，按 ADR-032 准备工作区，以官方 Python SDK 启动 DeepSeek harness、提交冻结任务并记录分工；宿主路径不宣称 OS 强隔离。
 5. 持久接受分析、设计、用例和实现修订；原件回收独立于主进程是否仍存活。
 6. Agent 调用已有测试入口，保存每次 Run、case actual、日志/原报告及最终汇报。第 5/6 步可循环，所有失败与修订保留。
 
-冻结 manifest 必须包含两个仓库的规范地址、角色、选择器、完整 commit SHA 与访问配置版本。MR 记录 base/head SHA、来源 MR 和 checkout_strategy（HEAD 或 MERGE），实际测试 checkout SHA 明示；MERGE 结果须实际存在且被固定，不自行猜测合并 SHA。同仓双角色也分别固定。PRD 保存确切内容/附件版本及 digest，不能只保存一个可变 URL；目标、流程、范围、MR/PR URL、framework 入口与内部授权同时冻结。新 manifest 不包含平台环境或预算；旧环境连接修订及预算只解释其历史 profile。
+冻结 manifest 必须包含两个仓库的规范地址、角色、选择器、完整 commit SHA 与访问配置版本。默认 MR/PR head ref 保存实际 checkout SHA 与来源 URL，不因 URL 存在而虚构已查询的 MR base/head 元数据。显式 MR 选择器仍记录 base/head SHA、来源 MR 和 checkout_strategy（HEAD 或 MERGE），MERGE 结果须实际存在且被固定，不自行猜测合并 SHA。同仓双角色也分别固定。实际提供 PRD 时保存确切内容/附件版本及 digest，不能只保存一个可变 URL；未提供时省略 `prd_sha256`，不伪造需求正文或已取得需求的证明。可选 prompt、实际提供的目标/流程/范围、MR/PR URL、framework 入口与内部授权同时冻结。新 manifest 不包含平台环境或预算；旧环境连接修订及预算只解释其历史 profile。
 
 2026-11-01：新任务可省略框架入口、授权和预算。当前实现为省略项物化仅含两仓读取与工作区框架执行、无额外网络目标的内部授权，以及兼容既有 Worker 账本的过渡额度；这些仍是 HyperTest 限制，不是 Harness 预算。未指定入口时记录实际执行命令，不再把空列表视为禁止全部入口；显式配置的入口或冻结 framework runtime 仍按既有契约校验。旧任务的授权、预算与未知账本不因编辑被重置。Harness 原生 CLI 配置接入另待实现。
 
@@ -2417,7 +2417,7 @@ ADR-038 新任务不保存期望部署身份，也不设置平台部署匹配准
 
 未冻结的 DRAFT 可通过 `UPDATE_TASK` 在原 key、当前授权和 expected_version 下完整替换标题、配置与输入；更新后的版本须重新解析，旧解析不能用于新版本下发。`DELETE_TASK` 是 `cloud:control` 授权的版本化软删除。DRAFT 或终态保持无未决工作的原准入；按 [ADR-034](../architecture/ADR-034_CLOUD_DELETION_AND_RECOVERY.md)，最新 Attempt 已请求取消、旧 writer 已 fence 且处于 RECOVERY_REQUIRED 的任务也可移出列表。输入解析的 PENDING、RESOLVING 或未完全撤权的 RECOVERY_REQUIRED 仍阻止删除；按 ADR-036，仅 RECOVERY_REQUIRED 且 lease_token_hash、lease_expires_at 均为空、没有任何未撤销 work grant 的解析不再构成删除阻塞，过期不能替代撤权。原解析状态及未知事实保留，移出列表不证明原 Git 操作未发生。该恢复分支允许保留未决外部操作、容器及委派，不将 UNKNOWN 改写为已对账或终态。事务追加不可变墓碑及回执，固定版本快照中的 `task.deleted_at` 标识删除，目录隐藏墓碑任务，后续新执行与普通写入被拒绝；原 key 对账和固定历史仍可读取。已删除的待恢复任务仅保留人工收尾、原动作观察授权和原容器恢复确认/停止观察，仍须通过原有权限、版本、fence 及未决操作检查；Task 只可逐版本保持恢复或收尾 FAILED/CANCELLED，结果、输入、墓碑及删除快照不变。删除不改变状态、结果、冻结输入或外部操作事实，不自动取消或重发。被删除任务仍保留其 Project 约束及历史。
 
-ADR-038 新写由服务端从 Project 和其范围内 MR 仓库自动生成内部快照；不接受 config_id，不另设配置表单。两仓 selector 可省略并使用 HEAD，再沿解析及 dispatch 规则固定完整 commit。Project expected_project_version 与 Task expected_version 分别校验；同原 key 的已接受回执先于新版本检查返回，异请求仍冲突。历史 revision、请求摘要及冻结任务不改写，仓库信息不赋予凭据权限。
+ADR-038 新写由服务端从 Project 和其范围内 MR 仓库自动生成内部快照；不接受 config_id，不另设配置表单。两仓 selector 可省略并按 MR/PR head 与框架 main 默认规则生成，再沿解析及 dispatch 规则固定完整 commit。Project expected_project_version 与 Task expected_version 分别校验；同原 key 的已接受回执先于新版本检查返回，异请求仍冲突。历史 revision、请求摘要及冻结任务不改写，仓库信息不赋予凭据权限。
 
 预算的 `accounting_unit` 随输入冻结：缺省 / 既有任务按 `CONSERVATIVE_MICROUNITS` 解释，不迁移或改写旧任务；单独批准的模型接入可显式选 `REQUEST_CREDITS`。后者虽沿用 `total_cost_microunits` / `cost_microunits` 字段名，值表示按已冻结请求费率计算的计数额度，不能解释为 USD、供应商 token 账单、真实费用或退款。Codex OAuth 首片仅接受显式 `REQUEST_CREDITS`，不假定可观测其货币价格。
 

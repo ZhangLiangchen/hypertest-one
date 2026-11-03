@@ -210,19 +210,22 @@ export default function CloudTaskPage() {
           </section> : null}
         </div>
         <section className="overview-section cloud-task-intent"><Typography.Title id="cloud-task-inputs" tabIndex={-1} level={2}>{t("Frozen task intent", "任务输入意图")}</Typography.Title>
-          <Descriptions column={2} layout="vertical" items={[{ key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> },
-            { key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> },
+          <Descriptions column={2} layout="vertical" items={[
+            ...(task.inputs.prompt != null ? [{ key: "prompt", label: t("Testing instructions", "测试说明"), span: 2, children: <span className="session-literal">{text(task.inputs.prompt)}</span> }] : []),
+            ...(task.inputs.objective ? [{ key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(task.inputs.objective)}</span> }] : []),
+            ...(task.inputs.test_scope ? [{ key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(task.inputs.test_scope)}</span> }] : []),
             { key: "mr", label: t("MR / PR URL", "MR / PR 地址"), span: 2, children: <span className="session-literal">{text(task.inputs.mr_url)}</span> },
-            { key: "flow", label: t("Testing instructions / prompt", "测试说明 / Prompt"), span: 2, children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> },
-            { key: "entrypoints", label: t("Framework entrypoints", "框架入口"), span: 2, children: <pre className="session-literal">{text(task.inputs.framework_entrypoints)}</pre> },
+            ...(task.inputs.basic_flow ? [{ key: "flow", label: t("Testing instructions / prompt", "测试说明 / Prompt"), span: 2, children: <span className="session-literal">{text(task.inputs.basic_flow)}</span> }] : []),
+            ...(task.inputs.framework_entrypoints ? [{ key: "entrypoints", label: t("Framework entrypoints", "框架入口"), span: 2, children: <pre className="session-literal">{text(task.inputs.framework_entrypoints)}</pre> }] : []),
             ...(task.inputs.budgets != null ? [{ key: "budgets", label: t("Frozen budgets", "冻结预算"), span: 2, children: <pre className="session-literal">{text(task.inputs.budgets)}</pre> }] : []),
-          ]} /><details><summary>{t("Read original PRD", "查看 PRD 原文")}</summary><pre className="artifact-content session-markdown">{text(task.inputs.prd_markdown)}</pre></details>
+          ]} />{task.inputs.prd_markdown ? <details><summary>{t("Read original PRD", "查看 PRD 原文")}</summary><pre className="artifact-content session-markdown">{text(task.inputs.prd_markdown)}</pre></details> : null}
         </section>
       </div> },
       { key: "artifacts", label: t("Artifacts and results", "产物与结果"), children: <CloudTaskRecords document={detail} /> },
       { key: "attempts", label: t("Attempt history", "尝试历史"), children: <section className="cloud-task-history" aria-labelledby="cloud-attempt-history-heading"><Typography.Title id="cloud-attempt-history-heading" tabIndex={-1} level={2}>{t("Attempt history", "尝试历史")}</Typography.Title><div className="data-surface"><Table rowKey="id" dataSource={detail.attempts} scroll={{ x: 650 }} pagination={false} expandable={{ expandedRowRender: (row) => {
         const inputs = (row.execution_manifest?.inputs || task.inputs) as CloudRecord;
         return <><Typography.Paragraph>{row.execution_manifest ? t("Inputs confirmed for this attempt", "本次尝试确认的输入") : t("This attempt used the original frozen inputs", "本次尝试使用原冻结输入")}</Typography.Paragraph><Descriptions column={1} size="small" layout="vertical" items={[
+          ...(inputs.prompt != null ? [{ key: "prompt", label: t("Testing instructions", "测试说明"), children: <span className="session-literal">{text(inputs.prompt)}</span> }] : []),
           { key: "objective", label: t("Objective", "目标"), children: <span className="session-literal">{text(inputs.objective)}</span> },
           { key: "scope", label: t("Scope", "范围"), children: <span className="session-literal">{text(inputs.test_scope)}</span> },
           { key: "flow", label: t("Execution steps", "执行步骤"), children: <span className="session-literal">{text(inputs.basic_flow)}</span> },

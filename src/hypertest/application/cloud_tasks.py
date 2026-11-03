@@ -268,6 +268,14 @@ def _sut_repository_from_mr(project_origin, mr_url):
     return urlunsplit((origin.scheme, origin.netloc, "/" + target + ".git", "", ""))
 
 
+def _title_from_mr(mr_url):
+    path = urlsplit(mr_url).path.rstrip("/")
+    marker = "/-/merge_requests/" if "/-/merge_requests/" in path else "/pull/"
+    repository, number = path.rsplit(marker, 1)
+    label = "MR !" if marker == "/-/merge_requests/" else "PR #"
+    return f"{repository.rsplit('/', 1)[-1]} {label}{number}"[:512]
+
+
 async def _project_repository_snapshot(db, project_id, expected_project_version, actor_ref, mr_url):
     """Freeze Project repositories without a second configuration surface."""
     row = await project(db, project_id, lock=True)
@@ -640,7 +648,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             await _task(db, payload.related_task_id, payload.project_id)
             if await db.get(CloudTaskDeletion, payload.related_task_id):
                 raise HTTPException(409, "Deleted Cloud Task cannot be used as a related task")
-        task = CloudTask(id=uuid7(), project_id=payload.project_id, owner_actor_ref=actor_ref, title=payload.title,
+        task = CloudTask(id=uuid7(), project_id=payload.project_id, owner_actor_ref=actor_ref,
+            title=payload.title or _title_from_mr(payload.inputs.mr_url),
             config_id=config.id, inputs=_task_inputs_with_runtime_defaults(payload.inputs, config.configuration, await clock(db)), status="DRAFT", version=1,
             reported_result="NOT_RUN", related_task_id=payload.related_task_id)
         db.add(task)
@@ -707,8 +716,9 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
                 raise HTTPException(409, "Dispatch requires an accepted immutable resolution for this exact DRAFT version")
             manifest = {"profile": PROFILE, "project_id": str(task.project_id), "cloud_task_id": str(task.id),
                 "config_id": str(config.id), "config_revision": config.revision, "configuration": config.configuration,
-                "inputs": task.inputs, "resolution": resolution.result, "resolution_id": str(resolution.id),
-                "prd_sha256": hashlib.sha256(task.inputs["prd_markdown"].encode()).hexdigest()}
+                "inputs": task.inputs, "resolution": resolution.result, "resolution_id": str(resolution.id)}
+            if task.inputs.get("prd_markdown") is not None:
+                manifest["prd_sha256"] = hashlib.sha256(task.inputs["prd_markdown"].encode()).hexdigest()
             task.frozen_manifest, task.input_digest = manifest, canonical_json_sha256(manifest)
         else:
             old = await db.get(CloudAttempt, task.latest_attempt_id) if task.latest_attempt_id else None

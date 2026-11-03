@@ -609,7 +609,7 @@ def test_native_retry_uses_its_verified_manifest_without_changing_the_original(t
     assert task == untouched and task["inputs"]["budgets"]["max_attempts"] == 1
     prompt = json.loads(native_prompt(effective, attempt, tmp_path, retry_snapshot=retry))
     assert prompt["frozen_manifest"] == snapshot
-    assert any("original PRD is historical context" in line for line in prompt["instructions"])
+    assert any("original prompt and PRD are historical context" in line for line in prompt["instructions"])
     assert any("Never resend an operation with an unknown outcome" in line for line in prompt["instructions"])
 
 
