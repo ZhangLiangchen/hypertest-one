@@ -42,6 +42,16 @@ function editorHarness(editor) {
   return { values, form: nodes(tree).find((node) => node.type === Form), nodes: nodes(tree) };
 }
 
+test("External knowledge renders exact source and a distinct review label without publication actions", () => {
+  const { ExternalMemoryResults } = component();
+  const record = { artifact_id: "art_shared", revision: 3, scope_id: "scp_project", kind: "fact",
+    content: "<script>untrusted()</script>", content_digest: "sha256:abcdef", matched_by: ["vector"] };
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, { initialLocale: "en" }, React.createElement(ExternalMemoryResults, { records: [record] })));
+  for (const text of ["External project knowledge", "not platform reviewed", "scp_project/art_shared@3", "sha256:abcdef", "vector", "&lt;script&gt;"]) assert.ok(html.includes(text), text);
+  assert.equal(html.includes("<script>"), false);
+  for (const action of ["Review and publish", "Withdraw shared experience", "Append a shared revision"]) assert.equal(html.includes(action), false);
+});
+
 test("Candidate form submits only explicitly selected accepted source and lesson", async () => {
   const current = editorHarness({ action: "CREATE_CANDIDATE" });
   await current.form.props.onFinish({ mode: "LOCAL", task_id: "task-a", task_version: 7, report_id: "report-a", title: "Selected", content: "Lesson", applicability: "v1", transcript: "never selected" });
