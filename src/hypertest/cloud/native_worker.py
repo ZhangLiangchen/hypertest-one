@@ -17,6 +17,7 @@ import os
 import re
 import secrets
 import stat
+import tempfile
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -137,6 +138,14 @@ class RemoteBroker:
 
 CLAIM_PROFILE = "hypertest-native-worker-claim/v2"
 CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds", "supports_attempt_manifest"}
+
+
+def check_cordis_runtime() -> None:
+    """Verify the pinned preset is available before claiming any new work."""
+    from .native_cordis import prepare_cordis_overlay
+
+    with tempfile.TemporaryDirectory(prefix="hypertest-cordis-preflight-") as directory:
+        prepare_cordis_overlay(Path(directory))
 
 
 def _validate_claim_request(request: object, worker_id: str) -> dict:
@@ -573,6 +582,7 @@ async def _run_locked(args, state: Path) -> int:
 
                 inspect_native_sdk()
                 check_sdk_profile(args.dsh_home)
+                check_cordis_runtime()
                 runtime_checked = True
                 auth_monitor = asyncio.create_task(observe_auth())
             current = await _claim_read(api, args, "claim/state", {"worker_id": args.worker_id})

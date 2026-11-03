@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import select
 import sys
+import tempfile
 import threading
+from pathlib import Path
 
 from .native_selection import read_native_selection
 from .runtime_activity import project_finish_reason, project_notification
@@ -152,25 +155,53 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
             count += 1
             emit({"runtime_activity": observation})
 
-    # No env overrides or platform key are passed to the SDK. Its child inherits
-    # only the already filtered host user environment of this driver.
-    options = {"profile": "sdk", "dsh_home": config["dsh_home"], "cwd": config["workspace"]}
-    if question_channel is not None:
-        # Unsupported SDK versions fail closed rather than presenting a fake interaction.
-        options["on_user_question"] = question_channel.ask
-    with HarnessClient(HarnessConfig(**options)) as client:
-        info = client.initialize(cwd=config["workspace"], **selection).serverInfo
-        if info is None or info.name != "deepseek-harness-sdk-runtime" or info.version != "0.0.1":
-            raise ValueError("unexpected SDK protocol")
-        with client.subscribe_notifications() as subscription:
-            client.session_prompt(config["session_id"], [{"type": "text", "text": config["prompt"]}],
-                                  on_notification=observe, notification_subscription=subscription)
-            client.request("session/wait", {"sessionId": config["session_id"]},
-                           response_model=WaitResponse, on_notification=observe,
-                           notification_subscription=subscription)
-            subscription.drain(observe)
+    # The SDK normally creates the root Agent inside session/prompt.  Require a
+    # freshly registered pre-prompt preset guard before sending that request.
+    # The directory and nonce are private to this child invocation; the marker
+    # is consumed before the Agent can receive any prompt or use any tools.
+    with tempfile.TemporaryDirectory(prefix="hypertest-cordis-") as directory:
+        from .native_cordis import prepare_cordis_overlay
+
+        overlay = prepare_cordis_overlay(Path(directory))
+        marker = Path(directory) / "ready.json"
+        nonce = secrets.token_hex(32)
+        options = {"profile": "sdk", "dsh_home": config["dsh_home"], "cwd": config["workspace"],
+                   "patches": (str(overlay),),
+                   "env": {"DSH_SDK_CORDIS_ROOT": config["session_id"],
+                           "DSH_SDK_CORDIS_NONCE": nonce,
+                           "DSH_SDK_CORDIS_HANDSHAKE": str(marker)}}
+        if question_channel is not None:
+            # Unsupported SDK versions fail closed rather than presenting a fake interaction.
+            options["on_user_question"] = question_channel.ask
+        with HarnessClient(HarnessConfig(**options)) as client:
+            info = client.initialize(cwd=config["workspace"], **selection).serverInfo
+            if info is None or info.name != "deepseek-harness-sdk-runtime" or info.version != "0.0.1":
+                raise ValueError("unexpected SDK protocol")
+            _require_cordis_guard(marker, nonce, config["session_id"])
+            with client.subscribe_notifications() as subscription:
+                client.session_prompt(config["session_id"], [{"type": "text", "text": config["prompt"]}],
+                                      on_notification=observe, notification_subscription=subscription)
+                client.request("session/wait", {"sessionId": config["session_id"]},
+                               response_model=WaitResponse, on_notification=observe,
+                               notification_subscription=subscription)
+                subscription.drain(observe)
     emit({"runtime_observation": "IDLE", "session_id": config["session_id"],
           "finish_reason": finish_reason})
+
+
+def _require_cordis_guard(marker: Path, nonce: str, session_id: str) -> None:
+    """Reject absent, malformed, stale or unexpected guard registrations."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(marker, flags)
+        with os.fdopen(fd, "rb") as stream:
+            payload = stream.read(4097)
+        if len(payload) > 4096 or json.loads(payload) != {
+                "phase": "registered", "nonce": nonce, "root": session_id}:
+            raise ValueError("invalid preset guard")
+        marker.unlink()
+    except (OSError, ValueError, UnicodeError) as error:
+        raise ValueError("SDK preset guard unavailable") from error
 
 
 def main() -> int:

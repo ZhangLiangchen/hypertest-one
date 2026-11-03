@@ -24,6 +24,8 @@ docker compose -p hypertest-mac-powercontext \
 
 Web 可通过非秘密环境变量 `HYPERTEST_HARNESS_WEB_URL` 配置原生 DeepSeek Harness Web UI 入口；本机入口为 `http://10.66.66.3:3080/`。只接受不含用户信息、查询参数和片段的 HTTP(S) 地址，允许反向代理路径前缀。未配置或格式无效时不展示入口，不影响任务下发。该配置只增加浏览器外链，不代理认证、不启动 Harness 服务、不改变 Worker 或会话；现有 Harness 登录和 WireGuard 访问边界保持。
 
+宿主原生 SDK Worker 为每个新根会话生成临时 Cordis（创造模式）适配层：使用经过核对的固定 SDK runtime 自带 preset，并在首个提示前要求适配器注册及根智能体成功挂载 preset。Worker 在领取新工作前预检该固定 runtime 和 preset，原 key 的领取恢复仍优先执行；实际调用时再次检查。SDK 二进制发生变化时预检会拒绝新领取，需要先核对新版本的 preset、监听器失败语义及工具兼容性并更新固定值，不能绕过校验。该适配只影响原生 SDK Worker，模型及实验插件仍由实际 `sdk` profile 配置；插件加载、工具可用、模型认证和测试结论分别核实。
+
 ### 复用现有环境与最小隔离（2026-10-24 增补）
 
 复用已有干净 checkout、依赖与构建缓存，不重复创建全栈环境。自动回归只可使用明确专用的 test DB；破坏性迁移测试需要时可创建最小临时合成测试库，完成后清理，不将 fixtures 写入业务数据库。
