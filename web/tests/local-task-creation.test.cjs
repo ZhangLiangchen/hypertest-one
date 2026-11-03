@@ -28,7 +28,7 @@ function unifiedCreationHarness({ mode = "cloud", locale = "en", configured = tr
     const result = { isSuccess: true, isLoading: false, isPending: false, isError: false, isFetching: false, data, ...queries[queryKey[0]] };
     return { ...result, refetch: async () => ({ data: result.data }) };
   };
-  const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { URL, require: (name) => name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
+  const cloudForm = load("app/projects/[projectId]/cloud/task-form.tsx", { URL, require: (name) => name === "@/lib/cloud-test-prompt" ? load("lib/cloud-test-prompt.ts") : name === "@/lib/clipboard" ? load("lib/clipboard.ts") : name === "@/lib/i18n" ? i18n : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud : name === "next/link" ? link : require(name) });
   const notices = load("app/projects/[projectId]/cloud/cloud-shared.tsx", { require: (name) => name === "@/lib/i18n" ? i18n : name === "@/lib/cloud-recovery" ? load("lib/cloud-recovery.ts") : name === "next/link" ? link : require(name) });
   const { TaskCreateForm } = load("app/projects/[projectId]/tasks/new/task-create-form.tsx", { require: (name) => name === "@/lib/task-url" ? load("lib/task-url.ts") : name === "@/lib/i18n" ? i18n : name === "@/app/workspace-ui" ? workspaceUi
     : name === "antd" ? { ...antd, Form } : name === "@/lib/cloud" ? cloud
@@ -48,6 +48,8 @@ test("Cloud creation retains its task title alongside a change link and optional
     assert.equal(html.includes("data-archive-prompt"), mode === "local");
     assert.equal((html.match(/id="title"/g) || []).length, mode === "local" ? 1 : 0);
     assert.equal((html.match(/id="cloud-task_title"/g) || []).length, 1);
+    assert.ok(html.includes(locale === "en" ? "E2E testing instructions template" : "E2E 测试说明模板"));
+    assert.match(html, /<details class="cloud-test-prompt"><summary>/, "the template starts collapsed");
     assert.equal((html.match(/id="objective"/g) || []).length, mode === "local" ? 1 : 0);
     assert.equal(operationHookCalls, 1);
     assert.ok(html.includes(locale === "en" ? "Cloud testing" : "云端测试"));

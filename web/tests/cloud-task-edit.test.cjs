@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const load = require('./load-helper.cjs');
 const cloud = load('lib/cloud.ts', { URL, TextEncoder, Uint8Array, DataView, Int32Array });
-const { editedCloudInputs } = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
+const { editedCloudInputs } = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === "@/lib/cloud-test-prompt" ? load("lib/cloud-test-prompt.ts") : name === "@/lib/clipboard" ? load("lib/clipboard.ts") : name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const original = {
   sut_selector: { kind: 'BRANCH', value: 'main', checkout_strategy: 'HEAD', extension: 'retained' },
@@ -34,7 +34,7 @@ test('draft edit uses current project repositories and preserves its task versio
   const i18n = load('lib/i18n.tsx', { require });
   const forms = [], submitted = [], completed = [];
   const Form = Object.assign((props) => { forms.push(props); return React.createElement(antd.Form, props); }, antd.Form, { useWatch: () => null });
-  const module = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? i18n : name === 'antd' ? { ...antd, Form } : name === 'next/link' ? { default: () => null } : require(name) });
+  const module = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === "@/lib/cloud-test-prompt" ? load("lib/cloud-test-prompt.ts") : name === "@/lib/clipboard" ? load("lib/clipboard.ts") : name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? i18n : name === 'antd' ? { ...antd, Form } : name === 'next/link' ? { default: () => null } : require(name) });
   const project = { id: 'project-1', row_version: 8, repository_url: 'https://example.test/sut', test_framework_repository_url: 'https://example.test/framework' };
   const task = { id: 'task-original', title: 'Old title', version: 7, config_id: 'historic-config', inputs: original };
   const operation = { blocked: false, busy: false, pending: null, submit: async (payload) => { submitted.push(payload); return { task_id: task.id }; } };
@@ -55,7 +55,7 @@ test('draft edit uses current project repositories and preserves its task versio
 });
 
 test('MR context URL rejects credentials, non-HTTPS and unrelated pages', () => {
-  const { validChangeUrl } = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
+  const { validChangeUrl } = load('app/projects/[projectId]/cloud/task-form.tsx', { URL, require: (name) => name === "@/lib/cloud-test-prompt" ? load("lib/cloud-test-prompt.ts") : name === "@/lib/clipboard" ? load("lib/clipboard.ts") : name === '@/lib/cloud' ? cloud : name === '@/lib/i18n' ? {} : name === 'next/link' ? {} : require(name) });
   for (const url of ['https://git.test/team/sut/-/merge_requests/1', 'https://github.com/org/repo/pull/12']) assert.equal(validChangeUrl(url), true);
   for (const url of ['', 'http://git.test/team/sut/-/merge_requests/1', 'https://user:secret@git.test/team/sut/-/merge_requests/1', 'https://git.test/team/sut', 'https://git.test/team/sut/-/merge_requests/0', 'https://git.test/team/sut/-/merge_requests/1?token=secret']) assert.equal(validChangeUrl(url), false);
 });

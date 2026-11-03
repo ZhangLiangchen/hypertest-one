@@ -560,6 +560,11 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-task-fields .ant-select-single .ant-select-selector { padding-inline: 14px; }
 .cloud-task-fields .ant-select-multiple .ant-select-selector { min-height: 42px; padding: 4px 10px; }
 .cloud-task-fields .ant-select:not(.ant-select-disabled) .ant-select-arrow { color: var(--ht-muted); }
+.cloud-test-prompt { margin-bottom: 24px; border: 1px solid var(--ht-line); border-radius: 12px; background: var(--ht-surface); }
+.cloud-test-prompt > summary { padding: 14px 16px; cursor: pointer; font-weight: 600; }
+.cloud-test-prompt[open] > summary { border-bottom: 1px solid var(--ht-line); }
+.cloud-test-prompt-body { display: grid; gap: 16px; padding: 16px; }
+.cloud-test-prompt-body .ant-typography { margin: 0; }
 .cloud-task-fields .ant-input-number { height: 42px; }
 .cloud-task-fields .ant-input-number-input { height: 40px; padding-inline: 14px 30px; font-variant-numeric: tabular-nums; }
 .cloud-task-fields .ant-input-number:not(.ant-input-number-disabled) .ant-input-number-handler-wrap { width: 22px; opacity: 1; }
