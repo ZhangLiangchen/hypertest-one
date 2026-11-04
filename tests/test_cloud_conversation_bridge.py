@@ -79,6 +79,19 @@ def make(tmp_path, api=None, *, spool=None, ready=True):
     return bridge, api, adapter
 
 
+@pytest.mark.parametrize("code,expected", [("SDK_SESSION_BUSY", "SDK_SESSION_BUSY"),
+    ("SDK_SESSION_UNAVAILABLE", "SDK_SESSION_UNAVAILABLE"), ("private-diagnostic", "SDK_RUN_FAILED")])
+async def test_runtime_error_observation_retains_only_fixed_session_reason(tmp_path, code, expected):
+    bridge, _, _ = make(tmp_path)
+    try:
+        await bridge.accept_frame({"runtime_observation": "ERROR", "code": code})
+        observation = bridge.queue.get_nowait()
+        assert observation["state"] == "INTERRUPTED"
+        assert observation["reason_code"] == expected and observation["text"] == ""
+    finally:
+        await bridge.close()
+
+
 @pytest.mark.asyncio
 async def test_secret_rejection_stores_only_empty_placeholder(tmp_path):
     bridge, api, _ = make(tmp_path)

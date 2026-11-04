@@ -141,7 +141,8 @@ class ConversationBridge:
                     payload["reason_code"] = reason
                 await self.queue.put(payload)
             elif state == "ERROR":
-                await self.record_state("INTERRUPTED", "SDK_RUN_FAILED")
+                code = frame.get("code")
+                await self.record_state("INTERRUPTED", code if code in {"SDK_SESSION_BUSY", "SDK_SESSION_UNAVAILABLE"} else "SDK_RUN_FAILED")
         elif "user_message_ack" in frame:
             item = frame["user_message_ack"]
             if (not isinstance(item, dict) or item.get("status") not in {"DELIVERED", "UNKNOWN"}

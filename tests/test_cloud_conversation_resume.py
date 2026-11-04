@@ -89,13 +89,18 @@ async def test_offline_send_only_saves_then_worker_claim_restores_original_sessi
     assert (await poll(context, claimed)).json()["message"] is None
 
 
-async def test_failed_connection_preserves_unattempted_message_and_original_digest(claim_context):
+@pytest.mark.parametrize("reason", ["WORKER_INTERRUPTED", "SDK_SESSION_BUSY"])
+async def test_failed_connection_preserves_unattempted_message_and_original_digest(claim_context, reason):
     context = claim_context
     work, original = await setup(context)
     await close(context, original)
     sent = (await send(context, work)).json()
     claimed = await claim_next(context, 2)
-    await close(context, claimed)  # No polling or SDK delivery ever occurred.
+    # The child failed before polling or SDK input delivery. The fixed reason
+    # must pass the actual Worker fence schema and retain the queued message.
+    fenced = await context["client"].post("/api/v1/cloud/worker/fence", headers=context["worker_headers"],
+        json={**target(context, claimed), "reason": reason})
+    assert fenced.status_code == 200, fenced.text
     async with AsyncSessionLocal() as db:
         attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
         original_checkpoint, original_generation = dict(attempt.checkpoint), attempt.lease_generation
@@ -115,6 +120,7 @@ async def test_failed_connection_preserves_unattempted_message_and_original_dige
         assert [message.id for message in rows] == [row.id]
         attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
         assert attempt.status == "RECOVERY_REQUIRED"
+        assert attempt.reason == reason
         assert attempt.checkpoint == original_checkpoint and attempt.lease_generation == original_generation
         assert (await db.get(CloudTask, UUID(work["task_id"]))).version == original_version
     assert (await next_claim_response(context, 3))["claim"] is None

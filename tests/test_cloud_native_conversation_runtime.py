@@ -57,9 +57,18 @@ def test_single_reader_routes_question_and_message_and_close():
         os.close(write_fd)
 
 
-def fake_sdk(monkeypatch, *, events=None, resume_failure=False, restored_cwd=None):
+def fake_sdk(monkeypatch, *, events=None, resume_failure=False, resume_rpc_error=None, restored_cwd=None):
     calls = []
     module = ModuleType("deepseek_harness")
+    errors = ModuleType("deepseek_harness.errors")
+
+    class JsonRpcError(Exception):
+        def __init__(self, code, message):
+            super().__init__(message)
+            self.code, self.message = code, message
+
+    errors.JsonRpcError = JsonRpcError
+    monkeypatch.setitem(__import__("sys").modules, "deepseek_harness.errors", errors)
 
     class Config:
         def __init__(self, **values): self.values = values
@@ -87,8 +96,10 @@ def fake_sdk(monkeypatch, *, events=None, resume_failure=False, restored_cwd=Non
         def request(self, method, *args, **kwargs): calls.append(method)
         def resume_session(self, session):
             calls.append(("resume", session))
+            if resume_rpc_error is not None:
+                raise JsonRpcError(*resume_rpc_error)
             if resume_failure:
-                raise RuntimeError("missing or already owned session")
+                raise RuntimeError(resume_failure if isinstance(resume_failure, str) else "missing or already owned session")
         def get_working_directory(self, session): return restored_cwd or self.config.values["cwd"]
 
     module.HarnessConfig, module.HarnessClient = Config, Client
@@ -221,6 +232,95 @@ def test_resume_accepts_existing_native_worktree_without_changing_transport_work
     assert calls == [("resume", "original-root"), "session/wait", "shutdown"]
     assert {"session_ready": {"session_id": "original-root"}} in emitted
     assert not any("prompt_enqueued" in item for item in emitted)
+
+
+@pytest.mark.parametrize("code,message,busy", [
+    (-32603, 'session "original-root" is already owned by an active write handle', True),
+    (-32000, 'session "original-root" is already owned by an active write handle', False),
+    (-32603, 'session "another-root" is already owned by an active write handle', False),
+    (-32603, 'session "original-root" is already owned by an active write handle extra private diagnostic', False),
+    (-32603, 'session "original-root" does not exist', False),
+])
+def test_only_exact_native_resume_ownership_error_is_busy(monkeypatch, tmp_path, code, message, busy):
+    from hypertest.cloud import native_cordis
+    from hypertest.cloud.errors import CloudBlocked
+
+    calls = fake_sdk(monkeypatch, resume_rpc_error=(code, message))
+    def overlay(directory, **kwargs):
+        (directory / "hypertest-cordis-root.mjs").write_text(native_cordis._HOOK)
+        return directory / "overlay.yml"
+    monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", overlay)
+    emitted = []
+    with pytest.raises(Exception) as rejected:
+        driver.run({"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "original-root",
+                    "title": "Original title", "prompt": None, "resume": True}, emitted.append)
+    assert isinstance(rejected.value, CloudBlocked) is busy
+    if busy:
+        assert rejected.value.code == "SDK_SESSION_BUSY"
+        assert message not in str(rejected.value)
+    else:
+        assert rejected.value.code == code
+    assert calls == [("resume", "original-root"), "shutdown"]
+    assert not any("session_ready" in item or "prompt_enqueued" in item for item in emitted)
+
+
+def test_resume_owned_text_from_a_non_rpc_exception_is_not_reclassified(monkeypatch, tmp_path):
+    from hypertest.cloud import native_cordis
+
+    message = 'session "original-root" is already owned by an active write handle'
+    calls = fake_sdk(monkeypatch, resume_failure=message)
+    def overlay(directory, **kwargs):
+        (directory / "hypertest-cordis-root.mjs").write_text(native_cordis._HOOK)
+        return directory / "overlay.yml"
+    monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", overlay)
+    with pytest.raises(RuntimeError, match="already owned"):
+        driver.run({"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "original-root",
+                    "title": "Original title", "prompt": None, "resume": True}, lambda frame: None)
+    assert calls == [("resume", "original-root"), "shutdown"]
+
+
+@pytest.mark.parametrize("code,expected", [("SDK_SESSION_BUSY", "SDK_SESSION_BUSY"),
+    ("SDK_SESSION_UNAVAILABLE", "SDK_SESSION_UNAVAILABLE"), ("private-diagnostic", "SDK_RUN_FAILED")])
+def test_driver_error_frame_keeps_only_fixed_session_codes(monkeypatch, capsys, code, expected):
+    from hypertest.cloud.errors import CloudBlocked
+
+    config = {"workspace": "/synthetic", "dsh_home": "/synthetic", "session_id": "original-root",
+              "title": "Synthetic", "resume": True, "prompt": None}
+    monkeypatch.setattr(driver.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
+    monkeypatch.setattr(driver, "_PipeInput", lambda fd: SimpleNamespace(readline=lambda limit: json.dumps(config).encode()))
+    def fail(*args):
+        raise CloudBlocked(code, "private-diagnostic must not escape")
+    monkeypatch.setattr(driver, "run", fail)
+    assert driver.main() == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {"runtime_observation": "ERROR", "code": expected}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["SDK_SESSION_BUSY", "SDK_SESSION_UNAVAILABLE"])
+async def test_session_error_reaches_conversation_and_worker_without_generic_relabel(code):
+    import asyncio
+
+    from hypertest.cloud.errors import CloudBlocked
+    from hypertest.cloud.live_question_bridge import LiveQuestionBridge
+    from hypertest.cloud.native_worker import _recovery_reason, _safe_work_error
+
+    frames = []
+    async def accept_frame(frame):
+        frames.append(frame)
+    conversation = SimpleNamespace(accept_frame=accept_frame)
+    stream = asyncio.StreamReader()
+    frame = {"runtime_observation": "ERROR", "code": code}
+    stream.feed_data(json.dumps(frame).encode() + b"\n")
+    stream.feed_eof()
+    bridge = LiveQuestionBridge(None, None, "original-root", conversation=conversation)
+    with pytest.raises(CloudBlocked) as rejected:
+        await bridge.read(SimpleNamespace(stdout=stream))
+    assert frames == [frame]
+    assert rejected.value.code == code
+    assert _recovery_reason(rejected.value) == code
+    assert _safe_work_error(rejected.value)["error_code"] == code
 
 
 @pytest.mark.parametrize("target", ["nextTurn", "nextStep", "empty"])

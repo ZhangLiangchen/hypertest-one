@@ -231,7 +231,19 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
             emit({"runtime_ready": {"session_id": config["session_id"]}})
             with client.subscribe_notifications() as subscription:
                 if config.get("resume", False):
-                    client.resume_session(config["session_id"])
+                    try:
+                        client.resume_session(config["session_id"])
+                    except Exception as error:
+                        from deepseek_harness.errors import JsonRpcError
+
+                        from .errors import CloudBlocked
+
+                        # Only the fixed native ownership failure is transient.
+                        # Never release another host's handle or retry input here.
+                        if (isinstance(error, JsonRpcError) and error.code == -32603
+                                and error.message == f'session "{config["session_id"]}" is already owned by an active write handle'):
+                            raise CloudBlocked("SDK_SESSION_BUSY", "Original Harness session is currently in use") from None
+                        raise
                     restored = Path(client.get_working_directory(config["session_id"]))
                     # The native session may use a worktree selected by the Agent.
                     # Its transport directory is not an execution sandbox.
@@ -322,7 +334,7 @@ def main() -> int:
     except Exception as error:
         # SDK exceptions can contain arbitrary content or credentials.
         from .errors import CloudBlocked
-        code = error.code if isinstance(error, CloudBlocked) and error.code == "SDK_SESSION_UNAVAILABLE" else "SDK_RUN_FAILED"
+        code = error.code if isinstance(error, CloudBlocked) and error.code in {"SDK_SESSION_UNAVAILABLE", "SDK_SESSION_BUSY"} else "SDK_RUN_FAILED"
         emit({"runtime_observation": "ERROR", "code": code})
         return 1
     finally:
