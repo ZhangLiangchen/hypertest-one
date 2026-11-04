@@ -18,6 +18,8 @@
 
 ## 未完成的开发与条件
 
+- 本机 Claude Code 的知识检索客户端回归因未登录而 BLOCKED（实际 CLI 返回 authentication_failed，未发生检索）；需要该客户端合法模型登录后再验。Native Worker 各轮检索与知识使用分别记录，见[受管历史查询记录](CLOUD_MANAGED_HISTORY_ACCEPTANCE_20261104.md)。
+
 - Cloud 既有外部业务动作的复测与原 key 观测仍分别验收；本机无外部写操作的独立 Attempt 网页复测已完成，见[网页闭环](CLOUD_WEB_LIFECYCLE_ACCEPTANCE_20261103.md)。[ADR-033](architecture/ADR-033_CLOUD_ATTEMPT_RETRY_SNAPSHOT.md) 的独立快照、范围/授权确认及未知操作不重放边界继续适用；宿主直接操作不经过旧受控 broker，也不提供强隔离。
 
 - [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker 的公司发行和未来项目资源隔离的全容器化另行设计；本机领取恢复与真实结果回传已见本轮交付，不重复列为开发待办。

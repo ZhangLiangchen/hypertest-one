@@ -4,6 +4,8 @@
 
 ## 现行入口
 
+- [Cloud 受管显式历史查询与真实 Worker 验收（2026-11-04）](CLOUD_MANAGED_HISTORY_ACCEPTANCE_20261104.md)：原任务身份与前后 fence、固定 history scope、完整条目预算、真实模型更正链使用及客户端认证边界。
+
 - [Cloud 异步会话修复（2026-11-04）](CLOUD_ASYNC_SESSION_DELIVERY_20261104.md)：消息保存与 Worker 连接分离、内部恢复、归档修正不中断对话；实施、部署及用户验收分别记录。
 
 - [ADR-041：Cloud 作为 Harness 外壳](architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md)：执行和审批归 Harness，平台提供任务、普通消息及产物；替代 ADR-039 的人工接管流程。实施和部署见[薄壳纠正记录](CLOUD_HARNESS_SHELL_DELIVERY_20261104.md)。
