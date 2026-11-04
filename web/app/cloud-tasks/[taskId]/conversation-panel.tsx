@@ -13,25 +13,26 @@ import { LiveQuestionsPanel } from "./live-questions-panel";
 
 type Props = {
   projectId: string; taskId: string; attempt: CloudAttempt; attempts: CloudAttempt[]; blocked: boolean;
-  onRecovery: () => void; onArtifacts: () => void; artifactCount: number;
+  onArtifacts: () => void; artifactCount: number;
 };
 
 export function ConversationPanel(props: Props) {
   const { t } = useI18n();
   const [selected, setSelected] = useState(props.attempt.id);
   useEffect(() => { setSelected(props.attempt.id); }, [props.attempt.id]);
-  const attempt = props.attempts.find((row) => row.id === selected) || props.attempt;
+  const attempt = selected === props.attempt.id ? props.attempt : props.attempts.find((row) => row.id === selected) || props.attempt;
   return <section className="overview-section cloud-conversation" aria-labelledby="cloud-conversation-heading">
     <div className="cloud-conversation-heading">
       <div><Typography.Title id="cloud-conversation-heading" tabIndex={-1} level={2}>{t("Agent conversation", "Agent 对话")}</Typography.Title>
         <Typography.Paragraph className="muted">{t("Read the agent’s progress and reply here. Test reports are recorded separately.", "查看 Agent 的进展并在这里回复。测试报告单独归档。")}</Typography.Paragraph></div>
       <Space>
-        {props.attempts.length > 1 ? <Select aria-label={t("Conversation attempt", "对话所属执行尝试")} value={attempt.id} onChange={setSelected}
-          options={props.attempts.map((row) => ({ value: row.id, label: t(`Attempt ${row.attempt_no}${row.id === props.attempt.id ? " · current" : " · history"}`, `尝试 ${row.attempt_no}${row.id === props.attempt.id ? " · 当前" : " · 历史"}`) }))} /> : null}
+        {props.attempts.length > 1 ? <Select aria-label={t("Conversation history", "会话记录")} value={attempt.id} onChange={setSelected}
+          options={props.attempts.map((row) => ({ value: row.id, label: t(`Session ${row.attempt_no}${row.id === props.attempt.id ? " · current" : " · history"}`, `会话 ${row.attempt_no}${row.id === props.attempt.id ? " · 当前" : " · 历史"}`) }))} /> : null}
         <Button onClick={props.onArtifacts}>{t(`Artifacts (${props.artifactCount})`, `产物（${props.artifactCount}）`)}</Button>
       </Space>
     </div>
-    <ConversationStream key={`${props.projectId}:${props.taskId}:${attempt.id}`} {...props} attempt={attempt} readOnly={attempt.id !== props.attempt.id} />
+    <ConversationStream key={`${props.projectId}:${props.taskId}:${attempt.id}`} {...props} attempt={attempt}
+      readOnly={attempt.id !== props.attempt.id || ["COMPLETED", "FAILED", "CANCELLED"].includes(attempt.status)} />
   </section>;
 }
 
@@ -46,10 +47,10 @@ function sessionLabel(state: string | undefined, t: (en: string, zh: string) => 
     RUNNING: t("Agent is working", "Agent 正在执行"), ACTIVE: t("Agent is working", "Agent 正在执行"),
     AWAITING_REPLY: t("Waiting for your reply", "等待你的回复"),
     IDLE: t("Ready for your reply", "可以继续回复"), READY: t("Ready for your reply", "可以继续回复"),
-    BLOCKED: t("Agent is blocked", "Agent 遇到阻塞"), OFFLINE: t("Session unavailable", "会话暂不可用"),
+    BLOCKED: t("Agent is blocked", "Agent 遇到阻塞"), OFFLINE: t("Session disconnected", "会话已断开"),
     CLOSED: t("Session ended", "会话已结束"), COMPLETED: t("Session ended", "会话已结束"),
     INTERRUPTED: t("Session interrupted", "会话已中断"), CONNECTING: t("Connecting to the session", "正在连接会话"),
-    RECOVERY_REQUIRED: t("Session needs recovery", "会话需要恢复"), UNKNOWN: t("Session status unconfirmed", "会话状态未确认"),
+    RECOVERY_REQUIRED: t("Session disconnected", "会话已断开"), UNKNOWN: t("Session status unconfirmed", "会话状态未确认"),
   };
   return labels[state || ""] || t("Checking the session", "正在核对会话");
 }
@@ -78,7 +79,7 @@ function messageText(message: ConversationMessage, t: (en: string, zh: string) =
   return t("Message content is unavailable.", "消息正文不可用。");
 }
 
-function ConversationStream({ projectId, taskId, attempt, blocked, readOnly, onRecovery }: Props & { readOnly: boolean }) {
+function ConversationStream({ projectId, taskId, attempt, blocked, readOnly }: Props & { readOnly: boolean }) {
   const { t, formatDate } = useI18n();
   const cache = useRef<{ messages: ConversationMessage[]; cursor: number }>({ messages: [], cursor: 0 });
   const [draft, setDraft] = useState("");
@@ -120,7 +121,7 @@ function ConversationStream({ projectId, taskId, attempt, blocked, readOnly, onR
   const session = conversation.data?.session;
   const outstanding = pending[0];
   const canSend = !readOnly && !blocked && !conversation.isError && session?.can_send === true
-    && Number.isSafeInteger(session.generation) && session.generation >= 1 && journalReady && !journalError && !outstanding && !sending;
+    && journalReady && !journalError && !outstanding && !sending;
   const lastCursor = conversation.data?.next_cursor;
   useEffect(() => {
     if (!outstanding || !messages.some((row) => row.operation_key === outstanding.operation_key)) return;
@@ -151,7 +152,7 @@ function ConversationStream({ projectId, taskId, attempt, blocked, readOnly, onR
     if (!canSend || !draft.trim() || sendingRef.current || !session) return;
     sendingRef.current = true; setSending(true); setIssue(null);
     try {
-      const result = await sendConversationMessage({ project_id: projectId, task_id: taskId, attempt_id: attempt.id, generation: session.generation }, draft);
+      const result = await sendConversationMessage({ project_id: projectId, task_id: taskId, attempt_id: attempt.id }, draft);
       if (result.state === "ACCEPTED") { setDraft(""); follow.current = true; await conversation.refetch(); }
       if (result.state === "REJECTED") { setIssue("REJECTED"); await conversation.refetch(); }
     } catch { setJournalError(true); }
@@ -159,7 +160,7 @@ function ConversationStream({ projectId, taskId, attempt, blocked, readOnly, onR
   }
 
   return <div>
-    <div className="cloud-conversation-state"><Tag>{readOnly ? t("History · read only", "历史记录 · 只读") : sessionLabel(session?.state, t)}</Tag>
+    <div className="cloud-conversation-state"><Tag>{readOnly ? t("Read only", "只读") : sessionLabel(session?.state, t)}</Tag>
       {conversation.data?.observed_at ? <span className="muted">{t("Updated", "更新于")} {formatDate(conversation.data.observed_at)}</span> : null}
       <Button type="text" size="small" loading={conversation.isFetching} onClick={() => void conversation.refetch()}>{t("Refresh", "刷新")}</Button></div>
     {conversation.isError ? <Alert showIcon type="warning" message={t("Conversation could not be refreshed. Previously loaded messages remain visible.", "对话刷新失败，已加载的消息仍保留。")}/> : null}
@@ -181,7 +182,7 @@ function ConversationStream({ projectId, taskId, attempt, blocked, readOnly, onR
     {conversation.data?.has_more ? <Button className="cloud-conversation-new" loading={conversation.isFetching} onClick={() => void conversation.refetch()}>{t("Load more messages", "加载后续消息")}</Button> : null}
     {newMessages ? <Button className="cloud-conversation-new" onClick={() => { follow.current = true; if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; setNewMessages(false); }}>{t("View new messages", "查看新消息")}</Button> : null}
     <LiveQuestionsPanel projectId={projectId} taskId={taskId} attemptId={attempt.id}
-      running={!readOnly && attempt.status === "RUNNING"} blocked={blocked || readOnly} embedded />
+      running={!readOnly && ["RUNNING", "AWAITING_REPLY"].includes(session?.state || "")} blocked={blocked || readOnly} embedded />
     {!readOnly ? <form className="cloud-conversation-compose" onSubmit={(event) => { event.preventDefault(); void send(); }}>
       {journalError ? <Alert showIcon type="error" message={t("Message recovery storage is unavailable. Sending is disabled.", "消息恢复记录不可用，已禁止发送。")}/> : null}
       {outstanding ? <Alert showIcon type="warning" message={t("The original message is awaiting confirmation", "原消息正在等待确认")}
@@ -190,14 +191,15 @@ function ConversationStream({ projectId, taskId, attempt, blocked, readOnly, onR
       {issue ? <Alert showIcon type="warning" message={issue === "REJECTED"
         ? t("The message was not accepted. Your text is retained; refresh the session before sending again.", "消息未被接受，输入内容已保留；请刷新会话状态后再发送。")
         : t("The original message is still unconfirmed. Keep its original request; do not resend it.", "原消息仍未确认，请保留原请求，不要重新发送。")}/> : null}
-      {session && !session.can_send ? <div className="cloud-conversation-unavailable"><span>{t("This session cannot receive messages right now. Review its recorded state before continuing.", "此会话暂时无法接收消息，请先核对执行状态。")}</span>
+      {session && !session.can_send ? <div className="cloud-conversation-unavailable"><span>{t("Messages cannot be sent right now.", "暂时无法发送消息。")}</span>
         {session.blocking_reasons.length ? <span className="muted">{session.blocking_reasons.map((reason) => blockingMessage(reason, t)).join(" ")}</span> : null}
-        <Button type="link" onClick={onRecovery}>{t("View execution and recovery", "查看执行与恢复")}</Button></div> : null}
+        </div> : null}
+      {session?.can_send && (session.can_reconnect || session.mode === "CONNECT_ON_SEND") ? <p className="muted">{t("Sending a message reconnects the saved session.", "发送消息后会重新连接已保存的会话。")}</p> : null}
       <label htmlFor={`cloud-message-${attempt.id}`}>{t("Reply to the agent", "回复 Agent")}</label>
       <Input.TextArea id={`cloud-message-${attempt.id}`} rows={3} maxLength={16000} showCount value={draft}
         disabled={sending || !!outstanding} onChange={(event) => setDraft(event.target.value)}
         placeholder={t("Add information, answer the agent, or describe the next step.", "补充信息、回答 Agent，或说明下一步。")}/>
-      <div className="cloud-conversation-compose-actions"><p className="muted">{t("Messages are delivered in order. Delivery does not confirm processing; a reply ending does not complete the test report.", "消息依次投递。交付不代表已处理；一轮回复结束不代表测试报告已完成。")}</p>
+      <div className="cloud-conversation-compose-actions"><p className="muted">{t("Delivery does not confirm processing. Test reports appear under artifacts.", "已投递不代表已处理。测试报告见产物区。")}</p>
         <Button type="primary" htmlType="submit" loading={sending} disabled={!canSend || !draft.trim()}>{t("Send message", "发送消息")}</Button></div>
     </form> : null}
   </div>;

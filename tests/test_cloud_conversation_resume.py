@@ -1,7 +1,6 @@
-"""Original-session continuation admission; synthetic DB records, no SDK calls."""
+"""Ordinary messages reconnect the original session without a second prompt."""
 from uuid import UUID
 
-from test_cloud_native_session_anchor import _anchor, _payload
 from test_cloud_tasks import cloud_context as cloud_context
 from test_cloud_tasks import post, worker_submit
 from test_cloud_worker_claim_recovery import api, queued, request, target
@@ -9,120 +8,137 @@ from test_cloud_worker_claim_recovery import claim_context as claim_context
 
 from hypertest.application import cloud_tasks as service
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudAttempt, CloudTask
+from hypertest.domain.cloud_tasks import CloudAttempt, CloudConversationMessage, CloudTask
 
 
-async def recoverable(context, *, anchor=False, pending_message=False):
+async def setup(context):
     work = await queued(context)
-    body = request(context)
-    claimed = (await api(context, "", body)).json()["claim"]
-    if anchor:
-        identity = service.WorkerIdentity(context["worker_id"], claimed["lease_token"],
-                                          claimed["generation"], claimed["work_token"])
-        await _anchor(_payload(context, work), identity)
-    if pending_message:
-        identity = service.WorkerIdentity(context["worker_id"], claimed["lease_token"],
-                                          claimed["generation"], claimed["work_token"])
-        work = await worker_submit(context, identity, work, "TRANSITION", status="RUNNING")
-        worker_body = {**target(context, claimed), "session_id": "cloud-" + work["attempt_id"]}
-        state = await context["client"].post("/api/v1/cloud/worker/conversation/append",
-            headers=context["worker_headers"], json={**worker_body, "event_key": "fixture:running",
-                "role": "SYSTEM", "state": "RUNNING"})
-        assert state.status_code == 200, state.text
-        message = await context["client"].post(f"/api/v1/cloud/tasks/{work['task_id']}/conversation",
-            headers=context["headers"], json={"project_id": context["project_id"], "attempt_id": work["attempt_id"],
-                "generation": claimed["generation"], "operation_key": "fixture:original-user-input",
-                "text": "Inspect the existing blocker."})
-        assert message.status_code == 200, message.text
-        polled = await context["client"].post("/api/v1/cloud/worker/conversation/poll",
-            headers=context["worker_headers"], json=worker_body)
-        assert polled.json()["message"]["id"] == message.json()["id"]
-        claimed["fixture_message_id"] = message.json()["id"]
-    assert (await api(context, "/reconcile", body)).status_code == 200
+    claim = (await api(context, "", request(context))).json()["claim"]
+    identity = service.WorkerIdentity(context["worker_id"], claim["lease_token"], claim["generation"], claim["work_token"])
+    await worker_submit(context, identity, work, "TRANSITION", status="RUNNING")
+    return work, claim
+
+
+async def close(context, claim):
+    identity = service.WorkerIdentity(context["worker_id"], claim["lease_token"], claim["generation"], claim["work_token"])
     async with AsyncSessionLocal() as db:
-        task = await db.get(CloudTask, UUID(work["task_id"]))
-        attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
-        return {**work, "version": task.version, "generation": attempt.lease_generation}, claimed
+        await service.fence_attempt_for_recovery(db, UUID(claim["task"]["id"]), UUID(claim["attempt"]["id"]),
+                                                identity, "WORKER_INTERRUPTED")
 
 
-async def resume(context, work, **changes):
-    return await post({**context, "headers": context["operator_headers"]}, "RESUME_ATTEMPT", work["version"],
-        task_id=work["task_id"], attempt_id=work["attempt_id"], reason="Resume synthetic saved conversation",
-        **{"identity_source": "OPERATOR_ADOPTED", "continuation": "Explain the remaining blocker.",
-           "reconciliation": {"old_owner_fenced": True, "local_processes_stopped": True,
-               "external_operations_reconciled": True, "observations": "Synthetic fixture; no SDK or external work ran."},
-           **changes})
+async def send(context, work, key="message:one", **changes):
+    return await context["client"].post(f"/api/v1/cloud/tasks/{work['task_id']}/conversation", headers=context["headers"],
+        json={"project_id": context["project_id"], "attempt_id": work["attempt_id"], "operation_key": key,
+              "text": "Explain the existing blocker.", **changes})
 
 
-async def test_adoption_keeps_attempt_result_and_only_original_worker_claims_new_generation(claim_context):
+async def claim_next(context, sequence):
+    # The real Worker closes its per-slot claim before taking another one.
+    state = (await api(context, "/state")).json()
+    if not state["closed"]:
+        original = {"worker_id": context["worker_id"], "slot_id": "slot-1", "sequence": state["sequence"],
+                    "request_key": state["request_key"], "lease_seconds": 90, "supports_attempt_manifest": True}
+        assert (await api(context, "/reconcile", original)).status_code == 200
+    claimed = (await api(context, "", request(context, sequence))).json()["claim"]
+    identity = service.WorkerIdentity(context["worker_id"], claimed["lease_token"], claimed["generation"], claimed["work_token"])
+    await worker_submit(context, identity, {"task_id": claimed["task"]["id"], "attempt_id": claimed["attempt"]["id"],
+        "version": claimed["task"]["version"]}, "TRANSITION", status="RUNNING")
+    return claimed
+
+
+async def poll(context, claim):
+    return await context["client"].post("/api/v1/cloud/worker/conversation/poll", headers=context["worker_headers"],
+        json={**target(context, claim), "session_id": "cloud-" + claim["attempt"]["id"]})
+
+
+async def test_missing_anchor_reconnects_from_send_with_one_queued_message(claim_context):
     context = claim_context
-    work, old = await recoverable(context)
-    accepted = await resume(context, work)
-    assert accepted.status_code == 200, accepted.text
-    intent = accepted.json()["native_resume"]
-    assert intent["historical_identity_preanchored"] is False
-    assert intent["target_generation"] == work["generation"] + 1
-    async with AsyncSessionLocal() as db:
-        assert await service.claim_attempt(db, "other-worker", project_id=UUID(context["project_id"])) is None
-    claimed = (await api(context, "", request(context, 2))).json()["claim"]
-    assert claimed["attempt"]["id"] == work["attempt_id"]
-    assert claimed["generation"] == intent["target_generation"] > old["generation"]
-    assert claimed["attempt"]["reported_result"] == "NOT_RUN"
-    assert "native_session_anchor" not in claimed["attempt"]["checkpoint"]
-    payload = {**target(context, claimed), "operation_key": intent["operation_key"],
-               "snapshot_sha256": "b" * 64, "identity_source": "OPERATOR_ADOPTED"}
-    async def identity(body):
-        return await context["client"].post("/api/v1/cloud/worker/resume/identity",
-                                             headers=context["worker_headers"], json=body)
-    first = await identity(payload)
-    assert first.status_code == 200, first.text
-    assert first.json()["historical_identity_preanchored"] is False
-    assert (await identity(payload)).json() == first.json()
-    assert (await identity({**payload, "snapshot_sha256": "c" * 64})).status_code == 409
-    assert (await identity({**payload, "identity": target(context, old)["identity"]})).status_code == 409
-
-
-async def test_resume_requires_stop_attestation_and_cannot_manufacture_old_anchor(claim_context):
-    context = claim_context
-    work, _ = await recoverable(context)
-    denied = await resume(context, work, identity_source="PRE_PROMPT_ANCHORED")
-    assert denied.status_code == 409 and denied.json()["detail"] == "NATIVE_SESSION_ORIGINAL_ANCHOR_REQUIRED"
-    for key in ("old_owner_fenced", "local_processes_stopped", "external_operations_reconciled"):
-        proof = {"old_owner_fenced": True, "local_processes_stopped": True,
-                 "external_operations_reconciled": True, "observations": "Synthetic observation", key: False}
-        denied = await resume(context, work, reconciliation=proof)
-        assert denied.status_code == 409 and denied.json()["detail"] == "NATIVE_RESUME_RECONCILIATION_REQUIRED"
+    work, original = await setup(context)
+    await close(context, original)
+    view = await context["client"].get(f"/api/v1/cloud/tasks/{work['task_id']}/conversation", headers=context["headers"],
+                                      params={"project_id": context["project_id"]})
+    assert view.json()["session"]["can_send"] and view.json()["session"]["can_reconnect"]
+    sent = await send(context, work)
+    assert sent.status_code == 200, sent.text
+    assert (await send(context, work)).json() == sent.json()
     async with AsyncSessionLocal() as db:
         attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
-        attempt.checkpoint = {**attempt.checkpoint, "pending_operation_keys": ["original-unknown-key"]}
-        await db.commit()
-    denied = await resume(context, work)
-    assert denied.status_code == 409 and denied.json()["detail"] == "NATIVE_SESSION_ORIGINAL_OPERATIONS_PENDING"
-
-
-async def test_anchored_resume_preserves_original_anchor_and_does_not_rewrite_prompt(claim_context):
-    context = claim_context
-    work, _ = await recoverable(context, anchor=True)
-    accepted = await resume(context, work, identity_source="PRE_PROMPT_ANCHORED")
-    assert accepted.status_code == 200, accepted.text
-    async with AsyncSessionLocal() as db:
-        attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
-        assert attempt.checkpoint["native_session_anchor"]["generation"] == 1
         intent = attempt.checkpoint["native_resume"]
-        assert intent["historical_identity_preanchored"] is True
-        assert intent["continuation"] == "Explain the remaining blocker."
-        assert intent["source_generation"] == 1
+        assert intent["mode"] == "RESTORE_ONLY" and intent["worker_id"] == context["worker_id"]
+        assert not {"continuation", "identity_source", "reconciliation", "native_session_anchor"} & intent.keys()
+        assert "native_session_anchor" not in attempt.checkpoint and attempt.reported_result == "NOT_RUN"
+        assert await service.claim_attempt(db, "different-worker", project_id=UUID(context["project_id"])) is None
+    claimed = await claim_next(context, 2)
+    assert claimed["attempt"]["id"] == work["attempt_id"] and claimed["generation"] == sent.json()["generation"]
+    assert (await poll(context, claimed)).json()["message"]["id"] == sent.json()["id"]
+    assert (await poll(context, claimed)).json()["message"] is None
 
 
-async def test_resume_cannot_bypass_unknown_user_input_but_accepts_original_sdk_receipt(claim_context):
+async def test_failed_connection_preserves_unattempted_message_and_original_digest(claim_context):
     context = claim_context
-    work, original = await recoverable(context, pending_message=True)
-    denied = await resume(context, work)
-    assert denied.status_code == 409 and denied.json()["detail"] == "NATIVE_RESUME_MESSAGE_DELIVERY_UNKNOWN"
-    acknowledged = await context["client"].post("/api/v1/cloud/worker/conversation/ack",
-        headers=context["worker_headers"], json={**target(context, original),
-            "session_id": "cloud-" + work["attempt_id"], "message_id": original["fixture_message_id"],
-            "status": "DELIVERED", "sdk_message_id": "original-sdk-receipt"})
+    work, original = await setup(context)
+    await close(context, original)
+    sent = (await send(context, work)).json()
+    claimed = await claim_next(context, 2)
+    await close(context, claimed)  # No polling or SDK delivery ever occurred.
+    assert (await send(context, work)).json()["status"] == "QUEUED"
+    next_message = await send(context, work, "message:two", text="More context for that blocker.")
+    assert next_message.status_code == 200, next_message.text
+    async with AsyncSessionLocal() as db:
+        row = await db.get(CloudConversationMessage, UUID(sent["id"]))
+        assert row.status == "QUEUED" and row.generation == next_message.json()["generation"]
+        assert row.request_digest == sent["request_digest"]
+    claimed_again = await claim_next(context, 3)
+    assert (await poll(context, claimed_again)).json()["message"]["id"] == sent["id"]
+
+
+async def test_legacy_queued_digest_keeps_its_original_generation_after_reconnect(claim_context):
+    context = claim_context
+    work, original = await setup(context)
+    sent = (await send(context, work)).json()
+    legacy_digest = service.canonical_json_sha256({"project_id": context["project_id"],
+        "task_id": work["task_id"], "attempt_id": work["attempt_id"], "text": sent["text"],
+        "generation": original["generation"]})
+    async with AsyncSessionLocal() as db:
+        row = await db.get(CloudConversationMessage, UUID(sent["id"]))
+        row.request_digest = legacy_digest  # A previously accepted old-format request.
+        await db.commit()
+    await close(context, original)
+    assert (await send(context, work, "message:two")).status_code == 200
+    recovered = await send(context, work, generation=original["generation"])
+    assert recovered.status_code == 200 and recovered.json()["request_digest"] == legacy_digest
+    current = await claim_next(context, 2)
+    message = (await poll(context, current)).json()["message"]
+    assert message["id"] == sent["id"] and message["request_generation"] == original["generation"]
+    assert message["generation"] == current["generation"] and message["request_digest"] == legacy_digest
+
+
+async def test_unknown_message_is_not_bypassed_or_replayed(claim_context):
+    context = claim_context
+    work, original = await setup(context)
+    sent = (await send(context, work)).json()
+    assert (await poll(context, original)).json()["message"]["id"] == sent["id"]
+    await close(context, original)
+    assert (await send(context, work, "message:two")).status_code == 409
+    assert (await send(context, work)).json()["status"] == "UNKNOWN"
+    acknowledged = await context["client"].post("/api/v1/cloud/worker/conversation/ack", headers=context["worker_headers"],
+        json={**target(context, original), "session_id": "cloud-" + work["attempt_id"], "message_id": sent["id"],
+              "status": "DELIVERED", "sdk_message_id": "original-sdk-message"})
     assert acknowledged.status_code == 200, acknowledged.text
-    accepted = await resume(context, work)
-    assert accepted.status_code == 200, accepted.text
+    assert (await send(context, work, "message:two")).status_code == 200
+
+
+async def test_manual_resume_retired_and_cancelled_attempt_does_not_reconnect(claim_context):
+    context = claim_context
+    work, original = await setup(context)
+    await close(context, original)
+    async with AsyncSessionLocal() as db:
+        version = (await db.get(CloudTask, UUID(work["task_id"]))).version
+    retired = await post(context, "RESUME_ATTEMPT", version, task_id=work["task_id"], attempt_id=work["attempt_id"],
+        reason="Historical schema", identity_source="OPERATOR_ADOPTED", reconciliation={"old_owner_fenced": True})
+    assert retired.status_code == 410
+    assert (await send(context, work)).status_code == 200
+    cancelled = await post(context, "CANCEL_ATTEMPT", version, task_id=work["task_id"], attempt_id=work["attempt_id"], reason="Stop this task")
+    assert cancelled.status_code == 200, cancelled.text
+    assert (await send(context, work, "message:two")).status_code == 409
+    assert (await send(context, work)).json()["status"] == "CANCELLED"

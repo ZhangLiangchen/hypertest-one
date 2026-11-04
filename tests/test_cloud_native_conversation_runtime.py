@@ -1,5 +1,4 @@
 """Public-text projection and single-reader SDK conversations; no model calls."""
-import hashlib
 import json
 import os
 import queue
@@ -58,7 +57,7 @@ def test_single_reader_routes_question_and_message_and_close():
         os.close(write_fd)
 
 
-def fake_sdk(monkeypatch, *, events=None):
+def fake_sdk(monkeypatch, *, events=None, resume_failure=False, restored_cwd=None):
     calls = []
     module = ModuleType("deepseek_harness")
 
@@ -86,8 +85,11 @@ def fake_sdk(monkeypatch, *, events=None):
             calls.append(("prompt", session, content[0]["text"]))
             return "message-" + str(len(calls))
         def request(self, method, *args, **kwargs): calls.append(method)
-        def resume_session(self, session): calls.append(("resume", session))
-        def get_working_directory(self, session): return self.config.values["cwd"]
+        def resume_session(self, session):
+            calls.append(("resume", session))
+            if resume_failure:
+                raise RuntimeError("missing or already owned session")
+        def get_working_directory(self, session): return restored_cwd or self.config.values["cwd"]
 
     module.HarnessConfig, module.HarnessClient = Config, Client
     monkeypatch.setitem(__import__("sys").modules, "deepseek_harness", module)
@@ -154,7 +156,8 @@ async def test_adapter_message_pipe_failure_cannot_repeat_delivery(tmp_path):
     assert pipe.writes == 1
 
 
-def test_resume_restores_same_session_and_sends_only_new_instruction(monkeypatch, tmp_path):
+@pytest.mark.parametrize("send_message", [False, True])
+def test_resume_restores_without_any_implicit_prompt_then_delivers_original_user_id(monkeypatch, tmp_path, send_message):
     from hypertest.cloud import native_cordis
 
     calls = fake_sdk(monkeypatch)
@@ -162,40 +165,49 @@ def test_resume_restores_same_session_and_sends_only_new_instruction(monkeypatch
         (directory / "hypertest-cordis-root.mjs").write_text(native_cordis._HOOK)
         return directory / "overlay.yml"
     monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", overlay)
-    monkeypatch.setattr(driver, "_verify_anchored_identity", lambda *args: None)
+    commands = queue.Queue()
+    channel = SimpleNamespace(commands=commands, closed=False, ask=lambda *args: {})
+    if send_message:
+        commands.put({"type": "user_message", "request_id": "original-platform-user-id", "text": "User's new message"})
+    commands.put({"type": "close"})
+    emitted = []
     driver.run({"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "original-root",
-        "title": "Original title", "prompt": "New continuation only", "continuation": True}, lambda item: None)
-    assert calls == [("resume", "original-root"), ("prompt", "original-root", "New continuation only"),
-                     "session/wait", "shutdown"]
+        "title": "Original title", "prompt": None, "resume": True, "keep_alive": True}, emitted.append, channel)
+    assert calls == [("resume", "original-root"),
+        *([("prompt", "original-root", "User's new message")] if send_message else []), "session/wait", "shutdown"]
+    assert {"session_ready": {"session_id": "original-root"}} in emitted
+    assert not any("prompt_enqueued" in item for item in emitted)
+    if send_message:
+        assert {"user_message_ack": {"request_id": "original-platform-user-id", "status": "DELIVERED", "message_id": "message-2"}} in emitted
 
 
-def test_adopted_identity_needs_no_invented_historical_prompt_hash(monkeypatch, tmp_path):
-    from hypertest.cloud import native_conversation_identity
+@pytest.mark.parametrize("failure", ["owned-or-missing", "wrong-workspace"])
+def test_failed_restore_never_announces_session_ready_or_sends_input(monkeypatch, tmp_path, failure):
+    from hypertest.cloud import native_cordis
 
-    seen = []
-    monkeypatch.setattr(native_conversation_identity, "verify_adopted_identity",
-                        lambda root, **identity: seen.append(identity))
-    config = {"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "old-root",
-        "title": "Existing", "prompt": "New continuation", "continuation": True,
-        "resume_identity": {"source": "OPERATOR_ADOPTED", "attempt_root": str(tmp_path),
-            "digest": "a" * 64, "original": {"workspace": str(tmp_path), "dsh_home": str(tmp_path),
-                "session_id": "old-root", "selection": {"provider": "synthetic"},
-                "title_sha256": hashlib.sha256(b"Existing").hexdigest()}}}
-    driver._verify_anchored_identity(config)
-    assert len(seen) == 1 and "prompt_sha256" not in seen[0]
-    with pytest.raises(ValueError, match="only authorizes explicit continuation"):
-        driver._verify_anchored_identity({**config, "continuation": False})
+    calls = fake_sdk(monkeypatch, resume_failure=failure == "owned-or-missing",
+                     restored_cwd=str(tmp_path.parent) if failure == "wrong-workspace" else None)
+    def overlay(directory, **kwargs):
+        (directory / "hypertest-cordis-root.mjs").write_text(native_cordis._HOOK)
+        return directory / "overlay.yml"
+    monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", overlay)
+    emitted = []
+    with pytest.raises((RuntimeError, ValueError)):
+        driver.run({"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "original-root",
+                    "title": "Original title", "prompt": None, "resume": True}, emitted.append)
+    assert calls == [("resume", "original-root"), "shutdown"]
+    assert not any("session_ready" in item or "prompt_enqueued" in item for item in emitted)
 
 
 @pytest.mark.parametrize("target", ["nextTurn", "nextStep", "empty"])
-def test_resume_guard_refuses_pending_inbox_without_consuming_it(tmp_path, target):
+def test_restored_hook_preserves_native_inbox_without_imposing_a_gate(tmp_path, target):
     from hypertest.cloud.native_cordis import _HOOK
 
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node is needed for the fixed Cordis hook check")
     hook = tmp_path / "hook.mjs"
-    hook.write_text(driver.continuation_hook(_HOOK))
+    hook.write_text(driver.restored_session_hook(_HOOK))
     script = """
 import {apply} from './hook.mjs';
 let callback;
@@ -214,6 +226,6 @@ console.log(JSON.stringify(inbox));
                             env=env, capture_output=True, timeout=5)
     assert result.returncode == 0, result.stderr
     outcome, state = result.stdout.splitlines()
-    assert outcome == ("accepted" if target == "empty" else "NATIVE_SESSION_PENDING_INPUT")
+    assert outcome == "accepted"
     if target != "empty":
         assert json.loads(state)[target] == [{"id": "old-inbox-message"}]

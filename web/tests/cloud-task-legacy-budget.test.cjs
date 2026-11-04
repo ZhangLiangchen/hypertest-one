@@ -89,6 +89,6 @@ test('task intent omits framework entrypoints and code versions are collapsed', 
   for (const entrypoints of [[], ['pytest']]) {
     const page = renderDraft(null, true, { entrypoints });
     assert.equal(page.descriptions.some((item) => item.key === 'entrypoints'), false);
-    assert.match(page.html, /<details class="cloud-task-source-details"><summary>Code version details<\/summary>/);
+    assert.match(page.html, /<details class="cloud-session-info"><summary>Session information<\/summary>/);
   }
 });

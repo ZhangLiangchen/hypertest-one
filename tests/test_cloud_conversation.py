@@ -120,7 +120,7 @@ async def test_secret_output_is_placeholder_not_a_task_failure(chat):
         assert all(secret not in row.text for row in rows)
 
 
-async def test_fence_keeps_history_cancels_unsent_and_never_replays(chat):
+async def test_fence_keeps_history_unsent_queue_and_never_replays(chat):
     first = (await user(chat)).json()
     await worker(chat, "poll", session_id=chat["session"])
     second = (await user(chat, key="user:two", text="Another observation")).json()
@@ -132,7 +132,7 @@ async def test_fence_keeps_history_cancels_unsent_and_never_replays(chat):
     page = await history(chat)
     by_id = {m["id"]: m for m in page["messages"]}
     assert by_id[first["id"]]["status"] == "UNKNOWN"
-    assert by_id[second["id"]]["status"] == "CANCELLED"
+    assert by_id[second["id"]]["status"] == "QUEUED"
     assert any(m["role"] == "SYSTEM" and m["reason_code"] == "WORKER_INTERRUPTED"
                and m["source"] == "CONTROL_PLANE" for m in page["messages"])
     assert not page["session"]["can_send"]

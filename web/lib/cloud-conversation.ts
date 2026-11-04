@@ -10,13 +10,14 @@ export type ConversationMessage = {
 };
 export type ConversationSession = {
   state: string; can_send: boolean; generation: number; session_id: string | null; blocking_reasons: string[];
+  can_reconnect?: boolean; mode?: string;
 };
 export type ConversationPage = {
   messages: ConversationMessage[]; next_cursor: number; has_more?: boolean; session: ConversationSession; observed_at: string;
 };
-export type ConversationTarget = { project_id: string; task_id: string; attempt_id: string; generation: number };
+export type ConversationTarget = { project_id: string; task_id: string; attempt_id: string };
 export type PendingConversationMessage = ConversationTarget & {
-  operation_key: string; text_digest: string; state: "SENT" | "UNKNOWN";
+  operation_key: string; text_digest: string; state: "SENT" | "UNKNOWN"; generation?: number;
 };
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -24,12 +25,12 @@ const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export const conversationJournal = createOperationJournal<PendingConversationMessage>("cloud-conversation", (value, projectId) => {
   const row = value as Partial<PendingConversationMessage> | null;
   if (!row || row.project_id !== projectId || !uuid.test(projectId) || !uuid.test(row.task_id || "") || !uuid.test(row.attempt_id || "")
-      || !Number.isSafeInteger(row.generation) || row.generation! < 1 || !/^web:[a-f0-9-]{36}$/i.test(row.operation_key || "")
+      || (row.generation !== undefined && (!Number.isSafeInteger(row.generation) || row.generation < 1)) || !/^web:[a-f0-9-]{36}$/i.test(row.operation_key || "")
       || !/^[a-f0-9]{64}$/.test(row.text_digest || "") || !["SENT", "UNKNOWN"].includes(String(row.state))) {
     throw new Error("CONVERSATION_JOURNAL_INVALID");
   }
   // Persist only identity and a digest, never message content or credentials.
-  return { project_id: row.project_id, task_id: row.task_id!, attempt_id: row.attempt_id!, generation: row.generation!,
+  return { project_id: row.project_id, task_id: row.task_id!, attempt_id: row.attempt_id!, ...(row.generation !== undefined ? { generation: row.generation } : {}),
     operation_key: row.operation_key!, text_digest: row.text_digest!, state: row.state! };
 }, (row) => `${row.task_id}:${row.attempt_id}`);
 
@@ -60,7 +61,7 @@ export function mergeConversationMessages(previous: ConversationMessage[], incom
 
 function matches(original: PendingConversationMessage, message: ConversationMessage): boolean {
   return message.role === "USER" && message.project_id === original.project_id && message.task_id === original.task_id
-    && message.attempt_id === original.attempt_id && message.generation === original.generation
+    && message.attempt_id === original.attempt_id
     && message.operation_key === original.operation_key && typeof message.text === "string"
     && cloudInputIdentity({ text: message.text }) === original.text_digest;
 }
@@ -78,13 +79,13 @@ export async function sendConversationMessage(target: ConversationTarget, text: 
 > {
   const content = text.trim();
   if (!content || content.length > 16000) throw new Error("CONVERSATION_TEXT_INVALID");
-  const original: PendingConversationMessage = { ...target, operation_key: `web:${createUuid()}`,
+  const original: PendingConversationMessage = { project_id: target.project_id, task_id: target.task_id, attempt_id: target.attempt_id, operation_key: `web:${createUuid()}`,
     text_digest: cloudInputIdentity({ text: content }), state: "SENT" };
   const reservation = await conversationJournal.reserve(original);
   if (!reservation.created) return { state: "PENDING" };
   try {
     const message = await cloudRequest<ConversationMessage>(base(target.task_id), { method: "POST",
-      body: JSON.stringify({ project_id: target.project_id, attempt_id: target.attempt_id, generation: target.generation,
+      body: JSON.stringify({ project_id: target.project_id, attempt_id: target.attempt_id,
         operation_key: original.operation_key, text: content }) });
     if (!matches(original, message)) throw new Error("CONVERSATION_READBACK_MISMATCH");
     await conversationJournal.settle(original);

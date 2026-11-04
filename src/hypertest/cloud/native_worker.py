@@ -241,56 +241,12 @@ async def prepare_native_session_identity(*, root, workspace, args, task, attemp
     return {"attempt_root": str(root), "digest": snapshot, "original": original}
 
 
-async def prepare_continuation_identity(*, root, workspace, args, task, attempt, manifest, broker, intent):
-    """Verify an old anchor or establish an explicitly adopted present baseline."""
-    from .native_framework_project import session_working_directory
-    from .native_resume_identity import FILENAME, verify_original_identity
-    from .native_sdk_adapter import host_environment
-    from .native_selection import read_native_selection
-
-    if (intent.get("worker_id") != args.worker_id
-            or intent.get("target_generation") != broker.identity.generation
+def validate_connection(intent, *, worker_id, attempt, generation):
+    if (intent.get("mode") != "RESTORE_ONLY" or intent.get("worker_id") != worker_id
+            or intent.get("target_generation") != generation
             or intent.get("input_digest") != attempt["input_digest"]
             or intent.get("session_id") != "cloud-" + attempt["id"]):
-        raise CloudBlocked("NATIVE_RESUME_IDENTITY_TARGET_MISMATCH", "Continuation requires its original target")
-    environment = host_environment(os.environ)
-    selection = await asyncio.to_thread(read_native_selection, dsh_home=args.dsh_home,
-        cwd=str(session_working_directory(workspace)), environment=environment)
-    repositories = manifest["resolution"]["repositories"]
-    common = {"project_id": task["project_id"], "task_id": task["id"], "attempt_id": attempt["id"],
-        "session_id": intent["session_id"], "worker_id": args.worker_id,
-        "input_digest": attempt["input_digest"], "workspace": str(workspace),
-        "dsh_home": str(Path(args.dsh_home).absolute()), "selection": selection,
-        "title_sha256": hashlib.sha256(task["title"].encode()).hexdigest(),
-        "sut_commit": repositories["sut"]["commit_sha"], "framework_commit": repositories["framework"]["commit_sha"]}
-    if intent["identity_source"] == "OPERATOR_ADOPTED":
-        from .native_conversation_identity import record_adopted_identity
-        original = {**common, "generation": broker.identity.generation,
-            "operation_key": intent["operation_key"], "adopted_at": intent["requested_at"]}
-        snapshot = await asyncio.to_thread(record_adopted_identity, root, **original, environment=environment)
-        identity = {"source": "OPERATOR_ADOPTED", "attempt_root": str(root), "digest": snapshot, "original": original}
-    else:
-        anchor = attempt["checkpoint"].get("native_session_anchor", {})
-        record = json.loads(read_private_file(root / FILENAME, max_bytes=65536))
-        prompt = json.loads(read_private_file(root / "prompt-intent.json", max_bytes=4096))
-        if (prompt.get("session_id") != intent["session_id"] or prompt.get("state") != "SENT"
-                or prompt.get("prompt_sha256") != record.get("prompt_sha256")):
-            raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Original prompt identity is unavailable")
-        original = {**common, "original_generation": anchor.get("generation"),
-            "prompt_sha256": record.get("prompt_sha256")}
-        snapshot = anchor.get("snapshot_sha256")
-        await asyncio.to_thread(verify_original_identity, root, expected_identity_digest=snapshot,
-            **original, environment=environment)
-        identity = {"attempt_root": str(root), "digest": snapshot, "original": original}
-    expected = {"operation_key": intent["operation_key"], "generation": broker.identity.generation,
-        "identity_source": intent["identity_source"], "snapshot_sha256": snapshot,
-        "session_id": intent["session_id"],
-        "historical_identity_preanchored": intent["identity_source"] == "PRE_PROMPT_ANCHORED"}
-    accepted = await broker.api.request("resume/identity", broker._body(operation_key=intent["operation_key"],
-        snapshot_sha256=snapshot, identity_source=intent["identity_source"]))
-    if accepted != expected:
-        raise CloudBlocked("NATIVE_RESUME_IDENTITY_UNCONFIRMED", "Current identity needs original-key reconciliation")
-    return identity
+        raise CloudBlocked("NATIVE_SESSION_TARGET_MISMATCH", "Original connection target does not match")
 
 
 def _validate_claim_request(request: object, worker_id: str) -> dict:
@@ -671,16 +627,14 @@ def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot:
             "Never resend an operation with an unknown outcome, even if this attempt has new instructions. "
             "Do not present a previous action identity or result as a new observation from this attempt.")
     value["instructions"].append(
-        "The execution environment determines which tools, network paths and credentials are available; "
-        "you must still honor any explicit task authorization and testing scope. "
-        "The authorization fields git:read and framework:execute also support platform repository preflight; "
-        "they are not an inventory of the host environment's capabilities. "
-        "Do not infer extra authorization from the host's ability to perform an action.")
+        "Harness owns execution, tool permissions, approvals and collaboration, using its configured policies. "
+        "HyperTest only delivers the task and user messages and archives your output. "
+        "Follow the user's testing instructions; repository preflight fields are not a separate platform approval workflow.")
     value["instructions"].append(
         "When a user decision or clarification is necessary, use the native ask_user_question tool. "
-        "The current SDK session waits for the answer; do not publish a REQUEST_INPUT handoff for live interaction. "
-        "Ask only within the frozen task authorization, never include credentials, and do not infer additional authorization from a response. "
-        "Native approval requests that would change execution permissions are not supported by this channel.")
+        "The same SDK session waits for the answer; do not publish a REQUEST_INPUT handoff for live interaction.")
+    from .handoff_contract import native_archive_contract
+    value["handoff_contract"] = native_archive_contract(task_id=task["id"], attempt_id=attempt["id"])
     value["instructions"].append(
         "After publishing COMPLETE_ATTEMPT, end your turn immediately without waiting for its receipt. "
         "The Worker must observe the direct SDK process exit before accepting that terminal handoff.")
@@ -859,36 +813,25 @@ async def execute(api, args, state: Path, claim: dict):
         prompt = None if resuming else native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
             memory_enabled=memory_bridge is not None, framework_project=framework_project)
         session_id = "cloud-" + attempt["id"]
-        anchor_config = os.environ.get("HYPERTEST_CLOUD_NATIVE_RECOVERY_IDENTITY", "true").strip().lower()
-        if anchor_config not in {"true", "false"}:
-            raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Invalid native session identity setting")
-        resume_identity = None
         if resuming:
-            resume_identity = await prepare_continuation_identity(root=root, workspace=workspace, args=args,
-                task=task, attempt=attempt, manifest=manifest, broker=broker, intent=resume_intent)
-        elif anchor_config == "true":
-            resume_identity = await prepare_native_session_identity(root=root, workspace=workspace, args=args,
-                task=task, attempt=attempt, manifest=manifest, broker=broker, reporter=reporter, prompt=prompt)
+            validate_connection(resume_intent, worker_id=args.worker_id, attempt=attempt,
+                                generation=broker.identity.generation)
         transition = Handoff(profile=MANIFEST_PROFILE, task_id=task["id"], attempt_id=attempt["id"],
             key="worker-running-" + str(broker.identity.generation), operation="TRANSITION", payload={"status": "RUNNING", "reason": "Native SDK runtime admitted",
             "runtime_metadata": {}, "usage_seconds": 0, "cost_microunits": 0})
         result = await reporter.submit_handoff(transition, digest(transition.model_dump(mode="json")))
         if not result.synced:
             raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original transition needs reconciliation")
-        options = {"resume_identity": resume_identity} if resume_identity is not None else {}
         if resuming:
-            continuation = resume_intent["continuation"]
-            save_once(root / ("continuation-intent-" + str(broker.identity.generation) + ".json"),
-                {"state": "SENT", "session_id": session_id, "operation_key": resume_intent["operation_key"],
-                 "generation": broker.identity.generation,
-                 "continuation_sha256": hashlib.sha256(continuation.encode()).hexdigest()})
+            # Opening the original SDK session sends no model input. Every new
+            # user text is delivered once through the ordinary message ledger.
             process = await adapter.resume(session_id=session_id, title=task["title"],
-                continuation=continuation, resume_identity=resume_identity, interaction_enabled=True, keep_alive=True)
+                interaction_enabled=True, keep_alive=True)
         else:
             save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": session_id,
                 "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
             process = await adapter.start(session_id=session_id, title=task["title"], prompt=prompt,
-                interaction_enabled=True, keep_alive=True, **options)
+                interaction_enabled=True, keep_alive=True)
         conversation = ConversationBridge(broker, adapter, session_id,
             private_root=root / "conversation" / ("generation-" + str(broker.identity.generation)))
         conversation_monitor = asyncio.create_task(conversation.run())

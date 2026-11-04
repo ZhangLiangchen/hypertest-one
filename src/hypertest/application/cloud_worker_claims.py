@@ -109,6 +109,15 @@ async def _fence_attempt(db, row):
         raise HTTPException(409, "CLAIM_TARGET_MISSING")
     if attempt.status in TERMINAL:
         return
+    if attempt.lease_generation > row.generation:
+        original = await db.scalar(select(CloudWorkGrant).where(
+            CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.worker_id == row.worker_id,
+            CloudWorkGrant.lease_generation == row.generation))
+        if original is not None and original.revoked_at is not None:
+            # A message may already have queued a new connection after the
+            # safety fence. Close only this proven revoked original claim;
+            # never fence or mutate the newer connection or its messages.
+            return
     if attempt.status in {"RECOVERY_REQUIRED", "WAITING_INPUT"} and await service._owner_fenced(db, attempt):
         return
     if (task.latest_attempt_id != attempt.id or attempt.lease_owner != row.worker_id

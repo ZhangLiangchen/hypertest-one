@@ -45,47 +45,55 @@ async def context(db, project_id, task_id, attempt_id, *, lock=False):
 
 async def session_view(db, task, attempt):
     if attempt is None:
-        return {"state": "OFFLINE", "can_send": False, "generation": None, "session_id": None,
-                "blocking_reasons": ["NO_ATTEMPT"]}
+        return {"state": "OFFLINE", "can_send": False, "can_reconnect": False,
+                "generation": None, "session_id": None, "blocking_reasons": ["NO_ATTEMPT"]}
     now = await service.clock(db)
     blockers = []
     if await db.get(CloudTaskDeletion, task.id):
         blockers.append("TASK_DELETED")
     if task.latest_attempt_id != attempt.id:
         blockers.append("HISTORICAL_ATTEMPT")
-    if attempt.status != "RUNNING":
-        blockers.append("SESSION_NOT_RUNNING")
-    if not attempt.lease_owner or not attempt.lease_expires_at or attempt.lease_expires_at <= now:
-        blockers.append("SESSION_OFFLINE")
-    valid_grant = await db.scalar(select(CloudWorkGrant.id).where(
-        CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.worker_id == attempt.lease_owner,
-        CloudWorkGrant.lease_generation == attempt.lease_generation, CloudWorkGrant.revoked_at.is_(None),
-        CloudWorkGrant.expires_at > now).limit(1))
-    if not valid_grant:
-        blockers.append("SESSION_OFFLINE")
+    if attempt.status in service.TERMINAL:
+        blockers.append("ATTEMPT_TERMINAL")
+    if attempt.checkpoint.get("cancellation_requested"):
+        blockers.append("CANCELLATION_REQUESTED")
     try:
         await service._current_grant(db, attempt.authorization_grant_id, task.project_id)
     except HTTPException:
         blockers.append("AUTHORIZATION_UNAVAILABLE")
+    unknown = await db.scalar(select(CloudConversationMessage.id).where(
+        CloudConversationMessage.attempt_id == attempt.id, CloudConversationMessage.role == "USER",
+        CloudConversationMessage.status == "UNKNOWN").limit(1))
+    if unknown:
+        blockers.append("MESSAGE_DELIVERY_UNKNOWN")
+    valid_grant = await db.scalar(select(CloudWorkGrant.id).where(
+        CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.worker_id == attempt.lease_owner,
+        CloudWorkGrant.lease_generation == attempt.lease_generation, CloudWorkGrant.revoked_at.is_(None),
+        CloudWorkGrant.expires_at > now).limit(1))
+    live = bool(valid_grant and attempt.lease_expires_at and attempt.lease_expires_at > now)
+    if not live and not unknown and await db.scalar(select(CloudConversationMessage.id).where(
+            CloudConversationMessage.attempt_id == attempt.id, CloudConversationMessage.role == "USER",
+            CloudConversationMessage.status == "DELIVERING").limit(1)):
+        blockers.append("MESSAGE_DELIVERY_UNKNOWN")
+    intent = attempt.checkpoint.get("native_resume", {})
+    connecting = (attempt.status == "PREPARING" and intent.get("mode") == "RESTORE_ONLY"
+                  and intent.get("target_generation") in {attempt.lease_generation, attempt.lease_generation + 1})
+    from .cloud_conversation_resume import original_worker
+    reconnect = (attempt.status == "RECOVERY_REQUIRED" and await service._owner_fenced(db, attempt)
+                 and service.attempt_inputs(task, attempt).get("budgets") is None
+                 and bool(await original_worker(db, attempt)))
     latest = await db.scalar(select(CloudConversationMessage).where(
         CloudConversationMessage.attempt_id == attempt.id,
         CloudConversationMessage.generation == attempt.lease_generation,
-        CloudConversationMessage.source == "LIVE_SDK",
-        CloudConversationMessage.state.is_not(None)).order_by(CloudConversationMessage.cursor.desc()).limit(1))
-    state = latest.state if latest else "CONNECTING"
-    if state in {"CLOSED", "INTERRUPTED"}:
+        CloudConversationMessage.source == "LIVE_SDK", CloudConversationMessage.state.is_not(None))
+        .order_by(CloudConversationMessage.cursor.desc()).limit(1))
+    state = latest.state if live and latest else "CONNECTING" if live or connecting else "OFFLINE"
+    if not (reconnect or connecting or (live and attempt.status == "RUNNING" and state not in {"CLOSED", "INTERRUPTED"})):
         blockers.append("SESSION_OFFLINE")
-    if state == "CONNECTING" and not blockers:
-        blockers.append("SESSION_CONNECTING")
-    if any(reason != "SESSION_CONNECTING" for reason in blockers) and state not in {"CLOSED", "INTERRUPTED"}:
-        state = "OFFLINE"
-    pending = await db.scalar(select(CloudConversationMessage.id).where(
-        CloudConversationMessage.attempt_id == attempt.id,
-        CloudConversationMessage.role == "USER", CloudConversationMessage.status == "UNKNOWN").limit(1))
-    if pending:
-        blockers.append("MESSAGE_DELIVERY_UNKNOWN")
-    return {"state": state, "can_send": not blockers, "generation": attempt.lease_generation,
-            "session_id": "cloud-" + str(attempt.id), "blocking_reasons": list(dict.fromkeys(blockers))}
+    return {"state": state, "can_send": not blockers, "can_reconnect": reconnect and not blockers,
+            "mode": "CONNECT_ON_SEND" if reconnect else "CONNECTING" if connecting else "CONNECTED" if live else "READ_ONLY",
+            "generation": attempt.lease_generation, "session_id": "cloud-" + str(attempt.id),
+            "blocking_reasons": list(dict.fromkeys(blockers))}
 
 
 async def read(db, task, attempt, after, limit):
@@ -111,22 +119,33 @@ async def lookup_user(db, task, operation_key):
 
 async def send(db, task, attempt, actor, body):
     payload = {"project_id": str(task.project_id), "task_id": str(task.id), "attempt_id": str(attempt.id),
-               "generation": body.generation, "text": body.text}
+               "text": body.text}
     digest = service.canonical_json_sha256(payload)
     old = await db.scalar(select(CloudConversationMessage).where(
         CloudConversationMessage.project_id == task.project_id,
         CloudConversationMessage.operation_key == body.operation_key))
     if old is not None:
-        if old.request_digest != digest or old.actor_ref != actor or old.task_id != task.id:
+        # Only existing rows recognize the old generation-bearing digest. No
+        # new send is bound to a browser's obsolete runtime generation.
+        old_digest = service.canonical_json_sha256({**payload, "generation": body.generation}) if body.generation else None
+        if old.request_digest not in {digest, old_digest} or old.actor_ref != actor or old.task_id != task.id:
             raise HTTPException(409, "CONVERSATION_MESSAGE_CONFLICT")
         return view(old)
-    if body.generation != attempt.lease_generation or not (await session_view(db, task, attempt))["can_send"]:
+    session = await session_view(db, task, attempt)
+    if not session["can_send"]:
         raise HTTPException(409, "CONVERSATION_SESSION_UNAVAILABLE")
     if not body.text.strip():
         raise HTTPException(422, "CONVERSATION_TEXT_REQUIRED")
     await service._reject_secrets(db, task.project_id, {"text": body.text})
+    generation = attempt.lease_generation
+    if session["can_reconnect"]:
+        from .cloud_conversation_resume import enqueue_connection
+        generation = await enqueue_connection(db, task=task, attempt=attempt,
+            operation_key=body.operation_key, actor_ref=actor)
+    elif session["mode"] == "CONNECTING":
+        generation = attempt.checkpoint["native_resume"]["target_generation"]
     row = CloudConversationMessage(project_id=task.project_id, task_id=task.id, attempt_id=attempt.id,
-        generation=body.generation, session_id="cloud-" + str(attempt.id), role="USER", text=body.text,
+        generation=generation, session_id="cloud-" + str(attempt.id), role="USER", text=body.text,
         status="QUEUED", operation_key=body.operation_key, request_digest=digest, source="OPERATOR_MESSAGE",
         actor_ref=actor, cursor=await next_cursor(db, task.id))
     db.add(row)
@@ -186,7 +205,10 @@ async def poll(db, task, attempt, identity, session_id):
         raise HTTPException(409, "CONVERSATION_SESSION_UNAVAILABLE")
     query = select(CloudConversationMessage).where(CloudConversationMessage.attempt_id == attempt.id,
         CloudConversationMessage.generation == identity.generation, CloudConversationMessage.role == "USER")
-    pending = await db.scalar(query.where(CloudConversationMessage.status.in_(["DELIVERING", "UNKNOWN"]))
+    # An uncertain old send cannot be bypassed by creating a new connection.
+    pending = await db.scalar(select(CloudConversationMessage).where(
+        CloudConversationMessage.attempt_id == attempt.id, CloudConversationMessage.role == "USER",
+        CloudConversationMessage.status.in_(["DELIVERING", "UNKNOWN"]))
                               .order_by(CloudConversationMessage.created_at, CloudConversationMessage.id).limit(1))
     if pending:
         return {"message": None, "pending_message_id": str(pending.id)}
@@ -197,6 +219,9 @@ async def poll(db, task, attempt, identity, session_id):
     row.status, row.cursor = "DELIVERING", await next_cursor(db, task.id)
     await db.flush()
     result = {"message": view(row)}
+    request_generation = attempt.checkpoint.get("conversation_request_generations", {}).get(str(row.id))
+    if request_generation is not None:
+        result["message"]["request_generation"] = request_generation
     await db.commit()
     return result
 
@@ -228,11 +253,13 @@ async def ack(db, task, attempt, generation, body):
     return result
 
 
-async def fence_messages(db, attempt):
+async def fence_messages(db, attempt, *, cancel_queued=False):
     rows = list(await db.scalars(select(CloudConversationMessage).where(
         CloudConversationMessage.attempt_id == attempt.id,
         CloudConversationMessage.status.in_(["QUEUED", "DELIVERING"]))))
     for row in rows:
+        if row.status == "QUEUED" and not cancel_queued and attempt.status not in service.TERMINAL:
+            continue
         row.status = "CANCELLED" if row.status == "QUEUED" else "UNKNOWN"
         row.cursor = await next_cursor(db, attempt.task_id)
     # Lease expiry must remain observable even if the Worker died before it

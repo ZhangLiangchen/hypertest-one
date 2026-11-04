@@ -29,7 +29,9 @@ KEY = r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
 class UserMessage(Input):
     project_id: UUID
     attempt_id: UUID
-    generation: int = Field(ge=1, strict=True)
+    # Retained only to recognize an already-saved legacy request by its key.
+    # New message routing generations are assigned by the server.
+    generation: int | None = Field(default=None, ge=1, strict=True)
     operation_key: str = Field(min_length=1, max_length=128, pattern=KEY)
     text: str = Field(min_length=1, max_length=16000)
 

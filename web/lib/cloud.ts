@@ -44,12 +44,6 @@ export type CloudRecoveryChoice = { attempt_id: string; operation_key: string; c
 export type CloudDocument = { task: CloudTask; attempts: CloudAttempt[]; resolutions: CloudRecord[]; assets: CloudAsset[]; artifacts: CloudRecord[]; runs: CloudRecord[]; run_cases: CloudRecord[]; delegations: CloudRecord[]; questions: CloudRecord[]; answers: CloudRecord[]; recovery_choices?: CloudRecoveryChoice[] };
 export type CloudReceipt = { status: string; profile: string; project_id: string; operation_key: string; operation: string; version: number; task_id?: string; attempt_id?: string; input_digest?: string; config_id?: string; resolution_id?: string; start_requested?: boolean; credential_id?: string; credential_version_id?: string };
 export type CloudMutation = { profile: string; project_id: string; operation_key: string; expected_version: number; operation: string; [key: string]: unknown };
-export type CloudResumeFields = {
-  operation: "RESUME_ATTEMPT"; attempt_id: string; reason: string;
-  reconciliation: { old_owner_fenced: boolean; local_processes_stopped: boolean; external_operations_reconciled: boolean; observations: string };
-  identity_source: "PRE_PROMPT_ANCHORED" | "OPERATOR_ADOPTED"; continuation?: string;
-};
-export type CloudResume = CloudMutation & CloudResumeFields & { task_id: string };
 export type CloudPending = { project_id: string; operation_key: string; expected_version: number; operation: string; task_id?: string; attempt_id?: string; digest: string; state: "SENT" | "UNKNOWN" };
 export type CloudCapabilities = { enabled?: boolean; worker_enabled?: boolean;
   supported?: { root_agent?: boolean; codex_delegation?: boolean; claude_code_delegation?: boolean; ssh_fixed_diagnostics?: boolean; ssh_profile?: string; resume_attempt?: boolean; reconcile_attempt?: boolean };

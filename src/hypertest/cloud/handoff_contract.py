@@ -269,3 +269,29 @@ def handoff_contract(*, task_id: str, attempt_id: str, allow_delegation: bool = 
             {"kind": "REPORT", "key": "example-progress", "title": "Example only: planned case", "markdown": "One case planned; no execution observed.", "reported_result": "NOT_RUN"},
         ], "checkpoint_report_key": "example-progress"},
         "example_notice": "Illustrative receipt IDs, hashes, counts and example assets are placeholders, never actual task evidence; replace them only using original bytes and this task's receipts."}
+
+
+def native_archive_contract(*, task_id: str, attempt_id: str) -> dict:
+    """The native Harness publishes files/results; it owns the testing workflow."""
+    contract = handoff_contract(task_id=task_id, attempt_id=attempt_id)
+    contract.pop("artifact_to_asset_example")
+    contract["asset_batch_example"] = {"assets": [{"kind": "REPORT", "key": "report",
+        "title": "Test report", "markdown": "Describe the work, observed results and any remaining blockers.",
+        "reported_result": "UNKNOWN"}]}
+    contract["instructions"] = [
+        "HyperTest archives your report and files. Harness owns planning, tools, teams, approvals and the conversation. No platform stage or approval workflow is required.",
+        "Publish a REPORT when there is a useful testing summary. ANALYSIS, DESIGN, CASE, IMPLEMENTATION and structured SUBMIT_RUN records are optional archive formats, not required stages.",
+        "Publish each handoff once as a complete KEY.json in the ready directory. Preserve its key and original content; a lost response is recovered by the original key, never by repeating the work.",
+        "For files, UPLOAD_ARTIFACT uses path, filename, media_type, sha256 and byte_count. Its accepted artifact_id can be referenced by an asset. AssetRevision IDs and uploaded artifact IDs are different; use the exact receipt for each reference.",
+        "After the final REPORT has an accepted receipt, COMPLETE_ATTEMPT names that report in final_report_revision and completion_manifest.required_asset_ids. Other stage assets and structured run records are not required for native completion.",
+        "reported_result is your reported conclusion. Describe actual testing and untested scope honestly. HyperTest stores this source-labelled report; it does not independently verify PASS or invent a run from a message or SDK idle.",
+        "Use native conversation and ask_user_question for clarification. Do not publish REQUEST_INPUT for live interaction; it belongs to a retired platform workflow.",
+        "Do not archive secrets, full prompts, hidden reasoning or raw tool payloads. Check the rejection directory for fixed format/content feedback and correct rejected content under a new key. Pending or UNKNOWN submissions retain their original key.",
+    ]
+    semantics = contract["schema"]["x-hypertest-semantics"]
+    semantics["reference_and_state_rules"] = [
+        *semantics["reference_and_state_rules"][:5],
+        "Native completion archives this Attempt's accepted final REPORT and its reported_result. Optional stage assets and Run records do not gate completion. Existing observations are preserved; no VERIFIED Evidence or Gate is produced.",
+        *semantics["reference_and_state_rules"][-2:],
+    ]
+    return contract

@@ -42,22 +42,18 @@ class NativeSdkAdapter:
         self._messages: set[str] = set()
         self._closing = False
 
-    async def start(self, *, session_id: str, title: str, prompt: str, interaction_enabled: bool = False,
-                    resume_identity: dict | None = None, keep_alive: bool = False,
-                    continuation: bool = False):
+    async def start(self, *, session_id: str, title: str, prompt: str | None = None, interaction_enabled: bool = False,
+                    keep_alive: bool = False, resume: bool = False):
         if self._started:
             raise CloudBlocked("SDK_ORIGINAL_OPERATION_QUERY_ONLY", "An SDK prompt cannot be started twice")
-        if (not self.workspace.is_dir() or not self.dsh_home.is_dir() or not session_id or not prompt
+        if (not self.workspace.is_dir() or not self.dsh_home.is_dir() or not session_id
+                or (resume and prompt is not None) or (not resume and (not isinstance(prompt, str) or not prompt))
                 or not isinstance(title, str) or not title.strip() or len(title) > 512):
             raise CloudBlocked("HARNESS_CONFIGURATION_INVALID", "A workspace, Harness home, task title and prompt are required")
         config = {"workspace": str(self.workspace), "dsh_home": str(self.dsh_home),
                               "session_id": session_id, "title": title, "prompt": prompt,
                               "interaction_enabled": interaction_enabled, "keep_alive": keep_alive,
-                              "continuation": continuation}
-        if continuation and resume_identity is None:
-            raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Continuation requires an accepted identity baseline")
-        if resume_identity is not None:
-            config["resume_identity"] = resume_identity
+                              "resume": resume}
         payload = json.dumps(config).encode() + b"\n"
         if len(payload) > 1024 * 1024:
             raise CloudBlocked("HARNESS_CONFIGURATION_INVALID", "Harness prompt exceeds the input limit")
@@ -81,12 +77,10 @@ class NativeSdkAdapter:
                 self.process.stdin.close()
         return self.process
 
-    async def resume(self, *, session_id: str, title: str, continuation: str,
-                     resume_identity: dict, interaction_enabled: bool = True, keep_alive: bool = True):
-        """Restore the original session, then send only this new continuation."""
-        return await self.start(session_id=session_id, title=title, prompt=continuation,
-            interaction_enabled=interaction_enabled, resume_identity=resume_identity,
-            keep_alive=keep_alive, continuation=True)
+    async def resume(self, *, session_id: str, title: str, interaction_enabled: bool = True, keep_alive: bool = True):
+        """Restore the original session without sending any model input."""
+        return await self.start(session_id=session_id, title=title,
+            interaction_enabled=interaction_enabled, keep_alive=keep_alive, resume=True)
 
     async def _send_frame(self, frame: dict, *, error_code: str):
         async with self._write_lock:

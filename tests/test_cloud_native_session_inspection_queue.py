@@ -298,7 +298,7 @@ async def test_task_version_change_before_claim_blocks_inspection(prepared):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["RECONCILE_ATTEMPT", "RESUME_ATTEMPT"])
+@pytest.mark.parametrize("operation", ["RECONCILE_ATTEMPT"])
 async def test_terminal_reconciliation_or_resume_blocked_during_inspection(prepared, operation):
     context = prepared
     queued = await enqueue(context)

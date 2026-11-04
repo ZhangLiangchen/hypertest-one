@@ -73,6 +73,7 @@ class ConversationBridge:
         self.accepting = True
         self.stopping = asyncio.Event()
         self.idle = asyncio.Event()
+        self.session_ready = asyncio.Event()
         self.runtime_state = None
         self.finish_reason = None
         self._state_serial = 0
@@ -101,7 +102,11 @@ class ConversationBridge:
         self.db.commit()
 
     async def accept_frame(self, frame: dict):
-        if "assistant_message" in frame:
+        if "session_ready" in frame:
+            if frame != {"session_ready": {"session_id": self.session_id}} or self.session_ready.is_set():
+                raise CloudBlocked("CONVERSATION_FRAME_INVALID", "Invalid SDK session readiness")
+            self.session_ready.set()
+        elif "assistant_message" in frame:
             item = frame["assistant_message"]
             if (not isinstance(item, dict) or item.get("session_id") != self.session_id
                     or type(item.get("event_sequence")) is not int or item["event_sequence"] < 0
@@ -252,6 +257,7 @@ class ConversationBridge:
             self.db.commit()
 
     async def _poll(self):
+        await self.session_ready.wait()
         while self.accepting and not self.stopping.is_set():
             try:
                 await self._confirm_saved()
@@ -265,11 +271,13 @@ class ConversationBridge:
                     await asyncio.sleep(0.5)
                     continue
                 message_id, text = item.get("id"), item.get("text")
+                request_generation = item.get("request_generation", self.generation)
                 expected = {"project_id": self.broker.project_id, "task_id": self.broker.task_id,
-                            "attempt_id": self.broker.attempt_id, "generation": self.generation, "text": text}
+                            "attempt_id": self.broker.attempt_id, "text": text}
                 if (not self._matching_identity(item) or item.get("role") != "USER" or item.get("status") != "DELIVERING"
                         or not isinstance(message_id, str) or not isinstance(text, str) or not text.strip() or len(text) > 16384
-                        or item.get("request_digest") != digest(expected)):
+                        or type(request_generation) is not int or request_generation < 1
+                        or item.get("request_digest") not in {digest(expected), digest({**expected, "generation": request_generation})}):
                     raise CloudBlocked("CONVERSATION_INPUT_INVALID", "Invalid original user message")
                 old = self.db.execute("SELECT status FROM inputs WHERE message_id=?", (message_id,)).fetchone()
                 if old is not None:
