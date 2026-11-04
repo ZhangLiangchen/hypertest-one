@@ -63,7 +63,7 @@ async def capabilities():
                               "ssh_fixed_diagnostics_enabled": settings.cloud_ssh_enabled,
                               "https_controlled_api_enabled": settings.cloud_https_enabled},
             "admission": {"state": "NOT_CHECKED", "scope": "PER_ATTEMPT", "checked_by": "WORKER"},
-            "recovery": {"resume_supported": True, "resume_reason": "EXPLICIT_ORIGINAL_SESSION_CONTINUATION",
+            "recovery": {"resume_supported": False, "resume_reason": "SEND_CONVERSATION_MESSAGE_TO_RECONNECT",
                          "native_session_inspection_supported": False,
                          "native_session_inspection_reason": "NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED",
                          "reconcile_supported": True, "reconciliation_source": "OPERATOR_ATTESTATION",
@@ -76,7 +76,7 @@ async def capabilities():
                           "https_controlled_api": True, "https_profile": "HTTPS_CONTROLLED_API_V1",
                           "https_methods": ["GET", "HEAD"], "framework_runtime_freeze": True,
                           "remote_ci": False, "project_framework": True,
-                          "resume_attempt": True, "conversation": True, "reconcile_attempt": True},
+                          "resume_attempt": False, "conversation_reconnect": True, "conversation": True, "reconcile_attempt": True},
             "not_proven": ["provider_authentication", "model_execution", "delegation", "production_acceptance"]}
 
 

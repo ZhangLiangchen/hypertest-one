@@ -20,6 +20,7 @@ class LiveQuestionBridge:
         self.finish_reason = None
         self.prompt_enqueued = None
         self.runtime_ready = asyncio.Event()
+        self.session_ready = asyncio.Event()
 
     async def read(self, process):
         while line := await process.stdout.readline():
@@ -36,6 +37,12 @@ class LiveQuestionBridge:
                 if frame != {"runtime_ready": {"session_id": self.session_id}} or self.runtime_ready.is_set():
                     raise CloudBlocked("SDK_RUNTIME_READY_INVALID", "Invalid SDK startup observation")
                 self.runtime_ready.set()
+            elif "session_ready" in frame:
+                if frame != {"session_ready": {"session_id": self.session_id}} or self.session_ready.is_set():
+                    raise CloudBlocked("SDK_SESSION_READY_INVALID", "Invalid SDK session observation")
+                self.session_ready.set()
+                if self.conversation is not None:
+                    await self.conversation.accept_frame(frame)
             elif "runtime_observation" in frame:
                 if frame["runtime_observation"] in {"RUNNING", "IDLE"} and frame.get("session_id") == self.session_id:
                     self.runtime_state = frame["runtime_observation"]

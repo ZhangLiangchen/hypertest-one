@@ -4,6 +4,7 @@
 
 ## 现行入口
 
+- [ADR-040：Cloud 作为 Harness 外壳](architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md)：执行和审批归 Harness，平台提供任务、普通消息及产物；替代 ADR-039 的人工接管流程。实施和部署见[薄壳纠正记录](CLOUD_HARNESS_SHELL_DELIVERY_20261104.md)。
 - [Cloud 任务内对话与多会话交付（2026-11-04）](CLOUD_CONVERSATION_DELIVERY_20261104.md)及 [ADR-039](architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md)：公开消息持久化、文字回复、槽隔离与显式续接；实现、部署和用户验收分别记录。
 - [当前待办](TODO.md)：未完成的开发、操作和用户验收。
 - [Cloud 原会话受限检查（2026-11-03）](CLOUD_NATIVE_SESSION_INSPECTION_20261103.md)：原执行对账与历史检查边界；后续显式续接由 ADR-039 替代一律未支持的旧声明。

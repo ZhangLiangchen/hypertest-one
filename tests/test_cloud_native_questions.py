@@ -94,14 +94,18 @@ def request(**changes):
     return SimpleNamespace(**{**values, **changes})
 
 
-def test_original_sdk_question_is_answered_once_and_handed_off(channel):
+@pytest.mark.parametrize("approval", [False, True])
+def test_original_sdk_question_is_answered_once_and_handed_off(channel, approval):
     bridge, source, emitted = channel
     cancel = threading.Event()
+    original = request(questions=[{"id": "allow-once", "question": "Allow this Harness operation?",
+        "intent": {"kind": "approval"}, "options": [{"label": "Allow"}, {"label": "Deny"}]}]) if approval else request()
     with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(bridge.ask, request(), cancel)
+        future = pool.submit(bridge.ask, original, cancel)
         event = emitted.get(timeout=2)
         assert event["user_question"]["request_id"] == "question-1"
-        answer = {"answers": [{"id": "format", "selected": ["CSV"]}]}
+        assert event["user_question"]["questions"] == original.questions
+        answer = {"answers": [{"id": "allow-once", "selected": ["Allow"]}]} if approval else {"answers": [{"id": "format", "selected": ["CSV"]}]}
         source.send({"type": "question_response", "request_id": "question-1", "answer": answer})
         assert future.result(timeout=2) == answer
         assert emitted.get(timeout=2) == {"user_question_handed_off": {"request_id": "question-1"}}
@@ -121,12 +125,10 @@ def test_sdk_cancellation_discards_late_answer(channel):
         assert emitted.empty()
 
 
-def test_wrong_session_and_authorization_question_do_not_reach_operator(channel):
+def test_wrong_session_question_does_not_reach_operator(channel):
     bridge, _, emitted = channel
     with pytest.raises(ValueError):
         bridge.ask(request(session_id="other-session"), threading.Event())
-    approval = request(questions=[{"id": "a", "question": "Allow?", "intent": {"kind": "approval"}}])
-    assert bridge.ask(approval, threading.Event()) == {"cancelled": True}
     assert emitted.empty()
 
 

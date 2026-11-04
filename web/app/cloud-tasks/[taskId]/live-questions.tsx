@@ -49,9 +49,9 @@ export function LiveQuestions({ request, blocked = false, embedded = false, onSu
     open: t("The agent is waiting for your response.", "Agent 正在等待你的回答。"),
     answered: t("Answer saved; waiting for delivery to the agent.", "回答已保存，正在等待交付给 Agent。"),
     delivering: t("Delivering the saved answer to the agent.", "正在向 Agent 交付已保存的回答。"),
-    delivered: t("The answer was handed to the callback; receipt by the SDK and agent is not yet confirmed.", "回答已交给回调处理；SDK 和 Agent 是否接收尚未确认。"),
+    delivered: t("Answer delivered to the session.", "回答已交给会话。"),
     cancelled: t("This question request was cancelled.", "此提问已取消。"),
-    unknown: t("The delivery state is unknown. Check the original request before taking further action.", "交付状态未知，请先核对原请求再安排后续操作。"),
+    unknown: t("Answer delivery is unconfirmed.", "回答投递尚未确认。"),
   };
 
   async function perform(action: () => Promise<unknown>) {
@@ -86,12 +86,12 @@ export function LiveQuestions({ request, blocked = false, embedded = false, onSu
               ...current, [question.id]: event.target.checked ? [...(current[question.id] || []), value] : (current[question.id] || []).filter((item) => item !== value),
             }))}>{option.label}{option.description ? <span className="muted"> — {option.description}</span> : null}</Checkbox>;
           })}</Space>
-          : <Radio.Group value={selected[question.id]?.[0]} onChange={(event) => { if (question.intent?.kind !== "plan-review") setCustom((current) => ({ ...current, [question.id]: "" })); setSelected((current) => ({ ...current, [question.id]: [String(event.target.value)] })); }}>
+          : <Radio.Group value={selected[question.id]?.[0]} onChange={(event) => { if (!["plan-review", "approval"].includes(question.intent?.kind || "")) setCustom((current) => ({ ...current, [question.id]: "" })); setSelected((current) => ({ ...current, [question.id]: [String(event.target.value)] })); }}>
             <Space direction="vertical">{question.options.map((option) => <Radio key={option.label} value={option.label}>{option.label}{option.description ? <span className="muted"> — {option.description}</span> : null}</Radio>)}</Space>
           </Radio.Group> : null}
         {question.allow_custom === true ? <label style={{ display: "block", marginTop: 12 }}>
           <span>{t("Your answer", "你的回答")}</span>
-          <Input.TextArea rows={3} maxLength={16000} value={custom[question.id] || ""} onChange={(event) => { if (!question.multiple && question.intent?.kind !== "plan-review") setSelected((current) => ({ ...current, [question.id]: [] })); setCustom((current) => ({ ...current, [question.id]: event.target.value })); }} />
+          <Input.TextArea rows={3} maxLength={16000} value={custom[question.id] || ""} onChange={(event) => { if (!question.multiple && !["plan-review", "approval"].includes(question.intent?.kind || "")) setSelected((current) => ({ ...current, [question.id]: [] })); setCustom((current) => ({ ...current, [question.id]: event.target.value })); }} />
         </label> : null}
         {!question.options?.length && question.allow_custom !== true ? <Typography.Paragraph type="warning">{t("This question has no supported answer format.", "此问题没有可用的回答方式。")}</Typography.Paragraph> : null}
       </fieldset>)}

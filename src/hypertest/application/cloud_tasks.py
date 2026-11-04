@@ -667,6 +667,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         # Opening the SDK session can mutate pending messages. Preserve prior
         # receipts, but never enqueue any new purportedly read-only inspection.
         raise HTTPException(409, "NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED")
+    if payload.operation == "RESUME_ATTEMPT":
+        raise HTTPException(410, "SEND_CONVERSATION_MESSAGE_TO_RECONNECT")
     # Existing immutable receipts remain readable with their original payload.
     if (payload.operation == "DISPATCH" and payload.retry_of_attempt_id
             and not (payload.retry_scope_confirmed and payload.retry_authorization_confirmed)):
@@ -900,7 +902,7 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if attempt.checkpoint.get("cancellation_requested") is True:
             raise HTTPException(409, "Cancellation has already been requested")
         target = "CANCELLED" if attempt.status == "QUEUED" and attempt.lease_owner is None else "RECOVERY_REQUIRED"
-        await _fence(db, attempt)
+        await _fence(db, attempt, cancel_queued=True)
         # Recovery is already fenced and is not a lifecycle transition. Record
         # the new intent without replacing the original recovery diagnosis or
         # claiming that the runtime and external operations have stopped.
@@ -910,10 +912,6 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         checkpoint["cancellation_requested"] = True
         checkpoint["cancellation_reason"] = payload.reason
         attempt.checkpoint = checkpoint
-    elif op == "RESUME_ATTEMPT":
-        from .cloud_conversation_resume import enqueue_resume
-        refs["native_resume"] = await enqueue_resume(db, task=task, attempt=attempt,
-            payload=payload, actor_ref=actor_ref, worker=worker)
     elif op == "INSPECT_NATIVE_SESSION":
         from .cloud_native_session_restore import enqueue_inspection
         refs["native_session_inspection"] = await enqueue_inspection(db, task=task, attempt=attempt,
@@ -1348,12 +1346,12 @@ async def _settle_budget(db, attempt, payload, worker):
     attempt.runtime_metadata = metadata
 
 
-async def _fence(db, attempt):
+async def _fence(db, attempt, *, cancel_queued=False):
     from .cloud_conversation import fence_messages
     # Controls may already have assembled a terminal transition. Do not flush
     # its partial state before the version, checkpoint and fencing are complete.
     with db.no_autoflush:
-        await fence_messages(db, attempt)
+        await fence_messages(db, attempt, cancel_queued=cancel_queued)
         attempt.lease_generation += 1
         attempt.lease_owner = attempt.lease_token_hash = attempt.lease_expires_at = None
         now = await clock(db)
@@ -1658,9 +1656,10 @@ async def _delegation(db, task, attempt, payload, version):
 
 
 async def _finish(db, task, attempt, payload, *, native=False):
-    from .cloud_ssh import ensure_remote_closed
-    await ensure_remote_closed(db, task_id=task.id)
-    await _ensure_container_closed(db, task.id)
+    if not native:
+        from .cloud_ssh import ensure_remote_closed
+        await ensure_remote_closed(db, task_id=task.id)
+        await _ensure_container_closed(db, task.id)
     manifest = payload.completion_manifest
     if manifest.pending_operation_keys or (not native and (not manifest.all_local_processes_stopped or not manifest.external_operations_reconciled)):
         raise HTTPException(409, "Completion is blocked by active processes or unresolved external operations")
@@ -1679,10 +1678,15 @@ async def _finish(db, task, attempt, payload, *, native=False):
         if asset.artifact_id:
             await _artifact(db, task.id, asset.artifact_id)
         kinds.add(asset.kind)
-    if not set(attempt_inputs(task, attempt)["expected_outputs"]) <= kinds:
-        raise HTTPException(409, "Required stage outputs are missing from the accepted completion manifest")
     if payload.final_report_revision not in manifest.required_asset_ids:
         raise HTTPException(422, "Final report must be an explicit completion asset")
+    if native:
+        # Native Cloud archives Harness-reported work, like Local archive. The
+        # Harness owns its workflow and teams; a report does not create verified
+        # execution evidence or overwrite independently stored run observations.
+        return
+    if not set(attempt_inputs(task, attempt)["expected_outputs"]) <= kinds:
+        raise HTTPException(409, "Required stage outputs are missing from the accepted completion manifest")
     outstanding = await db.scalar(select(CloudDelegation.id).where(CloudDelegation.attempt_id == attempt.id,
         CloudDelegation.status.not_in(TERMINAL)))
     if outstanding:
@@ -1801,29 +1805,11 @@ async def task_summary(db, task_id, *, project_id=None):
                  "CANCELLATION_REQUESTED" if cancellation and not fenced else
                  "STOP_UNCONFIRMED" if cancellation else
                  "RECONCILIATION_REQUIRED" if attempt.status == "RECOVERY_REQUIRED" else "ACTIVE")
-        from hypertest.domain.cloud_tasks import CloudConversationMessage, CloudNativeSessionRestore
-        resume_blocking = list(blocking)
-        if cancellation:
-            resume_blocking.append("CANCELLATION_REQUESTED")
-        if deletion:
-            resume_blocking.append("TASK_DELETED")
-        if attempt_inputs(task, attempt).get("budgets") is not None:
-            resume_blocking.append("NATIVE_RESUME_LEGACY_BUDGET_UNSUPPORTED")
-        if await db.scalar(select(CloudConversationMessage.id).where(
-                CloudConversationMessage.attempt_id == attempt.id,
-                CloudConversationMessage.role == "USER",
-                CloudConversationMessage.status.in_(("DELIVERING", "UNKNOWN"))).limit(1)):
-            resume_blocking.append("MESSAGE_DELIVERY_UNKNOWN")
-        if await db.scalar(select(CloudNativeSessionRestore.id).where(
-                CloudNativeSessionRestore.attempt_id == attempt.id,
-                CloudNativeSessionRestore.state.in_(("PENDING", "STARTED", "UNKNOWN"))).limit(1)):
-            resume_blocking.append("NATIVE_SESSION_INSPECTION_OUTSTANDING")
-        try:
-            await _current_grant(db, attempt.authorization_grant_id, task.project_id)
-        except HTTPException:
-            resume_blocking.append("AUTHORIZATION_UNAVAILABLE")
-        result["recovery"] = {"resume_supported": True, "resume_reason": "EXPLICIT_ORIGINAL_SESSION_CONTINUATION",
-            "can_resume": not resume_blocking, "resume_blocking_reasons": resume_blocking,
+        from .cloud_conversation import session_view
+        result["conversation"] = await session_view(db, task, attempt)
+        result["recovery"] = {"resume_supported": False, "resume_reason": "SEND_CONVERSATION_MESSAGE_TO_RECONNECT",
+            "can_resume": False, "can_reconnect": result["conversation"]["can_reconnect"],
+            "resume_blocking_reasons": ["USE_CONVERSATION_MESSAGE"],
             "identity_anchor": await _identity_anchor_status(db, task, attempt),
             "identity_anchor_verifies_session": False,
             "old_owner_fenced": fenced, "local_processes_stopped_observed": False,

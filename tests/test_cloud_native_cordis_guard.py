@@ -1,5 +1,4 @@
 """The root SDK prompt must never start without its per-invocation guard."""
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -10,7 +9,7 @@ import pytest
 from hypertest.cloud import native_sdk_driver as driver
 
 
-@pytest.mark.parametrize("mode", ["missing", "bad_nonce", "bad_root", "malformed", "selection_failure", "identity_changed", "identity_changed_late", "identity_ok", "title_changed", "ok"])
+@pytest.mark.parametrize("mode", ["missing", "bad_nonce", "bad_root", "malformed", "selection_failure", "ok"])
 def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
     calls = []
     module = ModuleType("deepseek_harness")
@@ -29,8 +28,6 @@ def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
         def __enter__(self): return self
         def __exit__(self, *args): pass
         def initialize(self, **kwargs):
-            if mode in {"identity_changed", "identity_changed_late", "identity_ok"}:
-                calls.append("initialize")
             if mode != "missing":
                 marker = Path(self.env["DSH_SDK_CORDIS_HANDSHAKE"])
                 payload = {"phase": "registered", "nonce": self.env["DSH_SDK_CORDIS_NONCE"],
@@ -46,6 +43,7 @@ def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
             calls.append("prompt")
             if mode == "selection_failure":
                 raise RuntimeError("preset rejected")
+            return "initial-message"
         def request(self, *args, **kwargs): calls.append("wait")
 
     module.HarnessConfig, module.HarnessClient = Config, Client
@@ -57,35 +55,12 @@ def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
     overlay.prepare_cordis_overlay = prepare
     monkeypatch.setitem(sys.modules, "hypertest.cloud.native_cordis", overlay)
     def read_selection(**kwargs):
-        if mode in {"identity_changed", "identity_changed_late", "identity_ok"}:
-            calls.append("selection")
         return {"provider": "x", "model": "y"}
     monkeypatch.setattr(driver, "read_native_selection", read_selection)
     config = {"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "root-1", "title": "任务标题", "prompt": "test"}
-    if mode in {"identity_changed", "identity_changed_late", "identity_ok", "title_changed"}:
-        identity = ModuleType("hypertest.cloud.native_resume_identity")
-        def verify(*args, **kwargs):
-            calls.append("verify")
-            if mode == "identity_changed" or (mode == "identity_changed_late" and calls.count("verify") == 2):
-                raise ValueError("identity drift")
-        identity.verify_original_identity = verify
-        monkeypatch.setitem(sys.modules, "hypertest.cloud.native_resume_identity", identity)
-        config["resume_identity"] = {"attempt_root": str(tmp_path), "digest": "a" * 64,
-            "original": {"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "root-1",
-                         "prompt_sha256": hashlib.sha256(b"test").hexdigest(),
-                         "title_sha256": hashlib.sha256(("不同标题" if mode == "title_changed" else "任务标题").encode()).hexdigest(),
-                         "selection": {"provider": "x", "model": "y"}}}
-    if mode in {"ok", "identity_ok"}:
+    if mode == "ok":
         driver.run(config, lambda value: None)
-        assert calls == (["verify", "selection", "initialize", "verify"] if mode == "identity_ok" else []) + ["prompt", "wait"]
-    elif mode in {"identity_changed", "identity_changed_late"}:
-        with pytest.raises(ValueError, match="identity drift"):
-            driver.run(config, lambda value: None)
-        assert calls == (["verify"] if mode == "identity_changed" else ["verify", "selection", "initialize", "verify"])
-    elif mode == "title_changed":
-        with pytest.raises(ValueError, match="identity mismatch"):
-            driver.run(config, lambda value: None)
-        assert calls == [], "A changed title must be rejected before SDK configuration or initialization"
+        assert calls == ["prompt", "wait"]
     elif mode == "selection_failure":
         with pytest.raises(RuntimeError, match="preset rejected"):
             driver.run(config, lambda value: None)

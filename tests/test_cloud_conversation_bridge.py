@@ -27,6 +27,8 @@ class API:
         self.lose_append = False
         self.lose_ack = False
         self.pending = None
+        self.legacy_digest = False
+        self.request_generation = None
 
     async def request(self, operation, body):
         self.requests.append((operation, body))
@@ -47,8 +49,11 @@ class API:
             if self.messages:
                 value = self.messages.pop(0)
                 self.pending = value["id"]
-                expected = {key: IDENTITY[key] for key in ("project_id", "task_id", "attempt_id", "generation")}
+                expected = {key: IDENTITY[key] for key in ("project_id", "task_id", "attempt_id")}
+                if self.legacy_digest:
+                    expected["generation"] = self.request_generation or IDENTITY["generation"]
                 return {"message": {**value, **IDENTITY, "role": "USER", "status": "DELIVERING",
+                                    **({"request_generation": self.request_generation} if self.request_generation is not None else {}),
                                     "request_digest": digest({**expected, "text": value["text"]})}}
             return {"message": None}
         if operation == "conversation/ack":
@@ -61,14 +66,17 @@ class API:
         raise AssertionError(operation)
 
 
-def make(tmp_path, api=None, *, spool=None):
+def make(tmp_path, api=None, *, spool=None, ready=True):
     api = api or API()
     async def assert_current(): pass
     broker = SimpleNamespace(identity=SimpleNamespace(generation=2, worker_id="host-worker"), api=api,
                              **{key: IDENTITY[key] for key in ("project_id", "task_id", "attempt_id")},
                              _body=lambda **fields: fields, assert_current=assert_current)
     adapter = SimpleNamespace()
-    return ConversationBridge(broker, adapter, IDENTITY["session_id"], private_root=spool or tmp_path / "private"), api, adapter
+    bridge = ConversationBridge(broker, adapter, IDENTITY["session_id"], private_root=spool or tmp_path / "private")
+    if ready:
+        bridge.session_ready.set()
+    return bridge, api, adapter
 
 
 @pytest.mark.asyncio
@@ -146,8 +154,11 @@ async def test_lost_append_response_repeats_only_same_observation(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_user_delivery_once_even_when_platform_ack_response_is_lost(tmp_path):
+@pytest.mark.parametrize("legacy_digest,request_generation", [(False, None), (True, None), (True, 1)])
+async def test_user_delivery_once_even_when_platform_ack_response_is_lost(tmp_path, legacy_digest, request_generation):
     bridge, api, adapter = make(tmp_path)
+    api.legacy_digest = legacy_digest
+    api.request_generation = request_generation
     api.messages = [{"id": "original-user-message", "text": "Continue"}]
     api.lose_ack = True
     sent = []
@@ -168,6 +179,23 @@ async def test_user_delivery_once_even_when_platform_ack_response_is_lost(tmp_pa
         acknowledgements = [body for op, body in api.requests if op == "conversation/ack"]
         assert len(acknowledgements) >= 2
         assert all(body == acknowledgements[0] for body in acknowledgements)
+    finally:
+        await bridge.close()
+        runner.cancel()
+        await asyncio.gather(runner, return_exceptions=True)
+
+
+async def test_unrestored_session_never_claims_user_input(tmp_path):
+    bridge, api, adapter = make(tmp_path, ready=False)
+    api.messages = [{"id": "original-user-message", "text": "Continue"}]
+    async def unexpected(*args): pytest.fail("unrestored session must not deliver input")
+    adapter.send_message = unexpected
+    runner = asyncio.create_task(bridge.run())
+    try:
+        await bridge.accept_frame(frame())
+        await bridge.flush()
+        assert len(api.messages) == 1 and not any(op == "conversation/poll" for op, _ in api.requests)
+        assert bridge.session_ready.is_set() is False
     finally:
         await bridge.close()
         runner.cancel()

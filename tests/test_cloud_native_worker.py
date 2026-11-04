@@ -812,7 +812,7 @@ def test_native_retry_rejects_mismatched_or_legacy_execution_snapshot(change):
      "network_targets": ["https://explicit.invalid"], "side_effect_limits": "Read only and do not modify data.",
      "expires_at": "2036-11-01T00:00:00Z"},
 ])
-def test_native_prompt_preserves_frozen_authorization_and_explains_preflight(tmp_path, authorization):
+def test_native_prompt_preserves_source_inputs_but_leaves_execution_policy_to_harness(tmp_path, authorization):
     import copy
     import json
 
@@ -826,6 +826,9 @@ def test_native_prompt_preserves_frozen_authorization_and_explains_preflight(tmp
                                       {"id": str(uuid4())}, tmp_path))
     assert manifest == original and digest(manifest) == before
     assert prompt["frozen_manifest"] == original
-    assert any("not an inventory of the host environment's capabilities" in line for line in prompt["instructions"])
-    assert any("honor any explicit task authorization" in line for line in prompt["instructions"])
-    assert any("Do not infer extra authorization" in line for line in prompt["instructions"])
+    assert any("Harness owns execution, tool permissions, approvals" in line for line in prompt["instructions"])
+    assert any("Follow the user's testing instructions" in line for line in prompt["instructions"])
+    archive = prompt["handoff_contract"]
+    assert any("optional archive formats, not required stages" in line for line in archive["instructions"])
+    assert all("Completion needs actual Run records" not in line
+               for line in archive["schema"]["x-hypertest-semantics"]["reference_and_state_rules"])

@@ -95,12 +95,6 @@ class Attempt(Input):
     attempt_id: UUID
 
 
-class ResumeIdentity(Attempt):
-    operation_key: str = Field(min_length=1, max_length=128)
-    snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    identity_source: Literal["PRE_PROMPT_ANCHORED", "OPERATOR_ADOPTED"]
-
-
 class Renew(Attempt):
     lease_seconds: int = Field(default=90, ge=15, le=300)
 
@@ -280,18 +274,6 @@ async def reconcile_claim(body: Claim, worker_id: str = Depends(authenticate_wor
     if not hmac.compare_digest(body.worker_id, worker_id):
         raise HTTPException(403, "Worker identity mismatch")
     return await cloud_worker_claims.reconcile(db, body.model_dump(mode="json", exclude_none=True))
-
-
-@router.post("/resume/identity")
-@controlled_errors
-async def record_resume_identity(body: ResumeIdentity, worker_id: str = Depends(authenticate_worker),
-                                 db: AsyncSession = Depends(get_db)):
-    check_identity(worker_id, body.identity)
-    await active(db, body)
-    from hypertest.application.cloud_conversation_resume import record_identity
-    return await record_identity(db, task_id=body.task_id, attempt_id=body.attempt_id,
-        identity=body.identity.service_identity(), operation_key=body.operation_key,
-        snapshot_sha256=body.snapshot_sha256, identity_source=body.identity_source)
 
 
 @router.post("/renew")

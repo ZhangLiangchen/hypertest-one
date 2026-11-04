@@ -70,7 +70,7 @@ async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_
     task_id, project_id = created["task_id"], context["project_id"]
     requested = await post(context, "RESOLVE_INPUTS", 1, task_id=task_id)
     assert requested.status_code == 200
-    resolution_request = {"worker_id": worker_id, "sequence": 1,
+    resolution_request = {"worker_id": worker_id, "slot_id": "slot-1", "sequence": 1,
                           "request_key": "resolution-claim-" + uuid4().hex, "lease_seconds": 90}
     response = await client.post("/api/v1/cloud/worker/claim", headers=headers, json=resolution_request)
     assert response.status_code == 200, response.text
@@ -97,7 +97,7 @@ async def test_host_worker_claim_resolution_and_original_read_after_fence(cloud_
                       resolution_id=requested.json()["resolution_id"])
     assert sent.status_code == 200, sent.text
     attempt_claim = await client.post("/api/v1/cloud/worker/claim", headers=headers,
-        json={"worker_id": worker_id, "sequence": 2, "request_key": "attempt-claim-" + uuid4().hex, "lease_seconds": 90})
+        json={"worker_id": worker_id, "slot_id": "slot-1", "sequence": 2, "request_key": "attempt-claim-" + uuid4().hex, "lease_seconds": 90})
     assert attempt_claim.status_code == 200 and attempt_claim.json()["kind"] == "ATTEMPT"
     claim = attempt_claim.json()["claim"]
     identity = {"worker_id": worker_id, "lease_token": claim["lease_token"],
@@ -176,7 +176,7 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
     monkeypatch.setattr(memory_module, "CloudMemoryTransport", transport)
     queued = await dispatched(context)
     claim_response = await context["client"].post("/api/v1/cloud/worker/claim",
-        headers={"Authorization": "Bearer " + token}, json={"worker_id": worker_id, "sequence": 1,
+        headers={"Authorization": "Bearer " + token}, json={"worker_id": worker_id, "slot_id": "slot-1", "sequence": 1,
             "request_key": "handoff-claim-" + uuid4().hex, "lease_seconds": 90})
     assert claim_response.status_code == 200 and claim_response.json()["kind"] == "ATTEMPT"
     claim = claim_response.json()["claim"]
@@ -198,7 +198,7 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
         def __init__(self, *, workspace, dsh_home):
             self.workspace = workspace
 
-        async def start(self, *, session_id, title, prompt, interaction_enabled=False):
+        async def start(self, *, session_id, title, prompt, interaction_enabled=False, keep_alive=False):
             assert title == claim["task"]["title"]
             process = FakeProcess()
             envelope = json.loads(prompt)
@@ -210,7 +210,7 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
             async def produce():
                 if memory_available:
                     memory_ready = self.workspace / ".hypertest-cloud" / "memory-ready"
-                    memory_ready.mkdir(parents=True)
+                    memory_ready.mkdir(parents=True, exist_ok=True)
                     (memory_ready / "lesson.json").write_text(json.dumps({"profile": memory_module.HANDOFF_PROFILE,
                         "task_id": task_id, "attempt_id": attempt_id, "key": "lesson", "operation": "QUERY",
                         "payload": {"query": "Shared project lesson", "limit": 5}}))
@@ -258,12 +258,23 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
                 process.stdout.feed_eof()
                 process.done.set()
 
-            asyncio.create_task(produce())
+            producer = asyncio.create_task(produce())
+            def producer_done(task):
+                if not task.cancelled() and task.exception() is not None:
+                    process.returncode = 1
+                    process.stdout.feed_eof()
+                    process.done.set()
+            producer.add_done_callback(producer_done)
             return process
 
         async def stop(self):
             return {"direct_process_stopped": True}
 
+    async def framework_project(**kwargs):
+        return kwargs["snapshot"]
+
+    from hypertest.cloud import native_framework_project
+    monkeypatch.setattr(native_framework_project, "prepare_framework_project", framework_project)
     monkeypatch.setattr(native_git.NativeGitResolver, "checkout", checkout)
     monkeypatch.setattr(native_sdk_adapter, "NativeSdkAdapter", FakeAdapter)
     api = native_worker.WorkerAPI("https://localhost", token.encode())
@@ -289,7 +300,7 @@ async def test_host_worker_synthetic_handoff_roundtrip(cloud_context, isolated_w
     assert checkpoint["external_operations_reconciled"] is False
 
 
-async def native_report_ready(context, monkeypatch, tmp_path, *, reported="NOT_RUN"):
+async def native_report_ready(context, monkeypatch, tmp_path, *, reported="NOT_RUN", expected_outputs=None):
     """Prepare a real Worker API delivery with synthetic report data, never an SDK/SUT."""
     settings = get_settings()
     token = "native-management-" + "z" * 40
@@ -299,7 +310,7 @@ async def native_report_ready(context, monkeypatch, tmp_path, *, reported="NOT_R
     monkeypatch.setattr(settings, "cloud_worker_enabled", True)
     monkeypatch.setattr(settings, "cloud_worker_api_token_file", str(key))
     monkeypatch.setattr(settings, "cloud_worker_api_worker_id", "native-management")
-    queued = await dispatched(context, task_inputs=new_inputs(expected_outputs=["REPORT"]))
+    queued = await dispatched(context, task_inputs=new_inputs(expected_outputs=expected_outputs or ["REPORT"]))
     async with AsyncSessionLocal() as db:
         claim = await service.claim_attempt(db, "native-management", project_id=UUID(context["project_id"]))
     identity = {"worker_id": "native-management", "lease_token": claim["lease_token"],
@@ -408,6 +419,27 @@ async def test_native_completion_still_rejects_known_pending_operation(cloud_con
     async with AsyncSessionLocal() as db:
         attempt = await db.get(CloudAttempt, UUID(ready.attempt_id))
         assert attempt.status == "RUNNING" and attempt.checkpoint["pending_operation_keys"] == ["original-unknown-key"]
+
+
+@pytest.mark.parametrize("reported", ["PASS", "BLOCKED"])
+async def test_native_archives_harness_report_without_platform_stages_or_approval(
+    cloud_context, monkeypatch, tmp_path, reported,
+):
+    ready = await native_report_ready(cloud_context, monkeypatch, tmp_path, reported=reported,
+        expected_outputs=["ANALYSIS", "DESIGN", "CASE", "IMPLEMENTATION", "REPORT"])
+    completed = await ready.submit("COMPLETE_NATIVE_ATTEMPT", **ready.completion)
+    assert completed.status_code == 200, completed.text
+    saved = await read_all(cloud_context, ready.task_id, completed.json()["version"])
+    assert saved["task"]["reported_result"] == reported
+    assert saved["runs"] == []  # No execution evidence is invented from the report.
+    assert {asset["kind"] for asset in saved["assets"]} == {"REPORT"}
+    assert saved["attempts"][0]["checkpoint"]["native_completion_observation"]["external_operations"] == "NOT_OBSERVED"
+
+
+async def test_native_archive_still_requires_its_accepted_report_and_matching_result(cloud_context, monkeypatch, tmp_path):
+    ready = await native_report_ready(cloud_context, monkeypatch, tmp_path)
+    denied = await ready.submit("COMPLETE_NATIVE_ATTEMPT", **{**ready.completion, "reported_result": "PASS"})
+    assert denied.status_code == 409 and "results disagree" in denied.json()["detail"]
 
 
 async def test_native_completion_marker_without_accepted_delivery_cannot_unlock_management(

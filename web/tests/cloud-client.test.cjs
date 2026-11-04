@@ -366,145 +366,41 @@ function taskPage(status, options = {}) {
   const rendered = nodes(tree);
   assert.equal(JSON.stringify(document), original, "a progress projection cannot rewrite accepted history");
   assert.equal(writes, 0);
-  return { queries, effects, reads, stateUpdates, document, live, rendered, rerender: () => nodes(render()), recovery: rendered.find((node) => node.type === "CloudAttemptRecovery")?.props, steps: rendered.find((node) => node.type === "Steps").props,
-    result: rendered.find((node) => node.type === "ReportedResultTag").props.result,
-    unknown: rendered.some((node) => String(node.props?.children).includes("Phase completion is unknown")) };
+  return { queries, effects, reads, stateUpdates, document, live, rendered, rerender: () => nodes(render()),
+    conversation: rendered.find((node) => node.type === "ConversationPanel")?.props,
+    result: rendered.find((node) => node.type === "ReportedResultTag").props.result };
 }
 
-const retryManagement = { can_retry: true, retry_blocking_reasons: [], can_delete: true, delete_blocking_reasons: [], native_scope_unobserved: true };
-const newAttemptButton = (rendered) => rendered.find((node) => node.type === "Button" && node.props.children === "Start new attempt");
+test("Task details show the conversation and reports without a second execution workflow", () => {
+  for (const status of ["RUNNING", "WAITING_INPUT", "RECOVERY_REQUIRED", "COMPLETED", "FAILED", "CANCELLED"]) {
+    const page = taskPage(status, { result: "FAIL" });
+    assert.equal(page.conversation.attempt.status, status);
+    assert.equal(page.result, "FAIL");
+    assert.ok(page.rendered.some((node) => node.type === "CloudTaskRecords"));
+    assert.ok(page.rendered.some((node) => node.type === "details" && node.props.className === "cloud-session-info"));
+    for (const type of ["Steps", "Tabs", "RecoveryChoice", "CloudAttemptRecovery", "RetryDialog"])
+      assert.equal(page.rendered.some((node) => node.type === type), false);
+    assert.equal(page.rendered.some((node) => node.type === "Button" && /cancel|resume|reconcil|attempt/i.test(String(node.props.children))), false);
+  }
+});
 
-test("Completed reported FAIL, failed and cancelled attempts can dispatch an explicitly confirmed new attempt", async () => {
+test("Finished tasks provide only ordinary new-test navigation and retain their reported result", () => {
   for (const status of ["COMPLETED", "FAILED", "CANCELLED"]) {
-    const submitted = [];
-    const page = taskPage(status, { result: "FAIL", management: retryManagement, submit: async (fields) => { submitted.push(fields); return null; } });
-    const button = newAttemptButton(page.rendered);
-    assert.equal(button.props.disabled, false);
-    button.props.onClick();
-    assert.equal(submitted.length, 0, "opening the review dialog never dispatches");
-    const dialog = page.rerender().find((node) => node.type === "RetryDialog");
-    assert.equal(dialog.props.invalid, false);
-    const freshInputs = { objective: "New scope", test_scope: "Read-only", basic_flow: "New steps", authorization: { targets: ["https://git.invalid/sut"], permitted_actions: ["git:read"], side_effect_limits: "No writes" } };
-    dialog.props.onSubmit(freshInputs);
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(submitted.length, 1);
-    assert.equal(submitted[0].operation, "DISPATCH");
-    assert.equal(submitted[0].retry_of_attempt_id, "attempt-1");
-    assert.equal(submitted[0].expected_version, 1);
-    assert.equal(submitted[0].retry_scope_confirmed, true);
-    assert.equal(submitted[0].retry_authorization_confirmed, true);
-    assert.equal(submitted[0].retry_inputs, freshInputs);
-    assert.equal(page.document.task.reported_result, "FAIL");
+    const page = taskPage(status, { result: "FAIL" });
+    const link = page.rendered.find((node) => node.props?.href && node.props.children === "New test");
+    assert.equal(link.props.href, "/projects/00000000-0000-4000-8000-000000000001/tasks/new?mode=cloud");
+    assert.equal(page.result, "FAIL");
+    assert.equal(page.rendered.some((node) => node.type === "RetryDialog"), false);
   }
 });
 
-test("Retry controls require current server admission and refuse a forced stale dialog submit", () => {
-  for (const options of [{}, { management: { ...retryManagement, can_retry: false, retry_blocking_reasons: ["PENDING_ORIGINAL_OPERATIONS"] } },
-    { management: retryManagement, liveError: true }, { management: retryManagement, liveVersion: 2 },
-    { management: retryManagement, deletedAt: "2026-11-03T00:00:00Z" }]) {
-    const page = taskPage("COMPLETED", options);
-    const button = newAttemptButton(page.rendered);
-    if (button) { assert.equal(button.props.disabled, true); button.props.onClick(); }
-    assert.equal(page.rerender().some((node) => node.type === "RetryDialog"), false);
+test("Conversation remains readable during report refresh and uses its own sending capability", () => {
+  for (const options of [{ liveError: true }, { liveVersion: 2 }, { missingLive: true }]) {
+    const page = taskPage("RUNNING", options);
+    assert.equal(page.conversation.attempt.id, "attempt-1");
+    assert.equal(page.conversation.blocked, false, "an independent report refresh does not control conversation delivery");
   }
-  for (const status of ["DRAFT", "RUNNING", "RECOVERY_REQUIRED", "WAITING_INPUT"]) {
-    assert.equal(newAttemptButton(taskPage(status, { management: retryManagement }).rendered), undefined);
-  }
-  const submitted = [];
-  const page = taskPage("COMPLETED", { management: { ...retryManagement }, submit: async (fields) => submitted.push(fields) });
-  newAttemptButton(page.rendered).props.onClick();
-  page.live.management.can_retry = false;
-  page.live.management.retry_blocking_reasons = ["PENDING_ORIGINAL_OPERATIONS"];
-  const dialog = page.rerender().find((node) => node.type === "RetryDialog");
-  assert.equal(dialog.props.invalid, true);
-  dialog.props.onSubmit({});
-  assert.equal(submitted.length, 0);
-});
-
-test("Removed task pages preserve manual reconciliation while refusing new task work", async () => {
-  const submitted = [];
-  const page = taskPage("RECOVERY_REQUIRED", { deletedAt: "2026-11-03T00:00:00Z", submit: async (fields) => { submitted.push(fields); return null; } });
-  assert.equal(page.recovery.blocked, false);
-  assert.ok(page.rendered.some((node) => node.type === "Alert" && node.props.message === "Removed from the task list"));
-  for (const operation of ["DISPATCH", "CANCEL_ATTEMPT", "ANSWER_INPUT", "DELETE_TASK"]) {
-    await page.recovery.onSubmit({ operation, attempt_id: "attempt-1" });
-  }
-  assert.equal(submitted.length, 0);
-  await page.recovery.onSubmit({ operation: "RECONCILE_ATTEMPT", attempt_id: "attempt-1", status: "CANCELLED" });
-  assert.equal(submitted.length, 1);
-  assert.equal(submitted[0].expected_version, 1);
-  assert.equal(submitted[0].operation, "RECONCILE_ATTEMPT");
-  assert.equal(taskPage("RECOVERY_REQUIRED", { deletedAt: "2026-11-03T00:00:00Z", liveError: true }).recovery.blocked, true);
-});
-
-test("Missing live identity and early terminal states show no inferred completed Harness phase", () => {
-  for (const [status, options] of [["DRAFT", { missingLive: true }], ["COMPLETED", { foreignLive: true }], ["FAILED", {}], ["CANCELLED", {}], ["RECOVERY_REQUIRED", {}]]) {
-    const page = taskPage(status, options);
-    assert.equal(page.steps.current, -1);
-    assert.equal(page.unknown, true);
-    assert.equal(page.result, "NOT_RUN");
-  }
-});
-
-test("Workflow links navigate to their matching task sections without submitting work", () => {
-  const page = taskPage("DRAFT");
-  const links = page.steps.items.map((item) => item.title.props.children);
-  assert.equal(links.length, 5);
-  const destinations = [["overview", "cloud-task-inputs"], ["overview", "cloud-task-resolution"],
-    ["attempts", "cloud-attempt-history-heading"], ["artifacts", "cloud-assets-title"], ["artifacts", "cloud-runs-title"]];
-  destinations.forEach(([tab, id], index) => {
-    const link = links[index]; let prevented = false;
-    assert.equal(link.props.href, `#${id}`);
-    link.props.onClick({ preventDefault() { prevented = true; } });
-    assert.equal(prevented, true);
-    const [selectedTab, target] = page.stateUpdates.splice(0);
-    assert.equal(selectedTab, tab);
-    assert.equal(target.tab, tab);
-    assert.equal(target.id, id);
-  });
-});
-
-test("In-flight work stays on Harness work instead of marking it finished without a delivered result", () => {
-  for (const status of ["QUEUED", "PREPARING", "RUNNING", "WAITING_INPUT"]) {
-    const page = taskPage(status);
-    assert.equal(page.steps.items[page.steps.current].title.props.children.props.children, "Harness work");
-    assert.equal(page.unknown, false);
-    assert.equal(page.result, "NOT_RUN");
-  }
-  assert.ok(taskPage("DRAFT").steps.current < taskPage("RUNNING").steps.current);
-});
-
-test("A delivered task can reach execution/report while retaining its original reported FAIL", () => {
-  const page = taskPage("COMPLETED", { result: "FAIL" });
-  assert.equal(page.steps.items[page.steps.current].title.props.children.props.children, "Execution and report");
-  assert.equal(page.result, "FAIL");
-  assert.equal(page.unknown, false);
-  assert.equal(page.steps.items.filter((item) => item.title.props["aria-current"] === "step").length, 1);
-  assert.equal(page.steps.items[page.steps.current].title.props["aria-current"], "step");
-  assert.equal(taskPage("COMPLETED", { result: "PASS" }).result, "PASS");
-});
-
-test("Workflow colors reflect recorded facts without inferring phase completion", () => {
-  const tones = (page) => Array.from(page.steps.items, (item) => item.icon.props.className);
-  const running = tones(taskPage("RUNNING"));
-  assert.match(running[2], /cloud-flow-active/);
-  assert.match(running[3], /cloud-flow-unknown/);
-  assert.match(running[4], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("WAITING_INPUT"))[2], /cloud-flow-waiting/);
-  assert.match(tones(taskPage("COMPLETED", { result: "FAIL" }))[4], /cloud-flow-failed/);
-  assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[4], /cloud-flow-complete/);
-  assert.match(tones(taskPage("COMPLETED", { result: "PASS" }))[3], /cloud-flow-complete/);
-  assert.match(tones(taskPage("COMPLETED", { result: "PASS", liveError: true }))[3], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("FAILED"))[2], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 1 }] }))[1], /cloud-flow-failed/);
-  assert.match(tones(taskPage("DRAFT", { resolutions: [{ status: "FAILED", source_draft_version: 0 }] }))[1], /cloud-flow-unknown/);
-  assert.match(tones(taskPage("RUNNING", { liveError: true }))[2], /cloud-flow-unknown/);
-});
-
-test("A failed live refresh does not present an old phase as current", () => {
-  const page = taskPage("RUNNING", { liveError: true });
-  assert.equal(page.steps.current, -1);
-  assert.equal(page.steps.items.filter((item) => item.title.props["aria-current"] === "step").length, 0);
+  assert.equal(taskPage("RECOVERY_REQUIRED", { deletedAt: "2026-11-03T00:00:00Z" }).conversation.blocked, true);
 });
 
 test("Browser reconciliation only reads the original key and retains the pending stream", () => {

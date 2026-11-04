@@ -1,5 +1,7 @@
 # HyperTest 白皮书
 
+> **2026-11-04 Cloud 职责纠正：** [ADR-041](../architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 明确 Cloud 是 Harness 的任务、对话与归档外壳。云端执行沿用本地 Harness 流程，计划、工具、团队及审批由 Harness 决定；HyperTest 不另设阶段控制、人工接管或业务对账审批。Native 报告按来源保存，不冒充平台独立验证。
+
 > **2026-11-04 执行沟通：** [ADR-039](../architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 定义任务内 Agent 对话。阶段输出、阻塞原因和用户回复作为持久执行沟通记录，独立于正式测试资产与结果；等待回复不调用模型。宿主薄 Worker 并发桥接多个独立 Harness 会话，不接管 Agent 推理和团队编排。
 
 > **2026-11-03 产品边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 移除 Cloud 项目资源页与环境/预期部署版本管理。项目详情管理两个仓库；创建任务填写任务名称、粘贴 MR/PR 地址，可选补充单个测试说明；SUT 默认取 MR/PR head，测试框架默认取 main 最新提交并在解析时固定 SHA。HyperTest 聚焦测试任务生命周期、任务下发和产物归档，SUT 部署由其独立 CI 负责。

@@ -131,9 +131,10 @@ async def test_resume_verifies_identity_before_new_message_and_uses_original_wor
     workspace.mkdir(parents=True, mode=0o700)
     original_prompt = root / "prompt-intent.json"
     original_prompt.write_text("original immutable prompt identity")
-    intent = {"target_generation": 3, "continuation": "Explain this blocker.", "operation_key": "resume-new-message"}
+    intent = {"mode": "RESTORE_ONLY", "worker_id": "fixture" if identity_ok else "another-worker",
+              "target_generation": 3, "session_id": "cloud-" + attempt_id, "input_digest": "d" * 64}
     claim = {"task": {"id": "task", "project_id": "project", "title": "Task", "inputs": {"budgets": None}},
-        "attempt": {"id": attempt_id, "checkpoint": {"native_resume": intent}}}
+        "attempt": {"id": attempt_id, "input_digest": "d" * 64, "checkpoint": {"native_resume": intent}}}
     class Broker:
         def __init__(self, *args):
             self.identity = SimpleNamespace(generation=3)
@@ -169,9 +170,8 @@ async def test_resume_verifies_identity_before_new_message_and_uses_original_wor
         async def resume(self, **kwargs):
             events.append("resume")
             assert args._native_startup_lock.locked()
-            assert kwargs["continuation"] == intent["continuation"] and "prompt" not in kwargs
+            assert "continuation" not in kwargs and "prompt" not in kwargs and "resume_identity" not in kwargs
             assert kwargs["session_id"] == "cloud-" + attempt_id
-            assert kwargs["resume_identity"] == {"digest": "fixed"}
             return process
         async def start(self, **kwargs): pytest.fail("Resume must not start a fresh session")
         async def stop(self):
@@ -205,12 +205,6 @@ async def test_resume_verifies_identity_before_new_message_and_uses_original_wor
             if self.conversation.failure:
                 raise self.conversation.failure
         async def close(self): pass
-    async def identity(**kwargs):
-        events.append("identity")
-        assert args._native_startup_lock.locked()
-        if not identity_ok:
-            raise CloudBlocked("IDENTITY_UNCONFIRMED", "Refuse before any new message")
-        return {"digest": "fixed"}
     collected = 0
     async def collect(*args, **kwargs):
         nonlocal collected
@@ -222,7 +216,6 @@ async def test_resume_verifies_identity_before_new_message_and_uses_original_wor
     monkeypatch.setattr(get_settings(), "cloud_memory_enabled", False)
     monkeypatch.setattr(native_worker, "RemoteBroker", Broker)
     monkeypatch.setattr(native_worker, "native_execution_task", lambda task, attempt: (task, {}, False))
-    monkeypatch.setattr(native_worker, "prepare_continuation_identity", identity)
     monkeypatch.setattr(native_worker, "native_prompt", no_checkout)
     monkeypatch.setattr(native_git.NativeGitResolver, "checkout", no_checkout)
     monkeypatch.setattr(reporter, "CloudTaskReporter", Reporter)
@@ -238,16 +231,16 @@ async def test_resume_verifies_identity_before_new_message_and_uses_original_wor
         with pytest.raises(CloudBlocked) as error:
             await asyncio.wait_for(native_worker.execute(None, args, tmp_path, claim), 1)
         assert error.value.code == "CONVERSATION_READBACK_MISMATCH"
-        assert events == ["recover", "identity", "running", "resume", "fenced", "stop", "INTERRUPTED"]
+        assert events == ["recover", "running", "resume", "fenced", "stop", "INTERRUPTED"]
     elif identity_ok:
         await native_worker.execute(None, args, tmp_path, claim)
         close_events = ["preview:rejected", "preview:final", "close"] if completion_rejected else []
-        assert events == ["recover", "identity", "running", "resume", *close_events, "CLOSED", "complete"]
-        assert (root / "continuation-intent-3.json").exists()
+        assert events == ["recover", "running", "resume", *close_events, "CLOSED", "complete"]
+        assert not (root / "continuation-intent-3.json").exists()
     else:
-        with pytest.raises(CloudBlocked, match="Refuse"):
+        with pytest.raises(CloudBlocked, match="Original connection target"):
             await native_worker.execute(None, args, tmp_path, claim)
-        assert events == ["recover", "identity", "fenced", "stop"]
+        assert events == ["recover", "fenced", "stop"]
         assert not (root / "continuation-intent-3.json").exists()
     assert original_prompt.read_text() == "original immutable prompt identity"
     assert not startup_lock.locked()

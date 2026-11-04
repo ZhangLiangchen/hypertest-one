@@ -426,6 +426,7 @@ class CloudCancel(AttemptMutation):
 
 
 class CloudResume(AttemptMutation):
+    """Readback schema for accepted historical keys; new requests are retired."""
     operation: Literal["RESUME_ATTEMPT"] = "RESUME_ATTEMPT"
     reason: str = Field(min_length=1, max_length=4096)
     reconciliation: dict = Field(min_length=1)

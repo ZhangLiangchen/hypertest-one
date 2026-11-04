@@ -22,7 +22,7 @@ def validate_questions(questions):
         if not isinstance(q.get("question"), str) or not 1 <= len(q["question"]) <= 8000:
             raise HTTPException(422, "Invalid question text")
         intent = q.get("intent")
-        if intent is not None and (not isinstance(intent, dict) or intent.get("kind") not in {"plan-review"}):
+        if intent is not None and (not isinstance(intent, dict) or intent.get("kind") not in {"plan-review", "approval"}):
             raise HTTPException(403, "Unsupported question intent")
         options = q.get("options", [])
         if not isinstance(options, list) or len(options) > 40:
@@ -58,7 +58,7 @@ def validate_answer(questions, answer):
         custom = item.get("custom")
         if custom is not None and (not isinstance(custom, str) or len(custom) > 16000):
             raise HTTPException(422, "Invalid custom answer")
-        if not q.get("multiSelect", False) and (q.get("intent") or {}).get("kind") != "plan-review" and selected and isinstance(custom, str) and custom.strip():
+        if not q.get("multiSelect", False) and (q.get("intent") or {}).get("kind") not in {"plan-review", "approval"} and selected and isinstance(custom, str) and custom.strip():
             raise HTTPException(422, "Single selection cannot include a custom answer")
         if not selected and not (isinstance(custom, str) and custom.strip()):
             raise HTTPException(422, "An answer is required")

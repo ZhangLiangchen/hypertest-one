@@ -58,8 +58,16 @@ async def test_live_question_fenced_delivery_and_original_keys(cloud_context, mo
     assert rejected.status_code == 422
     wrong_project = await client.get(f"/api/v1/cloud/tasks/{queued['task_id']}/live-questions", headers=context["headers"], params={"project_id": str(uuid4())})
     assert wrong_project.status_code in {403, 404}
-    invalid = await client.post(url + "open", headers=headers, json={**original, "request_id": "other", "questions": [{**questions[0], "intent": {"kind": "approval"}}]})
-    assert invalid.status_code == 403
+    approval_questions = [{**questions[0], "intent": {"kind": "approval"}}]
+    approval = await client.post(url + "open", headers=headers, json={**original, "request_id": "approval", "questions": approval_questions})
+    assert approval.status_code == 200
+    assert all(approval.json()["questions"][0][key] == value for key, value in approval_questions[0].items())
+    approval_answer = {"project_id": context["project_id"], "operation_key": "approval:answer",
+        "answers": [{"id": "q1", "selected": ["yes"], "custom": "Use the specified test account."}], "cancelled": False}
+    approval_target = f"/api/v1/cloud/tasks/{queued['task_id']}/live-questions/{approval.json()['id']}/answer"
+    assert (await client.post(approval_target, headers=context["headers"], json=approval_answer)).status_code == 200
+    approval_poll = await client.post(url + "poll", headers=headers, json={**body, "question_id": approval.json()["id"]})
+    assert approval_poll.json()["answers"] == approval_answer["answers"]
     target = f"/api/v1/cloud/tasks/{queued['task_id']}/live-questions/{question_id}/answer"
     answer = {"project_id": context["project_id"], "operation_key": "answer:1",
         "answers": [{"id": "q1", "selected": ["yes"]}], "cancelled": False}

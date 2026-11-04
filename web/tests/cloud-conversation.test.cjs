@@ -89,7 +89,7 @@ test("reopening an uncertain send queries its original key only, including NOT_F
 });
 
 test("mismatched receipt identities or text never settle the original message", async () => {
-  for (const mismatch of [{ generation: 2 }, { attempt_id: otherAttempt }, { text: "Changed text" }, { role: "ASSISTANT" }]) {
+  for (const mismatch of [{ project_id: otherTask }, { attempt_id: otherAttempt }, { text: "Changed text" }, { role: "ASSISTANT" }]) {
     let body;
     const api = setup(async (_path, options) => {
       body = JSON.parse(options.body);
@@ -107,6 +107,36 @@ test("an accepted message settles only its own key; definite rejection permits a
   const rejected = setup(async () => { throw new cloud.CloudApiError(422, "not accepted"); });
   assert.equal((await rejected.sendConversationMessage(target, "Original reply")).state, "REJECTED");
   assert.equal((await rejected.conversationJournal.read(project)).length, 0);
+});
+
+test("ordinary input leaves generation assignment to the server and accepts the same keyed message after reconnect", async () => {
+  const api = setup(async (_path, options) => {
+    const body = JSON.parse(options.body);
+    assert.equal(Object.hasOwn(body, "generation"), false);
+    return message({ ...body, generation: 9 });
+  });
+  assert.equal((await api.sendConversationMessage(target, "Original reply")).state, "ACCEPTED");
+  assert.equal((await api.conversationJournal.read(project)).length, 0);
+});
+
+test("a previous-generation journal entry remains original-key only and can reconcile its server-assigned generation", async () => {
+  let reads = 0;
+  const api = setup(async (path, options) => {
+    assert.equal(options, undefined);
+    assert.ok(path.includes("messages/by-key"));
+    reads++;
+    return message({ operation_key: original.operation_key, generation: 7 });
+  });
+  const original = { ...target, generation: 1, operation_key: "web:00000000-0000-4000-8000-000000000099",
+    state: "UNKNOWN", text_digest: cloud.cloudInputIdentity({ text: "Original reply" }) };
+  await api.conversationJournal.reserve(original);
+  const [saved] = await api.conversationJournal.read(project);
+  assert.equal(saved.generation, 1);
+  assert.equal((await api.sendConversationMessage(target, "Another reply")).state, "PENDING");
+  assert.equal(reads, 0);
+  await api.reconcileConversationMessage(saved);
+  assert.equal(reads, 1);
+  assert.equal((await api.conversationJournal.read(project)).length, 0);
 });
 
 test("unavailable durable storage prevents sending", async () => {
@@ -136,7 +166,7 @@ test("conversation renders untrusted Markdown as text and separates delivery fro
     attempts: [row], blocked: false, artifactCount: 0, onRecovery() {}, onArtifacts() {} }));
   assert.ok(html.includes("&lt;script&gt;private()&lt;/script&gt;"));
   assert.ok(!html.includes("<script>"));
-  assert.ok(html.includes("View execution and recovery"));
+  assert.ok(!html.includes("View execution and recovery"));
   assert.ok(html.includes("Imported from the original session"));
   assert.ok(html.includes("Original message"));
   assert.ok(html.includes("2026-11-03T09:00:00Z"));
@@ -163,9 +193,58 @@ test("a selected historical attempt is read only even if the session projection 
   const row = { id: attempt, attempt_no: 2, status: "RUNNING" };
   const html = renderToStaticMarkup(React.createElement(ConversationPanel, { projectId: project, taskId: task, attempt: row,
     attempts: [{ ...row, id: otherAttempt, attempt_no: 1, status: "FAILED" }, row], blocked: false, artifactCount: 0, onRecovery() {}, onArtifacts() {} }));
-  assert.ok(html.includes("History · read only"));
+  assert.ok(html.includes("Read only"));
   assert.ok(html.includes("question-read-only"));
   assert.ok(html.includes("Load more messages"));
+  assert.ok(!html.includes("<textarea"));
+  assert.ok(!html.includes("Send message"));
+});
+
+test("a reconnectable offline session uses the ordinary composer without an approval or generation input", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const api = setup(); let firstBoolean = true;
+  const { ConversationPanel } = load("app/cloud-tasks/[taskId]/conversation-panel.tsx", { require: name => {
+    if (name === "react") return { ...React, useState(initial) {
+      if (initial === "") return ["Continue with the saved context.", () => {}];
+      if (initial === false && firstBoolean) { firstBoolean = false; return [true, () => {}]; }
+      return React.useState(initial);
+    } };
+    if (name === "@tanstack/react-query") return { useQuery: () => ({ data: {
+      messages: [], next_cursor: 0, session: { state: "OFFLINE", can_send: true, can_reconnect: true, blocking_reasons: [] },
+    }, refetch() {} }) };
+    if (name === "@/lib/cloud-conversation") return api;
+    if (name === "@/lib/cloud") return cloud;
+    if (name === "@/lib/i18n") return { useI18n: () => ({ t: en => en, formatDate: date => date }) };
+    if (name === "./live-questions-panel") return { LiveQuestionsPanel: () => null };
+    return require(name);
+  } });
+  const row = { id: attempt, attempt_no: 1, status: "RECOVERY_REQUIRED" };
+  const html = renderToStaticMarkup(React.createElement(ConversationPanel, { projectId: project, taskId: task, attempt: row,
+    attempts: [row], blocked: false, artifactCount: 0, onArtifacts() {} }));
+  assert.ok(html.includes("Sending a message reconnects the saved session."));
+  assert.ok(html.includes("Send message"));
+  assert.ok(!html.includes("Authorize"));
+  assert.ok(!html.includes("disabled=\"\""));
+});
+
+test("a completed current attempt has no composer even if the session response allows messages", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const api = setup();
+  const { ConversationPanel } = load("app/cloud-tasks/[taskId]/conversation-panel.tsx", { require: name => {
+    if (name === "@tanstack/react-query") return { useQuery: () => ({ data: { messages: [], next_cursor: 0,
+      session: { state: "CLOSED", can_send: true, blocking_reasons: [] } }, refetch() {} }) };
+    if (name === "@/lib/cloud-conversation") return api;
+    if (name === "@/lib/cloud") return cloud;
+    if (name === "@/lib/i18n") return { useI18n: () => ({ t: en => en, formatDate: date => date }) };
+    if (name === "./live-questions-panel") return { LiveQuestionsPanel: () => null };
+    return require(name);
+  } });
+  const row = { id: attempt, attempt_no: 1, status: "COMPLETED" };
+  const html = renderToStaticMarkup(React.createElement(ConversationPanel, { projectId: project, taskId: task, attempt: row,
+    attempts: [row], blocked: false, artifactCount: 0, onArtifacts() {} }));
+  assert.ok(html.includes("Read only"));
   assert.ok(!html.includes("<textarea"));
   assert.ok(!html.includes("Send message"));
 });

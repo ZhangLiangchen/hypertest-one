@@ -3,7 +3,7 @@ const test = require("node:test");
 const load = require("./load-helper.cjs");
 
 // Exercise the component's input handlers with a small deterministic hooks host.
-test("single choice and custom input are exclusive and submit SDK option labels", async () => {
+function questionHarness(intent) {
   const states = [];
   let cursor = 0;
   const react = {
@@ -27,8 +27,8 @@ test("single choice and custom input are exclusive and submit SDK option labels"
     return require(name);
   } });
   const submissions = [];
-  const props = { request: { id: "request", status: "open", questions: [{ id: "q", question: "Choose",
-    options: [{ label: "Visible label", value: "different-internal-value" }], multiple: false, allow_custom: true }] },
+  const props = { request: { id: "request", status: "open", questions: [{ id: "q", question: "Choose", detail: "Native question detail", intent,
+    options: [{ label: "Visible label", value: "different-internal-value", description: "Native option description" }], multiple: false, allow_custom: true }] },
     onSubmit: async (...args) => submissions.push(args), onCancel: async () => {} };
   const render = () => { cursor = 0; return LiveQuestions(props); };
   const find = (tree, type) => {
@@ -40,6 +40,11 @@ test("single choice and custom input are exclusive and submit SDK option labels"
       if (found) return found;
     }
   };
+  return { render, find, Radio, submissions };
+}
+
+test("single choice and custom input are exclusive and submit SDK option labels", async () => {
+  const { render, find, Radio, submissions } = questionHarness();
   let tree = render();
   assert.equal(find(tree, Radio).props.value, "Visible label");
   find(tree, "RadioGroup").props.onChange({ target: { value: "Visible label" } });
@@ -53,4 +58,22 @@ test("single choice and custom input are exclusive and submit SDK option labels"
   find(tree, "form").props.onSubmit({ preventDefault() {} });
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(JSON.parse(JSON.stringify(submissions)), [["request", [{ id: "q", selected: ["Visible label"] }]]]);
+});
+
+for (const kind of ["approval", "plan-review"]) test(`Harness ${kind} retains its option and supplementary answer together`, async () => {
+  const { render, find, Radio, submissions } = questionHarness({ kind });
+  let tree = render();
+  assert.equal(find(tree, "Paragraph").props.children, "Native question detail");
+  assert.ok(JSON.stringify(find(tree, Radio).props.children).includes("Native option description"));
+  find(tree, "RadioGroup").props.onChange({ target: { value: "Visible label" } });
+  tree = render();
+  find(tree, "TextArea").props.onChange({ target: { value: "only the requested operation" } });
+  tree = render();
+  assert.equal(find(tree, "RadioGroup").props.value, "Visible label");
+  find(tree, "RadioGroup").props.onChange({ target: { value: "Visible label" } });
+  tree = render();
+  assert.equal(find(tree, "TextArea").props.value, "only the requested operation");
+  find(tree, "form").props.onSubmit({ preventDefault() {} });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(JSON.parse(JSON.stringify(submissions)), [["request", [{ id: "q", selected: ["Visible label"], custom: "only the requested operation" }]]]);
 });
