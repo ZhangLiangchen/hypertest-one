@@ -4,7 +4,8 @@
 
 ## 现行入口
 
-- [指定原会话异步对话与归档纠错实际验收（2026-11-04）](CLOUD_ASYNC_SESSION_ACCEPTANCE_20261104.md)：实际消息、自动纠错、完整报告读回与 Chrome 后续发送；记录原生 Web 写锁限制。
+- [Cloud 原生查看页只读部署与实际验收（2026-11-04）](CLOUD_NATIVE_READONLY_ACCEPTANCE_20261104.md)：15 项回归通过；原生页持续打开时，实际完成 Worker 离线消息保存、原会话恢复、归档纠错和后续网页对话，不依赖查看宿主重启顺序。
+- [指定原会话异步对话与归档纠错实际验收（2026-11-04）](CLOUD_ASYNC_SESSION_ACCEPTANCE_20261104.md)：前轮实际消息、自动纠错、完整报告读回与 Chrome 后续发送；当时原生 Web 写锁及启动顺序处置保留为历史，查看路径已由后续只读改造替代。
 - [Cloud 异步会话修复（2026-11-04）](CLOUD_ASYNC_SESSION_DELIVERY_20261104.md)：消息保存与 Worker 连接分离、内部恢复、归档修正不中断对话；实施、部署及用户验收分别记录。
 
 - [ADR-041：Cloud 作为 Harness 外壳](architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md)：执行和审批归 Harness，平台提供任务、普通消息及产物；替代 ADR-039 的人工接管流程。实施和部署见[薄壳纠正记录](CLOUD_HARNESS_SHELL_DELIVERY_20261104.md)。
