@@ -23,7 +23,7 @@
 - [ADR-032](architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 轻量 Worker 的公司发行和未来项目资源隔离的全容器化另行设计；本机领取恢复与真实结果回传已见本轮交付，不重复列为开发待办。
 - 本机 Cloud Worker：独立 Docker Attempt、受控写入和自动观察收尾修复已部署；真实 Docker/SDK 的无兑换项目单测任务与报告闭环已观察，自动 action 观察及收尾另以专用测试库和合成目标验证，尚未在修复版本上以真实写操作复验。原历史任务、动作及报告保持不变；不能将合成结果推定为真实 SUT 测试通过。见[本轮记录](CLOUD_WORKER_FIRST_SLICE_20261029.md)。
 - Cloud 框架与受控 HTTPS 只完成首片；真实目标授权、依赖闭包和离线供应、认证或写 API、其他工具链与浏览器等尚未完成。见[受控 HTTPS](CONTROLLED_HTTPS_FOLLOWUP_20261023.md)和[框架冻结](FRAMEWORK_RUNTIME_FOLLOWUP_20261023.md)。
-- Cloud 对话与多会话薄 Worker：公开输出和四槽桥接保留；按 [ADR-041](architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 去掉平台阶段/人工审批，普通消息负责原会话连接。指定业务任务的真实回复和继续执行由用户验收，实施/部署见[纠正记录](CLOUD_HARNESS_SHELL_DELIVERY_20261104.md)。旧接管表单不再安排验收。
+- Cloud 对话与多会话薄 Worker：公开输出和四槽桥接保留；按 [ADR-041](architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 去掉平台阶段/人工审批，普通消息负责原会话连接。原自检任务通过原会话续写报告并保留 FAIL 已验证，见[本轮记录](CLOUD_ORIGINAL_SESSION_CONTINUATION_20261104.md)；其他业务任务继续执行分别由用户验收。实施/部署见[纠正记录](CLOUD_HARNESS_SHELL_DELIVERY_20261104.md)。旧接管表单不再安排验收。
 - SUT CI adapter、一般 SSH 和 Cloud Claude 尚未实现；分别需要明确 provider 与独立权限、受限目标及 host key、云端服务身份和模型预算。见[P2 设计与输入](CLOUD_P2_FOLLOWUP_20261023.md)。
 - 平台完整回归 CI 为按需手动执行；日常按改动风险做必要检查。未运行不等于通过，发行标签构建单独保留。
 
@@ -33,4 +33,4 @@
 ## 2026-11-04：Cloud 框架项目工作目录
 
 - 实现和宿主部署已完成，见 [交付记录](CLOUD_FRAMEWORK_PROJECT_DELIVERY_20261104.md)。框架原文件直接归档，HyperTest 不另造测试流程。
-- USER_OWNED：新 Cloud 任务实际业务验收待用户执行；旧会话跨目录归组尚无原生支持，本轮保留原会话与结果。
+- 新 Cloud 任务实际业务验收仍按各任务分别记录；指定 15 个旧会话的框架项目归组已完成，原会话和结果保持，见[归组与续写记录](CLOUD_ORIGINAL_SESSION_CONTINUATION_20261104.md)。不再将旧会话归组列为未实现项。
