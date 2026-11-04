@@ -130,6 +130,16 @@ async def send(db, task, attempt, actor, body):
         old_digest = service.canonical_json_sha256({**payload, "generation": body.generation}) if body.generation else None
         if old.request_digest not in {digest, old_digest} or old.actor_ref != actor or old.task_id != task.id:
             raise HTTPException(409, "CONVERSATION_MESSAGE_CONFLICT")
+        if old.status == "QUEUED" and (await session_view(db, task, attempt))["can_reconnect"]:
+            # A connection can fail before this message is ever polled. Retrying
+            # its original key reconnects the session without creating a new send.
+            from .cloud_conversation_resume import enqueue_connection
+            await enqueue_connection(db, task=task, attempt=attempt,
+                operation_key=body.operation_key, actor_ref=actor)
+            await db.flush()
+            result = view(old)
+            await db.commit()
+            return result
         return view(old)
     session = await session_view(db, task, attempt)
     if not session["can_send"]:

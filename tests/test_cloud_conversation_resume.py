@@ -1,6 +1,9 @@
 """Ordinary messages reconnect the original session without a second prompt."""
 from uuid import UUID
 
+import pytest
+from sqlalchemy import select
+
 from test_cloud_tasks import cloud_context as cloud_context
 from test_cloud_tasks import post, worker_submit
 from test_cloud_worker_claim_recovery import api, queued, request, target
@@ -81,15 +84,72 @@ async def test_failed_connection_preserves_unattempted_message_and_original_dige
     sent = (await send(context, work)).json()
     claimed = await claim_next(context, 2)
     await close(context, claimed)  # No polling or SDK delivery ever occurred.
-    assert (await send(context, work)).json()["status"] == "QUEUED"
-    next_message = await send(context, work, "message:two", text="More context for that blocker.")
-    assert next_message.status_code == 200, next_message.text
+    history = await context["client"].get(f"/api/v1/cloud/tasks/{work['task_id']}/conversation",
+        headers=context["headers"], params={"project_id": context["project_id"]})
+    assert history.json()["session"]["can_reconnect"]
+    async with AsyncSessionLocal() as db:
+        attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
+        assert attempt.status == "RECOVERY_REQUIRED"
+        retry_generation = attempt.lease_generation + 1
+        assert (await db.get(CloudConversationMessage, UUID(sent["id"]))).generation == sent["generation"]
+    retried = await send(context, work)
+    assert retried.status_code == 200, retried.text
+    assert retried.json()["id"] == sent["id"] and retried.json()["status"] == "QUEUED"
+    assert retried.json()["generation"] == retry_generation
+    assert (await send(context, work)).json() == retried.json()
     async with AsyncSessionLocal() as db:
         row = await db.get(CloudConversationMessage, UUID(sent["id"]))
-        assert row.status == "QUEUED" and row.generation == next_message.json()["generation"]
+        assert row.status == "QUEUED" and row.generation == retried.json()["generation"]
         assert row.request_digest == sent["request_digest"]
+        rows = list(await db.scalars(select(CloudConversationMessage).where(
+            CloudConversationMessage.attempt_id == UUID(work["attempt_id"]),
+            CloudConversationMessage.role == "USER")))
+        assert [message.id for message in rows] == [row.id]
+        attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
+        assert attempt.status == "PREPARING"
+        assert attempt.checkpoint["native_resume"]["operation_key"] == sent["operation_key"]
     claimed_again = await claim_next(context, 3)
     assert (await poll(context, claimed_again)).json()["message"]["id"] == sent["id"]
+    assert (await poll(context, claimed_again)).json()["message"] is None
+
+
+@pytest.mark.parametrize("status", ["DELIVERING", "UNKNOWN", "DELIVERED"])
+async def test_original_key_never_reconnects_an_attempted_message(claim_context, status):
+    context = claim_context
+    work, original = await setup(context)
+    sent = (await send(context, work)).json()
+    await close(context, original)
+    async with AsyncSessionLocal() as db:
+        row = await db.get(CloudConversationMessage, UUID(sent["id"]))
+        row.status = status
+        row.sdk_message_id = "original-sdk-message" if status == "DELIVERED" else None
+        await db.commit()
+    retried = await send(context, work)
+    assert retried.status_code == 200 and retried.json()["status"] == status
+    assert retried.json()["id"] == sent["id"] and retried.json()["generation"] == sent["generation"]
+    async with AsyncSessionLocal() as db:
+        attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
+        assert attempt.status == "RECOVERY_REQUIRED" and "native_resume" not in attempt.checkpoint
+
+
+async def test_original_key_conflicts_do_not_reconnect_queued_message(claim_context):
+    context = claim_context
+    work, original = await setup(context)
+    sent = (await send(context, work)).json()
+    await close(context, original)
+    conflict = await send(context, work, text="Different request under the same key.")
+    assert conflict.status_code == 409 and conflict.json()["detail"] == "CONVERSATION_MESSAGE_CONFLICT"
+    async with AsyncSessionLocal() as db:
+        row = await db.get(CloudConversationMessage, UUID(sent["id"]))
+        row.actor_ref = "different-original-actor"
+        await db.commit()
+    conflict = await send(context, work)
+    assert conflict.status_code == 409 and conflict.json()["detail"] == "CONVERSATION_MESSAGE_CONFLICT"
+    async with AsyncSessionLocal() as db:
+        attempt = await db.get(CloudAttempt, UUID(work["attempt_id"]))
+        assert attempt.status == "RECOVERY_REQUIRED" and "native_resume" not in attempt.checkpoint
+        row = await db.get(CloudConversationMessage, UUID(sent["id"]))
+        assert row.status == "QUEUED" and row.generation == sent["generation"]
 
 
 async def test_legacy_queued_digest_keeps_its_original_generation_after_reconnect(claim_context):
