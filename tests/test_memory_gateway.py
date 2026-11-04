@@ -20,7 +20,7 @@ from hypertest.application.services import create_project
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudAttempt, CloudWorkGrant
+from hypertest.domain.cloud_tasks import CloudAttempt, CloudTaskDeletion, CloudWorkGrant
 from hypertest.domain.interactive import InteractiveIntegrationGrant
 from hypertest.domain.memory import MemoryOperation
 from hypertest.main import app
@@ -397,7 +397,8 @@ async def test_operator_adopts_exact_existing_scope_and_unknown_only_reads_origi
         project = await create_project(db, ProjectCreate(key=public_key("MEMORY"), name="Scope adoption fixture"))
     target = {**f, "project_id": str(project.id)}
     namespace = "hypertest-project-" + str(project.id)
-    f["upstream"].scopes[namespace] = "scp_existing"
+    existing_scope = "scp_existing_" + uuid4().hex
+    f["upstream"].scopes[namespace] = existing_scope
     creates = f["upstream"].creates
     wrong = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id="scp_other", key="wrong-scope")
     assert wrong.status_code == 409
@@ -407,14 +408,14 @@ async def test_operator_adopts_exact_existing_scope_and_unknown_only_reads_origi
         assert await db.scalar(select(MemoryProjectMapping).where(MemoryProjectMapping.project_id == project.id)) is None
     f["upstream"].adoptions = 0
     f["upstream"].lose_adoption_ack = True
-    response = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id="scp_existing", key="original-adoption")
+    response = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id=existing_scope, key="original-adoption")
     assert response.json()["status"] == "UNKNOWN", response.text
     changed = await mutate(target, "CONFIGURE", enabled=True, existing_scope_id="scp_other", key="original-adoption")
     assert changed.status_code == 409
     f["upstream"].lose_adoption_ack = False
     recovered = await f["client"].get("/api/v1/memory/operations/by-key", headers=f["operator"],
         params={"project_id": str(project.id), "operation_key": "original-adoption"})
-    assert recovered.json()["status"] == "ACCEPTED" and recovered.json()["configuration"]["scope_id"] == "scp_existing"
+    assert recovered.json()["status"] == "ACCEPTED" and recovered.json()["configuration"]["scope_id"] == existing_scope
     assert f["upstream"].creates == creates and f["upstream"].writes == 0
     rebind = await mutate(target, "CONFIGURE", 1, enabled=True, existing_scope_id="scp_other")
     assert rebind.status_code == 409
@@ -927,7 +928,7 @@ async def test_cloud_history_rejects_identity_scope_and_credential_overrides(clo
     assert not calls
 
 
-@pytest.mark.parametrize("change", ["cancel", "memory_grant", "work_grant", "lease", "generation", "binding"])
+@pytest.mark.parametrize("change", ["cancel", "tombstone", "memory_grant", "work_grant", "lease", "generation", "binding"])
 async def test_cloud_history_refuses_content_when_authority_changes_during_retrieval(cloud_memory_context, monkeypatch, change):
     f = cloud_memory_context
     _, row, _, body = setup_cloud_history(f, monkeypatch)
@@ -943,7 +944,13 @@ async def test_cloud_history_refuses_content_when_authority_changes_during_retri
                 "main_scope_id": "changed-main", "history_scope_id": "scp_history"}})
         else:
             async with AsyncSessionLocal() as db:
-                if change == "memory_grant":
+                if change == "tombstone":
+                    # A synthetic tombstone independently exercises the
+                    # deletion guard even while the old Attempt proof remains.
+                    db.add(CloudTaskDeletion(task_id=UUID(f["receipt"]["task_id"]),
+                        project_id=UUID(f["project_id"]), deleted_at=datetime.now(UTC),
+                        deleted_by="synthetic-operator", accepted_version=f["receipt"]["version"] + 1))
+                elif change == "memory_grant":
                     grant = await db.get(InteractiveIntegrationGrant, UUID(f["memory_auth"]["grant_id"]))
                     grant.status, grant.revoked_at = "REVOKED", datetime.now(UTC)
                     grant.row_version += 1
@@ -963,6 +970,17 @@ async def test_cloud_history_refuses_content_when_authority_changes_during_retri
     monkeypatch.setattr(f["upstream"], "browse", changed)
     denied = await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)
     assert denied.status_code in {403, 409, 503} and row["content"] not in denied.text, denied.text
+
+
+async def test_cloud_history_tombstone_rejected_before_external_read(cloud_memory_context, monkeypatch):
+    f = cloud_memory_context
+    _, row, calls, body = setup_cloud_history(f, monkeypatch)
+    async with AsyncSessionLocal() as db:
+        db.add(CloudTaskDeletion(task_id=UUID(f["receipt"]["task_id"]), project_id=UUID(f["project_id"]),
+            deleted_at=datetime.now(UTC), deleted_by="synthetic-operator", accepted_version=f["receipt"]["version"] + 1))
+        await db.commit()
+    denied = await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)
+    assert denied.status_code == 409 and row["content"] not in denied.text and not calls, denied.text
 
 
 async def test_cloud_history_wrong_binding_timeout_empty_and_upstream_failure(cloud_memory_context, monkeypatch):

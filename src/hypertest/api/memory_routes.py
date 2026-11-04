@@ -1,5 +1,7 @@
 """Authenticated, optional project experience Gateway. No model or test execution."""
 import asyncio
+import json
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
@@ -82,6 +84,18 @@ async def query(payload: MemoryQuery, request: Request, response: Response,
         request_id = str(x_hypertest_memory_request_id)
         response.headers["X-Hypertest-Memory-Request-Id"] = request_id
         result["request_id"] = request_id
+        # Correlation only: no query/body, credential, work token or lease token.
+        logging.getLogger("uvicorn.error.hypertest.memory").info("memory_query %s", json.dumps({
+            "request_id": request_id, "project_id": str(payload.project_id), "collection": payload.collection,
+            "context": payload.context.model_dump(mode="json") if payload.context else None,
+            "worker_id": context.worker.worker_id if context.worker else None,
+            "generation": context.worker.generation if context.worker else None,
+            "memory_grant_id": str(context.grant_id) if context.grant_id else None,
+            "scope_id": result.get("scope_id"), "result_status": result.get("result_status"),
+            "reason": result.get("reason"), "refs": [
+                {key: row.get(key) for key in ("artifact_id", "revision", "content_digest")}
+                for field in ("external_results", "history_results") for row in result.get(field, [])],
+        }, ensure_ascii=True, separators=(",", ":")))
     return result
 
 

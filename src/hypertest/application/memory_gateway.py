@@ -23,7 +23,11 @@ from hypertest.cloud.private_file import read_private_file
 from hypertest.common.ids import uuid7
 from hypertest.config import get_settings
 from hypertest.connector.security import token_hash
-from hypertest.domain.cloud_tasks import CloudAssetRevision, CloudOperationReceipt
+from hypertest.domain.cloud_tasks import (
+    CloudAssetRevision,
+    CloudOperationReceipt,
+    CloudTaskDeletion,
+)
 from hypertest.domain.interactive import (
     InteractiveActorIdentity,
     InteractiveClientRegistration,
@@ -203,7 +207,7 @@ async def verify_query_context(db, project_id, supplied, context, *, lock=False)
     if context.worker is None:
         raise HTTPException(403, "Cloud query context requires the current fenced Worker broker")
     task = await cloud_tasks._task(db, supplied.task_id, project_id, lock=lock)
-    if task.deleted_at is not None or task.status in cloud_tasks.TERMINAL | {"WAITING_INPUT", "RECOVERY_REQUIRED"}:
+    if await db.get(CloudTaskDeletion, task.id) or task.status in cloud_tasks.TERMINAL | {"WAITING_INPUT", "RECOVERY_REQUIRED"}:
         raise HTTPException(409, "Cloud memory task is closed or fenced")
     attempt = await cloud_tasks._attempt(db, task, supplied.attempt_id)
     await cloud_tasks.worker_authority(db, task, attempt, context.worker)
