@@ -2,6 +2,8 @@
 
 > **2026-11-04 薄壳边界：** [ADR-041](ADR-041_CLOUD_AS_HARNESS_SHELL.md) 将普通消息作为在线和离线会话的统一入口。API 仅持久化异步消息，不依赖 Worker 在线；Worker 领取循环发现待投递消息后内部恢复原 SDK 会话，在 ready 后投递，临时连接失败退避，永久身份错误不重试。可修正的未提交归档错误通过单次 SDK 消息反馈给 Agent，对话继续；不生成续接 prompt，不检查/批准 Harness 的业务步骤或原生 inbox。原工作区/session 与官方 SDK 写锁负责连接归属，平台保留领取、传输和存储职责。
 
+原生 Harness 查看宿主对 Cloud 根会话及其原生子会话只使用持久层读句柄和内存投影跟随外部追加，不隐式创建/恢复 Agent、不持有写锁或写 seed/checkpoint；不合成外部进行中轮次的中断结尾。Worker 是该路径的写入者，查看页面先于 Worker 打开也不得阻碍原会话恢复。只读适配与 SDK 执行 profile 分开安装，原登录、非 Cloud 会话、消息原 key 和 UNKNOWN 语义保持。
+
 > **2026-11-04 会话桥接：** [ADR-039](ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 增加独立对话消息存储、增量游标与 validate/spool/append 链路。单 supervisor 默认四槽，每槽独立 SDK client、stdin/stdout 分发器、工作区、lease 与 reporter；领取及恢复锁按槽/Attempt 隔离。完整公开文字先校验再持久化，不收集 reasoning 或原始工具负载。原会话续接通过显式控制与新 generation 完成，不重发原 prompt。
 
 > **2026-11-03 职责修订：** [ADR-038](ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 取消 Cloud 项目资源页和环境管理。Project 维护仓库，服务端仅为任务生成内部仓库快照；MR/PR 和环境说明经任务输入交给 Harness。旧环境/部署配置条款仅解释相应历史 profile。
