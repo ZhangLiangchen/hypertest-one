@@ -9,7 +9,7 @@ import pytest
 from hypertest.cloud import native_sdk_driver as driver
 
 
-@pytest.mark.parametrize("mode", ["missing", "bad_nonce", "bad_root", "malformed", "selection_failure", "ok"])
+@pytest.mark.parametrize("mode", ["missing", "bad_nonce", "bad_root", "malformed", "selection_failure", "ok", "framework_cwd"])
 def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
     calls = []
     module = ModuleType("deepseek_harness")
@@ -24,7 +24,9 @@ def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
         def drain(self, observe): pass
 
     class Client:
-        def __init__(self, config): self.env = config.values["env"]
+        def __init__(self, config):
+            self.env = config.values["env"]
+            assert config.values["cwd"] == str(session_cwd)
         def __enter__(self): return self
         def __exit__(self, *args): pass
         def initialize(self, **kwargs):
@@ -49,16 +51,24 @@ def test_prompt_requires_fresh_registered_guard(monkeypatch, tmp_path, mode):
     module.HarnessConfig, module.HarnessClient = Config, Client
     monkeypatch.setitem(sys.modules, "deepseek_harness", module)
     overlay = ModuleType("hypertest.cloud.native_cordis")
-    def prepare(directory, *, title):
+    def prepare(directory, *, title, workspace, sandbox_policy):
         assert title == "任务标题"
+        assert workspace == tmp_path
+        assert sandbox_policy == {"mode": "workspace-write", "workspaceRoot": str(session_cwd)}
         return directory / "overlay.yml"
     overlay.prepare_cordis_overlay = prepare
     monkeypatch.setitem(sys.modules, "hypertest.cloud.native_cordis", overlay)
-    def read_selection(**kwargs):
-        return {"provider": "x", "model": "y"}
-    monkeypatch.setattr(driver, "read_native_selection", read_selection)
+    session_cwd = tmp_path
+    if mode == "framework_cwd":
+        session_cwd = tmp_path / "framework"
+        session_cwd.mkdir()
+        monkeypatch.setattr("hypertest.cloud.native_framework_project.session_working_directory", lambda workspace: session_cwd)
+    def read_configuration(**kwargs):
+        assert kwargs["cwd"] == str(session_cwd)
+        return {"provider": "x", "model": "y"}, {"mode": "workspace-write", "workspaceRoot": str(session_cwd)}
+    monkeypatch.setattr(driver, "read_native_configuration", read_configuration)
     config = {"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "root-1", "title": "任务标题", "prompt": "test"}
-    if mode == "ok":
+    if mode in {"ok", "framework_cwd"}:
         driver.run(config, lambda value: None)
         assert calls == ["prompt", "wait"]
     elif mode == "selection_failure":

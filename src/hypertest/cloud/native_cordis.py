@@ -8,6 +8,8 @@ check the listener's private registration receipt before sending a prompt.
 from __future__ import annotations
 
 import hashlib
+import os
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from .errors import CloudBlocked
+from .native_selection import _checked_sandbox_policy, _Expression
 
 _RUNTIME_SHA256 = "949a925e1e9f1aaf40c6a7e6365197895ccecb87a4c489ea1d8ceb77a6bcf415"
 _DISABLE_BASE = (
@@ -55,10 +58,6 @@ export function apply(ctx, config) {
 '''
 
 
-class _Expression(str):
-    pass
-
-
 class _Loader(yaml.SafeLoader):
     pass
 
@@ -71,7 +70,29 @@ _Loader.add_constructor("tag:yaml.org,2002:js", lambda loader, node: _Expression
 _Dumper.add_representer(_Expression, lambda dumper, value: dumper.represent_scalar("tag:yaml.org,2002:js", str(value)))
 
 
-def prepare_cordis_overlay(directory: Path, *, title: str) -> Path:
+def _transport_policy(workspace: Path, sandbox_policy: dict) -> dict:
+    """Grant only this runtime-supplied Attempt's existing private transport."""
+    workspace = Path(workspace)
+    transport = workspace / ".hypertest-cloud"
+    for path in (workspace, transport):
+        if not path.is_absolute() or path.is_symlink() or path.resolve(strict=True) != path:
+            raise ValueError("unsafe transport directory")
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(fd)
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+                    or stat.S_IMODE(info.st_mode) & 0o077):
+                raise ValueError("transport directory must be owned and private")
+        finally:
+            os.close(fd)
+    policy = _checked_sandbox_policy(sandbox_policy, dict(os.environ))
+    roots = policy.get("additionalWritableRoots", [])
+    policy["additionalWritableRoots"] = list(dict.fromkeys([*roots, str(transport)]))
+    return policy
+
+
+def prepare_cordis_overlay(directory: Path, *, title: str, workspace: Path | None = None,
+                          sandbox_policy: dict | None = None) -> Path:
     """Create a per-invocation overlay without changing an operator's profile.
 
     Only the exact audited runtime is accepted.  Its built-in Web template is
@@ -85,6 +106,9 @@ def prepare_cordis_overlay(directory: Path, *, title: str) -> Path:
         directory = Path(directory).resolve(strict=True)
         if not directory.is_dir():
             raise ValueError("invalid overlay directory")
+        if (workspace is None) != (sandbox_policy is None):
+            raise ValueError("incomplete transport policy")
+        transport_policy = None if workspace is None else _transport_policy(workspace, sandbox_policy)
         launch = resolve_bundled_launch_args()
         executable = Path(launch[0]).resolve(strict=True)
         with executable.open("rb") as stream:
@@ -114,6 +138,11 @@ def prepare_cordis_overlay(directory: Path, *, title: str) -> Path:
         # Cloud task title (at most 512 Unicode characters) for this invocation.
         entries.append({"id": "session-title", "config": {
             "fallbackMaxWords": 5, "fallbackMaxBytes": 40, "maxTitleBytes": 2048}})
+        if transport_policy is not None:
+            # ce7073d config patches replace the entire object. Preserve the
+            # actual policy, including its mode and prior explicit roots.
+            entries.append({"id": "sandbox-policy", "name": "@deepseek-ai/dsh-sandbox-policy",
+                            "config": transport_policy})
         entries.append({"insert": [
             {"id": "agent-preset-registry", "name": "@deepseek-ai/dsh-agent-preset-registry", "config": {"default": "cordis"}},
             {"id": "cordis-host-runner", "name": "@deepseek-ai/dsh-cordis-host-runner"},

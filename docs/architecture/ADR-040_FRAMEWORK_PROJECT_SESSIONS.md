@@ -12,6 +12,8 @@ HyperTest 传递任务、用户消息并归档结果，Agent 自主安排测试�
 
 测试流程及产物位置沿用框架原有约定，与本地测试相同。HyperTest 从框架目录直接读取 Agent 明确提交的原文件归档，不要求搬运到平台另设目录。仅消息、回执和知识请求保留内部独立传输路径；上传 payload 的相对文件名相对于框架目录 artifact_workspace，输入快照不修改。根会话使用框架目录，原生子智能体继承项目来源目录。
 
+独立传输目录由运行时按原 Attempt 工作区固定为 `.hypertest-cloud`，在启动 SDK 前创建并校验绝对规范路径、非符号链接、当前用户所有和私有权限。使用固定版本 Harness 原生 `additionalWritableRoots`，仅为本次调用加入该精确目录；完整保留实际 SDK profile 的沙箱模式、工作区根及既有额外目录，不修改用户全局配置、不开放整个 Attempt 工作区、不启用 `danger-full-access`。配置读取有界且只投影模型选择与允许的沙箱字段，不记录凭据或执行任意配置表达式。权限无法安全保持时拒绝启动，不让模型自行扩大权限或绕行。该目录承载通信，不授予其他 Task/Attempt 的 QUERY 或报告身份；服务端原任务、grant、lease/generation 校验继续独立执行。
+
 原生 Harness 的 Workspace 由单一 Web/桌面宿主维护。薄适配只读取会话 header，通过官方 workspaceRegistry.create / attachSession 归组，不启动模型、不打开或恢复 Agent、不直接并发改写 workspace.json。SDK 进程不写原生 Workspace registry。
 
 ## 已核对的 hypervise_pure 结构

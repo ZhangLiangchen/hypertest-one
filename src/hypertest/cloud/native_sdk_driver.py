@@ -17,7 +17,7 @@ import threading
 from pathlib import Path
 
 from .native_conversation import project_assistant_message
-from .native_selection import read_native_selection
+from .native_selection import read_native_configuration
 from .runtime_activity import project_finish_reason, project_notification
 
 
@@ -169,7 +169,8 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
     from .native_framework_project import session_working_directory
 
     session_cwd = str(session_working_directory(Path(config["workspace"])))
-    selection = read_native_selection(dsh_home=config["dsh_home"], cwd=session_cwd, environment=dict(os.environ))
+    selection, sandbox_policy = read_native_configuration(
+        dsh_home=config["dsh_home"], cwd=session_cwd, environment=dict(os.environ))
     finish_reason = None
     count = 0
 
@@ -202,7 +203,8 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
     with tempfile.TemporaryDirectory(prefix="hypertest-cordis-") as directory:
         from .native_cordis import prepare_cordis_overlay
 
-        overlay = prepare_cordis_overlay(Path(directory), title=config["title"])
+        overlay = prepare_cordis_overlay(Path(directory), title=config["title"],
+            workspace=Path(config["workspace"]), sandbox_policy=sandbox_policy)
         if config.get("resume", False):
             # Restoring a session retains its persisted preset and title. The
             # guard still authenticates this child invocation before any input.

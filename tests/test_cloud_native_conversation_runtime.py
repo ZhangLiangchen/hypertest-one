@@ -93,7 +93,8 @@ def fake_sdk(monkeypatch, *, events=None, resume_failure=False, restored_cwd=Non
 
     module.HarnessConfig, module.HarnessClient = Config, Client
     monkeypatch.setitem(__import__("sys").modules, "deepseek_harness", module)
-    monkeypatch.setattr(driver, "read_native_selection", lambda **kwargs: {"provider": "synthetic", "model": "synthetic"})
+    monkeypatch.setattr(driver, "read_native_configuration", lambda **kwargs: (
+        {"provider": "synthetic", "model": "synthetic"}, {"mode": "workspace-write"}))
     monkeypatch.setattr("hypertest.cloud.native_cordis.prepare_cordis_overlay", lambda directory, **kwargs: directory / "overlay.yml")
     return calls
 
@@ -181,12 +182,12 @@ def test_resume_restores_without_any_implicit_prompt_then_delivers_original_user
         assert {"user_message_ack": {"request_id": "original-platform-user-id", "status": "DELIVERED", "message_id": "message-2"}} in emitted
 
 
-@pytest.mark.parametrize("failure", ["owned-or-missing", "wrong-workspace"])
+@pytest.mark.parametrize("failure", ["owned-or-missing", "missing-directory", "relative-directory"])
 def test_failed_restore_never_announces_session_ready_or_sends_input(monkeypatch, tmp_path, failure):
     from hypertest.cloud import native_cordis
 
-    calls = fake_sdk(monkeypatch, resume_failure=failure == "owned-or-missing",
-                     restored_cwd=str(tmp_path.parent) if failure == "wrong-workspace" else None)
+    restored_cwd = {"missing-directory": str(tmp_path / "missing"), "relative-directory": "."}.get(failure)
+    calls = fake_sdk(monkeypatch, resume_failure=failure == "owned-or-missing", restored_cwd=restored_cwd)
     def overlay(directory, **kwargs):
         (directory / "hypertest-cordis-root.mjs").write_text(native_cordis._HOOK)
         return directory / "overlay.yml"
@@ -197,6 +198,26 @@ def test_failed_restore_never_announces_session_ready_or_sends_input(monkeypatch
                     "title": "Original title", "prompt": None, "resume": True}, emitted.append)
     assert calls == [("resume", "original-root"), "shutdown"]
     assert not any("session_ready" in item or "prompt_enqueued" in item for item in emitted)
+
+
+def test_resume_accepts_existing_native_worktree_without_changing_transport_workspace(monkeypatch, tmp_path):
+    from hypertest.cloud import native_cordis
+
+    worktree = tmp_path / "native-worktree"
+    worktree.mkdir()
+    calls = fake_sdk(monkeypatch, restored_cwd=str(worktree))
+    def overlay(directory, *, workspace, **kwargs):
+        assert workspace == tmp_path
+        assert workspace != worktree
+        (directory / "hypertest-cordis-root.mjs").write_text(native_cordis._HOOK)
+        return directory / "overlay.yml"
+    monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", overlay)
+    emitted = []
+    driver.run({"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "original-root",
+                "title": "Original title", "prompt": None, "resume": True}, emitted.append)
+    assert calls == [("resume", "original-root"), "session/wait", "shutdown"]
+    assert {"session_ready": {"session_id": "original-root"}} in emitted
+    assert not any("prompt_enqueued" in item for item in emitted)
 
 
 @pytest.mark.parametrize("target", ["nextTurn", "nextStep", "empty"])
