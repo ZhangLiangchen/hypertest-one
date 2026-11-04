@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import builtins
 import fcntl
 import hashlib
 import json
@@ -17,6 +18,7 @@ import os
 import re
 import secrets
 import stat
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -40,6 +42,63 @@ def _recovery_reason(error: BaseException) -> str:
     }:
         return error.code
     return "WORKER_RUNTIME_FAILED"
+
+
+_DIAGNOSTIC_CODES = frozenset({
+    REPORT_CONTENT_REJECTED, "WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED", "WORKER_API_UNCONFIRMED",
+    "WORKER_WRITES_SUSPENDED", "RUNTIME_TIMEOUT", "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED",
+    "ATTEMPT_SNAPSHOT_MISMATCH", "ARTIFACT_READBACK_MISMATCH", "TERMINAL_HANDOFF_CONFLICT", "CLOUD_OPERATION_REJECTED",
+    "HARNESS_CONFIGURATION_INVALID", "HARNESS_CORDIS_UNAVAILABLE", "NATIVE_SESSION_IDENTITY_UNAVAILABLE",
+    "NATIVE_RESUME_IDENTITY_TARGET_MISMATCH", "NATIVE_RESUME_IDENTITY_UNCONFIRMED", "SDK_STARTUP_UNCONFIRMED",
+    "SDK_ORIGINAL_OPERATION_QUERY_ONLY", "SDK_RUNTIME_READY_INVALID", "SDK_PROMPT_RECEIPT_INVALID",
+    "SDK_QUESTION_CHANNEL_INVALID", "SDK_QUESTION_CHANNEL_CLOSED", "SDK_QUESTION_DELIVERY_UNKNOWN",
+    "SDK_QUESTION_IDENTITY_MISMATCH", "SDK_MESSAGE_DELIVERY_UNKNOWN", "SDK_MESSAGE_QUERY_ONLY",
+    "CONVERSATION_SPOOL_INVALID", "CONVERSATION_EVENT_CHANGED", "CONVERSATION_FRAME_INVALID",
+    "CONVERSATION_ADMISSION_UNKNOWN", "CONVERSATION_READBACK_MISMATCH", "CONVERSATION_INPUT_INVALID",
+    "CONVERSATION_RECOVERY_OBSERVATION_ONLY", "GIT_OPERATION_FAILED", "GIT_TIMEOUT", "GIT_AUTH_FAILED",
+    "GIT_HOST_KEY_FAILED", "GIT_TLS_VERIFICATION_FAILED", "GIT_REVISION_NOT_FOUND", "GIT_REPOSITORY_NOT_FOUND",
+    "GIT_DNS_FAILED", "GIT_CONNECT_FAILED", "GIT_CONNECTION_RESET", "GIT_HTTP2_FAILED", "GIT_SERVER_UNAVAILABLE",
+    "GIT_UNAVAILABLE", "CHECKOUT_SHA_MISMATCH", "CHECKOUT_TARGET_INVALID", "RESOLUTION_TIMEOUT",
+})
+
+
+def _safe_work_error(error: BaseException) -> dict:
+    """Finite metadata only: never format errors, source lines, paths or locals."""
+    from .broker import BrokerFailure
+    from .native_git import GitOperationFailure
+
+    kind = type(error)
+    project_types = {CloudBlocked: "CloudBlocked", GitOperationFailure: "GitOperationFailure", BrokerFailure: "BrokerFailure"}
+    exception_type = project_types.get(kind, "Exception")
+    if getattr(builtins, kind.__name__, None) is kind:
+        exception_type = kind.__name__
+    code = vars(error).get("code") if kind in project_types else None
+    frames, seen = [], set()
+    current = error
+    # Exception chains and traceback depth are bounded independently of output.
+    for _ in range(8):
+        if current is None or id(current) in seen:
+            break
+        seen.add(id(current))
+        trace = current.__traceback__
+        for _ in range(128):
+            if trace is None:
+                break
+            namespace = trace.tb_frame.f_globals
+            own_module = namespace is globals()
+            # ``python -m`` names this trusted module __main__. Do not admit
+            # unrelated entrypoints that merely use the same display name.
+            module = "hypertest.cloud.native_worker" if own_module else namespace.get("__name__")
+            if (isinstance(module, str) and len(module) <= 128
+                    and re.fullmatch(r"hypertest(?:\.[A-Za-z_][A-Za-z0-9_]*)+", module)
+                    and (own_module or getattr(sys.modules.get(module), "__dict__", None) is namespace)):
+                frames.append({"module": module, "lineno": trace.tb_lineno})
+                frames = frames[-8:]
+            trace = trace.tb_next
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return {"profile": "hypertest-worker-failure/v1", "exception_type": exception_type,
+            "error_code": code if isinstance(code, str) and code in _DIAGNOSTIC_CODES else None,
+            "frames": frames}
 
 
 class WorkerAPI:
@@ -1035,7 +1094,8 @@ async def _run_slot(api, args, state: Path, slot_state: Path, slot_id: str, *, r
             # Reconciliation has fenced this Attempt and closed its original
             # claim. Capacity can serve a different queued task without
             # replaying any part of the failed Attempt.
-            print(json.dumps({"code": "WORKER_SESSION_INTERRUPTED", "slot_id": slot_id}), flush=True)
+            print(json.dumps({"code": "WORKER_SESSION_INTERRUPTED", "slot_id": slot_id,
+                "diagnostic": _safe_work_error(work_error)}), flush=True)
             await asyncio.sleep(args.poll_seconds)
             continue
         if args.once:

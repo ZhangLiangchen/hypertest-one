@@ -27,6 +27,58 @@ def claim_request(**changes):
         "lease_seconds": 90, "supports_attempt_manifest": True, **changes}
 
 
+def test_safe_work_error_omits_secret_messages_locals_paths_and_bounds_exception_chain(monkeypatch):
+    import sys
+    from types import ModuleType
+
+    from hypertest.cloud import native_worker
+    from hypertest.cloud.native_git import GitOperationFailure
+    from hypertest.cloud.native_worker import _safe_work_error
+
+    module = ModuleType("hypertest._diagnostic_fixture")
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    secret = "synthetic-credential-that-must-never-be-logged"
+    module.__dict__.update(CloudBlocked=CloudBlocked, secret=secret)
+    exec(compile("""def fail(depth):
+    private_local = secret
+    if depth:
+        return fail(depth - 1)
+    try:
+        raise ValueError(private_local)
+    except ValueError as cause:
+        raise CloudBlocked('SDK_STARTUP_UNCONFIRMED', private_local) from cause
+""", "/private/" + secret + ".py", "exec"), module.__dict__)
+    try:
+        module.fail(24)
+    except CloudBlocked as error:
+        projected = _safe_work_error(error)
+        assert projected["exception_type"] == "CloudBlocked"
+        assert projected["error_code"] == "SDK_STARTUP_UNCONFIRMED"
+        assert len(projected["frames"]) == 8
+        assert all(set(frame) == {"module", "lineno"} and frame["module"] == module.__name__
+            and type(frame["lineno"]) is int for frame in projected["frames"])
+        assert secret not in json.dumps(projected) and "/private/" not in json.dumps(projected)
+        error.code = secret
+        assert _safe_work_error(error)["error_code"] is None
+    assert _safe_work_error(TypeError(secret))["exception_type"] == "TypeError"
+    assert _safe_work_error(type(secret, (RuntimeError,), {})(secret))["exception_type"] == "Exception"
+    for error, name, code in ((GitOperationFailure("GIT_TIMEOUT", "fetch"), "GitOperationFailure", "GIT_TIMEOUT"),
+            (BrokerFailure(409, "CLOUD_OPERATION_REJECTED"), "BrokerFailure", "CLOUD_OPERATION_REJECTED")):
+        error.args = (secret,)
+        value = _safe_work_error(error)
+        assert value["exception_type"] == name and value["error_code"] == code and secret not in json.dumps(value)
+    for module_name in ("hypertest.cloud.native_worker", "__main__"):
+        monkeypatch.setattr(native_worker, "__name__", module_name)
+        with pytest.raises(CloudBlocked) as failure:
+            native_worker.WorkerAPI("https://", b"synthetic-unused-token")
+        frames = _safe_work_error(failure.value)["frames"]
+        assert frames and all(frame["module"] == "hypertest.cloud.native_worker" for frame in frames)
+    module.__dict__["__name__"] = "__main__"
+    with pytest.raises(CloudBlocked) as foreign_main:
+        module.fail(2)
+    assert _safe_work_error(foreign_main.value)["frames"] == []
+
+
 def test_main_git_failure_emits_operation_and_exit_code_without_raw_error(monkeypatch, capsys):
     from hypertest.cloud import native_worker
     from hypertest.cloud.native_git import GitOperationFailure
