@@ -92,6 +92,13 @@ function messageText(message: ConversationMessage, t: (en: string, zh: string) =
   return t("Message content is unavailable.", "消息正文不可用。");
 }
 
+function visibleConversationMessage(message: ConversationMessage): boolean {
+  // Empty Worker status observations remain in the stored stream, not the chat.
+  // Keep notices explaining withheld content, archive correction or a history gap.
+  return message.role !== "SYSTEM" || !!message.text.trim()
+    || ["ARTIFACT_CONTENT_REJECTED", "ARTIFACT_REJECTED", "CONTENT_REJECTED", "MESSAGE_TOO_LARGE", "CONVERSATION_GAP"].includes(message.reason_code || "");
+}
+
 function ConversationStream({ projectId, taskId, attempt, blocked, readOnly }: Props & { readOnly: boolean }) {
   const { t, formatDate } = useI18n();
   const cache = useRef<{ messages: ConversationMessage[]; cursor: number }>({ messages: [], cursor: 0 });
@@ -129,13 +136,13 @@ function ConversationStream({ projectId, taskId, attempt, blocked, readOnly }: P
     refetchOnWindowFocus: true,
     retry: false,
   });
-  const messages = conversation.data?.messages || [];
+  const messages = (conversation.data?.messages || []).filter(visibleConversationMessage);
   const session = conversation.data?.session;
   const draftDigest = cloudInputIdentity({ text: draft.trim() });
   const outstanding = pending.some((row) => row.text_digest === draftDigest);
   const canSend = !readOnly && !blocked && !conversation.isError && session?.can_send === true
     && journalReady && !journalError && !outstanding && !sending;
-  const lastCursor = conversation.data?.next_cursor;
+  const lastCursor = messages.at(-1)?.cursor;
   useEffect(() => {
     let active = true, checking = false;
     const check = async () => {

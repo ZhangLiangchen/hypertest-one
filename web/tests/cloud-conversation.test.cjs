@@ -193,7 +193,13 @@ test("conversation renders untrusted Markdown as text and separates delivery fro
     if (name === "@tanstack/react-query") return { useQuery: () => ({ data: {
       messages: [message({ text: "<script>private()</script>\n## Agent output", status: "DELIVERED", source: "IMPORTED_HISTORY", observed_at: "2026-11-03T09:00:00Z" }),
         message({ id: "gap-notice", role: "SYSTEM", text: "继续执行需要明确检查并接管原会话。", source: "IMPORTED_HISTORY", reason_code: "CONVERSATION_GAP" }),
-        message({ id: "agent-message", role: "ASSISTANT", text: "Original Agent statement stays unchanged.", source: "IMPORTED_HISTORY", reason_code: "CONVERSATION_GAP" })],
+        message({ id: "agent-message", role: "ASSISTANT", text: "Original Agent statement stays unchanged.", source: "IMPORTED_HISTORY", reason_code: "CONVERSATION_GAP" }),
+        message({ id: "worker-busy", role: "SYSTEM", text: "", source: "LIVE_SDK", state: "INTERRUPTED", reason_code: "SDK_SESSION_BUSY" }),
+        message({ id: "worker-poll", role: "SYSTEM", text: "", source: "LIVE_SDK", state: "RUNNING" }),
+        message({ id: "worker-paused", role: "SYSTEM", text: "  ", source: "CONTROL_PLANE", state: "INTERRUPTED", reason_code: "WORKER_INTERRUPTED" }),
+        message({ id: "archive-format", role: "SYSTEM", text: "", source: "LIVE_SDK", reason_code: "ARTIFACT_REJECTED" }),
+        message({ id: "archive-content", role: "SYSTEM", text: "", source: "LIVE_SDK", reason_code: "ARTIFACT_CONTENT_REJECTED" }),
+        message({ id: "missing-output", role: "SYSTEM", text: "", source: "CONTROL_PLANE", reason_code: "CONVERSATION_GAP" })],
       next_cursor: 1, observed_at: "2026-11-04T10:00:00Z", session: { can_send: false, state: "PAUSED", reason_code: "REPORT_CONTENT_REJECTED", blocking_reasons: [] },
     }, refetch() {} }) };
     if (name === "@/lib/cloud-conversation") return api;
@@ -215,6 +221,11 @@ test("conversation renders untrusted Markdown as text and separates delivery fro
   assert.ok(html.includes("Some earlier output was not retained"));
   assert.ok(!html.includes("接管原会话"));
   assert.ok(html.includes("Original Agent statement stays unchanged."));
+  assert.ok(!html.includes("Message content is unavailable."));
+  assert.ok(html.includes("A test artifact did not meet the submission contract."));
+  assert.ok(html.includes("A test artifact was withheld by the content check."));
+  assert.ok(html.includes("Some agent output was not received."));
+  assert.equal((html.match(/<article\b/g) || []).length, 6);
   assert.equal(conversationStatus("DELIVERED", en => en), "Delivered to the session");
   assert.ok(html.includes("Delivery does not confirm processing"));
 });
