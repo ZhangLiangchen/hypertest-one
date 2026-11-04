@@ -5,18 +5,22 @@ import asyncio
 from uuid import UUID, uuid4
 
 import pytest
+import httpx
+from pydantic import TypeAdapter
 from fastapi import HTTPException
 from sqlalchemy import select
 from test_cloud_native_session_anchor import _anchor, _payload
 from test_cloud_tasks import cloud_context as cloud_context
 from test_cloud_tasks import dispatched, legacy_dispatched
 
+from hypertest.api.cloud_schemas import CloudMutation
+from hypertest.common.ids import uuid7
 from hypertest.application import cloud_native_session_restore as restore
 from hypertest.application import cloud_tasks as service
 from hypertest.application import cloud_worker_claims
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudAttempt, CloudNativeSessionRestore, CloudTask
+from hypertest.domain.cloud_tasks import CloudAttempt, CloudNativeSessionRestore, CloudOperationReceipt, CloudTask
 
 
 @pytest.fixture
@@ -48,8 +52,44 @@ def inspect_body(context, *, key="inspection-request-original", **changes):
 
 
 async def enqueue(context, body=None):
-    return await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"],
-                                        json=body or inspect_body(context))
+    """Seed a historical accepted inspection, as it existed before admission was disabled.
+
+    This fixture exercises recovery of already accepted records, not new admission.
+    """
+    body = body or inspect_body(context)
+    payload = TypeAdapter(CloudMutation).validate_python(body)
+    actor = "operator:" + get_settings().connector_operator_identity
+    async with AsyncSessionLocal() as db:
+        existing = await db.scalar(select(CloudOperationReceipt).where(
+            CloudOperationReceipt.project_id == payload.project_id,
+            CloudOperationReceipt.operation_key == payload.operation_key))
+        if existing:
+            return await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"], json=body)
+        try:
+            await service.project(db, payload.project_id, lock=True)
+            await service._lock(db, f"cloud-native-inspection-task:{payload.task_id}")
+            task = await service._task(db, payload.task_id, payload.project_id, lock=True)
+            attempt = await service._attempt(db, task, payload.attempt_id)
+            inspection = await restore.enqueue_inspection(db, task=task, attempt=attempt,
+                payload=payload, actor_ref=actor, worker=None)
+            task.version += 1
+            await db.flush()
+            response = {"status": "ACCEPTED", "profile": service.PROFILE,
+                "project_id": str(payload.project_id), "operation_key": payload.operation_key,
+                "operation": payload.operation, "version": task.version, "task_id": str(task.id),
+                "attempt_id": str(attempt.id), "checkpoint": attempt.checkpoint,
+                "native_session_inspection": inspection}
+            snapshot = await service._snapshot(db, task)
+            db.add(CloudOperationReceipt(id=uuid7(), project_id=payload.project_id, task_id=task.id,
+                attempt_id=attempt.id, operation_key=payload.operation_key, operation=payload.operation,
+                actor_ref=actor, input_digest=service.canonical_json_sha256(service._safe_payload(payload)),
+                expected_version=payload.expected_version, accepted_version=task.version,
+                response=response, task_snapshot=snapshot))
+            await db.commit()
+            return httpx.Response(200, json=response)
+        except HTTPException as error:
+            await db.rollback()
+            return httpx.Response(error.status_code, json={"detail": error.detail})
 
 
 def request(context, sequence=1, key="inspection-claim-original"):
@@ -59,12 +99,11 @@ def request(context, sequence=1, key="inspection-claim-original"):
 @pytest.mark.asyncio
 async def test_default_disabled_and_unanchored_history_refused(prepared, monkeypatch):
     context = prepared
-    monkeypatch.setattr(get_settings(), "cloud_native_session_inspection_enabled", False)
-    disabled = await enqueue(context)
-    assert disabled.status_code == 503
-    monkeypatch.setattr(get_settings(), "cloud_native_session_inspection_enabled", True)
-    missing = await enqueue(context, inspect_body(context, anchor_operation_key="missing-original-anchor"))
-    assert missing.status_code == 409 and "ORIGINAL_ANCHOR_REQUIRED" in missing.text
+    for enabled in (False, True):
+        monkeypatch.setattr(get_settings(), "cloud_native_session_inspection_enabled", enabled)
+        disabled = await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"],
+                                                json=inspect_body(context))
+        assert disabled.status_code == 409 and "NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED" in disabled.text
     async with AsyncSessionLocal() as db:
         assert await db.scalar(select(CloudNativeSessionRestore.id).where(
             CloudNativeSessionRestore.attempt_id == UUID(context["receipt"]["attempt_id"]))) is None
@@ -377,3 +416,22 @@ async def test_cancel_racing_inspection_finish_does_not_deadlock(prepared):
         assert row.state in {"RESTORED", "UNKNOWN"}
         assert attempt.status == "RECOVERY_REQUIRED" and attempt.reported_result == "NOT_RUN"
     assert (isinstance(finished, dict) and finished["state"] == "RESTORED") or isinstance(finished, str)
+
+
+@pytest.mark.asyncio
+async def test_anchored_summary_and_choice_only_report_receipt_existence(prepared):
+    context = prepared
+    task_id = context["receipt"]["task_id"]
+    summary = await context["client"].get(f"/api/v1/cloud/tasks/{task_id}/summary",
+        params={"project_id": context["project_id"]}, headers=context["headers"])
+    assert summary.status_code == 200
+    assert summary.json()["recovery"]["identity_anchor"] == "RECORDED"
+    assert summary.json()["recovery"]["identity_anchor_verifies_session"] is False
+    saved = await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"], json={
+        "project_id": context["project_id"], "task_id": task_id,
+        "attempt_id": context["receipt"]["attempt_id"], "expected_version": context["anchor"]["version"],
+        "operation": "RECORD_RECOVERY_CHOICE", "operation_key": "operator-anchored-choice",
+        "choice": "CONTINUE_ORIGINAL_SESSION"})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["recovery_choice"]["identity_anchor"] == "RECORDED"
+    assert saved.json()["recovery_choice"]["action_started"] is False

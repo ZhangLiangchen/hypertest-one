@@ -532,6 +532,18 @@ class CloudInspectNativeSession(AttemptMutation):
     reconciliation: dict = Field(min_length=1)
 
 
+class CloudRecordRecoveryChoice(AttemptMutation):
+    """Record an operator's choice without performing or authorizing it."""
+    operation: Literal["RECORD_RECOVERY_CHOICE"] = "RECORD_RECOVERY_CHOICE"
+    choice: Literal["CONTINUE_ORIGINAL_SESSION", "RETEST", "END_EXECUTION"]
+    note: str = Field(default="", max_length=4096)
+
+    @field_validator("note")
+    @classmethod
+    def normalize_blank_note(cls, value):
+        return value if value.strip() else ""
+
+
 class CloudTransition(AttemptMutation):
     operation: Literal["TRANSITION"] = "TRANSITION"
     status: Literal["RUNNING", "FAILED", "RECOVERY_REQUIRED"]
@@ -704,4 +716,4 @@ class CloudNativeFinish(AttemptMutation):
         return self
 
 
-CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudCloseInputResolution | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudNativeSessionAnchor | CloudInspectNativeSession | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]
+CloudMutation = Annotated[CloudConfigure | CloudCredentialStore | CloudCredentialRevoke | CloudTaskCreate | CloudTaskUpdate | CloudTaskDelete | CloudResolveRequest | CloudStartTask | CloudCloseInputResolution | CloudDispatch | CloudTaskCancel | CloudCancel | CloudResume | CloudReconcile | CloudAuthorizeActionObservation | CloudNativeSessionAnchor | CloudInspectNativeSession | CloudRecordRecoveryChoice | CloudTransition | CloudContainerCreateIntent | CloudContainerObservation | CloudContainerStartIntent | CloudSubmitAssets | CloudArtifactUpload | CloudRunSubmit | CloudDelegationSubmit | CloudQuestionSubmit | CloudAnswer | CloudFinish | CloudNativeFinish, Field(discriminator="operation")]

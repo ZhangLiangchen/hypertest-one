@@ -8,6 +8,7 @@ export type CloudTask = { id: string; project_id: string; title: string; status:
 export type CloudAttempt = { id: string; status: string; reported_result: CloudResult; attempt_no: number; reason?: string | null; input_digest?: string; execution_manifest?: CloudRecord | null; checkpoint: CloudRecord; runtime_metadata: CloudRecord; lease_generation: number };
 export type CloudRecoverySummary = {
   resume_supported: boolean; resume_reason?: string; old_owner_fenced: boolean;
+  identity_anchor?: "RECORDED" | "MISSING" | "UNKNOWN";
   local_processes_stopped_observed: boolean; pending_operation_keys: string[];
   remote_operations_reconciled: boolean; can_reconcile: boolean; blocking_reasons: string[];
   reconciliation_source: string; budget_disposition: string;
@@ -38,7 +39,8 @@ export function cloudManagementMessage(reason: string | undefined, t: (en: strin
 }
 export type CloudLiveSummary = CloudTask & { current_attempt: CloudAttempt | null; resolutions: CloudRecord[]; controlled_actions?: CloudRecord[]; controlled_actions_history?: { attempt_id: string; actions: CloudRecord[] }[]; observed_at: string; recovery?: CloudRecoverySummary; management?: CloudManagementSummary };
 export type CloudAsset = { id: string; attempt_id: string; kind: string; key: string; title: string; revision: number; task_version: number; markdown: string; details: CloudRecord; reported_result: CloudResult; artifact_id?: string | null };
-export type CloudDocument = { task: CloudTask; attempts: CloudAttempt[]; resolutions: CloudRecord[]; assets: CloudAsset[]; artifacts: CloudRecord[]; runs: CloudRecord[]; run_cases: CloudRecord[]; delegations: CloudRecord[]; questions: CloudRecord[]; answers: CloudRecord[] };
+export type CloudRecoveryChoice = { attempt_id: string; operation_key: string; choice: "CONTINUE_ORIGINAL_SESSION" | "RETEST" | "END_EXECUTION"; note: string; actor_ref: string; recorded_at: string; identity_anchor: "RECORDED" | "MISSING"; action_started: false };
+export type CloudDocument = { task: CloudTask; attempts: CloudAttempt[]; resolutions: CloudRecord[]; assets: CloudAsset[]; artifacts: CloudRecord[]; runs: CloudRecord[]; run_cases: CloudRecord[]; delegations: CloudRecord[]; questions: CloudRecord[]; answers: CloudRecord[]; recovery_choices?: CloudRecoveryChoice[] };
 export type CloudReceipt = { status: string; profile: string; project_id: string; operation_key: string; operation: string; version: number; task_id?: string; attempt_id?: string; input_digest?: string; config_id?: string; resolution_id?: string; start_requested?: boolean; credential_id?: string; credential_version_id?: string };
 export type CloudMutation = { profile: string; project_id: string; operation_key: string; expected_version: number; operation: string; [key: string]: unknown };
 export type CloudPending = { project_id: string; operation_key: string; expected_version: number; operation: string; task_id?: string; attempt_id?: string; digest: string; state: "SENT" | "UNKNOWN" };

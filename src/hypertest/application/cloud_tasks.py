@@ -53,7 +53,7 @@ from hypertest.domain.models import AuditEvent, OutboxEvent, Project
 SCOPES = {
     "CONFIGURE": "cloud:configure", "STORE_CREDENTIAL": "credential:manage", "REVOKE_CREDENTIAL": "credential:manage",
     "CREATE_TASK": "cloud:dispatch", "UPDATE_TASK": "cloud:dispatch", "RESOLVE_INPUTS": "cloud:dispatch", "START_TASK": "cloud:dispatch", "DISPATCH": "cloud:dispatch",
-    "DELETE_TASK": "cloud:control", "CLOSE_INPUT_RESOLUTION": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "INSPECT_NATIVE_SESSION": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
+    "DELETE_TASK": "cloud:control", "CLOSE_INPUT_RESOLUTION": "cloud:control", "CANCEL_TASK": "cloud:control", "CANCEL_ATTEMPT": "cloud:control", "RESUME_ATTEMPT": "cloud:control", "RECONCILE_ATTEMPT": "cloud:control", "INSPECT_NATIVE_SESSION": "cloud:control", "RECORD_RECOVERY_CHOICE": "cloud:control", "AUTHORIZE_ACTION_OBSERVATION": "cloud:control", "ANSWER_INPUT": "cloud:control",
     "TRANSITION": "cloud:work", "ANCHOR_NATIVE_SESSION": "cloud:work", "PREPARE_CONTAINER_CREATE": "cloud:work", "CONFIRM_CONTAINER_ID": "cloud:work", "PREPARE_CONTAINER_START": "cloud:work", "OBSERVE_CONTAINER_STOP": "cloud:work", "OBSERVE_CONTAINER_NEVER_STARTED": "cloud:work", "SUBMIT_ASSETS": "cloud:work", "UPLOAD_ARTIFACT": "cloud:work", "SUBMIT_RUN": "cloud:work",
     "SUBMIT_DELEGATION": "cloud:work", "REQUEST_INPUT": "cloud:work", "COMPLETE_ATTEMPT": "cloud:work", "COMPLETE_NATIVE_ATTEMPT": "cloud:work",
 }
@@ -409,6 +409,25 @@ async def _reject_secrets(db, project_id, values, *, source_text=False):
                 raise HTTPException(422, "Credential material is not an accepted testing artifact")
 
 
+async def _recovery_choices(db, task_id):
+    rows = await db.scalars(select(CloudOperationReceipt).where(
+        CloudOperationReceipt.task_id == task_id,
+        CloudOperationReceipt.operation == "RECORD_RECOVERY_CHOICE").order_by(CloudOperationReceipt.accepted_version))
+    return [row.response["recovery_choice"] for row in rows]
+
+
+async def _identity_anchor_status(db, task, attempt):
+    if attempt is None:
+        return "UNKNOWN"
+    anchor = await db.scalar(select(CloudOperationReceipt.id).where(
+        CloudOperationReceipt.project_id == task.project_id, CloudOperationReceipt.task_id == task.id,
+        CloudOperationReceipt.attempt_id == attempt.id,
+        CloudOperationReceipt.operation == "ANCHOR_NATIVE_SESSION").limit(1))
+    # Presence is only a receipt fact, not verification of the session or
+    # proof that it is safe or technically possible to resume.
+    return "RECORDED" if anchor else "MISSING"
+
+
 async def _snapshot(db, task):
     result = {"profile": PROFILE, "task_kind": "CLOUD_TASK", "product_mode": "CLOUD", "task": public(task)}
     deletion = await db.get(CloudTaskDeletion, task.id)
@@ -432,6 +451,7 @@ async def _snapshot(db, task):
     result["container_create_intents"] = await _container_intents(db, task.id)
     result["container_observations"] = await _container_observations(db, task.id)
     result["container_start_intents"] = await _container_starts(db, task.id)
+    result["recovery_choices"] = await _recovery_choices(db, task.id)
     return result
 
 
@@ -607,6 +627,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
     """One immutable key / optimistic version / current authority / transaction."""
     if payload.operation == "CONFIGURE":
         raise HTTPException(410, "CLOUD_PROJECT_RESOURCES_RETIRED")
+    if payload.operation in {"RECORD_RECOVERY_CHOICE", "INSPECT_NATIVE_SESSION"} and not actor_ref.startswith("operator:"):
+        raise HTTPException(403, "CLOUD_OPERATOR_REQUIRED")
     if payload.operation in {"COMPLETE_NATIVE_ATTEMPT", "ANCHOR_NATIVE_SESSION"} and native_worker is not True:
         raise HTTPException(403, "CLOUD_NATIVE_WORKER_REQUIRED")
     if payload.operation in {"PREPARE_CONTAINER_CREATE", "CONFIRM_CONTAINER_ID", "PREPARE_CONTAINER_START", "OBSERVE_CONTAINER_STOP", "OBSERVE_CONTAINER_NEVER_STARTED"} and not container_intents_enabled():
@@ -641,6 +663,10 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         if prior.operation in {"PREPARE_CONTAINER_CREATE", "PREPARE_CONTAINER_START"}:
             raise HTTPException(409, "CLOUD_CONTAINER_ORIGINAL_KEY_QUERY_ONLY")
         return prior.response
+    if payload.operation == "INSPECT_NATIVE_SESSION":
+        # Opening the SDK session can mutate pending messages. Preserve prior
+        # receipts, but never enqueue any new purportedly read-only inspection.
+        raise HTTPException(409, "NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED")
     # Existing immutable receipts remain readable with their original payload.
     if (payload.operation == "DISPATCH" and payload.retry_of_attempt_id
             and not (payload.retry_scope_confirmed and payload.retry_authorization_confirmed)):
@@ -893,6 +919,13 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         from .cloud_native_session_restore import enqueue_inspection
         refs["native_session_inspection"] = await enqueue_inspection(db, task=task, attempt=attempt,
             payload=payload, actor_ref=actor_ref, worker=worker)
+    elif op == "RECORD_RECOVERY_CHOICE":
+        if attempt.id != task.latest_attempt_id or attempt.status != "RECOVERY_REQUIRED" or task.status != "RECOVERY_REQUIRED":
+            raise HTTPException(409, "Current recovery Attempt required")
+        refs["recovery_choice"] = {"attempt_id": str(attempt.id), "operation_key": payload.operation_key,
+            "choice": payload.choice, "note": payload.note, "actor_ref": actor_ref,
+            "recorded_at": (await clock(db)).isoformat(),
+            "identity_anchor": await _identity_anchor_status(db, task, attempt), "action_started": False}
     elif op == "RECONCILE_ATTEMPT":
         from .cloud_ssh import ensure_remote_closed
         await ensure_remote_closed(db, task_id=task.id)
@@ -1173,6 +1206,8 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         snapshot["container_observations"].append(refs["container_observation"])
     elif op == "PREPARE_CONTAINER_START":
         snapshot["container_start_intents"].append(refs["container_start_intent"])
+    elif op == "RECORD_RECOVERY_CHOICE":
+        snapshot["recovery_choices"].append(refs["recovery_choice"])
     db.add(CloudOperationReceipt(id=uuid7(), project_id=payload.project_id, task_id=task.id if task else None,
         attempt_id=attempt.id if attempt else None, operation_key=payload.operation_key, operation=op,
         actor_ref=actor_ref, input_digest=digest, expected_version=payload.expected_version,
@@ -1731,6 +1766,7 @@ async def task_summary(db, task_id, *, project_id=None):
     result["container_create_intents"] = await _container_intents(db, task.id)
     result["container_observations"] = await _container_observations(db, task.id)
     result["container_start_intents"] = await _container_starts(db, task.id)
+    result["recovery_choices"] = await _recovery_choices(db, task.id)
     if attempt:
         from .cloud_ssh import ensure_remote_closed
         remote_closed = True
@@ -1762,6 +1798,8 @@ async def task_summary(db, task_id, *, project_id=None):
                  "STOP_UNCONFIRMED" if cancellation else
                  "RECONCILIATION_REQUIRED" if attempt.status == "RECOVERY_REQUIRED" else "ACTIVE")
         result["recovery"] = {"resume_supported": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
+            "identity_anchor": await _identity_anchor_status(db, task, attempt),
+            "identity_anchor_verifies_session": False,
             "old_owner_fenced": fenced, "local_processes_stopped_observed": False,
             "pending_operation_keys": pending, "remote_operations_reconciled": remote_closed,
             "can_reconcile": not blocking, "blocking_reasons": blocking, "phase": phase,

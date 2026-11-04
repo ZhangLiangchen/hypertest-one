@@ -3,15 +3,16 @@ import hashlib
 import http.server
 import json
 import os
+import shutil
 import signal
 import subprocess
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+import yaml
 
 from hypertest.cloud import native_cordis
 from hypertest.cloud import native_session_restore as restore
@@ -122,6 +123,9 @@ async def test_fixed_sdk_interrupted_tool_is_not_replayed(tmp_path, monkeypatch)
             assert tool_pid_file.exists(), "synthetic tool did not start"
             tool_pid = int(tool_pid_file.read_text())
             assert marker.read_text().splitlines() == ["run"]
+            # This second input remains pending while the first tool is running.
+            client.session_prompt(session_id, [{"type": "text", "text": "Synthetic queued input."}])
+            time.sleep(1)  # Allow the SDK's asynchronous persistence to flush.
             client._proc.kill()
             client._proc.wait(timeout=4)
         try:
@@ -137,30 +141,53 @@ async def test_fixed_sdk_interrupted_tool_is_not_replayed(tmp_path, monkeypatch)
                        if (path / "bin/python").is_file()), None)
         if python is None:
             pytest.skip("the SDK virtual environment is unavailable")
-        # Exercise the actual credential-filtered child using the same Python
-        # environment as the pinned SDK, rather than only the inner helper.
-        monkeypatch.setattr(restore, "sys", SimpleNamespace(executable=str(python)))
+        # Observe the inbox only on throwaway copies: SDK resume and close
+        # mutate the persisted stream and can consume queued messages.
+        session_file = next((home / "sessions").rglob("session.v4.jsonl.zstd"))
+        before_bytes = session_file.read_bytes()
+
+        def pending_on_copy(label):
+            copied_home = root / ("home-copy-" + label)
+            shutil.copytree(home, copied_home)
+            probe_root = root / ("probe-" + label)
+            probe_root.mkdir()
+            overlay = restore._prepare_inspection_overlay(probe_root)
+            hook, result_path = probe_root / "inbox-probe.mjs", probe_root / "result.json"
+            hook.write_text(
+                'import {writeFileSync} from "node:fs"; export const name="inbox-probe"; '
+                'export function apply(ctx, config) {ctx.on("agent/created", ({agent})=>{'
+                'if(agent.id===config.root) writeFileSync(config.out,JSON.stringify({pending:agent.inbox.hasPending}));});}\n'
+            )
+            with overlay.open("a") as stream:
+                stream.write(yaml.safe_dump([{"insert": [{"id": "inbox-probe", "name": str(hook),
+                    "config": {"root": session_id, "out": str(result_path)}}]}], sort_keys=False))
+            probe_config = sdk.HarnessConfig(profile="sdk", dsh_home=str(copied_home), cwd=str(workspace),
+                patches=(str(overlay),), env={"DSH_SDK_CORDIS_ROOT": session_id,
+                    "DSH_SDK_CORDIS_NONCE": "a" * 64, "DSH_SDK_CORDIS_HANDSHAKE": str(probe_root / "registered.json")},
+                request_timeout_seconds=12)
+            with sdk.HarnessClient(probe_config) as client:
+                client.initialize(cwd=str(workspace), **selection)
+                client.resume_session(session_id)
+                return json.loads(result_path.read_text())["pending"]
+
+        assert pending_on_copy("before") is True
         inspection = {**identity, "identity_digest": digest}
         candidate = restore.anchored_identity_for_inspection(attempt_root=attempt_root, dsh_home=home,
             inspection=inspection, worker_id="synthetic-worker", environment=dict(fake_env))
-        checks = []
-        async def active(): checks.append(True)
-        result = await restore.inspect_original_session_guarded(attempt_root=attempt_root,
-            expected_identity_digest=digest, identity=candidate, assert_active=active)
-        assert result["restored"] and not result["prompt_sent"] and not result["continuation_started"]
-        assert len(checks) >= 2
-        time.sleep(.5)
-        assert marker.read_text().splitlines() == ["run"]
-        assert len(provider.requests) == before
-        # An incorrect original workspace is rejected before the SDK starts,
-        # even though the SDK itself can find the same session across cwd.
-        wrong = root / "wrong-workspace"
-        wrong.mkdir()
+        async def active():
+            pytest.fail("disabled inspection must not request authority")
+        for inspect in (restore._inspect_in_child, restore.inspect_original_session):
+            with pytest.raises(CloudBlocked) as error:
+                inspect(attempt_root=attempt_root, expected_identity_digest=digest, identity=candidate)
+            assert error.value.code == "NATIVE_SESSION_RESTORE_UNAVAILABLE"
         with pytest.raises(CloudBlocked) as error:
-            restore.inspect_original_session(attempt_root=attempt_root, expected_identity_digest=digest,
-                                             identity={**identity, "workspace": wrong})
-        assert error.value.code == "NATIVE_SESSION_IDENTITY_UNAVAILABLE"
+            await restore.inspect_original_session_guarded(attempt_root=attempt_root,
+                expected_identity_digest=digest, identity=candidate, assert_active=active)
+        assert error.value.code == "NATIVE_SESSION_RESTORE_UNAVAILABLE"
+        assert session_file.read_bytes() == before_bytes
+        assert pending_on_copy("after") is True
         assert len(provider.requests) == before
+        assert marker.read_text().splitlines() == ["run"]
     finally:
         if tool_pid is not None:
             try:

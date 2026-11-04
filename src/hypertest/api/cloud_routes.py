@@ -64,6 +64,8 @@ async def capabilities():
                               "https_controlled_api_enabled": settings.cloud_https_enabled},
             "admission": {"state": "NOT_CHECKED", "scope": "PER_ATTEMPT", "checked_by": "WORKER"},
             "recovery": {"resume_supported": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
+                         "native_session_inspection_supported": False,
+                         "native_session_inspection_reason": "NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED",
                          "reconcile_supported": True, "reconciliation_source": "OPERATOR_ATTESTATION",
                          "independent_stop_proof": False, "budget_disposition": "KEEP_HELD"},
             "supported": {"repositories": ["HTTPS"], "environment_connections": ["NONE"],

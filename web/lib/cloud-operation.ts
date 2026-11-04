@@ -27,6 +27,8 @@ async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise
       || !document.resolutions.some((resolution) => resolution.id === receipt.resolution_id
         && resolution.operation_key === receipt.operation_key && resolution.source_draft_version === receipt.version
         && resolution.status === "PENDING"))) throw new Error("READBACK_PENDING");
+    if (receipt.operation === "RECORD_RECOVERY_CHOICE" && (!receipt.attempt_id || !Array.isArray(document.recovery_choices)
+      || !document.recovery_choices.some((choice) => choice.attempt_id === receipt.attempt_id && choice.operation_key === receipt.operation_key && choice.action_started === false))) throw new Error("READBACK_PENDING");
     return;
   }
   if (receipt.operation === "CONFIGURE") {

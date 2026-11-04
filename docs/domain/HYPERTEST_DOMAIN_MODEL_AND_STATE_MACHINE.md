@@ -2458,6 +2458,10 @@ Task 还允许 DRAFT → CANCELLED；无 Attempt 的取消不伪造执行历史�
 
 ### 51.5 SDK 运行隔离、WAITING_INPUT 与 UNKNOWN
 
+恢复中的当前 Cloud Attempt 可由有权 Operator 追加人工选择及可选说明，选择仅为继续原会话、重新测试或结束执行的意向，不执行这些动作，也不改变 Task / Attempt 的状态、结果、原检查点、未决操作或已接受测试记录。选择及说明独立保存在原 CloudOperationReceipt 的不可变响应和对应版本快照中，包含真实认证 actor、时间和身份锚点是否已记录；锚点缺失只标为 MISSING，不补造身份。身份锚点存在不代表会话可恢复，认证的 Operator 身份也不证明自然人本人撰写了说明。该人工记录不是 Agent 报告、完成证明或新的 Run；实际操作仍受各自原 key、权限和恢复前置条件约束。
+
+原生 SDK 会话检查可能改变待处理消息，当前禁止新建 `INSPECT_NATIVE_SESSION`，包括配置曾启用时；既有检查及回执保留并可按原 key 读取，不能因禁用改写或删除。恢复能力只记录已观察事实，不声称已继续原会话。
+
 2026-10-23 P0 恢复增补：当前固定 Worker 的 SDK 原会话续接未实现，静态能力与控制入口须据实拒绝新 RESUME_ATTEMPT，不因 SDK 方法存在而改变生命周期。人工 RECONCILE 仅允许有权限的操作者在服务端重新核对最新 RECOVERY_REQUIRED、旧 lease/token 已 fence、无 checkpoint/平台/远端未决操作及无活动委派后明确收尾为 FAILED 或 CANCELLED；不得清空 UNKNOWN key 以满足前置条件。停止观察引用与操作者声明追加为 operator-attested 元数据，不能改称独立停止/模型 drain 证明；reported_result、原 checkpoint、原件、回执及完整 HELD/preparation hold 保持。该增补不新增任务状态、执行身份或预算结算权。超时/异常/失联清理须先封闭普通 writer 并按原 owner/generation fence，再停止本地进程；失权 owner 仅保留原 key 读取与受限清理。
 
 宿主原生 SDK 会话可在首次提示之前由原 fenced Worker 固定非秘密身份快照，并以 `ANCHOR_NATIVE_SESSION` 将摘要绑定同一 Project/Task/Attempt、原 session ID、输入摘要及原 Worker/generation；这是未来恢复的材料，不是运行结果或已实现续接的声明。平台对同一 Attempt 只接受符合当前 PREPARING 所有权的一份原始锚点，原 key、请求摘要和固定版本读回保持幂等；缺失的历史快照或锚点不得在恢复时补造，不能用当前环境冒充原身份。锚点不改变 Attempt/Run 已接受结果或未知操作。真实续接仍须独立核对旧进程、外部动作、委派、权限和原 key；UNKNOWN 未消除时拒绝继续。快照中的路径摘要、目录 inode 与 Git HEAD 仅核对路径及提交身份，不证明运行中工作区全部内容未变，也不证明同 UID Agent 无法修改工作区；可信停止和状态观察缺失时仍拒绝恢复。

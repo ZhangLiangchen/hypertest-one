@@ -1,5 +1,4 @@
 """One-shot inspection claims are never replayed, including after a lost reply."""
-import asyncio
 import hashlib
 from types import SimpleNamespace
 from uuid import uuid4
@@ -163,40 +162,6 @@ def test_anchored_identity_rejects_tampering_without_reading_profile(tmp_path, m
     with pytest.raises(CloudBlocked):
         restore.anchored_identity_for_inspection(attempt_root=root, dsh_home=home, inspection=inspection,
                                                  worker_id='synthetic-worker', environment={'PATH': '/bin'})
-
-
-@pytest.mark.asyncio
-async def test_revoked_authority_kills_isolated_child(tmp_path, monkeypatch):
-    killed = []
-    class Process:
-        pid = 1234
-        returncode = None
-        async def communicate(self, payload):
-            await asyncio.Event().wait()
-        async def wait(self):
-            self.returncode = -9
-    process = Process()
-    async def spawn(*args, **kwargs):
-        assert 'WORKER_TOKEN' not in kwargs['env'] and 'DEEPSEEK_API_KEY' not in kwargs['env']
-        return process
-    monkeypatch.setattr(restore.asyncio, 'create_subprocess_exec', spawn)
-    monkeypatch.setattr(restore.os, 'killpg', lambda pid, sig: killed.append(pid))
-    assertions = 0
-    async def authority():
-        nonlocal assertions
-        assertions += 1
-        if assertions > 1:
-            raise RuntimeError('revoked')
-    identity = {'workspace': tmp_path, 'dsh_home': tmp_path, 'session_id': 'cloud-synthetic',
-                'environment': {'PATH': '/bin', 'DEEPSEEK_API_KEY': 'must-not-leak'},
-                'project_id': 'p', 'task_id': 't', 'attempt_id': 'a', 'input_digest': 'b' * 64,
-                'prompt_sha256': 'c' * 64, 'title_sha256': 'f' * 64,
-                'sut_commit': 'd' * 40, 'framework_commit': 'e' * 40,
-                'selection': None, 'worker_id': 'synthetic', 'original_generation': 1}
-    with pytest.raises(CloudBlocked):
-        await restore.inspect_original_session_guarded(attempt_root=tmp_path,
-            expected_identity_digest='a' * 64, identity=identity, assert_active=authority)
-    assert assertions == 2 and killed == [1234]
 
 
 @pytest.mark.asyncio

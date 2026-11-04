@@ -12,10 +12,8 @@ import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from uuid import UUID, uuid4
 
-import httpx
 import pytest
 import test_cloud_tasks
 from sqlalchemy import select
@@ -26,7 +24,7 @@ from test_cloud_tasks import cloud_context as cloud_context
 from test_cloud_tasks import dispatched, worker_submit
 
 from hypertest.application import cloud_tasks as service
-from hypertest.cloud import native_cordis, native_session_restore, native_worker
+from hypertest.cloud import native_cordis, native_session_restore
 from hypertest.cloud.native_resume_identity import record_initial_identity
 from hypertest.cloud.native_sdk_adapter import host_environment
 from hypertest.cloud.native_selection import read_native_selection
@@ -39,11 +37,10 @@ from hypertest.domain.cloud_tasks import (
     CloudRunRecord,
     CloudTask,
 )
-from hypertest.main import app
 
 
 @pytest.mark.asyncio
-async def test_original_session_inspection_through_api_worker_and_fixed_sdk(cloud_context, monkeypatch, tmp_path):
+async def test_original_session_inspection_refuses_through_api_worker_and_fixed_sdk(cloud_context, monkeypatch, tmp_path):
     sdk = pytest.importorskip("deepseek_harness")
     runtime = pytest.importorskip("deepseek_harness_runtime")
     binary = Path(runtime.resolve_bundled_launch_args()[0])
@@ -160,38 +157,9 @@ async def test_original_session_inspection_through_api_worker_and_fixed_sdk(clou
             "anchor_operation_key": "native-anchor-original",
             "reconciliation": {"old_owner_fenced": True, "local_processes_stopped": True,
                 "external_operations_reconciled": True, "observations": "Only isolated synthetic processes were used."}}
-        accepted = await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"], json=request)
-        assert accepted.status_code == 200, accepted.text
-        assert (await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"],
-                                            json=request)).json() == accepted.json()
-
-        # The real Worker calls the real API through ASGI, and a real SDK child
-        # opens the persisted session. Simulate a lost *finish* response only
-        # after the server commits; the Worker must query the same original key.
-        api = native_worker.WorkerAPI("https://localhost", token.encode())
-        await api.client.aclose()
-        api.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://localhost/",
-                                       headers={"Authorization": "Bearer " + token})
-        requests = []
-        class LostFinish:
-            async def request(self, operation, body):
-                requests.append(operation)
-                result = await api.request(operation, body)
-                if operation == "native-session-inspection/finish":
-                    raise TimeoutError("synthetic lost finish response")
-                return result
-
-        monkeypatch.setattr(native_session_restore, "sys", SimpleNamespace(executable=str(python)))
-        args = SimpleNamespace(worker_id=worker_id, dsh_home=str(home), lease_seconds=90, poll_seconds=.05, once=False)
-        try:
-            assert await native_worker.inspect_next_original_session(LostFinish(), args, state)
-        finally:
-            await api.close()
-        assert requests.count("native-session-inspection/claim") == 1
-        assert requests.count("native-session-inspection/finish") == 1
-        assert requests.count("native-session-inspection/claim-state") == 1
+        denied = await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"], json=request)
+        assert denied.status_code == 409 and denied.json()["detail"] == "NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED"
         assert provider.request_count == provider_before
-        assert not (state / "inspection-claim-pending.json").exists()
         async with AsyncSessionLocal() as db:
             task = await db.get(CloudTask, UUID(dispatched_receipt["task_id"]))
             attempt = await db.get(CloudAttempt, UUID(dispatched_receipt["attempt_id"]))
@@ -201,8 +169,7 @@ async def test_original_session_inspection_through_api_worker_and_fixed_sdk(clou
             assert task.latest_attempt_id == attempt.id and task.status == attempt.status == "RECOVERY_REQUIRED"
             assert task.reported_result == attempt.reported_result == "NOT_RUN"
             assert len(runs) == 1 and runs[0].reported_result == "FAIL"
-            assert observation.state == "RESTORED" and observation.observation["prompt_sent"] is False
-            assert observation.observation["continuation_started"] is False
+            assert observation is None
     finally:
         provider.shutdown()
         provider.server_close()

@@ -20,6 +20,7 @@ import { LiveQuestionsPanel } from "./live-questions-panel";
 import { CloudTaskForm } from "@/app/projects/[projectId]/cloud/task-form";
 import { CloudTaskDelete } from "./delete-task";
 import { RetryDialog } from "./retry-dialog";
+import { RecoveryChoice } from "./recovery-choice";
 import type { CloudTask } from "@/lib/cloud";
 
 const text = (value: unknown) => typeof value === "string" ? value : value == null ? "—" : JSON.stringify(value, null, 2);
@@ -214,6 +215,7 @@ export default function CloudTaskPage() {
               <Form.Item label={t("Answer within the existing authorization", "在现有授权范围内回答")} required><Input.TextArea rows={3} maxLength={16000} value={answers[String(question.id)] || ""} onChange={(event) => setAnswers((current) => ({ ...current, [String(question.id)]: event.target.value }))} /></Form.Item>
               <Button htmlType="submit" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !answers[String(question.id)]?.trim()}>{t("Save answer", "保存回答")}</Button>
             </Form>) : null}
+            {attempt.status === "RECOVERY_REQUIRED" && !task.deleted_at ? <RecoveryChoice key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} document={detail} recovery={live.data?.recovery} blocked={blocked} onSubmit={mutate} /> : null}
             <CloudAttemptRecovery key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} capabilities={capabilities.data} recovery={live.data?.recovery}
               blocked={operation.blocked || !operational.valid || live.isError} onSubmit={mutate} />
           </section> : null}

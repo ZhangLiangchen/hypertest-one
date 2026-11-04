@@ -1599,6 +1599,10 @@ CompleteCloudAttempt 须核对必需阶段资产已接受且原件可读、委�
 
 ### 46.7 幂等、外部副作用与同步兼容
 
+`RECORD_RECOVERY_CHOICE` 是 Operator 专用控制记录：以当前 Task `expected_version`、原 Attempt、唯一 operation key、可选 `note` 和 `choice`（`CONTINUE_ORIGINAL_SESSION`、`RETEST`、`END_EXECUTION`）提交。服务端只接受未删除 Task 的最新 `RECOVERY_REQUIRED` Attempt，锁内重核授权，追加回执、审计、版本及固定快照；`recovery_choices` 在固定版本和当前摘要中读取，记录 actor、时间、选择、说明、锚点是否存在及 `action_started=false`。它不排队或启动任何操作，不替代原 Agent REPORT，不改变测试结果和 UNKNOWN。客户端在发送前持久化 key、版本、目标和请求摘要，不保存说明原文；失答只查询原 key，NOT_FOUND 不授权重发，异内容或异身份复用 key 拒绝。
+
+由于原生 SDK 会话检查可能改变待处理消息，`INSPECT_NATIVE_SESSION` 新请求返回 `NATIVE_SESSION_INSPECTION_UNSAFE_DISABLED`，不创建检查；原已接受回执仍按原 key 查询。能力声明标记该检查不可用。
+
 普通 mutation 在发送前固定完整非秘密请求、稳定 operation key 与 expected_version；同 Project/key 同输入返回冻结原回执，异输入冲突。资源配置/凭据匹配各自聚合版本；Task 创建 expected_version=0，后续 Task/Attempt 控制及资产/结果写入匹配当前 Task version 并严格递增，同 key 查重先于版本检查。Worker 写入还须有效 lease/generation，管理操作按生命周期规则核验所有权并 fence 旧 owner，Task version 不替代租约检查。Task/Attempt 状态、修订、报告结果、回执与 Audit/Outbox 同事务接受；Git、SDK、远端命令和 Artifact I/O 在行锁外，返回后重新核验当前授权、版本与 fencing。凭据原文只走专门秘密入口和审计，普通 journal/回执不复制秘密。
 
 收到回执要核对 profile、Project、Task/Attempt、原 key、请求摘要与接受版本。失答、不完整回执或 UNKNOWN 时仅 GetCloudOperation 查询原 key；NOT_FOUND 不证明原请求未接受，不授权自动 POST、换 key、新 Task 或启动另一次 Harness。外部 Git/CI/SSH/业务动作另有执行前固定的 operation key 与输入摘要，UNKNOWN 逐项保存，查询管理回执不能替代外部状态对账。

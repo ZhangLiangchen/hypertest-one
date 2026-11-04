@@ -94,6 +94,33 @@ test("Repository selectors reject embedded credentials and freeze complete SHA o
 
 const { operationHarness, until, document: completeDocument } = require("./operation-harness.cjs");
 
+test("Recovery choice keeps its original key until the exact recorded decision is read back", async () => {
+  let present = false, posts = 0, receipt;
+  const harness = operationHarness({
+    cloudRequest: async (_path, init) => {
+      posts++;
+      const payload = JSON.parse(init.body);
+      receipt = { status: "ACCEPTED", profile: harness.client.CLOUD_PROFILE, project_id: payload.project_id,
+        task_id: payload.task_id, attempt_id: payload.attempt_id, operation_key: payload.operation_key,
+        operation: payload.operation, version: payload.expected_version + 1 };
+      return receipt;
+    },
+    cloudOperation: async () => receipt,
+    cloudDocument: async (project, task, version) => {
+      const document = completeDocument(project, task, version);
+      document.recovery_choices = present ? [{ attempt_id: receipt.attempt_id, operation_key: receipt.operation_key, action_started: false }] : [];
+      return document;
+    },
+  });
+  await harness.mount("project-a");
+  assert.equal(await harness.render().submit({ operation: "RECORD_RECOVERY_CHOICE", task_id: "task-a", attempt_id: "attempt-a", expected_version: 4, choice: "CONTINUE_ORIGINAL_SESSION", note: "Preserve the results" }), null);
+  const key = harness.render().pending.operation_key;
+  present = true;
+  assert.equal((await harness.render().reconcile()).operation_key, key);
+  assert.equal(posts, 1);
+  harness.close();
+});
+
 test("Delete remains pending until its original receipt reads back a tombstone", async () => {
   let tombstone = false, posts = 0, receipt;
   const harness = operationHarness({
@@ -302,6 +329,7 @@ function taskPage(status, options = {}) {
     if (name === "./live-questions-panel") return { LiveQuestionsPanel: "LiveQuestionsPanel" };
     if (name === "./delete-task") return { CloudTaskDelete: "CloudTaskDelete" };
     if (name === "./retry-dialog") return { RetryDialog: "RetryDialog" };
+    if (name === "./recovery-choice") return { RecoveryChoice: "RecoveryChoice" };
     return require(name);
   } });
   const render = () => { hookIndex = 0; return page.default(); };
