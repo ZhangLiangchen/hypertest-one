@@ -75,9 +75,9 @@ async def session_view(db, task, attempt):
     state = latest.state if latest else "CONNECTING"
     if state in {"CLOSED", "INTERRUPTED"}:
         blockers.append("SESSION_OFFLINE")
-    if state == "CONNECTING":
+    if state == "CONNECTING" and not blockers:
         blockers.append("SESSION_CONNECTING")
-    if blockers and state not in {"CLOSED", "INTERRUPTED"}:
+    if any(reason != "SESSION_CONNECTING" for reason in blockers) and state not in {"CLOSED", "INTERRUPTED"}:
         state = "OFFLINE"
     pending = await db.scalar(select(CloudConversationMessage.id).where(
         CloudConversationMessage.attempt_id == attempt.id,

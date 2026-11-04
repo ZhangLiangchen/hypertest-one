@@ -136,6 +136,7 @@ async def test_fence_keeps_history_cancels_unsent_and_never_replays(chat):
     assert any(m["role"] == "SYSTEM" and m["reason_code"] == "WORKER_INTERRUPTED"
                and m["source"] == "CONTROL_PLANE" for m in page["messages"])
     assert not page["session"]["can_send"]
+    assert "SESSION_CONNECTING" not in page["session"]["blocking_reasons"]
     assert (await user(chat, key="user:three")).status_code == 409
     assert (await worker(chat, "poll", session_id=chat["session"])).status_code == 409
     # Late original observations can be archived without reviving the session.
