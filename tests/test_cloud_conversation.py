@@ -1,5 +1,7 @@
 """Conversation delivery and output visibility, synthetic dedicated test DB only."""
 import asyncio
+import json
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -80,6 +82,58 @@ async def test_partial_reply_visible_without_final_report_or_version_change(chat
     assert summary.json()["version"] == chat["version"]
     assert summary.json()["reported_result"] == "NOT_RUN"
     assert (await history(chat, page["next_cursor"]))["messages"] == []
+
+
+@pytest.mark.parametrize("reason", ["SDK_SESSION_BUSY", "SDK_SESSION_UNAVAILABLE", "WORKER_RUNTIME_FAILED"])
+async def test_worker_failure_publishes_through_http_and_recovers_same_observation(chat, tmp_path, reason):
+    from hypertest.cloud.conversation_bridge import ConversationBridge
+
+    async def request(route, body):
+        response = await chat["client"].post("/api/v1/cloud/worker/" + route,
+            headers=chat["worker_headers"], json=body)
+        assert response.status_code == 200, response.text
+        return response.json()
+    identity = chat["body"]["identity"]
+    broker = SimpleNamespace(api=SimpleNamespace(request=request), identity=SimpleNamespace(**identity),
+        **{key: chat["body"][key] for key in ("project_id", "task_id", "attempt_id")},
+        _body=lambda **fields: {**chat["body"], **fields})
+    bridge = ConversationBridge(broker, None, chat["session"], private_root=tmp_path / "conversation")
+    runner = asyncio.create_task(bridge.run())
+    try:
+        if reason.startswith("SDK_SESSION_"):
+            await bridge.accept_frame({"runtime_observation": "ERROR", "code": reason})
+        else:
+            await bridge.record_state("INTERRUPTED", reason)
+        await bridge.flush()
+        bridge.check()
+        encoded, accepted = bridge.db.execute("SELECT payload,accepted FROM observations").fetchone()
+        assert accepted == 1
+        payload = json.loads(encoded)
+        original = (await worker(chat, "lookup", event_key=payload["event_key"])).json()
+        assert original["state"] == "INTERRUPTED" and original["reason_code"] == reason
+        assert original["text"] == "" and original["status"] == "RECORDED"
+        fenced = await chat["client"].post("/api/v1/cloud/worker/fence", headers=chat["worker_headers"],
+            json={**chat["body"], "reason": reason})
+        assert fenced.status_code == 200, fenced.text
+        recovered = await chat["client"].post("/api/v1/cloud/worker/conversation/recover-append",
+            headers=chat["worker_headers"], json={**payload,
+                **{key: chat["body"][key] for key in ("project_id", "task_id", "attempt_id")},
+                "worker_id": identity["worker_id"], "generation": identity["generation"]})
+        assert recovered.status_code == 200, recovered.text
+        assert recovered.json() == original
+        records = [row for row in (await history(chat))["messages"] if row["event_key"] == payload["event_key"]]
+        assert records == [original]
+    finally:
+        await bridge.close()
+        runner.cancel()
+        await asyncio.gather(runner, return_exceptions=True)
+
+
+async def test_arbitrary_runtime_reason_is_not_accepted_as_conversation_content(chat):
+    response = await worker(chat, "append", session_id=chat["session"], event_key="failure:arbitrary",
+        role="SYSTEM", state="INTERRUPTED", reason_code="untrusted-runtime-error-text")
+    assert response.status_code == 422
+    assert all(row["event_key"] != "failure:arbitrary" for row in (await history(chat))["messages"])
 
 
 @pytest.mark.parametrize("operation", ["append", "renew"])

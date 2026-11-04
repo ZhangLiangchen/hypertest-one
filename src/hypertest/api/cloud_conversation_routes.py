@@ -12,6 +12,7 @@ from hypertest.api.cloud_routes import identity
 from hypertest.api.cloud_worker_routes import (
     Attempt,
     Input,
+    WorkerInterruptionReason,
     authenticate_worker,
     check_identity,
     original_read,
@@ -43,9 +44,10 @@ class ConversationObservation(Input):
     text: str = Field(default="", max_length=65536)
     event_seq: int | None = Field(default=None, ge=0)
     state: Literal["RUNNING", "AWAITING_REPLY", "INTERRUPTED", "CLOSED"] | None = None
-    reason_code: Literal["SDK_RUN_FAILED", "WORKER_INTERRUPTED", "CONTENT_REJECTED", "MESSAGE_TOO_LARGE", "CONVERSATION_GAP",
-                         "TURN_BLOCKED", "TURN_COMPLETED", "TURN_ABORTED", "TURN_ERROR",
-                         "ARTIFACT_REJECTED", "ARTIFACT_CONTENT_REJECTED"] | None = None
+    # The same fixed interruption must survive the fence and its durable public
+    # observation, including when that observation is recovered after restart.
+    reason_code: WorkerInterruptionReason | Literal["SDK_RUN_FAILED", "CONTENT_REJECTED", "MESSAGE_TOO_LARGE", "CONVERSATION_GAP",
+        "TURN_BLOCKED", "TURN_COMPLETED", "TURN_ABORTED", "TURN_ERROR", "ARTIFACT_REJECTED", "ARTIFACT_CONTENT_REJECTED"] | None = None
     observed_at: datetime | None = None
 
 
