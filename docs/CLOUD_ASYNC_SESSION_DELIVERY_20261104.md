@@ -11,7 +11,7 @@
 
 ## 验证与部署
 
-消息、恢复及领取边界的 38 个直接相关回归用例通过；Web 消息 journal/组件 17 项通过，Next typegen、TypeScript 和机械检查通过。归档与 SDK/Worker 的 125 项直接相关回归通过，Ruff 和差异检查通过。已合入同期部署的 bca2112 会话归组/传输修复，原 key 重发路径由本轮异步领取替代；冲突解决后的恢复模块 14 项通过。最终提交及部署身份在本轮完成后记录。复用既有专用 hypertest_test 数据库和依赖环境，不向业务库写入 fixtures。
+消息、恢复及领取边界的 38 个直接相关回归用例通过；Web 消息 journal/组件 17 项通过，Next typegen、TypeScript 和机械检查通过。归档与 SDK/Worker 的 125 项直接相关回归通过，Ruff 和差异检查通过。已合入同期部署的 bca2112 会话归组/传输修复，原 key 重发路径由本轮异步领取替代；冲突解决后的恢复模块 14 项通过。已推送并部署 `93d201c902d14cd65077c8e8527054450636173a`（`codex/cloud-async-session-20261104`），保留同期已部署改动。复用既有专用 hypertest_test 数据库和依赖环境，不向业务库写入 fixtures。
 
 浏览器访问宿主不可用，未进行真实浏览器视觉检查；组件渲染回归及部署后的实际 API 只读检查分别记录，不替代业务验收。
 
@@ -20,3 +20,11 @@
 ## 用户验收
 
 USER_OWNED：真实业务发送、Harness 继续执行及修正报告由用户验收。本轮不主动发送业务消息、运行模型或 SUT，不改写指定任务原结果及历史。
+
+## 实际部署结果
+
+- 时间：2026-11-04 13:07（UTC+8）。API `hypertest-mac-api:93d201c` / `sha256:bcf4f2fb36a743d7026fd59c9a65959197f8b2c94940ff0225e84b3837a5a074`；Web `hypertest-mac-web:93d201c` / `sha256:012d8d1243103968da656ee03b3182b5cac2c9a5c79e75ce9253d1464ba55af3`，两者健康。
+- 宿主 Worker PID `55505`；本轮9个Cloud模块来自上述固定提交。既有 LaunchAgent、SDK/profile、WireGuard、BFF、TLS、数据库及独立知识服务配置保持。schema 仍为 `0048_concurrent_claim_slots`，本轮无需迁移。
+- 通过实际 Web BFF 只读检查指定任务：v13 / RECOVERY_REQUIRED / NOT_RUN，7条既有消息；会话投影为 PAUSED、ASYNC、can_send=true、can_reconnect=false，具体原因 REPORT_CONTENT_REJECTED。任务页 HTTP 200。没有创建项目、任务、凭据或提交业务消息。
+- 旧的中断记录不会因部署伪装成正在执行；后续普通消息先保存，由 Worker 内部处理原会话。可修正归档错误不中断的新行为已由回归验证，真实业务验证仍为 USER_OWNED。
+- 宿主操作记录：`~/.local/share/hypertest-mac/cloud-async-session-20261104/deployment.json`、`readback.json`及构建日志。没有把浏览器不可用记为通过。
