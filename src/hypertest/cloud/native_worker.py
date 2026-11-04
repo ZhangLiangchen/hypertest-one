@@ -645,9 +645,10 @@ def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot:
         value["artifact_workspace"] = str(framework_project)
         value["instructions"] = [line.replace("paths are relative regular files under " + str(workspace),
             "paths are relative regular files under " + str(framework_project)) for line in value["instructions"]]
-        example = value["handoff_contract"]["artifact_to_asset_example"]
-        example["example_file"]["path"] = "analysis-example.md"
-        example["sequence"][0]["handoff"]["payload"]["path"] = "analysis-example.md"
+        example = value["handoff_contract"].get("artifact_to_asset_example")
+        if example is not None:
+            example["example_file"]["path"] = "analysis-example.md"
+            example["sequence"][0]["handoff"]["payload"]["path"] = "analysis-example.md"
         value["instructions"].append(
             f"UPLOAD_ARTIFACT payload.path is relative to {framework_project}, the test framework project. "
             "Select files from this task's actual framework output and report directories; never archive another task's outputs. "
