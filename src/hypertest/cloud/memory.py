@@ -35,12 +35,14 @@ def query_protocol_document(task_id: str, attempt_id: str) -> dict:
     return {"protocol_file": ".hypertest-cloud/memory-protocol/query.json",
         "ready_directory": ".hypertest-cloud/memory-ready",
         "response_directory": ".hypertest-cloud/memory-responses",
+        "example_ready_file": ".hypertest-cloud/memory-ready/query-1.json",
+        "example_response_file": ".hypertest-cloud/memory-responses/query-1.json",
         "envelope_example": {"profile": HANDOFF_PROFILE, "task_id": task_id,
             "attempt_id": attempt_id, "key": "query-1", "operation": "QUERY",
             "payload": {"query": "REPLACE_WITH_EXPLICIT_QUESTION", "collection": "main", "limit": 5}},
         "instructions": [
             "Use this current task's precreated directories. Keep profile/task_id/attempt_id/operation unchanged; choose a fresh key and your explicit query, collection main or history, and limit 1..20.",
-            "Write the complete envelope atomically as memory-ready/KEY.json, then read memory-responses/KEY.json. The Worker supplies all private authorization and server scope selection.",
+            "The filename stem must exactly equal envelope.key. For key query-1, atomically publish memory-ready/query-1.json and read memory-responses/query-1.json. KEY is a placeholder, never a literal filename. For another fresh key change both filenames to that exact key. The Worker supplies all private authorization and server scope selection.",
             "This file only explains QUERY; it does not grant execution, archive or memory-write permission. Never edit the protocol or invent identity or credentials.",
             "If this protocol or these directories are missing/unavailable, report memory unavailable. Do not search host configuration, another task/attempt, old workspaces or credentials for substitutes."]}
 

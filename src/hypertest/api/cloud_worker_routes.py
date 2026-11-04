@@ -157,7 +157,9 @@ def check_identity(worker_id: str, identity: Identity):
 
 
 async def active(db, body: Attempt):
-    task = await service._task(db, body.task_id, body.project_id)
+    # Downstream operations may lock the Task again. Acquire it before the
+    # Attempt so concurrent conversation polling cannot invert the lock order.
+    task = await service._task(db, body.task_id, body.project_id, lock=True)
     attempt = await service._attempt(db, task, body.attempt_id)
     await service.worker_authority(db, task, attempt, body.identity.service_identity())
     return task, attempt
@@ -165,7 +167,7 @@ async def active(db, body: Attempt):
 
 async def original_read(db, body: Attempt):
     """The original work token can read only its own accepted records after fence."""
-    task = await service._task(db, body.task_id, body.project_id)
+    task = await service._task(db, body.task_id, body.project_id, lock=True)
     attempt = await service._attempt(db, task, body.attempt_id)
     grant = await db.scalar(select(CloudWorkGrant).where(
         CloudWorkGrant.token_hash == token_hash(body.identity.work_token),

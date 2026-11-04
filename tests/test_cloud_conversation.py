@@ -1,15 +1,17 @@
 """Conversation delivery and output visibility, synthetic dedicated test DB only."""
+import asyncio
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from test_cloud_tasks import cloud_context as cloud_context
 from test_cloud_tasks import dispatched, worker_submit
 
 from hypertest.application import cloud_tasks as service
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudConversationMessage
+from hypertest.domain.cloud_tasks import CloudConversationMessage, CloudTask
 
 pytest_plugins = ("test_cloud_tasks",)
 
@@ -78,6 +80,55 @@ async def test_partial_reply_visible_without_final_report_or_version_change(chat
     assert summary.json()["version"] == chat["version"]
     assert summary.json()["reported_result"] == "NOT_RUN"
     assert (await history(chat, page["next_cursor"]))["messages"] == []
+
+
+@pytest.mark.parametrize("operation", ["append", "renew"])
+async def test_poll_and_worker_routes_lock_task_before_attempt(chat, monkeypatch, operation):
+    """Real concurrent API transactions: original-read and active take one order."""
+    locked = asyncio.Event()
+    release = asyncio.Event()
+    original_attempt = service._attempt
+
+    async def paused_attempt(*args, **kwargs):
+        row = await original_attempt(*args, **kwargs)
+        if asyncio.current_task().get_name() == "worker-lock-order-writer":
+            locked.set()
+            await release.wait()
+        return row
+
+    monkeypatch.setattr(service, "_attempt", paused_attempt)
+    if operation == "append":
+        request = worker(chat, "append", session_id=chat["session"], event_key="assistant:concurrent",
+                         role="ASSISTANT", text="Synthetic concurrent observation")
+    else:
+        request = chat["client"].post("/api/v1/cloud/worker/renew", headers=chat["worker_headers"],
+                                     json={**chat["body"], "lease_seconds": 90})
+    writer = asyncio.create_task(request, name="worker-lock-order-writer")
+    polling = None
+    try:
+        await asyncio.wait_for(locked.wait(), timeout=5)
+        # A separate real DB transaction must already be unable to acquire the
+        # Task. Previously original_read/active held only Attempt here, allowing
+        # poll to take Task and producing the opposite Task/Attempt wait cycle.
+        async with AsyncSessionLocal() as db:
+            with pytest.raises(DBAPIError) as error:
+                await db.scalar(select(CloudTask).where(CloudTask.id == UUID(chat["queued"]["task_id"]))
+                                .with_for_update(nowait=True))
+            assert error.value.orig.sqlstate == "55P03"
+            await db.rollback()
+        polling = asyncio.create_task(worker(chat, "poll", session_id=chat["session"]))
+        await asyncio.sleep(0)
+        release.set()
+        response, polled = await asyncio.wait_for(asyncio.gather(writer, polling), timeout=5)
+        assert response.status_code == 200, response.text
+        assert polled.status_code == 200 and polled.json() == {"message": None}
+        assert (await worker(chat, "poll", session_id=chat["session"])).status_code == 200
+    finally:
+        release.set()
+        for task in (writer, polling):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(*(task for task in (writer, polling) if task is not None), return_exceptions=True)
 
 
 async def test_reply_claimed_once_and_ack_has_incremental_cursor(chat):
