@@ -163,7 +163,10 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
     # Validate the receipt-bound profile before even starting SDK configuration
     # resolution, which must never run an unreviewed, drifted profile.
     _verify_anchored_identity(config)
-    selection = read_native_selection(dsh_home=config["dsh_home"], cwd=config["workspace"], environment=dict(os.environ))
+    from .native_framework_project import session_working_directory
+
+    session_cwd = str(session_working_directory(Path(config["workspace"])))
+    selection = read_native_selection(dsh_home=config["dsh_home"], cwd=session_cwd, environment=dict(os.environ))
     finish_reason = None
     count = 0
 
@@ -191,7 +194,7 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
         overlay = prepare_cordis_overlay(Path(directory), title=config["title"])
         marker = Path(directory) / "ready.json"
         nonce = secrets.token_hex(32)
-        options = {"profile": "sdk", "dsh_home": config["dsh_home"], "cwd": config["workspace"],
+        options = {"profile": "sdk", "dsh_home": config["dsh_home"], "cwd": session_cwd,
                    "patches": (str(overlay),),
                    "env": {"DSH_SDK_CORDIS_ROOT": config["session_id"],
                            "DSH_SDK_CORDIS_NONCE": nonce,
@@ -200,7 +203,7 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
             # Unsupported SDK versions fail closed rather than presenting a fake interaction.
             options["on_user_question"] = question_channel.ask
         with HarnessClient(HarnessConfig(**options)) as client:
-            info = client.initialize(cwd=config["workspace"], **selection).serverInfo
+            info = client.initialize(cwd=session_cwd, **selection).serverInfo
             if info is None or info.name != "deepseek-harness-sdk-runtime" or info.version != "0.0.1":
                 raise ValueError("unexpected SDK protocol")
             _require_cordis_guard(marker, nonce, config["session_id"])

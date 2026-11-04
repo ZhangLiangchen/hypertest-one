@@ -1288,3 +1288,8 @@ profile 以 server/client/actor 隔离，可跨工作目录和 Agent 会话复�
 Cloud 页面通过受同源和 Operator 边界保护的 BFF 与 Cloud API 读写活问题；API 负责 Project/Task/Attempt 授权与状态，不运行 Agent。宿主薄 Worker 通过独立工作凭据、原 lease 和 generation 维护问题与回答，并使用私有 stdin/stdout 将问题和回答传给当前 SDK 回调。用户答案不授予其他工具、网络或执行权限，原生权限批准类请求不经此入口扩权。
 
 原生 Worker 使用单独固定的 SDK/runtime 配对；旧 Cloud SDK 的版本准入保持独立。回答已保存、回调取走与 Agent 继续工作是不同事实；进程退出后的原会话恢复仍未实现。领域约束见领域 §57，交互合同见 TMP §52；实现、部署和用户验收分别记录。
+
+
+## 2026-11-04：宿主 Cloud 的测试框架项目目录
+
+按 [ADR-040](ADR-040_FRAMEWORK_PROJECT_SESSIONS.md)，新会话直接以可复用的测试框架仓库为原生项目与实际工作目录，Agent 自主选择是否使用 Git 工作树。HyperTest 传递任务与用户消息、归档结果；测试产物保留框架原有目录，直接读取原文件归档，仅内部交接路径按执行记录区分。冻结框架 SHA 是请求参考，实际执行版本由 Agent 记录，不自动覆盖共享仓库的分支或修改。旧会话的目录、身份、结果及原 key/UNKNOWN 恢复语义保持。

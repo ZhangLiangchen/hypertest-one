@@ -1830,3 +1830,8 @@ CREATE 固定配对上下文，APPROVE 固定实际授权，REDEEM 绑定该批�
 宿主薄 Worker 对运行中的根 SDK session 接收原生用户提问，通过私有有界双向通道与 SDK 子进程交互；该子进程不获得平台令牌、数据库或 Worker lease。Worker 使用本次 Attempt 的 work token 和 generation 提交原 request/session ID、原问题数组及截止时间，查询与回应都受同一执行权 fence。页面通过独立活问题接口轮询，保留题目、选项和自由文本，不把回答当作测试结论或授权扩展。
 
 网页发送前持久化原 operation key 和回答摘要，不保存回答正文；失答只读取该原问题并核对同一 key 与摘要，不自动重发、换 key 或将回答交给另一进程。服务端原子记录一次回答，Worker 原子领取一次；领取后若传输或进程状态未知，保留 UNKNOWN，不重投。SDK 取消、到期、任务终结或执行权丢失后拒绝迟到回答。DELIVERED 是本地回调已取走回答的观察，SDK runtime 和 Agent 是否接收仍未确认。旧 REQUEST_INPUT / WAITING_INPUT 为停止后的独立合同，不可伪装为实时续接；SDK 进程退出后的会话恢复仍不支持。
+
+
+## 2026-11-04：宿主 Cloud 的测试框架项目目录
+
+按 [ADR-040](../architecture/ADR-040_FRAMEWORK_PROJECT_SESSIONS.md)，新会话直接以可复用的测试框架仓库为原生项目与实际工作目录，Agent 自主选择是否使用 Git 工作树。HyperTest 传递任务与用户消息、归档结果；测试产物保留框架原有目录，直接读取原文件归档，仅内部交接路径按执行记录区分。冻结框架 SHA 是请求参考，实际执行版本由 Agent 记录，不自动覆盖共享仓库的分支或修改。旧会话的目录、身份、结果及原 key/UNKNOWN 恢复语义保持。

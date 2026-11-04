@@ -136,8 +136,9 @@ class CloudSyncAdapter:
 
 
 class CloudTaskReporter:
-    def __init__(self, *, broker, private_root: Path, workspace: Path):
+    def __init__(self, *, broker, private_root: Path, workspace: Path, artifact_workspace: Path | None = None):
         self.broker, self.workspace = broker, workspace
+        self.artifact_workspace = artifact_workspace or workspace
         private_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.journal = Journal(private_root / "submissions.sqlite3")
         self.snapshots = SnapshotStore(private_root / "snapshots", max_bytes=13 * 1024 * 1024)
@@ -312,7 +313,7 @@ class CloudTaskReporter:
             if handoff.operation != "TRANSITION" and {"budget_reservation", "budget_settlement"} & payload.keys():
                 raise CloudBlocked("HANDOFF_BUDGET_AUTHORITY", "Only the host Worker owns budget accounting")
             if handoff.operation == "UPLOAD_ARTIFACT":
-                original = read_workspace_file(self.workspace, payload.pop("path"))
+                original = read_workspace_file(self.artifact_workspace, payload.pop("path"))
                 if (hashlib.sha256(original).hexdigest() != payload.get("sha256")
                         or len(original) != payload.get("byte_count")):
                     raise CloudBlocked("HANDOFF_ARTIFACT_CHANGED", "Artifact bytes differ from their published manifest")

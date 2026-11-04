@@ -333,6 +333,10 @@ def _identity(*, project_id: str, task_id: str, attempt_id: str, session_id: str
         raise ValueError("invalid original Worker identity")
     workspace, workspace_id = _directory(workspace)
     home, home_id = _directory(dsh_home)
+    from .native_framework_project import session_working_directory
+
+    session_cwd = session_working_directory(workspace)
+    framework_project = {} if session_cwd == workspace else {"session_directory": _directory(session_cwd)[1]}
     return {"profile": PROFILE, "project_id": project_id, "task_id": task_id,
             "attempt_id": attempt_id, "session_id": session_id,
             "worker_id": worker_id, "original_generation": original_generation,
@@ -342,7 +346,7 @@ def _identity(*, project_id: str, task_id: str, attempt_id: str, session_id: str
                        "framework": _checked_head(workspace / "framework", framework_commit)},
             "selection_sha256": _selection_digest(selection),
             "nonsecret_environment_sha256": _environment_digest(environment),
-            "workspace": workspace_id, "dsh_home": home_id,
+            "workspace": workspace_id, "dsh_home": home_id, **framework_project,
             "sdk_profile_sha256": _profile_digest(home, selection), "runtime": _runtime_identity()}
 
 

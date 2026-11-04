@@ -153,6 +153,7 @@ def check_cordis_runtime() -> None:
 
 async def prepare_native_session_identity(*, root, workspace, args, task, attempt, manifest, broker, reporter, prompt):
     """Anchor an opt-in native session before RUNNING or any SDK prompt."""
+    from .native_framework_project import session_working_directory
     from .native_resume_identity import record_initial_identity
     from .native_sdk_adapter import host_environment
     from .native_selection import read_native_selection
@@ -160,7 +161,7 @@ async def prepare_native_session_identity(*, root, workspace, args, task, attemp
     session_id = "cloud-" + attempt["id"]
     environment = host_environment(os.environ)
     selection = await asyncio.to_thread(read_native_selection, dsh_home=args.dsh_home,
-                                        cwd=str(workspace), environment=environment)
+                                        cwd=str(session_working_directory(workspace)), environment=environment)
     repos = manifest["resolution"]["repositories"]
     original = {"project_id": task["project_id"], "task_id": task["id"], "attempt_id": attempt["id"],
                 "session_id": session_id, "worker_id": args.worker_id,
@@ -514,13 +515,14 @@ async def resolve(api, args, state: Path, claim: dict):
     await api.request("resolution/accept", {**body, "result": result})
 
 
-def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot: bool = False, memory_enabled: bool = False) -> str:
+def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot: bool = False, memory_enabled: bool = False,
+                  framework_project: Path | None = None) -> str:
     from .manifests import task_prompt
 
     value = json.loads(task_prompt(task, attempt, native_harness=True, memory_enabled=memory_enabled))
     value["capabilities"].update(remote_network="HOST_USER_NETWORK_UNVERIFIED",
         ssh="HOST_USER_ACCESS_UNVERIFIED", https_controlled_api="HOST_USER_ACCESS_UNVERIFIED")
-    value["instructions"] = [line.replace("/workspace", str(workspace))
+    value["instructions"] = [line
         for line in value["instructions"] if not any(phrase in line for phrase in (
             "General remote shell, CI and Git writes are unavailable", "SSH diagnostics are unavailable"))]
     value["instructions"].append(
@@ -531,6 +533,16 @@ def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot:
         "even when a marker is only a source-code example; artifact admission rejects such markers. "
         "Check artifacts before publishing, and describe any omission or redaction accurately rather than "
         "presenting a redacted file as an unchanged original.")
+    if framework_project is not None:
+        value["instructions"].append(
+            f"Your working directory is the reusable test framework project: {framework_project}. "
+            "Work here as in a normal local Harness session. Decide yourself whether a Git worktree is useful. "
+            "The frozen framework SHA is the requested source reference, not proof of the current shared checkout. "
+            "Check the actual revision and existing edits, preserve other work, and record the revision actually tested. "
+            "Keep test outputs and reports in the framework's own directories, following its AGENTS.md and documentation. "
+            "Archive the original files in place; do not move or copy them into a HyperTest output directory. "
+            f"The directory {workspace} holds only frozen input copies and this execution's HyperTest transport files; "
+            "use the absolute paths in the handoff contract so separate sessions do not publish into each other's task.")
     if retry_snapshot:
         value["instructions"].append(
             "This is a new attempt with an independently confirmed execution snapshot. "
@@ -553,6 +565,35 @@ def native_prompt(task: dict, attempt: dict, workspace: Path, *, retry_snapshot:
     value["instructions"].append(
         "After publishing COMPLETE_ATTEMPT, end your turn immediately without waiting for its receipt. "
         "The Worker must observe the direct SDK process exit before accepting that terminal handoff.")
+    def host_paths(item):
+        if isinstance(item, str):
+            item = re.sub(r"(?<![\w/.-])/workspace/framework(?=/|$|[\s.,])",
+                lambda _: str(framework_project or workspace / "framework"), item)
+            item = re.sub(r"(?<![\w/.-])/workspace(?=/|$|[\s.,])", lambda _: str(workspace), item)
+            return re.sub(r"(?<![\w/.-])\.hypertest-cloud/",
+                lambda _: str(workspace / ".hypertest-cloud") + "/", item)
+        if isinstance(item, list):
+            return [host_paths(child) for child in item]
+        if isinstance(item, dict):
+            return {key: host_paths(child) for key, child in item.items()}
+        return item
+
+    # Input snapshots remain byte-for-byte semantically unchanged. Only the
+    # transport contract is rebased when the Agent works in a shared project.
+    if framework_project is not None:
+        value = {key: item if key == "frozen_manifest" else host_paths(item) for key, item in value.items()}
+        value["artifact_workspace"] = str(framework_project)
+        value["instructions"] = [line.replace("paths are relative regular files under " + str(workspace),
+            "paths are relative regular files under " + str(framework_project)) for line in value["instructions"]]
+        example = value["handoff_contract"]["artifact_to_asset_example"]
+        example["example_file"]["path"] = "analysis-example.md"
+        example["sequence"][0]["handoff"]["payload"]["path"] = "analysis-example.md"
+        value["instructions"].append(
+            f"UPLOAD_ARTIFACT payload.path is relative to {framework_project}, the test framework project. "
+            "Select files from this task's actual framework output and report directories; never archive another task's outputs. "
+            "HyperTest transport paths are independent of test output paths.")
+    else:
+        value["instructions"] = [line.replace("/workspace", str(workspace)) for line in value["instructions"]]
     return json.dumps(value, ensure_ascii=False)
 
 
@@ -667,8 +708,13 @@ async def execute(api, args, state: Path, claim: dict):
             await broker.assert_current()
             await resolver.checkout(manifest["resolution"]["repositories"][role], workspace / role)
         await broker.assert_current()
+        from .native_framework_project import prepare_framework_project
+
+        framework_project = await prepare_framework_project(state=state, attempt_root=root,
+            snapshot=workspace / "framework", resolved=manifest["resolution"]["repositories"]["framework"])
+        reporter.artifact_workspace = framework_project
         prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
-            memory_enabled=memory_bridge is not None)
+            memory_enabled=memory_bridge is not None, framework_project=framework_project)
         session_id = "cloud-" + attempt["id"]
         anchor_config = os.environ.get("HYPERTEST_CLOUD_NATIVE_RECOVERY_IDENTITY", "false").strip().lower()
         if anchor_config not in {"true", "false"}:

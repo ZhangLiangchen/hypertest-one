@@ -932,3 +932,8 @@ Web 提供全局 CLI 授权页、操作指导和一键绑定命令；用户确�
 HyperTest One 在这条路径中管理业务任务、子任务、产物修订、真实 reported result 和来源。上传者由授权认证，原测试会话只是可选来源声明；一个任务可归档多个会话的材料，原会话结束后仍可上传留存文件。归档完成、测试进度和质量结果分别表达，不因上传成功产生 PASS、独立执行证明或 RELEASE_READY。
 
 [ADR-027](../architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md)首片实现已完成，[开发计划](../LOCAL_ARCHIVE_REFACTOR_PLAN_20261027.md)记录实施范围，[本轮交付](../LOCAL_ARCHIVE_DELIVERY_20261027.md)区分实现、部署、发行与用户验收。新归档实体与旧 SessionTask、CloudTask 分别持有身份和历史，只共享 Project；移除旧 Local MCP/Hooks 接入时保留既有报告、授权、私有未决账本与原 key 只读恢复。方案、实现、部署、CLI 发行和用户验收分别记录。
+
+
+## 2026-11-04：宿主 Cloud 的测试框架项目目录
+
+按 [ADR-040](../architecture/ADR-040_FRAMEWORK_PROJECT_SESSIONS.md)，新会话直接以可复用的测试框架仓库为原生项目与实际工作目录，Agent 自主选择是否使用 Git 工作树。HyperTest 传递任务与用户消息、归档结果；测试产物保留框架原有目录，直接读取原文件归档，仅内部交接路径按执行记录区分。冻结框架 SHA 是请求参考，实际执行版本由 Agent 记录，不自动覆盖共享仓库的分支或修改。旧会话的目录、身份、结果及原 key/UNKNOWN 恢复语义保持。

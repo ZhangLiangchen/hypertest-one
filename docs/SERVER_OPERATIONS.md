@@ -37,3 +37,8 @@ Web 可通过非秘密环境变量 `HYPERTEST_HARNESS_WEB_URL` 配置原生 Deep
 ## 历史远端访问
 
 此锚点仅为兼容旧文档链接保留。当前环境在本机，无需 SSH；过去的远端地址、SSH 别名及当时结果见[历史运维记录](SERVER_OPERATIONS_HISTORY.md)。
+
+
+## 框架项目目录与 Harness 归组（2026-11-04）
+
+按 ADR-040，宿主 Worker 在 state 同级 framework-projects 下按完整仓库身份复用框架检出，新会话从该仓库启动；project.json 记录路径及展示名称。原生桌面/Web 宿主加载 src/hypertest/cloud/harness_workspace_sync.mjs，config.managedRoot 指向该目录，使用官方 registry 自动归组；只在这个单一宿主加载，不放入每个独立 SDK profile。原会话缺少 framework-project.json 时保持原 cwd。首次准备不会触发模型，后续不覆盖框架中的用户修改。

@@ -2709,3 +2709,8 @@ CloudLiveQuestion 是独立的运行时交互记录，不是测试结果、Evide
 原问题保存有界结构化题目和截止时间。回答按独立原 operation key 固定完整结构和摘要，项目内原 key 唯一；同 key、同身份、同正文读取原结果，异正文或另一 key 不覆盖。每题必须恰好回答一次，选择值属于原选项，单选不能多选；允许的自由文本和取消由同一原问题表达。敏感信息检查适用于题目和回答。
 
 正常状态为 OPEN → ANSWERED → DELIVERING → DELIVERED。Worker 对 ANSWERED 的领取与 DELIVERING 转换原子化；领取失答、进程失联或无法确认交接不得再次投递。DELIVERED 仅表示 SDK 回调已取走回答，不证明 SDK runtime 或 Agent 已接收、执行或完成。原调用取消、到期、任务终结或 fence 后不得回答或投递；已领取且不确定的回答显示 UNKNOWN，未领取的活问题显示 CANCELLED。记录独立于 Task 业务 version，交互不改变测试结果、尝试终态或既有资产。
+
+
+## 2026-11-04：宿主 Cloud 的测试框架项目目录
+
+按 [ADR-040](../architecture/ADR-040_FRAMEWORK_PROJECT_SESSIONS.md)，新会话直接以可复用的测试框架仓库为原生项目与实际工作目录，Agent 自主选择是否使用 Git 工作树。HyperTest 传递任务与用户消息、归档结果；测试产物保留框架原有目录，直接读取原文件归档，仅内部交接路径按执行记录区分。冻结框架 SHA 是请求参考，实际执行版本由 Agent 记录，不自动覆盖共享仓库的分支或修改。旧会话的目录、身份、结果及原 key/UNKNOWN 恢复语义保持。
