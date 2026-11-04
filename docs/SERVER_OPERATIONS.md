@@ -42,3 +42,5 @@ Web 可通过非秘密环境变量 `HYPERTEST_HARNESS_WEB_URL` 配置原生 Deep
 ## 框架项目目录与 Harness 归组（2026-11-04）
 
 按 ADR-040，宿主 Worker 在 state 同级 framework-projects 下按完整仓库身份复用框架检出，新会话从该仓库启动；project.json 记录路径及展示名称。原生桌面/Web 宿主加载 src/hypertest/cloud/harness_workspace_sync.mjs，config.managedRoot 指向该目录，使用官方 registry 自动归组；只在这个单一宿主加载，不放入每个独立 SDK profile。原会话缺少 framework-project.json 时保持原 cwd。首次准备不会触发模型，后续不覆盖框架中的用户修改。
+
+旧会话可在同一插件配置中设置 `legacyMemberships: [{sessionId, originCwd, projectPath}]`：从原任务的框架仓库和实际 header 核对后填写；目标必须属于 managedRoot 或 projects 配置。只需列根会话，原生 parentSession 子会话继承归属。该适配检查固定版本内部成员方法，只修改项目成员列表，保留原 cwd、ID 和日志。插件升级须运行对应固定 SDK 归组/重启回归，不直接编辑 workspace.json。

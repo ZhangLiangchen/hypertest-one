@@ -14,7 +14,7 @@ HyperTest 传递任务、用户消息并归档结果，Agent 自主安排测试�
 
 独立传输目录由运行时按原 Attempt 工作区固定为 `.hypertest-cloud`，在启动 SDK 前创建并校验绝对规范路径、非符号链接、当前用户所有和私有权限。使用固定版本 Harness 原生 `additionalWritableRoots`，仅为本次调用加入该精确目录；完整保留实际 SDK profile 的沙箱模式、工作区根及既有额外目录，不修改用户全局配置、不开放整个 Attempt 工作区、不启用 `danger-full-access`。配置读取有界且只投影模型选择与允许的沙箱字段，不记录凭据或执行任意配置表达式。权限无法安全保持时拒绝启动，不让模型自行扩大权限或绕行。该目录承载通信，不授予其他 Task/Attempt 的 QUERY 或报告身份；服务端原任务、grant、lease/generation 校验继续独立执行。
 
-原生 Harness 的 Workspace 由单一 Web/桌面宿主维护。薄适配只读取会话 header，通过官方 workspaceRegistry.create / attachSession 归组，不启动模型、不打开或恢复 Agent、不直接并发改写 workspace.json。SDK 进程不写原生 Workspace registry。
+原生 Harness 的 Workspace 由单一 Web/桌面宿主维护。薄适配只读取会话 header，通过宿主 registry 归组，不启动模型、不打开或恢复 Agent、不直接并发改写 workspace.json。SDK 进程不写原生 Workspace registry。
 
 ## 已核对的 hypervise_pure 结构
 
@@ -22,7 +22,11 @@ HyperTest 传递任务、用户消息并归档结果，Agent 自主安排测试�
 
 ## 既有会话
 
-缺少新项目目录记录的旧会话保留原目录和 ID。当前官方接口没有跨目录改归属的方法；不修改旧 header 或移动原会话日志来伪造新来源。既有测试结果、未知外部操作及原 key 恢复规则保持；改变新会话的工作目录不授权重跑旧测试。
+缺少新项目目录记录的旧会话保留原目录和 ID。依据原任务冻结的框架仓库及实际会话 header，配置精确的 sessionId、originCwd、projectPath 映射，调整原生项目成员归属；子会话按原生 parentSession 继承。每次同步先核对原 cwd 和已配置项目，不修改 header、日志或实际工作目录。
+
+当前官方 attachSession 只接受相同 cwd，因此旧会话逻辑归组使用固定版本宿主的候选匹配与 WorkspaceEntity.mutate 内部接口，并通过原生存储队列和界面变更通知写入；启动时检查实现摘要，版本不匹配即拒绝适配。新会话仍通过官方 create / attachSession；重启后精确映射继续生效。此内部接口适配属于项目展示与成员管理，不恢复 Agent，不增加审批或接管流程。
+
+旧 Worker 自有 `.hypertest-cloud` 目录若属于当前用户但权限较宽，启动时通过已检查的目录描述符收紧为私有权限；不改用户工作目录及文件内容。既有测试结果、未知外部操作及原 key 恢复规则保持；归组和修复通信目录不授权重跑旧测试。
 
 ## 验证与交付
 

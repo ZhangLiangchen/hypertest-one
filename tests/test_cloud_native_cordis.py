@@ -72,13 +72,28 @@ def test_transport_grant_rejects_unsafe_directory(tmp_path, monkeypatch, unsafe)
         link.symlink_to(tmp_path, target_is_directory=True)
         workspace = link / "workspace"
     if unsafe == "not_private":
-        transport.chmod(0o755)
+        workspace.chmod(0o755)
     if unsafe == "wrong_owner":
         monkeypatch.setattr(native_cordis.os, "getuid", lambda: transport.stat().st_uid + 1)
     if unsafe == "relative":
         workspace = workspace.relative_to(workspace.anchor)
     with pytest.raises((ValueError, OSError)):
         native_cordis._transport_policy(workspace, {"mode": "workspace-write"})
+
+
+def test_transport_grant_tightens_owned_legacy_directory_without_changing_contents(tmp_path):
+    workspace = tmp_path.resolve()
+    transport = workspace / ".hypertest-cloud"
+    transport.mkdir(mode=0o755)
+    transport.chmod(0o755)
+    receipt = transport / "accepted.json"
+    receipt.write_bytes(b'{"status":"ACCEPTED"}')
+    before = (receipt.read_bytes(), receipt.stat().st_mode)
+    policy = native_cordis._transport_policy(workspace, {"mode": "workspace-write"})
+    assert transport.stat().st_mode & 0o777 == 0o700
+    assert (receipt.read_bytes(), receipt.stat().st_mode) == before
+    assert policy["additionalWritableRoots"] == [str(transport)]
+    assert native_cordis._transport_policy(workspace, policy) == policy
 
 
 def test_transport_grant_preserves_read_only_and_deduplicates_existing_grant(tmp_path):

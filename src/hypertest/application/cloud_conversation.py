@@ -131,6 +131,7 @@ async def send(db, task, attempt, actor, body):
         old_digest = service.canonical_json_sha256({**payload, "generation": body.generation}) if body.generation else None
         if old.request_digest not in {digest, old_digest} or old.actor_ref != actor or old.task_id != task.id:
             raise HTTPException(409, "CONVERSATION_MESSAGE_CONFLICT")
+        # Original-key recovery is read-only; Worker claims own delivery scheduling.
         return view(old)
     session = await session_view(db, task, attempt)
     if not session["can_send"]:

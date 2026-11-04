@@ -3,7 +3,7 @@ import {mkdtemp, mkdir, realpath, rm, symlink, writeFile} from "node:fs/promises
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import test from "node:test";
-import {apply, frameworkProjects, syncFrameworkWorkspaces} from "../src/hypertest/cloud/harness_workspace_sync.mjs";
+import {apply, frameworkProjects, legacyGrouping, legacyMemberships, syncFrameworkWorkspaces} from "../src/hypertest/cloud/harness_workspace_sync.mjs";
 
 async function fixture(t) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "framework-grouping-")));
@@ -101,4 +101,40 @@ test("disposing aborts pending header reads before registry changes", async t =>
   await applying;
   assert.deepEqual(calls.created, []);
   assert.deepEqual(calls.warnings, []);
+});
+
+
+test("legacy membership follows native parents and leaves original headers and personal sessions alone", async t => {
+  const {path} = await fixture(t);
+  const headers = [{id: "cloud-old", cwd: "/old/attempt/workspace"},
+    {id: "native-child", cwd: "/old/attempt/workspace", parentSession: "cloud-old"},
+    {id: "nested-child", cwd: "/old/worktree", parentSession: "native-child"},
+    {id: "personal", cwd: "/personal/repo"}];
+  const before = JSON.stringify(headers);
+  const members = legacyMemberships([{sessionId: "cloud-old", originCwd: headers[0].cwd, projectPath: path}],
+    [{path, title: "hypervise"}], headers.map(header => ({header})));
+  assert.deepEqual([...members.keys()], ["cloud-old", "native-child", "nested-child"]);
+  assert.equal(members.get("nested-child").projectPath, path);
+  assert.equal(JSON.stringify(headers), before);
+});
+
+test("legacy membership rejects wrong original cwd, absent IDs, unknown projects and duplicate bindings", async t => {
+  const {path} = await fixture(t);
+  const row = {sessionId: "cloud-old", originCwd: "/old/workspace", projectPath: path};
+  const headers = [{header: {id: row.sessionId, cwd: row.originCwd}}];
+  for (const configured of [[{...row, originCwd: "/wrong"}], [{...row, sessionId: "absent"}],
+    [{...row, projectPath: "/other/project"}], [row, row]]) {
+    assert.throws(() => legacyMemberships(configured, [{path, title: "hypervise"}], headers));
+  }
+});
+
+test("legacy membership refuses an unreviewed native matcher before registry writes", async t => {
+  const {path} = await fixture(t);
+  const {ctx, calls} = host([]);
+  ctx.workspaceRegistry.host = {candidateMatches: () => true};
+  const legacy = legacyGrouping(ctx, [{sessionId: "cloud-old", originCwd: "/old/workspace", projectPath: path}]);
+  await assert.rejects(legacy.sync([{path, title: "hypervise"}],
+    [{header: {id: "cloud-old", cwd: "/old/workspace"}}], new AbortController().signal), /Unsupported/);
+  assert.equal(calls.created.length, 0);
+  assert.equal(ctx.workspaceRegistry.host.candidateMatches(), true);
 });
