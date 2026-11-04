@@ -72,14 +72,14 @@ async def claim_context(cloud_context, monkeypatch, tmp_path):
 
 
 def request(context, sequence=1, **changes):
-    return {"worker_id": context["worker_id"], "sequence": sequence,
+    return {"worker_id": context["worker_id"], "slot_id": "slot-1", "sequence": sequence,
             "request_key": "claim-" + uuid4().hex, "lease_seconds": 90,
             "supports_attempt_manifest": True, **changes}
 
 
 async def api(context, operation, body=None):
     return await context["client"].post("/api/v1/cloud/worker/claim" + operation,
-        headers=context["worker_headers"], json=body or {"worker_id": context["worker_id"]})
+        headers=context["worker_headers"], json=body or {"worker_id": context["worker_id"], "slot_id": "slot-1"})
 
 
 async def pending_resolution(context):
@@ -134,14 +134,62 @@ async def assert_no_capabilities(context, body, claimed=None):
             assert secret not in json.dumps(audit + events)
 
 
+async def test_slots_claim_distinct_attempts_and_fence_only_their_own_owner(claim_context):
+    context = claim_context
+    work = [await queued(context), await queued(context)]
+    bodies = [request(context, slot_id="slot-1"), request(context, slot_id="slot-2")]
+    responses = await asyncio.gather(*(api(context, "", body) for body in bodies))
+    assert all(response.status_code == 200 for response in responses)
+    claims = [response.json()["claim"] for response in responses]
+    assert {claim["attempt"]["id"] for claim in claims} == {item["attempt_id"] for item in work}
+    assert (await api(context, "/reconcile", bodies[0])).json()["closed"]
+    live = await context["client"].post("/api/v1/cloud/worker/assert", headers=context["worker_headers"],
+                                       json=target(context, claims[1]))
+    assert live.status_code == 200, live.text
+    other = await api(context, "/state", {"worker_id": context["worker_id"], "slot_id": "slot-2"})
+    assert other.json()["closed"] is False and other.json()["sequence"] == 1
+    assert (await api(context, "/reconcile", bodies[1])).json()["closed"]
+
+
+async def test_two_slots_never_acquire_one_attempt_twice(claim_context):
+    context = claim_context
+    work = await queued(context)
+    bodies = [request(context, slot_id="slot-1"), request(context, slot_id="slot-2")]
+    responses = await asyncio.gather(*(api(context, "", body) for body in bodies))
+    assert all(response.status_code == 200 for response in responses)
+    assert sorted(response.json()["kind"] for response in responses) == ["ATTEMPT", "EMPTY"]
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(func.count()).select_from(CloudWorkGrant).where(
+            CloudWorkGrant.attempt_id == UUID(work["attempt_id"]), CloudWorkGrant.revoked_at.is_(None))) == 1
+    for body in bodies:
+        assert (await api(context, "/reconcile", body)).json()["closed"]
+
+
+async def test_legacy_claim_body_is_recovery_only_and_keeps_original_digest(claim_context):
+    from hypertest.application.services import canonical_json_sha256
+    context = claim_context
+    original = request(context)
+    original.pop("slot_id")
+    refused = await api(context, "", original)
+    assert refused.status_code == 409 and refused.json()["detail"] == "LEGACY_CLAIM_RECOVERY_ONLY"
+    closed = await api(context, "/reconcile", original)
+    assert closed.status_code == 200 and "slot_id" not in closed.json()
+    assert (await api(context, "/reconcile", original)).json() == closed.json()
+    async with AsyncSessionLocal() as db:
+        old = await db.get(CloudWorkerClaimState, (context["worker_id"], "legacy"))
+        assert old.request_digest == canonical_json_sha256(original)
+        assert old.request_key == original["request_key"]
+    assert (await api(context, "", request(context, slot_id="slot-1"))).status_code == 200
+
+
 async def test_claim_empty_state_is_read_only_and_duplicate_never_claims_new_work(claim_context):
     context = claim_context
     initial = await api(context, "/state")
     assert initial.status_code == 200, initial.text
-    assert initial.json() == {"worker_id": context["worker_id"], "sequence": 0, "request_key": None,
+    assert initial.json() == {"slot_id": "slot-1", "worker_id": context["worker_id"], "sequence": 0, "request_key": None,
                               "kind": "EMPTY", "closed": True}
     async with AsyncSessionLocal() as db:
-        assert await db.get(CloudWorkerClaimState, context["worker_id"]) is None
+        assert await db.get(CloudWorkerClaimState, (context["worker_id"], "slot-1")) is None
     body = request(context)
     empty = await api(context, "", body)
     assert empty.status_code == 200 and empty.json()["kind"] == "EMPTY" and empty.json()["closed"] is True
@@ -288,7 +336,7 @@ async def test_claim_and_attempt_lease_roll_back_as_one_transaction(claim_contex
         assert attempt.status == "QUEUED" and attempt.lease_generation == 0 and attempt.lease_owner is None
         assert await db.scalar(select(func.count()).select_from(CloudWorkGrant).where(
             CloudWorkGrant.worker_id == context["worker_id"])) == 0
-        row = await db.get(CloudWorkerClaimState, context["worker_id"])
+        row = await db.get(CloudWorkerClaimState, (context["worker_id"], "slot-1"))
         assert row is None or row.sequence == 0
     monkeypatch.setattr(service, "claim_attempt", original_claim)
     response = await api(context, "", body)
@@ -320,7 +368,7 @@ async def test_database_preserves_claim_highwater_and_original_request(claim_con
     ):
         await rejects(statement)
     state = await api(context, "/state")
-    assert state.json() == {"worker_id": context["worker_id"], "sequence": 1,
+    assert state.json() == {"slot_id": "slot-1", "worker_id": context["worker_id"], "sequence": 1,
         "request_key": original["request_key"], "kind": "ATTEMPT", "closed": True}
 
 

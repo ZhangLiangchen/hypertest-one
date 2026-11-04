@@ -1,5 +1,7 @@
 # HyperTest Domain Model & State Machine Specification
 
+> **2026-11-04 对话领域：** [ADR-039](../architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 增加 CloudConversationHead/CloudConversationMessage。消息绑定 Project/Task/Attempt/session/generation，以独立提交游标增量读取，不修改 Task.version、正式产物或结果。用户输入 QUEUED → DELIVERING → DELIVERED/UNKNOWN；DELIVERED 仅表示 SDK 入队。fence 将未投递消息取消、投递中消息标记 UNKNOWN，原回执可收口但不重投。CloudWorkerClaimState 主键改为 (worker_id, slot_id)，旧行迁入 legacy 且原 key/digest 保持。显式 RESUME_ATTEMPT 在停止及未决检查后保留同 Attempt、固定原 Worker、新 generation；OPERATOR_ADOPTED 只证明本次人工接管来源。
+
 > **2026-11-03 领域边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 将 Project 两仓地址作为新 Cloud 任务仓库快照的配置来源；Web 创建页面填写任务名称及 MR/PR URL，MR 仓库须位于 Project SUT 范围内，单个 prompt 可选。API 保留省略创建标题时自动命名的默认行为，SUT 默认 MR/PR head，框架默认 main，解析时固定实际 SHA。新写不产生环境配置或预期部署版本。§51 的旧环境合同仅解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定快速原型的宿主 Worker 模式，取代 §51 中与之冲突的任务容器准入；目标合同和实际交付分别记录。

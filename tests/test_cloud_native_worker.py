@@ -23,7 +23,7 @@ from hypertest.cloud.worker import save_once
 
 
 def claim_request(**changes):
-    return {"worker_id": "native-fixture", "sequence": 1, "request_key": "original-claim-key-123456",
+    return {"worker_id": "native-fixture", "slot_id": "slot-1", "sequence": 1, "request_key": "original-claim-key-123456",
         "lease_seconds": 90, "supports_attempt_manifest": True, **changes}
 
 
@@ -47,7 +47,8 @@ def test_main_git_failure_emits_operation_and_exit_code_without_raw_error(monkey
 
 
 def claim_response(request=None, *, kind="EMPTY", closed=True, **fields):
-    return {"worker_id": "native-fixture", "sequence": request["sequence"] if request else 0,
+    return {**({"slot_id": request["slot_id"]} if request and "slot_id" in request else {"slot_id": "slot-1"} if request is None else {}),
+        "worker_id": "native-fixture", "sequence": request["sequence"] if request else 0,
         "request_key": request["request_key"] if request else None, "kind": kind, "closed": closed, **fields}
 
 
@@ -63,7 +64,7 @@ def loop_args(tmp_path, monkeypatch):
     monkeypatch.setattr(native_worker, "check_cordis_runtime", lambda: None)
     return SimpleNamespace(worker_id="native-fixture", state_dir=str(tmp_path), dsh_home="fixture",
         worker_credential_file=str(credential), api_url="https://example.invalid", ca_file=None,
-        lease_seconds=90, once=True, poll_seconds=1)
+        lease_seconds=90, once=True, poll_seconds=1, max_sessions=1)
 
 
 @pytest.mark.asyncio
@@ -259,7 +260,7 @@ async def test_native_worker_claim_advertises_attempt_snapshot_support(tmp_path,
         requests.append((operation, body))
         if operation == "claim/state":
             return claim_response()
-        assert pending_claim(tmp_path, "native-fixture")[1] == body
+        assert pending_claim(tmp_path / "slots" / "slot-1", "native-fixture")[1] == body
         return claim_response(body, claim=None)
 
     mock_worker_api(monkeypatch, request)
@@ -341,7 +342,7 @@ async def test_once_unconfirmed_or_rejected_claim_keeps_exact_intent(tmp_path, m
     mock_worker_api(monkeypatch, request)
     with pytest.raises(CloudBlocked):
         await native_worker.run(loop_args)
-    assert pending_claim(tmp_path, loop_args.worker_id)[1] == requests[-1][1]
+    assert pending_claim(tmp_path / "slots" / "slot-1", loop_args.worker_id)[1] == requests[-1][1]
     assert [operation for operation, _ in requests] == ["claim/state", "claim"]
 
 
@@ -410,7 +411,7 @@ async def test_restart_after_work_started_never_replays_it(tmp_path, monkeypatch
     monkeypatch.setattr(native_worker, "execute" if kind == "ATTEMPT" else "resolve", interrupted)
     with pytest.raises(asyncio.CancelledError):
         await native_worker.run(loop_args)
-    original = pending_claim(tmp_path, loop_args.worker_id)[1]
+    original = pending_claim(tmp_path / "slots" / "slot-1", loop_args.worker_id)[1]
     assert await native_worker.run(loop_args) == 0
     assert executions == [kind]
     assert requests[-1] == ("claim/reconcile", original)
@@ -449,7 +450,7 @@ async def test_terminal_slot_close_retries_without_executing_again(tmp_path, mon
     assert pending_claim(tmp_path, loop_args.worker_id) is None
 
 
-async def test_runtime_failure_closes_original_slot_then_stops(tmp_path, monkeypatch, loop_args):
+async def test_runtime_failure_closes_original_slot_before_serving_other_work(tmp_path, monkeypatch, loop_args):
     from hypertest.cloud import native_worker
 
     loop_args.once = False
@@ -458,8 +459,13 @@ async def test_runtime_failure_closes_original_slot_then_stops(tmp_path, monkeyp
     async def request(operation, body):
         requests.append((operation, dict(body)))
         if operation == "claim/state":
+            if len(requests) > 1:
+                loop_args.once = True
+                return claim_response(requests[1][1], kind="ATTEMPT")
             return claim_response()
         if operation == "claim":
+            if body["sequence"] == 2:
+                return claim_response(body, claim=None)
             return claim_response(body, kind="ATTEMPT", closed=False, claim={"synthetic": True})
         assert operation == "claim/reconcile"
         return claim_response(body, kind="ATTEMPT")
@@ -469,10 +475,8 @@ async def test_runtime_failure_closes_original_slot_then_stops(tmp_path, monkeyp
 
     monkeypatch.setattr(native_worker, "execute", execute)
     mock_worker_api(monkeypatch, request)
-    with pytest.raises(CloudBlocked) as failure:
-        await native_worker.run(loop_args)
-    assert failure.value.code == "SYNTHETIC_RUNTIME_FAILED"
-    assert [operation for operation, _ in requests] == ["claim/state", "claim", "claim/reconcile"]
+    assert await native_worker.run(loop_args) == 0
+    assert [operation for operation, _ in requests] == ["claim/state", "claim", "claim/reconcile", "claim/state", "claim"]
     assert requests[1][1] == requests[2][1] and pending_claim(tmp_path, loop_args.worker_id) is None
 
 

@@ -175,10 +175,10 @@ async def test_default_disabled_never_polls_inspection_and_keeps_normal_claim(tm
         async def request(self, operation, body):
             calls.append(operation)
             if operation == 'claim/state':
-                return {'worker_id': args.worker_id, 'sequence': 0, 'request_key': None,
+                return {'worker_id': args.worker_id, 'slot_id': body['slot_id'], 'sequence': 0, 'request_key': None,
                         'kind': 'EMPTY', 'closed': True}
             if operation == 'claim':
-                return {'worker_id': args.worker_id, 'sequence': body['sequence'],
+                return {'worker_id': args.worker_id, 'slot_id': body['slot_id'], 'sequence': body['sequence'],
                         'request_key': body['request_key'], 'kind': 'EMPTY', 'closed': True, 'claim': None}
             if operation == 'auth-observation':
                 return {'recorded': True}

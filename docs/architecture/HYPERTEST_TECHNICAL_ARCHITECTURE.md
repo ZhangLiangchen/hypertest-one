@@ -1,5 +1,7 @@
 # HyperTest Technical Architecture
 
+> **2026-11-04 会话桥接：** [ADR-039](ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 增加独立对话消息存储、增量游标与 validate/spool/append 链路。单 supervisor 默认四槽，每槽独立 SDK client、stdin/stdout 分发器、工作区、lease 与 reporter；领取及恢复锁按槽/Attempt 隔离。完整公开文字先校验再持久化，不收集 reasoning 或原始工具负载。原会话续接通过显式控制与新 generation 完成，不重发原 prompt。
+
 > **2026-11-03 职责修订：** [ADR-038](ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 取消 Cloud 项目资源页和环境管理。Project 维护仓库，服务端仅为任务生成内部仓库快照；MR/PR 和环境说明经任务输入交给 Harness。旧环境/部署配置条款仅解释相应历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 将轻量 Worker 与 Harness 适配器作为快速原型的目标交付；现有容器路径在替换部署前仍为运行事实。未来以全容器化强化项目资源隔离。

@@ -43,7 +43,7 @@ function renderDraft(budgets, accepted = true, options = {}) {
     if (name === '@/app/projects/[projectId]/cloud/cloud-shared') return { CloudAttemptRecovery: () => null, CloudCapabilitiesNotice: () => null, CloudOperationNotice: () => null };
     if (name === '@/app/projects/[projectId]/cloud/task-form') return { CloudTaskForm: () => null };
     if (name === './records') return { CloudTaskRecords: () => null };
-    if (name === './live-questions-panel') return { LiveQuestionsPanel: () => null };
+    if (name === './conversation-panel') return { ConversationPanel: () => null };
     if (name === './retry-dialog') return { RetryDialog: () => null };
     if (name === './recovery-choice') return { RecoveryChoice: () => null };
     if (name === './recovery-choice-history') return { RecoveryChoiceHistory: () => null };

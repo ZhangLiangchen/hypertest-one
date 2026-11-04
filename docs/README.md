@@ -4,8 +4,9 @@
 
 ## 现行入口
 
+- [Cloud 任务内对话与多会话交付（2026-11-04）](CLOUD_CONVERSATION_DELIVERY_20261104.md)及 [ADR-039](architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md)：公开消息持久化、文字回复、槽隔离与显式续接；实现、部署和用户验收分别记录。
 - [当前待办](TODO.md)：未完成的开发、操作和用户验收。
-- [Cloud 原会话受限检查（2026-11-03）](CLOUD_NATIVE_SESSION_INSPECTION_20261103.md)：原执行对账、不可补造的会话身份、仅打开历史的检查及未实现的执行续接。
+- [Cloud 原会话受限检查（2026-11-03）](CLOUD_NATIVE_SESSION_INSPECTION_20261103.md)：原执行对账与历史检查边界；后续显式续接由 ADR-039 替代一律未支持的旧声明。
 - [Cloud 原生 Harness Web UI 入口（2026-11-03）](CLOUD_HARNESS_WEB_LINK_20261103.md)：任务详情复用现有 3080 原生页面，提供会话 ID；页面交付和实际会话浏览验收分别记录。
 - [ADR-038：Cloud 聚焦任务输入、下发与产物归档](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 与 [Cloud 任务指南](CLOUD_TASK_WORKFLOW.md)：项目详情管理仓库，创建填写任务名称及 MR/PR 地址，环境由可选 prompt 说明；移除资源页和预期部署版本。
 - [Cloud 指定任务源码准备恢复（2026-11-03）](CLOUD_SOURCE_RECOVERY_20261103.md)：关闭已隔离的失败准备、确认框架 master 与新开始请求；排队、执行和结果分别记录。

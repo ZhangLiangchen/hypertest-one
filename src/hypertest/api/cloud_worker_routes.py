@@ -50,7 +50,11 @@ class Worker(Input):
     worker_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 
 
-class Claim(Worker):
+class ClaimState(Worker):
+    slot_id: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+
+
+class Claim(ClaimState):
     sequence: int = Field(ge=1, le=9223372036854775807, strict=True)
     request_key: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
     lease_seconds: int = Field(default=90, ge=15, le=300)
@@ -89,6 +93,12 @@ class Attempt(Input):
     project_id: UUID
     task_id: UUID
     attempt_id: UUID
+
+
+class ResumeIdentity(Attempt):
+    operation_key: str = Field(min_length=1, max_length=128)
+    snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    identity_source: Literal["PRE_PROMPT_ANCHORED", "OPERATOR_ADOPTED"]
 
 
 class Renew(Attempt):
@@ -189,15 +199,15 @@ async def auth_observation(body: AuthObservation, worker_id: str = Depends(authe
 async def claim(body: Claim, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
     if not hmac.compare_digest(body.worker_id, worker_id):
         raise HTTPException(403, "Worker identity mismatch")
-    return await cloud_worker_claims.claim(db, body.model_dump(mode="json"))
+    return await cloud_worker_claims.claim(db, body.model_dump(mode="json", exclude_none=True))
 
 
 @router.post("/claim/state")
 @controlled_errors
-async def claim_state(body: Worker, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
+async def claim_state(body: ClaimState, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
     if not hmac.compare_digest(body.worker_id, worker_id):
         raise HTTPException(403, "Worker identity mismatch")
-    return await cloud_worker_claims.state(db, worker_id)
+    return await cloud_worker_claims.state(db, worker_id, body.slot_id or "legacy")
 
 
 @router.post("/native-session-inspection/claim")
@@ -269,7 +279,19 @@ async def assert_native_session_inspection(body: InspectionAssert, worker_id: st
 async def reconcile_claim(body: Claim, worker_id: str = Depends(authenticate_worker), db: AsyncSession = Depends(get_db)):
     if not hmac.compare_digest(body.worker_id, worker_id):
         raise HTTPException(403, "Worker identity mismatch")
-    return await cloud_worker_claims.reconcile(db, body.model_dump(mode="json"))
+    return await cloud_worker_claims.reconcile(db, body.model_dump(mode="json", exclude_none=True))
+
+
+@router.post("/resume/identity")
+@controlled_errors
+async def record_resume_identity(body: ResumeIdentity, worker_id: str = Depends(authenticate_worker),
+                                 db: AsyncSession = Depends(get_db)):
+    check_identity(worker_id, body.identity)
+    await active(db, body)
+    from hypertest.application.cloud_conversation_resume import record_identity
+    return await record_identity(db, task_id=body.task_id, attempt_id=body.attempt_id,
+        identity=body.identity.service_identity(), operation_key=body.operation_key,
+        snapshot_sha256=body.snapshot_sha256, identity_source=body.identity_source)
 
 
 @router.post("/renew")

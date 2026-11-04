@@ -29,6 +29,13 @@ async function verifyAccepted(projectId: string, receipt: CloudReceipt): Promise
         && resolution.status === "PENDING"))) throw new Error("READBACK_PENDING");
     if (receipt.operation === "RECORD_RECOVERY_CHOICE" && (!receipt.attempt_id || !Array.isArray(document.recovery_choices)
       || !document.recovery_choices.some((choice) => choice.attempt_id === receipt.attempt_id && choice.operation_key === receipt.operation_key && choice.action_started === false))) throw new Error("READBACK_PENDING");
+    if (receipt.operation === "RESUME_ATTEMPT") {
+      const resumed = document.attempts.find((attempt) => attempt.id === receipt.attempt_id);
+      const intent = resumed?.checkpoint.native_resume as CloudRecord | undefined;
+      if (!receipt.attempt_id || document.task.latest_attempt_id !== receipt.attempt_id || resumed?.status !== "PREPARING"
+        || !intent || intent.operation_key !== receipt.operation_key
+        || !["PRE_PROMPT_ANCHORED", "OPERATOR_ADOPTED"].includes(String(intent.identity_source))) throw new Error("READBACK_PENDING");
+    }
     return;
   }
   if (receipt.operation === "CONFIGURE") {

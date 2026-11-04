@@ -479,6 +479,34 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .session-case-content li { white-space: pre-wrap; overflow-wrap: anywhere; margin-block: 8px; }
 .session-case-content h5.ant-typography { margin-top: 18px; }
 .session-markdown { margin-block: 16px 0; }
+.cloud-conversation { margin-block: 24px; }
+.cloud-conversation-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.cloud-conversation-heading h2.ant-typography { margin-block: 0 8px; }
+.cloud-conversation-heading .ant-select { min-width: 180px; }
+.cloud-conversation-state { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 12px; }
+.cloud-conversation-log { min-height: 180px; max-height: 520px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-inline-end: 16px; }
+.cloud-conversation-empty { padding-block: 32px; color: var(--ht-muted); }
+.cloud-conversation-message { padding-block: 20px; border-bottom: 1px solid var(--ht-line); }
+.cloud-conversation-message:first-child { padding-top: 8px; }
+.cloud-conversation-message:last-child { border-bottom: 0; }
+.cloud-conversation-message-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 10px; font-size: 12px; color: var(--ht-muted); }
+.cloud-conversation-message-heading strong { color: var(--ht-ink); font-size: 14px; }
+.cloud-conversation-message-user .cloud-conversation-message-heading strong { color: var(--ht-accent); }
+.cloud-conversation-message-system .cloud-conversation-text { color: var(--ht-muted); }
+.cloud-conversation-text { font: inherit; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; max-width: 85ch; }
+.cloud-conversation-new { margin-block: 12px; }
+.cloud-conversation-questions:not(:empty) { margin-top: 20px; border-top: 1px solid var(--ht-line); }
+.cloud-conversation-question { padding-block: 20px; }
+.cloud-conversation-question h3.ant-typography { font-size: 17px; margin-top: 0; }
+.cloud-conversation-question-history { margin-top: 16px; }
+.cloud-conversation-compose { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--ht-line); }
+.cloud-conversation-compose > .ant-alert { margin-bottom: 16px; }
+.cloud-conversation-compose > label { display: block; margin-bottom: 10px; font-weight: 600; }
+.cloud-conversation-compose .ant-input-textarea { margin-bottom: 24px; }
+.cloud-conversation-compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.cloud-conversation-compose-actions p { margin: 0; font-size: 12px; max-width: 75ch; }
+.cloud-conversation-compose-actions .ant-btn { flex-shrink: 0; }
+.cloud-conversation-unavailable { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 16px; }
 .session-report-content { margin-top: 16px; }
 .session-report-content .muted { font-size: 12px; margin-block: 12px; }
 .session-history, .session-legacy-history { margin-block: 20px; }
@@ -774,6 +802,8 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 
 .cloud-task-overview { display: flex; flex-direction: column; gap: 24px; }
 .cloud-task-control-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 24px; align-items: stretch; }
+.cloud-task-control-grid.is-recovering { grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr); }
+.cloud-task-control-grid.is-recovering > .cloud-task-current-attempt { grid-column: 2; grid-row: 1 / span 2; }
 .cloud-task-source-versions .ant-descriptions-item-label { padding-bottom: 4px; color: var(--ht-muted); }
 .cloud-task-source-details { margin-top: 20px; border-top: 1px solid var(--ht-line); }
 .cloud-task-source-details > summary { padding: 16px 0; cursor: pointer; font-weight: 600; }
@@ -783,6 +813,9 @@ html .ant-tag.ant-tag-volcano { color: #9a371d; background: #fff2ed; border-colo
 .cloud-attempt-recovery { margin-top: 20px; }
 .cloud-attempt-recovery > .ant-space + .ant-typography, .cloud-attempt-recovery > .ant-space + details { margin-top: 12px; }
 .cloud-attempt-recovery > .ant-typography:last-child { margin-bottom: 0; }
+.cloud-attempt-recovery > details > summary { cursor: pointer; font-weight: 600; }
+.cloud-resume-controls { margin: 24px 0; }
+.cloud-recovery-closure { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--ht-line); }
 .cloud-task-intent .ant-descriptions-item-label { color: var(--ht-muted); font-weight: 600; }
 .cloud-task-intent .ant-descriptions-item-content { padding-right: 24px; }
 .cloud-task-intent details { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--ht-line); }

@@ -40,7 +40,7 @@ def repository_identity(url: str) -> tuple[str, str]:
     return host + "/" + path, parts[-1]
 
 
-async def prepare_framework_project(*, state: Path, attempt_root: Path, snapshot: Path,
+async def prepare_framework_project(*, state: Path, attempt_root: Path | None, snapshot: Path,
                                     resolved: dict) -> Path:
     """Seed once from the accepted source; subsequently reuse the user's project.
 
@@ -74,7 +74,8 @@ async def prepare_framework_project(*, state: Path, attempt_root: Path, snapshot
                 save_once(parent / "project.json", record)
             if json.loads((parent / "project.json").read_bytes()) != record:
                 raise CloudBlocked("FRAMEWORK_PROJECT_INVALID", "Framework project registration has changed")
-    save_once(Path(attempt_root) / RECORD, record)
+    if attempt_root is not None:
+        save_once(Path(attempt_root) / RECORD, record)
     return project
 
 

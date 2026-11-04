@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from hypertest.api.archive_routes import router as archive_router
 from hypertest.api.cli_authorization_routes import router as cli_authorization_router
+from hypertest.api.cloud_conversation_routes import router as cloud_conversation_router
 from hypertest.api.cloud_routes import router as cloud_router
 from hypertest.api.cloud_worker_routes import router as cloud_worker_router
 from hypertest.api.connector_routes import router as connector_router
@@ -12,6 +13,7 @@ from hypertest.api.memory_routes import router as memory_router
 from hypertest.api.native_routes import router as native_router
 from hypertest.api.routes import router
 from hypertest.api.source_transfer_routes import router as source_transfer_router
+from hypertest.application.cloud_lease_monitor import lifespan
 from hypertest.config import get_settings
 
 settings = get_settings()
@@ -20,6 +22,7 @@ app = FastAPI(
     title="HyperTest One",
     version="0.2.0",
     description="One Input. One Mission. One Complete Test Cycle.",
+    lifespan=lifespan,
 )
 
 
@@ -47,6 +50,7 @@ app.include_router(interactive_router, prefix=settings.api_prefix)
 app.include_router(native_router, prefix=settings.api_prefix)
 app.include_router(cloud_router, prefix=settings.api_prefix)
 app.include_router(cloud_worker_router, prefix=settings.api_prefix)
+app.include_router(cloud_conversation_router, prefix=settings.api_prefix)
 
 app.include_router(memory_router, prefix=settings.api_prefix)
 

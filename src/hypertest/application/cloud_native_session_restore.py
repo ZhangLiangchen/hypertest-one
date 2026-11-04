@@ -1,8 +1,8 @@
 """One-shot inspection of a fenced original native SDK session.
 
 This module is disabled by default.  It never sends prompts, resumes a test,
-or changes an Attempt's status or result. The original Worker slot lock is
-shared with ordinary claims so the same Worker cannot do both at once.
+or changes an Attempt's status or result. Historical inspection recovery keeps
+the legacy slot lock; other slots can serve other Attempts independently.
 """
 from __future__ import annotations
 
@@ -144,7 +144,7 @@ async def guard_control_locked(db, inspection_id, task_id, operation):
         .with_for_update().execution_options(populate_existing=True))
     if row is None or row.state not in {"PENDING", "STARTED", "UNKNOWN"}:
         return
-    if operation in {"RECONCILE_ATTEMPT", "DELETE_TASK"}:
+    if operation in {"RECONCILE_ATTEMPT", "DELETE_TASK", "RESUME_ATTEMPT"}:
         raise HTTPException(409, "NATIVE_SESSION_INSPECTION_OUTSTANDING")
     if operation in {"CANCEL_TASK", "CANCEL_ATTEMPT"}:
         now = await service.clock(db)

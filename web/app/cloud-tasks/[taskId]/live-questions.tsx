@@ -20,17 +20,19 @@ export type LiveQuestionRequest = {
   id: string;
   status: "open" | "answered" | "delivering" | "delivered" | "cancelled" | "unknown";
   questions: LiveQuestion[];
+  answer?: { answers?: LiveQuestionAnswer[]; cancelled?: boolean } | null;
 };
 
 type Props = {
   request: LiveQuestionRequest;
   blocked?: boolean;
+  embedded?: boolean;
   onSubmit: (requestId: string, answers: LiveQuestionAnswer[]) => Promise<unknown>;
   onCancel: (requestId: string) => Promise<unknown>;
 };
 
 /** The server owns request lifecycle and delivery; this component only collects input. */
-export function LiveQuestions({ request, blocked = false, onSubmit, onCancel }: Props) {
+export function LiveQuestions({ request, blocked = false, embedded = false, onSubmit, onCancel }: Props) {
   const { t } = useI18n();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
@@ -58,10 +60,15 @@ export function LiveQuestions({ request, blocked = false, onSubmit, onCancel }: 
     try { await action(); } catch { setError(true); } finally { setSubmitting(false); }
   }
 
-  return <section className="overview-section" aria-labelledby={`cloud-live-questions-${request.id}`}>
-    <Typography.Title id={`cloud-live-questions-${request.id}`} level={2}>{t("Agent questions", "Agent 提问")}</Typography.Title>
+  return <section className={embedded ? "cloud-conversation-question" : "overview-section"} aria-labelledby={`cloud-live-questions-${request.id}`}>
+    <Typography.Title id={`cloud-live-questions-${request.id}`} level={embedded ? 3 : 2}>{t("Agent questions", "Agent 提问")}</Typography.Title>
     <Alert showIcon type={request.status === "unknown" ? "warning" : "info"} message={messages[request.status]} />
     {error ? <Alert showIcon type="error" style={{ marginTop: 12 }} message={t("The request could not be completed. Check its status before trying again.", "请求未能完成，请先核对状态再操作。 ")} /> : null}
+    {!open ? <div className="cloud-conversation-question-history">{request.questions.map((question) => {
+      const answer = request.answer?.answers?.find((item) => item.id === question.id);
+      return <div key={question.id}><Typography.Paragraph strong>{question.question}</Typography.Paragraph>
+        {answer ? <Typography.Paragraph className="session-literal"><strong>{t("Your saved answer", "已保存的回答")}：</strong>{[...answer.selected, answer.custom].filter(Boolean).join("\n")}</Typography.Paragraph> : null}</div>;
+    })}</div> : null}
     {open ? <form className="workspace-form form-section cloud-task-fields" onSubmit={(event) => {
       event.preventDefault();
       if (disabled || !complete) return;

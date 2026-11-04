@@ -16,7 +16,7 @@ import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument
 import { getProject } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { CloudTaskRecords } from "./records";
-import { LiveQuestionsPanel } from "./live-questions-panel";
+import { ConversationPanel } from "./conversation-panel";
 import { CloudTaskForm } from "@/app/projects/[projectId]/cloud/task-form";
 import { CloudTaskDelete } from "./delete-task";
 import { RetryDialog } from "./retry-dialog";
@@ -171,11 +171,13 @@ export default function CloudTaskPage() {
         description: <span className={`cloud-flow-state cloud-flow-state-${phaseStates[index].tone}`}>{phaseStates[index].text}</span> }))} />
       {step < 0 ? <p className="muted">{t("Phase completion is unknown in this view. This state alone does not establish which earlier phases completed.", "当前视图无法确定各阶段完成情况；不依据此状态推断此前阶段已经完成。")}</p> : null}
     </section>
-    {attempt ? <LiveQuestionsPanel key={`${projectId}:${taskId}:${attempt.id}`} projectId={projectId} taskId={taskId} attemptId={attempt.id}
-      running={status === "RUNNING" && attempt.status === "RUNNING"} blocked={blocked || live.isError} /> : null}
+    {attempt ? <ConversationPanel key={`${projectId}:${taskId}`} projectId={projectId} taskId={taskId} attempt={attempt} attempts={detail.attempts}
+      blocked={!enabled || !operational.valid || live.isError || !!task.deleted_at} artifactCount={detail.assets.length}
+      onRecovery={() => { setTab("overview"); setDestination({ tab: "overview", id: "cloud-current-attempt" }); }}
+      onArtifacts={() => { setTab("artifacts"); setDestination({ tab: "artifacts", id: "cloud-assets-title" }); }} /> : null}
     <Tabs className="workspace-tabs" activeKey={tab} onChange={setTab} animated={false} items={[
       { key: "overview", label: t("Inputs and control", "输入与控制"), children: <div className="cloud-task-overview">
-        <div className="cloud-task-control-grid">
+        <div className={`cloud-task-control-grid${attempt?.status === "RECOVERY_REQUIRED" ? " is-recovering" : ""}`}>
           <section className="overview-section cloud-task-source-versions"><Typography.Title id="cloud-task-resolution" tabIndex={-1} level={2}>{t("Test execution", "测试执行")}</Typography.Title>
             {setup.data?.harness_web_url ? <Space wrap size="middle" style={{ marginBottom: 16 }}>
               <Button href={setup.data.harness_web_url} target="_blank" rel="noopener noreferrer" icon={<ExportOutlined aria-hidden />}
@@ -201,7 +203,7 @@ export default function CloudTaskPage() {
               {repositories ? <Descriptions column={1} layout="vertical" items={(["sut", "framework"] as const).map((role) => ({ key: role, label: role === "sut" ? t("SUT source SHA", "被测对象源码 SHA") : t("Framework SHA", "框架 SHA"), children: <div className="cloud-task-sha"><Typography.Text code>{text(repositories[role]?.commit_sha)}</Typography.Text>{repositories[role]?.base_sha ? <div className="entity-key"><div>base: {text(repositories[role].base_sha)}</div><div>head: {text(repositories[role].head_sha)}</div></div> : null}</div> }))} /> : <Typography.Paragraph className="muted">{t("Code versions will appear after preparation succeeds.", "代码准备成功后将在此显示版本。")}</Typography.Paragraph>}
             </details>
           </section>
-          {attempt ? <section className="overview-section"><Typography.Title level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
+          {attempt ? <section className="overview-section cloud-task-current-attempt"><Typography.Title id="cloud-current-attempt" tabIndex={-1} level={2}>{t("Current attempt", "当前执行尝试")}</Typography.Title><Typography.Paragraph className="entity-key">{attempt.id} · #{attempt.attempt_no}</Typography.Paragraph><Typography.Paragraph>{attempt.reason}</Typography.Paragraph>
             {terminalAttempt && !task.deleted_at ? <div style={{ marginBottom: 16 }}>
               <Typography.Paragraph className="muted">{t("Start a new attempt after reviewing its scope and authorization. The previous attempt and its records remain available.", "核对本次范围和授权后可下发新尝试，原尝试及其记录会保留。")}</Typography.Paragraph>
               {management?.native_scope_unobserved ? <Typography.Paragraph className="muted">{t("The direct Harness process exited. Other host processes and external outcomes remain unobserved; starting a new attempt does not change those records.", "已观察到 Harness 直接进程退出；其他宿主进程与外部结果仍未观察，新尝试不会改变这些记录。")}</Typography.Paragraph> : null}
@@ -209,7 +211,7 @@ export default function CloudTaskPage() {
               {!canRetry ? <Typography.Paragraph className="muted">{cloudManagementMessage(management?.retry_blocking_reasons[0], t)}</Typography.Paragraph> : null}
               <Button disabled={blocked || !dispatchEnabled || !canRetry} onClick={() => { if (!blocked && dispatchEnabled && canRetry) setRetry({ attemptId: attempt.id, version: task.version }); }}>{t("Start new attempt", "新建执行尝试")}</Button>
             </div> : null}
-            {attempt.status === "WAITING_INPUT" ? <Alert showIcon type="warning" style={{ marginBottom: 16 }} message={t("Answers are recorded but cannot resume this agent session", "回答只会保存，无法继续此 Agent 会话")} description={t("The current worker does not support original-session continuation. Review previous external operations before planning further work.", "当前 Worker 不支持继续原会话。安排后续工作前，请核对此前的外部操作。 ")} /> : null}
+            {attempt.status === "WAITING_INPUT" ? <Alert showIcon type="warning" style={{ marginBottom: 16 }} message={t("Saving this answer does not resume an interrupted session", "保存此回答不会恢复已中断的会话")} description={t("The answer stays in the task record. Review the conversation and recovery state before continuing an interrupted session.", "回答会保存在任务记录中。继续中断的会话前，请核对对话与恢复状态。 ")} /> : null}
             {attempt.status === "WAITING_INPUT" ? questions.map((question) => <Form key={String(question.id)} className="workspace-form form-section cloud-task-fields" layout="vertical" onFinish={() => void mutate({ operation: "ANSWER_INPUT", attempt_id: attempt.id, question_id: question.id, answer: answers[String(question.id)] })}>
               <Typography.Title level={3}>{text(question.question)}</Typography.Title>
               {Array.isArray(question.options) ? <ul>{question.options.map((option, index) => <li key={index}>{text(option)}</li>)}</ul> : null}

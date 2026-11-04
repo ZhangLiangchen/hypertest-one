@@ -16,7 +16,7 @@ from hypertest.api.cloud_schemas import CloudMutation
 from hypertest.interactive_client.security import private_create, private_directory, private_read
 
 from .artifacts import write_workspace_rejection
-from .errors import CloudBlocked
+from .errors import REPORT_CONTENT_REJECTED, CloudBlocked
 
 MAX_LOCAL_REJECTIONS = 16
 _ERROR_TYPES = frozenset(get_args(ErrorType))
@@ -66,7 +66,7 @@ def key_digest(key: str) -> str:
 class HandoffRejected(CloudBlocked):
     def __init__(self, observation: dict):
         self.observation = observation
-        super().__init__("HANDOFF_PAYLOAD_INVALID", "Publish a corrected contribution with a new handoff key")
+        super().__init__(observation["reason"], "Publish a corrected contribution with a new handoff key")
 
 
 class LocalRejections:
@@ -84,7 +84,9 @@ class LocalRejections:
             raise CloudBlocked("LOCAL_REJECTION_CORRUPT", "Local proposal feedback cannot be reconciled")
         return document
 
-    def record(self, key: str, source_digest: str, errors: list[dict]) -> dict:
+    def record(self, key: str, source_digest: str, errors: list[dict], *, reason="HANDOFF_PAYLOAD_INVALID") -> dict:
+        if reason not in {"HANDOFF_PAYLOAD_INVALID", REPORT_CONTENT_REJECTED}:
+            raise CloudBlocked("LOCAL_REJECTION_INVALID", "Local feedback requires a fixed admission outcome")
         if not isinstance(source_digest, str) or not re.fullmatch(r"[a-f0-9]{64}", source_digest):
             raise CloudBlocked("LOCAL_REJECTION_INVALID", "Local feedback requires the original handoff digest")
         previous = self.get(key)
@@ -94,7 +96,7 @@ class LocalRejections:
             raise CloudBlocked("LOCAL_REJECTION_LIMIT", "Attempt exhausted its bounded local proposal corrections")
         document = {"profile": "hypertest-cloud-local-rejection/v1alpha1", "status": "LOCAL_REJECTED",
             "key_sha256": key_digest(key), "handoff_sha256": source_digest,
-            "reason": "HANDOFF_PAYLOAD_INVALID", "errors": errors,
+            "reason": reason, "errors": errors,
             "required_action": "PUBLISH_NEW_HANDOFF_KEY", "platform_operation_submitted": False}
         encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
         private_create(self.directory / (key_digest(key) + ".json"), encoded)

@@ -24,6 +24,7 @@ type LiveItem = {
   attempt_id: string;
   status: string;
   questions: LiveQuestion[];
+  answer?: { answers?: LiveQuestionAnswer[]; cancelled?: boolean } | null;
   answer_operation_key?: string | null;
   answer_digest?: string | null;
 };
@@ -43,8 +44,8 @@ const canonical = (value: unknown): string => JSON.stringify(value && typeof val
     : Object.fromEntries(Object.keys(value).sort().map((key) => [key, JSON.parse(canonical((value as Record<string, unknown>)[key]))]))
   : value);
 
-export function LiveQuestionsPanel({ projectId, taskId, attemptId, running, blocked }: {
-  projectId: string; taskId: string; attemptId: string; running: boolean; blocked: boolean;
+export function LiveQuestionsPanel({ projectId, taskId, attemptId, running, blocked, embedded = false }: {
+  projectId: string; taskId: string; attemptId: string; running: boolean; blocked: boolean; embedded?: boolean;
 }) {
   const { t } = useI18n();
   const [pending, setPending] = useState<PendingAnswer[]>([]);
@@ -122,7 +123,7 @@ export function LiveQuestionsPanel({ projectId, taskId, attemptId, running, bloc
   if (!items.length && !live.isError && !journalError && !outstanding) return null;
   const statuses: Record<string, LiveQuestionRequest["status"]> = { OPEN: "open", ANSWERED: "answered", DELIVERING: "delivering",
     DELIVERED: "delivered", CANCELLED: "cancelled", UNKNOWN: "unknown" };
-  return <div>
+  return <div className={embedded ? "cloud-conversation-questions" : undefined}>
     {live.isError ? <Alert showIcon type="warning" message={t("Agent questions could not be refreshed.", "无法刷新 Agent 提问。")} action={<Button onClick={() => void live.refetch()}>{t("Refresh", "刷新")}</Button>} /> : null}
     {journalError ? <Alert showIcon type="error" message={t("Answer recovery storage is unavailable. Submitting is disabled.", "回答恢复记录不可用，已禁止提交。")} /> : null}
     {outstanding ? <Alert showIcon type="warning"
@@ -130,8 +131,8 @@ export function LiveQuestionsPanel({ projectId, taskId, attemptId, running, bloc
       description={t("The original request key is retained. Refresh to check its receipt; an uncertain answer will not be sent again automatically.", "已保留原请求键。请刷新核对回执；结果不明时不会自动重发回答。")}
       action={<Button onClick={() => void live.refetch()}>{t("Check receipt", "核对回执")}</Button>} /> : null}
     {items.map((item) => {
-      const request: LiveQuestionRequest = { id: item.id, status: statuses[item.status] || "unknown", questions: item.questions };
-      return <LiveQuestions key={request.id} request={request} blocked={blocked || !running || !journalReady || journalError || live.isError || !!outstanding}
+      const request: LiveQuestionRequest = { id: item.id, status: statuses[item.status] || "unknown", questions: item.questions, answer: item.answer };
+      return <LiveQuestions key={request.id} request={request} embedded={embedded} blocked={blocked || !running || !journalReady || journalError || live.isError || !!outstanding}
         onSubmit={(id, answers) => submit(id, answers, false)} onCancel={(id) => submit(id, [], true)} />;
     })}
   </div>;

@@ -8,6 +8,8 @@ const capabilities = { enabled: true, supported: { resume_attempt: false, reconc
 const recovery = { resume_supported: false, resume_reason: "SDK_RESUME_UNSUPPORTED", old_owner_fenced: true,
   local_processes_stopped_observed: false, pending_operation_keys: [], remote_operations_reconciled: true,
   can_reconcile: true, blocking_reasons: [], reconciliation_source: "OPERATOR_ATTESTATION", budget_disposition: "KEEP_HELD", phase: "RECONCILIATION_REQUIRED" };
+const resumeCapabilities = { ...capabilities, supported: { ...capabilities.supported, resume_attempt: true }, recovery: { ...capabilities.recovery, resume_supported: true } };
+const resumeRecovery = { ...recovery, resume_supported: true, can_resume: true, resume_blocking_reasons: [], identity_anchor: "MISSING" };
 
 test("Manual closure needs matching server preconditions and cannot erase an original UNKNOWN key", () => {
   const { cloudRecoveryView } = recoveryHelpers();
@@ -111,6 +113,67 @@ test("A manually closed attempt keeps its declaration and HELD limitation visibl
   assert.equal(nodes.some((node) => node.type === "Paragraph" && node.props.children.includes("uncertain budget stays HELD")), true);
   assert.equal(nodes.some((node) => node.type === "Button"), false);
   assert.equal(harness.writes.length, 0);
+});
+
+test("Continuation requires server eligibility, known identity and reconciled original actions", () => {
+  const { cloudRecoveryView } = recoveryHelpers();
+  assert.equal(cloudRecoveryView(attempt(), resumeCapabilities, resumeRecovery).canResume, true);
+  for (const [current, caps, live] of [
+    [attempt(), capabilities, resumeRecovery], [attempt(), resumeCapabilities, { ...resumeRecovery, can_resume: false }],
+    [attempt(), resumeCapabilities, { ...resumeRecovery, identity_anchor: "UNKNOWN" }],
+    [attempt(), resumeCapabilities, { ...resumeRecovery, old_owner_fenced: false }],
+    [attempt(), resumeCapabilities, { ...resumeRecovery, remote_operations_reconciled: false }],
+    [attempt(), resumeCapabilities, { ...resumeRecovery, pending_operation_keys: ["original-key"] }],
+    [attempt({ checkpoint: { cancellation_requested: true } }), resumeCapabilities, resumeRecovery],
+    [attempt({ checkpoint: { pending_operation_keys: ["original-key"] } }), resumeCapabilities, resumeRecovery],
+    [attempt({ status: "FAILED" }), resumeCapabilities, resumeRecovery],
+  ]) assert.equal(cloudRecoveryView(current, caps, live).canResume, false);
+});
+
+const continuationButton = (harness) => harness.render().find((node) => node.type === "Button" && node.props.children === "Authorize check and continuation");
+
+test("Missing-anchor continuation needs explicit human takeover and keeps the same attempt", () => {
+  const harness = componentHarness({ capabilities: resumeCapabilities, recovery: resumeRecovery });
+  assert.equal(harness.render().filter((node) => node.type === "Checkbox").every((node) => node.props.checked === false), true);
+  harness.fill();
+  continuationButton(harness).props.onClick();
+  assert.equal(harness.writes.length, 0, "ordinary stop declarations cannot imply takeover authorization");
+  harness.render().filter((node) => node.type === "Checkbox")[3].props.onChange({ target: { checked: true } });
+  assert.equal(continuationButton(harness).props.disabled, false);
+  harness.submit();
+  assert.equal(harness.writes.length, 0, "Enter in the shared form must not implicitly close the attempt");
+  continuationButton(harness).props.onClick();
+  assert.equal(harness.writes.length, 1);
+  assert.equal(harness.writes[0].operation, "RESUME_ATTEMPT");
+  assert.equal(harness.writes[0].attempt_id, "attempt-1");
+  assert.equal(harness.writes[0].identity_source, "OPERATOR_ADOPTED");
+  assert.equal(Object.hasOwn(harness.writes[0], "continuation"), false, "blank input uses the server's fixed continuation");
+  assert.equal(Object.hasOwn(harness.writes[0], "status"), false);
+});
+
+test("Recorded anchors default to anchored continuation but allow an explicit new takeover", () => {
+  const harness = componentHarness({ capabilities: resumeCapabilities, recovery: { ...resumeRecovery, identity_anchor: "RECORDED" } });
+  harness.fill();
+  continuationButton(harness).props.onClick();
+  assert.equal(harness.writes[0].identity_source, "PRE_PROMPT_ANCHORED");
+  harness.render().find((node) => node.type === "Select" && node.props.id.startsWith("resume-identity")).props.onChange("OPERATOR_ADOPTED");
+  assert.equal(continuationButton(harness).props.disabled, true);
+  harness.render().filter((node) => node.type === "Checkbox")[3].props.onChange({ target: { checked: true } });
+  harness.render().find((node) => node.type === "Input.TextArea" && node.props.id.startsWith("resume-continuation")).props.onChange({ target: { value: "  Check the blocked test first.  " } });
+  continuationButton(harness).props.onClick();
+  assert.equal(harness.writes[1].identity_source, "OPERATOR_ADOPTED");
+  assert.equal(harness.writes[1].continuation, "Check the blocked test first.");
+});
+
+test("Human takeover cannot bypass changed server eligibility or a blocked operation journal", () => {
+  for (const changes of [{ blocked: true }, { recovery: { ...resumeRecovery, can_resume: false } },
+    { recovery: { ...resumeRecovery, pending_operation_keys: ["unknown-original"] } }]) {
+    const harness = componentHarness({ capabilities: resumeCapabilities, recovery: resumeRecovery, ...changes });
+    harness.fill();
+    harness.render().filter((node) => node.type === "Checkbox")[3].props.onChange({ target: { checked: true } });
+    continuationButton(harness).props.onClick();
+    assert.equal(harness.writes.length, 0);
+  }
 });
 
 test("A 409 is a version conflict only with an explicit code or known stale-version detail", async () => {

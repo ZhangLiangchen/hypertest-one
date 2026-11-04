@@ -17,21 +17,23 @@ from hypertest.domain.cloud_tasks import (
 )
 
 
-def _view(row, worker_id):
+def _view(row, worker_id, slot_id="legacy"):
+    slot = {} if slot_id == "legacy" else {"slot_id": slot_id}
     if row is None:
-        return {"worker_id": worker_id, "sequence": 0, "request_key": None, "kind": "EMPTY", "closed": True}
-    return {"worker_id": row.worker_id, "sequence": row.sequence, "request_key": row.request_key,
+        return {**slot, "worker_id": worker_id, "sequence": 0, "request_key": None, "kind": "EMPTY", "closed": True}
+    return {**slot, "worker_id": row.worker_id, "sequence": row.sequence, "request_key": row.request_key,
             "kind": row.kind, "closed": row.closed}
 
 
-async def _slot(db, worker_id, *, create):
+async def _slot(db, worker_id, *, create, slot_id="legacy"):
     # Also serialize first insertion: a row lock alone cannot lock an absent row.
-    await service._lock(db, "cloud-worker-claim:" + worker_id)
-    row = await db.scalar(select(CloudWorkerClaimState).where(CloudWorkerClaimState.worker_id == worker_id)
+    await service._lock(db, "cloud-worker-claim:" + worker_id + ":" + slot_id)
+    row = await db.scalar(select(CloudWorkerClaimState).where(CloudWorkerClaimState.worker_id == worker_id,
+        CloudWorkerClaimState.slot_id == slot_id)
                           .with_for_update().execution_options(populate_existing=True))
     if row is None and create:
         now = await service.clock(db)
-        row = CloudWorkerClaimState(worker_id=worker_id, sequence=0, request_key=None, request_digest=None,
+        row = CloudWorkerClaimState(worker_id=worker_id, slot_id=slot_id, sequence=0, request_key=None, request_digest=None,
             kind="EMPTY", closed=True, created_at=now, updated_at=now)
         db.add(row)
         await db.flush()
@@ -64,17 +66,18 @@ def _record(row, request, kind, claimed, now):
             row.resolution_id = UUID(claimed["resolution"]["id"])
 
 
-async def state(db, worker_id):
-    return _view(await _slot(db, worker_id, create=False), worker_id)
+async def state(db, worker_id, slot_id="legacy"):
+    return _view(await _slot(db, worker_id, create=False, slot_id=slot_id), worker_id, slot_id)
 
 
 async def claim(db, request):
     worker_id = request["worker_id"]
-    row = await _slot(db, worker_id, create=True)
-    # The native inspection path uses the very same transaction lock.  Its
-    # outstanding capability must never overlap an ordinary Worker claim.
-    from .cloud_native_session_restore import block_ordinary_claim_if_inspection_active
-    await block_ordinary_claim_if_inspection_active(db, worker_id)
+    slot_id = request.get("slot_id", "legacy")
+    if slot_id == "legacy":
+        raise HTTPException(409, "LEGACY_CLAIM_RECOVERY_ONLY")
+    row = await _slot(db, worker_id, create=True, slot_id=slot_id)
+    # Each slot owns one outstanding claim. Task locks and Attempt leases
+    # prevent another slot from acquiring the same execution.
     sequence = request["sequence"]
     if sequence < row.sequence:
         raise HTTPException(409, "CLAIM_SEQUENCE_RETIRED")
@@ -95,7 +98,7 @@ async def claim(db, request):
     await db.commit()
     # Tokens exist only in this first response. They are never in the slot,
     # state/reconcile response, audit metadata, or a replay response.
-    return {**_view(row, worker_id), "claim": claimed}
+    return {**_view(row, worker_id, slot_id), "claim": claimed}
 
 
 async def _fence_attempt(db, row):
@@ -149,10 +152,12 @@ async def _fence_resolution(db, row):
 async def reconcile(db, request):
     """Seal an absent original request or fence its original owner; never execute."""
     worker_id = request["worker_id"]
-    row = await _slot(db, worker_id, create=True)
+    slot_id = request.get("slot_id", "legacy")
+    row = await _slot(db, worker_id, create=True, slot_id=slot_id)
     sequence = request["sequence"]
     if sequence < row.sequence:
-        return {"worker_id": worker_id, "sequence": sequence, "request_key": request["request_key"],
+        return {**({"slot_id": slot_id} if slot_id != "legacy" else {}),
+                "worker_id": worker_id, "sequence": sequence, "request_key": request["request_key"],
                 "kind": "RETIRED", "closed": True, "current_sequence": row.sequence}
     if sequence > row.sequence:
         _next_sequence(row, sequence)
@@ -171,4 +176,4 @@ async def reconcile(db, request):
             row.updated_at = await service.clock(db)
             row.closed = True
     await db.commit()
-    return _view(row, worker_id)
+    return _view(row, worker_id, slot_id)
