@@ -1,5 +1,7 @@
 # HyperTest Domain Model & State Machine Specification
 
+> **2026-11-04 统一领域目标（已接受，待实现）：** [ADR-042](../architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 采用同一 TestTask、可选 Subtask、归档提交与产物修订；执行位置不再产生另一种业务任务身份。TaskLaunch 仅保存用户明确开始的原 key、输入副本、节点 / 原生会话 / 入口及启动接受事实，不成为测试或会话运行状态机。用户手动创建保存不下发。任务管理进度、报告结果、归档确认互不推导；归档凭据无 Task / Subtask 状态管理权。原 key、乐观版本、目标授权及历史来源约束继续适用，定向退休按 ADR-028 执行。[实施设计](../UNIFIED_TEST_TASK_DESIGN_20261104.md) 给出目标模型及迁移范围；下文 Local / Cloud 身份分离、对话实体与 Worker 专用上报要求只解释替代前实现。
+
 > **2026-11-03 领域边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 将 Project 两仓地址作为新 Cloud 任务仓库快照的配置来源；Web 创建页面填写任务名称及 MR/PR URL，MR 仓库须位于 Project SUT 范围内，单个 prompt 可选。API 保留省略创建标题时自动命名的默认行为，SUT 默认 MR/PR head，框架默认 main，解析时固定实际 SHA。新写不产生环境配置或预期部署版本。§51 的旧环境合同仅解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定快速原型的宿主 Worker 模式，取代 §51 中与之冲突的任务容器准入；目标合同和实际交付分别记录。

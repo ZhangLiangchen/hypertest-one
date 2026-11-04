@@ -1,5 +1,7 @@
 # HyperTest Technical Architecture
 
+> **2026-11-04 统一架构目标（已接受，待实现）：** [ADR-042](ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 采用统一 Task / Archive API / CLI 与任务页面。用户手动创建保存不启动，明确开始后由宿主薄 Worker 准备 CLI 配置并首次下发；Harness Web runtime 是云端 session 的唯一运行所有者。启动器只保存原启动回执及 Task—session—入口关联，不持 SDK 问答回调，不采集 / 转发对话，不重连会话、不镜像运行状态、不代收报告；Agent 通过统一 CLI 上传。原生启动鉴权、失答查回及深链接须先核验实际版本。详见[实施设计](../UNIFIED_TEST_TASK_DESIGN_20261104.md)；下文旧双轨与对话桥接架构只解释替代前实现，独立 Memory 与访问边界保持。
+
 > **2026-11-03 职责修订：** [ADR-038](ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 取消 Cloud 项目资源页和环境管理。Project 维护仓库，服务端仅为任务生成内部仓库快照；MR/PR 和环境说明经任务输入交给 Harness。旧环境/部署配置条款仅解释相应历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 将轻量 Worker 与 Harness 适配器作为快速原型的目标交付；现有容器路径在替换部署前仍为运行事实。未来以全容器化强化项目资源隔离。

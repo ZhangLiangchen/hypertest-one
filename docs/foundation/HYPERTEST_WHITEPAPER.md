@@ -1,5 +1,7 @@
 # HyperTest 白皮书
 
+> **2026-11-04 统一任务决定（已接受，待实现）：** [ADR-042](../architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 将 Local / Cloud 收敛为相同测试任务与流程，仅执行位置不同。任务由用户手动创建；保存不执行，另行明确“开始测试”才下发。Harness 独立承担测试、问答、审批和恢复；HyperTest 只管理任务 / 产物，云端详情仅增加 Harness Web UI 入口。CLI 为两端共用的产物上传工具，不管理任务进度。共用 Prompt / Skills 从本地实践提炼。[实施设计](../UNIFIED_TEST_TASK_DESIGN_20261104.md) 记录下一轮工作；下文与之冲突的双任务、对话外壳及专用上报条款仅解释旧实现，不表示目标已部署。
+
 > **2026-11-03 产品边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 移除 Cloud 项目资源页与环境/预期部署版本管理。项目详情管理两个仓库；创建任务填写任务名称、粘贴 MR/PR 地址，可选补充单个测试说明；SUT 默认取 MR/PR head，测试框架默认取 main 最新提交并在解析时固定 SHA。HyperTest 聚焦测试任务生命周期、任务下发和产物归档，SUT 部署由其独立 CI 负责。
 
 > **2026-11-02 决策：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 定义快速原型期轻量 Worker / Harness 适配器职责；项目资源隔离的全容器化是未来方向。实现、部署和用户验收各自记录。

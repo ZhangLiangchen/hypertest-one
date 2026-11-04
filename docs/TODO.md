@@ -2,6 +2,19 @@
 
 本表只列尚未完成的开发、操作和用户验收。各轮实现、部署和验证事实保留在[历史交付记录](FOLLOWUP_DELIVERY_20261023.md)；日期和提交不代表服务器此刻的运行状态，操作前应核实。新 Local 接入以 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 和 [CLI 授权指南](CLI_AUTHORIZATION_GUIDE.md)为准。
 
+## 下一轮实现：统一测试任务与原生 Harness 入口（2026-11-04）
+
+架构决定已接受，产品实现、部署、CLI 发行及 USER_OWNED 验收均待后续会话分别记录。权威入口为 [ADR-042](architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 和 [实施设计 / 交接 Prompt](UNIFIED_TEST_TASK_DESIGN_20261104.md)。
+
+- [ ] 核验当前 Harness Web 的原生会话创建、首次投递、受限鉴权、原启动请求查回及会话跳转；将会话运行权交给 Web runtime，不能沿用 SDK writer + 原生只读页面。
+- [ ] 统一 Task / 归档模型、管理与归档 API、任务页面；用户手动创建保存不启动，只有另一次明确“开始测试”请求才能下发。
+- [ ] 将 CLI 收敛为与执行位置无关的产物上传工具，退出 Task / Subtask 状态修改，补齐必要附件与任务范围自动配置；保留原 key、版本、授权及 UNKNOWN 语义。
+- [ ] 从本地材料提炼开发需求自测、改动回归、缺陷修复验证、指定 E2E 四类模板与共用测试 Skill，复用项目原生工具。
+- [ ] 用首次启动器替代 Cloud 专用执行 / 上报链，任务页只增加 Harness Web UI 入口；删除对话、问答透传、审批、消息队列、会话续接和报告采集。
+- [ ] 按 ADR-028 定向迁移 / 退休替代对象，完成设计所列必要回归与按已推送 SHA 的部署；真实模型、业务测试和双端功能验收须由用户明确授权。
+
+下列条目保留此前交付与未验收事实。ADR-042 已取消的旧 Cloud 能力不再单独扩建或补验收；不重复安排已完成工作，也不因旧对话 / 恢复待办重新引入平台执行流程。
+
 ## 用户操作与验收
 
 - Cloud 一键开始：自动准备后下发、折叠代码版本和任务输入旧字段清理已部署；真实页面操作与业务功能由用户验收。指定旧任务已按原解析身份关闭失败准备，按用户确认使用框架 master，经新流程进入 RUNNING，实际 SDK 进程已启动；测试结果尚未回传。见[交付记录](CLOUD_ONE_CLICK_START_DELIVERY_20261103.md)和[指定任务恢复记录](CLOUD_SOURCE_RECOVERY_20261103.md)。

@@ -1,5 +1,7 @@
 # Test Mission Protocol Specification
 
+> **2026-11-04 统一任务 / 归档协议目标（已接受，待实现）：** [ADR-042](../architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 分开用户手动 CREATE 与另一次明确 START；保存 / 编辑不产生下发。启动原 key、固定输入及原生接受事实单独记录，失答不重复创建 session 或重发初始输入。Local / Cloud 共用归档目标、格式、授权、版本与回执；CLI 不提交 Task / Subtask 状态更新，也无 complete 动作。报告结论只作为产物来源保存。新流程无 HyperTest conversation / live-question / resume / handoff 专用协议，用户直接在 Harness Web UI 交互。详见[实施设计](../UNIFIED_TEST_TASK_DESIGN_20261104.md)；旧原 key / UNKNOWN 不转到新接口重放，下文被替代协议仅按其旧 profile 解释。
+
 > **2026-11-03 输入合同：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 规定新 Cloud 任务从 Project 固定仓库，Web 创建页面填写任务名称及 MR/PR URL，可选单个 prompt；API 保留省略标题时自动命名的默认行为，默认取 MR/PR head 与框架 main 并解析固定 SHA；不再接受资源选择或预期部署版本配置。§46 中的旧配置与环境条款只解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定由轻量 Worker 对接宿主 Harness；目标协议及实现、部署状态分别记录。
