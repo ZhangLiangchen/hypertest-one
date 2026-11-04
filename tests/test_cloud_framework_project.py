@@ -113,6 +113,7 @@ def test_framework_prompt_uses_task_specific_absolute_handoff_and_memory_paths(t
     instructions = "\n".join(prompt["instructions"])
     assert str(framework) in instructions
     assert str(workspace / "sut") in instructions
+    assert prompt["artifact_workspace"] == str(framework)
     assert prompt["handoff_directory"] == str(workspace / ".hypertest-cloud/ready")
     for key, relative in (("ready_directory", "ready"), ("receipt_directory", "receipts"),
                           ("local_rejection_directory", "rejections")):
@@ -177,3 +178,87 @@ def test_sdk_configuration_and_initialize_use_framework_directory(tmp_path, monk
     assert observed["initialize"]["cwd"] == str(framework)
     assert observed["selection"]["cwd"] == str(framework)
     assert observed["session_id"] == "cloud-original-id"
+
+
+@pytest.fixture
+def artifact_reporting(tmp_path, monkeypatch):
+    from hypertest.cloud.reporter import CloudTaskReporter
+
+    workspace = tmp_path.resolve() / "task-messages"
+    framework = tmp_path.resolve() / "hypervise_pure"
+    workspace.mkdir()
+    framework.mkdir()
+    deliveries, validations = [], []
+
+    async def validate(request):
+        validations.append(request)
+
+    async def deliver(intent):
+        deliveries.append(intent)
+        return SimpleNamespace(synced=False)
+
+    broker = SimpleNamespace(project_id=str(uuid4()), task_id=str(uuid4()), attempt_id=str(uuid4()),
+        version=1, identity=SimpleNamespace(generation=1), validate_payload=validate)
+    reporter = CloudTaskReporter(broker=broker, private_root=tmp_path / "private",
+        workspace=workspace, artifact_workspace=framework)
+    monkeypatch.setattr(reporter.core, "deliver", deliver)
+    yield SimpleNamespace(reporter=reporter, broker=broker, workspace=workspace, framework=framework,
+        deliveries=deliveries, validations=validations)
+    reporter.close()
+
+
+def artifact_handoff(fixture, path, content, *, key):
+    import hashlib
+
+    from hypertest.cloud.manifests import MANIFEST_PROFILE, Handoff
+
+    return Handoff(profile=MANIFEST_PROFILE, task_id=fixture.broker.task_id,
+        attempt_id=fixture.broker.attempt_id, key=key, operation="UPLOAD_ARTIFACT",
+        payload={"path": path, "filename": Path(path).name, "media_type": "text/markdown",
+            "sha256": hashlib.sha256(content).hexdigest(), "byte_count": len(content)})
+
+
+@pytest.mark.asyncio
+async def test_reporter_uploads_original_framework_report_without_copying_to_transport(artifact_reporting):
+    import base64
+
+    from hypertest.sync_core import digest
+
+    fixture = artifact_reporting
+    original = fixture.framework / "docs/reports/result.md"
+    original.parent.mkdir(parents=True)
+    content = "# Framework report\nOriginal test observations.\n".encode()
+    original.write_bytes(content)
+    handoff = artifact_handoff(fixture, "docs/reports/result.md", content, key="original-report")
+    await fixture.reporter.submit_handoff(handoff, digest(handoff.model_dump(mode="json")))
+    assert len(fixture.deliveries) == 1
+    request = fixture.deliveries[0].payload
+    assert base64.b64decode(request["content_base64"], validate=True) == content
+    assert request["filename"] == "result.md"
+    assert "path" not in request
+    assert original.read_bytes() == content
+    assert not (fixture.workspace / "docs").exists()
+    assert not (fixture.workspace / "artifacts").exists()
+
+
+@pytest.mark.asyncio
+async def test_reporter_refuses_parent_and_symlink_escape_from_framework(artifact_reporting):
+    from hypertest.sync_core import digest
+
+    fixture = artifact_reporting
+    content = b"outside framework\n"
+    outside = fixture.framework.parent / "outside.md"
+    outside.write_bytes(content)
+    reports = fixture.framework / "docs/reports"
+    reports.mkdir(parents=True)
+    (reports / "leak.md").symlink_to(outside)
+    for index, (path, code) in enumerate((
+        ("../outside.md", "ARTIFACT_PATH_INVALID"),
+        ("docs/reports/leak.md", "ARTIFACT_PATH_UNAVAILABLE"),
+    )):
+        handoff = artifact_handoff(fixture, path, content, key=f"escape-{index}")
+        with pytest.raises(CloudBlocked) as error:
+            await fixture.reporter.submit_handoff(handoff, digest(handoff.model_dump(mode="json")))
+        assert error.value.code == code
+    assert fixture.deliveries == fixture.validations == []
+    assert fixture.reporter.pending() == []
