@@ -44,6 +44,8 @@ class LiveQuestionBridge:
                 if self.conversation is not None:
                     await self.conversation.accept_frame(frame)
             elif "runtime_observation" in frame:
+                if frame.get("runtime_observation") == "ERROR" and frame.get("code") == "SDK_SESSION_UNAVAILABLE":
+                    raise CloudBlocked("SDK_SESSION_UNAVAILABLE", "Original Harness session is unavailable")
                 if frame["runtime_observation"] in {"RUNNING", "IDLE"} and frame.get("session_id") == self.session_id:
                     self.runtime_state = frame["runtime_observation"]
                     from .runtime_activity import project_finish_reason

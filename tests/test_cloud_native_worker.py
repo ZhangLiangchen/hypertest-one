@@ -27,6 +27,13 @@ def claim_request(**changes):
         "lease_seconds": 90, "supports_attempt_manifest": True, **changes}
 
 
+@pytest.mark.parametrize("code", ["NATIVE_SESSION_IDENTITY_UNAVAILABLE", "NATIVE_SESSION_TARGET_MISMATCH",
+    "HARNESS_CONFIGURATION_INVALID", "ATTEMPT_SNAPSHOT_MISMATCH", "SDK_SESSION_UNAVAILABLE"])
+def test_permanent_session_failures_keep_reason_for_internal_retry_policy(code):
+    from hypertest.cloud.native_worker import _recovery_reason
+    assert _recovery_reason(CloudBlocked(code, "private diagnostic")) == code
+
+
 def test_safe_work_error_omits_secret_messages_locals_paths_and_bounds_exception_chain(monkeypatch):
     import sys
     from types import ModuleType

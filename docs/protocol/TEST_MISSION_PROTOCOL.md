@@ -1,6 +1,6 @@
 # Test Mission Protocol Specification
 
-> **2026-11-04 Harness 原生流程：** [ADR-041](../architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 以 conversation POST 的原 key 和文字作为唯一日常输入；离线时内部恢复原 session，ready 后统一经 session_prompt 投递。恢复本身不发送默认 continuation。原生提问由 Harness 回调转发，工具权限/审批由 Harness 处理，平台不要求 OPERATOR_ADOPTED 或停止对账声明。Native 归档接收来源明确的最终报告，不要求复制一套阶段或执行审批流程；UNKNOWN 传输不重发。
+> **2026-11-04 Harness 原生流程：** [ADR-041](../architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 以 conversation POST 的原 key 和文字作为唯一日常输入；POST 只持久化消息；Worker 领取时发现 QUEUED 后内部恢复原 session，ready 后统一经 session_prompt 投递。保存与执行状态分离，UNKNOWN 不阻止新的不同消息保存、但阻止后续投递；浏览器自动查询保存失答的原 key，不新增恢复操作。未冻结归档的格式、内容及文件错误单份拒绝，固定修正反馈经有持久化发送身份的 SDK 消息投递一次，对话继续。恢复本身不发送默认 continuation。原生提问由 Harness 回调转发，工具权限/审批由 Harness 处理，平台不要求 OPERATOR_ADOPTED 或停止对账声明。Native 归档接收来源明确的最终报告，不要求复制一套阶段或执行审批流程；UNKNOWN 传输不重发。
 
 > **2026-11-04 对话协议：** [ADR-039](../architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 定义公开根消息与普通回复桥接。assistant/message 完整 text 经内容校验，以稳定 event key 幂等回传；拒收仅产生固定占位，其他消息继续。用户文本先持久化原 key，单次投递 SDK session_prompt 并保存 messageId；失答只按原消息查询，不自动重发。普通回复与结构化回答共用一个私有通道读取器。SDK idle、文字成功声明和入队回执均不代表测试完成。最后输出先回传，再关闭对应 runtime 并执行原完成检查；旧 generation 只能补齐原观察，不获得执行权。
 

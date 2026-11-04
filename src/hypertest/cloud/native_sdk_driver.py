@@ -236,7 +236,8 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
                     # The native session may use a worktree selected by the Agent.
                     # Its transport directory is not an execution sandbox.
                     if not restored.is_absolute() or not restored.is_dir():
-                        raise ValueError("restored session directory unavailable")
+                        from .errors import CloudBlocked
+                        raise CloudBlocked("SDK_SESSION_UNAVAILABLE", "Original session directory is unavailable")
                 else:
                     initial_id = client.session_prompt(config["session_id"], [{"type": "text", "text": config["prompt"]}],
                         on_notification=observe, notification_subscription=subscription)
@@ -318,9 +319,11 @@ def main() -> int:
         channel = QuestionChannel(config["session_id"], emit, source=source) if config.get("interaction_enabled", False) or config.get("keep_alive", False) else None
         run(config, emit, channel)
         return 0
-    except Exception:
+    except Exception as error:
         # SDK exceptions can contain arbitrary content or credentials.
-        emit({"runtime_observation": "ERROR", "code": "SDK_RUN_FAILED"})
+        from .errors import CloudBlocked
+        code = error.code if isinstance(error, CloudBlocked) and error.code == "SDK_SESSION_UNAVAILABLE" else "SDK_RUN_FAILED"
+        emit({"runtime_observation": "ERROR", "code": code})
         return 1
     finally:
         if channel is not None:

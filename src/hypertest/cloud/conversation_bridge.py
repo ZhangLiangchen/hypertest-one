@@ -79,6 +79,7 @@ class ConversationBridge:
         self._state_serial = 0
         self._tasks: list[asyncio.Task] = []
         self._acks: dict[str, asyncio.Future] = {}
+        self._feedback_receipts = {}
         self._failure: BaseException | None = None
 
     def _key(self, kind, sequence):
@@ -149,7 +150,12 @@ class ConversationBridge:
                         or not 1 <= len(item["message_id"]) <= 255))):
                 raise CloudBlocked("CONVERSATION_FRAME_INVALID", "Invalid SDK delivery receipt")
             future = self._acks.get(item["request_id"])
+            callback = self._feedback_receipts.get(item["request_id"])
+            if callback is not None:
+                callback(item)
             if future is None:
+                if callback is not None:
+                    return
                 raise CloudBlocked("CONVERSATION_FRAME_INVALID", "SDK receipt has no original delivery")
             if not future.done():
                 future.set_result(item)
@@ -181,6 +187,42 @@ class ConversationBridge:
         # survives an already failed publisher or a full text-admission queue.
         self._save({"event_key": self._key("artifact_rejection", observation["key_sha256"]),
             "session_id": self.session_id, "role": "SYSTEM", "text": "", "reason_code": observation["reason_code"]})
+
+    async def send_archive_feedback(self, reporter, workspace: Path, *, timeout: float = 30):
+        """Wake even an idle Harness for a definite local archive rejection.
+
+        The Attempt journal owns single delivery across Worker generations.
+        Unknown delivery is retained; it never becomes a reason to stop chat.
+        """
+        if not self.session_ready.is_set() or not self.accepting:
+            return
+        for observation in reporter.pending_feedback():
+            key = observation["key_sha256"]
+            await self.broker.assert_current()
+            if not reporter.start_feedback(key):
+                continue
+            request_id = "archive-feedback:" + key
+            future = asyncio.get_running_loop().create_future()
+            self._acks[request_id] = future
+            self._feedback_receipts[request_id] = lambda receipt, key=key: reporter.finish_feedback(key, receipt)
+            path = workspace / ".hypertest-cloud" / "rejections" / (key + ".json")
+            text = ("HyperTest archive feedback: a contribution was rejected before submission. "
+                f"Read the fixed validation feedback at {path}. "
+                "Correct only that contribution and publish a new handoff key; preserve the rejected file. "
+                "Do not repeat tests or external operations. Do not include secrets in the correction. "
+                "This archive rejection does not end the conversation.")
+            try:
+                async with asyncio.timeout(timeout):
+                    await self.adapter.send_message(request_id, text)
+                    await asyncio.shield(future)
+            except asyncio.CancelledError:
+                reporter.finish_feedback(key, {"status": "UNKNOWN"})
+                raise
+            except Exception:
+                reporter.finish_feedback(key, {"status": "UNKNOWN"})
+            finally:
+                # A late ACK is still accepted through its original callback.
+                self._acks.pop(request_id, None)
 
     async def _validate(self, payload):
         if not payload["text"]:

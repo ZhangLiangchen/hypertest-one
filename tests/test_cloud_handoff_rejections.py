@@ -331,3 +331,78 @@ async def test_local_proposal_correction_count_is_finite(reporting):
         reporter.prevalidate_handoff(handoff, digest(handoff.model_dump(mode="json")))
     assert error.value.code == "LOCAL_REJECTION_LIMIT"
     assert len(list(reporter.rejections.directory.iterdir())) == MAX_LOCAL_REJECTIONS and broker.posts == []
+
+
+@pytest.mark.parametrize("problem", ["missing", "size", "digest"])
+async def test_unsubmitted_artifact_error_rejects_only_contribution_and_allows_correction(reporting, problem):
+    reporter, broker, workspace = reporting
+    content = b"Synthetic report only"
+    path = workspace / "report.txt"
+    if problem != "missing":
+        path.write_bytes(content if problem != "size" else b"x" * (8 * 1024 * 1024 + 1))
+    handoff = Handoff(profile=MANIFEST_PROFILE, task_id=broker.task_id, attempt_id=broker.attempt_id,
+        key="report-upload", operation="UPLOAD_ARTIFACT", payload={"path": "report.txt", "filename": "report.txt",
+            "media_type": "text/plain", "sha256": "0" * 64, "byte_count": len(content)})
+    publish(workspace, handoff, "upload.json")
+    accepted = {}
+    assert await CloudWorker(None, None, "fixture").collect(reporter, workspace, accepted, stopped=False) is None
+    assert reporter.rejections.get(handoff.key)["reason"] == "ARTIFACT_NOT_READY"
+    assert reporter.pending() == [] and not list(reporter.snapshots.directory.iterdir()) and broker.posts == []
+    assert reporter.pending_feedback() == [{"key_sha256": key_digest(handoff.key), "reason_code": "ARTIFACT_REJECTED"}]
+    corrected = case(reporter, key="corrected-report", valid=True)
+    publish(workspace, corrected, "corrected.json")
+    await CloudWorker(None, None, "fixture").collect(reporter, workspace, accepted, stopped=False)
+    assert set(accepted) == {corrected.key} and len(broker.posts) == 1
+
+
+async def test_unsubmitted_artifact_symlink_is_not_reclassified_as_correctable(reporting, tmp_path):
+    reporter, broker, workspace = reporting
+    outside = tmp_path / "outside.txt"
+    outside.write_text("not admissible")
+    (workspace / "report.txt").symlink_to(outside)
+    handoff = Handoff(profile=MANIFEST_PROFILE, task_id=broker.task_id, attempt_id=broker.attempt_id,
+        key="unsafe-upload", operation="UPLOAD_ARTIFACT", payload={"path": "report.txt", "filename": "report.txt",
+            "media_type": "text/plain", "sha256": "0" * 64, "byte_count": 14})
+    with pytest.raises(CloudBlocked) as error:
+        await reporter.submit_handoff(handoff, digest(handoff.model_dump(mode="json")))
+    assert error.value.code == "ARTIFACT_PATH_UNAVAILABLE" and not isinstance(error.value, HandoffRejected)
+    assert reporter.pending_feedback() == [] and broker.posts == []
+
+
+def test_frozen_schema_error_is_never_changed_to_local_feedback(reporting):
+    reporter, broker, _ = reporting
+    handoff = case(reporter)
+    key = "c:" + digest([broker.attempt_id, handoff.key])
+    frozen = FrozenIntent(reporter.namespace, key, {"generation": 1}, {"original": True}, 1)
+    reporter.snapshots.save(frozen)
+    with pytest.raises(CloudBlocked) as error:
+        reporter.prevalidate_handoff(handoff, digest(handoff.model_dump(mode="json")))
+    assert error.value.code == "REPORT_RECONCILIATION_PENDING" and not isinstance(error.value, HandoffRejected)
+    assert reporter.snapshots.load(reporter.namespace, key) == frozen and reporter.pending_feedback() == []
+
+
+async def test_envelope_shape_with_valid_owner_and_key_rejects_only_unsubmitted_file(reporting):
+    reporter, broker, workspace = reporting
+    handoff = case(reporter, valid=True)
+    publish(workspace, handoff, "malformed.json")
+    path = workspace / ".hypertest-cloud/ready/malformed.json"
+    envelope = handoff.model_dump(mode="json")
+    envelope["extra-secret-field"] = "secret-value"
+    path.write_text(json.dumps(envelope))
+    worker = CloudWorker(None, None, "fixture")
+    assert await worker.collect(reporter, workspace, {}, stopped=False) is None
+    assert reporter.rejected(handoff.key) and reporter.pending() == [] and broker.posts == []
+    assert "secret" not in json.dumps(reporter.rejections.get(handoff.key))
+    await worker.collect(reporter, workspace, {}, stopped=False)
+    assert len(reporter.pending_feedback()) == 1
+
+
+async def test_malformed_envelope_with_wrong_owner_stays_fatal(reporting):
+    reporter, broker, workspace = reporting
+    handoff = case(reporter, valid=True)
+    handoff.task_id = str(uuid4())
+    publish(workspace, handoff, "wrong.json")
+    with pytest.raises(CloudBlocked) as error:
+        await CloudWorker(None, None, "fixture").collect(reporter, workspace, {}, stopped=False)
+    assert error.value.code == "HANDOFF_OWNER_MISMATCH"
+    assert reporter.pending_feedback() == [] and broker.posts == []

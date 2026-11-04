@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .artifacts import read_workspace_file
 from .errors import CloudBlocked
 from .handoff_contract import handoff_contract, ssh_client_instructions
+from .handoff_rejections import HandoffEnvelopeRejected
 from .http_profile import HTTPS_ACCESS_PROFILE, HttpProfile
 from .ssh_profile import SSH_ACCESS_PROFILE, SshProfile
 
@@ -34,6 +35,17 @@ def load_handoff(workspace: Path, relative: str, *, task_id: str, attempt_id: st
     try:
         handoff = Handoff.model_validate_json(raw)
     except Exception as exc:
+        try:
+            envelope = json.loads(raw)
+        except (ValueError, UnicodeError):
+            envelope = None
+        if (isinstance(envelope, dict) and envelope.get("profile") == MANIFEST_PROFILE
+                and envelope.get("task_id") == task_id and envelope.get("attempt_id") == attempt_id
+                and isinstance(envelope.get("key"), str)
+                and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}", envelope["key"])
+                and envelope.get("operation") in {"SUBMIT_ASSETS", "UPLOAD_ARTIFACT", "SUBMIT_RUN",
+                    "SUBMIT_DELEGATION", "COMPLETE_ATTEMPT", "REQUEST_INPUT"}):
+            raise HandoffEnvelopeRejected(envelope["key"], hashlib.sha256(raw).hexdigest()) from None
         raise CloudBlocked("HANDOFF_SCHEMA_INVALID", "Formal handoff does not match the strict schema") from exc
     if (handoff.profile != MANIFEST_PROFILE or handoff.task_id != task_id or handoff.attempt_id != attempt_id):
         raise CloudBlocked("HANDOFF_OWNER_MISMATCH", "Formal handoff belongs to a different profile/task/attempt")

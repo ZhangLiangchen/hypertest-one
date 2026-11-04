@@ -69,6 +69,13 @@ class HandoffRejected(CloudBlocked):
         super().__init__(observation["reason"], "Publish a corrected contribution with a new handoff key")
 
 
+class HandoffEnvelopeRejected(CloudBlocked):
+    """Malformed shape with an intact, checked task/attempt/key envelope."""
+    def __init__(self, key: str, source_digest: str):
+        self.key, self.source_digest = key, source_digest
+        super().__init__("HANDOFF_PAYLOAD_INVALID", "Correct the unsubmitted handoff envelope")
+
+
 class LocalRejections:
     def __init__(self, directory: Path, workspace: Path):
         self.directory = private_directory(directory)
@@ -85,7 +92,7 @@ class LocalRejections:
         return document
 
     def record(self, key: str, source_digest: str, errors: list[dict], *, reason="HANDOFF_PAYLOAD_INVALID") -> dict:
-        if reason not in {"HANDOFF_PAYLOAD_INVALID", REPORT_CONTENT_REJECTED}:
+        if reason not in {"HANDOFF_PAYLOAD_INVALID", "ARTIFACT_NOT_READY", REPORT_CONTENT_REJECTED}:
             raise CloudBlocked("LOCAL_REJECTION_INVALID", "Local feedback requires a fixed admission outcome")
         if not isinstance(source_digest, str) or not re.fullmatch(r"[a-f0-9]{64}", source_digest):
             raise CloudBlocked("LOCAL_REJECTION_INVALID", "Local feedback requires the original handoff digest")

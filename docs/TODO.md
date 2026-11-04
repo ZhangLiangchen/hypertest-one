@@ -34,3 +34,7 @@
 
 - 实现和宿主部署已完成，见 [交付记录](CLOUD_FRAMEWORK_PROJECT_DELIVERY_20261104.md)。框架原文件直接归档，HyperTest 不另造测试流程。
 - USER_OWNED：新 Cloud 任务实际业务验收待用户执行；旧会话跨目录归组尚无原生支持，本轮保留原会话与结果。
+
+## 2026-11-04：Cloud 异步会话
+
+- 异步保存、Worker 内部恢复及归档修正的实施/部署见[本轮记录](CLOUD_ASYNC_SESSION_DELIVERY_20261104.md)；真实业务消息与报告修正的 USER_OWNED 验收待用户执行，不再安排接管或重连流程验收。

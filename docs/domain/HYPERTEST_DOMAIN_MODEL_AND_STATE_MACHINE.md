@@ -1,6 +1,6 @@
 # HyperTest Domain Model & State Machine Specification
 
-> **2026-11-04 Native Cloud 简化：** [ADR-041](../architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 取消平台人工接管和业务过程审批。普通消息的 key、文本摘要及任务归属稳定，投递 generation 由服务端分配；仅 QUEUED 可在内部重连时改投递 generation，DELIVERING/UNKNOWN 不重发。离线消息保存与原会话连接意图在同一 Task 锁事务完成。Native 完成只归档本 Attempt 的最终报告及其 reported_result，阶段产物/结构化 Run 可选；不制造执行证据，不从对话状态判定 PASS。旧 profile 的严格执行合同继续只解释其自身。
+> **2026-11-04 Native Cloud 简化：** [ADR-041](../architecture/ADR-041_CLOUD_AS_HARNESS_SHELL.md) 取消平台人工接管和业务过程审批。普通消息的 key、文本摘要及任务归属稳定，投递 generation 由服务端分配；仅 QUEUED 可在内部重连时改投递 generation，DELIVERING/UNKNOWN 不重发。消息保存不依赖在线状态，也不改变任务版本或触发会话恢复。Worker 领取时在 Task 锁内检查已保存 QUEUED 消息并安排原会话恢复，实际领取时仅 QUEUED 重绑 generation。既有 UNKNOWN 阻止后续投递但不阻止新的不同消息入队；未冻结且明确未提交的归档错误单份拒绝，不结束对话。Native 完成只归档本 Attempt 的最终报告及其 reported_result，阶段产物/结构化 Run 可选；不制造执行证据，不从对话状态判定 PASS。旧 profile 的严格执行合同继续只解释其自身。
 
 > **2026-11-04 对话领域：** [ADR-039](../architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 增加 CloudConversationHead/CloudConversationMessage。消息绑定 Project/Task/Attempt/session/generation，以独立提交游标增量读取，不修改 Task.version、正式产物或结果。用户输入 QUEUED → DELIVERING → DELIVERED/UNKNOWN；DELIVERED 仅表示 SDK 入队。fence 将未投递消息取消、投递中消息标记 UNKNOWN，原回执可收口但不重投。CloudWorkerClaimState 主键改为 (worker_id, slot_id)，旧行迁入 legacy 且原 key/digest 保持。显式 RESUME_ATTEMPT 在停止及未决检查后保留同 Attempt、固定原 Worker、新 generation；OPERATOR_ADOPTED 只证明本次人工接管来源。
 

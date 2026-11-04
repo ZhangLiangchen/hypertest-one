@@ -45,7 +45,7 @@ async def context(db, project_id, task_id, attempt_id, *, lock=False):
 
 async def session_view(db, task, attempt):
     if attempt is None:
-        return {"state": "OFFLINE", "can_send": False, "can_reconnect": False,
+        return {"state": "QUEUED", "delivery_state": "READY", "can_send": False, "can_reconnect": False,
                 "generation": None, "session_id": None, "blocking_reasons": ["NO_ATTEMPT"]}
     now = await service.clock(db)
     blockers = []
@@ -61,37 +61,38 @@ async def session_view(db, task, attempt):
         await service._current_grant(db, attempt.authorization_grant_id, task.project_id)
     except HTTPException:
         blockers.append("AUTHORIZATION_UNAVAILABLE")
-    unknown = await db.scalar(select(CloudConversationMessage.id).where(
+    # Submission stores durable input. Delivery availability is independent of
+    # the ability to save another message, including while an older send is unknown.
+    pending = await db.scalar(select(CloudConversationMessage).where(
         CloudConversationMessage.attempt_id == attempt.id, CloudConversationMessage.role == "USER",
-        CloudConversationMessage.status == "UNKNOWN").limit(1))
-    if unknown:
-        blockers.append("MESSAGE_DELIVERY_UNKNOWN")
+        CloudConversationMessage.status.in_(["UNKNOWN", "DELIVERING"]))
+        .order_by(CloudConversationMessage.status.desc()).limit(1))
+    queued = await db.scalar(select(CloudConversationMessage.id).where(
+        CloudConversationMessage.attempt_id == attempt.id, CloudConversationMessage.role == "USER",
+        CloudConversationMessage.status == "QUEUED").limit(1))
     valid_grant = await db.scalar(select(CloudWorkGrant.id).where(
         CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.worker_id == attempt.lease_owner,
         CloudWorkGrant.lease_generation == attempt.lease_generation, CloudWorkGrant.revoked_at.is_(None),
         CloudWorkGrant.expires_at > now).limit(1))
     live = bool(valid_grant and attempt.lease_expires_at and attempt.lease_expires_at > now)
-    if not live and not unknown and await db.scalar(select(CloudConversationMessage.id).where(
-            CloudConversationMessage.attempt_id == attempt.id, CloudConversationMessage.role == "USER",
-            CloudConversationMessage.status == "DELIVERING").limit(1)):
-        blockers.append("MESSAGE_DELIVERY_UNKNOWN")
-    intent = attempt.checkpoint.get("native_resume", {})
-    connecting = (attempt.status == "PREPARING" and intent.get("mode") == "RESTORE_ONLY"
-                  and intent.get("target_generation") in {attempt.lease_generation, attempt.lease_generation + 1})
-    from .cloud_conversation_resume import original_worker
-    reconnect = (attempt.status == "RECOVERY_REQUIRED" and await service._owner_fenced(db, attempt)
-                 and service.attempt_inputs(task, attempt).get("budgets") is None
-                 and bool(await original_worker(db, attempt)))
     latest = await db.scalar(select(CloudConversationMessage).where(
         CloudConversationMessage.attempt_id == attempt.id,
         CloudConversationMessage.generation == attempt.lease_generation,
         CloudConversationMessage.source == "LIVE_SDK", CloudConversationMessage.state.is_not(None))
         .order_by(CloudConversationMessage.cursor.desc()).limit(1))
-    state = latest.state if live and latest else "CONNECTING" if live or connecting else "OFFLINE"
-    if not (reconnect or connecting or (live and attempt.status == "RUNNING" and state not in {"CLOSED", "INTERRUPTED"})):
-        blockers.append("SESSION_OFFLINE")
-    return {"state": state, "can_send": not blockers, "can_reconnect": reconnect and not blockers,
-            "mode": "CONNECT_ON_SEND" if reconnect else "CONNECTING" if connecting else "CONNECTED" if live else "READ_ONLY",
+    if attempt.status in service.TERMINAL:
+        state = attempt.status
+    elif attempt.status == "RECOVERY_REQUIRED" or (attempt.status == "RUNNING" and not live):
+        state = "PAUSED"
+    elif latest and live:
+        state = {"RUNNING": "ACTIVE", "CLOSED": "IDLE", "INTERRUPTED": "PAUSED"}.get(latest.state, latest.state)
+    else:
+        state = "QUEUED" if attempt.status in {"QUEUED", "PREPARING"} else "IDLE"
+    unconfirmed = pending and (pending.status == "UNKNOWN" or not live)
+    return {"state": state, "can_send": not blockers, "can_reconnect": False,
+            "mode": "ASYNC" if not blockers else "READ_ONLY",
+            "delivery_state": "UNCONFIRMED" if unconfirmed else "WAITING" if queued or pending else "READY",
+            "reason_code": attempt.reason if state == "PAUSED" else None,
             "generation": attempt.lease_generation, "session_id": "cloud-" + str(attempt.id),
             "blocking_reasons": list(dict.fromkeys(blockers))}
 
@@ -137,13 +138,10 @@ async def send(db, task, attempt, actor, body):
     if not body.text.strip():
         raise HTTPException(422, "CONVERSATION_TEXT_REQUIRED")
     await service._reject_secrets(db, task.project_id, {"text": body.text})
-    generation = attempt.lease_generation
-    if session["can_reconnect"]:
-        from .cloud_conversation_resume import enqueue_connection
-        generation = await enqueue_connection(db, task=task, attempt=attempt,
-            operation_key=body.operation_key, actor_ref=actor)
-    elif session["mode"] == "CONNECTING":
-        generation = attempt.checkpoint["native_resume"]["target_generation"]
+    # The actual delivery generation is assigned when a Worker claims work.
+    # Initial queued Attempts have generation zero; the storage identity stays
+    # positive and may be rebound only while no SDK delivery was attempted.
+    generation = max(1, attempt.lease_generation)
     row = CloudConversationMessage(project_id=task.project_id, task_id=task.id, attempt_id=attempt.id,
         generation=generation, session_id="cloud-" + str(attempt.id), role="USER", text=body.text,
         status="QUEUED", operation_key=body.operation_key, request_digest=digest, source="OPERATOR_MESSAGE",

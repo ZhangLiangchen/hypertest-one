@@ -116,6 +116,87 @@ async def test_artifact_rejection_notice_has_no_body_or_task_state_and_never_pro
         await asyncio.gather(runner, return_exceptions=True)
 
 
+def archive_reporter(tmp_path, bridge):
+    from hypertest.cloud.reporter import CloudTaskReporter
+    bridge.broker.version = 1
+    return CloudTaskReporter(broker=bridge.broker, private_root=tmp_path / "reporting", workspace=tmp_path)
+
+
+async def test_archive_feedback_wakes_idle_session_once_and_keeps_user_conversation(tmp_path):
+    bridge, api, adapter = make(tmp_path)
+    reporter = archive_reporter(tmp_path, bridge)
+    reporter._record_rejection("original-handoff", "a" * 64, [])
+    bridge.runtime_state = "IDLE"
+    sent = []
+    async def send(request_id, text):
+        sent.append((request_id, text))
+        await bridge.accept_frame({"user_message_ack": {"request_id": request_id,
+            "status": "DELIVERED", "message_id": "sdk-" + request_id}})
+    adapter.send_message = send
+    runner = asyncio.create_task(bridge.run())
+    try:
+        await bridge.send_archive_feedback(reporter, tmp_path)
+        await bridge.send_archive_feedback(reporter, tmp_path)
+        assert len(sent) == 1 and sent[0][0].startswith("archive-feedback:")
+        assert "Do not repeat tests or external operations" in sent[0][1]
+        assert "original-handoff" not in sent[0][1]
+        assert reporter.pending_feedback() == [] and bridge.accepting and bridge._failure is None
+        api.messages.append({"id": "new-user-message", "text": "Additional information"})
+        for _ in range(100):
+            if len(sent) == 2:
+                break
+            await asyncio.sleep(.01)
+        assert sent[1] == ("new-user-message", "Additional information")
+    finally:
+        await bridge.close()
+        runner.cancel()
+        await asyncio.gather(runner, return_exceptions=True)
+        reporter.close()
+
+
+@pytest.mark.parametrize("ack_late", [False, True])
+async def test_unknown_archive_feedback_is_not_resent_and_late_native_ack_can_resolve(tmp_path, ack_late):
+    bridge, _, adapter = make(tmp_path)
+    reporter = archive_reporter(tmp_path, bridge)
+    observation = reporter._record_rejection("original-handoff", "a" * 64, [])
+    sent = []
+    async def send(request_id, text): sent.append(request_id)
+    adapter.send_message = send
+    try:
+        await bridge.send_archive_feedback(reporter, tmp_path, timeout=.01)
+        assert reporter.journal.db.execute("SELECT state FROM archive_feedback").fetchone() == ("UNKNOWN",)
+        assert bridge.accepting
+        if ack_late:
+            await bridge.accept_frame({"user_message_ack": {"request_id": sent[0],
+                "status": "DELIVERED", "message_id": "late-sdk-receipt"}})
+            assert reporter.journal.db.execute("SELECT state,sdk_message_id FROM archive_feedback").fetchone() == ("DELIVERED", "late-sdk-receipt")
+        reporter.close()
+        reporter = archive_reporter(tmp_path, bridge)
+        await bridge.send_archive_feedback(reporter, tmp_path, timeout=.01)
+        assert len(sent) == 1 and reporter.pending_feedback() == []
+        assert reporter.rejections.get("original-handoff") == observation
+    finally:
+        await bridge.close()
+        reporter.close()
+
+
+def test_process_loss_after_feedback_send_preserves_unknown_without_replay(tmp_path):
+    from hypertest.cloud.handoff_rejections import key_digest
+    bridge, _, _ = make(tmp_path)
+    reporter = archive_reporter(tmp_path, bridge)
+    reporter._record_rejection("original-handoff", "a" * 64, [])
+    assert reporter.start_feedback(key_digest("original-handoff"))
+    reporter.close()
+    reporter = archive_reporter(tmp_path, bridge)
+    try:
+        assert reporter.pending_feedback() == []
+        assert reporter.journal.db.execute("SELECT state FROM archive_feedback").fetchone() == ("UNKNOWN",)
+        assert not reporter.start_feedback(key_digest("original-handoff"))
+    finally:
+        reporter.close()
+        bridge.db.close()
+
+
 @pytest.mark.asyncio
 async def test_unavailable_secret_admission_never_persists_unvalidated_text(tmp_path):
     bridge, api, _ = make(tmp_path)

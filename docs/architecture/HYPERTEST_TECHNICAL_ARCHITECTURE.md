@@ -1,6 +1,6 @@
 # HyperTest Technical Architecture
 
-> **2026-11-04 薄壳边界：** [ADR-041](ADR-041_CLOUD_AS_HARNESS_SHELL.md) 将普通消息作为在线和离线会话的统一入口。Worker 仅恢复原 SDK 会话并在 ready 后投递已保存消息；不生成续接 prompt，不检查/批准 Harness 的业务步骤或原生 inbox。原工作区/session 与官方 SDK 写锁负责连接归属，平台保留领取、传输和存储职责。
+> **2026-11-04 薄壳边界：** [ADR-041](ADR-041_CLOUD_AS_HARNESS_SHELL.md) 将普通消息作为在线和离线会话的统一入口。API 仅持久化异步消息，不依赖 Worker 在线；Worker 领取循环发现待投递消息后内部恢复原 SDK 会话，在 ready 后投递，临时连接失败退避，永久身份错误不重试。可修正的未提交归档错误通过单次 SDK 消息反馈给 Agent，对话继续；不生成续接 prompt，不检查/批准 Harness 的业务步骤或原生 inbox。原工作区/session 与官方 SDK 写锁负责连接归属，平台保留领取、传输和存储职责。
 
 > **2026-11-04 会话桥接：** [ADR-039](ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 增加独立对话消息存储、增量游标与 validate/spool/append 链路。单 supervisor 默认四槽，每槽独立 SDK client、stdin/stdout 分发器、工作区、lease 与 reporter；领取及恢复锁按槽/Attempt 隔离。完整公开文字先校验再持久化，不收集 reasoning 或原始工具负载。原会话续接通过显式控制与新 generation 完成，不重发原 prompt。
 

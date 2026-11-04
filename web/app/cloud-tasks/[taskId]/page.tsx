@@ -18,7 +18,7 @@ import { cloudPollingVersion, cloudSummaryPollInterval, readCloudPollingDocument
 import { getProject } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { CloudTaskRecords } from "./records";
-import { ConversationPanel } from "./conversation-panel";
+import { ConversationPanel, conversationPauseReason } from "./conversation-panel";
 
 const text = (value: unknown) => typeof value === "string" ? value : value == null ? "—" : JSON.stringify(value, null, 2);
 const isUuid = (value: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
@@ -93,7 +93,7 @@ export default function CloudTaskPage() {
       </> : null}
     </Modal>
     {status === "DRAFT" ? <section className="overview-section cloud-task-start">
-      <Typography.Paragraph>{inResolution ? t("Preparing repository versions. The Agent will be dispatched automatically.", "正在准备仓库版本，完成后会自动连接 Agent。") : t("Start the test in DeepSeek Harness.", "通过 DeepSeek Harness 开始测试。")}</Typography.Paragraph>
+      <Typography.Paragraph>{inResolution ? t("Preparing repository versions. The Agent will be dispatched automatically.", "正在准备仓库版本，完成后会自动下发给 Agent。") : t("Start the test in DeepSeek Harness.", "通过 DeepSeek Harness 开始测试。")}</Typography.Paragraph>
       {preparationBlocked && !inResolution ? <Typography.Paragraph className="muted">{t("The earlier start is still unconfirmed. Refresh to check its status.", "此前开始请求的结果仍待确认，请刷新查看状态。")}</Typography.Paragraph> : null}
       <CloudOperationNotice operation={operation} />
       <Button type="primary" loading={operation.busy || inResolution} disabled={blocked || capabilities.data?.worker_enabled !== true || preparationBlocked} onClick={() => void start()}>{inResolution ? t("Preparing test", "正在准备测试") : t("Start test", "开始测试")}</Button>
@@ -102,7 +102,8 @@ export default function CloudTaskPage() {
       blocked={!enabled || !!task.deleted_at} artifactCount={detail.assets.length + detail.artifacts.length} onArtifacts={openArtifacts} /> : null}
     <details className="cloud-session-info"><summary>{t("Session information", "会话信息")}</summary>
       <Descriptions column={2} layout="vertical" items={[
-        { key: "status", label: t("Task state", "任务状态"), children: status === "RECOVERY_REQUIRED" ? t("Session disconnected", "会话已断开") : label(status) },
+        { key: "status", label: t("Task state", "任务状态"), children: status === "RECOVERY_REQUIRED" ? t("Execution paused", "执行已暂停") : label(status) },
+        ...(status === "RECOVERY_REQUIRED" ? [{ key: "reason", label: t("Reason", "原因"), children: conversationPauseReason(attempt?.reason, t), span: 2 }] : []),
         ...(sessionId ? [{ key: "session", label: t("Session ID", "会话 ID"), children: <Typography.Text code copyable>{sessionId}</Typography.Text> }] : []),
         { key: "mr", label: t("MR / PR", "MR / PR"), span: 2, children: <span className="session-literal">{text(task.inputs.mr_url)}</span> },
         ...(task.inputs.prompt ? [{ key: "prompt", label: t("Testing instructions", "测试说明"), span: 2, children: <span className="session-literal">{text(task.inputs.prompt)}</span> }] : []),

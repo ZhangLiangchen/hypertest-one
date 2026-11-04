@@ -148,9 +148,25 @@ class CloudTaskReporter:
         self.version = broker.version
         self.rejections = LocalRejections(private_root / "local-rejections", workspace)
         self._new_rejections: deque[dict] = deque()
+        self.journal.db.execute("CREATE TABLE IF NOT EXISTS archive_feedback (key_sha256 TEXT PRIMARY KEY, reason_code TEXT NOT NULL, state TEXT NOT NULL, sdk_message_id TEXT)")
+        # A stopped sender cannot prove whether its pipe write reached Harness.
+        self.journal.db.execute("UPDATE archive_feedback SET state='UNKNOWN' WHERE state='SENT'")
+        self.journal.db.commit()
 
     def rejected(self, key: str) -> bool:
-        return self.rejections.get(key) is not None
+        observation = self.rejections.get(key)
+        if observation is not None:
+            self._queue_feedback(observation)
+        return observation is not None
+
+    def _queue_feedback(self, observation):
+        notice = {"key_sha256": observation["key_sha256"],
+            "reason_code": "ARTIFACT_CONTENT_REJECTED" if observation["reason"] == REPORT_CONTENT_REJECTED else "ARTIFACT_REJECTED"}
+        changed = self.journal.db.execute("INSERT OR IGNORE INTO archive_feedback(key_sha256,reason_code,state) VALUES(?,?,'QUEUED')",
+            (notice["key_sha256"], notice["reason_code"])).rowcount
+        if changed:
+            self.journal.db.commit()
+        return notice
 
     def drain_rejections(self) -> list[dict]:
         observations = list(self._new_rejections)
@@ -158,12 +174,31 @@ class CloudTaskReporter:
         return observations
 
     def _record_rejection(self, key, source_digest, errors, *, reason="HANDOFF_PAYLOAD_INVALID"):
+        frozen_key = "c:" + digest([self.broker.attempt_id, key])
+        snapshot = self.snapshots._path(self.namespace, frozen_key)
+        if self.journal.get(self.namespace, frozen_key) is not None or snapshot.exists() or snapshot.is_symlink():
+            raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Frozen contributions retain their original recovery identity")
         previous = self.rejections.get(key)
         observation = self.rejections.record(key, source_digest, errors, reason=reason)
+        notice = self._queue_feedback(observation)
         if previous is None:
-            self._new_rejections.append({"key_sha256": observation["key_sha256"],
-                "reason_code": "ARTIFACT_CONTENT_REJECTED" if reason == REPORT_CONTENT_REJECTED else "ARTIFACT_REJECTED"})
+            self._new_rejections.append(notice)
         return observation
+
+    def pending_feedback(self) -> list[dict]:
+        return [{"key_sha256": key, "reason_code": reason} for key, reason in self.journal.db.execute(
+            "SELECT key_sha256,reason_code FROM archive_feedback WHERE state='QUEUED' ORDER BY rowid")]
+
+    def start_feedback(self, key_sha256: str) -> bool:
+        changed = self.journal.db.execute("UPDATE archive_feedback SET state='SENT' WHERE key_sha256=? AND state='QUEUED'", (key_sha256,)).rowcount
+        self.journal.db.commit()
+        return changed == 1
+
+    def finish_feedback(self, key_sha256: str, receipt: dict) -> None:
+        # Late native acknowledgement may resolve UNKNOWN, never resend it.
+        self.journal.db.execute("UPDATE archive_feedback SET state=?,sdk_message_id=? WHERE key_sha256=? AND state IN ('SENT','UNKNOWN')",
+            (receipt["status"], receipt.get("message_id"), key_sha256))
+        self.journal.db.commit()
 
     def _typed_request(self, handoff: Handoff, payload: dict, source_digest: str) -> dict:
         complete = {**payload, "profile": PROFILE, "project_id": self.broker.project_id,
@@ -354,10 +389,20 @@ class CloudTaskReporter:
             if handoff.operation != "TRANSITION" and {"budget_reservation", "budget_settlement"} & payload.keys():
                 raise CloudBlocked("HANDOFF_BUDGET_AUTHORITY", "Only the host Worker owns budget accounting")
             if handoff.operation == "UPLOAD_ARTIFACT":
-                original = read_workspace_file(self.artifact_workspace, payload.pop("path"))
+                try:
+                    original = read_workspace_file(self.artifact_workspace, payload.pop("path"))
+                except CloudBlocked as error:
+                    # Missing/oversized files are an unsubmitted contribution;
+                    # symlinks, traversal and permission failures stay fatal.
+                    if error.code != "ARTIFACT_SIZE" and not (
+                            error.code == "ARTIFACT_PATH_UNAVAILABLE" and isinstance(error.__cause__, FileNotFoundError)):
+                        raise
+                    observation = self._record_rejection(handoff.key, handoff_digest, [], reason="ARTIFACT_NOT_READY")
+                    raise HandoffRejected(observation) from None
                 if (hashlib.sha256(original).hexdigest() != payload.get("sha256")
                         or len(original) != payload.get("byte_count")):
-                    raise CloudBlocked("HANDOFF_ARTIFACT_CHANGED", "Artifact bytes differ from their published manifest")
+                    observation = self._record_rejection(handoff.key, handoff_digest, [], reason="ARTIFACT_NOT_READY")
+                    raise HandoffRejected(observation)
                 payload["content_base64"] = base64.b64encode(original).decode()
             if handoff.operation == "SUBMIT_DELEGATION":
                 if delegation_observation is None:

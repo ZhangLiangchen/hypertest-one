@@ -10,7 +10,8 @@ export type ConversationMessage = {
 };
 export type ConversationSession = {
   state: string; can_send: boolean; generation: number; session_id: string | null; blocking_reasons: string[];
-  can_reconnect?: boolean; mode?: string;
+  delivery_state?: "READY" | "WAITING" | "UNCONFIRMED"; reason_code?: string | null;
+  mode?: "ASYNC" | "READ_ONLY";
 };
 export type ConversationPage = {
   messages: ConversationMessage[]; next_cursor: number; has_more?: boolean; session: ConversationSession; observed_at: string;
@@ -32,7 +33,7 @@ export const conversationJournal = createOperationJournal<PendingConversationMes
   // Persist only identity and a digest, never message content or credentials.
   return { project_id: row.project_id, task_id: row.task_id!, attempt_id: row.attempt_id!, ...(row.generation !== undefined ? { generation: row.generation } : {}),
     operation_key: row.operation_key!, text_digest: row.text_digest!, state: row.state! };
-}, (row) => `${row.task_id}:${row.attempt_id}`);
+}, (row) => `${row.task_id}:${row.attempt_id}:${row.text_digest}`);
 
 const base = (taskId: string) => `tasks/${encodeURIComponent(taskId)}/conversation`;
 
@@ -72,6 +73,14 @@ export async function reconcileConversationMessage(original: PendingConversation
   if (!matches(original, message)) throw new Error("CONVERSATION_READBACK_MISMATCH");
   await conversationJournal.settle(original);
   return message;
+}
+
+/** A lost browser response affects only its original message, never the inbox. */
+export async function reconcilePendingConversationMessages(target: ConversationTarget): Promise<ConversationMessage[]> {
+  const pending = (await conversationJournal.read(target.project_id)).filter((row) =>
+    row.task_id === target.task_id && row.attempt_id === target.attempt_id);
+  const results = await Promise.allSettled(pending.map(reconcileConversationMessage));
+  return results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
 }
 
 export async function sendConversationMessage(target: ConversationTarget, text: string): Promise<

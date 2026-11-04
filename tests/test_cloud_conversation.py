@@ -186,15 +186,16 @@ async def test_fence_keeps_history_unsent_queue_and_never_replays(chat):
     assert by_id[second["id"]]["status"] == "QUEUED"
     assert any(m["role"] == "SYSTEM" and m["reason_code"] == "WORKER_INTERRUPTED"
                and m["source"] == "CONTROL_PLANE" for m in page["messages"])
-    assert not page["session"]["can_send"]
+    assert page["session"]["can_send"]
+    assert page["session"]["delivery_state"] == "UNCONFIRMED"
     assert "SESSION_CONNECTING" not in page["session"]["blocking_reasons"]
-    assert (await user(chat, key="user:three")).status_code == 409
+    assert (await user(chat, key="user:three")).status_code == 200
     assert (await worker(chat, "poll", session_id=chat["session"])).status_code == 409
     # Late original observations can be archived without reviving the session.
     late = await worker(chat, "append", session_id=chat["session"], event_key="late:one",
                         role="ASSISTANT", text="Original last reply", state="RUNNING")
     assert late.status_code == 200
-    assert not (await history(chat))["session"]["can_send"]
+    assert (await history(chat))["session"]["can_send"]
 
 
 async def test_identity_and_session_boundaries(chat):
@@ -232,6 +233,6 @@ async def test_restart_recovers_only_original_observations_without_execution_tok
     ack = await recover("recover-ack", {"session_id": chat["session"], "message_id": message["id"],
         "status": "DELIVERED", "sdk_message_id": "original-sdk-message"})
     assert ack.status_code == 200 and ack.json()["status"] == "DELIVERED"
-    assert not (await history(chat))["session"]["can_send"]
+    assert (await history(chat))["session"]["can_send"]
     assert (await recover("recover-append", {**fields, "generation": 999})).status_code == 403
     assert (await recover("recover-append", {**fields, "worker_id": "another"})).status_code == 403

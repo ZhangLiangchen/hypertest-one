@@ -189,6 +189,7 @@ async def test_resume_verifies_identity_before_new_message_and_uses_original_wor
                 raise self.failure
             await asyncio.Event().wait()
         async def flush(self): pass
+        async def send_archive_feedback(self, reporter, workspace): pass
         async def record_state(self, state, *args): events.append(state)
         async def close(self): pass
         def stop_accepting(self): pass

@@ -39,6 +39,8 @@ def _recovery_reason(error: BaseException) -> str:
     if isinstance(error, CloudBlocked) and error.code in {
         REPORT_CONTENT_REJECTED, "WORKER_INTERRUPTED", "WORKER_LEASE_UNCONFIRMED",
         "RUNTIME_TIMEOUT", "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED",
+        "NATIVE_SESSION_IDENTITY_UNAVAILABLE", "NATIVE_SESSION_TARGET_MISMATCH",
+        "HARNESS_CONFIGURATION_INVALID", "ATTEMPT_SNAPSHOT_MISMATCH", "SDK_SESSION_UNAVAILABLE",
     }:
         return error.code
     return "WORKER_RUNTIME_FAILED"
@@ -49,6 +51,7 @@ _DIAGNOSTIC_CODES = frozenset({
     "WORKER_WRITES_SUSPENDED", "RUNTIME_TIMEOUT", "REPORT_RECONCILIATION_PENDING", "ATTEMPT_RECOVERY_REQUIRED",
     "ATTEMPT_SNAPSHOT_MISMATCH", "ARTIFACT_READBACK_MISMATCH", "TERMINAL_HANDOFF_CONFLICT", "CLOUD_OPERATION_REJECTED",
     "HARNESS_CONFIGURATION_INVALID", "HARNESS_CORDIS_UNAVAILABLE", "NATIVE_SESSION_IDENTITY_UNAVAILABLE",
+    "NATIVE_SESSION_TARGET_MISMATCH", "SDK_SESSION_UNAVAILABLE",
     "NATIVE_RESUME_IDENTITY_TARGET_MISMATCH", "NATIVE_RESUME_IDENTITY_UNCONFIRMED", "SDK_STARTUP_UNCONFIRMED",
     "SDK_ORIGINAL_OPERATION_QUERY_ONLY", "SDK_RUNTIME_READY_INVALID", "SDK_PROMPT_RECEIPT_INVALID",
     "SDK_QUESTION_CHANNEL_INVALID", "SDK_QUESTION_CHANNEL_CLOSED", "SDK_QUESTION_DELIVERY_UNKNOWN",
@@ -725,8 +728,8 @@ async def execute(api, args, state: Path, claim: dict):
     broker = RemoteBroker(api, claim, args.worker_id)
     try:
         task, manifest, retry_snapshot = native_execution_task(task, attempt)
-    except CloudBlocked:
-        await broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED")
+    except CloudBlocked as error:
+        await broker.fence_for_recovery(_recovery_reason(error))
         return
     root = state / ("attempt-" + attempt["id"])
     resume_intent = attempt.get("checkpoint", {}).get("native_resume")
@@ -734,7 +737,7 @@ async def execute(api, args, state: Path, claim: dict):
     workspace = root / "workspace"
     if resuming:
         if (root.is_symlink() or workspace.is_symlink() or not root.is_dir() or not workspace.is_dir()):
-            await broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED")
+            await broker.fence_for_recovery("NATIVE_SESSION_IDENTITY_UNAVAILABLE")
             raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Original workspace is unavailable")
     else:
         root.mkdir(mode=0o700)
@@ -769,6 +772,7 @@ async def execute(api, args, state: Path, claim: dict):
     async def publish_rejections():
         for observation in reporter.drain_rejections():
             await asyncio.wait_for(conversation.record_rejection(observation), 3)
+        await conversation.send_archive_feedback(reporter, workspace)
 
     monitor = asyncio.create_task(heartbeat())
     try:

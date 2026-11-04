@@ -185,6 +185,7 @@ def test_resume_restores_without_any_implicit_prompt_then_delivers_original_user
 @pytest.mark.parametrize("failure", ["owned-or-missing", "missing-directory", "relative-directory"])
 def test_failed_restore_never_announces_session_ready_or_sends_input(monkeypatch, tmp_path, failure):
     from hypertest.cloud import native_cordis
+    from hypertest.cloud.errors import CloudBlocked
 
     restored_cwd = {"missing-directory": str(tmp_path / "missing"), "relative-directory": "."}.get(failure)
     calls = fake_sdk(monkeypatch, resume_failure=failure == "owned-or-missing", restored_cwd=restored_cwd)
@@ -193,9 +194,11 @@ def test_failed_restore_never_announces_session_ready_or_sends_input(monkeypatch
         return directory / "overlay.yml"
     monkeypatch.setattr(native_cordis, "prepare_cordis_overlay", overlay)
     emitted = []
-    with pytest.raises((RuntimeError, ValueError)):
+    with pytest.raises((RuntimeError, CloudBlocked)) as rejected:
         driver.run({"workspace": str(tmp_path), "dsh_home": str(tmp_path), "session_id": "original-root",
                     "title": "Original title", "prompt": None, "resume": True}, emitted.append)
+    if failure != "owned-or-missing":
+        assert rejected.value.code == "SDK_SESSION_UNAVAILABLE"
     assert calls == [("resume", "original-root"), "shutdown"]
     assert not any("session_ready" in item or "prompt_enqueued" in item for item in emitted)
 

@@ -22,7 +22,7 @@ from .delegate_broker import CodexOAuthBroker, read_cloud_codex_identity
 from .delegation import DelegationObservations, native_profile, request_limits, verify_payload
 from .errors import CloudBlocked
 from .git import GitResolver
-from .handoff_rejections import HandoffRejected
+from .handoff_rejections import HandoffEnvelopeRejected, HandoffRejected
 from .manifests import MANIFEST_PROFILE, Handoff, load_handoff, task_prompt
 from .model_broker import REFUSED_CATEGORIES, ModelBroker
 from .private_file import read_private_file
@@ -935,8 +935,13 @@ class CloudWorker:
             if not path.name.endswith(".json"):
                 continue
             relative = ".hypertest-cloud/ready/" + path.name
-            handoff, source_digest = load_handoff(workspace, relative,
-                task_id=reporter.broker.task_id, attempt_id=reporter.broker.attempt_id)
+            try:
+                handoff, source_digest = load_handoff(workspace, relative,
+                    task_id=reporter.broker.task_id, attempt_id=reporter.broker.attempt_id)
+            except HandoffEnvelopeRejected as error:
+                await reporter.broker.assert_current()
+                reporter._record_rejection(error.key, error.source_digest, [])
+                continue
             if handoff.key in accepted_keys:
                 if accepted_keys[handoff.key] != source_digest:
                     raise CloudBlocked("HANDOFF_CHANGED", "A published handoff changed after acceptance")

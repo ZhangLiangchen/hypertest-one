@@ -91,9 +91,17 @@ async def claim(db, request):
     claimed = await service.claim_resolution(db, worker_id, request["lease_seconds"], commit=False)
     kind = "RESOLUTION"
     if claimed is None:
+        from .cloud_conversation_resume import bind_queued_messages, schedule_queued_connection
+
+        if request["supports_attempt_manifest"]:
+            await schedule_queued_connection(db, worker_id)
         claimed = await service.claim_attempt(db, worker_id, request["lease_seconds"],
             supports_attempt_manifest=request["supports_attempt_manifest"], commit=False)
         kind = "ATTEMPT" if claimed is not None else "EMPTY"
+        if claimed is not None:
+            task = await service._task(db, UUID(claimed["task"]["id"]), lock=True)
+            attempt = await service._attempt(db, task, UUID(claimed["attempt"]["id"]))
+            await bind_queued_messages(db, task, attempt, claimed["generation"])
     _record(row, request, kind, claimed, await service.clock(db))
     await db.commit()
     # Tokens exist only in this first response. They are never in the slot,
