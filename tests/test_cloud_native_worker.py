@@ -666,6 +666,12 @@ def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     assert any("history_results" in line and "correction_notice" in line for line in shared["instructions"])
     assert any("60000 bytes" in line and "complete records" in line for line in shared["instructions"])
     assert any("never supply scope_id" in line for line in shared["instructions"])
+    protocol = shared["memory_contract"]["query_protocol"]
+    assert protocol["protocol_file"] == ".hypertest-cloud/memory-protocol/query.json"
+    assert protocol["envelope_example"]["task_id"] == task_id
+    assert protocol["envelope_example"]["attempt_id"] == attempt_id
+    assert any("Do not discover the protocol" in line and "report memory unavailable" in line
+               for line in shared["instructions"])
 
 
 def test_native_retry_uses_its_verified_manifest_without_changing_the_original(tmp_path):

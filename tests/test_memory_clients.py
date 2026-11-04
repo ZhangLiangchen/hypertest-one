@@ -292,7 +292,7 @@ async def test_cloud_explicit_candidate_unknown_keeps_original_key_and_source(tm
         "key": "approved", "operation": "CREATE_CANDIDATE", "payload": {"task_version": 7,
             "asset_revision_id": source["asset_revision_id"], "title": body["title"], "content": body["content"]}}
     ready = workspace / ".hypertest-cloud" / "memory-ready"
-    ready.mkdir(parents=True)
+    assert ready.is_dir()
     (ready / "approved.json").write_text(json.dumps(document))
     await bridge.collect_once()
     response = json.loads((workspace / ".hypertest-cloud" / "memory-responses" / "approved.json").read_text())
@@ -352,7 +352,7 @@ async def test_cloud_query_delivers_external_knowledge_with_labels_and_exact_ref
     workspace.mkdir()
     bridge = CloudMemoryBridge(broker, SimpleNamespace(request=request, close=close), tmp_path / "private", workspace)
     ready = workspace / ".hypertest-cloud" / "memory-ready"
-    ready.mkdir(parents=True)
+    assert ready.is_dir()
     (ready / "shared.json").write_text(json.dumps({"profile": HANDOFF_PROFILE, "task_id": broker.task_id,
         "attempt_id": broker.attempt_id, "key": "shared", "operation": "QUERY", "payload": {"query": "known lesson"}}))
     await bridge.collect_once()
@@ -372,6 +372,45 @@ async def query_bridge(tmp_path, request, *, timeout=5):
     document = {"profile": HANDOFF_PROFILE, "task_id": broker.task_id, "attempt_id": broker.attempt_id,
         "key": "history", "operation": "QUERY", "payload": {"query": "What later corrected the original investigation?", "collection": "history"}}
     return broker, bridge, document
+
+
+async def test_cloud_query_surface_exists_with_current_identity_and_no_private_authority(tmp_path):
+    async def request(*args, **kwargs):
+        return {"results": [], "history_results": [], "result_status": "EMPTY"}
+    broker, bridge, _ = await query_bridge(tmp_path, request)
+    cloud = bridge.workspace / ".hypertest-cloud"
+    assert (cloud / "memory-ready").is_dir() and (cloud / "memory-responses").is_dir()
+    assert not list((cloud / "memory-ready").iterdir())
+    protocol = json.loads((cloud / "memory-protocol" / "query.json").read_text())
+    example = protocol["envelope_example"]
+    assert example == {"profile": HANDOFF_PROFILE, "task_id": broker.task_id,
+        "attempt_id": broker.attempt_id, "key": "query-1", "operation": "QUERY",
+        "payload": {"query": "REPLACE_WITH_EXPLICIT_QUESTION", "collection": "main", "limit": 5}}
+    encoded = json.dumps(protocol)
+    assert all(private not in encoded for private in
+        (broker.identity.work_token, broker.identity.lease_token, broker.identity.worker_id,
+         "scope_id", "grant_id", "generation", "CREATE_CANDIDATE", "SUBMIT_ASSETS"))
+    assert "report memory unavailable" in encoded and "another task/attempt" in encoded
+    await bridge.close()
+
+
+@pytest.mark.parametrize("relative", [".hypertest-cloud", ".hypertest-cloud/memory-ready",
+    ".hypertest-cloud/memory-responses", ".hypertest-cloud/memory-protocol",
+    ".hypertest-cloud/memory-protocol/query.json"])
+def test_cloud_query_surface_refuses_symlinks_without_writing_outside_workspace(tmp_path, relative):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "query.json"
+    sentinel.write_text("unchanged outside the task")
+    link = workspace / relative
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(sentinel if link.suffix == ".json" else outside)
+    with pytest.raises(CloudBlocked):
+        CloudMemoryBridge(cloud_broker(), SimpleNamespace(request=None), tmp_path / "private", workspace)
+    assert sentinel.read_text() == "unchanged outside the task"
+    assert sorted(p.name for p in outside.iterdir()) == ["query.json"]
 
 
 async def test_cloud_history_explicit_selection_and_no_identity_override(tmp_path):
@@ -414,7 +453,7 @@ async def test_cloud_query_invalidated_during_retrieval_never_publishes_content(
         return {"history_results": [{"content": "must never reach model"}]}
     broker, bridge, document = await query_bridge(tmp_path, request)
     ready = bridge.workspace / ".hypertest-cloud" / "memory-ready"
-    ready.mkdir(parents=True)
+    assert ready.is_dir()
     (ready / "history.json").write_text(json.dumps(document))
     await bridge.collect_once()
     response = json.loads((ready.parent / "memory-responses" / "history.json").read_text())
@@ -454,7 +493,7 @@ async def test_cloud_query_budget_omits_whole_records_and_discloses_incomplete_c
         return {"collection": "history", "result_status": "OK", "history_results": records}
     broker, bridge, document = await query_bridge(tmp_path, request)
     ready = bridge.workspace / ".hypertest-cloud" / "memory-ready"
-    ready.mkdir(parents=True)
+    assert ready.is_dir()
     (ready / "history.json").write_text(json.dumps(document))
     await bridge.collect_once()
     raw = (ready.parent / "memory-responses" / "history.json").read_bytes()
@@ -474,7 +513,7 @@ async def test_cloud_query_failure_is_explicit_and_preserves_independent_report_
         raise ApiError("MEMORY_UPSTREAM_FAILED", 503)
     broker, bridge, document = await query_bridge(tmp_path, request, timeout=0.02)
     ready = bridge.workspace / ".hypertest-cloud" / "memory-ready"
-    ready.mkdir(parents=True)
+    assert ready.is_dir()
     (ready / "history.json").write_text(json.dumps(document))
     report = ready.parent / "ready" / "report.json"
     report.parent.mkdir()

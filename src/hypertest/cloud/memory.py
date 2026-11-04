@@ -30,6 +30,50 @@ KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}")
 RESPONSE_BYTES = 60000
 
 
+def query_protocol_document(task_id: str, attempt_id: str) -> dict:
+    """Public current-task affordance; runtime identity and authority stay private."""
+    return {"protocol_file": ".hypertest-cloud/memory-protocol/query.json",
+        "ready_directory": ".hypertest-cloud/memory-ready",
+        "response_directory": ".hypertest-cloud/memory-responses",
+        "envelope_example": {"profile": HANDOFF_PROFILE, "task_id": task_id,
+            "attempt_id": attempt_id, "key": "query-1", "operation": "QUERY",
+            "payload": {"query": "REPLACE_WITH_EXPLICIT_QUESTION", "collection": "main", "limit": 5}},
+        "instructions": [
+            "Use this current task's precreated directories. Keep profile/task_id/attempt_id/operation unchanged; choose a fresh key and your explicit query, collection main or history, and limit 1..20.",
+            "Write the complete envelope atomically as memory-ready/KEY.json, then read memory-responses/KEY.json. The Worker supplies all private authorization and server scope selection.",
+            "This file only explains QUERY; it does not grant execution, archive or memory-write permission. Never edit the protocol or invent identity or credentials.",
+            "If this protocol or these directories are missing/unavailable, report memory unavailable. Do not search host configuration, another task/attempt, old workspaces or credentials for substitutes."]}
+
+
+def prepare_query_workspace(workspace: Path, task_id: str, attempt_id: str) -> None:
+    """Create the explicit query surface without following Agent-controlled links."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    root = cloud = None
+    try:
+        root = os.open(workspace, flags)
+        try:
+            os.mkdir(".hypertest-cloud", 0o700, dir_fd=root)
+        except FileExistsError:
+            pass
+        cloud = os.open(".hypertest-cloud", flags, dir_fd=root)
+        for name in ("memory-ready", "memory-responses"):
+            try:
+                os.mkdir(name, 0o700, dir_fd=cloud)
+            except FileExistsError:
+                pass
+            directory = os.open(name, flags, dir_fd=cloud)
+            os.close(directory)
+    except OSError:
+        raise CloudBlocked("MEMORY_PATH_UNSAFE", "Memory query directories must be real directories inside this workspace") from None
+    finally:
+        if cloud is not None:
+            os.close(cloud)
+        if root is not None:
+            os.close(root)
+    _write_workspace_metadata(workspace, "memory-protocol", "query",
+        query_protocol_document(task_id, attempt_id), "MEMORY_PROTOCOL")
+
+
 def bounded_query_response(result: dict) -> dict:
     """Drop whole immutable records, never alter content covered by a digest."""
     if len(json.dumps(result).encode()) <= RESPONSE_BYTES:
@@ -155,6 +199,7 @@ class CloudMemoryBridge:
         self.query_context = {"task_id": broker.task_id, "attempt_id": broker.attempt_id,
             "task_version": broker.version}
         self.query_identity = self._identity()
+        prepare_query_workspace(workspace, broker.task_id, broker.attempt_id)
         private_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.timeout_seconds = min(timeout_seconds, 5)
         self.client = MemoryClient(transport.request, private_root / "memory.sqlite3", timeout_seconds=self.timeout_seconds)
