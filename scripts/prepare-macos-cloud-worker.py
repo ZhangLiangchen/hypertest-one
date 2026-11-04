@@ -22,9 +22,11 @@ LEGACY_ROUTES = "claim|renew|assert|fence|resolution/accept|resolution/assert|su
 CURRENT_ROUTES = ("auth-observation|claim|claim/state|claim/reconcile|renew|assert|fence|resolution/accept|resolution/assert|"
                   "submit|validate-payload|receipt|page|artifact|live-question/open|live-question/lookup|"
                   "live-question/poll|live-question/finish")
-ROUTES = (CURRENT_ROUTES + "|native-session-inspection/state|native-session-inspection/claim|"
+INSPECTION_ROUTES = (CURRENT_ROUTES + "|native-session-inspection/state|native-session-inspection/claim|"
           "native-session-inspection/claim-state|native-session-inspection/claim-reconcile|"
           "native-session-inspection/assert|native-session-inspection/finish")
+ROUTES = (INSPECTION_ROUTES + "|resume/identity|conversation/validate|conversation/append|conversation/lookup|"
+          "conversation/poll|conversation/ack|conversation/recover-append|conversation/recover-ack")
 LOCATION = f'''        # Host Cloud Worker: dedicated bearer only, no Operator key.
         location ~ ^/api/v1/cloud/worker/({ROUTES})$ {{
             limit_except POST {{ deny all; }}
@@ -50,7 +52,7 @@ def bff_config(original: str) -> str:
     if LOCATION in original and original.count("location ~ ^/api/v1/cloud/worker/") == 1:
         return original
     if "location ~ ^/api/v1/cloud/worker/" in original:
-        for routes in (CURRENT_ROUTES, LEGACY_ROUTES, LEGACY_ROUTES + "|live-question/(open|lookup|poll|finish)",
+        for routes in (INSPECTION_ROUTES, CURRENT_ROUTES, LEGACY_ROUTES, LEGACY_ROUTES + "|live-question/(open|lookup|poll|finish)",
                        "auth-observation|" + LEGACY_ROUTES + "|live-question/(open|lookup|poll|finish)"):
             previous = LOCATION.replace(ROUTES, routes)
             if previous in original and original.count("location ~ ^/api/v1/cloud/worker/") == 1:

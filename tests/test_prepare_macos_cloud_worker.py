@@ -37,13 +37,19 @@ def test_worker_proxy_only_adds_narrow_post_routes():
 
 
 def test_proxy_routes_match_worker_api():
-    source = (SCRIPT.parents[1] / "src/hypertest/api/cloud_worker_routes.py").read_text()
-    root = ast.parse(source)
-    routes = {decorator.args[0].value.lstrip("/") for node in root.body
-              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for decorator in node.decorator_list
-              if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute)
-              and isinstance(decorator.func.value, ast.Name) and decorator.func.value.id == "router"
-              and decorator.func.attr == "post" and decorator.args and isinstance(decorator.args[0], ast.Constant)}
+    routes = set()
+    worker_prefix = "/cloud/worker/"
+    for filename in ("cloud_worker_routes.py", "cloud_conversation_routes.py"):
+        root = ast.parse((SCRIPT.parents[1] / "src/hypertest/api" / filename).read_text())
+        router = next(node.value for node in root.body if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "router" for target in node.targets))
+        prefix = next((item.value.value for item in router.keywords if item.arg == "prefix"), "")
+        paths = {prefix + decorator.args[0].value for node in root.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for decorator in node.decorator_list
+            if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute)
+            and isinstance(decorator.func.value, ast.Name) and decorator.func.value.id == "router"
+            and decorator.func.attr == "post" and decorator.args and isinstance(decorator.args[0], ast.Constant)}
+        routes.update(path.removeprefix(worker_prefix) for path in paths if path.startswith(worker_prefix))
     assert set(module.ROUTES.split("|")) == routes
 
 
