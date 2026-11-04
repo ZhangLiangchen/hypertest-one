@@ -162,7 +162,9 @@ def test_sdk_configuration_and_initialize_use_framework_directory(tmp_path, monk
             }))
             return SimpleNamespace(serverInfo=SimpleNamespace(name="deepseek-harness-sdk-runtime", version="0.0.1"))
         def subscribe_notifications(self): return Subscription()
-        def session_prompt(self, session_id, *args, **kwargs): observed["session_id"] = session_id
+        def session_prompt(self, session_id, *args, **kwargs):
+            observed["session_id"] = session_id
+            return "synthetic-message-id"
         def request(self, *args, **kwargs): pass
 
     module.HarnessConfig, module.HarnessClient = Config, Client
