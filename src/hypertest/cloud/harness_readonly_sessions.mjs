@@ -64,7 +64,7 @@ export async function cloudLineage(ctx, sessionId, signal) {
     const header = stored?.header ?? ctx.sessions.get(id)?.header;
     if (header && header.id !== id) throw failure("SESSION_IDENTITY_CHANGED");
     chain.push(header ? identity(header) : id);
-    if (CLOUD_ROOT.test(id)) return {managed: true, identity: JSON.stringify(chain)};
+    if (CLOUD_ROOT.test(id)) return {managed: true, identity: JSON.stringify(chain), complete: Boolean(header)};
     if (!header) {
       // A missing fresh ordinary ID may be created normally. A broken parent
       // chain must never fall back to activating an unidentified child.
@@ -148,7 +148,7 @@ class Observer {
     if (this.pending) return this.pending;
     this.pending = (async () => {
       const signal = this.controller.signal;
-      const lineage = await cloudLineage(this.host.ctx, this.sessionId, signal);
+      const lineage = await this.host.classify(this.sessionId, signal);
       if (!lineage.managed || lineage.identity !== this.lineage.identity) throw failure("SESSION_IDENTITY_CHANGED");
       const next = await readDurable(this.host.ctx, this.sessionId, signal, this.current);
       if (next === this.current) return;
@@ -217,6 +217,19 @@ export function installReadOnlySessions(ctx, config = {}, expectedMethods = METH
   const controller = originalOf(ctx.sessionController);
   const host = {ctx, interval, observers: new Map(),
     broadcast: frame => controller.controlState.broadcast(frame)};
+  // Native ancestry is immutable. Once this host has observed Cloud ownership,
+  // a rewritten header cannot turn the same identity into a writable personal
+  // Session, even after its last browser tab closes.
+  const witnessed = new Map();
+  host.classify = async (id, signal) => {
+    const lineage = await cloudLineage(ctx, id, signal);
+    const previous = witnessed.get(id);
+    if (previous !== undefined && (!lineage.managed || previous !== lineage.identity)) {
+      throw failure("SESSION_IDENTITY_CHANGED");
+    }
+    if (lineage.managed && lineage.complete) witnessed.set(id, lineage.identity);
+    return lineage;
+  };
   const restores = [];
   const wrap = (object, key, factory) => {
     const original = object[key];
@@ -226,7 +239,7 @@ export function installReadOnlySessions(ctx, config = {}, expectedMethods = METH
   };
   const requireSupported = () => { if (!supported) throw failure("NATIVE_VIEW_UNSUPPORTED"); };
   const target = address => address?.kind === "session" ? address.sessionId : address?.childSessionId;
-  const isManaged = async (id, signal) => (await cloudLineage(ctx, id, signal)).managed;
+  const isManaged = async (id, signal) => (await host.classify(id, signal)).managed;
 
   // A failed fingerprint check leaves these Cloud refusals installed. Throwing
   // out of apply would let Cordis unload the plugin and restore writable follow.
@@ -242,7 +255,7 @@ export function installReadOnlySessions(ctx, config = {}, expectedMethods = METH
     });
   }
   wrap(originalOf(ctx.sessionQuery), "observeSession", original => async function(sessionId, options = {}) {
-    const lineage = await cloudLineage(ctx, sessionId, options.signal);
+    const lineage = await host.classify(sessionId, options.signal);
     if (!lineage.managed) return original.call(this, sessionId, options);
     requireSupported();
     const active = host.observers.get(sessionId);
@@ -265,7 +278,7 @@ export function installReadOnlySessions(ctx, config = {}, expectedMethods = METH
   });
   wrap(controller, "follow", original => async function* (request, signal) {
     const id = target(request.address);
-    const lineage = await cloudLineage(ctx, id, signal);
+    const lineage = await host.classify(id, signal);
     if (!lineage.managed) { yield* original.call(this, request, signal); return; }
     requireSupported();
     let observer = host.observers.get(id);

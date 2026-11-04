@@ -196,3 +196,15 @@ test("native parent-address validation still rejects a child addressed through a
   await assert.rejects(stream.next(), /subagent\/unauthorized/);
   assert.deepEqual(calls.resolve, []); assert.equal(calls.originalFollow, 0);
 });
+
+test("rewriting a witnessed Cloud child's ancestry cannot turn later reads or resolver calls into writable fallbacks", async t => {
+  const {ctx, rows, calls, install} = fixture();
+  const adapter = install(); t.after(() => adapter.dispose());
+  await ctx.sessionController.projections({sessionId: "child"}, new AbortController().signal);
+  rows.get("child").header.parentSession = "personal";
+  const changed = error => error.details?.reason === "SESSION_IDENTITY_CHANGED";
+  await assert.rejects(ctx.sessionController.projections({sessionId: "child"}, new AbortController().signal), changed);
+  await assert.rejects(ctx.sessionController.agents.resolve("child"), changed);
+  await assert.rejects(ctx.sessionController.rename({sessionId: "child"}), changed);
+  assert.equal(calls.originalObserve, 0); assert.deepEqual(calls.resolve, []); assert.deepEqual(calls.writes, []);
+});
