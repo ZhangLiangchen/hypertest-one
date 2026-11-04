@@ -46,6 +46,7 @@ function renderDraft(budgets, accepted = true, options = {}) {
     if (name === './live-questions-panel') return { LiveQuestionsPanel: () => null };
     if (name === './retry-dialog') return { RetryDialog: () => null };
     if (name === './recovery-choice') return { RecoveryChoice: () => null };
+    if (name === './recovery-choice-history') return { RecoveryChoiceHistory: () => null };
     if (name === './delete-task') return { CloudTaskDelete: () => null };
     return require(name);
   } });

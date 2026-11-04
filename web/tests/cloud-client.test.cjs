@@ -330,6 +330,7 @@ function taskPage(status, options = {}) {
     if (name === "./delete-task") return { CloudTaskDelete: "CloudTaskDelete" };
     if (name === "./retry-dialog") return { RetryDialog: "RetryDialog" };
     if (name === "./recovery-choice") return { RecoveryChoice: "RecoveryChoice" };
+    if (name === "./recovery-choice-history") return { RecoveryChoiceHistory: "RecoveryChoiceHistory" };
     return require(name);
   } });
   const render = () => { hookIndex = 0; return page.default(); };

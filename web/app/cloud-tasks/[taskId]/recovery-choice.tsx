@@ -46,7 +46,7 @@ export function RecoveryChoice({ attempt, document, recovery, blocked, onSubmit 
         <Typography.Text type="secondary">{row.identity_anchor === "MISSING"
           ? t("The earlier session identity was not recorded. This decision is recorded separately.", "缺少早期会话身份记录，本次人工选择已单独留痕。")
           : t("An earlier session identity record exists; it does not by itself prove that continuation is safe.", "已有早期会话身份记录，但仍需核对是否可以安全续写。")}</Typography.Text>
-        <div><Typography.Text type="secondary">{t("Choice recorded; execution has not started.", "选择已记录，尚未开始执行。")}</Typography.Text></div>
+        <div><Typography.Text type="secondary">{t("The action had not started when this choice was recorded.", "记录选择时，所选操作尚未开始。")}</Typography.Text></div>
       </div>)}
     </div> : null}
     <Form className="cloud-task-fields" layout="vertical" onFinish={() => void save()}>

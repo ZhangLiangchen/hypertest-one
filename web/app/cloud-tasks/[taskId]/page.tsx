@@ -21,6 +21,7 @@ import { CloudTaskForm } from "@/app/projects/[projectId]/cloud/task-form";
 import { CloudTaskDelete } from "./delete-task";
 import { RetryDialog } from "./retry-dialog";
 import { RecoveryChoice } from "./recovery-choice";
+import { RecoveryChoiceHistory } from "./recovery-choice-history";
 import type { CloudTask } from "@/lib/cloud";
 
 const text = (value: unknown) => typeof value === "string" ? value : value == null ? "—" : JSON.stringify(value, null, 2);
@@ -215,8 +216,8 @@ export default function CloudTaskPage() {
               <Form.Item label={t("Answer within the existing authorization", "在现有授权范围内回答")} required><Input.TextArea rows={3} maxLength={16000} value={answers[String(question.id)] || ""} onChange={(event) => setAnswers((current) => ({ ...current, [String(question.id)]: event.target.value }))} /></Form.Item>
               <Button htmlType="submit" disabled={operation.blocked || !!task.deleted_at || !operational.valid || !answers[String(question.id)]?.trim()}>{t("Save answer", "保存回答")}</Button>
             </Form>) : null}
-            {attempt.status === "RECOVERY_REQUIRED" && !task.deleted_at ? <RecoveryChoice key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} document={detail} recovery={live.data?.recovery} blocked={blocked} onSubmit={mutate} /> : null}
-            <CloudAttemptRecovery key={`${projectId}:${taskId}:${attempt.id}`} attempt={attempt} capabilities={capabilities.data} recovery={live.data?.recovery}
+            {attempt.status === "RECOVERY_REQUIRED" && !task.deleted_at ? <RecoveryChoice key={`${projectId}:${taskId}:${attempt.id}:choice`} attempt={attempt} document={detail} recovery={live.data?.recovery} blocked={blocked} onSubmit={mutate} /> : null}
+            <CloudAttemptRecovery key={`${projectId}:${taskId}:${attempt.id}:recovery`} attempt={attempt} capabilities={capabilities.data} recovery={live.data?.recovery}
               blocked={operation.blocked || !operational.valid || live.isError} onSubmit={mutate} />
           </section> : null}
           {status && !["COMPLETED", "FAILED", "CANCELLED"].includes(status) ? <section className="overview-section"><Typography.Title level={2}>{t("Cancel this task or attempt", "取消当前任务或尝试")}</Typography.Title>
@@ -247,7 +248,7 @@ export default function CloudTaskPage() {
           { key: "entrypoints", label: t("Framework entrypoints", "框架入口"), children: <pre className="session-literal">{text(inputs.framework_entrypoints)}</pre> },
           { key: "authorization", label: t("Authorization", "授权"), children: <pre className="session-literal">{text(inputs.authorization)}</pre> },
           { key: "digest", label: t("Input digest", "输入摘要"), children: <span className="entity-key">{text(row.input_digest)}</span> },
-        ]} /></>;
+        ]} /><RecoveryChoiceHistory attemptId={row.id} choices={detail.recovery_choices} /></>;
       } }} columns={[
         { title: t("Attempt", "尝试"), dataIndex: "attempt_no" }, { title: t("Progress", "进度"), dataIndex: "status", render: (value: string) => <Tag color={cloudProgressTone(value)}>{label(value)}</Tag> },
         { title: t("Reported result", "报告结果"), dataIndex: "reported_result", render: (value) => <ReportedResultTag result={value} /> }, { title: t("Reason", "原因"), dataIndex: "reason" },
