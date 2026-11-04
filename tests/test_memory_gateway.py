@@ -20,6 +20,7 @@ from hypertest.application.services import create_project
 from hypertest.common.ids import public_key
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
+from hypertest.domain.cloud_tasks import CloudAttempt, CloudWorkGrant
 from hypertest.domain.interactive import InteractiveIntegrationGrant
 from hypertest.domain.memory import MemoryOperation
 from hypertest.main import app
@@ -198,7 +199,7 @@ def setup_browse(f, monkeypatch):
     calls = []
     async def listing(scope_id, **kwargs):
         calls.append((scope_id, kwargs))
-        return {"items": [row], "next_cursor": "next" if kwargs["cursor"] is None else None, "search_mode": None}
+        return {"items": [row], "next_cursor": "next" if kwargs.get("cursor") is None else None, "search_mode": None}
     async def adopted(scope_id, namespace, **kwargs):
         assert scope_id == "scp_history" and namespace == "hypertest-project-" + f["project_id"]
         assert kwargs == {"reference_kind": "hypertest-project-history"}
@@ -860,6 +861,141 @@ async def test_initial_cloud_query_fixed_attempt_without_asset_and_lease_fence(c
         attempt_id=receipt["attempt_id"], reason="Synthetic lease fence")
     assert cancelled.status_code == 200
     assert (await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)).status_code == 409
+
+
+def setup_cloud_history(f, monkeypatch):
+    main, row, calls = setup_browse(f, monkeypatch)
+    row.update(kind="historical_technical_record", content=(
+        "历史技术记录\n原日期：2026-08-21T06:25:25Z；原项目：legacy；原记录ID：3205。\n"
+        "已知后续更正/补充：old_id=3208, old_id=3214\n分块：1/2；以下原文保真：\n---\n"
+        "Synthetic old diagnosis; subsequent corrections must be retrieved."))
+    receipt = f["receipt"]
+    body = {"project_id": f["project_id"], "query": "funds remain frozen after failed order", "collection": "history",
+        "context": {"task_id": receipt["task_id"], "attempt_id": receipt["attempt_id"], "task_version": receipt["version"]}}
+    return main, row, calls, body
+
+
+async def test_cloud_history_same_original_context_default_main_and_exact_metadata(cloud_memory_context, monkeypatch):
+    f = cloud_memory_context
+    main, row, calls, body = setup_cloud_history(f, monkeypatch)
+    main_body = {key: value for key, value in body.items() if key != "collection"}
+    control = await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=main_body)
+    assert control.status_code == 200 and control.json()["collection"] == "main", control.text
+    assert control.json()["scope_id"] == main and control.json()["history_results"] == [] and not calls
+    request_id = str(uuid4())
+    response = await f["client"].post("/api/v1/memory/query",
+        headers={**f["memory_headers"], "X-Hypertest-Memory-Request-Id": request_id}, json=body)
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store", response.text
+    data = response.json()
+    assert data["request_id"] == request_id and data["result_status"] == "OK" and not data["degraded"]
+    assert data["results"] == data["external_results"] == [] and data["scope_id"] == "scp_history"
+    item = data["history_results"][0]
+    assert item["content"] == row["content"] and item["content_digest"] == row["content_digest"]
+    assert item["ref"] == {"family": "atomic-memory", "artifact_id": row["artifact_id"], "revision": row["revision"]}
+    assert item["history_metadata"] == {"original_date": "2026-08-21T06:25:25Z", "legacy_record_id": "3205",
+        "part_index": 1, "part_count": 2, "correction_notice": "已知后续更正/补充：old_id=3208, old_id=3214"}
+    assert item["historical"] is True and item["review_status"] == "EXTERNAL_NOT_HYPERTEST_REVIEWED"
+    assert calls[-1][0] == "scp_history" and "confirmed_by" not in item
+
+
+@pytest.mark.parametrize("change,status", [
+    ("project", 403), ("attempt", 409), ("version", 409), ("generation", 409),
+    ("lease", 409), ("scope", 422), ("credential", 422), ("collection", 422),
+])
+async def test_cloud_history_rejects_identity_scope_and_credential_overrides(cloud_memory_context, monkeypatch, change, status):
+    f = cloud_memory_context
+    _, row, calls, body = setup_cloud_history(f, monkeypatch)
+    headers = dict(f["memory_headers"])
+    if change == "project":
+        body["project_id"] = str(uuid4())
+    elif change == "attempt":
+        body["context"]["attempt_id"] = str(uuid4())
+    elif change == "version":
+        body["context"]["task_version"] = 1
+    elif change == "generation":
+        headers["X-Hypertest-Memory-Generation"] = str(f["identity"].generation + 1)
+    elif change == "lease":
+        headers["X-Hypertest-Memory-Lease-Token"] = "synthetic-wrong-lease"
+    elif change == "scope":
+        body["scope_id"] = "scp_other"
+    elif change == "credential":
+        body["credential"] = "model-supplied-secret"
+    else:
+        body["collection"] = "all"
+    response = await f["client"].post("/api/v1/memory/query", headers=headers, json=body)
+    assert response.status_code == status and row["content"] not in response.text, response.text
+    assert not calls
+
+
+@pytest.mark.parametrize("change", ["cancel", "memory_grant", "work_grant", "lease", "generation", "binding"])
+async def test_cloud_history_refuses_content_when_authority_changes_during_retrieval(cloud_memory_context, monkeypatch, change):
+    f = cloud_memory_context
+    _, row, _, body = setup_cloud_history(f, monkeypatch)
+    original = f["upstream"].browse
+    async def changed(*args, **kwargs):
+        if change == "cancel":
+            receipt = f["receipt"]
+            response = await cloud_post(f, "CANCEL_ATTEMPT", receipt["version"], task_id=receipt["task_id"],
+                attempt_id=receipt["attempt_id"], reason="Synthetic history query cancellation")
+            assert response.status_code == 200, response.text
+        elif change == "binding":
+            monkeypatch.setattr(get_settings(), "memory_history_bindings", {f["project_id"]: {
+                "main_scope_id": "changed-main", "history_scope_id": "scp_history"}})
+        else:
+            async with AsyncSessionLocal() as db:
+                if change == "memory_grant":
+                    grant = await db.get(InteractiveIntegrationGrant, UUID(f["memory_auth"]["grant_id"]))
+                    grant.status, grant.revoked_at = "REVOKED", datetime.now(UTC)
+                    grant.row_version += 1
+                elif change == "work_grant":
+                    grants = await db.scalars(select(CloudWorkGrant).where(
+                        CloudWorkGrant.attempt_id == UUID(f["receipt"]["attempt_id"])))
+                    for grant in grants:
+                        grant.revoked_at = datetime.now(UTC)
+                else:
+                    attempt = await db.get(CloudAttempt, UUID(f["receipt"]["attempt_id"]))
+                    if change == "lease":
+                        attempt.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+                    else:
+                        attempt.lease_generation += 1
+                await db.commit()
+        return await original(*args, **kwargs)
+    monkeypatch.setattr(f["upstream"], "browse", changed)
+    denied = await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)
+    assert denied.status_code in {403, 409, 503} and row["content"] not in denied.text, denied.text
+
+
+async def test_cloud_history_wrong_binding_timeout_empty_and_upstream_failure(cloud_memory_context, monkeypatch):
+    f = cloud_memory_context
+    _, row, _, body = setup_cloud_history(f, monkeypatch)
+    original = f["upstream"].adopt_scope
+    async def wrong_reference(*args, **kwargs):
+        raise MemoryUpstreamError("MEMORY_UPSTREAM_SCOPE_MISMATCH")
+    monkeypatch.setattr(f["upstream"], "adopt_scope", wrong_reference)
+    wrong = await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)
+    assert wrong.json()["reason"] == "MEMORY_UPSTREAM_SCOPE_MISMATCH" and not wrong.json()["history_results"]
+    monkeypatch.setattr(f["upstream"], "adopt_scope", original)
+    async def empty(*args, **kwargs):
+        return {"items": [], "search_mode": "hybrid"}
+    monkeypatch.setattr(f["upstream"], "browse", empty)
+    result = (await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)).json()
+    assert result["result_status"] == "EMPTY" and not result["degraded"]
+    async def fail(*args, **kwargs):
+        raise MemoryUpstreamError("MEMORY_UPSTREAM_RESPONSE_REJECTED")
+    monkeypatch.setattr(f["upstream"], "browse", fail)
+    result = (await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)).json()
+    assert result["result_status"] == "UNAVAILABLE" and result["history_results"] == []
+    async def slow(*args, **kwargs):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(f["upstream"], "browse", slow)
+    monkeypatch.setattr(get_settings(), "memory_timeout_seconds", 0.05)
+    result = (await f["client"].post("/api/v1/memory/query", headers=f["memory_headers"], json=body)).json()
+    assert result["reason"] == "MEMORY_SEARCH_TIMEOUT" and result["history_results"] == []
+    # Optional retrieval failure leaves the independently fenced report writer usable.
+    accepted = await worker_submit(f, f["identity"], f["receipt"], "SUBMIT_ASSETS", assets=[{
+        "kind": "REPORT", "key": "memory-unavailable", "title": "Retrieval unavailable",
+        "markdown": "History query unavailable; no result invented", "reported_result": "NOT_RUN"}])
+    assert accepted["assets"] and row["content"] not in str(accepted)
 
 
 async def test_cloud_fixed_asset_candidate_authority_and_original_key_survive_fence(cloud_memory_context):

@@ -4,6 +4,14 @@
 
 ## 0. 本轮实施决定
 
+### 2026-11-04 原任务身份下的显式历史查询
+
+现有受管 `QUERY` / `POST /memory/query` 增加 `collection: "main" | "history"`，省略仍为 main。Native Worker 只接受模型的 query、limit、collection；Project、原 Task/Attempt、接受版本与私有 claim/lease/generation/work proof 由可信运行时提供，模型不得覆盖或提供 scope、凭据。沿用独立 memory grant 和原 Cloud query context，网络前后均重新核验授权、当前任务/Attempt 与执行 fence；任务关闭、租约或授权失效、代次变化后不得释放已检索正文。此入口不使用 standalone browse 或管理员身份替代 Worker 校验。
+
+history 只使用既有 Operator 固定的 project→main/history 映射，核对当前 main 与唯一 `hypertest-project-history` external reference；不新建、复制知识库，不开放 raw Sources，也不将历史混入默认主经验。返回 `history_results`，记录标为 `HISTORICAL_TECHNICAL_RECORD`，保留完整固定正文、scope/ref/revision/content_digest 与原日期、旧编号、分片关系及原文已知更正说明。历史存储 active 不代表当前环境事实、平台审核发布、测试证据或执行授权；未取回后续更正时不能宣称更正链完整。
+
+沿用 5 秒查询预算与 Worker 60000 字节响应预算。超限仅移除完整条目并披露裁减，不能截断正文后保留原完整内容摘要。空结果、超时、上游不可用和拒绝分别如实返回；可选查询失败不阻断独立任务报告提交，不伪造测试结果。实现、部署、真实模型检索及模型知识使用分别记录。
+
 ### 2026-11-03 同一 Project 知识库增补
 
 本增补取代下文首次必须创建新 scope、只支持 1.4.0 FTS 及所有查询仅限平台发布记录的限制，其余人工审核、独立授权、原 key / UNKNOWN、精确修订与非测试事实边界不变。Operator 可在未绑定项目的 CONFIGURE 中显式提供 `existing_scope_id`，服务端只读核验其唯一 `hypertest-project` external reference 等于 `hypertest-project-<Project UUID>`；原 title 可保留。目标 ID 冻结于原操作，UNKNOWN 只 GET 同一 ID，不能新建、重试写或改绑。省略该字段维持旧请求摘要；已有 scope 永不改绑，不需要数据库迁移。

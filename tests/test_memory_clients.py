@@ -359,3 +359,130 @@ async def test_cloud_query_delivers_external_knowledge_with_labels_and_exact_ref
     response = json.loads((workspace / ".hypertest-cloud" / "memory-responses" / "shared.json").read_text())
     assert response["external_results"] == [external] and response["search_mode"] == "hybrid"
     await bridge.close()
+
+
+async def query_bridge(tmp_path, request, *, timeout=5):
+    broker = cloud_broker()
+    async def close():
+        pass
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    bridge = CloudMemoryBridge(broker, SimpleNamespace(request=request, close=close),
+        tmp_path / "private", workspace, timeout_seconds=timeout)
+    document = {"profile": HANDOFF_PROFILE, "task_id": broker.task_id, "attempt_id": broker.attempt_id,
+        "key": "history", "operation": "QUERY", "payload": {"query": "What later corrected the original investigation?", "collection": "history"}}
+    return broker, bridge, document
+
+
+async def test_cloud_history_explicit_selection_and_no_identity_override(tmp_path):
+    calls = []
+    async def request(method, path, **kwargs):
+        calls.append(kwargs["payload"])
+        return {"collection": "history", "results": [], "external_results": [], "history_results": []}
+    broker, bridge, document = await query_bridge(tmp_path, request)
+    result = await bridge.handle(document, "history")
+    assert calls[0] == {"project_id": broker.project_id, "context": bridge.query_context,
+        "collection": "history", "query": document["payload"]["query"], "limit": 5}
+    assert result["query_context"] == {"project_id": broker.project_id, **bridge.query_context,
+        "worker_id": "dedicated", "generation": 4}
+    assert "private-lease" not in json.dumps(result) and "private-work" not in json.dumps(result)
+    for name, value in (("project_id", str(uuid4())), ("task_id", str(uuid4())),
+                        ("attempt_id", str(uuid4())), ("scope_id", "other-project"),
+                        ("context", {}), ("generation", 5), ("work_token", "override")):
+        with pytest.raises(CloudBlocked) as failure:
+            await bridge.handle({**document, "payload": {**document["payload"], name: value}}, "history")
+        assert failure.value.code == "MEMORY_QUERY_IDENTITY_OVERRIDE"
+    for collection in ("sources", None, 1, {}):
+        with pytest.raises(CloudBlocked) as failure:
+            await bridge.handle({**document, "payload": {**document["payload"], "collection": collection}}, "history")
+        assert failure.value.code == "MEMORY_QUERY_INVALID"
+    with pytest.raises(CloudBlocked):
+        await bridge.handle({**document, "attempt_id": str(uuid4())}, "history")
+    assert len(calls) == 1
+    await bridge.close()
+
+
+@pytest.mark.parametrize("change", ["fence", "generation", "attempt"])
+async def test_cloud_query_invalidated_during_retrieval_never_publishes_content(tmp_path, change):
+    async def request(*args, **kwargs):
+        if change == "fence":
+            broker.fenced = True
+        elif change == "generation":
+            broker.identity.generation += 1
+        else:
+            broker.attempt_id = str(uuid4())
+        return {"history_results": [{"content": "must never reach model"}]}
+    broker, bridge, document = await query_bridge(tmp_path, request)
+    ready = bridge.workspace / ".hypertest-cloud" / "memory-ready"
+    ready.mkdir(parents=True)
+    (ready / "history.json").write_text(json.dumps(document))
+    await bridge.collect_once()
+    response = json.loads((ready.parent / "memory-responses" / "history.json").read_text())
+    assert response["status"] == "REFUSED" and response["task_sync_unaffected"]
+    assert "must never reach model" not in json.dumps(response)
+    await bridge.close()
+
+
+async def test_cloud_query_transport_rechecks_local_fence_after_http_success(tmp_path):
+    broker = cloud_broker()
+    token = tmp_path / "token"
+    token.write_text("memory-only-bearer")
+    token.chmod(0o600)
+    settings = SimpleNamespace(cloud_memory_api_url="https://gateway.invalid/api/v1", cloud_memory_allow_insecure_loopback=False,
+        cloud_memory_token_file=token, cloud_memory_ca_file=None, cloud_memory_timeout_seconds=0.1)
+    async def handler(request):
+        assert request.headers["x-hypertest-memory-request-id"]
+        broker.fenced = True
+        return httpx.Response(200, json={"history_results": [{"content": "forbidden late response"}],
+            "request_id": request.headers["x-hypertest-memory-request-id"]})
+    transport = CloudMemoryTransport(broker, settings, transport=httpx.MockTransport(handler))
+    with pytest.raises(CloudBlocked):
+        await transport.request("POST", "memory/query", payload={"project_id": broker.project_id,
+            "query": "later corrections", "collection": "history"})
+    await transport.close()
+
+
+async def test_cloud_query_budget_omits_whole_records_and_discloses_incomplete_chain(tmp_path):
+    import hashlib
+
+    records = [{"result_type": "HISTORICAL_TECHNICAL_RECORD", "content": letter * 34000,
+        "scope_id": "fixed-history", "artifact_id": "art_" + letter, "revision": 2,
+        "content_digest": "sha256:" + hashlib.sha256((letter * 34000).encode()).hexdigest(),
+        "history_metadata": {"original_date": "2024-01-01", "correction_notice": "Later correction exists"}}
+        for letter in "ab"]
+    async def request(*args, **kwargs):
+        return {"collection": "history", "result_status": "OK", "history_results": records}
+    broker, bridge, document = await query_bridge(tmp_path, request)
+    ready = bridge.workspace / ".hypertest-cloud" / "memory-ready"
+    ready.mkdir(parents=True)
+    (ready / "history.json").write_text(json.dumps(document))
+    await bridge.collect_once()
+    raw = (ready.parent / "memory-responses" / "history.json").read_bytes()
+    response = json.loads(raw)
+    assert len(raw) <= 60000 and response["truncated"] and response["omitted_entries"] == 1
+    assert response["history_results"] == [records[0]]
+    assert response["result_status"] == "PARTIAL" and "correction chain may be incomplete" in response["budget_notice"]
+    assert len(records) == 2  # Never mutate the original response/records.
+    await bridge.close()
+
+
+@pytest.mark.parametrize("failure,code", [("timeout", "MEMORY_TIMEOUT"), ("upstream", "MEMORY_UPSTREAM_FAILED")])
+async def test_cloud_query_failure_is_explicit_and_preserves_independent_report_delivery(tmp_path, failure, code):
+    async def request(*args, **kwargs):
+        if failure == "timeout":
+            await asyncio.Event().wait()
+        raise ApiError("MEMORY_UPSTREAM_FAILED", 503)
+    broker, bridge, document = await query_bridge(tmp_path, request, timeout=0.02)
+    ready = bridge.workspace / ".hypertest-cloud" / "memory-ready"
+    ready.mkdir(parents=True)
+    (ready / "history.json").write_text(json.dumps(document))
+    report = ready.parent / "ready" / "report.json"
+    report.parent.mkdir()
+    report.write_text('{"operation":"SUBMIT_ASSETS","payload":{"assets":[]}}')
+    original = report.read_bytes()
+    await bridge.collect_once()
+    response = json.loads((ready.parent / "memory-responses" / "history.json").read_text())
+    assert response["status"] == "UNAVAILABLE" and response["code"] == code
+    assert response["task_sync_unaffected"] and report.read_bytes() == original
+    assert broker.fenced is False
+    await bridge.close()

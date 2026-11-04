@@ -66,8 +66,13 @@ class MemoryClient:
     async def query(self, payload):
         try:
             return await self._request("POST", "memory/query", payload=payload)
-        except (ClientError, TimeoutError, OSError):
-            return {"status": "UNAVAILABLE", "code": "MEMORY_UNAVAILABLE", "task_sync_unaffected": True}
+        except TimeoutError:
+            return {"status": "UNAVAILABLE", "code": "MEMORY_TIMEOUT", "task_sync_unaffected": True}
+        except (ClientError, OSError) as error:
+            code = getattr(error, "code", "MEMORY_UNAVAILABLE")
+            if not isinstance(code, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{2,100}", code):
+                code = "MEMORY_UNAVAILABLE"
+            return {"status": "UNAVAILABLE", "code": code, "task_sync_unaffected": True}
 
     async def propose(self, payload):
         project_id, key = payload["project_id"], payload["operation_key"]

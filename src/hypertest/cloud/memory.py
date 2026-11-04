@@ -13,7 +13,7 @@ import ssl
 import stat
 from pathlib import Path
 from urllib.parse import urlsplit
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 
@@ -27,6 +27,36 @@ from .private_file import read_private_file
 
 HANDOFF_PROFILE = "hypertest-cloud-memory-handoff/v1alpha1"
 KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}")
+RESPONSE_BYTES = 60000
+
+
+def bounded_query_response(result: dict) -> dict:
+    """Drop whole immutable records, never alter content covered by a digest."""
+    if len(json.dumps(result).encode()) <= RESPONSE_BYTES:
+        return result
+    result = dict(result)
+    fields = ("results", "external_results", "history_results")
+    for field in fields:
+        if isinstance(result.get(field), list):
+            result[field] = list(result[field])
+    omitted = result.get("omitted_entries", 0)
+    result.update(truncated=True, omitted_entries=omitted if type(omitted) is int else 0, response_byte_limit=RESPONSE_BYTES,
+        result_status="PARTIAL", budget_notice=(
+            "The response budget omitted complete records. Returned content and digests are unchanged. "
+            "Results and any correction chain may be incomplete; narrow an explicit query before drawing conclusions."))
+    while len(json.dumps(result).encode()) > RESPONSE_BYTES:
+        field = next((name for name in reversed(fields) if isinstance(result.get(name), list) and result[name]), None)
+        if field is None:
+            return {"status": "UNAVAILABLE", "code": "MEMORY_RESPONSE_LIMIT",
+                "result_status": "UNAVAILABLE", "collection": result.get("collection", "main"),
+                "results": [], "external_results": [], "history_results": [],
+                "truncated": True, "omitted_entries": result["omitted_entries"],
+                "response_byte_limit": RESPONSE_BYTES, "task_sync_unaffected": True}
+        result[field].pop()
+        result["omitted_entries"] += 1
+    if not any(result.get(field) for field in fields):
+        result.update(status="UNAVAILABLE", code="MEMORY_RESPONSE_LIMIT", result_status="UNAVAILABLE")
+    return result
 
 
 class CloudMemoryTransport:
@@ -71,11 +101,15 @@ class CloudMemoryTransport:
             # Only the private HTTP headers carry lease / work proof.
             await self.broker.assert_current()
         identity = self.broker.identity
+        identity_proof = (identity.worker_id, identity.lease_token, identity.generation, identity.work_token)
+        request_id = str(uuid4()) if path == "memory/query" else None
         headers = {"Authorization": "Bearer " + self._token,
             "X-Hypertest-Memory-Worker-Id": identity.worker_id,
             "X-Hypertest-Memory-Lease-Token": identity.lease_token,
             "X-Hypertest-Memory-Generation": str(identity.generation),
             "X-Hypertest-Memory-Work-Token": identity.work_token}
+        if request_id:
+            headers["X-Hypertest-Memory-Request-Id"] = request_id
         try:
             async with self.http.stream(method, path, json=payload, params=params, headers=headers) as response:
                 content = bytearray()
@@ -83,13 +117,28 @@ class CloudMemoryTransport:
                     content.extend(chunk)
                     if len(content) > 1024 * 1024:
                         raise ApiError("MEMORY_RESPONSE_LIMIT")
-                if not 200 <= response.status_code < 300:
-                    raise ApiError("MEMORY_REQUEST_REJECTED", response.status_code)
                 result = json.loads(content)
                 if not isinstance(result, dict):
                     raise ApiError("MEMORY_RESPONSE_INVALID")
+                if not 200 <= response.status_code < 300:
+                    detail = result.get("detail")
+                    code = detail.get("code") if isinstance(detail, dict) else detail
+                    if not isinstance(code, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{2,100}", code):
+                        code = "MEMORY_REQUEST_REJECTED"
+                    raise ApiError(code, response.status_code)
+                if request_id:
+                    if result.get("request_id", request_id) != request_id:
+                        raise ApiError("MEMORY_RESPONSE_IDENTITY_MISMATCH")
+                    # A response received after local fencing or replacement of
+                    # this claim must not reach the model, even if HTTP succeeded.
+                    await self.broker.assert_current()
+                    current = self.broker.identity
+                    if (current.worker_id, current.lease_token, current.generation, current.work_token) != identity_proof:
+                        raise CloudBlocked("MEMORY_CLAIM_CHANGED", "Original query claim changed during retrieval")
                 return result
-        except (httpx.HTTPError, TimeoutError):
+        except (httpx.TimeoutException, TimeoutError):
+            raise ApiError("MEMORY_TIMEOUT") from None
+        except httpx.HTTPError:
             raise ApiError("MEMORY_UNAVAILABLE") from None
         except (ValueError, UnicodeError):
             raise ApiError("MEMORY_RESPONSE_INVALID") from None
@@ -105,9 +154,23 @@ class CloudMemoryBridge:
         # accepted dispatch snapshot exists before any report is generated.
         self.query_context = {"task_id": broker.task_id, "attempt_id": broker.attempt_id,
             "task_version": broker.version}
+        self.query_identity = self._identity()
         private_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        self.client = MemoryClient(transport.request, private_root / "memory.sqlite3", timeout_seconds=timeout_seconds)
+        self.timeout_seconds = min(timeout_seconds, 5)
+        self.client = MemoryClient(transport.request, private_root / "memory.sqlite3", timeout_seconds=self.timeout_seconds)
         self.seen: dict[str, str] = {}
+
+    def _identity(self):
+        identity = self.broker.identity
+        return (self.broker.project_id, self.broker.task_id, self.broker.attempt_id,
+            identity.worker_id, identity.lease_token, identity.generation, identity.work_token)
+
+    async def _assert_query_current(self):
+        if self._identity() != self.query_identity:
+            raise CloudBlocked("MEMORY_CLAIM_CHANGED", "Only the original fixed query claim may read memory")
+        await self.broker.assert_current()
+        if self._identity() != self.query_identity:
+            raise CloudBlocked("MEMORY_CLAIM_CHANGED", "Original query claim changed during authorization")
 
     async def run(self):
         while True:
@@ -132,6 +195,8 @@ class CloudMemoryBridge:
             key = path.stem
             if path.suffix != ".json" or not KEY.fullmatch(key):
                 continue
+            document = None
+            deadline = asyncio.get_running_loop().time() + self.timeout_seconds
             try:
                 raw = read_workspace_file(self.workspace, ".hypertest-cloud/memory-ready/" + path.name, max_bytes=65536)
                 fingerprint = digest(raw.decode())
@@ -140,11 +205,26 @@ class CloudMemoryBridge:
                     # new processing or a second candidate POST.
                     continue
                 document = json.loads(raw)
-                result = await self.handle(document, key)
+                async with asyncio.timeout_at(deadline):
+                    result = await self.handle(document, key)
+            except TimeoutError:
+                result = {"status": "UNAVAILABLE", "code": "MEMORY_TIMEOUT", "task_sync_unaffected": True}
+                fingerprint = "UNAVAILABLE"
             except (CloudBlocked, ApiError, ValueError, TypeError, KeyError) as error:
                 result = {"status": "REFUSED", "code": getattr(error, "code", "MEMORY_HANDOFF_INVALID"), "task_sync_unaffected": True}
                 fingerprint = "REFUSED"
-            if len(json.dumps(result).encode()) > 60000:
+            if isinstance(document, dict) and document.get("operation") == "QUERY":
+                result = bounded_query_response(result)
+                # Last local fence immediately before publishing model-readable
+                # bytes. No stale fetched content is written on refusal.
+                try:
+                    async with asyncio.timeout_at(deadline):
+                        await self._assert_query_current()
+                except TimeoutError:
+                    result = {"status": "UNAVAILABLE", "code": "MEMORY_TIMEOUT", "task_sync_unaffected": True}
+                except (CloudBlocked, ApiError):
+                    result = {"status": "REFUSED", "code": "MEMORY_QUERY_FENCED", "task_sync_unaffected": True}
+            elif len(json.dumps(result).encode()) > RESPONSE_BYTES:
                 result = {"status": "UNAVAILABLE", "code": "MEMORY_RESPONSE_LIMIT", "task_sync_unaffected": True}
             _write_workspace_metadata(self.workspace, "memory-responses", key, result, "MEMORY_RESPONSE")
             self.seen[key] = fingerprint
@@ -161,14 +241,32 @@ class CloudMemoryBridge:
             if set(payload) != {"operation_key"} or not isinstance(payload["operation_key"], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}", payload["operation_key"]):
                 raise CloudBlocked("MEMORY_HANDOFF_INVALID", "Recovery needs only the original memory operation key")
             return await self.client.recover(self.broker.project_id, payload["operation_key"])
-        if operation == "QUERY" and payload.keys() <= {"query", "limit"}:
+        if operation == "QUERY":
+            if not payload.keys() <= {"query", "limit", "collection"}:
+                raise CloudBlocked("MEMORY_QUERY_IDENTITY_OVERRIDE", "Worker alone supplies project, task, attempt and authorization")
             if not isinstance(payload.get("query"), str) or not 1 <= len(payload["query"]) <= 1000:
                 raise CloudBlocked("MEMORY_QUERY_INVALID", "Only a minimal explicit query is admitted")
             limit = payload.get("limit", 5)
             if type(limit) is not int or not 1 <= limit <= 20:
                 raise CloudBlocked("MEMORY_QUERY_INVALID", "Memory result count is bounded")
-            return await self.client.query({"project_id": self.broker.project_id,
-                "context": self.query_context, "query": payload["query"], "limit": limit})
+            if payload.get("collection", "main") not in ("main", "history"):
+                raise CloudBlocked("MEMORY_QUERY_INVALID", "Collection must be main or explicitly selected history")
+            body = {"project_id": self.broker.project_id,
+                "context": self.query_context, "query": payload["query"], "limit": limit}
+            if "collection" in payload:
+                body["collection"] = payload["collection"]
+            try:
+                async with asyncio.timeout(self.timeout_seconds):
+                    await self._assert_query_current()
+                    result = await self.client.query(body)
+                    await self._assert_query_current()
+                    result = {**result, "query_context": {
+                        "project_id": self.broker.project_id, **self.query_context,
+                        "worker_id": self.broker.identity.worker_id,
+                        "generation": self.broker.identity.generation}}
+                    return result
+            except TimeoutError:
+                return {"status": "UNAVAILABLE", "code": "MEMORY_TIMEOUT", "task_sync_unaffected": True}
         required = {"task_version", "asset_revision_id"}
         if (not required <= payload.keys() or type(payload["task_version"]) is not int
                 or payload["task_version"] < 1):

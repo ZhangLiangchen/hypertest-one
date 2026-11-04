@@ -2595,6 +2595,8 @@ Cloud模型与子代理不持有平台writer/DB/Operator凭据，子贡献回到
 
 ## 54. ADR-022 独立项目经验目录
 
+2026-11-04：显式 `collection=history` 查询沿用同一 Cloud Task/Attempt/接受版本及当前 claim/lease/generation/work grant，独立 memory grant 必须网络前后有效。历史 scope 固定于项目映射并核 exact history external reference，不接受模型指定身份或 scope；查询不创建新领域实体或发布事件。历史正文和精确 revision/digest 不可因响应预算而截断；原日期、旧编号、分片和已知更正保持原文含义。默认 main、历史参考与当前测试事实之间的边界不变，详见 ADR-022 §0。
+
 2026-11-03 增补见 [ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)：Operator 可首次采纳经 exact project external reference 核验的既有 scope，采用请求冻结在 MemoryOperation；同一个 mapping 唯一 scope 和绑定不可变约束保持。共享外部 atomic-memory 只是 query 的 `external_results` 投影，不创建 MemoryEntry/Revision 或人工审核事件，不改变 Canonical Testing State；读取 current active + exact revision/digest，排除平台任意 revision / operation 曾引用的全部 artifact ID，因此改 kind 也不能复活已撤回记录。平台 `results` 仍仅当前 PUBLISHED/未过期，候选仍私有，history 和 Source 归档不自动召回。
 
 本机读取使用同一 PG 权威的只读 visibility 投影；已知平台 ID 即使只有 UNKNOWN operation 引用，也不能退回未管理外部记忆。当前判断按 Entry 当前版本、PUBLISHED、expires_at > now、完整 upstream ref/digest，旧版 / 到期边界 / 撤回无正文输出。不存在新的同步表、双向复制或 PG→PC retire 双写协议。

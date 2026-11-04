@@ -1700,6 +1700,8 @@ ADR-027 归档来源增补：Memory `CREATE_CANDIDATE` 的 `source` 可为 `{mod
 
 独立profile为 `hypertest-project-memory/v1alpha1`；实体和状态由领域§54拥有，[ADR-022 §0](../architecture/ADR-022_PROJECT_MEMORY_WITH_POWERCONTEXT.md)定义本轮接口/信任边界。服务端前缀 `/api/v1/memory`，与任务sync/Cloud operation无共享key、版本、journal或成功判定。
 
+2026-11-04：受管 `QUERY` payload 可含 `collection: "main" | "history"`，省略为 main；不得含 scope、Project、context 或凭据覆盖。Worker 将真实原 claim 的 Project/Task/Attempt/接受版本注入 API 请求，以现有私有 proof 和独立 memory grant 鉴权。history 沿用原 query 前后 fence，不转用 standalone browse；服务端从固定项目绑定确定历史 scope 并核唯一 project-history external reference。返回 `history_results` 的完整固定正文、原日期/旧编号/分片/更正元数据和精确 ref/revision/digest，与平台 `results`、主库 `external_results` 分开；默认 main 不召回历史。5 秒及 60000 字节预算不变，按完整条目裁减并披露，禁止正文裁切后沿用原摘要。拒绝/超时/空结果/上游故障不得伪造历史或影响任务报告提交。
+
 | 接口 | 契约 |
 | --- | --- |
 | POST /operations | `{operation,project_id,operation_key,expected_version,...}`，操作为CONFIGURE/CREATE_CANDIDATE/PUBLISH/REVISE/RETRACT；原key同输入返回原回执，异输入409；候选版本0，entry/映射修改匹配其独立版本 |

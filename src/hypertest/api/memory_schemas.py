@@ -95,6 +95,7 @@ class CloudQueryContext(StrictModel):
 class MemoryQuery(StrictModel):
     project_id: UUID
     query: str = Field(min_length=1, max_length=1000)
+    collection: Literal["main", "history"] = "main"
     limit: int = Field(default=10, ge=1, le=20)
     source: MemorySource | None = None
     context: CloudQueryContext | None = None

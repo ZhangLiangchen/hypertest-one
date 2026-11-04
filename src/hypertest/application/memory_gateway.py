@@ -203,6 +203,8 @@ async def verify_query_context(db, project_id, supplied, context, *, lock=False)
     if context.worker is None:
         raise HTTPException(403, "Cloud query context requires the current fenced Worker broker")
     task = await cloud_tasks._task(db, supplied.task_id, project_id, lock=lock)
+    if task.deleted_at is not None or task.status in cloud_tasks.TERMINAL | {"WAITING_INPUT", "RECOVERY_REQUIRED"}:
+        raise HTTPException(409, "Cloud memory task is closed or fenced")
     attempt = await cloud_tasks._attempt(db, task, supplied.attempt_id)
     await cloud_tasks.worker_authority(db, task, attempt, context.worker)
     receipt = await db.scalar(select(CloudOperationReceipt).where(CloudOperationReceipt.task_id == task.id,
@@ -678,29 +680,74 @@ async def query(db, payload: MemoryQuery, context):
     enabled()
     mapped = await mapping(db, payload.project_id, ready=True)
     await reject_secrets(db, payload.project_id, {"query": payload.query}, context)
-    scope_id = mapped.scope_id
+    main_scope_id, namespace, mapping_version = mapped.scope_id, mapped.namespace, mapped.version
+    is_history = payload.collection == "history"
+    binding = history_binding(payload.project_id, main_scope_id) if is_history else None
+    if is_history and not get_settings().memory_shared_knowledge_enabled:
+        raise HTTPException(503, "Shared project knowledge is disabled")
+    if is_history and binding is None:
+        raise HTTPException(503, "Project history is not configured")
+    scope_id = binding["history_scope_id"] if is_history else main_scope_id
     shared = get_settings().memory_shared_knowledge_enabled
+    response = {"profile": PROFILE, "project_id": str(payload.project_id), "collection": payload.collection,
+        "scope_id": scope_id, "results": [], "external_results": [], "history_results": [], "notice": NOTICE}
     await db.commit()  # Release authority/source locks before any external I/O.
     try:
         async with asyncio.timeout(getattr(get_settings(), "memory_timeout_seconds", 5.0)):
-            if shared:
+            if is_history:
+                upstream = adapter()
+                await upstream.adopt_scope(scope_id, namespace, reference_kind="hypertest-project-history")
+                page = await upstream.browse(scope_id, history=True, query=payload.query, limit=payload.limit)
+                hits, search = page["items"], {"mode": page["search_mode"]}
+            elif shared:
                 search = await adapter().search_project(scope_id, payload.query, min(payload.limit * 4, 50), payload.limit)
                 hits = search["hits"]
             else:
                 hits = await adapter().search(scope_id, payload.query, min(payload.limit * 4, 50))
                 search = {"mode": "text"}
-    except Exception:
-        return {"profile": PROFILE, "project_id": str(payload.project_id), "results": [], "external_results": [],
-            "degraded": True, "reason": "MEMORY_SEARCH_UNAVAILABLE", "notice": NOTICE}
+    except TimeoutError:
+        return {**response, "degraded": True, "result_status": "UNAVAILABLE", "reason": "MEMORY_SEARCH_TIMEOUT"}
+    except Exception as error:
+        reason = error.code if isinstance(error, MemoryUpstreamError) else "MEMORY_SEARCH_UNAVAILABLE"
+        return {**response, "degraded": True, "result_status": "UNAVAILABLE", "reason": reason}
     # Recheck mutable configuration/auth after network I/O. A stale index result
     # is only a locator into the *current* published PostgreSQL visibility set.
-    await authorize(db, context, "memory:read", payload.project_id)
+    # The session retains objects across commit; discard them so an in-flight
+    # revocation/lease/generation change cannot be hidden by the identity map.
+    db.expire_all()
+    await authorize(db, context, "memory:read", payload.project_id, lock=True)
     await cloud_tasks.project(db, payload.project_id)
-    await mapping(db, payload.project_id, ready=True)
+    current = await mapping(db, payload.project_id, ready=True, lock=True)
+    if (current.scope_id != main_scope_id or current.namespace != namespace or current.version != mapping_version
+            or (is_history and (history_binding(payload.project_id, main_scope_id) != binding
+                or not get_settings().memory_shared_knowledge_enabled))):
+        raise HTTPException(409, "Project knowledge configuration changed")
+    enabled()
     if payload.source is not None:
         await verify_source(db, payload.project_id, payload.source, context, lock=bool(context.worker))
     if payload.context is not None:
         await verify_query_context(db, payload.project_id, payload.context, context, lock=True)
+    if is_history:
+        managed = await _platform_artifact_ids(db, [hit["artifact_id"] for hit in hits])
+        historical, seen = [], set()
+        for hit in hits:
+            identity = (hit["artifact_id"], hit["revision"])
+            if hit.get("kind") != "historical_technical_record" or hit["artifact_id"] in managed or identity in seen:
+                continue
+            seen.add(identity)
+            historical.append({**hit, "result_type": "HISTORICAL_TECHNICAL_RECORD", "historical": True,
+                "project_id": str(payload.project_id), "scope_id": scope_id,
+                "ref": {"family": "atomic-memory", "artifact_id": hit["artifact_id"], "revision": hit["revision"]},
+                "history_metadata": history_metadata(hit["content"]), "state": "active",
+                "review_status": "EXTERNAL_NOT_HYPERTEST_REVIEWED",
+                "notice": "Historical technical record; preserve original date, record ID, parts and known corrections. "
+                    "Not current environment facts, HyperTest publication, test evidence or execution authorization. "
+                    "A search is not exhaustive; retrieve any stated corrections before relying on an earlier diagnosis."})
+            if len(historical) == payload.limit:
+                break
+        await reject_secrets(db, payload.project_id, {"history_results": historical}, context)
+        return {**response, "history_results": historical, "search_mode": search["mode"], "degraded": False,
+            "result_status": "OK" if historical else "EMPTY"}
     rows = list(await db.scalars(select(MemoryEntry).where(MemoryEntry.project_id == payload.project_id,
         MemoryEntry.status == "PUBLISHED").execution_options(populate_existing=True)))
     visible = {}
@@ -738,9 +785,9 @@ async def query(db, payload: MemoryQuery, context):
     # retaining an immutable digest that would describe different content.
     if external:
         await reject_secrets(db, payload.project_id, {"external_results": [row["content"] for row in external]}, context)
-    return {"profile": PROFILE, "project_id": str(payload.project_id), "results": result,
+    return {**response, "results": result,
         "external_results": external, "search_mode": search["mode"],
-        "degraded": False, "notice": NOTICE}
+        "degraded": False, "result_status": "OK" if result or external else "EMPTY"}
 
 
 async def _platform_artifact_ids(db, artifact_ids):

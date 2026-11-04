@@ -662,6 +662,10 @@ def test_native_prompt_describes_host_network_and_terminal_exit(tmp_path):
     assert shared["capabilities"]["memory"]["requires_separate_project_grant"] is True
     assert shared["memory_contract"]["response_directory"] == ".hypertest-cloud/memory-responses"
     assert any("external_results" in line and "not HyperTest human-reviewed" in line for line in shared["instructions"])
+    assert shared["memory_contract"]["operations"]["QUERY"]["collection"].startswith("main | history")
+    assert any("history_results" in line and "correction_notice" in line for line in shared["instructions"])
+    assert any("60000 bytes" in line and "complete records" in line for line in shared["instructions"])
+    assert any("never supply scope_id" in line for line in shared["instructions"])
 
 
 def test_native_retry_uses_its_verified_manifest_without_changing_the_original(tmp_path):

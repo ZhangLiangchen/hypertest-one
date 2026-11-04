@@ -69,13 +69,20 @@ async def operate(payload: MemoryMutation, request: Request,
 
 @router.post("/memory/query")
 @controlled_errors
-async def query(payload: MemoryQuery, request: Request,
+async def query(payload: MemoryQuery, request: Request, response: Response,
                 authorization: str | None = Header(default=None),
                 x_hypertest_operator_key: str | None = Header(default=None),
+                x_hypertest_memory_request_id: UUID | None = Header(default=None),
                 db: AsyncSession = Depends(get_db)):
     context = await identity(request, db, payload.project_id, "memory:read", authorization, x_hypertest_operator_key)
     reject_transport_secrets(payload, authorization, x_hypertest_operator_key)
-    return await service.query(db, payload, context)
+    response.headers["Cache-Control"] = "no-store"
+    result = await service.query(db, payload, context)
+    if x_hypertest_memory_request_id is not None:
+        request_id = str(x_hypertest_memory_request_id)
+        response.headers["X-Hypertest-Memory-Request-Id"] = request_id
+        result["request_id"] = request_id
+    return result
 
 
 @router.get("/memory/operations/by-key")
