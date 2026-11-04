@@ -1,5 +1,7 @@
 # HyperTest 白皮书
 
+> **2026-11-04 执行沟通：** [ADR-039](../architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 定义任务内 Agent 对话。阶段输出、阻塞原因和用户回复作为持久执行沟通记录，独立于正式测试资产与结果；等待回复不调用模型。宿主薄 Worker 并发桥接多个独立 Harness 会话，不接管 Agent 推理和团队编排。
+
 > **2026-11-03 产品边界：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 移除 Cloud 项目资源页与环境/预期部署版本管理。项目详情管理两个仓库；创建任务填写任务名称、粘贴 MR/PR 地址，可选补充单个测试说明；SUT 默认取 MR/PR head，测试框架默认取 main 最新提交并在解析时固定 SHA。HyperTest 聚焦测试任务生命周期、任务下发和产物归档，SUT 部署由其独立 CI 负责。
 
 > **2026-11-02 决策：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 定义快速原型期轻量 Worker / Harness 适配器职责；项目资源隔离的全容器化是未来方向。实现、部署和用户验收各自记录。

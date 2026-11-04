@@ -46,6 +46,46 @@ class CloudAgentAuthObservation(Base):
     checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class CloudConversationHead(Base):
+    """Commit-ordered conversation cursor, independent of Task business versions."""
+    __tablename__ = "cloud_conversation_heads"
+    task_id: Mapped[UUID] = mapped_column(ForeignKey("cloud_tasks.id", ondelete="RESTRICT"), primary_key=True)
+    cursor: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class CloudConversationMessage(CloudRow, Base):
+    __tablename__ = "cloud_conversation_messages"
+    __table_args__ = (
+        ForeignKeyConstraint(["project_id", "task_id"], ["cloud_tasks.project_id", "cloud_tasks.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["task_id", "attempt_id"], ["cloud_attempts.task_id", "cloud_attempts.id"], ondelete="RESTRICT"),
+        UniqueConstraint("project_id", "operation_key"),
+        UniqueConstraint("attempt_id", "generation", "event_key"),
+        CheckConstraint("generation > 0 AND cursor > 0"),
+        CheckConstraint("role IN ('ASSISTANT','USER','SYSTEM')"),
+        CheckConstraint("status IN ('RECORDED','QUEUED','DELIVERING','DELIVERED','UNKNOWN','REJECTED','CANCELLED')"),
+        Index("ix_cloud_conversation_cursor", "task_id", "cursor"),
+    )
+    project_id: Mapped[UUID] = mapped_column()
+    task_id: Mapped[UUID] = mapped_column()
+    attempt_id: Mapped[UUID] = mapped_column()
+    generation: Mapped[int] = mapped_column(BigInteger)
+    session_id: Mapped[str] = mapped_column(String(128))
+    cursor: Mapped[int] = mapped_column(BigInteger)
+    role: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16))
+    operation_key: Mapped[str | None] = mapped_column(String(128))
+    event_key: Mapped[str | None] = mapped_column(String(128))
+    event_seq: Mapped[int | None] = mapped_column(BigInteger)
+    request_digest: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(32))
+    actor_ref: Mapped[str] = mapped_column(String(255))
+    sdk_message_id: Mapped[str | None] = mapped_column(String(255))
+    state: Mapped[str | None] = mapped_column(String(24))
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ProjectCredential(CloudRow, Base):
     __tablename__ = "project_credentials"
     __table_args__ = (UniqueConstraint("project_id", "id"), CheckConstraint("version > 0"),
@@ -202,7 +242,7 @@ class CloudWorkGrant(CloudRow, Base):
 
 
 class CloudWorkerClaimState(Base):
-    """Bounded per-Worker claim high-water mark; contains no capabilities."""
+    """Bounded per-Worker/slot claim high-water mark; contains no capabilities."""
     __tablename__ = "cloud_worker_claim_states"
     __table_args__ = (
         ForeignKeyConstraint(["project_id", "task_id"], ["cloud_tasks.project_id", "cloud_tasks.id"], ondelete="RESTRICT"),
@@ -214,6 +254,7 @@ class CloudWorkerClaimState(Base):
         CheckConstraint("(kind IN ('EMPTY','ABANDONED') AND closed AND project_id IS NULL AND task_id IS NULL AND attempt_id IS NULL AND resolution_id IS NULL AND generation IS NULL) OR (kind = 'ATTEMPT' AND project_id IS NOT NULL AND task_id IS NOT NULL AND attempt_id IS NOT NULL AND resolution_id IS NULL AND generation IS NOT NULL AND generation > 0) OR (kind = 'RESOLUTION' AND project_id IS NOT NULL AND task_id IS NOT NULL AND attempt_id IS NULL AND resolution_id IS NOT NULL AND generation IS NOT NULL AND generation = 1)"),
     )
     worker_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    slot_id: Mapped[str] = mapped_column(String(64), primary_key=True, default="legacy", server_default="legacy")
     sequence: Mapped[int] = mapped_column(BigInteger, default=0)
     request_key: Mapped[str | None] = mapped_column(String(128))
     request_digest: Mapped[str | None] = mapped_column(String(64))

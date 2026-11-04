@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const UUID = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
 // configuration is retained only for original-key readback of retired CONFIGURE operations.
-const GET_PATH = new RegExp(`^(?:capabilities|agent-auth-status|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/live-questions|/artifacts/${UUID})?)$`);
+const GET_PATH = new RegExp(`^(?:capabilities|agent-auth-status|projects/${UUID}/(?:configuration|credentials|tasks|task-directory)|projects/${UUID}/operations/[A-Za-z0-9_.:-]{1,128}|tasks/${UUID}(?:/summary|/live-questions|/conversation(?:/messages/by-key)?|/artifacts/${UUID})?)$`);
 const safeError = (status: number, detail: string, code?: string) => NextResponse.json({ detail, ...(code ? { code } : {}) }, { status, headers: { "Cache-Control": "no-store" } });
 
 /** Public navigation only; never include credentials or login tokens in the link. */
@@ -165,7 +165,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pat
 export async function POST(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const path = (await context.params).path.join("/");
   const isLiveAnswer = new RegExp(`^tasks/${UUID}/live-questions/${UUID}/answer$`).test(path);
-  if (path !== "operations" && !isLiveAnswer) return safeError(404, "Cloud route not found.");
+  const isConversation = new RegExp(`^tasks/${UUID}/conversation$`).test(path);
+  if (path !== "operations" && !isLiveAnswer && !isConversation) return safeError(404, "Cloud route not found.");
   const expectedOrigin = trustedWebOrigin(request);
   if (!expectedOrigin) return safeError(503, "Cloud Web canonical origin is invalid. Ask the deployment operator to correct it.");
   const origin = request.headers.get("origin");
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pa
   try {
     const body = await request.text();
     if (Buffer.byteLength(body) > 12 * 1024 * 1024) return safeError(413, "Cloud form exceeds its size limit.");
-    const response = await upstream(isLiveAnswer ? `cloud/${path}` : "cloud/operations", key, { method: "POST", body });
+    const response = await upstream(isLiveAnswer || isConversation ? `cloud/${path}` : "cloud/operations", key, { method: "POST", body });
     if (response.status === 409) return await conflictDetail(response);
     if (!response.ok) return safeError(response.status, response.status >= 500
       ? "Cloud submission is uncertain. Query the original operation key; do not submit again."

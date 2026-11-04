@@ -442,19 +442,20 @@ async def test_running_cancel_fences_worker_and_requires_observed_reconciliation
     assert retry.status_code == 409 and "requires new scope and authorization" in retry.text
 
 
-async def test_recovery_capabilities_disable_unimplemented_resume_without_new_claim(cloud_context):
+async def test_recovery_capability_does_not_admit_legacy_budget_resume(cloud_context):
     context = cloud_context
     capabilities = (await context["client"].get("/api/v1/cloud/capabilities")).json()
-    assert capabilities["supported"]["resume_attempt"] is False
-    assert capabilities["recovery"]["resume_reason"] == "SDK_RESUME_UNSUPPORTED"
+    assert capabilities["supported"]["resume_attempt"] is True
+    assert capabilities["recovery"]["resume_reason"] == "EXPLICIT_ORIGINAL_SESSION_CONTINUATION"
     receipt, _, identity = await legacy_claimed(context)
     recovery = await worker_submit(context, identity, receipt, "TRANSITION", status="RECOVERY_REQUIRED",
         checkpoint={"session_id": "original-session", "workspace_id": "original-workspace"})
-    resumed = await post(context, "RESUME_ATTEMPT", recovery["version"], task_id=receipt["task_id"],
-        attempt_id=receipt["attempt_id"], reason="Cannot resume without implemented runtime support",
+    resumed = await post({**context, "headers": context["operator_headers"]}, "RESUME_ATTEMPT", recovery["version"], task_id=receipt["task_id"],
+        attempt_id=receipt["attempt_id"], reason="Legacy budget needs a separate settlement contract",
+        identity_source="OPERATOR_ADOPTED",
         reconciliation={"old_owner_fenced": True, "local_processes_stopped": True,
             "external_operations_reconciled": True, "checkpoint_verified": True, "observations": "Synthetic fixture"})
-    assert resumed.status_code == 409 and "SDK_RESUME_UNSUPPORTED" in resumed.text
+    assert resumed.status_code == 409 and "NATIVE_RESUME_LEGACY_BUDGET_UNSUPPORTED" in resumed.text
     async with AsyncSessionLocal() as db:
         assert await service.claim_attempt(db, "restart-worker", project_id=UUID(context["project_id"])) is None
     assert (await read_all(context, receipt["task_id"], recovery["version"]))["attempts"][-1]["checkpoint"]["runtime_context"]["session_id"] == "original-session"

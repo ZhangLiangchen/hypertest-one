@@ -429,6 +429,8 @@ class CloudResume(AttemptMutation):
     operation: Literal["RESUME_ATTEMPT"] = "RESUME_ATTEMPT"
     reason: str = Field(min_length=1, max_length=4096)
     reconciliation: dict = Field(min_length=1)
+    identity_source: Literal["PRE_PROMPT_ANCHORED", "OPERATOR_ADOPTED"]
+    continuation: str = Field(default="Continue from the saved conversation. First reconcile unfinished and uncertain work; do not replay unknown operations or the original task prompt.", min_length=1, max_length=16000)
 
 
 class CloudReconcile(AttemptMutation):

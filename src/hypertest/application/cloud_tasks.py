@@ -697,11 +697,11 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
             fixed_control_fallback = True
     task = attempt = None
     inspection_control = None
-    if payload.operation in {"INSPECT_NATIVE_SESSION", "CANCEL_TASK", "CANCEL_ATTEMPT", "RECONCILE_ATTEMPT", "DELETE_TASK"}:
+    if payload.operation in {"INSPECT_NATIVE_SESSION", "RESUME_ATTEMPT", "CANCEL_TASK", "CANCEL_ATTEMPT", "RECONCILE_ATTEMPT", "DELETE_TASK"}:
         # Enqueue and controls must serialize even when the inspection row is
         # not yet visible.  A pre-lock lookup alone cannot lock an absent row.
         await _lock(db, f"cloud-native-inspection-task:{payload.task_id}")
-    if payload.operation in {"CANCEL_TASK", "CANCEL_ATTEMPT", "RECONCILE_ATTEMPT", "DELETE_TASK"}:
+    if payload.operation in {"RESUME_ATTEMPT", "CANCEL_TASK", "CANCEL_ATTEMPT", "RECONCILE_ATTEMPT", "DELETE_TASK"}:
         # A native inspection claim locks Worker slot -> Task.  Take the same
         # order for control operations so cancellation cannot race its launch.
         from .cloud_native_session_restore import lock_control_before_task
@@ -911,10 +911,9 @@ async def mutate(db, payload, actor_ref, *, authorization_check=None, worker=Non
         checkpoint["cancellation_reason"] = payload.reason
         attempt.checkpoint = checkpoint
     elif op == "RESUME_ATTEMPT":
-        # The pinned SDK exposes an API, but the Worker has no verified original
-        # session/workspace/budget continuation. Never accept an unexecutable
-        # resume or let a new claim turn it into a replay of the original prompt.
-        raise HTTPException(409, "SDK_RESUME_UNSUPPORTED")
+        from .cloud_conversation_resume import enqueue_resume
+        refs["native_resume"] = await enqueue_resume(db, task=task, attempt=attempt,
+            payload=payload, actor_ref=actor_ref, worker=worker)
     elif op == "INSPECT_NATIVE_SESSION":
         from .cloud_native_session_restore import enqueue_inspection
         refs["native_session_inspection"] = await enqueue_inspection(db, task=task, attempt=attempt,
@@ -1350,11 +1349,16 @@ async def _settle_budget(db, attempt, payload, worker):
 
 
 async def _fence(db, attempt):
-    attempt.lease_generation += 1
-    attempt.lease_owner = attempt.lease_token_hash = attempt.lease_expires_at = None
-    now = await clock(db)
-    for grant in await db.scalars(select(CloudWorkGrant).where(CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.revoked_at.is_(None))):
-        grant.revoked_at = now
+    from .cloud_conversation import fence_messages
+    # Controls may already have assembled a terminal transition. Do not flush
+    # its partial state before the version, checkpoint and fencing are complete.
+    with db.no_autoflush:
+        await fence_messages(db, attempt)
+        attempt.lease_generation += 1
+        attempt.lease_owner = attempt.lease_token_hash = attempt.lease_expires_at = None
+        now = await clock(db)
+        for grant in await db.scalars(select(CloudWorkGrant).where(CloudWorkGrant.attempt_id == attempt.id, CloudWorkGrant.revoked_at.is_(None))):
+            grant.revoked_at = now
 
 
 async def _owner_fenced(db, attempt):
@@ -1797,7 +1801,29 @@ async def task_summary(db, task_id, *, project_id=None):
                  "CANCELLATION_REQUESTED" if cancellation and not fenced else
                  "STOP_UNCONFIRMED" if cancellation else
                  "RECONCILIATION_REQUIRED" if attempt.status == "RECOVERY_REQUIRED" else "ACTIVE")
-        result["recovery"] = {"resume_supported": False, "resume_reason": "SDK_RESUME_UNSUPPORTED",
+        from hypertest.domain.cloud_tasks import CloudConversationMessage, CloudNativeSessionRestore
+        resume_blocking = list(blocking)
+        if cancellation:
+            resume_blocking.append("CANCELLATION_REQUESTED")
+        if deletion:
+            resume_blocking.append("TASK_DELETED")
+        if attempt_inputs(task, attempt).get("budgets") is not None:
+            resume_blocking.append("NATIVE_RESUME_LEGACY_BUDGET_UNSUPPORTED")
+        if await db.scalar(select(CloudConversationMessage.id).where(
+                CloudConversationMessage.attempt_id == attempt.id,
+                CloudConversationMessage.role == "USER",
+                CloudConversationMessage.status.in_(("DELIVERING", "UNKNOWN"))).limit(1)):
+            resume_blocking.append("MESSAGE_DELIVERY_UNKNOWN")
+        if await db.scalar(select(CloudNativeSessionRestore.id).where(
+                CloudNativeSessionRestore.attempt_id == attempt.id,
+                CloudNativeSessionRestore.state.in_(("PENDING", "STARTED", "UNKNOWN"))).limit(1)):
+            resume_blocking.append("NATIVE_SESSION_INSPECTION_OUTSTANDING")
+        try:
+            await _current_grant(db, attempt.authorization_grant_id, task.project_id)
+        except HTTPException:
+            resume_blocking.append("AUTHORIZATION_UNAVAILABLE")
+        result["recovery"] = {"resume_supported": True, "resume_reason": "EXPLICIT_ORIGINAL_SESSION_CONTINUATION",
+            "can_resume": not resume_blocking, "resume_blocking_reasons": resume_blocking,
             "identity_anchor": await _identity_anchor_status(db, task, attempt),
             "identity_anchor_verifies_session": False,
             "old_owner_fenced": fenced, "local_processes_stopped_observed": False,
@@ -1854,6 +1880,8 @@ async def claim_attempt(db, worker_id, lease_seconds=90, *, project_id=None, sup
     # Attempt before Task, which would invert the mutation lock order.
     query = select(CloudTask).join(CloudAttempt, CloudAttempt.id == CloudTask.latest_attempt_id).where(
         CloudAttempt.status.in_(["QUEUED", "PREPARING"]), CloudAttempt.lease_owner.is_(None),
+        or_(CloudAttempt.checkpoint["native_resume"].is_(None),
+            CloudAttempt.checkpoint["native_resume"]["worker_id"].astext == worker_id),
         ~select(CloudTaskDeletion.task_id).where(CloudTaskDeletion.task_id == CloudTask.id).exists()
     )
     if not supports_attempt_manifest:

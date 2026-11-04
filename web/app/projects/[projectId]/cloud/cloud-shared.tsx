@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import type { useCloudOperation } from "@/lib/cloud-operation";
-import type { CloudAgentAuthEntry, CloudAttempt, CloudAuthStatus, CloudCapabilities, CloudRecord, CloudRecoverySummary } from "@/lib/cloud";
-import { cloudRecoveryView } from "@/lib/cloud-recovery";
+import type { CloudAgentAuthEntry, CloudAttempt, CloudAuthStatus, CloudCapabilities, CloudRecord, CloudRecoverySummary, CloudResumeFields } from "@/lib/cloud";
+import { cloudRecoveryReason, cloudRecoveryView } from "@/lib/cloud-recovery";
 
 export function CloudOperationNotice({ operation }: { operation: ReturnType<typeof useCloudOperation> }) {
   const { t } = useI18n();
@@ -25,11 +25,13 @@ export function CloudOperationNotice({ operation }: { operation: ReturnType<type
           : operation.issue === "REQUEST_PRECONDITION_REQUIRED"
             ? t("The current state or operation preconditions changed. Refresh the live state and check the original operations before a new explicit intention. No automatic retry will run.", "当前状态或操作前置条件已变化。请刷新当前状态并核对原操作，再明确提交新意图；不会自动重试。")
         : operation.issue ? <Space direction="vertical"><span>{t("Check the form and current authorization. Loaded records and non-secret fields remain available.", "请检查表单及当前授权。已加载记录与非秘密字段保留。")}</span>{operation.rejection ? <span>{operation.rejection}</span> : null}{operation.rejectedOperation ? <Typography.Text code>{operation.rejectedOperation.operation_key}</Typography.Text> : null}</Space>
-          : <Space direction="vertical"><span>{t("The exact accepted version or resource metadata has been read back. This does not imply test PASS.", "已读回确切接受版本或资源元数据；这不表示测试通过。")}</span>{operation.receipt?.task_id ? <Link href={`/cloud-tasks/${operation.receipt.task_id}?projectId=${operation.receipt.project_id}`}>{t("Open the accepted task", "打开已接受的任务")}</Link> : null}</Space>}
+          : <Space direction="vertical"><span>{operation.receipt?.operation === "RESUME_ATTEMPT"
+            ? t("Continuation was accepted for preparation. The Worker must verify the saved session and pending messages before sending new instructions. This does not mean the Agent has resumed or a report is complete.", "续跑请求已接受，正在准备。Worker 须先核验保存的会话与待处理消息，再发送新说明；这不表示 Agent 已恢复运行或正式报告已完成。")
+            : t("The exact accepted version or resource metadata has been read back. This does not imply test PASS.", "已读回确切接受版本或资源元数据；这不表示测试通过。")}</span>{operation.receipt?.task_id ? <Link href={`/cloud-tasks/${operation.receipt.task_id}?projectId=${operation.receipt.project_id}`}>{t("Open the accepted task", "打开已接受的任务")}</Link> : null}</Space>}
     action={operation.pending ? <Button loading={operation.busy} onClick={() => void operation.reconcile()}>{t("Query original key", "查询原 key")}</Button> : undefined} />;
 }
 
-/** Manual terminal reconciliation is an operator declaration, never a Worker stop observation. */
+/** Human recovery records observations; it never manufactures an independent stop proof. */
 export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked, onSubmit }: {
   attempt: CloudAttempt; capabilities?: CloudCapabilities; recovery?: CloudRecoverySummary;
   blocked: boolean; onSubmit: (fields: CloudRecord) => Promise<void>;
@@ -38,9 +40,23 @@ export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked,
   const [confirmed, setConfirmed] = useState({ old_owner_fenced: false, local_processes_stopped: false, external_operations_reconciled: false });
   const [observations, setObservations] = useState("");
   const [reason, setReason] = useState("");
+  const [continuation, setContinuation] = useState("");
+  const [identityChoice, setIdentityChoice] = useState<CloudResumeFields["identity_source"]>();
+  const [adoptionConfirmed, setAdoptionConfirmed] = useState(false);
   const [terminalStatus, setTerminalStatus] = useState<"CANCELLED" | "FAILED">(attempt.checkpoint.cancellation_requested === true ? "CANCELLED" : "FAILED");
   const view = cloudRecoveryView(attempt, capabilities, recovery);
-  const canSubmit = !blocked && view.canReconcile && Object.values(confirmed).every(Boolean) && !!observations.trim() && !!reason.trim();
+  const confirmedObservations = Object.values(confirmed).every(Boolean) && !!observations.trim() && !!reason.trim();
+  const canSubmit = !blocked && view.canReconcile && confirmedObservations;
+  const identitySource = identityChoice === "OPERATOR_ADOPTED" ? identityChoice : view.resumeIdentitySource;
+  const canResume = !blocked && view.canResume && confirmedObservations && observations.trim().length <= 4096
+    && (identitySource !== "OPERATOR_ADOPTED" || adoptionConfirmed);
+  async function resume() {
+    if (!canResume || !identitySource) return;
+    const fields: CloudResumeFields = { operation: "RESUME_ATTEMPT", attempt_id: attempt.id, reason: reason.trim(),
+      reconciliation: { ...confirmed, observations: observations.trim() }, identity_source: identitySource,
+      ...(continuation.trim() ? { continuation: continuation.trim() } : {}) };
+    await onSubmit(fields);
+  }
   async function reconcile() {
     if (!canSubmit) return;
     await onSubmit({ operation: "RECONCILE_ATTEMPT", attempt_id: attempt.id, status: terminalStatus, reason: reason.trim(), reconciliation: {
@@ -59,26 +75,56 @@ export function CloudAttemptRecovery({ attempt, capabilities, recovery, blocked,
     {view.phase === "CANCELLATION_REQUESTED" ? <Typography.Paragraph className="muted">{t("The cancellation request is recorded. Refresh the live state to verify the writer fence and process status before reconciliation.", "取消请求已记录；请刷新当前状态，核验写入权隔离与进程状态后再对账。")}</Typography.Paragraph> : null}
     {view.phase === "STOP_UNCONFIRMED" ? <Typography.Paragraph className="muted">{t("Cancellation fenced the platform writer. The server has no independent observation confirming that all runtime and remote processes stopped. Reconcile the original actions before closing this attempt.", "取消已隔离平台写入权；服务端尚无独立观察确认全部运行及远端进程已停止。请核对原动作后再收尾本次尝试。")}</Typography.Paragraph> : null}
     {["WAITING_INPUT", "RECOVERY_REQUIRED"].includes(attempt.status) ? <Typography.Paragraph className="muted">{view.resumeSupported
-      ? t("A resume capability alone does not verify the original session, workspace, checkpoint or remaining budget. Continue only through a separately verified runtime recovery path.", "续接能力声明不能核验原会话、工作区、checkpoint 或剩余预算，须通过另行核验的运行端恢复路径继续。")
+      ? t("Review the stopped processes and earlier operations below. Continuing keeps this attempt and checks the saved session before sending new instructions.", "请在下方核对停止情况与此前操作。继续会保留本次尝试，并先检查保存的会话，再发送新说明。")
       : t("This runtime cannot resume the original SDK session. Saving an answer or having a checkpoint does not make it resumable. No prompt or external action will be replayed. To end a waiting attempt, request cancellation first, then reconcile it.", "当前运行端不支持原 SDK 会话续接；保存回答或已有 checkpoint 不代表可恢复。不会重放 prompt 或外部动作。需要结束等待中的尝试时，请先请求取消，再进行对账。")}</Typography.Paragraph> : null}
     {attempt.status === "RECOVERY_REQUIRED" ? <details>
-      <summary>{t("Reconcile and close this attempt", "对账并人工收尾本次尝试")}</summary>
+      <summary>{view.resumeSupported ? t("Check and continue the original session", "检查并继续原会话") : t("Reconcile and close this attempt", "对账并人工收尾本次尝试")}</summary>
       <Alert showIcon type="warning" style={{ marginTop: 16, marginBottom: 16 }} message={t("Operator declaration", "操作者声明")}
         description={t("This records your observations under cloud:control authorization. It does not stop processes or provide independent proof of stopping. Original results, artifacts, receipts and any HELD budget remain preserved; UNKNOWN actions must be reconciled by their original keys first.", "本操作在 cloud:control 授权下记录人工观察，不会停止进程，也不是独立的进程停止证明。原结果、原件、回执和 HELD 预算保留；UNKNOWN 动作必须先按原 key 对账。")}/>
-      {!view.canReconcile ? <Alert showIcon type="info" style={{ marginBottom: 16 }} message={t("Server preconditions are not satisfied", "服务端前置条件尚未满足")}
+      {!view.canReconcile && !view.canResume ? <Alert showIcon type="info" style={{ marginBottom: 16 }} message={t("Server preconditions are not satisfied", "服务端前置条件尚未满足")}
         description={<Space direction="vertical"><span>{t("Refresh the live state after fencing the old owner and reconciling all original operations. This form cannot clear an unresolved key.", "请在旧 owner 失权、全部原操作完成对账后刷新当前状态；此表单不能清除未决 key。")}</span>
           {view.pendingKeys.map((key) => <Typography.Text code key={key}>{key}</Typography.Text>)}
-          {view.blockingReasons.map((entry) => <Typography.Text key={entry}>{entry}</Typography.Text>)}</Space>} /> : null}
-      <Form className="cloud-task-fields" layout="vertical" onFinish={() => void reconcile()}>
+          {view.blockingReasons.map((entry) => <Typography.Text key={entry}>{cloudRecoveryReason(entry, t)}</Typography.Text>)}</Space>} /> : null}
+      <Form className="cloud-task-fields" layout="vertical" onFinish={() => { if (!view.resumeSupported) void reconcile(); }}>
         <Form.Item label={t("Observed preconditions", "已观察的前置条件")} required>
           <Space direction="vertical">{(Object.keys(confirmed) as (keyof typeof confirmed)[]).map((key) => <Checkbox key={key} checked={confirmed[key]} onChange={(event) => setConfirmed((value) => ({ ...value, [key]: event.target.checked }))}>
             {({ old_owner_fenced: t("I verified that the old owner is fenced", "我已核对旧 owner 已失权"), local_processes_stopped: t("I observed that the managed processes stopped", "我已观察受管进程已停止"), external_operations_reconciled: t("I reconciled external actions by their original keys", "我已按原 key 核对外部动作") })[key]}
           </Checkbox>)}</Space>
         </Form.Item>
-        <Form.Item label={t("Observed evidence, targets, times and original operation references", "观察证据、目标、时间及原操作引用")} htmlFor={`reconcile-observations-${attempt.id}`} required><Input.TextArea id={`reconcile-observations-${attempt.id}`} rows={4} maxLength={16000} value={observations} onChange={(event) => setObservations(event.target.value)} /></Form.Item>
-        <Form.Item label={t("Terminal status", "收尾状态")} htmlFor={`reconcile-status-${attempt.id}`} required><Select id={`reconcile-status-${attempt.id}`} value={terminalStatus} onChange={setTerminalStatus} options={[{ value: "CANCELLED", label: t("Cancelled", "已取消") }, { value: "FAILED", label: t("Failed", "失败") }]} /></Form.Item>
-        <Form.Item label={t("Closure reason", "收尾原因")} htmlFor={`reconcile-reason-${attempt.id}`} required><Input id={`reconcile-reason-${attempt.id}`} maxLength={4096} value={reason} onChange={(event) => setReason(event.target.value)} /></Form.Item>
-        <Button htmlType="submit" disabled={!canSubmit}>{t("Record reconciliation and close", "记录对账并收尾")}</Button>
+        <Form.Item label={t("Observed evidence, targets, times and original operation references", "观察证据、目标、时间及原操作引用")} htmlFor={`reconcile-observations-${attempt.id}`} required><Input.TextArea id={`reconcile-observations-${attempt.id}`} rows={4} maxLength={view.resumeSupported ? 4096 : 16000} value={observations} onChange={(event) => setObservations(event.target.value)} /></Form.Item>
+        <Form.Item label={view.resumeSupported ? t("Reason for continuing or closing", "继续或收尾的原因") : t("Closure reason", "收尾原因")} htmlFor={`reconcile-reason-${attempt.id}`} required><Input id={`reconcile-reason-${attempt.id}`} maxLength={4096} value={reason} onChange={(event) => setReason(event.target.value)} /></Form.Item>
+        {view.resumeSupported ? <div className="cloud-resume-controls">
+          <Typography.Paragraph><strong>{identitySource === "OPERATOR_ADOPTED" ? t("Continue with human takeover", "人工接管后继续") : t("Continue the recorded session", "继续已记录的会话")}</strong></Typography.Paragraph>
+          {view.resumeIdentitySource === "PRE_PROMPT_ANCHORED" ? <Form.Item label={t("Session identity source", "会话身份来源")} htmlFor={`resume-identity-${attempt.id}`}>
+            <Select id={`resume-identity-${attempt.id}`} value={identitySource} onChange={setIdentityChoice} options={[
+              { value: "PRE_PROMPT_ANCHORED", label: t("Verify the earlier anchor", "核验已有锚点") },
+              { value: "OPERATOR_ADOPTED", label: t("Explicit human takeover", "明确人工接管") },
+            ]} />
+          </Form.Item> : null}
+          <Typography.Paragraph className="muted">{identitySource === "OPERATOR_ADOPTED"
+            ? recovery?.identity_anchor === "MISSING"
+              ? t("The earlier identity anchor is missing. This takeover is recorded as OPERATOR_ADOPTED; identity verification begins with this check and does not recreate the missing history.", "缺少早期身份锚点。本次接管将以 OPERATOR_ADOPTED 单独留痕，身份核验从本次检查开始，不补造缺失历史。")
+              : t("This is a new human takeover of the saved session. OPERATOR_ADOPTED verification begins with this check. The earlier anchor remains unchanged and does not verify the current runtime.", "本次重新接管保存的会话，OPERATOR_ADOPTED 核验从当前检查开始。原锚点保持不变，不用于证明当前运行环境。")
+            : view.resumeIdentitySource === "PRE_PROMPT_ANCHORED"
+              ? t("The earlier identity anchor is recorded. The Worker must still verify the original session and workspace before continuing.", "已有早期身份锚点；Worker 仍须核验原会话与工作区后才能继续。")
+              : t("Session identity has not been checked. Refresh the current records before continuing.", "尚未核对会话身份，请刷新当前记录后再继续。")}</Typography.Paragraph>
+          {identitySource === "OPERATOR_ADOPTED" ? <Form.Item required>
+            <Checkbox checked={adoptionConfirmed} onChange={(event) => setAdoptionConfirmed(event.target.checked)}>{t("I authorize human takeover of this saved session from the current check onward.", "我授权从本次核对开始人工接管这份已保存的会话。")}</Checkbox>
+          </Form.Item> : null}
+          <Form.Item label={t("Additional instructions (optional)", "补充说明（选填）")} htmlFor={`resume-continuation-${attempt.id}`} extra={t("If left blank, continue from saved context and reconcile unfinished work. Unknown operations and the original task prompt will not be replayed.", "留空则从保存的上下文继续，先核对未完事项，不重发未知操作或原任务 prompt。") }>
+            <Input.TextArea id={`resume-continuation-${attempt.id}`} rows={3} maxLength={16000} value={continuation} onChange={(event) => setContinuation(event.target.value)} />
+          </Form.Item>
+          {!view.canResume ? <Typography.Paragraph className="muted" role="status">{view.resumeBlockingReasons.length
+            ? view.resumeBlockingReasons.map((reason) => cloudRecoveryReason(reason, t)).join(" ")
+            : t("Continuation is not available yet. Review the current recovery conditions and refresh.", "暂不能继续，请核对当前恢复条件后刷新。")}</Typography.Paragraph> : null}
+          <Typography.Paragraph className="muted">{t("Uses the same attempt with a new execution generation. Acceptance starts preparation; the Worker checks the saved session and inbox before new instructions. Unconfirmed earlier messages are not sent again.", "沿用同一执行尝试，开启新的执行代次。接受请求只表示进入准备；Worker 检查保存的会话与收件箱后才发送新说明。不会再次发送此前未确认的消息。")}</Typography.Paragraph>
+          <Button type="primary" disabled={!canResume} onClick={() => void resume()}>{t("Authorize check and continuation", "授权检查并继续")}</Button>
+        </div> : null}
+        <div className={view.resumeSupported ? "cloud-recovery-closure" : undefined}>
+          {view.resumeSupported ? <Typography.Paragraph><strong>{t("Or close this attempt", "或收尾本次尝试")}</strong></Typography.Paragraph> : null}
+          <Form.Item label={t("Terminal status", "收尾状态")} htmlFor={`reconcile-status-${attempt.id}`} required><Select id={`reconcile-status-${attempt.id}`} value={terminalStatus} onChange={setTerminalStatus} options={[{ value: "CANCELLED", label: t("Cancelled", "已取消") }, { value: "FAILED", label: t("Failed", "失败") }]} /></Form.Item>
+          <Button htmlType={view.resumeSupported ? "button" : "submit"} onClick={view.resumeSupported ? () => void reconcile() : undefined} disabled={!canSubmit}>{t("Record reconciliation and close", "记录对账并收尾")}</Button>
+        </div>
       </Form>
     </details> : null}
     {view.terminal && attempt.checkpoint.reconciliation ? <Typography.Paragraph className="muted">{t("This attempt was closed using an operator declaration. It remains distinct from an independent process-stop observation; uncertain budget stays HELD.", "本次尝试已按操作者声明收尾。该声明仍与独立进程停止观察区分；不确定预算继续 HELD。")}</Typography.Paragraph> : null}

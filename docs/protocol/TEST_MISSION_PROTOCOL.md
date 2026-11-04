@@ -1,5 +1,7 @@
 # Test Mission Protocol Specification
 
+> **2026-11-04 对话协议：** [ADR-039](../architecture/ADR-039_CLOUD_CONVERSATION_BRIDGE.md) 定义公开根消息与普通回复桥接。assistant/message 完整 text 经内容校验，以稳定 event key 幂等回传；拒收仅产生固定占位，其他消息继续。用户文本先持久化原 key，单次投递 SDK session_prompt 并保存 messageId；失答只按原消息查询，不自动重发。普通回复与结构化回答共用一个私有通道读取器。SDK idle、文字成功声明和入队回执均不代表测试完成。最后输出先回传，再关闭对应 runtime 并执行原完成检查；旧 generation 只能补齐原观察，不获得执行权。
+
 > **2026-11-03 输入合同：** [ADR-038](../architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 规定新 Cloud 任务从 Project 固定仓库，Web 创建页面填写任务名称及 MR/PR URL，可选单个 prompt；API 保留省略标题时自动命名的默认行为，默认取 MR/PR head 与框架 main 并解析固定 SHA；不再接受资源选择或预期部署版本配置。§46 中的旧配置与环境条款只解释历史 profile。
 
 > **2026-11-02 Cloud 方向：** [ADR-032](../architecture/ADR-032_LIGHTWEIGHT_HARNESS_WORKER.md) 决定由轻量 Worker 对接宿主 Harness；目标协议及实现、部署状态分别记录。

@@ -4,23 +4,28 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID, uuid4
 
-import pytest
 import httpx
-from pydantic import TypeAdapter
+import pytest
 from fastapi import HTTPException
+from pydantic import TypeAdapter
 from sqlalchemy import select
 from test_cloud_native_session_anchor import _anchor, _payload
 from test_cloud_tasks import cloud_context as cloud_context
 from test_cloud_tasks import dispatched, legacy_dispatched
 
 from hypertest.api.cloud_schemas import CloudMutation
-from hypertest.common.ids import uuid7
 from hypertest.application import cloud_native_session_restore as restore
 from hypertest.application import cloud_tasks as service
 from hypertest.application import cloud_worker_claims
+from hypertest.common.ids import uuid7
 from hypertest.config import get_settings
 from hypertest.db.session import AsyncSessionLocal
-from hypertest.domain.cloud_tasks import CloudAttempt, CloudNativeSessionRestore, CloudOperationReceipt, CloudTask
+from hypertest.domain.cloud_tasks import (
+    CloudAttempt,
+    CloudNativeSessionRestore,
+    CloudOperationReceipt,
+    CloudTask,
+)
 
 
 @pytest.fixture
@@ -29,6 +34,15 @@ async def prepared(cloud_context, monkeypatch):
     monkeypatch.setattr(get_settings(), "cloud_native_session_inspection_enabled", True)
     receipt = await dispatched(context)
     worker_id = "fixture-worker-" + uuid4().hex
+    original_attempt, original_resolution = service.claim_attempt, service.claim_resolution
+    async def scoped_attempt(db, worker_id, lease_seconds=90, **kwargs):
+        return await original_attempt(db, worker_id, lease_seconds,
+            **{**kwargs, "project_id": UUID(context["project_id"])})
+    async def scoped_resolution(db, worker_id, lease_seconds=90, **kwargs):
+        return await original_resolution(db, worker_id, lease_seconds,
+            **{**kwargs, "project_id": UUID(context["project_id"])})
+    monkeypatch.setattr(service, "claim_attempt", scoped_attempt)
+    monkeypatch.setattr(service, "claim_resolution", scoped_resolution)
     async with AsyncSessionLocal() as db:
         claim = await service.claim_attempt(db, worker_id, project_id=UUID(context["project_id"]))
     worker = service.WorkerIdentity(worker_id, claim["lease_token"], claim["generation"], claim["work_token"])
@@ -190,7 +204,7 @@ async def test_lost_claim_and_finish_never_redeliver_or_repeat(prepared):
 
 
 @pytest.mark.asyncio
-async def test_unknown_original_claim_blocks_relaunch_and_ordinary_claim(prepared):
+async def test_unknown_original_inspection_and_legacy_claim_cannot_relaunch(prepared):
     assert (await enqueue(prepared)).status_code == 200
     original = request(prepared)
     async with AsyncSessionLocal() as db:
@@ -204,7 +218,12 @@ async def test_unknown_original_claim_blocks_relaunch_and_ordinary_claim(prepare
         with pytest.raises(HTTPException) as error:
             await cloud_worker_claims.claim(db, {"worker_id": prepared["worker_id"], "sequence": 1,
                 "request_key": "ordinary-claim-original", "lease_seconds": 90, "supports_attempt_manifest": True})
-        assert error.value.detail == "NATIVE_SESSION_INSPECTION_OUTSTANDING"
+        assert error.value.detail == "LEGACY_CLAIM_RECOVERY_ONLY"
+    async with AsyncSessionLocal() as db:
+        ordinary = await cloud_worker_claims.claim(db, {"worker_id": prepared["worker_id"], "slot_id": "slot-1",
+            "sequence": 1, "request_key": "new-slot-original-key", "lease_seconds": 90,
+            "supports_attempt_manifest": True})
+        assert ordinary["kind"] == "EMPTY"  # Recovery work is never an ordinary new claim.
 
 
 @pytest.mark.asyncio
@@ -235,7 +254,7 @@ async def test_worker_identity_version_and_cancel_fence(prepared):
 
 
 @pytest.mark.asyncio
-async def test_ordinary_claim_and_inspection_claim_cannot_overlap(prepared):
+async def test_other_attempt_slot_can_run_during_original_inspection(prepared):
     context = prepared
     assert (await enqueue(context)).status_code == 200
     await legacy_dispatched(context)
@@ -250,16 +269,14 @@ async def test_ordinary_claim_and_inspection_claim_cannot_overlap(prepared):
     async def ordinary_claim():
         async with AsyncSessionLocal() as db:
             try:
-                return await cloud_worker_claims.claim(db, {"worker_id": context["worker_id"], "sequence": 1,
+                return await cloud_worker_claims.claim(db, {"worker_id": context["worker_id"], "slot_id": "slot-1", "sequence": 1,
                     "request_key": "ordinary-claim-original", "lease_seconds": 90, "supports_attempt_manifest": True})
             except HTTPException as error:
                 return error.detail
 
     inspected, ordinary = await asyncio.gather(inspect_claim(), ordinary_claim())
-    assert ((isinstance(inspected, dict) and inspected["kind"] == "INSPECTION"
-             and ordinary == "NATIVE_SESSION_INSPECTION_OUTSTANDING")
-            or (inspected == "NATIVE_SESSION_WORKER_BUSY"
-                and isinstance(ordinary, dict) and ordinary["kind"] == "ATTEMPT"))
+    assert inspected["kind"] == "INSPECTION" and ordinary["kind"] == "ATTEMPT"
+    assert ordinary["claim"]["attempt"]["id"] != inspected["inspection"]["attempt_id"]
 
 
 @pytest.mark.asyncio
@@ -281,7 +298,8 @@ async def test_task_version_change_before_claim_blocks_inspection(prepared):
 
 
 @pytest.mark.asyncio
-async def test_terminal_reconciliation_blocked_during_inspection(prepared):
+@pytest.mark.parametrize("operation", ["RECONCILE_ATTEMPT", "RESUME_ATTEMPT"])
+async def test_terminal_reconciliation_or_resume_blocked_during_inspection(prepared, operation):
     context = prepared
     queued = await enqueue(context)
     assert queued.status_code == 200
@@ -294,6 +312,9 @@ async def test_terminal_reconciliation_blocked_during_inspection(prepared):
         "status": "FAILED", "reason": "fixture", "reconciliation": {
             "old_owner_fenced": True, "local_processes_stopped": True,
             "external_operations_reconciled": True, "observations": "fixture"}}
+    if operation == "RESUME_ATTEMPT":
+        body.pop("status")
+        body.update(operation=operation, identity_source="PRE_PROMPT_ANCHORED")
     denied = await context["client"].post("/api/v1/cloud/operations", headers=context["operator_headers"], json=body)
     assert denied.status_code == 409 and "INSPECTION_OUTSTANDING" in denied.text
     async with AsyncSessionLocal() as db:

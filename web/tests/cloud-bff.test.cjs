@@ -271,3 +271,19 @@ test("Live question endpoints retain the Cloud same-origin and route boundary", 
   assert.equal(accepted.status, 200);
   assert.equal(calls[1].url, `https://cloud-api.example.invalid/api/v1/cloud/tasks/${task}/live-questions/${question}/answer`);
 });
+
+test("Conversation reads, original-key lookup and sends retain the same-origin boundary", async () => {
+  const calls = [];
+  const routes = moduleFor(async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ messages: [] })); });
+  const path = `http://web/api/cloud/tasks/${task}/conversation`;
+  assert.equal((await routes.GET(request(`${path}?project_id=${project}&after=7`), context("tasks", task, "conversation"))).status, 200);
+  assert.equal((await routes.GET(request(`${path}/messages/by-key?project_id=${project}&operation_key=web%3Aoriginal`), context("tasks", task, "conversation", "messages", "by-key"))).status, 200);
+  assert.ok(calls[1].url.includes("operation_key=web%3Aoriginal"));
+  const body = JSON.stringify({ project_id: project, operation_key: "web:original", text: "Synthetic reply" });
+  assert.equal((await routes.POST(request(path, { method: "POST", headers: { origin: "http://other", "content-type": "application/json" }, body }), context("tasks", task, "conversation"))).status, 403);
+  assert.equal(calls.length, 2);
+  assert.equal((await routes.POST(request(path, { method: "POST", headers: { origin: "http://web", "content-type": "application/json" }, body }), context("tasks", task, "conversation"))).status, 200);
+  assert.equal(calls[2].url, `https://cloud-api.example.invalid/api/v1/cloud/tasks/${task}/conversation`);
+  assert.equal((await routes.POST(request(path, { method: "POST" }), context("tasks", task, "conversation", "messages", "by-key"))).status, 404);
+  assert.equal((await routes.GET(request(path), context("tasks", task, "conversation", "admin"))).status, 404);
+});

@@ -10,16 +10,21 @@ from .errors import CloudBlocked
 
 
 class LiveQuestionBridge:
-    def __init__(self, broker, adapter, session_id: str):
+    def __init__(self, broker, adapter, session_id: str, *, conversation=None):
         self.broker, self.adapter, self.session_id = broker, adapter, session_id
         self.calls = {}
         self.tasks = set()
         self.total = 0
+        self.conversation = conversation
+        self.runtime_state = None
+        self.finish_reason = None
+        self.prompt_enqueued = None
+        self.runtime_ready = asyncio.Event()
 
     async def read(self, process):
         while line := await process.stdout.readline():
             self.total += len(line)
-            if self.total > 4 * 1024 * 1024 or len(line) > 131072 or not line.endswith(b"\n"):
+            if (self.conversation is None and self.total > 4 * 1024 * 1024) or len(line) > 131072 or not line.endswith(b"\n"):
                 raise CloudBlocked("SDK_QUESTION_CHANNEL_INVALID", "SDK channel exceeded its bound")
             try:
                 frame = json.loads(line)
@@ -27,7 +32,35 @@ class LiveQuestionBridge:
                 raise CloudBlocked("SDK_QUESTION_CHANNEL_INVALID", "Invalid SDK channel frame") from None
             if not isinstance(frame, dict):
                 raise CloudBlocked("SDK_QUESTION_CHANNEL_INVALID", "Invalid SDK channel frame")
-            if "user_question" in frame:
+            if "runtime_ready" in frame:
+                if frame != {"runtime_ready": {"session_id": self.session_id}} or self.runtime_ready.is_set():
+                    raise CloudBlocked("SDK_RUNTIME_READY_INVALID", "Invalid SDK startup observation")
+                self.runtime_ready.set()
+            elif "runtime_observation" in frame:
+                if frame["runtime_observation"] in {"RUNNING", "IDLE"} and frame.get("session_id") == self.session_id:
+                    self.runtime_state = frame["runtime_observation"]
+                    from .runtime_activity import project_finish_reason
+                    self.finish_reason = project_finish_reason(frame.get("finish_reason"))
+                if self.conversation is not None:
+                    await self.conversation.accept_frame(frame)
+            elif "runtime_activity" in frame:
+                if self.conversation is not None:
+                    await self.conversation.accept_frame(frame)
+            elif "assistant_message" in frame or "user_message_ack" in frame:
+                if self.conversation is not None:
+                    await self.conversation.accept_frame(frame)
+            elif "prompt_enqueued" in frame:
+                value = frame["prompt_enqueued"]
+                if (not isinstance(value, dict) or value.get("session_id") != self.session_id
+                        or not isinstance(value.get("message_id"), str) or not 1 <= len(value["message_id"]) <= 255
+                        or type(value.get("continuation")) is not bool):
+                    raise CloudBlocked("SDK_PROMPT_RECEIPT_INVALID", "Invalid original SDK enqueue receipt")
+                if self.prompt_enqueued is not None and self.prompt_enqueued != value:
+                    raise CloudBlocked("SDK_PROMPT_RECEIPT_INVALID", "Original SDK enqueue receipt changed")
+                self.prompt_enqueued = value
+                if self.conversation is not None:
+                    await self.conversation.accept_frame(frame)
+            elif "user_question" in frame:
                 value = frame["user_question"]
                 if (set(frame) != {"user_question"} or not isinstance(value, dict)
                     or set(value) != {"request_id", "session_id", "questions"}
@@ -50,6 +83,8 @@ class LiveQuestionBridge:
             self.check()
 
     def check(self):
+        if self.conversation is not None:
+            self.conversation.check()
         for task in tuple(self.tasks):
             if task.done():
                 self.tasks.remove(task)

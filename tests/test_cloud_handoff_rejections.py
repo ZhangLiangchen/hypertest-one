@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from hypertest.api.cloud_schemas import PROFILE
 from hypertest.cloud.broker import BrokerFailure
-from hypertest.cloud.errors import CloudBlocked
+from hypertest.cloud.errors import REPORT_CONTENT_REJECTED, CloudBlocked
 from hypertest.cloud.handoff_rejections import MAX_LOCAL_REJECTIONS, HandoffRejected, key_digest
 from hypertest.cloud.manifests import MANIFEST_PROFILE, Handoff
 from hypertest.cloud.reporter import CloudTaskReporter
@@ -87,6 +87,8 @@ async def test_invalid_case_is_locally_rejected_without_journal_snapshot_or_plat
     public = workspace / ".hypertest-cloud" / "rejections" / (key_digest(handoff.key) + ".json")
     assert json.loads(public.read_bytes()) == document and public.stat().st_mode & 0o077 == 0
     assert "private-" not in public.read_text() and not (workspace / ".hypertest-cloud" / "receipts").exists()
+    assert reporter.drain_rejections() == [{"key_sha256": key_digest(handoff.key), "reason_code": "ARTIFACT_REJECTED"}]
+    assert reporter.drain_rejections() == []
 
 
 async def test_collect_skips_original_bad_key_and_accepts_only_new_revision_key(reporting):
@@ -157,6 +159,87 @@ async def test_secret_validation_failure_is_fatal_and_not_a_correctable_local_re
     assert error.value.code == "SECRET_MATERIAL_FORBIDDEN"
     assert list(reporter.rejections.directory.iterdir()) == [] and broker.posts == []
     assert reporter.pending() == [] and list(reporter.snapshots.directory.iterdir()) == []
+
+
+async def test_explicit_content_rejection_skips_only_original_proposal_and_accepts_new_key(reporting):
+    reporter, broker, workspace = reporting
+
+    async def reject_known_content(request):
+        broker.validations.append(request)
+        if request["assets"][0]["markdown"] == "private-source-canary":
+            raise CloudBlocked(REPORT_CONTENT_REJECTED, "fixed content admission outcome")
+
+    broker.validate_payload = reject_known_content
+    rejected = case(reporter, valid=True)
+    publish(workspace, rejected, "01-rejected.json")
+    accepted = {}
+    worker = CloudWorker(None, None, "fixture")
+    assert await worker.collect(reporter, workspace, accepted, stopped=False) is None
+    assert reporter.pending() == [] and broker.posts == [] and reporter.version == 1
+    assert reporter.journal.db.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 0
+    assert list(reporter.snapshots.directory.iterdir()) == []
+    feedback = reporter.rejections.get(rejected.key)
+    assert feedback["reason"] == REPORT_CONTENT_REJECTED
+    assert feedback["errors"] == [] and feedback["platform_operation_submitted"] is False
+    assert reporter.drain_rejections() == [{"key_sha256": key_digest(rejected.key), "reason_code": "ARTIFACT_CONTENT_REJECTED"}]
+    assert "private-" not in json.dumps(feedback)
+    public = workspace / ".hypertest-cloud/rejections" / (key_digest(rejected.key) + ".json")
+    assert json.loads(public.read_text()) == feedback
+    await worker.collect(reporter, workspace, accepted, stopped=False)
+    assert len(broker.validations) == 1  # Rejected keys stay immutable and are not resubmitted.
+    assert reporter.drain_rejections() == []
+    revised = case(reporter, key="safe-correction", valid=True)
+    revised.payload["assets"][0]["markdown"] = "A sanitized test observation"
+    publish(workspace, revised, "02-revised.json")
+    await worker.collect(reporter, workspace, accepted, stopped=False)
+    assert len(broker.posts) == 1 and set(accepted) == {"safe-correction"} and reporter.version == 2
+
+
+async def test_content_rejection_cannot_reclassify_an_existing_frozen_snapshot(reporting):
+    reporter, broker, _ = reporting
+    handoff = case(reporter, valid=True)
+    key = "c:" + digest([broker.attempt_id, handoff.key])
+    original = FrozenIntent(reporter.namespace, key, {"generation": 1}, {"frozen": "original"}, 1)
+    reporter.snapshots.save(original)
+
+    async def reject_content(_):
+        raise CloudBlocked(REPORT_CONTENT_REJECTED, "fixed content admission outcome")
+
+    broker.validate_payload = reject_content
+    with pytest.raises(CloudBlocked) as error:
+        await reporter.submit_handoff(handoff, digest(handoff.model_dump(mode="json")))
+    assert not isinstance(error.value, HandoffRejected) and error.value.code == REPORT_CONTENT_REJECTED
+    assert reporter.snapshots.load(reporter.namespace, key) == original
+    assert list(reporter.rejections.directory.iterdir()) == [] and broker.posts == []
+
+
+async def test_native_terminal_content_is_rejected_before_stop_without_frozen_request(reporting):
+    reporter, broker, _ = reporting
+    handoff = Handoff(profile=MANIFEST_PROFILE, task_id=broker.task_id, attempt_id=broker.attempt_id,
+        key="rejected-terminal", operation="COMPLETE_ATTEMPT", payload={"final_report_revision": str(uuid4()),
+            "reported_result": "NOT_RUN", "completion_manifest": {"required_asset_ids": [str(uuid4())],
+                "no_tests_reason": "Fixture-only shape check", "scope_and_gaps": "private-source-canary"}})
+
+    async def reject_content(_):
+        raise CloudBlocked(REPORT_CONTENT_REJECTED, "fixed content admission outcome")
+
+    broker.validate_payload = reject_content
+    with pytest.raises(HandoffRejected) as error:
+        await reporter.prevalidate_native_completion(handoff, digest(handoff.model_dump(mode="json")))
+    assert error.value.code == REPORT_CONTENT_REJECTED and reporter.rejected(handoff.key)
+    assert broker.posts == [] and reporter.pending() == [] and list(reporter.snapshots.directory.iterdir()) == []
+
+
+async def test_accepted_original_key_does_not_resubmit_or_lower_resumed_version(reporting):
+    reporter, broker, _ = reporting
+    handoff = case(reporter, key="accepted-original", valid=True)
+    source_digest = digest(handoff.model_dump(mode="json"))
+    assert (await reporter.submit_handoff(handoff, source_digest)).synced
+    broker.identity.generation = 2
+    reporter.version = 10
+    repeated = await reporter.submit_handoff(handoff, source_digest)
+    assert repeated.synced and repeated.receipt["version"] == 2
+    assert reporter.version == 10 and len(broker.posts) == len(broker.validations) == 1
 
 
 async def test_platform_http_rejection_keeps_original_frozen_transport_and_no_local_feedback(reporting):

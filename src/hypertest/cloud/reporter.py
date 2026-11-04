@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections import deque
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
@@ -14,7 +15,7 @@ from hypertest.sync_core import FrozenIntent, SyncError, TaskSyncCore, digest
 from hypertest.sync_core.storage import JournalLedger, SnapshotStore
 
 from .artifacts import read_workspace_file
-from .errors import CloudBlocked
+from .errors import REPORT_CONTENT_REJECTED, CloudBlocked
 from .handoff_rejections import HandoffRejected, LocalRejections, validation_metadata
 from .manifests import Handoff
 
@@ -145,9 +146,23 @@ class CloudTaskReporter:
         self.namespace = "cloud:" + broker.attempt_id
         self.version = broker.version
         self.rejections = LocalRejections(private_root / "local-rejections", workspace)
+        self._new_rejections: deque[dict] = deque()
 
     def rejected(self, key: str) -> bool:
         return self.rejections.get(key) is not None
+
+    def drain_rejections(self) -> list[dict]:
+        observations = list(self._new_rejections)
+        self._new_rejections.clear()
+        return observations
+
+    def _record_rejection(self, key, source_digest, errors, *, reason="HANDOFF_PAYLOAD_INVALID"):
+        previous = self.rejections.get(key)
+        observation = self.rejections.record(key, source_digest, errors, reason=reason)
+        if previous is None:
+            self._new_rejections.append({"key_sha256": observation["key_sha256"],
+                "reason_code": "ARTIFACT_CONTENT_REJECTED" if reason == REPORT_CONTENT_REJECTED else "ARTIFACT_REJECTED"})
+        return observation
 
     def _typed_request(self, handoff: Handoff, payload: dict, source_digest: str) -> dict:
         complete = {**payload, "profile": PROFILE, "project_id": self.broker.project_id,
@@ -164,10 +179,10 @@ class CloudTaskReporter:
             if handoff.operation == "TRANSITION" or any(
                     any(part in host_fields for part in item.get("loc", ()) if isinstance(part, str)) for item in errors):
                 raise  # Host transitions are never Agent-correctable proposals.
-            observation = self.rejections.record(handoff.key, source_digest, validation_metadata(error))
+            observation = self._record_rejection(handoff.key, source_digest, validation_metadata(error))
             raise HandoffRejected(observation) from None
 
-    def prevalidate_handoff(self, handoff: Handoff, source_digest: str) -> None:
+    def prevalidate_handoff(self, handoff: Handoff, source_digest: str) -> dict:
         """Validate shape before stopping a healthy loop or freezing any request.
 
         Host-only fields below are inert shape placeholders. They are discarded;
@@ -196,7 +211,33 @@ class CloudTaskReporter:
             if isinstance(completion, dict):
                 payload["completion_manifest"] = {**completion,
                     "all_local_processes_stopped": False, "external_operations_reconciled": False}
-        self._typed_request(handoff, payload, source_digest)
+        return self._typed_request(handoff, payload, source_digest)
+
+    async def _validate_proposal_content(self, handoff: Handoff, source_digest: str, request: dict):
+        try:
+            await self.broker.validate_payload(request)
+        except CloudBlocked as error:
+            if error.code != REPORT_CONTENT_REJECTED or handoff.operation == "TRANSITION":
+                raise
+            key = "c:" + digest([self.broker.attempt_id, handoff.key])
+            snapshot = self.snapshots._path(self.namespace, key)
+            if self.journal.get(self.namespace, key) is not None or snapshot.exists() or snapshot.is_symlink():
+                # A previously frozen body, even before journal creation, keeps
+                # its original recovery path and never becomes proposal feedback.
+                raise
+            observation = self._record_rejection(handoff.key, source_digest, [], reason=REPORT_CONTENT_REJECTED)
+            raise HandoffRejected(observation) from None
+
+    async def prevalidate_native_completion(self, handoff: Handoff, source_digest: str) -> None:
+        """Check terminal content while the original SDK can still correct it.
+
+        The typed host fields are inert validation placeholders, never submitted
+        observations. Final completion still requires the actual SDK exit.
+        """
+        if handoff.operation != "COMPLETE_ATTEMPT":
+            raise CloudBlocked("NATIVE_HANDOFF_INVALID", "Native completion requires its original handoff")
+        request = self.prevalidate_handoff(handoff, source_digest)
+        await self._validate_proposal_content(handoff, source_digest, request)
 
     def pending(self) -> list[str]:
         return [row[0] for row in self.journal.db.execute(
@@ -209,7 +250,7 @@ class CloudTaskReporter:
             result = await self.core.deliver(frozen)
             if not result.synced:
                 raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original report requires receipt/readback reconciliation")
-            self.version = result.receipt["version"]
+            self.version = max(self.version, result.receipt["version"])
 
     async def submit_native_session_anchor(self, *, snapshot_sha256: str, input_digest: str, session_id: str):
         """Freeze and read back one host-only pre-prompt identity anchor.
@@ -249,7 +290,7 @@ class CloudTaskReporter:
             self.snapshots.save(intent)
         result = await self.core.deliver(intent)
         if result.synced:
-            self.version = result.receipt["version"]
+            self.version = max(self.version, result.receipt["version"])
         return result
 
     async def submit_native_completion(self, handoff: Handoff, handoff_digest: str, *, usage_seconds: int):
@@ -278,7 +319,7 @@ class CloudTaskReporter:
                 key=handoff.key, operation="COMPLETE_NATIVE_ATTEMPT", payload=payload)
             request = self._typed_request(native, {**payload, "usage_seconds": usage_seconds, "cost_microunits": 0,
                 "runtime_observation": "DIRECT_SDK_PROCESS_EXITED"}, handoff_digest)
-            await self.broker.validate_payload(request)
+            await self._validate_proposal_content(handoff, handoff_digest, request)
             intent = FrozenIntent(self.namespace, key,
                 {"project_id": self.broker.project_id, "task_id": self.broker.task_id,
                  "attempt_id": self.broker.attempt_id, "generation": self.broker.identity.generation,
@@ -286,7 +327,7 @@ class CloudTaskReporter:
             self.snapshots.save(intent)
         result = await self.core.deliver(intent)
         if result.synced:
-            self.version = result.receipt["version"]
+            self.version = max(self.version, result.receipt["version"])
         return result
 
     async def submit_handoff(self, handoff: Handoff, handoff_digest: str, *,
@@ -347,7 +388,7 @@ class CloudTaskReporter:
                 else:
                     payload.update(local_processes_stopped=True, external_operations_reconciled=True)
             request = self._typed_request(handoff, payload, handoff_digest)
-            await self.broker.validate_payload(request)
+            await self._validate_proposal_content(handoff, handoff_digest, request)
             intent = FrozenIntent(self.namespace, key,
                 {"project_id": self.broker.project_id, "task_id": self.broker.task_id,
                  "attempt_id": self.broker.attempt_id, "generation": self.broker.identity.generation,
@@ -355,7 +396,7 @@ class CloudTaskReporter:
             self.snapshots.save(intent)
         result = await self.core.deliver(intent)
         if result.synced:
-            self.version = result.receipt["version"]
+            self.version = max(self.version, result.receipt["version"])
         return result
 
     def close(self):

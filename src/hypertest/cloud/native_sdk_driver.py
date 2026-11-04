@@ -1,13 +1,15 @@
 """Run the official Harness SDK in a dedicated host child process.
 
-This module receives a single prompt from its private stdin and emits only
-bounded, non-content observations. It never receives platform credentials.
+This module owns one SDK runtime. Its single stdin reader routes questions,
+new user messages and close requests; stdout contains projected public text
+and bounded observations. It never receives platform credentials.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import queue
 import secrets
 import select
 import sys
@@ -15,8 +17,30 @@ import tempfile
 import threading
 from pathlib import Path
 
+from .native_conversation import project_assistant_message
 from .native_selection import read_native_selection
 from .runtime_activity import project_finish_reason, project_notification
+
+
+def continuation_hook(source: str) -> str:
+    """Check restored durable input during SDK publication, before a new turn.
+
+    In the pinned ce7073d runtime, agent-created publication is inside the
+    loop's maintenance barrier. A rejecting listener keeps the old inbox and
+    rolls publication back; it cannot release queued input into model work.
+    """
+    original = '    if (agent.id !== root) return;\n'
+    if source.count(original) != 1:
+        raise ValueError("unexpected admission hook")
+    check = """    const inbox = agent.inbox;
+    if (!inbox || !Array.isArray(inbox.nextTurn) || !Array.isArray(inbox.nextStep) ||
+        typeof inbox.hasPending !== "boolean" || inbox.hasPending ||
+        inbox.nextTurn.length !== 0 || inbox.nextStep.length !== 0) {
+      throw new Error("NATIVE_SESSION_PENDING_INPUT");
+    }
+    return; // retain persisted session identity; never consume an old inbox
+"""
+    return source.replace(original, original + check)
 
 
 class _PipeInput:
@@ -53,6 +77,9 @@ class QuestionChannel:
         self.emit = emit
         self.lock = threading.Lock()
         self.pending: dict[str, dict] = {}
+        self.commands: queue.Queue[dict] = queue.Queue(maxsize=128)
+        self.message_ids: set[str] = set()
+        self.closing = threading.Event()
         self.closed = False
         self.source = source if source is not None else _PipeInput(sys.stdin.fileno())
         self.stopping = threading.Event()
@@ -69,7 +96,24 @@ class QuestionChannel:
                     frame = json.loads(line)
                 except (ValueError, UnicodeDecodeError):
                     break
-                if (not isinstance(frame, dict) or set(frame) != {"type", "request_id", "answer"}
+                if not isinstance(frame, dict):
+                    break
+                if frame == {"type": "close"}:
+                    self.closing.set()
+                    self.commands.put_nowait(frame)
+                    continue
+                if frame.get("type") == "user_message":
+                    request_id, text = frame.get("request_id"), frame.get("text")
+                    if (set(frame) != {"type", "request_id", "text"}
+                            or not isinstance(request_id, str) or not 1 <= len(request_id) <= 255
+                            or not isinstance(text, str) or not text.strip() or len(text) > 16384
+                            or request_id in self.message_ids or len(self.message_ids) >= 10000
+                            or self.closing.is_set()):
+                        break
+                    self.message_ids.add(request_id)
+                    self.commands.put_nowait(frame)
+                    continue
+                if (set(frame) != {"type", "request_id", "answer"}
                         or frame["type"] != "question_response" or not isinstance(frame["request_id"], str)
                         or not isinstance(frame["answer"], dict)):
                     break
@@ -78,7 +122,7 @@ class QuestionChannel:
                     if pending is not None and pending["answer"] is None:
                         pending["answer"] = frame["answer"]
                         pending["ready"].set()
-        except (OSError, ValueError):
+        except (OSError, ValueError, queue.Full):
             pass  # A closed/invalid private pipe cannot deliver another answer.
         finally:
             with self.lock:
@@ -137,8 +181,12 @@ def _verify_anchored_identity(config: dict, selection: dict | None = None) -> No
         return
     from .native_resume_identity import verify_original_identity
 
-    if not isinstance(anchored, dict) or set(anchored) != {"attempt_root", "digest", "original"}:
+    adopted = isinstance(anchored, dict) and anchored.get("source") == "OPERATOR_ADOPTED"
+    fields = {"attempt_root", "digest", "original"} | ({"source"} if adopted else set())
+    if not isinstance(anchored, dict) or set(anchored) != fields:
         raise ValueError("invalid original identity")
+    if adopted and not config.get("continuation", False):
+        raise ValueError("adopted identity only authorizes explicit continuation")
     original = dict(anchored["original"])
     if ("environment" in original or not isinstance(original.get("selection"), dict)
             or (selection is not None and original["selection"] != selection)
@@ -146,11 +194,17 @@ def _verify_anchored_identity(config: dict, selection: dict | None = None) -> No
             or original.get("dsh_home") != config["dsh_home"]
             or original.get("session_id") != config["session_id"]
             or original.get("title_sha256") != hashlib.sha256(config["title"].encode()).hexdigest()
-            or original.get("prompt_sha256") != hashlib.sha256(config["prompt"].encode()).hexdigest()):
+            or (not adopted and not config.get("continuation", False)
+                and original.get("prompt_sha256") != hashlib.sha256(config["prompt"].encode()).hexdigest())):
         raise ValueError("original identity mismatch")
     original["environment"] = dict(os.environ)
-    verify_original_identity(Path(anchored["attempt_root"]),
-                             expected_identity_digest=anchored["digest"], **original)
+    if adopted:
+        from .native_conversation_identity import verify_adopted_identity
+        verify_adopted_identity(Path(anchored["attempt_root"]),
+                                expected_identity_digest=anchored["digest"], **original)
+    else:
+        verify_original_identity(Path(anchored["attempt_root"]),
+                                 expected_identity_digest=anchored["digest"], **original)
 
 
 def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> None:
@@ -180,6 +234,14 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
         if observation is not None and count < 512:
             count += 1
             emit({"runtime_activity": observation})
+        message = project_assistant_message(item, config["session_id"])
+        if message is not None:
+            emit({"assistant_message": message})
+        if (item.method == "session.status" and isinstance(item.payload, dict)
+                and item.payload.get("sessionId") == config["session_id"]
+                and item.payload.get("status") in {"idle", "running"}):
+            emit({"runtime_observation": "IDLE" if item.payload["status"] == "idle" else "RUNNING",
+                  "session_id": config["session_id"], "finish_reason": finish_reason})
 
     # The SDK normally creates the root Agent inside session/prompt.  Require a
     # freshly registered pre-prompt preset guard before sending that request.
@@ -189,6 +251,14 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
         from .native_cordis import prepare_cordis_overlay
 
         overlay = prepare_cordis_overlay(Path(directory), title=config["title"])
+        if config.get("continuation", False):
+            # Restoring a session retains its persisted preset and title. The
+            # guard still authenticates this child invocation before any input.
+            from .native_cordis import _HOOK
+            hook = Path(directory) / "hypertest-cordis-root.mjs"
+            if hook.read_text(encoding="utf-8") != _HOOK:
+                raise ValueError("unexpected admission hook")
+            hook.write_text(continuation_hook(_HOOK), encoding="utf-8")
         marker = Path(directory) / "ready.json"
         nonce = secrets.token_hex(32)
         options = {"profile": "sdk", "dsh_home": config["dsh_home"], "cwd": config["workspace"],
@@ -205,9 +275,43 @@ def run(config: dict, emit, question_channel: QuestionChannel | None = None) -> 
                 raise ValueError("unexpected SDK protocol")
             _require_cordis_guard(marker, nonce, config["session_id"])
             _verify_anchored_identity(config, selection)
+            emit({"runtime_ready": {"session_id": config["session_id"]}})
             with client.subscribe_notifications() as subscription:
-                client.session_prompt(config["session_id"], [{"type": "text", "text": config["prompt"]}],
-                                      on_notification=observe, notification_subscription=subscription)
+                if config.get("continuation", False):
+                    client.resume_session(config["session_id"])
+                    restored = Path(client.get_working_directory(config["session_id"]))
+                    workspace = Path(config["workspace"]).resolve(strict=True)
+                    if not restored.is_absolute() or not restored.resolve(strict=True).is_relative_to(workspace):
+                        raise ValueError("restored session directory changed")
+                initial_id = client.session_prompt(config["session_id"], [{"type": "text", "text": config["prompt"]}],
+                    on_notification=observe, notification_subscription=subscription)
+                if isinstance(initial_id, str) and initial_id:
+                    emit({"prompt_enqueued": {"session_id": config["session_id"], "message_id": initial_id,
+                          "continuation": config.get("continuation", False)}})
+                if config.get("keep_alive", False):
+                    if question_channel is None:
+                        raise ValueError("persistent SDK requires a command channel")
+                    while True:
+                        subscription.drain(observe)
+                        try:
+                            command = question_channel.commands.get(timeout=0.1)
+                        except queue.Empty:
+                            if question_channel.closed:
+                                raise ValueError("Worker command channel closed") from None
+                            continue
+                        if command["type"] == "close":
+                            break
+                        request_id = command["request_id"]
+                        try:
+                            message_id = client.session_prompt(config["session_id"],
+                                [{"type": "text", "text": command["text"]}],
+                                on_notification=observe, notification_subscription=subscription)
+                            if not isinstance(message_id, str) or not 1 <= len(message_id) <= 255:
+                                raise ValueError("SDK enqueue receipt missing")
+                        except Exception:
+                            emit({"user_message_ack": {"request_id": request_id, "status": "UNKNOWN"}})
+                            raise
+                        emit({"user_message_ack": {"request_id": request_id, "status": "DELIVERED", "message_id": message_id}})
                 client.request("session/wait", {"sessionId": config["session_id"]},
                                response_model=WaitResponse, on_notification=observe,
                                notification_subscription=subscription)
@@ -246,13 +350,15 @@ def main() -> int:
             raise ValueError("input too large")
         config = json.loads(raw)
         if (not isinstance(config, dict)
-                or set(config) - {"workspace", "dsh_home", "session_id", "title", "prompt", "interaction_enabled", "resume_identity"}
+                or set(config) - {"workspace", "dsh_home", "session_id", "title", "prompt", "interaction_enabled", "resume_identity", "keep_alive", "continuation"}
                 or any(not isinstance(config.get(key), str) or not config[key]
                        for key in ("workspace", "dsh_home", "session_id", "title", "prompt"))
                 or not config["title"].strip() or len(config["title"]) > 512
-                or type(config.get("interaction_enabled", False)) is not bool):
+                or any(type(config.get(key, False)) is not bool for key in ("interaction_enabled", "keep_alive", "continuation"))):
             raise ValueError("invalid input")
-        channel = QuestionChannel(config["session_id"], emit, source=source) if config.get("interaction_enabled", False) else None
+        if config.get("continuation", False) and config.get("resume_identity") is None:
+            raise ValueError("continuation requires an accepted identity baseline")
+        channel = QuestionChannel(config["session_id"], emit, source=source) if config.get("interaction_enabled", False) or config.get("keep_alive", False) else None
         run(config, emit, channel)
         return 0
     except Exception:

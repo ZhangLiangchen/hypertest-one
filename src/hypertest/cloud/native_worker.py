@@ -137,8 +137,10 @@ class RemoteBroker:
             raise CloudBlocked("ARTIFACT_READBACK_MISMATCH", "Original artifact readback failed") from None
 
 
-CLAIM_PROFILE = "hypertest-native-worker-claim/v2"
-CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds", "supports_attempt_manifest"}
+CLAIM_PROFILE = "hypertest-native-worker-claim/v3"
+LEGACY_CLAIM_PROFILE = "hypertest-native-worker-claim/v2"
+LEGACY_CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds", "supports_attempt_manifest"}
+CLAIM_FIELDS = LEGACY_CLAIM_FIELDS | {"slot_id"}
 INSPECTION_CLAIM_PROFILE = "hypertest-native-inspection-claim/v1"
 INSPECTION_CLAIM_FIELDS = {"worker_id", "request_key", "sequence", "lease_seconds"}
 
@@ -179,9 +181,62 @@ async def prepare_native_session_identity(*, root, workspace, args, task, attemp
     return {"attempt_root": str(root), "digest": snapshot, "original": original}
 
 
+async def prepare_continuation_identity(*, root, workspace, args, task, attempt, manifest, broker, intent):
+    """Verify an old anchor or establish an explicitly adopted present baseline."""
+    from .native_resume_identity import FILENAME, verify_original_identity
+    from .native_sdk_adapter import host_environment
+    from .native_selection import read_native_selection
+
+    if (intent.get("worker_id") != args.worker_id
+            or intent.get("target_generation") != broker.identity.generation
+            or intent.get("input_digest") != attempt["input_digest"]
+            or intent.get("session_id") != "cloud-" + attempt["id"]):
+        raise CloudBlocked("NATIVE_RESUME_IDENTITY_TARGET_MISMATCH", "Continuation requires its original target")
+    environment = host_environment(os.environ)
+    selection = await asyncio.to_thread(read_native_selection, dsh_home=args.dsh_home,
+        cwd=str(workspace), environment=environment)
+    repositories = manifest["resolution"]["repositories"]
+    common = {"project_id": task["project_id"], "task_id": task["id"], "attempt_id": attempt["id"],
+        "session_id": intent["session_id"], "worker_id": args.worker_id,
+        "input_digest": attempt["input_digest"], "workspace": str(workspace),
+        "dsh_home": str(Path(args.dsh_home).absolute()), "selection": selection,
+        "title_sha256": hashlib.sha256(task["title"].encode()).hexdigest(),
+        "sut_commit": repositories["sut"]["commit_sha"], "framework_commit": repositories["framework"]["commit_sha"]}
+    if intent["identity_source"] == "OPERATOR_ADOPTED":
+        from .native_conversation_identity import record_adopted_identity
+        original = {**common, "generation": broker.identity.generation,
+            "operation_key": intent["operation_key"], "adopted_at": intent["requested_at"]}
+        snapshot = await asyncio.to_thread(record_adopted_identity, root, **original, environment=environment)
+        identity = {"source": "OPERATOR_ADOPTED", "attempt_root": str(root), "digest": snapshot, "original": original}
+    else:
+        anchor = attempt["checkpoint"].get("native_session_anchor", {})
+        record = json.loads(read_private_file(root / FILENAME, max_bytes=65536))
+        prompt = json.loads(read_private_file(root / "prompt-intent.json", max_bytes=4096))
+        if (prompt.get("session_id") != intent["session_id"] or prompt.get("state") != "SENT"
+                or prompt.get("prompt_sha256") != record.get("prompt_sha256")):
+            raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Original prompt identity is unavailable")
+        original = {**common, "original_generation": anchor.get("generation"),
+            "prompt_sha256": record.get("prompt_sha256")}
+        snapshot = anchor.get("snapshot_sha256")
+        await asyncio.to_thread(verify_original_identity, root, expected_identity_digest=snapshot,
+            **original, environment=environment)
+        identity = {"attempt_root": str(root), "digest": snapshot, "original": original}
+    expected = {"operation_key": intent["operation_key"], "generation": broker.identity.generation,
+        "identity_source": intent["identity_source"], "snapshot_sha256": snapshot,
+        "session_id": intent["session_id"],
+        "historical_identity_preanchored": intent["identity_source"] == "PRE_PROMPT_ANCHORED"}
+    accepted = await broker.api.request("resume/identity", broker._body(operation_key=intent["operation_key"],
+        snapshot_sha256=snapshot, identity_source=intent["identity_source"]))
+    if accepted != expected:
+        raise CloudBlocked("NATIVE_RESUME_IDENTITY_UNCONFIRMED", "Current identity needs original-key reconciliation")
+    return identity
+
+
 def _validate_claim_request(request: object, worker_id: str) -> dict:
     if (not isinstance(worker_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", worker_id)
-            or not isinstance(request, dict) or set(request) != CLAIM_FIELDS
+            or not isinstance(request, dict) or set(request) not in (CLAIM_FIELDS, LEGACY_CLAIM_FIELDS)
+            or ("slot_id" in request and (not isinstance(request["slot_id"], str)
+                or not re.fullmatch(r"slot-[1-9][0-9]{0,3}", request["slot_id"])))
             or request.get("worker_id") != worker_id
             or not isinstance(request.get("request_key"), str)
             or not re.fullmatch(r"[A-Za-z0-9_.:-]{16,128}", request["request_key"])
@@ -203,7 +258,7 @@ def prepare_claim(state: Path, request: dict) -> Path:
     if pending.exists() or pending.is_symlink():
         raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim must be reconciled before another claim")
     try:
-        save_once(pending, {"profile": CLAIM_PROFILE, "status": "SENT", "request": request,
+        save_once(pending, {"profile": CLAIM_PROFILE if "slot_id" in request else LEGACY_CLAIM_PROFILE, "status": "SENT", "request": request,
                             "request_sha256": _claim_digest(request)})
     except FileExistsError:
         raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim must be reconciled before another claim") from None
@@ -218,7 +273,7 @@ def pending_claim(state: Path, worker_id: str) -> tuple[Path, dict] | None:
         record = json.loads(read_private_file(pending, max_bytes=65536))
     except (ValueError, TypeError):
         raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Original claim record is invalid") from None
-    if not isinstance(record, dict) or record.get("profile") != CLAIM_PROFILE:
+    if not isinstance(record, dict) or record.get("profile") not in {CLAIM_PROFILE, LEGACY_CLAIM_PROFILE}:
         raise CloudBlocked("LEGACY_CLAIM_RECONCILIATION_REQUIRED", "Legacy claim requires explicit original-state reconciliation")
     request = _validate_claim_request(record.get("request"), worker_id)
     if (set(record) != {"profile", "status", "request", "request_sha256"}
@@ -306,7 +361,8 @@ def _claim_response(value, worker_id, *, request=None, recovering=False):
             valid = (isinstance(value.get("request_key"), str)
                 and re.fullmatch(r"[A-Za-z0-9_.:-]{16,128}", value["request_key"]) is not None)
     if valid and request is not None:
-        valid = value["sequence"] == request["sequence"] and value["request_key"] == request["request_key"]
+        valid = (value["sequence"] == request["sequence"] and value["request_key"] == request["request_key"]
+                 and value.get("slot_id") == request.get("slot_id"))
         if recovering:
             valid = valid and value["closed"] and "claim" not in value
         else:
@@ -332,9 +388,12 @@ async def _claim_read(api, args, operation, request):
     while True:
         try:
             value = await api.request(operation, request)
-            return _claim_response(value, args.worker_id,
+            observed = _claim_response(value, args.worker_id,
                 request=request if operation == "claim/reconcile" else None,
                 recovering=operation == "claim/reconcile")
+            if observed.get("slot_id") != request.get("slot_id"):
+                raise CloudBlocked("CLAIM_SLOT_MISMATCH", "Claim state belongs to another scheduling slot")
+            return observed
         except Exception as error:
             if args.once or not _retryable_api_failure(error):
                 raise
@@ -598,6 +657,8 @@ async def execute(api, args, state: Path, claim: dict):
     from hypertest.config import get_settings
     from hypertest.sync_core import digest
 
+    from .conversation_bridge import ConversationBridge
+    from .handoff_rejections import HandoffRejected
     from .live_question_bridge import LiveQuestionBridge
     from .manifests import MANIFEST_PROFILE, Handoff
     from .native_git import NativeGitResolver
@@ -612,9 +673,16 @@ async def execute(api, args, state: Path, claim: dict):
         await broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED")
         return
     root = state / ("attempt-" + attempt["id"])
-    root.mkdir(mode=0o700)
+    resume_intent = attempt.get("checkpoint", {}).get("native_resume")
+    resuming = isinstance(resume_intent, dict) and resume_intent.get("target_generation") == broker.identity.generation
     workspace = root / "workspace"
-    workspace.mkdir(mode=0o700)
+    if resuming:
+        if (root.is_symlink() or workspace.is_symlink() or not root.is_dir() or not workspace.is_dir()):
+            await broker.fence_for_recovery("ATTEMPT_RECOVERY_REQUIRED")
+            raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Original workspace is unavailable")
+    else:
+        root.mkdir(mode=0o700)
+        workspace.mkdir(mode=0o700)
     reporter = CloudTaskReporter(broker=broker, private_root=root / "reporting", workspace=workspace)
     adapter = NativeSdkAdapter(workspace=workspace, dsh_home=Path(args.dsh_home))
     finished = asyncio.Event()
@@ -622,8 +690,12 @@ async def execute(api, args, state: Path, claim: dict):
     started = time.monotonic()
     reader = None
     bridge = None
+    conversation = None
+    conversation_monitor = None
     memory_bridge = None
     memory_monitor = None
+    startup_lock = getattr(args, "_native_startup_lock", None)
+    startup_held = False
 
     async def heartbeat():
         nonlocal lease_failure
@@ -637,6 +709,10 @@ async def execute(api, args, state: Path, claim: dict):
                     lease_failure = error
                     broker.suspend_writes()
                     return
+
+    async def publish_rejections():
+        for observation in reporter.drain_rejections():
+            await asyncio.wait_for(conversation.record_rejection(observation), 3)
 
     monitor = asyncio.create_task(heartbeat())
     try:
@@ -662,35 +738,77 @@ async def execute(api, args, state: Path, claim: dict):
                 memory_bridge = None
         if task["inputs"].get("budgets") is not None:
             raise CloudBlocked("LEGACY_ATTEMPT_UNSUPPORTED", "Frozen legacy budgets require their original runtime")
-        resolver = NativeGitResolver()
-        for role in ("sut", "framework"):
-            await broker.assert_current()
-            await resolver.checkout(manifest["resolution"]["repositories"][role], workspace / role)
+        if not resuming:
+            resolver = NativeGitResolver()
+            for role in ("sut", "framework"):
+                await broker.assert_current()
+                await resolver.checkout(manifest["resolution"]["repositories"][role], workspace / role)
         await broker.assert_current()
-        prompt = native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
+        if startup_lock is not None:
+            await startup_lock.acquire()
+            startup_held = True
+            await broker.assert_current()
+        prompt = None if resuming else native_prompt(task, attempt, workspace, retry_snapshot=retry_snapshot,
             memory_enabled=memory_bridge is not None)
         session_id = "cloud-" + attempt["id"]
-        anchor_config = os.environ.get("HYPERTEST_CLOUD_NATIVE_RECOVERY_IDENTITY", "false").strip().lower()
+        anchor_config = os.environ.get("HYPERTEST_CLOUD_NATIVE_RECOVERY_IDENTITY", "true").strip().lower()
         if anchor_config not in {"true", "false"}:
             raise CloudBlocked("NATIVE_SESSION_IDENTITY_UNAVAILABLE", "Invalid native session identity setting")
         resume_identity = None
-        if anchor_config == "true":
+        if resuming:
+            resume_identity = await prepare_continuation_identity(root=root, workspace=workspace, args=args,
+                task=task, attempt=attempt, manifest=manifest, broker=broker, intent=resume_intent)
+        elif anchor_config == "true":
             resume_identity = await prepare_native_session_identity(root=root, workspace=workspace, args=args,
                 task=task, attempt=attempt, manifest=manifest, broker=broker, reporter=reporter, prompt=prompt)
         transition = Handoff(profile=MANIFEST_PROFILE, task_id=task["id"], attempt_id=attempt["id"],
-            key="worker-running", operation="TRANSITION", payload={"status": "RUNNING", "reason": "Native SDK runtime admitted",
+            key="worker-running-" + str(broker.identity.generation), operation="TRANSITION", payload={"status": "RUNNING", "reason": "Native SDK runtime admitted",
             "runtime_metadata": {}, "usage_seconds": 0, "cost_microunits": 0})
         result = await reporter.submit_handoff(transition, digest(transition.model_dump(mode="json")))
         if not result.synced:
             raise CloudBlocked("REPORT_RECONCILIATION_PENDING", "Original transition needs reconciliation")
-        save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": "cloud-" + attempt["id"],
-            "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
         options = {"resume_identity": resume_identity} if resume_identity is not None else {}
-        process = await adapter.start(session_id=session_id, title=task["title"], prompt=prompt,
-                                      interaction_enabled=True, **options)
-        bridge = LiveQuestionBridge(broker, adapter, session_id)
+        if resuming:
+            continuation = resume_intent["continuation"]
+            save_once(root / ("continuation-intent-" + str(broker.identity.generation) + ".json"),
+                {"state": "SENT", "session_id": session_id, "operation_key": resume_intent["operation_key"],
+                 "generation": broker.identity.generation,
+                 "continuation_sha256": hashlib.sha256(continuation.encode()).hexdigest()})
+            process = await adapter.resume(session_id=session_id, title=task["title"],
+                continuation=continuation, resume_identity=resume_identity, interaction_enabled=True, keep_alive=True)
+        else:
+            save_once(root / "prompt-intent.json", {"state": "SENT", "session_id": session_id,
+                "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest()})
+            process = await adapter.start(session_id=session_id, title=task["title"], prompt=prompt,
+                interaction_enabled=True, keep_alive=True, **options)
+        conversation = ConversationBridge(broker, adapter, session_id,
+            private_root=root / "conversation" / ("generation-" + str(broker.identity.generation)))
+        conversation_monitor = asyncio.create_task(conversation.run())
+        bridge = LiveQuestionBridge(broker, adapter, session_id, conversation=conversation)
         reader = asyncio.create_task(bridge.read(process))
+        if startup_held:
+            ready = asyncio.create_task(bridge.runtime_ready.wait())
+            try:
+                await asyncio.wait((ready, reader, conversation_monitor, monitor), timeout=90,
+                    return_when=asyncio.FIRST_COMPLETED)
+                bridge.check()
+                if lease_failure is not None:
+                    raise CloudBlocked("WORKER_LEASE_UNCONFIRMED", "Original lease needs reconciliation")
+                if not ready.done():
+                    raise CloudBlocked("SDK_STARTUP_UNCONFIRMED", "SDK initialization was not confirmed")
+            finally:
+                ready.cancel()
+                await asyncio.gather(ready, return_exceptions=True)
+            startup_lock.release()
+            startup_held = False
         accepted_keys = {}
+        if resuming:
+            for (key,) in reporter.journal.db.execute(
+                    "SELECT key FROM intents WHERE kind=? AND state='READBACK_COMPLETE'", (reporter.namespace,)):
+                original = reporter.snapshots.load(reporter.namespace, key)
+                if original.target.get("handoff_key"):
+                    accepted_keys[original.target["handoff_key"]] = original.target["handoff_digest"]
+        closing = False
         terminal = None
         while process.returncode is None:
             if lease_failure is not None:
@@ -699,14 +817,33 @@ async def execute(api, args, state: Path, claim: dict):
             if reader.done() and reader.exception() is not None:
                 raise reader.exception()
             observed = await CloudWorker.collect(None, reporter, workspace, accepted_keys, stopped=False)
+            await publish_rejections()
             if terminal is not None and observed is not None and terminal != observed:
                 raise CloudBlocked("TERMINAL_HANDOFF_CONFLICT", "A published terminal handoff changed")
             terminal = observed or terminal
+            if terminal is not None and terminal[0].operation == "COMPLETE_ATTEMPT" and not closing:
+                try:
+                    await reporter.prevalidate_native_completion(*terminal)
+                except HandoffRejected:
+                    await publish_rejections()
+                    terminal = None
+                    continue
+                conversation.stop_accepting()
+                await adapter.close_session()
+                closing = True
             await asyncio.sleep(0.2)
         await process.wait()
-        save_once(root / "runtime-exit.json", {"source": "DIRECT_SDK_PROCESS",
+        save_once(root / ("runtime-exit-" + str(broker.identity.generation) + ".json"), {"source": "DIRECT_SDK_PROCESS",
             "returncode": process.returncode, "observed_at": datetime.now(UTC).isoformat()})
+        # A publisher failure can leave the stdout reader blocked on its bounded
+        # queue after the SDK has exited. Observe that failure (and lease loss)
+        # while draining instead of waiting indefinitely for the reader alone.
+        await asyncio.wait((reader, conversation_monitor, monitor), return_when=asyncio.FIRST_COMPLETED)
+        bridge.check()
+        if lease_failure is not None:
+            raise CloudBlocked("WORKER_LEASE_UNCONFIRMED", "Original lease needs reconciliation")
         await reader
+        await conversation.flush()
         bridge.check()
         if bridge.tasks:
             raise CloudBlocked("SDK_QUESTION_DELIVERY_UNKNOWN", "SDK exited with pending questions")
@@ -714,11 +851,14 @@ async def execute(api, args, state: Path, claim: dict):
             raise CloudBlocked("WORKER_LEASE_UNCONFIRMED", "Original lease needs reconciliation")
         await broker.assert_current()
         observed = await CloudWorker.collect(None, reporter, workspace, accepted_keys, stopped=False)
+        await publish_rejections()
         if terminal is not None and observed is not None and terminal != observed:
             raise CloudBlocked("TERMINAL_HANDOFF_CONFLICT", "A published terminal handoff changed")
         terminal = observed or terminal
         if process.returncode != 0 or terminal is None or terminal[0].operation != "COMPLETE_ATTEMPT":
             raise CloudBlocked("ATTEMPT_RECOVERY_REQUIRED", "An explicit native completion needs reconciliation")
+        await asyncio.wait_for(conversation.record_state("CLOSED"), 3)
+        await conversation.flush()
         handoff, handoff_digest = terminal
         result = await reporter.submit_native_completion(handoff, handoff_digest,
                                                         usage_seconds=int(time.monotonic() - started))
@@ -727,14 +867,29 @@ async def execute(api, args, state: Path, claim: dict):
         from .artifacts import write_workspace_receipt
         write_workspace_receipt(workspace, handoff.key, result.receipt)
     except BaseException as error:
+        if conversation is not None:
+            conversation.stop_accepting()
         broker.suspend_writes()
         try:
             # A lost fence is still unknown. Let it propagate so claim-pending stays.
             await asyncio.wait_for(broker.fence_for_recovery(_recovery_reason(error)), 3)
         finally:
             await adapter.stop()
+            if reader is not None and not reader.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(reader), 3)
+                except Exception:
+                    pass
+            if conversation is not None:
+                try:
+                    await asyncio.wait_for(conversation.record_state("INTERRUPTED", "WORKER_INTERRUPTED"), 3)
+                    await conversation.flush()
+                except Exception:
+                    pass
         raise
     finally:
+        if startup_held:
+            startup_lock.release()
         finished.set()
         monitor.cancel()
         await asyncio.gather(monitor, return_exceptions=True)
@@ -751,6 +906,11 @@ async def execute(api, args, state: Path, claim: dict):
             await asyncio.gather(reader, return_exceptions=True)
         if bridge is not None:
             await bridge.close()
+        if conversation_monitor is not None:
+            conversation_monitor.cancel()
+            await asyncio.gather(conversation_monitor, return_exceptions=True)
+        if conversation is not None:
+            await conversation.close()
         reporter.close()
 
 
@@ -769,101 +929,196 @@ async def run(args) -> int:
         return await _run_locked(args, state)
 
 
+async def _run_slot(api, args, state: Path, slot_state: Path, slot_id: str, *, retire_only=False, ensure_runtime=None):
+    """One independent scheduling stream; no uncertain execution is repeated."""
+    while True:
+        original = pending_claim(slot_state, args.worker_id)
+        if original is not None:
+            pending, request = original
+            if request.get("slot_id") != slot_id:
+                raise CloudBlocked("CLAIM_SLOT_MISMATCH", "Original claim belongs to another slot")
+            await _claim_read(api, args, "claim/reconcile", request)
+            complete_claim(pending)
+            if args.once or retire_only:
+                return 0
+            continue
+        if retire_only:
+            return 0
+        if ensure_runtime is not None:
+            await ensure_runtime()
+        current = await _claim_read(api, args, "claim/state", {"worker_id": args.worker_id, "slot_id": slot_id})
+        if not current["closed"]:
+            raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Slot has no matching local intent; original recovery is required")
+        request = {"worker_id": args.worker_id, "slot_id": slot_id, "request_key": secrets.token_hex(24),
+            "sequence": current["sequence"] + 1, "lease_seconds": args.lease_seconds,
+            "supports_attempt_manifest": True}
+        pending = prepare_claim(slot_state, request)
+        try:
+            claim_result = _claim_response(await api.request("claim", request), args.worker_id, request=request)
+        except Exception as error:
+            if args.once or not _retryable_api_failure(error):
+                raise
+            await asyncio.sleep(min(max(args.poll_seconds, 0.25), 30))
+            continue
+        kind = claim_result["kind"]
+        if kind == "EMPTY":
+            complete_claim(pending)
+            if args.once:
+                return 0
+            await asyncio.sleep(args.poll_seconds)
+            continue
+        claim = claim_result["claim"]
+        work_error = None
+        try:
+            if kind == "RESOLUTION":
+                await resolve(api, args, state, claim)
+            else:
+                await execute(api, args, state, claim)
+        except Exception as error:
+            work_error = error
+        # The original slot closes only after its own execution. Other slots
+        # have independent keys, capabilities, heartbeats and SDK processes.
+        await _claim_read(api, args, "claim/reconcile", request)
+        complete_claim(pending)
+        if work_error is not None:
+            if args.once:
+                raise work_error
+            # Reconciliation has fenced this Attempt and closed its original
+            # claim. Capacity can serve a different queued task without
+            # replaying any part of the failed Attempt.
+            print(json.dumps({"code": "WORKER_SESSION_INTERRUPTED", "slot_id": slot_id}), flush=True)
+            await asyncio.sleep(args.poll_seconds)
+            continue
+        if args.once:
+            return 0
+
+
+def _conversation_spools(state: Path):
+    """Snapshot historical directories before any new slot can create one."""
+    spools = []
+    for attempt in state.iterdir():
+        if (not re.fullmatch(r"attempt-[0-9a-f-]{36}", attempt.name)
+                or attempt.is_symlink() or not attempt.is_dir()):
+            continue
+        directory = attempt / "conversation"
+        if directory.is_symlink() or not directory.is_dir():
+            continue
+        spools.extend(path for path in directory.iterdir()
+            if re.fullmatch(r"generation-[1-9][0-9]*", path.name) and path.is_dir() and not path.is_symlink())
+    return tuple(spools)
+
+
+async def _recover_conversations(api, spools, worker_id: str, *, once=False):
+    """Replay startup observations only; never reopen an SDK or poll input."""
+    from .conversation_bridge import recover_conversation_spool
+
+    while spools:
+        pending = []
+        for spool in spools:
+            try:
+                if await recover_conversation_spool(api, spool, worker_id=worker_id):
+                    pending.append(spool)
+            except Exception:
+                # Keep the exact observation/key on disk. An unavailable
+                # historical transport must not consume capacity or replay work.
+                pending.append(spool)
+        if once:
+            return
+        spools = pending
+        if spools:
+            await asyncio.sleep(5)
+
+
 async def _run_locked(args, state: Path) -> int:
     credential = read_private_file(args.worker_credential_file, max_bytes=65536)
     api = WorkerAPI(args.api_url, credential, ca_file=args.ca_file)
     del credential
+    auth_monitor = None
+    recovery_monitor = None
+    sessions = []
+    runtime_checked = False
+    runtime_lock = asyncio.Lock()
+    # Harness prepares shared profile files during startup/config probes. Only
+    # preparation through the child's initialized identity check is serialized;
+    # its model work and conversation stay independent afterwards.
+    args._native_startup_lock = asyncio.Lock()
+
     async def observe_auth():
         from .native_auth_probe import probe_native_auth
-
         while True:
             try:
-                status = await asyncio.to_thread(probe_native_auth, args.dsh_home)
+                async with args._native_startup_lock:
+                    status = await asyncio.to_thread(probe_native_auth, args.dsh_home)
                 await api.request("auth-observation", {"status": status})
             except Exception:
-                # Authentication observations never stop an attempt or publish errors.
                 pass
             await asyncio.sleep(60)
 
-    auth_monitor = None
-    try:
-        runtime_checked = False
-        while True:
-            original = pending_claim(state, args.worker_id)
-            if original is not None:
-                pending, request = original
-                await _claim_read(api, args, "claim/reconcile", request)
-                complete_claim(pending)
-                if args.once:
-                    return 0
-                continue
-            original_inspection = pending_inspection_claim(state, args.worker_id)
-            if original_inspection is not None:
-                pending, request = original_inspection
-                await _reconcile_inspection_claim(api, args, pending, request)
-                if args.once:
-                    return 0
-                continue
-            # Recovery never depends on an SDK installation. New work still
-            # checks the runtime before creating any server-side task lease.
-            if not runtime_checked:
-                from .native_profile import check_sdk_profile
-                from .sdk import inspect_native_sdk
+    async def ensure_runtime():
+        nonlocal runtime_checked, auth_monitor
+        async with runtime_lock:
+            if runtime_checked:
+                return
+            from .native_profile import check_sdk_profile
+            from .sdk import inspect_native_sdk
+            inspect_native_sdk()
+            check_sdk_profile(args.dsh_home)
+            check_cordis_runtime()
+            runtime_checked = True
+            auth_monitor = asyncio.create_task(observe_auth())
 
-                inspect_native_sdk()
-                check_sdk_profile(args.dsh_home)
-                check_cordis_runtime()
-                runtime_checked = True
-                auth_monitor = asyncio.create_task(observe_auth())
-            from hypertest.config import get_settings
-            if get_settings().cloud_native_session_inspection_enabled:
-                if await inspect_next_original_session(api, args, state):
-                    if args.once:
-                        return 0
-                    continue
-            current = await _claim_read(api, args, "claim/state", {"worker_id": args.worker_id})
-            if not current["closed"]:
-                raise CloudBlocked("CLAIM_RECONCILIATION_REQUIRED", "Server claim has no matching local intent; explicit recovery is required")
-            request = {"worker_id": args.worker_id, "request_key": secrets.token_hex(24),
-                "sequence": current["sequence"] + 1, "lease_seconds": args.lease_seconds,
-                "supports_attempt_manifest": True}
-            pending = prepare_claim(state, request)
-            try:
-                claim_result = _claim_response(await api.request("claim", request), args.worker_id, request=request)
-            except Exception as error:
-                # Even a 5xx may follow a committed claim. Never POST it again.
-                if args.once or not _retryable_api_failure(error):
-                    raise
-                await asyncio.sleep(min(max(args.poll_seconds, 0.25), 30))
-                continue
-            kind = claim_result["kind"]
-            if kind == "EMPTY":
-                complete_claim(pending)
-                if args.once:
-                    return 0
-                await asyncio.sleep(args.poll_seconds)
-                continue
-            claim = claim_result["claim"]
-            work_error = None
-            try:
-                if kind == "RESOLUTION":
-                    await resolve(api, args, state, claim)
-                else:
-                    await execute(api, args, state, claim)
-            except Exception as error:
-                work_error = error
-            # Close the original scheduling slot even after normal completion;
-            # closure cannot accept reports, restart work or erase UNKNOWN.
+    try:
+        recovery_monitor = asyncio.create_task(_recover_conversations(api, _conversation_spools(state),
+            args.worker_id, once=args.once))
+        # v2 records retain their exact body/digest and only close the legacy
+        # scheduling slot. They can never be translated into a new claim.
+        original = pending_claim(state, args.worker_id)
+        if original is not None:
+            pending, request = original
             await _claim_read(api, args, "claim/reconcile", request)
             complete_claim(pending)
-            if work_error is not None:
-                raise work_error
             if args.once:
+                await recovery_monitor
                 return 0
+        inspection = pending_inspection_claim(state, args.worker_id)
+        if inspection is not None:
+            pending, request = inspection
+            await _reconcile_inspection_claim(api, args, pending, request)
+            if args.once:
+                await recovery_monitor
+                return 0
+        count = 1 if args.once else getattr(args, "max_sessions", 4)
+        if type(count) is not int or not 1 <= count <= 64:
+            raise CloudBlocked("WORKER_CAPACITY_INVALID", "Worker capacity must be between 1 and 64")
+        slots = state / "slots"
+        slots.mkdir(mode=0o700, exist_ok=True)
+        if slots.is_symlink() or not slots.is_dir():
+            raise CloudBlocked("CLAIM_SLOT_INVALID", "Worker slots require a private directory")
+        configured = {"slot-" + str(index) for index in range(1, count + 1)}
+        existing = {path.name for path in slots.iterdir() if re.fullmatch(r"slot-[1-9][0-9]{0,3}", path.name)}
+        # Shrinking capacity cannot discard an outstanding old slot.
+        for slot_id in sorted(configured | existing):
+            slot_state = private_root(str(slots / slot_id))
+            sessions.append(asyncio.create_task(_run_slot(api, args, state, slot_state, slot_id,
+                retire_only=slot_id not in configured, ensure_runtime=ensure_runtime), name="cloud-" + slot_id))
+        outcomes = await asyncio.gather(*sessions, return_exceptions=True)
+        if args.once:
+            await recovery_monitor
+        failures = [item for item in outcomes if isinstance(item, BaseException)]
+        if args.once and failures:
+            raise failures[0]
+        return 1 if failures else 0
     finally:
+        for session in sessions:
+            if not session.done():
+                session.cancel()
+        await asyncio.gather(*sessions, return_exceptions=True)
         if auth_monitor is not None:
             auth_monitor.cancel()
             await asyncio.gather(auth_monitor, return_exceptions=True)
+        if recovery_monitor is not None:
+            recovery_monitor.cancel()
+            await asyncio.gather(recovery_monitor, return_exceptions=True)
         await api.close()
 
 
@@ -877,6 +1132,7 @@ def main(argv=None) -> int:
     parser.add_argument("--state-dir", required=True)
     parser.add_argument("--lease-seconds", type=int, default=90, choices=range(15, 301))
     parser.add_argument("--poll-seconds", type=float, default=2.0)
+    parser.add_argument("--max-sessions", type=int, default=4, choices=range(1, 65))
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args(argv)
     try:

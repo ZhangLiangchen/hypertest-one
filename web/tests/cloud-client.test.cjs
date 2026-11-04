@@ -149,6 +149,33 @@ test("Delete remains pending until its original receipt reads back a tombstone",
   harness.close();
 });
 
+test("Continuation keeps its original key until the same attempt and continuation intent read back", async () => {
+  let present = false, posts = 0, receipt;
+  const harness = operationHarness({
+    cloudRequest: async (_path, init) => {
+      posts++;
+      const payload = JSON.parse(init.body);
+      receipt = { status: "ACCEPTED", profile: harness.client.CLOUD_PROFILE, project_id: payload.project_id,
+        task_id: payload.task_id, attempt_id: payload.attempt_id, operation_key: payload.operation_key,
+        operation: payload.operation, version: payload.expected_version + 1 };
+      return receipt;
+    },
+    cloudOperation: async () => receipt,
+    cloudDocument: async (project, task, version) => ({ ...completeDocument(project, task, version),
+      task: { project_id: project, id: task, version, latest_attempt_id: receipt.attempt_id },
+      attempts: [{ id: receipt.attempt_id, status: "PREPARING", checkpoint: { native_resume: {
+        operation_key: present ? receipt.operation_key : "other-original", identity_source: "OPERATOR_ADOPTED" } } }],
+    }),
+  });
+  await harness.mount("project-a");
+  assert.equal(await harness.render().submit({ operation: "RESUME_ATTEMPT", task_id: "task-a", attempt_id: "attempt-a", expected_version: 4 }), null);
+  const key = harness.render().pending.operation_key;
+  present = true;
+  assert.equal((await harness.render().reconcile()).operation_key, key);
+  assert.equal(posts, 1);
+  harness.close();
+});
+
 for (const operation of ["DISPATCH", "START_TASK"]) test(`${operation} keeps its original key until the accepted attempt and digest read back`, async () => {
   let phase = "missing", posts = 0, receipt;
   const digest = "a".repeat(64);
@@ -326,7 +353,7 @@ function taskPage(status, options = {}) {
     if (name === "@/app/projects/[projectId]/cloud/cloud-shared") return { CloudCapabilitiesNotice: "CloudCapabilitiesNotice", CloudOperationNotice: "CloudOperationNotice", CloudAttemptRecovery: "CloudAttemptRecovery" };
     if (name === "@/app/projects/[projectId]/cloud/task-form") return { CloudTaskForm: "CloudTaskForm" };
     if (name === "./records") return { CloudTaskRecords: "CloudTaskRecords" };
-    if (name === "./live-questions-panel") return { LiveQuestionsPanel: "LiveQuestionsPanel" };
+    if (name === "./conversation-panel") return { ConversationPanel: "ConversationPanel" };
     if (name === "./delete-task") return { CloudTaskDelete: "CloudTaskDelete" };
     if (name === "./retry-dialog") return { RetryDialog: "RetryDialog" };
     if (name === "./recovery-choice") return { RecoveryChoice: "RecoveryChoice" };
