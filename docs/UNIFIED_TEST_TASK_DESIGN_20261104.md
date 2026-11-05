@@ -2,6 +2,8 @@
 
 日期：2026-11-04（Asia/Singapore）。状态：**设计已确定，尚未据此实施或部署**。
 
+2026-11-05 澄清：xblock → hypervise_pure 同名会话 → 自动填写 Prompt → Agent 测试 → CLI 上传 → HyperTest 根据明确报告自动更新任务。CLI 只上传不等于归档后仍须人工改状态；下文已按此修正。
+
 本文件把项目负责人的最新决定整理成后续实现依据，对应 [ADR-042](architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md)。本轮只编写文档，不修改业务代码、不迁移数据库、不启动模型或被测系统测试。源码实现、CLI 发行、测试服务器部署和 USER_OWNED 功能验收必须分别记录。
 
 本轮文档采用独立提交，不包含当前工作区其他会话已有的未提交实现。文档提交的父版本不能视为最新部署源码，文档分支不能直接作为部署源。新会话须先核对当前分支、dirty diff 与实际运行版本，选择正确实现基线后整合本 ADR 和设计；不得 reset 已有修改，也不得从文档分支直接部署旧代码。
@@ -14,8 +16,8 @@ HyperTest 只提供统一的项目、测试任务和产物档案。本地与云�
 - 云端任务保存后，用户必须再次明确点击“开始测试”。HyperTest 才持久化本次开始意图，由轻量 launcher 向原生 Harness 一次性传递任务名称、任务输入和归档目标。
 - Harness Web runtime 是云端 session 的唯一运行所有者。计划、工具、团队、审批、提问、继续、停止、恢复以及原生队列全部由 Harness 提供。
 - HyperTest 不实现实时对话、提问/回答透传、审批代理、会话重连、运行事件镜像或执行进度同步。任务详情相对 Local 只增加已创建会话的 **Harness Web UI 跳转**。
-- Agent 使用项目现有测试框架自主完成测试，通过共用 Skill 和 CLI 上传正式产物。CLI 只做授权配套、归档、回执核验及原 key 恢复，不修改 Task 或 Subtask 状态，不提供 `complete`、开始、取消或继续任务命令。
-- 报告接受后立即出现在任务详情，无需审批、发布或汇总操作才能查看。现有 Web 任务状态管理独立保留，报告、任务状态和归档回执不互相推导。
+- Agent 使用项目现有测试框架自主完成测试，通过共用 Skill 和 CLI 上传正式产物。CLI 只做授权配套、归档、回执核验及原 key 恢复，不调用 Task/Subtask 管理接口，不提供 `complete`、开始、取消或继续任务命令。
+- 报告接受后立即出现在任务详情；其中具有有效目标和版本依据的明确进度/结果声明由 HyperTest 自动更新到同一任务，无需审批、发布或人工再改状态。现有 Web 人工管理能力保留。进度、报告结果、归档回执分别表达，只有明确报告声明触发状态更新，不能仅凭上传成功或会话退出推断。
 - 本地仍允许先完成测试，再在 Web 创建或选择任务并上传；平台任务不是本地测试的前置条件。
 
 本决定进一步替代 ADR-039 / ADR-041 中由 HyperTest 保存运行对话、转发原生问题、重连原会话等设计；ADR-040 的原生项目目录原则保留，其旧 SDK / Attempt 桥接要求按 ADR-042 定向替代。它也替代 [ADR-027](architecture/ADR-027_EXPLICIT_LOCAL_ARTIFACT_ARCHIVE.md) 中 Local/Cloud 必须使用独立任务实体的限制。授权、原 key、UNKNOWN、版本冲突和结果真实性仍适用。
@@ -44,6 +46,7 @@ flowchart LR
     A --> CLI[同一个 hypertest CLI]
     CLI -->|显式目标、正式产物、HTTPS| T
     T -->|原回执与固定版本读回| CLI
+    T -->|接受明确进度与结果报告后自动更新| TS[同一 Task / 明确子任务的状态与报告结果]
 
     M[独立 Memory Gateway / PowerContext]
     LA -.->|既有独立授权| M
@@ -68,15 +71,30 @@ Task 的原始输入与 Agent 实际检出的 SHA、实际测试的 SUT build �
 
 已创建任务可以复制同源测试 Prompt，由本地 Agent 完成工作并在明确授权的产物范围内调用归档 Skill。用户也可以先在本地测试，随后创建任务并复制只有归档目标和文件范围的归档 Prompt。
 
-CLI 完整核验归档回执后返回任务链接。测试本身可以失败、阻塞或尚未全部完成；这些正式材料均可归档。上传不替用户完成任务状态管理。
+CLI 完整核验归档回执后返回任务链接。测试本身可以失败、阻塞或尚未全部完成；这些正式材料均可归档。与 Cloud 相同，HyperTest 根据已接受报告中的明确进度/结果声明自动更新目标状态；普通文件上传不作此推断。
 
 ### 3.3 云端开始测试
 
 1. 用户在已保存任务上点击“开始测试”。Web 固定本次 key 和所见 Task version。
 2. 服务端在当前授权和版本检查后，原子保存 `TaskLaunch` 与不可变输入快照。接受该请求只表示启动意图已保存。
-3. launcher 领取这条启动意图，在目标节点准备共用 Skill、受限 CLI 配置和项目工作目录，通过核验过的原生接入建立 session 并交付首次任务输入。
+3. launcher 领取这条启动意图，在目标节点准备共用 Skill、受限 CLI 配置和项目工作目录，通过核验过的原生接入在对应框架项目内建立 session。会话名与 HyperTest 任务名完整一致，自动填入并提交固定的首次 Prompt，不让模型重新命名，也不要求用户再次手工填写。
 4. launcher 保存原生 session 引用、合法 Web 深链接和真实启动回执。HyperTest 显示“打开 Harness”，此后执行交互完全在 Harness UI 中完成。
-5. Agent 在原生运行环境内自主测试并显式调用共用 CLI。HyperTest 只接收正式产物，在统一任务详情展示。
+5. Agent 在原生运行环境内按共用 Skill 自主完成测试分析、测试用例实现和测试执行，显式调用共用 CLI 上传产物。HyperTest 接受报告后展示原件，并依据明确进度/结果声明更新同一任务。
+
+用户指定的 xblock 主流程为：
+
+```mermaid
+flowchart TD
+    A[用户在 HyperTest xblock 项目手动创建任务] --> B[保存：不执行]
+    B --> C[用户明确点击开始测试]
+    C --> D[在 DeepSeek Harness 的 hypervise_pure 原生项目创建同名会话]
+    D --> E[自动填写并提交 Prompt 和归档目标]
+    E --> F[Agent 自主测试分析、用例实现、测试执行]
+    F --> G[统一 CLI 上传正式产物与明确进度报告]
+    G --> H[HyperTest 接受报告并自动更新任务状态与报告结果]
+```
+
+xblock 与 hypervise_pure 的关联取自项目既有框架仓库和执行节点原生 workspace 映射，实施时核实实际 workspace ID、目录和名称；不要把这两个业务名称写死在通用代码里。原生“任务”是该项目内的 session，不新建第二套平台业务任务。Prompt 使用任务输入、共用模板/Skill 指令和明确归档目标生成并固定在启动快照中；后续编辑不修改已发送内容。测试分析、用例实现与执行是 Agent 的工作安排，不是 HyperTest 的三个受控阶段。
 
 开始动作不是浏览器保存后的第二次自动请求，也不是以“创建任务并开始”为默认提交。没有用户明确开始，launcher 不得接取任何待执行任务。打开 Harness 链接和读取启动回执均为只读，不能补发初始 prompt。
 
@@ -84,7 +102,29 @@ CLI 完整核验归档回执后返回任务链接。测试本身可以失败、�
 
 任务详情直接展示已接受的 PLAN、CASE、REPORT 与支持的附件；保留原文、上传者、来源、修订和 reported result。可选子任务只是用户管理和产物分组，不是 Harness 阶段或团队队列。
 
-沿用现有 Task 的 Web“修改状态”管理语义；如保留 Subtask 管理状态，其修改须放在相同管理权限下的独立接口，而不是归档协议。这是目标合同，不宣称当前已有独立 Subtask 状态接口。无需先发布汇总才能看到报告或管理状态；已有汇总若仍保留，只是可选历史内容，不能成为新流程 gate。Harness 会话结束、CLI 返回 `ARCHIVED`、报告出现 PASS 都不会隐式改变任务进度。
+正常路径由 HyperTest 在接受明确进度报告后自动更新状态，不要求用户再点一次“修改状态”。现有 Task 的 Web 管理接口保留作人工调整；如保留 Subtask 的独立管理接口，也不能与报告处理混为 CLI 管理命令。无需先发布汇总；已有汇总若保留，只是可选历史内容。Harness 会话结束、CLI 返回 `ARCHIVED`、只有 PASS 的报告均不单独构成进度声明。
+
+### 3.5 报告驱动状态更新的最小合同
+
+下列字段为拟实施的结构化 REPORT 内容，不是新增 CLI 动作：
+
+```json
+{
+  "reported_progress": "COMPLETED",
+  "reported_result": "FAIL",
+  "basis_task_version": 3
+}
+```
+
+- Agent 明确报告本轮进度与结果。`reported_progress` 可声明 `IN_PROGRESS`、`BLOCKED`、`COMPLETED`；`reported_result` 保留既有结果取值。`COMPLETED + FAIL` 表示测试已完成但发现失败，完成不等于通过；取消等管理操作仍走用户管理入口。
+- 没有进度声明的报告、日志和附件只归档，不修改任务进度。同一次归档至多有一份用于更新目标状态的进度报告；多份冲突声明须明确拒绝，不能选最后一份猜测。
+- 报告的目标取自本次明确 Project/Task/可选 Subtask 归档目标，版本依据随任务输入或明确授权的归档上下文固定。CLI 只运输并冻结这些字段，不生成结论、不把旧报告换成最新版本以强行覆盖。Task 根报告只更新该 Task，子任务报告只更新对应 Subtask，不自动完成父任务。
+- 同一任务后续新生成的明确报告，可使用前一次已确认状态更新回执中的新管理版本作为依据；这不允许改写已经冻结的旧报告或 UNKNOWN 请求，也不能用重新读取当前版本绕过冲突。
+- HyperTest 在归档接受事务内复用现有目标锁、版本检查和审计；报告符合目标及版本前提时，将其进度与结果更新到目标，记录 Submission、报告修订及变更后的管理版本。归档授权因此允许该目标的报告声明被处理，但不授予任意任务管理 API 权限。
+- 旧报告、输入变化或并发人工状态调整导致版本冲突时，已有效接受的报告原件保留，当前任务状态不覆盖，回执明确记录状态更新未应用及原因；无需重测或重新上传原件。无法通过归档身份、目标或格式校验的请求仍拒绝。
+- 在现有归档回执中保存状态处理结果，例如 `APPLIED`、`NOT_REQUESTED`、`CONFLICT`；复用既有回执/审计，不新建一套完成工作流。同 key 只返回原接受报告、固定版本及原处理结果，不再次推进管理版本；失答仍只按原 key 查询。
+
+以上规则 Local/Cloud 完全相同，不是 Cloud 独有的完成协议，也不需要 Harness 事件订阅。
 
 ## 4. 最小数据方案
 
@@ -92,10 +132,10 @@ CLI 完整核验归档回执后返回任务链接。测试本身可以失败、�
 
 | 对象 | 最小内容 | 明确边界 |
 | --- | --- | --- |
-| Task | `id`、`project_id`、`title`、`input`、可选默认 `execution_location`、管理 `version`、`status`、创建者与时间 | 一种业务任务；位置仅为可编辑默认偏好，也可仅在本次交付选择；不构成不可变任务类型 |
-| Subtask（可选） | `id`、`project_id/task_id`、名称、说明、管理状态 | 无默认子任务；CLI 不修改其状态 |
-| Archive 及资产修订 | 目标根/子空间、`archive_version`、PLAN/CASE/REPORT 内容、来源和报告结果、不可变修订 | 延续现有目标空间隔离与追加修订 |
-| ArchiveSubmission / Snapshot | 原 key、认证 uploader/client、完整原请求及摘要、预期版本、接受版本、固定快照和回执 | 复用归档可靠交付能力；不保存任务运行事件 |
+| Task | `id`、`project_id`、`title`、`input`、可选默认 `execution_location`、管理 `version`、`status`、报告结果/来源、创建者与时间 | 一种业务任务；明确报告可更新进度/结果；位置不构成不可变任务类型 |
+| Subtask（可选） | `id`、`project_id/task_id`、名称、说明、管理状态 | 无默认子任务；状态由服务端处理明确报告或管理接口更新，CLI 不直接调用管理接口 |
+| Archive 及资产修订 | 目标根/子空间、`archive_version`、PLAN/CASE/REPORT 内容、来源、明确进度与报告结果、不可变修订 | 延续目标空间隔离；进度报告固定版本依据，不能用旧报告覆盖新状态 |
+| ArchiveSubmission / Snapshot | 原 key、认证 uploader/client、完整原请求及摘要、预期版本、接受版本、固定快照、状态处理结果和回执 | 接受产物与服务端状态处理可按原 key 一并查询；不保存运行事件 |
 | TaskLaunch | `id`、`project_id/task_id`、开始原 key、请求者、启动时 Task version、输入快照、节点/launcher 引用、原生 session 引用、Web URL、启动回执及时间 | 仅记录一次启动交付；不承担测试执行生命周期 |
 
 这些是职责分组，不要求每个名词新建一张表。现有 ArchiveSnapshot、Submission、AssetRevision 和管理回执可以定向改名或重用；不建立 Skill registry、统一执行总线、阶段表、运行状态镜像或新的控制器。
@@ -112,16 +152,16 @@ CLI 完整核验归档回执后返回任务链接。测试本身可以失败、�
 | --- | --- | --- |
 | 创建任务 | `POST /api/v1/test-tasks` | 明确 Project、title/input、位置、原 key；只保存 |
 | 读取/编辑任务 | `GET /api/v1/test-tasks/{task_id}`、对应管理更新接口 | Project 归属、当前权限、管理 version 和原 key；不触发执行 |
-| 管理任务/子任务状态 | 现有 Web 管理语义迁入统一任务接口 | 仅管理身份可写，独立于归档权限 |
+| 人工管理任务/子任务状态 | 现有 Web 管理语义迁入统一任务接口 | 仅管理身份调用；与服务端处理报告声明的路径区分 |
 | 显式云端开始 | `POST /api/v1/test-tasks/{task_id}/launches` | 用户明确动作、预期 Task version、原 key；持久化一次启动意图 |
 | 启动原 key 读取 | 启动记录按 key 查询与按 ID 读取 | 只读，不创建 session，不重发 prompt |
 | 归档能力与读取 | `/api/v1/archive/capabilities`、目标 archive 读取 | 同一 API 支持两种执行位置 |
-| 归档提交 | `POST /api/v1/archive/tasks/{task_id}/submissions` | Project/Task/可选 Subtask、原 key、预期归档版本、明确资产 |
+| 归档提交 | `POST /api/v1/archive/tasks/{task_id}/submissions` | Project/Task/可选 Subtask、原 key、预期归档版本、明确资产；进度 REPORT 可携带结构化声明及固定管理版本依据 |
 | 归档恢复 | submission 原 key 查询、固定 submission/version 完整读取 | 原请求核验、固定接受快照；不自动换 key |
 
 CLI 保留 `auth`、`profile`、`doctor`、`archive`、`status`、`reconcile` 和明确的 Skill 安装能力；不新增测试任务管理子命令。`archive` 的参数和 manifest 均不包含 local/cloud 模式。`status` 仍指归档请求状态，不是 Task 状态或 Harness 运行状态。
 
-现有 `subtask_update` 允许归档修改子任务进度/结果，与此次决定冲突：新统一归档协议必须删除该管理写能力。资产自带的 `reported_result` 仍可上传；Task/Subtask 的管理状态不在上传请求中出现。CLI 冻结内容、服务端 schema、固定快照和读回断言须同步调整，不能只隐藏 CLI 参数而留下 API 后门。
+现有独立 `subtask_update` 管理动作退出新合同；改由同一 REPORT 结构表达目标的明确进度和结果，根/子空间使用相同规则。CLI 不发状态管理请求，服务端按 §3.5 接受报告并处理声明。CLI 冻结内容、服务端 schema、固定快照和读回断言同步调整；不得再以“CLI 只上传”为由阻止服务端自动更新，也不能把归档扩成任意 Task 管理接口。
 
 当前 CLI 接收有限路径的 UTF-8 文本和结构化 CASE，约 2 MiB 单请求上限；这不是截图、视频或任意目录归档能力。实施先明确统一方案需要承接的产物类型和尺寸；本轮需要保留的截图等二进制附件必须在退出旧通道前扩展到**同一个 Archive API**，包括有限文件上传、类型/大小校验、秘密边界、内容完整性及固定版本引用，两种位置共同使用。其余未支持类型如实报告，不默默丢弃；不要留下 CloudArtifact 专用通道，也不能只保存 URI 后声称已保存原件。
 
@@ -131,7 +171,7 @@ CLI 保留 `auth`、`profile`、`doctor`、`archive`、`status`、`reconcile` �
 
 | 状态/信息 | 保存或展示位置 | 写入主体与含义 |
 | --- | --- | --- |
-| Task/Subtask 进度 | HyperTest 统一任务 | Web 管理身份明确修改；不是自动执行进度 |
+| Task/Subtask 进度 | HyperTest 统一任务 | 接受明确报告后由服务端自动更新，或用户通过 Web 人工管理；不是 Harness 实时运行镜像 |
 | 报告结果 | 接受的报告/用例修订 | 原产物声明；上传者和来源可追溯，不升级独立验证 |
 | 归档传输状态 | CLI 私有账本与服务端回执 | PENDING、UNKNOWN、REJECTED、ARCHIVED、UNCHANGED 等仅描述提交 |
 | 启动交付状态 | TaskLaunch | 仅描述尚未发送、交付中、已确认、明确拒绝或 UNKNOWN |
@@ -143,7 +183,7 @@ CLI 保留 `auth`、`profile`、`doctor`、`archive`、`status`、`reconcile` �
 
 - 创建、编辑、修改任务状态和开始测试均沿用当前 Web 管理身份及 Project 边界。
 - Local 继续使用用户已批准的 CLI profile。Cloud 自动配置本任务所需的归档身份与权限；不得复制本地用户永久全项目 credential，也不得向 Agent 提供 Operator key、数据库凭据或 launcher 管理凭据。
-- 两种位置使用同一归档鉴权规则，Cloud 限制通过 grant 的目标范围表达，而不是 CLI 分支。归档目标至少限定 Project/Task；如指定子任务，继续检查父子关系。`archive:read/write` 不授予 Task/Subtask 管理、Harness 控制或 Memory 权限。
+- 两种位置使用同一归档鉴权规则，Cloud 限制通过 grant 的目标范围表达，而不是 CLI 分支。归档目标至少限定 Project/Task；如指定子任务，继续检查父子关系。`archive:read/write` 允许该获准目标的明确报告参与 §3.5 的状态处理，不授予任意 Task/Subtask 管理 API、Harness 控制或 Memory 权限。
 - 归档上传者取自服务端认证，`origin_session_ref` 等只是产物来源声明。已关联的原生 session ID、Task ID 和深链接都不是授权凭据。
 - 不在 URL 中携带 bearer token。Harness 深链接仅接受配置的受信原生 UI origin 与合法 session 路由，不能使用用户任务输入中的任意地址作为管理入口。
 
@@ -218,7 +258,7 @@ skills/hypertest-archive/
 
 四类模板不默认要求“双 subagent”、固定团队规模、并行复核或完整回归矩阵。Agent 按具体任务和原生 Harness 能力决定是否委派；提炼已有本地做法时，去掉仅属于某次任务的固定编排要求。
 
-`hypertest-archive` 只处理明确上传指令、有限正式文件清单、manifest、CLI 调用和结果解释。它不执行测试、不扫描聊天/推理/认证目录、不设置任务状态。云端开始 Prompt 可预先明确授权本次正式产物归档，Agent 完成后显式调用 Skill；这不意味着新增后台 Hook、定时同步或平台收集器。
+`hypertest-archive` 只处理明确上传指令、有限正式文件清单、manifest、CLI 调用和结果解释。它不执行测试、不扫描聊天/推理/认证目录、不调用任务管理接口；保留 Agent 已明确生成的报告进度/结果及版本依据，不自行补造完成声明。云端开始 Prompt 可预先明确授权本次正式产物归档，Agent 完成后显式调用 Skill；这不意味着新增后台 Hook、定时同步或平台收集器。
 
 归档阶段使用已经存在的正式产物，不调用 `make report` 或其他可能重新测试、重算或改写报告的命令。若现有文件缺失，明确报告缺失和归档限制；不能为凑齐档案自动重测或生成未经实际执行支持的结果。
 
@@ -235,6 +275,8 @@ skills/hypertest-archive/
 先查项目资料与现有测试，确认预期行为及影响范围，执行最小必要的
 正常、异常和边界验证。需要澄清或批准时，通过当前 Harness 原生界面完成。
 报告包含一句话结论、实际版本、用例及实际结果、原始执行记录、问题和未验证项。
+明确声明本轮 reported_progress 与 reported_result，并保留任务上下文的版本依据；
+测试完成但存在失败应报告 COMPLETED + FAIL，不把完成等同于通过。
 
 本轮结束后，显式使用 hypertest-archive Skill，将本轮正式报告、用例
 和选定原始附件上传到 Project ID：${project_id}，Task ID：${task_id}。
@@ -247,14 +289,14 @@ skills/hypertest-archive/
 
 | 范围 | 当前入口/文件 | 目标 |
 | --- | --- | --- |
-| 统一领域与归档服务 | `src/hypertest/domain/local_archive.py`、`application/local_archive.py`、`api/archive_schemas.py`、`api/archive_routes.py` | 抽掉 Local 专属业务身份；统一 Task 与归档；删除归档修改 Subtask 状态能力 |
+| 统一领域与归档服务 | `src/hypertest/domain/local_archive.py`、`application/local_archive.py`、`api/archive_schemas.py`、`api/archive_routes.py` | 统一 Task 与归档；退出独立 subtask_update，服务端按明确报告更新同目标状态 |
 | 旧 Cloud 任务链 | `domain/cloud_tasks.py`、`application/cloud_tasks.py`、`api/cloud_routes.py`、`api/cloud_schemas.py` | 退休独立 CloudTask/Attempt 业务状态、输入解析和专用报告协议；留下必要启动交付职责 |
 | SDK 运行所有者 | `cloud/native_worker.py`、`native_sdk_driver.py`、`native_sdk_adapter.py`、`native_cordis.py` | 用原生 Web runtime 启动入口替换 SDK 持 writer 的长期运行路径；不要保留并行双 owner |
 | 原生会话/对话桥 | `cloud/native_conversation.py`、`conversation_bridge.py`、`native_conversation_history.py`、`application/cloud_conversation*.py`、`api/cloud_conversation_routes.py` | 删除 HyperTest 对话记录、投递、重连、运行历史镜像 |
 | 提问/恢复桥 | `cloud/live_question_bridge.py`、`application/cloud_live_questions.py`、`cloud/native_session_restore.py`、`application/cloud_native_session_restore.py` | 删除平台问题、答案、审批透传、会话恢复/检查业务入口 |
 | Worker 专用汇报 | `cloud/reporter.py`、`handoff_contract.py`、`handoff_rejections.py`、`artifacts.py` 及 Cloud writer 路由 | 当前目标路径改由共用 CLI；去掉阶段、平台委派、Run 和完成 gate |
 | 外部操作控制 | `cloud/action_*`、`http_*`、`ssh_*`、相应 application/domain 模块 | 核对旧 profile 依赖后定向退休；不把这些控制搬进 launcher |
-| 共用 CLI | `src/hypertest/cli/__init__.py`、`archive.py`、`manifest.py`、`state.py`、`auth.py` | 去位置专属 profile/URL；任务范围配置；原 key 与读回；移除状态管理载荷 |
+| 共用 CLI | `src/hypertest/cli/__init__.py`、`archive.py`、`manifest.py`、`state.py`、`auth.py` | 去位置分支；任务范围配置；只上传报告声明及版本依据，读回原回执，不调用管理接口 |
 | 创建与任务详情 | `web/app/projects/[projectId]/tasks/new/`、`web/app/archives/`、`web/app/cloud-tasks/[taskId]/` | 一套表单与详情；保存和开始分开；云端仅增加原生 UI 跳转 |
 | Web 旧执行交互 | Cloud conversation/live-question/恢复组件、`web/lib/cloud*.ts`、Cloud BFF | 删除实时执行界面和对应代理；收敛到统一任务/归档及启动 API |
 | Prompt 与 Skill 分发 | `web/lib/cloud-test-prompt.ts`、`web/lib/archive.ts`、CLI Skill 安装/发行脚本、实际项目自测指引 | 提炼并共用四类模板；项目专有逻辑保留框架内 |
@@ -267,7 +309,7 @@ skills/hypertest-archive/
 按 [ADR-028](architecture/ADR-028_PROTOTYPE_LEGACY_REMOVAL.md) 对被替代且不兼容的旧 Cloud 实现与关联数据定向清理，不要求兼容旧任务或重建一套历史映射。
 
 1. 先根据实际 schema 与外键列出替代范围：旧 CloudTask/Attempt、输入解析、Cloud 专用产物与汇报记录、平台委派/运行记录、实时问题/答案/对话、原生恢复、外部动作和受其拥有的回执等。共享 Project、凭据和独立 Native/Memory 不能按名称批量删除。
-2. 现行 Local 归档是共用实现基础，可保留 Task ID、资产修订、快照和原接受回执；删除上传修改 Subtask 状态能力不意味着改写过去已接受快照。新合同采用新的版本标识时，旧回执仍按原正文解释，不能修改 digest 或补造上传。
+2. 现行 Local 归档是共用实现基础，保留 Task ID、资产修订、快照和原接受回执；退出旧 subtask_update、采用明确报告驱动状态不意味着改写过去已接受快照。新合同采用新的版本标识时，旧回执仍按原正文解释；不得为旧报告补造进度声明或批量触发状态更新。
 3. 旧 Cloud 数据若选择删除，记录确切表/对象范围和数量；若明确选择保留某份报告，按其原来源保留为历史材料，不能生成虚假的新 CLI 接受回执。不要为了保留所有旧字段增加兼容层。
 4. 新旧入口切换时，不能把既有 SENT/UNKNOWN 发送意图重新排入 launcher 或共用归档队列。被退休原 key 路径无法继续查询时如实说明，不推断未执行；不自动创建新 key 或重跑模型/外部动作。
 5. 不清空整库、不删除数据库卷、不重置业务库、不复制用户源文件或全局授权。只在专用 test DB 中写入/重置合成 fixture。
@@ -282,7 +324,7 @@ skills/hypertest-archive/
 - **创建/开始边界：** 保存、读取、页面刷新和创建原 key 恢复均零原生启动；明确开始后一次持久启动意图；重复 key 返回同一结果；第二个 key 不能绕过尚未确认或 UNKNOWN 的启动。
 - **原生交付恢复：** create/prompt 分别覆盖发送前失败、明确接受、失答/UNKNOWN 和原 key 查询；缓存命中不当作严格幂等；恢复不重发初始任务。
 - **授权拒绝：** 跨 Project/Task/Subtask 拒绝；Cloud 任务归档配置不能管理任务、访问别的任务或 Memory；受限深链接 origin、当前 Web 权限和配置秘密边界。
-- **共用归档：** Local/Cloud 相同输入走相同服务；固定版本读回、原 key 异正文冲突、版本冲突、UNKNOWN 不重放；Task/Subtask 管理状态在上传前后不变，`subtask_update` 新写被拒绝。
+- **共用归档：** Local/Cloud 相同输入走相同服务；普通附件或无进度声明时状态不变，明确报告自动更新同一目标；COMPLETED/FAIL、子任务不影响父任务、旧报告/人工改状态冲突时保留报告但不覆盖、同 key 不重复推进管理版本；固定版本读回、异正文冲突、UNKNOWN 不重放及旧 `subtask_update` 新写拒绝。
 - **报告与页面：** 接受报告立即展示；未运行/失败/UNKNOWN 不改标 PASS；PC 宽屏统一创建/详情正常，只有云端出现已确认会话链接；不存在聊天、审批、重连或运行镜像入口。
 - **定向迁移：** 在专用 test DB 验证新模型、外键与明确旧对象清理；无关 Project、当前归档、授权和 Memory 引用不被连带删除。
 - **模板：** 四类模板同源，Local/Cloud 只有启动包装差异；不默认双 subagent，归档 Skill 不含任务管理、`make report` 或重测命令，项目特定测试逻辑留在框架。
@@ -292,13 +334,13 @@ skills/hypertest-archive/
 ## 12. 实施顺序与完成条件
 
 1. **核对工作区与原生入口。** 读取本设计、ADR-042、四份基础规范及当前 TODO；核实 dirty 内容的归属、实际部署 SHA/schema/runtime，完成第 7 节能力调查。不要从文档日期、当前 HEAD 或未跟踪文件推断部署状态。
-2. **收敛领域与接口。** 实现统一 Task/Archive、独立 Web 管理状态、一次启动记录和任务范围归档授权；同步 schema、关键拒绝路径和基础规范。
-3. **打通共用 CLI 与 Skill。** 去除位置分支和所有 Task/Subtask 管理写入；从 Local 实践提炼四类同源模板，按需要扩展同 API 的附件能力。
+2. **收敛领域与接口。** 实现统一 Task/Archive、报告驱动状态更新及独立 Web 人工管理、一次启动记录和任务范围归档授权；同步 schema、关键拒绝路径和基础规范。
+3. **打通共用 CLI 与 Skill。** 去除位置分支和独立管理动作；传输报告明确声明并读回服务端状态处理结果；从 Local 实践提炼四类同源模板，按需要扩展同 API 的附件能力。
 4. **替换云端启动。** 原生 Web runtime 获得唯一运行所有权；launcher 只准备配置和一次交付，正确保存 create/prompt 的原 key 与未知结果。删除旧 SDK 长期 owner 和平台对话/审批/重连链。
 5. **统一 Web 与定向迁移。** 一套创建、详情和档案；保存不启动，显式开始，原生 UI 跳转；清理明确被替代的代码和数据。
 6. **相关回归与交付。** 运行必要检查一次，记录通过、失败、未运行及仍待原生真实验证的限制。后续会话得到实现/部署授权时，按现行规则 commit/push、固定完整 SHA、复用当前 Mac 容器部署；记录镜像身份、schema 和健康结果。CLI 发行与宿主实际安装单独记录。
 
-实现完成的判据是职责和实际行为符合本文件：只有一套任务/归档；只有用户开始会下发；原生 runtime 独占执行；HyperTest 没有运行交互桥；CLI 不管理任务状态；报告直接可见；关键授权与未知恢复不退化。不能用代码存在、健康检查或一次模拟上传替代原生功能验收。
+实现完成的判据是职责和实际行为符合本文件：只有一套任务/归档；只有用户开始会下发；原生项目中自动创建同名会话并填入 Prompt；原生 runtime 独占执行；HyperTest 没有运行交互桥；CLI 只上传，服务端接受明确报告后自动更新任务；报告直接可见；关键授权与未知恢复不退化。不能用代码存在、健康检查或一次模拟上传替代原生功能验收。
 
 ## 13. 可复制到新会话的实施指令
 
@@ -319,8 +361,8 @@ skills/hypertest-archive/
 2. 用户手动创建并保存任务，不启动执行；保存后必须再次明确点击“开始测试”，才允许 launcher 一次下发任务名称、输入及归档配置。读取、刷新、创建回执恢复均不能启动。
 3. Harness Web runtime 是唯一 session 运行所有者。HyperTest 删除实时聊天、原生提问/回答透传、审批代理、重连、停止/恢复、运行事件和状态镜像；任务详情相对 Local 只增加合法的 Harness Web UI 会话跳转。
 4. 当前 SDK 持 writer、3080 只读适配不能当作目标已完成。先核实实际版本原生 create/prompt 受限接入、原 key 查询保证、Web 深链接和鉴权；create 缓存不是严格幂等。超时/UNKNOWN 不重建 session、不重发初始任务。未核验的原生能力如实记录，不能用 SDK 长期代理或新平台控制流程补洞。
-5. TaskLaunch 只保存输入快照、原 key、节点/launcher/session/URL 和启动回执，不演变成运行控制对象。明确区分原生 create 与首次 prompt 的未发送、接受和未知。
-6. CLI 只做归档配套、授权、上传、回执读回及原 key reconcile；不修改 Task/Subtask 状态，不增加 complete/start/cancel/resume。删除现有 subtask_update 的新写能力；报告自带 reported_result 保留。Web 状态管理独立，报告接受后立即显示，无审批或发布前置。
+5. TaskLaunch 只保存输入快照、原 key、节点/launcher/session/URL 和启动回执，不演变成运行控制对象。明确区分原生 create 与首次 prompt 的未发送、接受和未知。以 xblock 为例，在对应 hypervise_pure 原生项目内创建与 HyperTest 任务完全同名的会话，自动填写并提交 Prompt；Agent 按共用 Skill 完成分析、用例实现和执行，不建平台阶段机。
+6. CLI 只做归档配套、授权、上传、回执读回及原 key reconcile，不调用 Task/Subtask 管理 API，不增加 complete/start/cancel/resume。HyperTest 接受报告中明确的 reported_progress/reported_result 及有效固定版本依据后自动更新同目标状态；正常路径无需人工再改状态。退出旧 subtask_update，普通附件、仅有 PASS 或 idle 不推导完成；COMPLETED + FAIL 合法。旧报告或并发人工变更冲突时报告保留、状态不覆盖，回执明确结果，同 key 不重复更新；Local/Cloud 同规则。
 7. Cloud 自动配置本任务范围 CLI 授权，不复制本地用户永久全项目凭据，不给 Agent Operator/DB/launcher 管理权限。Memory、WireGuard、TLS、私有 BFF 和独立 PowerContext 保留。
 8. 从实际 Local 自测提炼通用 project-testing 与 hypertest-archive；四类同源模板为开发需求自测、改动回归、缺陷修复验证、指定 E2E。不默认双 subagent 或固定团队，归档不调用 make report、不重测，只上传已有正式产物。项目业务规则留在测试框架，不建 Skill registry 或平台阶段机。
 9. 当前 CLI 主要支持约 2 MiB 的文本/结构化产物；如需附件扩展，扩同一个 Archive API，不留下 Cloud 专属上传链，不把 URI 当作已保存原件。
@@ -330,7 +372,7 @@ skills/hypertest-archive/
 
 本轮 ADR/设计是独立文档提交，不包含当前 worktree 已有的未提交实现；其父版本不是“最新部署源码”。先核对当前 branch、dirty diff、实际运行版本与已推送历史，选择正确实现基线后整合 ADR/设计。禁止从这份 docs 分支直接部署旧代码，禁止为取得干净基线 reset 或覆盖当前已有修改。
 
-先完成实际原生接入能力调查，再按设计实施，不再重复论证已确定的产品边界。可以读取本机安装材料，但包源码不是当前 live runtime 证据，须分别核对实际进程版本和配置。必要时同步 ADR/基础规范说明真实限制。只跑变更相关关键回归，重点覆盖保存不启动、显式一次下发、授权/版本/原 key UNKNOWN、CLI 不改状态、报告直接展示和定向迁移。通过且无具体未解决问题后停止扩大测试。
+先完成实际原生接入能力调查，再按设计实施，不再重复论证已确定的产品边界。可以读取本机安装材料，但包源码不是当前 live runtime 证据，须分别核对实际进程版本和配置。必要时同步 ADR/基础规范说明真实限制。只跑变更相关关键回归，重点覆盖保存不启动、同名会话与Prompt单次下发、授权/版本/原 key UNKNOWN、报告驱动状态更新/冲突不覆盖/重复key不重复更新、报告直接展示和定向迁移。通过且无具体未解决问题后停止扩大测试。
 
 按当前测试服务器规则 commit/push 并固定完整 SHA 后部署，保留现有访问限制；做必要构建/迁移/重启和最小健康检查。最终分别报告实现、完整提交 SHA、镜像/schema、相关回归、部署健康、CLI 发行/安装和仍待我验收的原生能力。不要将未运行、健康检查或模拟测试写成功能验收通过。
 ```

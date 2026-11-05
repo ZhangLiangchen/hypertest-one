@@ -1,6 +1,6 @@
 # Cloud 测试任务使用流程
 
-> **下一版目标已接受，尚未实施：** [ADR-042](architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 与[实施设计](UNIFIED_TEST_TASK_DESIGN_20261104.md) 规定用户手动创建、保存后另行点击“开始测试”；本地 / 云端共用任务页和只上传产物的 CLI。云端过程交互全部在原生 Harness Web UI，任务详情仅多一个跳转入口。下文记录改造前使用方式，不作为下一轮继续建设平台聊天 / 问答 / 重连的依据；文档决定不代表服务器已切换。
+> **下一版目标已接受，尚未实施：** [ADR-042](architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md) 与[实施设计](UNIFIED_TEST_TASK_DESIGN_20261104.md) 规定用户手动创建、保存后另行点击“开始测试”；本地 / 云端共用任务页和只上传产物的 CLI。云端过程交互全部在原生 Harness Web UI，任务详情仅多一个跳转入口。2026-11-05 澄清的 xblock 主链为：用户明确开始 → 对应 hypervise_pure 原生项目创建同名会话并自动填写 Prompt → Agent 分析 / 用例实现 / 执行 → CLI 上传 → HyperTest 按明确报告自动更新状态；不是上传后还须人工改状态。下文记录改造前使用方式，不作为下一轮继续建设平台聊天 / 问答 / 重连的依据；文档决定不代表服务器已切换。
 
 本指南描述 [ADR-038](architecture/ADR-038_TASK_FOCUSED_CLOUD_INPUTS.md) 的任务工作流。实际可用性取决于已部署版本；源码、自测、部署及用户验收分别记录。
 

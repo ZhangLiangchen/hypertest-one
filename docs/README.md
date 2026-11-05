@@ -7,6 +7,8 @@
 - [ADR-042：统一测试任务与 Harness 原生执行](architecture/ADR-042_UNIFIED_TEST_TASKS_AND_HARNESS_EXECUTION.md)：用户手动创建、手动开始；Local / Cloud 共用任务及只上传产物的 CLI；全部过程交互进入 Harness Web UI。
 - [实施设计与新会话交接](UNIFIED_TEST_TASK_DESIGN_20261104.md)：目标结构、原生启动接入待核验点、共用模板 / Skills、删改范围、定向迁移、必要回归与可复制交接 Prompt。
 
+2026-11-05 主流程澄清已同步两份文档：xblock 明确开始后，在对应 hypervise_pure 项目创建同名原生会话、自动提交 Prompt；Agent 测试后用统一 CLI 上传，由 HyperTest 按明确报告自动更新任务状态。CLI 不调用管理 API，正常路径无需人工再改状态。
+
 本轮交付仅为文档。以下旧 Cloud 阶段、对话、问答透传和 SDK 会话管理资料用于了解现有实现或历史；与 ADR-042 冲突的能力不再作为下一轮建设或验收目标。新设计不代表已部署，实际运行状态仍须现场核实。
 
 ## 现行入口
